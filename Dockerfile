@@ -20,9 +20,9 @@ WORKDIR /app
 RUN pip install --no-cache-dir --upgrade pip && \
     rm -rf /usr/local/lib/python3.14/site-packages/pip-25.2.dist-info 2>/dev/null || true
 
-# Copy backend code and install with dependencies
+# Copy backend code and install with dependencies (including dev/test dependencies)
 COPY backend/ ./
-RUN pip install --no-cache-dir .
+RUN pip install --no-cache-dir ".[dev]"
 
 # Stage 3: Production image
 FROM python:3.14-slim
@@ -50,8 +50,10 @@ RUN apt-get update && \
 COPY --from=backend-builder /usr/local/lib/python3.14/site-packages /usr/local/lib/python3.14/site-packages
 COPY --from=backend-builder /usr/local/bin /usr/local/bin
 
-# Copy backend application code
+# Copy backend application code and tests
 COPY --from=backend-builder /app/app ./app
+COPY --from=backend-builder /app/tests ./tests
+COPY --from=backend-builder /app/pytest.ini ./pytest.ini
 
 # Copy frontend build
 COPY --from=frontend-builder /app/frontend/dist ./static

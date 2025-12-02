@@ -9,10 +9,6 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 
 
-# Import shared fixtures from parent conftest
-pytest_plugins = ["tests.conftest"]
-
-
 @pytest.fixture
 async def test_vehicle_with_records(test_vehicle, db_session):
     """
