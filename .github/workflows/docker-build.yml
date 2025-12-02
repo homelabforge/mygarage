@@ -59,6 +59,8 @@ jobs:
           platforms: linux/amd64
 
       - name: Generate artifact attestation
+        # Attestation only works on public repos or enterprise orgs
+        if: github.event.repository.visibility == 'public'
         uses: actions/attest-build-provenance@v2
         with:
           subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
