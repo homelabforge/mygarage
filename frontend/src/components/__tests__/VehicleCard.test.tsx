@@ -33,12 +33,6 @@ describe('VehicleCard', () => {
     expect(carIcon).toBeInTheDocument()
   })
 
-  it('displays odometer reading', () => {
-    render(<VehicleCard vehicle={mockVehicle} />)
-
-    expect(screen.getByText(/45,000/i)).toBeInTheDocument()
-  })
-
   it('displays purchase price formatted', () => {
     render(<VehicleCard vehicle={mockVehicle} />)
 

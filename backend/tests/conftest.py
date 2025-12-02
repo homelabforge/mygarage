@@ -42,6 +42,18 @@ async def test_sessionmaker(test_engine):
     )
 
 
+@pytest_asyncio.fixture(scope="session")
+async def init_test_db(test_engine):
+    """Initialize test database schema."""
+    async with test_engine.begin() as conn:
+        # Create all tables from SQLAlchemy models
+        await conn.run_sync(Base.metadata.create_all)
+    yield
+    # Cleanup after tests
+    async with test_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+
+
 @pytest_asyncio.fixture
 async def db_session(test_sessionmaker) -> AsyncGenerator[AsyncSession, None]:
     """Provide a database session for tests."""
@@ -70,31 +82,53 @@ async def client(db_session) -> AsyncGenerator[AsyncClient, None]:
 
 
 @pytest_asyncio.fixture
-async def test_user(db_session: AsyncSession) -> User:
-    """Get or create a test user from the database."""
-    # Try to get existing user
+async def test_user(db_session: AsyncSession, init_test_db) -> User:
+    """Create or get a test user."""
+    from app.services.auth import hash_password
+
+    # Try to get existing test user
     result = await db_session.execute(
-        select(User).limit(1)
+        select(User).where(User.email == "testuser@example.com")
     )
     user = result.scalar_one_or_none()
 
     if not user:
-        pytest.skip("No users found in database. Please create a user first.")
+        # Create test user
+        user = User(
+            email="testuser@example.com",
+            password_hash=hash_password("TestPassword123!"),
+            is_active=True
+        )
+        db_session.add(user)
+        await db_session.commit()
+        await db_session.refresh(user)
 
     return user
 
 
 @pytest_asyncio.fixture
 async def test_vehicle(db_session: AsyncSession, test_user: User) -> Vehicle:
-    """Get a test vehicle from the database."""
-    # Try to get a vehicle for the test user
+    """Create or get a test vehicle."""
+    # Try to get existing test vehicle
     result = await db_session.execute(
-        select(Vehicle).where(Vehicle.user_id == test_user.id).limit(1)
+        select(Vehicle).where(Vehicle.user_id == test_user.id)
     )
     vehicle = result.scalar_one_or_none()
 
     if not vehicle:
-        pytest.skip("No vehicles found for test user. Please create a vehicle first.")
+        # Create test vehicle
+        vehicle = Vehicle(
+            vin="1HGBH41JXMN109186",
+            user_id=test_user.id,
+            nickname="Test Vehicle",
+            vehicle_type="Car",
+            year=2018,
+            make="Honda",
+            model="Accord"
+        )
+        db_session.add(vehicle)
+        await db_session.commit()
+        await db_session.refresh(vehicle)
 
     return vehicle
 

@@ -20,15 +20,16 @@ describe('VINInput', () => {
     const input = screen.getByRole('textbox')
     fireEvent.change(input, { target: { value: '1hgbh41jxmn109186' } })
 
-    // Component should handle uppercase conversion
-    expect(input).toHaveValue('1HGBH41JXMN109186')
+    // Component should call onChange with uppercase value
+    expect(onChangeMock).toHaveBeenCalledWith('1HGBH41JXMN109186')
   })
 
   it('validates VIN length', () => {
     const onChangeMock = vi.fn()
-    render(<VINInput value="SHORT" onChange={onChangeMock} error="VIN must be 17 characters" />)
+    render(<VINInput value="SHORT" onChange={onChangeMock} />)
 
-    expect(screen.getByText(/VIN must be 17 characters/i)).toBeInTheDocument()
+    // Component displays character counter showing short length
+    expect(screen.getByText(/5\/17 characters/i)).toBeInTheDocument()
   })
 
   it('rejects invalid characters I, O, Q', () => {

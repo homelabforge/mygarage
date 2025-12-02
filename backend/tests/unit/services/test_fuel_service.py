@@ -21,9 +21,8 @@ class TestMPGCalculation:
         # Previous record: 10,000 miles
         previous_record = FuelRecord(
             id="prev-1",
-            vehicle_id="vehicle-123",
+            vin="1HGBH41JXMN109186",
             date=date(2024, 1, 1),
-            odometer=10000,
             mileage=10000,
             gallons=Decimal("12.0"),
             is_full_tank=True,
@@ -33,9 +32,8 @@ class TestMPGCalculation:
         # 300 miles / 12 gallons = 25 MPG
         current_record = FuelRecord(
             id="curr-1",
-            vehicle_id="vehicle-123",
+            vin="1HGBH41JXMN109186",
             date=date(2024, 1, 15),
-            odometer=10300,
             mileage=10300,
             gallons=Decimal("12.0"),
             is_full_tank=True,
@@ -49,9 +47,8 @@ class TestMPGCalculation:
         """Test that partial fill-ups don't calculate MPG."""
         previous_record = FuelRecord(
             id="prev-1",
-            vehicle_id="vehicle-123",
+            vin="1HGBH41JXMN109186",
             date=date(2024, 1, 1),
-            odometer=10000,
             mileage=10000,
             gallons=Decimal("12.0"),
             is_full_tank=True,
@@ -60,9 +57,8 @@ class TestMPGCalculation:
         # Current record is partial fill-up
         current_record = FuelRecord(
             id="curr-1",
-            vehicle_id="vehicle-123",
+            vin="1HGBH41JXMN109186",
             date=date(2024, 1, 15),
-            odometer=10300,
             mileage=10300,
             gallons=Decimal("8.0"),
             is_full_tank=False,  # Partial fill-up
@@ -76,9 +72,8 @@ class TestMPGCalculation:
         """Test that MPG can't be calculated without previous record."""
         current_record = FuelRecord(
             id="curr-1",
-            vehicle_id="vehicle-123",
+            vin="1HGBH41JXMN109186",
             date=date(2024, 1, 15),
-            odometer=10300,
             mileage=10300,
             gallons=Decimal("12.0"),
             is_full_tank=True,
@@ -92,9 +87,8 @@ class TestMPGCalculation:
         """Test that MPG can't be calculated without current mileage."""
         previous_record = FuelRecord(
             id="prev-1",
-            vehicle_id="vehicle-123",
+            vin="1HGBH41JXMN109186",
             date=date(2024, 1, 1),
-            odometer=10000,
             mileage=10000,
             gallons=Decimal("12.0"),
             is_full_tank=True,
@@ -102,9 +96,8 @@ class TestMPGCalculation:
 
         current_record = FuelRecord(
             id="curr-1",
-            vehicle_id="vehicle-123",
+            vin="1HGBH41JXMN109186",
             date=date(2024, 1, 15),
-            odometer=None,
             mileage=None,  # No mileage
             gallons=Decimal("12.0"),
             is_full_tank=True,
@@ -118,9 +111,8 @@ class TestMPGCalculation:
         """Test that MPG can't be calculated without previous mileage."""
         previous_record = FuelRecord(
             id="prev-1",
-            vehicle_id="vehicle-123",
+            vin="1HGBH41JXMN109186",
             date=date(2024, 1, 1),
-            odometer=None,
             mileage=None,  # No mileage
             gallons=Decimal("12.0"),
             is_full_tank=True,
@@ -128,9 +120,8 @@ class TestMPGCalculation:
 
         current_record = FuelRecord(
             id="curr-1",
-            vehicle_id="vehicle-123",
+            vin="1HGBH41JXMN109186",
             date=date(2024, 1, 15),
-            odometer=10300,
             mileage=10300,
             gallons=Decimal("12.0"),
             is_full_tank=True,
@@ -144,9 +135,8 @@ class TestMPGCalculation:
         """Test that MPG can't be calculated without gallons."""
         previous_record = FuelRecord(
             id="prev-1",
-            vehicle_id="vehicle-123",
+            vin="1HGBH41JXMN109186",
             date=date(2024, 1, 1),
-            odometer=10000,
             mileage=10000,
             gallons=Decimal("12.0"),
             is_full_tank=True,
@@ -154,9 +144,8 @@ class TestMPGCalculation:
 
         current_record = FuelRecord(
             id="curr-1",
-            vehicle_id="vehicle-123",
+            vin="1HGBH41JXMN109186",
             date=date(2024, 1, 15),
-            odometer=10300,
             mileage=10300,
             gallons=None,  # No gallons
             is_full_tank=True,
@@ -170,9 +159,8 @@ class TestMPGCalculation:
         """Test that negative distances (odometer rollback) return None."""
         previous_record = FuelRecord(
             id="prev-1",
-            vehicle_id="vehicle-123",
+            vin="1HGBH41JXMN109186",
             date=date(2024, 1, 1),
-            odometer=10300,
             mileage=10300,
             gallons=Decimal("12.0"),
             is_full_tank=True,
@@ -181,9 +169,8 @@ class TestMPGCalculation:
         # Current mileage is LESS than previous (rollback)
         current_record = FuelRecord(
             id="curr-1",
-            vehicle_id="vehicle-123",
+            vin="1HGBH41JXMN109186",
             date=date(2024, 1, 15),
-            odometer=10000,
             mileage=10000,
             gallons=Decimal("12.0"),
             is_full_tank=True,
@@ -197,9 +184,8 @@ class TestMPGCalculation:
         """Test that zero distance (same odometer) returns None."""
         previous_record = FuelRecord(
             id="prev-1",
-            vehicle_id="vehicle-123",
+            vin="1HGBH41JXMN109186",
             date=date(2024, 1, 1),
-            odometer=10000,
             mileage=10000,
             gallons=Decimal("12.0"),
             is_full_tank=True,
@@ -208,9 +194,8 @@ class TestMPGCalculation:
         # Current mileage is same as previous
         current_record = FuelRecord(
             id="curr-1",
-            vehicle_id="vehicle-123",
+            vin="1HGBH41JXMN109186",
             date=date(2024, 1, 15),
-            odometer=10000,
             mileage=10000,
             gallons=Decimal("12.0"),
             is_full_tank=True,
@@ -224,9 +209,8 @@ class TestMPGCalculation:
         """Test that zero gallons returns None."""
         previous_record = FuelRecord(
             id="prev-1",
-            vehicle_id="vehicle-123",
+            vin="1HGBH41JXMN109186",
             date=date(2024, 1, 1),
-            odometer=10000,
             mileage=10000,
             gallons=Decimal("12.0"),
             is_full_tank=True,
@@ -234,9 +218,8 @@ class TestMPGCalculation:
 
         current_record = FuelRecord(
             id="curr-1",
-            vehicle_id="vehicle-123",
+            vin="1HGBH41JXMN109186",
             date=date(2024, 1, 15),
-            odometer=10300,
             mileage=10300,
             gallons=Decimal("0.0"),  # Zero gallons
             is_full_tank=True,
@@ -250,9 +233,8 @@ class TestMPGCalculation:
         """Test that MPG is rounded to 2 decimal places."""
         previous_record = FuelRecord(
             id="prev-1",
-            vehicle_id="vehicle-123",
+            vin="1HGBH41JXMN109186",
             date=date(2024, 1, 1),
-            odometer=10000,
             mileage=10000,
             gallons=Decimal("12.0"),
             is_full_tank=True,
@@ -261,9 +243,8 @@ class TestMPGCalculation:
         # 333 miles / 12 gallons = 27.75 MPG
         current_record = FuelRecord(
             id="curr-1",
-            vehicle_id="vehicle-123",
+            vin="1HGBH41JXMN109186",
             date=date(2024, 1, 15),
-            odometer=10333,
             mileage=10333,
             gallons=Decimal("12.0"),
             is_full_tank=True,
@@ -279,9 +260,8 @@ class TestMPGCalculation:
         """Test MPG calculation for high-efficiency vehicle."""
         previous_record = FuelRecord(
             id="prev-1",
-            vehicle_id="vehicle-123",
+            vin="1HGBH41JXMN109186",
             date=date(2024, 1, 1),
-            odometer=10000,
             mileage=10000,
             gallons=Decimal("10.0"),
             is_full_tank=True,
@@ -290,9 +270,8 @@ class TestMPGCalculation:
         # 500 miles / 10 gallons = 50 MPG (hybrid/efficient car)
         current_record = FuelRecord(
             id="curr-1",
-            vehicle_id="vehicle-123",
+            vin="1HGBH41JXMN109186",
             date=date(2024, 1, 15),
-            odometer=10500,
             mileage=10500,
             gallons=Decimal("10.0"),
             is_full_tank=True,
@@ -306,9 +285,8 @@ class TestMPGCalculation:
         """Test MPG calculation for low-efficiency vehicle."""
         previous_record = FuelRecord(
             id="prev-1",
-            vehicle_id="vehicle-123",
+            vin="1HGBH41JXMN109186",
             date=date(2024, 1, 1),
-            odometer=10000,
             mileage=10000,
             gallons=Decimal("20.0"),
             is_full_tank=True,
@@ -317,9 +295,8 @@ class TestMPGCalculation:
         # 200 miles / 20 gallons = 10 MPG (truck/SUV)
         current_record = FuelRecord(
             id="curr-1",
-            vehicle_id="vehicle-123",
+            vin="1HGBH41JXMN109186",
             date=date(2024, 1, 15),
-            odometer=10200,
             mileage=10200,
             gallons=Decimal("20.0"),
             is_full_tank=True,
@@ -333,9 +310,8 @@ class TestMPGCalculation:
         """Test MPG calculation with small tank (motorcycle/small car)."""
         previous_record = FuelRecord(
             id="prev-1",
-            vehicle_id="vehicle-123",
+            vin="1HGBH41JXMN109186",
             date=date(2024, 1, 1),
-            odometer=5000,
             mileage=5000,
             gallons=Decimal("3.5"),
             is_full_tank=True,
@@ -344,9 +320,8 @@ class TestMPGCalculation:
         # 150 miles / 3.5 gallons = 42.86 MPG
         current_record = FuelRecord(
             id="curr-1",
-            vehicle_id="vehicle-123",
+            vin="1HGBH41JXMN109186",
             date=date(2024, 1, 15),
-            odometer=5150,
             mileage=5150,
             gallons=Decimal("3.5"),
             is_full_tank=True,
@@ -360,9 +335,8 @@ class TestMPGCalculation:
         """Test that MPG calculation handles Decimal types correctly."""
         previous_record = FuelRecord(
             id="prev-1",
-            vehicle_id="vehicle-123",
+            vin="1HGBH41JXMN109186",
             date=date(2024, 1, 1),
-            odometer=10000,
             mileage=10000,
             gallons=Decimal("12.345"),  # Precise decimal
             is_full_tank=True,
@@ -370,9 +344,8 @@ class TestMPGCalculation:
 
         current_record = FuelRecord(
             id="curr-1",
-            vehicle_id="vehicle-123",
+            vin="1HGBH41JXMN109186",
             date=date(2024, 1, 15),
-            odometer=10300,
             mileage=10300,
             gallons=Decimal("12.345"),
             is_full_tank=True,

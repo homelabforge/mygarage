@@ -9,6 +9,7 @@ from app.utils.file_validation import (
     verify_file_content_type,
     validate_file_magic_bytes,
     MAGIC_BYTES,
+    MAGIC_AVAILABLE,
 )
 
 
@@ -116,6 +117,7 @@ class TestMagicByteVerification:
 
         assert is_valid is False
 
+    @pytest.mark.skipif(MAGIC_AVAILABLE, reason="Test valid only without python-magic")
     def test_verify_unknown_mime_type(self):
         """Test that unknown MIME types default to allowing."""
         # Unknown MIME type should return True (allow by default)

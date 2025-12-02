@@ -40,8 +40,9 @@ dev = [
     "ruff>=0.7.0",
 ]
 
-[tool.setuptools]
-packages = ["app"]
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
 
 [tool.ruff]
 # Exclude E402 (module level import not at top of file) for specific patterns
