@@ -1,0 +1,220 @@
+"""NHTSA (National Highway Traffic Safety Administration) API service."""
+
+import logging
+from typing import Optional
+import httpx
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.config import settings
+from app.utils.vin import validate_vin
+
+logger = logging.getLogger(__name__)
+
+
+class NHTSAService:
+    """Service for interacting with NHTSA vPIC API."""
+
+    def __init__(self):
+        self.base_url = settings.nhtsa_api_base_url
+        self.timeout = 30.0
+
+    async def decode_vin(self, vin: str) -> dict:
+        """
+        Decode a VIN using the NHTSA vPIC API.
+
+        Args:
+            vin: The 17-character VIN to decode
+
+        Returns:
+            Dictionary containing decoded vehicle information
+
+        Raises:
+            ValueError: If VIN is invalid
+            httpx.HTTPError: If API request fails
+        """
+        # Validate VIN format
+        is_valid, error_msg = validate_vin(vin)
+        if not is_valid:
+            raise ValueError(f"Invalid VIN: {error_msg}")
+
+        # Build API URL
+        # Using DecodeVinValues endpoint which returns formatted data
+        url = f"{self.base_url}/vehicles/DecodeVinValues/{vin}?format=json"
+
+        logger.info(f"Decoding VIN: {vin}")
+
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            try:
+                response = await client.get(url)
+                response.raise_for_status()
+                data = response.json()
+
+                # Parse response
+                if "Results" not in data or not data["Results"]:
+                    raise ValueError("No results returned from NHTSA API")
+
+                # Get first result (should only be one for VIN decode)
+                result = data["Results"][0]
+
+                # Check for errors in response
+                error_code = result.get("ErrorCode", "")
+                error_text = result.get("ErrorText", "")
+
+                if error_code and error_code != "0":
+                    logger.warning(f"NHTSA API returned error for VIN {vin}: {error_text}")
+                    # Some error codes are just warnings, continue processing
+
+                # Extract key vehicle information
+                vehicle_info = self._extract_vehicle_info(result)
+
+                logger.info(f"Successfully decoded VIN {vin}: {vehicle_info.get('Make')} {vehicle_info.get('Model')}")
+
+                return vehicle_info
+
+            except httpx.TimeoutException:
+                logger.error(f"NHTSA API timeout decoding VIN {vin}")
+                raise
+            except httpx.ConnectError as e:
+                logger.error(f"Cannot connect to NHTSA API for VIN {vin}: {e}")
+                raise
+            except httpx.HTTPStatusError as e:
+                logger.error(f"NHTSA API error decoding VIN {vin}: {e}")
+                raise
+            except (ValueError, KeyError) as e:
+                logger.error(f"Error parsing NHTSA response for VIN {vin}: {e}")
+                raise ValueError(f"Invalid NHTSA response: {e}")
+
+    def _extract_vehicle_info(self, result: dict) -> dict:
+        """
+        Extract relevant vehicle information from NHTSA API result.
+
+        Args:
+            result: Raw result from NHTSA API
+
+        Returns:
+            Dictionary with cleaned vehicle information
+        """
+        # Map NHTSA fields to our application fields
+        # NHTSA returns many fields, we extract the most useful ones
+        info = {
+            "vin": result.get("VIN"),
+            "year": self._parse_int(result.get("ModelYear")),
+            "make": result.get("Make"),
+            "model": result.get("Model"),
+            "trim": result.get("Trim"),
+            "vehicle_type": result.get("VehicleType"),
+            "body_class": result.get("BodyClass"),
+            "engine": {
+                "displacement_l": result.get("DisplacementL"),
+                "cylinders": self._parse_int(result.get("EngineCylinders")),
+                "hp": self._parse_int(result.get("EngineHP")),
+                "kw": self._parse_int(result.get("EngineKW")),
+                "fuel_type": result.get("FuelTypePrimary"),
+            },
+            "transmission": {
+                "type": result.get("TransmissionStyle"),
+                "speeds": result.get("TransmissionSpeeds"),
+            },
+            "drive_type": result.get("DriveType"),
+            "manufacturer": result.get("Manufacturer"),
+            "plant_city": result.get("PlantCity"),
+            "plant_country": result.get("PlantCountry"),
+            "doors": self._parse_int(result.get("Doors")),
+            "gvwr": result.get("GVWR"),  # Gross Vehicle Weight Rating
+            "error_code": result.get("ErrorCode"),
+            "error_text": result.get("ErrorText"),
+            # Additional useful fields
+            "series": result.get("Series"),
+            "steering_location": result.get("SteeringLocation"),
+            "entertainment_system": result.get("EntertainmentSystem"),
+        }
+
+        # Clean up None values and empty strings
+        return {k: v for k, v in info.items() if v not in (None, "", "Not Applicable", "N/A")}
+
+    def _parse_int(self, value: Optional[str]) -> Optional[int]:
+        """
+        Safely parse string to int.
+
+        Args:
+            value: String value to parse
+
+        Returns:
+            Integer value or None if parsing fails
+        """
+        if value in (None, "", "Not Applicable", "N/A"):
+            return None
+        try:
+            return int(value)
+        except (ValueError, TypeError):
+            return None
+
+    async def get_vehicle_recalls(self, vin: str, db: AsyncSession) -> list[dict]:
+        """
+        Get recalls for a specific VIN from NHTSA.
+
+        Note: NHTSA does not provide a direct VIN-to-recalls API endpoint.
+        This method first decodes the VIN to get make/model/year, then
+        queries recalls by those parameters.
+
+        Args:
+            vin: The 17-character VIN
+            db: Database session for fetching settings
+
+        Returns:
+            List of recall dictionaries
+
+        Raises:
+            ValueError: If VIN is invalid or vehicle info cannot be decoded
+        """
+        # First, decode the VIN to get make/model/year
+        try:
+            vehicle_info = await self.decode_vin(vin)
+        except Exception as e:
+            logger.error(f"Failed to decode VIN {vin}: {e}")
+            raise ValueError(f"Could not decode VIN to fetch recalls: {str(e)}")
+
+        # Extract make, model, and year
+        make = vehicle_info.get("make")
+        model = vehicle_info.get("model")
+        year = vehicle_info.get("year")
+
+        if not all([make, model, year]):
+            logger.warning(f"Incomplete vehicle info for VIN {vin}: make={make}, model={model}, year={year}")
+            raise ValueError("Could not determine vehicle make, model, and year from VIN")
+
+        # Get recalls API URL from settings
+        from app.models.settings import Setting
+        from sqlalchemy import select
+
+        result = await db.execute(select(Setting).where(Setting.key == "nhtsa_recalls_api_url"))
+        setting = result.scalar_one_or_none()
+        recalls_api_base = setting.value if setting else "https://api.nhtsa.gov/recalls/recallsByVehicle"
+
+        # Query NHTSA recalls API by make/model/year
+        recalls_url = f"{recalls_api_base}?make={make}&model={model}&modelYear={year}"
+
+        logger.info(f"Fetching recalls for {year} {make} {model} (VIN: {vin})")
+
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            try:
+                response = await client.get(recalls_url)
+                response.raise_for_status()
+                data = response.json()
+
+                # Extract recalls from the response
+                recalls = data.get("results", [])
+
+                logger.info(f"Found {len(recalls)} recall(s) for {year} {make} {model}")
+
+                return recalls
+
+            except httpx.TimeoutException:
+                logger.error(f"NHTSA recalls API timeout for {year} {make} {model}")
+                return []  # Intentional fallback: don't break UI for timeout
+            except httpx.ConnectError as e:
+                logger.error(f"Cannot connect to NHTSA recalls API for {year} {make} {model}: {e}")
+                return []  # Intentional fallback: don't break UI for connection issues
+            except httpx.HTTPStatusError as e:
+                logger.error(f"NHTSA recalls API error for {year} {make} {model}: {e}")
+                return []  # Intentional fallback: return empty list on API error

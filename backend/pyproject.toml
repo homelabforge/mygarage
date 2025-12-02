@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mygarage"
+version = "2.14.0"
+description = "Self-hosted vehicle maintenance tracking application"
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi>=0.121.1",
+    "granian>=2.5.7",
+    "sqlalchemy>=2.0.44",
+    "aiosqlite>=0.21.0",
+    "pydantic>=2.12.3",
+    "pydantic-settings>=2.6.0",
+    "python-multipart>=0.0.18",
+    "httpx>=0.27.2",
+    "python-dateutil>=2.9.0",
+    "apscheduler>=3.11.1",
+    "pillow>=12.0.0",
+    "pillow-heif>=0.17.0",
+    "reportlab>=4.0.0",
+    "pandas>=2.3.3",
+    "email-validator>=2.0.0",
+    "python-magic>=0.4.27",
+    "slowapi>=0.1.9",
+    "argon2-cffi>=25.1.0",
+    "authlib>=1.6.5",  # OIDC/OAuth2 authentication
+    "pymupdf>=1.25.0",
+    "pytesseract>=0.3.13",
+    "aiosmtplib>=3.0.0",  # Async SMTP for email notifications
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.3",
+    "pytest-asyncio>=0.24.0",
+    "ruff>=0.7.0",
+]
+
+[tool.setuptools]
+packages = ["app"]
+
+[tool.ruff]
+# Exclude E402 (module level import not at top of file) for specific patterns
+# These are intentional design choices in the codebase:
+# - main.py: Imports after app initialization (required for FastAPI middleware setup)
+# - models/*: Forward reference imports at end of file (circular dependency resolution)
+# - services/window_sticker_parsers/*: Registry pattern imports
+[tool.ruff.per-file-ignores]
+"app/main.py" = ["E402"]
+"app/models/*.py" = ["E402"]
+"app/routes/analytics.py" = ["E402"]
+"app/services/window_sticker_parsers/*.py" = ["E402"]

@@ -1,0 +1,281 @@
+import { useState, useEffect } from 'react'
+import { Fuel, Plus, Edit, Trash2, DollarSign, Calendar, Gauge, TrendingUp } from 'lucide-react'
+import type { FuelRecord } from '../types/fuel'
+
+interface FuelRecordListProps {
+  vin: string
+  onAddClick: () => void
+  onEditClick: (record: FuelRecord) => void
+  onRefresh?: () => void
+}
+
+export default function FuelRecordList({ vin, onAddClick, onEditClick, onRefresh }: FuelRecordListProps) {
+  const [records, setRecords] = useState<FuelRecord[]>([])
+  const [averageMpg, setAverageMpg] = useState<number | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState<number | null>(null)
+
+  const fetchRecords = async () => {
+    try {
+      const response = await fetch(`/api/vehicles/${vin}/fuel`)
+      if (!response.ok) {
+        throw new Error('Failed to fetch fuel records')
+      }
+      const data = await response.json()
+      setRecords(data.records)
+      setAverageMpg(data.average_mpg ? parseFloat(data.average_mpg) : null)
+      setError(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchRecords()
+  }, [vin])
+
+  useEffect(() => {
+    if (onRefresh) {
+      fetchRecords()
+    }
+  }, [onRefresh])
+
+  const handleDelete = async (recordId: number) => {
+    if (!confirm('Are you sure you want to delete this fuel record?')) {
+      return
+    }
+
+    setDeleting(recordId)
+    try {
+      const response = await fetch(`/api/vehicles/${vin}/fuel/${recordId}`, {
+        method: 'DELETE',
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to delete fuel record')
+      }
+
+      // Refresh the list
+      await fetchRecords()
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to delete record')
+    } finally {
+      setDeleting(null)
+    }
+  }
+
+  const formatCurrency = (amount?: number) => {
+    if (amount === undefined || amount === null) return '-'
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+    }).format(amount)
+  }
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    })
+  }
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-[200px]">
+        <div className="text-gray-600">Loading fuel records...</div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+        <p className="text-red-800">{error}</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <div className="flex items-center gap-2">
+          <Fuel className="w-5 h-5 text-gray-600" />
+          <h3 className="text-lg font-semibold text-gray-900">
+            Fuel History
+          </h3>
+          <span className="text-sm text-gray-500">({records.length} records)</span>
+        </div>
+        <button
+          onClick={onAddClick}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+        >
+          <Plus className="w-4 h-4" />
+          <span>Add Fill-up</span>
+        </button>
+      </div>
+
+      {averageMpg !== null && (
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-center gap-3">
+            <div className="bg-blue-100 rounded-full p-3">
+              <TrendingUp className="w-6 h-6 text-blue-600" />
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">Average Fuel Economy</p>
+              <p className="text-2xl font-bold text-gray-900">
+                {averageMpg.toFixed(2)} MPG
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {records.length === 0 ? (
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-8 text-center">
+          <Fuel className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+          <p className="text-gray-600 mb-2">No fuel records yet</p>
+          <p className="text-sm text-gray-500 mb-4">
+            Start tracking your fill-ups and monitor fuel economy
+          </p>
+          <button
+            onClick={onAddClick}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add First Fill-up</span>
+          </button>
+        </div>
+      ) : (
+        <div className="bg-white shadow rounded-lg overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Date
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Mileage
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Gallons
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Price/Gal
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Total Cost
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    MPG
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Full Tank
+                  </th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {records.map((record) => (
+                  <tr key={record.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <div className="flex items-center gap-2 text-sm text-gray-900">
+                        <Calendar className="w-4 h-4 text-gray-400" />
+                        {formatDate(record.date)}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {record.mileage ? (
+                        <div className="flex items-center gap-2 text-sm text-gray-900">
+                          <Gauge className="w-4 h-4 text-gray-400" />
+                          {record.mileage.toLocaleString()}
+                        </div>
+                      ) : (
+                        <span className="text-sm text-gray-400">-</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                      {record.gallons ? `${parseFloat(record.gallons.toString()).toFixed(2)} gal` : '-'}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                      {record.price_per_unit ? formatCurrency(parseFloat(record.price_per_unit.toString())) : '-'}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {record.cost ? (
+                        <div className="flex items-center gap-2 text-sm text-gray-900">
+                          <DollarSign className="w-4 h-4 text-gray-400" />
+                          {formatCurrency(parseFloat(record.cost.toString()))}
+                        </div>
+                      ) : (
+                        <span className="text-sm text-gray-400">-</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {record.mpg ? (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                          {parseFloat(record.mpg.toString()).toFixed(2)} MPG
+                        </span>
+                      ) : (
+                        <span className="text-sm text-gray-400">-</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {record.is_full_tank ? (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                          Full
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                          Partial
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap text-right text-sm">
+                      <div className="flex justify-end gap-2">
+                        <button
+                          onClick={() => onEditClick(record)}
+                          className="text-blue-600 hover:text-blue-900"
+                          title="Edit"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(record.id)}
+                          disabled={deleting === record.id}
+                          className="text-red-600 hover:text-red-900 disabled:opacity-50"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {records.length > 0 && records.some(r => r.notes) && (
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+          <h4 className="text-sm font-medium text-gray-700 mb-2">Notes:</h4>
+          <div className="space-y-2">
+            {records.filter(r => r.notes).map((record) => (
+              <div key={record.id} className="text-sm">
+                <span className="text-gray-500">{formatDate(record.date)}:</span>
+                <span className="text-gray-700 ml-2">{record.notes}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}

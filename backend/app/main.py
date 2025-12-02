@@ -1,0 +1,276 @@
+"""Main FastAPI application for MyGarage."""
+
+import logging
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
+from pathlib import Path
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+
+from app.config import settings
+from app.database import init_db
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO if not settings.debug else logging.DEBUG,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+logger = logging.getLogger(__name__)
+
+
+# Filter to exclude health check endpoints from access logs
+class EndpointFilter(logging.Filter):
+    """Filter to exclude specific endpoints from Granian access logs."""
+
+    def __init__(self, excluded_paths: list[str]) -> None:
+        super().__init__()
+        self.excluded_paths = excluded_paths
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        """Return False if the log record is for an excluded endpoint."""
+        # Granian access logs have the path in the message
+        message = record.getMessage()
+        return not any(path in message for path in self.excluded_paths)
+
+
+# Apply filter to granian access logger to exclude health checks
+logging.getLogger("granian.access").addFilter(EndpointFilter(["/health"]))
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan manager."""
+    logger.info("Starting MyGarage application...")
+
+    # Log secret key status (key was generated during config import)
+    secret_key_file = Path("/data/secret.key")
+    if secret_key_file.exists():
+        logger.info(f"✓ Secret key loaded from {secret_key_file}")
+    else:
+        logger.warning("Secret key file not found - using temporary in-memory key")
+
+    # Create data directories with error handling
+    try:
+        settings.data_dir.mkdir(parents=True, exist_ok=True)
+        settings.attachments_dir.mkdir(parents=True, exist_ok=True)
+        settings.photos_dir.mkdir(parents=True, exist_ok=True)
+        settings.documents_dir.mkdir(parents=True, exist_ok=True)
+        (settings.data_dir / "backups").mkdir(parents=True, exist_ok=True)
+        logger.info("Data directories verified")
+    except PermissionError as e:
+        logger.warning(f"Could not create data directories (may already exist): {e}")
+        # Continue anyway - directories might already exist with correct permissions
+
+    # Initialize database
+    await init_db()
+    logger.info("Database initialized")
+
+    # Initialize default settings
+    from app.database import get_db_context
+    from app.services.settings_init import initialize_default_settings
+
+    async with get_db_context() as db:
+        await initialize_default_settings(db)
+
+        # Check for insecure auth_mode='none' and log warning
+        from app.services.auth import get_auth_mode
+        auth_mode = await get_auth_mode(db)
+        if auth_mode == 'none':
+            logger.warning("=" * 80)
+            logger.warning("⚠️  SECURITY WARNING: Authentication is disabled (auth_mode='none')")
+            logger.warning("⚠️  All endpoints are accessible without authentication!")
+            logger.warning("⚠️  This should NEVER be used in production environments!")
+            logger.warning("=" * 80)
+
+    yield
+
+    logger.info("Shutting down MyGarage application...")
+
+
+# Create FastAPI app
+app = FastAPI(
+    title=settings.app_name,
+    version=settings.app_version,
+    description="Self-hosted vehicle maintenance tracking application",
+    lifespan=lifespan,
+)
+
+# Configure rate limiting
+limiter = Limiter(key_func=get_remote_address, default_limits=[settings.rate_limit_default])
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Add security middleware
+from app.middleware import SecurityHeadersMiddleware, RequestIDMiddleware, CSRFProtectionMiddleware
+from slowapi.middleware import SlowAPIMiddleware
+
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RequestIDMiddleware)
+app.add_middleware(CSRFProtectionMiddleware)
+app.add_middleware(SlowAPIMiddleware)
+
+# Add error handlers
+from app.utils.error_handlers import (
+    handle_generic_exception,
+    handle_validation_error,
+    handle_database_error,
+)
+from fastapi.exceptions import RequestValidationError
+from sqlalchemy.exc import SQLAlchemyError
+
+if not settings.debug:
+    # In production, use secure error handlers
+    app.add_exception_handler(Exception, handle_generic_exception)
+    app.add_exception_handler(SQLAlchemyError, handle_database_error)
+
+app.add_exception_handler(RequestValidationError, handle_validation_error)
+
+# Configure CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins,
+    allow_credentials=True,  # Required for cookie-based authentication
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
+    allow_headers=["Content-Type", "Authorization", "X-CSRF-Token"],  # Added CSRF token header
+    expose_headers=["Set-Cookie"],
+    max_age=600,
+)
+
+
+# Health check endpoint
+@app.get("/health")
+async def health_check():
+    """Health check endpoint."""
+    return {
+        "status": "healthy",
+        "app": settings.app_name,
+        "version": settings.app_version,
+    }
+
+
+@app.get("/api/health")
+async def api_health_check(request: Request):
+    """API health check endpoint with authenticator detection."""
+    # Check for reverse proxy authenticator headers
+    auth_headers = [
+        'x-forwarded-user',
+        'remote-user',
+        'x-auth-request-user',
+        'x-authentik-username',
+        'x-authentik-email',
+        'x-authelia-user',
+    ]
+
+    authenticator_detected = any(
+        header.lower() in [h.lower() for h in request.headers.keys()]
+        for header in auth_headers
+    )
+
+    return {
+        "status": "healthy",
+        "app": settings.app_name,
+        "version": settings.app_version,
+        "authenticator_detected": authenticator_detected,
+    }
+
+
+# Import and include routers
+from app.routes import (
+    vin_router,
+    vehicles_router,
+    photos_router,
+    service_router,
+    fuel_router,
+    odometer_router,
+    documents_router,
+    reminders_router,
+    notes_router,
+    dashboard_router,
+    export_router,
+    import_router,
+    analytics_router,
+    warranty_router,
+    insurance_router,
+    reports_router,
+    toll_tags_router,
+    toll_transactions_router,
+    recalls_router,
+    settings_router,
+    backup_router,
+    attachments_router,
+    tax_router,
+    spot_rental_router,
+    address_book_router,
+    calendar_router,
+    window_sticker_router,
+    notifications_router,
+)
+from app.routes.auth import router as auth_router
+from app.routes.oidc import router as oidc_router
+
+app.include_router(auth_router)
+app.include_router(oidc_router)
+app.include_router(vin_router)
+app.include_router(vehicles_router)
+app.include_router(photos_router)
+app.include_router(service_router)
+app.include_router(fuel_router)
+app.include_router(odometer_router)
+app.include_router(documents_router)
+app.include_router(reminders_router)
+app.include_router(notes_router)
+app.include_router(dashboard_router)
+app.include_router(export_router)
+app.include_router(import_router)
+app.include_router(analytics_router)
+app.include_router(warranty_router)
+app.include_router(insurance_router)
+app.include_router(reports_router)
+app.include_router(toll_tags_router)
+app.include_router(toll_transactions_router)
+app.include_router(recalls_router)
+app.include_router(settings_router)
+app.include_router(backup_router)
+app.include_router(attachments_router)
+app.include_router(tax_router)
+app.include_router(spot_rental_router)
+app.include_router(address_book_router)
+app.include_router(calendar_router)
+app.include_router(window_sticker_router)
+app.include_router(notifications_router)
+
+
+# Serve static files (frontend build) in production
+static_dir = Path("/app/static")
+if static_dir.exists():
+    from fastapi.responses import FileResponse
+    from starlette.exceptions import HTTPException as StarletteHTTPException
+    from fastapi.exception_handlers import http_exception_handler
+
+    # Mount static assets (CSS, JS, images)
+    app.mount("/assets", StaticFiles(directory=str(static_dir / "assets")), name="assets")
+
+    # Custom 404 handler to serve SPA for non-API routes
+    @app.exception_handler(404)
+    async def custom_404_handler(request, exc):
+        # If it's an API route, return the normal 404
+        if request.url.path.startswith("/api/"):
+            return await http_exception_handler(request, exc)
+
+        # Otherwise serve the SPA
+        return FileResponse(static_dir / "index.html")
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(
+        "app.main:app",
+        host=settings.host,
+        port=settings.port,
+        reload=settings.debug,
+    )

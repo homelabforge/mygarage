@@ -1,0 +1,43 @@
+services:
+  mygarage-dev:
+    container_name: mygarage-dev
+    build:
+      context: .
+      dockerfile: Dockerfile
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          pids: 150
+    environment:
+      TZ: ${TZ}
+      DEBUG: "true"
+      JWT_COOKIE_SECURE: "false"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8686/health"]
+      interval: 20s
+      timeout: 10s
+      start_period: 40s
+      retries: 3
+    image: mygarage:dev
+    labels:
+      dev.environment: "test"
+      dev.project: "mygarage"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    ports: ["12347:8686"]
+    restart: unless-stopped
+    security_opt: [no-new-privileges:true]
+    volumes:
+      - ./data:/data
+    networks:
+      - default
+      - monitoring
+
+networks:
+  default:
+  monitoring:
+    external: true

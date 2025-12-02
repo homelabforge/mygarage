@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  mygarage:
+    image: ghcr.io/homelabforge/mygarage:latest
+    container_name: mygarage
+    ports:
+      - "8686:8686"
+    volumes:
+      - ./data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8686/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

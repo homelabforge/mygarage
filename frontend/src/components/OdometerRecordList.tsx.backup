@@ -1,0 +1,214 @@
+import { useState, useEffect } from 'react'
+import { Gauge, Plus, Edit, Trash2, Calendar } from 'lucide-react'
+import type { OdometerRecord } from '../types/odometer'
+
+interface OdometerRecordListProps {
+  vin: string
+  onAddClick: () => void
+  onEditClick: (record: OdometerRecord) => void
+  onRefresh?: () => void
+}
+
+export default function OdometerRecordList({ vin, onAddClick, onEditClick, onRefresh }: OdometerRecordListProps) {
+  const [records, setRecords] = useState<OdometerRecord[]>([])
+  const [latestMileage, setLatestMileage] = useState<number | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState<number | null>(null)
+
+  const fetchRecords = async () => {
+    try {
+      const response = await fetch(`/api/vehicles/${vin}/odometer`)
+      if (!response.ok) {
+        throw new Error('Failed to fetch odometer records')
+      }
+      const data = await response.json()
+      setRecords(data.records)
+      setLatestMileage(data.latest_mileage)
+      setError(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchRecords()
+  }, [vin])
+
+  useEffect(() => {
+    if (onRefresh) {
+      fetchRecords()
+    }
+  }, [onRefresh])
+
+  const handleDelete = async (recordId: number) => {
+    if (!confirm('Are you sure you want to delete this odometer record?')) {
+      return
+    }
+
+    setDeleting(recordId)
+    try {
+      const response = await fetch(`/api/vehicles/${vin}/odometer/${recordId}`, {
+        method: 'DELETE',
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to delete odometer record')
+      }
+
+      // Refresh the list
+      await fetchRecords()
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to delete record')
+    } finally {
+      setDeleting(null)
+    }
+  }
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    })
+  }
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-[200px]">
+        <div className="text-gray-600">Loading odometer records...</div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+        <p className="text-red-800">{error}</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <div className="flex items-center gap-2">
+          <Gauge className="w-5 h-5 text-gray-600" />
+          <h3 className="text-lg font-semibold text-gray-900">
+            Odometer Readings
+          </h3>
+          <span className="text-sm text-gray-500">({records.length} records)</span>
+        </div>
+        <button
+          onClick={onAddClick}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+        >
+          <Plus className="w-4 h-4" />
+          <span>Add Reading</span>
+        </button>
+      </div>
+
+      {latestMileage !== null && (
+        <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-lg p-4">
+          <div className="flex items-center gap-3">
+            <div className="bg-purple-100 rounded-full p-3">
+              <Gauge className="w-6 h-6 text-purple-600" />
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">Latest Mileage</p>
+              <p className="text-2xl font-bold text-gray-900">
+                {latestMileage.toLocaleString()} miles
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {records.length === 0 ? (
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-8 text-center">
+          <Gauge className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+          <p className="text-gray-600 mb-2">No odometer records yet</p>
+          <p className="text-sm text-gray-500 mb-4">
+            Track your vehicle's mileage over time
+          </p>
+          <button
+            onClick={onAddClick}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add First Reading</span>
+          </button>
+        </div>
+      ) : (
+        <div className="bg-white shadow rounded-lg overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Date
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Mileage
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Notes
+                  </th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {records.map((record) => (
+                  <tr key={record.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <div className="flex items-center gap-2 text-sm text-gray-900">
+                        <Calendar className="w-4 h-4 text-gray-400" />
+                        {formatDate(record.date)}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <div className="flex items-center gap-2 text-sm font-medium text-gray-900">
+                        <Gauge className="w-4 h-4 text-gray-400" />
+                        {record.mileage.toLocaleString()} miles
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      {record.notes ? (
+                        <div className="text-sm text-gray-900">{record.notes}</div>
+                      ) : (
+                        <span className="text-sm text-gray-400">-</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap text-right text-sm">
+                      <div className="flex justify-end gap-2">
+                        <button
+                          onClick={() => onEditClick(record)}
+                          className="text-blue-600 hover:text-blue-900"
+                          title="Edit"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(record.id)}
+                          disabled={deleting === record.id}
+                          className="text-red-600 hover:text-red-900 disabled:opacity-50"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}

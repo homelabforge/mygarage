@@ -1,0 +1,141 @@
+# Git
+.git/
+.gitignore
+.gitattributes
+.github/
+
+# Documentation
+README.md
+CONTRIBUTING.md
+LICENSE
+docs/
+*.md
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+venv/
+env/
+ENV/
+.venv
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.node_repl_history
+.yarn-integrity
+
+# Frontend build artifacts (built inside container)
+frontend/dist/
+frontend/build/
+frontend/.vite/
+frontend/.parcel-cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# MyGarage Data (shouldn't be in image)
+data/
+*.db
+*.db-shm
+*.db-wal
+secret.key
+uploads/
+attachments/
+photos/
+documents/
+backups/
+
+# Environment files (use docker-compose env instead)
+.env
+.env.*
+!.env.example
+
+# Testing
+tests/
+test/
+*.test.js
+*.test.ts
+*.test.tsx
+*.spec.js
+*.spec.ts
+*.spec.tsx
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+azure-pipelines.yml
+
+# Logs
+logs/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker files (don't need these inside the image)
+docker-compose.yml
+docker-compose.*.yml
+Dockerfile
+.dockerignore
+
+# Development scripts
+scripts/dev/
+scripts/test/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
+*.swp
+*~
+
+# Jupyter notebooks
+*.ipynb
+.ipynb_checkpoints/
+
+# Coverage reports
+coverage/
+.nyc_output/
+
+# Storybook
+storybook-static/
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity

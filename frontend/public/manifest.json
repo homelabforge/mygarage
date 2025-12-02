@@ -1,0 +1,52 @@
+{
+  "name": "MyGarage - Vehicle Maintenance Tracker",
+  "short_name": "MyGarage",
+  "description": "Self-hosted vehicle maintenance tracking application",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0e14",
+  "theme_color": "#3b82f6",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["productivity", "utilities"],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Add Service Record",
+      "short_name": "Service",
+      "description": "Quickly add a service record",
+      "url": "/?action=add-service",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Add Fuel Record",
+      "short_name": "Fuel",
+      "description": "Quickly add a fuel record",
+      "url": "/?action=add-fuel",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ]
+}
