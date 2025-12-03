@@ -59,8 +59,9 @@ representative at an online or offline event.
 ## Enforcement
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
-reported to the community leaders responsible for enforcement at
-[conduct@homelabforge.io](mailto:conduct@homelabforge.io).
+reported to the community leaders responsible for enforcement via
+[GitHub Discussions](https://github.com/homelabforge/mygarage/discussions) or
+[private GitHub Issues](https://github.com/homelabforge/mygarage/issues/new/choose).
 
 All complaints will be reviewed and investigated promptly and fairly.
 

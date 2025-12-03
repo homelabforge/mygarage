@@ -13,9 +13,10 @@ If you discover a security vulnerability in MyGarage, please report it privately
 - Click "Report a vulnerability"
 - Fill out the advisory form with details
 
-**Alternative Method:** Email Security Team
-- Email: [security@homelabforge.io](mailto:security@homelabforge.io)
-- Include "MyGarage Security" in the subject line
+**Alternative Method:** Create a Private Issue
+- Open a [GitHub Issue](https://github.com/homelabforge/mygarage/issues/new/choose)
+- Mark it as security-related
+- Provide detailed information about the vulnerability
 
 ### What to Include
 
@@ -173,7 +174,7 @@ Recent security improvements:
 ## Contact
 
 For security-related questions or concerns:
-- **Security Team**: [security@homelabforge.io](mailto:security@homelabforge.io)
+- **Security Advisories**: [Report via GitHub](https://github.com/homelabforge/mygarage/security/advisories/new)
 - **General Support**: [GitHub Issues](https://github.com/homelabforge/mygarage/issues)
 
 For community discussions (non-security topics), use [GitHub Discussions](https://github.com/homelabforge/mygarage/discussions).

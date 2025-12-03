@@ -6,13 +6,16 @@ Self-hosted vehicle maintenance tracking with VIN decoding, service records, fue
 [![Docker Build](https://github.com/homelabforge/mygarage/actions/workflows/docker-build.yml/badge.svg)](https://github.com/homelabforge/mygarage/actions/workflows/docker-build.yml)
 [![CodeQL](https://github.com/homelabforge/mygarage/actions/workflows/codeql.yml/badge.svg)](https://github.com/homelabforge/mygarage/actions/workflows/codeql.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/Version-2.14.0-green.svg)](https://github.com/homelabforge/mygarage/releases)
 [![Docker](https://img.shields.io/badge/Docker-Available-2496ED?logo=docker&logoColor=white)](https://github.com/homelabforge/mygarage/pkgs/container/mygarage)
 [![Python 3.14+](https://img.shields.io/badge/Python-3.14+-3776AB?logo=python&logoColor=white)](https://www.python.org)
 [![React 19](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev)
 
 ![MyGarage Dashboard](docs/screenshots/dashboard.png)
 
-**See more**: [homelabforge.io/builds/mygarage](https://homelabforge.io/builds/mygarage/)
+**📚 [View Full Documentation](https://github.com/homelabforge/mygarage/wiki)** | **🌐 [Website](https://homelabforge.io/builds/mygarage/)** | **⭐ [Star on GitHub](https://github.com/homelabforge/mygarage)**
+
+> **Love MyGarage?** Give us a ⭐ on GitHub to show your support and help others discover this project!
 
 ---
 
@@ -34,6 +37,10 @@ services:
     volumes:
       - ./data:/data
     restart: unless-stopped
+    # ⚠️ PRODUCTION USERS: Change authentication mode after startup!
+    # Default runs with NO authentication (auth_mode='none') for easy testing.
+    # Go to Settings → System → Authentication Mode and switch to 'local' or 'oidc'
+    # See Authentication Modes section below for details.
 ```
 
 2. Start the container:
@@ -109,11 +116,6 @@ Only set these if you need to pre-configure before first startup:
 | Variable | Default | When to Set |
 |----------|---------|-------------|
 | `MYGARAGE_DATABASE_URL` | `sqlite+aiosqlite:////data/mygarage.db` | Only if using PostgreSQL or custom SQLite path |
-| `MYGARAGE_AUTH_MODE` | `none` | Pre-configure auth mode (can change in UI later) |
-| `MYGARAGE_DEBUG` | `false` | Enable debug logging |
-| `MYGARAGE_OIDC_CLIENT_ID` | - | Required if using OIDC authentication |
-| `MYGARAGE_OIDC_CLIENT_SECRET` | - | Required if using OIDC authentication |
-| `MYGARAGE_OIDC_DISCOVERY_URL` | - | Required if using OIDC authentication |
 
 **Note**: Secret keys and API tokens are auto-generated on first startup and stored in `/data/secret.key` and the database.
 
@@ -134,35 +136,33 @@ Suitable for local development, testing, or single-user setups behind a firewall
 ### Local JWT Authentication
 Username/password authentication with JWT tokens. Users managed in Settings → System → Multi-User Management.
 
-**Startup behavior:**
-- Prompts to create admin account on first visit
+**Setup:**
+1. Go to **Settings → System** and change Authentication Mode to `local`
+2. Navigate to the registration page (`/register`)
+3. Create the first admin account (registration is disabled after first user)
+4. Additional users must be created by admins via Settings → Multi-User Management
+
+**Authentication behavior:**
 - Issues JWT tokens for authenticated sessions
 - Session persistence across browser restarts
-
-Enable via Settings UI or environment variable:
-```yaml
-environment:
-  - MYGARAGE_AUTH_MODE=local
-```
+- All endpoints require authentication
 
 ### OIDC/SSO Authentication
 Authenticate using any OIDC-compatible provider (Authentik, Keycloak, Google, Azure AD, Okta, etc.).
 
-**Startup behavior:**
+**Setup:**
+1. Go to **Settings → System** and change Authentication Mode to `oidc`
+2. Configure your OIDC provider details:
+   - Client ID
+   - Client Secret
+   - Discovery URL (e.g., `https://auth.example.com/.well-known/openid-configuration`)
+3. Save settings and restart if needed
+
+**Authentication behavior:**
 - Redirects to identity provider for login
-- Creates user accounts automatically from OIDC claims
+- Creates user accounts automatically from OIDC claims (if enabled)
 - Supports account linking for existing local users
-
-Enable via Settings UI or environment variables:
-```yaml
-environment:
-  - MYGARAGE_AUTH_MODE=oidc
-  - MYGARAGE_OIDC_CLIENT_ID=mygarage
-  - MYGARAGE_OIDC_CLIENT_SECRET=your-client-secret
-  - MYGARAGE_OIDC_DISCOVERY_URL=https://auth.example.com/.well-known/openid-configuration
-```
-
-**Recommended**: Configure via Settings UI after startup for easier setup and testing.
+- First OIDC user becomes admin automatically
 
 ---
 
@@ -277,7 +277,7 @@ labels:
 ```nginx
 server {
     listen 443 ssl http2;
-    server_name garage.example.com;
+    server_name mygarage.example.com;
 
     ssl_certificate /path/to/cert.pem;
     ssl_certificate_key /path/to/key.pem;
@@ -327,7 +327,7 @@ services:
 ## Development
 
 ### Requirements
-- Python 3.11+
+- Python 3.14+
 - Node.js 18+
 - Docker & Docker Compose (optional)
 
@@ -366,18 +366,20 @@ Interactive API docs available at:
 ## Technology Stack
 
 **Backend:**
-- FastAPI (Python 3.11+)
-- SQLAlchemy + Alembic
+- FastAPI (Python 3.14+)
+- SQLAlchemy 2.0+ with Alembic migrations
 - SQLite / PostgreSQL
-- JWT Authentication
-- OIDC/OAuth2 Support
+- JWT Authentication with Argon2 password hashing
+- OIDC/OAuth2 Support (Authlib)
+- Granian ASGI server
 
 **Frontend:**
-- React 18
+- React 19
 - TypeScript
-- Tailwind CSS
+- Tailwind CSS 4
 - Recharts (analytics)
 - Lucide React (icons)
+- Vite build system
 
 ---
 
@@ -387,11 +389,39 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ---
 
-## Support
+## Common Issues
 
-- **Website**: [homelabforge.io/builds/mygarage](https://homelabforge.io/builds/mygarage/)
-- **Issues**: [GitHub Issues](https://github.com/homelabforge/mygarage/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/homelabforge/mygarage/discussions)
+Having trouble? Here are the most common issues and quick fixes:
+
+| Problem | Quick Fix |
+|---------|-----------|
+| **Port 8686 already in use** | Change port: `- "8687:8686"` in docker-compose.yml |
+| **Can't login / No authentication** | Check auth mode in Settings → System. Default is `none` (no login required) |
+| **Database permission errors** | Run: `sudo chown -R 1000:1000 ./data` |
+| **VIN decode not working** | NHTSA API rate limit (10/min). Wait or add API key in settings |
+| **Container won't start** | Check logs: `docker logs mygarage` |
+| **OIDC redirect errors** | Verify redirect URI matches: `http://your-domain/api/oidc/callback` |
+
+📖 **For detailed troubleshooting**, see the [Troubleshooting Guide](https://github.com/homelabforge/mygarage/wiki/Troubleshooting).
+
+---
+
+## Need Help?
+
+### Quick Links
+- **🚀 [Quick Start Guide](https://github.com/homelabforge/mygarage/wiki/Quick-Start)** - Get up and running in 5 minutes
+- **❓ [FAQ](https://github.com/homelabforge/mygarage/wiki/FAQ)** - Common questions answered
+- **🔧 [Troubleshooting](https://github.com/homelabforge/mygarage/wiki/Troubleshooting)** - Fix common issues
+- **🔐 [Authentication Guide](https://github.com/homelabforge/mygarage/wiki/Authentication)** - Setup local, OIDC, or SSO
+- **🗄️ [Database Configuration](https://github.com/homelabforge/mygarage/wiki/Database-Configuration)** - SQLite vs PostgreSQL
+- **🌐 [Reverse Proxy Setup](https://github.com/homelabforge/mygarage/wiki/Reverse-Proxy)** - Traefik, Nginx, Caddy
+
+### Support Channels
+- **📚 Full Documentation**: [GitHub Wiki](https://github.com/homelabforge/mygarage/wiki)
+- **🌐 Website**: [homelabforge.io/builds/mygarage](https://homelabforge.io/builds/mygarage/)
+- **🐛 Bug Reports**: [GitHub Issues](https://github.com/homelabforge/mygarage/issues)
+- **💬 Questions & Discussions**: [GitHub Discussions](https://github.com/homelabforge/mygarage/discussions)
+- **🔒 Security Vulnerabilities**: [Security Advisories](https://github.com/homelabforge/mygarage/security/advisories)
 
 ---
 
@@ -400,3 +430,12 @@ MIT License - see [LICENSE](LICENSE) file for details.
 Built for homelabbers who want to track vehicle maintenance without sending their data to third-party services.
 
 VIN decoding powered by the [NHTSA vPIC API](https://vpic.nhtsa.dot.gov/).
+
+### Development Assistance
+
+MyGarage was developed through AI-assisted pair programming:
+
+- **Claude (Anthropic)** - Co-developed architecture, implemented security patterns, conducted code reviews, designed testing strategies, and helped debug complex issues
+- **GitHub Copilot** - Assisted with code completion, boilerplate generation, and inline suggestions
+
+This project represents a true collaboration between human vision and AI capabilities. The human developer provided direction, domain knowledge, and decision-making, while AI tools contributed technical implementation, best practices, and caught potential issues. Both share credit for what works well, and the maintainer takes responsibility for addressing anything that doesn't.
