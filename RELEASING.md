@@ -11,12 +11,13 @@
 ## Table of Contents
 
 1. [Overview](#overview)
-2. [Pre-Release Checklist](#pre-release-checklist)
-3. [Version Numbering](#version-numbering)
-4. [Release Process](#release-process)
-5. [Post-Release](#post-release)
-6. [Rollback Procedures](#rollback-procedures)
-7. [Troubleshooting](#troubleshooting)
+2. [Private Repository Workflow](#private-repository-workflow)
+3. [Pre-Release Checklist](#pre-release-checklist)
+4. [Version Numbering](#version-numbering)
+5. [Release Process](#release-process)
+6. [Post-Release](#post-release)
+7. [Rollback Procedures](#rollback-procedures)
+8. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -35,6 +36,117 @@ Our release process is **semi-automated**:
 Each release produces:
 1. **GitHub Release** with extracted changelog
 2. **Docker Images** on GHCR with 4 tags (`latest`, `MAJOR.MINOR.PATCH`, `MAJOR.MINOR`, `MAJOR`)
+
+---
+
+## Private Repository Workflow
+
+⚠️ **Current Status**: This repository is **PRIVATE** and not ready for public release.
+
+### Limitations While Private
+
+When the repository is private, certain GitHub Actions features are limited:
+
+#### ❌ Docker Build & Publish Will Fail
+- **Issue**: Artifact attestation (supply chain security) requires public repos or GitHub Enterprise
+- **Error**: `Feature not available for user-owned private repositories`
+- **Workaround**: Attestation step is conditional and will be skipped while private
+- **Impact**: Docker images may still fail to publish to GHCR for private repos
+
+#### ✅ What Still Works
+- CI workflow (testing, linting, type checking)
+- CodeQL security scanning
+- Dependabot dependency updates
+- GitHub Release creation
+
+### Development Workflow (Private Repo)
+
+While developing privately:
+
+1. **Push changes to main**:
+   ```bash
+   git add .
+   git commit -m "feat: Add new feature"
+   git push origin main
+   ```
+
+2. **CI will run** - tests, linting, type checking
+   - All tests must pass (no `continue-on-error` flags)
+   - Backend: 135/137 tests passing (98%)
+   - Frontend: 28/29 tests passing (97%)
+
+3. **Docker build test will run** - verifies Docker image builds
+
+4. **Create tags if needed** for version tracking:
+   ```bash
+   git tag -a v2.15.0 -m "Release v2.15.0"
+   git push origin v2.15.0
+   ```
+
+5. **Release workflow will create GitHub release** (changelog extraction works)
+
+6. **Docker publish workflow will fail** (attestation issue)
+   - Expected behavior while private
+   - Images won't be published to GHCR
+   - Build and test your images locally instead:
+     ```bash
+     docker build -t mygarage:2.15.0 .
+     docker run --rm -p 8686:8686 mygarage:2.15.0
+     ```
+
+### When Ready to Go Public
+
+When you're ready to make the repository public and publish Docker images:
+
+#### Step 1: Make Repository Public
+
+1. Go to repository Settings
+2. Scroll to "Danger Zone"
+3. Click "Change repository visibility"
+4. Change to **Public**
+5. Confirm the change
+
+#### Step 2: Configure GHCR Package Visibility
+
+After first successful Docker build:
+
+1. Go to `https://github.com/orgs/homelabforge/packages`
+2. Find the `mygarage` package
+3. Click "Package settings"
+4. Change visibility to **Public**
+5. Confirm the change
+
+#### Step 3: Re-run Failed Docker Workflows
+
+1. Go to Actions → Docker Build & Publish
+2. Find the failed workflow run for your latest tag
+3. Click "Re-run all jobs"
+4. Workflow should now succeed and publish images
+
+#### Step 4: Verify Public Release
+
+```bash
+# Pull published image
+docker pull ghcr.io/homelabforge/mygarage:latest
+docker pull ghcr.io/homelabforge/mygarage:2.15.0
+
+# Test the image
+docker run --rm -p 8686:8686 ghcr.io/homelabforge/mygarage:latest
+```
+
+### Repository Settings to Verify
+
+Before going public, ensure:
+
+**Settings → Actions → General:**
+- ✅ "Read and write permissions" enabled
+- ✅ "Allow GitHub Actions to create and approve pull requests" enabled
+
+**Settings → Code security:**
+- ✅ Dependabot alerts enabled
+- ✅ Dependabot security updates enabled
+- ✅ CodeQL analysis enabled
+- ✅ Secret scanning enabled
 
 ---
 

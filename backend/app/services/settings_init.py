@@ -25,7 +25,7 @@ DEFAULT_SETTINGS = {
         "encrypted": False,
     },
     "auth_mode": {
-        "value": "local",
+        "value": "none",
         "category": "security",
         "description": "Authentication mode (none, local, oidc)",
         "encrypted": False,

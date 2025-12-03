@@ -20,25 +20,17 @@ jobs:
         with:
           python-version: '3.14'
           cache: 'pip'
-          cache-dependency-path: 'backend/requirements.txt'
+          cache-dependency-path: 'backend/pyproject.toml'
 
       - name: Install dependencies
         run: |
-          cd backend
-          pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Run pytest
-        continue-on-error: true
-        run: |
-          cd backend
-          pytest tests/unit/ -v --tb=short
+          python -m pip install --upgrade pip
+          pip install -e backend/[dev]
 
       - name: Run pytest with coverage
-        continue-on-error: true
         run: |
           cd backend
-          pytest tests/unit/ --cov=app --cov-report=term-missing --cov-report=html
+          pytest tests/unit/ -v --tb=short --cov=app --cov-report=term-missing
 
   test-frontend:
     name: Frontend Tests
@@ -61,19 +53,16 @@ jobs:
           npm ci
 
       - name: Run TypeScript type checking
-        continue-on-error: true
         run: |
           cd frontend
-          npm run type-check || npx tsc --noEmit
+          npx tsc --noEmit
 
       - name: Run linter
-        continue-on-error: true
         run: |
           cd frontend
           npm run lint
 
       - name: Run vitest
-        continue-on-error: true
         run: |
           cd frontend
           npm test -- --run
