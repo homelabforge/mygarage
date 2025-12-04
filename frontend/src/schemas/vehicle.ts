@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import { optionalStringToUndefined, coerceToNumber } from './shared'
 
 /**
  * Vehicle schema for VehicleEdit and VehicleWizard forms.
@@ -18,53 +17,37 @@ export const VEHICLE_TYPES = [
 
 export const vehicleEditSchema = z.object({
   // Basic Information
-  nickname: optionalStringToUndefined,
-  license_plate: optionalStringToUndefined,
-  vehicle_type: optionalStringToUndefined,
-  color: optionalStringToUndefined,
+  nickname: z.string().optional(),
+  license_plate: z.string().optional(),
+  vehicle_type: z.string().optional(),
+  color: z.string().optional(),
 
   // Vehicle Details
-  year: z.preprocess(
-    (val) => (val === '' || val === undefined ? undefined : val),
-    z.coerce.number().int().min(1900).max(2100).optional()
-  ),
-  make: optionalStringToUndefined,
-  model: optionalStringToUndefined,
+  year: z.coerce.number().int().min(1900).max(2100).optional(),
+  make: z.string().optional(),
+  model: z.string().optional(),
 
   // VIN Decoded Information
-  trim: optionalStringToUndefined,
-  body_class: optionalStringToUndefined,
-  drive_type: optionalStringToUndefined,
-  doors: z.preprocess(
-    (val) => (val === '' || val === undefined ? undefined : val),
-    z.coerce.number().int().min(0).optional()
-  ),
-  gvwr_class: optionalStringToUndefined,
+  trim: z.string().optional(),
+  body_class: z.string().optional(),
+  drive_type: z.string().optional(),
+  doors: z.coerce.number().int().min(0).optional(),
+  gvwr_class: z.string().optional(),
 
-  // Engine & Transmission - backend expects string, not number
-  displacement_l: z.preprocess(
-    (val) => {
-      if (val === '' || val === undefined || val === null) return undefined
-      // Convert to string for backend compatibility
-      return String(val)
-    },
-    z.string().optional()
-  ),
-  cylinders: z.preprocess(
-    (val) => (val === '' || val === undefined ? undefined : val),
-    z.coerce.number().int().min(0).optional()
-  ),
-  fuel_type: optionalStringToUndefined,
-  transmission_type: optionalStringToUndefined,
-  transmission_speeds: optionalStringToUndefined,
+  // Engine & Transmission
+  displacement_l: z.string().optional(), // Backend expects string
+  cylinders: z.coerce.number().int().min(0).optional(),
+  fuel_type: z.string().optional(),
+  transmission_type: z.string().optional(),
+  transmission_speeds: z.string().optional(),
 
   // Purchase Information
-  purchase_date: optionalStringToUndefined,
-  purchase_price: coerceToNumber,
+  purchase_date: z.string().optional(),
+  purchase_price: z.coerce.number().optional(),
 
   // Sale Information
-  sold_date: optionalStringToUndefined,
-  sold_price: coerceToNumber,
+  sold_date: z.string().optional(),
+  sold_price: z.coerce.number().optional(),
 })
 
 export type VehicleEditFormData = z.infer<typeof vehicleEditSchema>

@@ -27,9 +27,9 @@ export default function TollTransactionForm({ vin, tollTags, transaction, onClos
     resolver: zodResolver(tollTransactionSchema),
     defaultValues: {
       transaction_date: transaction?.transaction_date || new Date().toISOString().split('T')[0],
-      amount: transaction?.amount?.toString() || '',
+      amount: transaction?.amount ?? undefined,
       location: transaction?.location || '',
-      toll_tag_id: transaction?.toll_tag_id?.toString() || '',
+      toll_tag_id: transaction?.toll_tag_id ?? undefined,
       notes: transaction?.notes || '',
     },
   })

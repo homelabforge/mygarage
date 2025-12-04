@@ -7,32 +7,23 @@ import { z } from 'zod'
 
 // Numeric validators
 export const mileageSchema = z.coerce
-  .number({
-    required_error: 'Mileage is required',
-    invalid_type_error: 'Mileage must be a number',
-  })
+  .number()
   .int('Mileage must be a whole number')
   .min(0, 'Mileage cannot be negative')
   .max(9999999, 'Mileage too large')
 
 export const currencySchema = z.coerce
-  .number({
-    invalid_type_error: 'Amount must be a number',
-  })
+  .number()
   .min(0, 'Amount cannot be negative')
   .max(99999.99, 'Amount too large')
 
 export const gallonsSchema = z.coerce
-  .number({
-    invalid_type_error: 'Gallons must be a number',
-  })
+  .number()
   .min(0, 'Gallons cannot be negative')
   .max(999.999, 'Gallons too large')
 
 export const pricePerUnitSchema = z.coerce
-  .number({
-    invalid_type_error: 'Price must be a number',
-  })
+  .number()
   .min(0, 'Price cannot be negative')
   .max(999.99, 'Price too large')
 
@@ -58,39 +49,11 @@ export const vinSchema = z
   .length(17, 'VIN must be exactly 17 characters')
   .regex(/^[A-HJ-NPR-Z0-9]{17}$/, 'Invalid VIN format')
 
-// Optional numeric fields (allow empty string or undefined)
-export const optionalMileageSchema = z.preprocess(
-  (val) => (val === '' || val === undefined ? undefined : val),
-  mileageSchema.optional()
-)
+// Optional numeric fields - React Hook Form's zodResolver automatically converts empty strings to undefined
+export const optionalMileageSchema = mileageSchema.optional()
 
-export const optionalCurrencySchema = z.preprocess(
-  (val) => (val === '' || val === undefined ? undefined : val),
-  currencySchema.optional()
-)
+export const optionalCurrencySchema = currencySchema.optional()
 
-export const optionalGallonsSchema = z.preprocess(
-  (val) => (val === '' || val === undefined ? undefined : val),
-  gallonsSchema.optional()
-)
+export const optionalGallonsSchema = gallonsSchema.optional()
 
-export const optionalPricePerUnitSchema = z.preprocess(
-  (val) => (val === '' || val === undefined ? undefined : val),
-  pricePerUnitSchema.optional()
-)
-
-// Generic optional string to undefined helper
-export const optionalStringToUndefined = z.preprocess(
-  (val) => (val === '' || val === undefined ? undefined : val),
-  z.string().optional()
-)
-
-// Generic number coercion (for forms that don't need specific range validation)
-export const coerceToNumber = z.preprocess(
-  (val) => {
-    if (val === '' || val === undefined || val === null) return undefined
-    const num = typeof val === 'number' ? val : parseFloat(String(val))
-    return isNaN(num) ? undefined : num
-  },
-  z.number().optional()
-)
+export const optionalPricePerUnitSchema = pricePerUnitSchema.optional()

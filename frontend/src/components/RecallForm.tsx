@@ -31,7 +31,7 @@ export default function RecallForm({ vin, recall, onClose, onSuccess }: RecallFo
       consequence: recall?.consequence || '',
       remedy: recall?.remedy || '',
       date_announced: recall?.date_announced || '',
-      is_resolved: recall?.is_resolved || false,
+      is_resolved: recall?.is_resolved ?? false,
       notes: recall?.notes || '',
     },
   })

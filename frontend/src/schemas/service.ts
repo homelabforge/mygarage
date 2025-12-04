@@ -4,7 +4,6 @@ import {
   optionalMileageSchema,
   optionalCurrencySchema,
   vendorNameSchema,
-  notesSchema,
 } from './shared'
 
 /**
@@ -27,7 +26,7 @@ export const serviceRecordSchema = z.object({
   vendor_name: vendorNameSchema.optional(),
   vendor_location: z.string().max(100, 'Location too long (max 100 characters)').optional(),
   service_type: z.enum(SERVICE_TYPES, {
-    errorMap: () => ({ message: 'Please select a valid service type' }),
+    message: 'Please select a valid service type',
   }).optional(),
   insurance_claim: z.string().max(50, 'Insurance claim too long (max 50 characters)').optional(),
 })

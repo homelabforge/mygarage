@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { X, Save } from 'lucide-react'
-import { toast } from 'sonner'
 import type { FuelRecord, FuelRecordCreate, FuelRecordUpdate } from '../types/fuel'
 import type { Vehicle } from '../types/vehicle'
 import { fuelRecordSchema, type FuelRecordFormData } from '../schemas/fuel'
@@ -51,11 +50,11 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
     resolver: zodResolver(fuelRecordSchema),
     defaultValues: {
       date: formatDateForInput(record?.date),
-      mileage: record?.mileage?.toString() || '',
-      gallons: record?.gallons?.toString() || '',
-      propane_gallons: record?.propane_gallons?.toString() || '',
-      price_per_unit: record?.price_per_unit?.toString() || '',
-      cost: record?.cost?.toString() || '',
+      mileage: record?.mileage ?? undefined,
+      gallons: record?.gallons ?? undefined,
+      propane_gallons: record?.propane_gallons ?? undefined,
+      price_per_unit: record?.price_per_unit ?? undefined,
+      cost: record?.cost ?? undefined,
       fuel_type: record?.fuel_type || '',
       is_full_tank: record?.is_full_tank ?? true,
       missed_fillup: record?.missed_fillup ?? false,

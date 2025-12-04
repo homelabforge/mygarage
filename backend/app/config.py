@@ -1,10 +1,23 @@
 """Configuration settings for MyGarage application."""
 
 import os
+import tomllib
 from pydantic_settings import BaseSettings
 from pydantic import Field
 from pathlib import Path
 from app.utils.secret_key import get_or_create_secret_key
+
+
+def get_version() -> str:
+    """Read version from pyproject.toml (single source of truth)."""
+    try:
+        pyproject_path = Path(__file__).parent.parent / "pyproject.toml"
+        with open(pyproject_path, "rb") as f:
+            data = tomllib.load(f)
+        return data["project"]["version"]
+    except (FileNotFoundError, KeyError):
+        # Fallback if pyproject.toml is not found or malformed
+        return "0.0.0-dev"
 
 
 class Settings(BaseSettings):
@@ -12,7 +25,7 @@ class Settings(BaseSettings):
 
     # Application
     app_name: str = "MyGarage"
-    app_version: str = "2.14.0"
+    app_version: str = Field(default_factory=get_version)
     debug: bool = False
     timezone: str = "UTC"  # User-editable via Settings UI
 

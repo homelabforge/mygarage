@@ -50,7 +50,7 @@ export default function WarrantyForm({ vin, record, onClose, onSuccess }: Warran
       provider: record?.provider || '',
       start_date: formatDateForInput(record?.start_date),
       end_date: formatDateForInput(record?.end_date === '' || record?.end_date === null ? undefined : record?.end_date),
-      mileage_limit: record?.mileage_limit?.toString() || '',
+      mileage_limit: record?.mileage_limit ?? undefined,
       coverage_details: record?.coverage_details || '',
       policy_number: record?.policy_number || '',
       notes: record?.notes || '',

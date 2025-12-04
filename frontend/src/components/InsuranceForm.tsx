@@ -55,11 +55,11 @@ export default function InsuranceForm({ vin, record, onClose, onSuccess }: Insur
       policy_type: record?.policy_type || '',
       start_date: formatDateForInput(record?.start_date),
       end_date: formatDateForInput(record?.end_date === '' || record?.end_date === null ? undefined : record?.end_date),
-      premium_amount: record?.premium_amount,
-      premium_frequency: record?.premium_frequency,
-      deductible: record?.deductible,
-      coverage_limits: record?.coverage_limits,
-      notes: record?.notes,
+      premium_amount: record?.premium_amount ?? undefined,
+      premium_frequency: record?.premium_frequency ?? undefined,
+      deductible: record?.deductible ?? undefined,
+      coverage_limits: record?.coverage_limits ?? undefined,
+      notes: record?.notes ?? undefined,
     },
   })
 

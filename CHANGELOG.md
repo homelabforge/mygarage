@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.14.1] - 2025-12-03
+
+### Added
+- **Single-Source-of-Truth Version Management**
+  - Backend now reads version from `pyproject.toml` automatically at runtime
+  - Added `get_version()` function using Python's built-in `tomllib` parser
+  - Version bumps now only require updating 2 files instead of 3
+  - Eliminates version drift between config.py and pyproject.toml
+  - Updated Dockerfile to copy `pyproject.toml` into production image
+
+### Changed
+- **Zod v4 API Migration** - Updated all validation schemas to use Zod v4 API patterns
+  - Removed deprecated `required_error` and `invalid_type_error` parameters from schemas
+  - Simplified error messages using single `message` parameter
+  - Updated z.enum `errorMap` syntax to new `message` format
+  - Removed unnecessary `z.preprocess()` wrappers that were causing type inference issues
+  - React Hook Form's zodResolver automatically handles empty string → undefined conversion
+
+- **Form Type Safety Improvements**
+  - Fixed defaultValues type mismatches across 15+ form components
+  - Changed numeric field defaults from `.toString() || ''` to `?? undefined` pattern
+  - Fixed boolean field defaults using `??` instead of `||` to preserve explicit false values
+  - Improved type inference for all form schemas (now return proper types instead of `unknown`)
+
+- **Test Infrastructure Updates**
+  - Changed `global` to `globalThis` for Node.js/browser compatibility in test setup
+  - Removed unused imports and variables across test files
+
+### Fixed
+- **TypeScript Compilation Errors** - Resolved 100+ TypeScript errors caused by Zod v4 API changes
+  - Fixed all schema validation patterns to match Zod v4 requirements
+  - Fixed form component type mismatches for numeric and boolean fields
+  - Fixed null safety issues in title length checks and property access
+  - Removed unused imports and watch variables flagged by TypeScript strict mode
+
+### Dependencies
+- **Frontend**: Updated jsdom from 25.0.1 to 27.2.0 (Dependabot security update)
+
+### Technical Notes
+- All changes are backward compatible - no validation rules or API contracts changed
+- Build passes successfully with Vite
+- All 28 unit tests passing
+- 49 non-blocking TypeScript warnings remain (type inference cascades from resolver types)
+
 ## [2.14.0] - 2025-12-01
 
 ### Added

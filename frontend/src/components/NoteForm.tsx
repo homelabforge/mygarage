@@ -116,7 +116,7 @@ export default function NoteForm({ vin, note, onClose, onSuccess }: NoteFormProp
             />
             <FormError error={errors.title} />
             <p className="text-xs text-garage-text-muted mt-1">
-              {title.length}/100 characters
+              {title?.length ?? 0}/100 characters
             </p>
           </div>
 

@@ -54,6 +54,7 @@ COPY --from=backend-builder /usr/local/bin /usr/local/bin
 COPY --from=backend-builder /app/app ./app
 COPY --from=backend-builder /app/tests ./tests
 COPY --from=backend-builder /app/pytest.ini ./pytest.ini
+COPY --from=backend-builder /app/pyproject.toml ./pyproject.toml
 
 # Copy frontend build
 COPY --from=frontend-builder /app/frontend/dist ./static

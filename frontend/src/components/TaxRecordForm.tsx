@@ -45,8 +45,8 @@ export default function TaxRecordForm({ vin, record, onClose, onSuccess }: TaxRe
     resolver: zodResolver(taxRecordSchema),
     defaultValues: {
       date: formatDateForInput(record?.date),
-      tax_type: record?.tax_type || '',
-      amount: record?.amount?.toString() || '',
+      tax_type: record?.tax_type ?? undefined,
+      amount: record?.amount ?? undefined,
       renewal_date: record?.renewal_date ? formatDateForInput(record.renewal_date) : '',
       notes: record?.notes || '',
     },

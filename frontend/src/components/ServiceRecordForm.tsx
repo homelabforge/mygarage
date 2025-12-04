@@ -55,22 +55,18 @@ export default function ServiceRecordForm({ vin, record, onClose, onSuccess }: S
     resolver: zodResolver(serviceRecordSchema),
     defaultValues: {
       date: formatDateForInput(record?.date),
-      mileage: record?.mileage?.toString() || '',
+      mileage: record?.mileage ?? undefined,
       description: record?.description || '',
-      cost: record?.cost?.toString() || '',
+      cost: record?.cost ?? undefined,
       notes: record?.notes || '',
       vendor_name: record?.vendor_name || '',
       vendor_location: record?.vendor_location || '',
-      service_type: record?.service_type || '',
+      service_type: record?.service_type ?? undefined,
       insurance_claim: record?.insurance_claim || '',
     },
   })
 
   // Watch fields needed for controlled components
-  const vendor_name = watch('vendor_name')
-  const vendor_location = watch('vendor_location')
-  const notes = watch('notes')
-  const insurance_claim = watch('insurance_claim')
   const description = watch('description')
 
   const [createReminder, setCreateReminder] = useState(false)

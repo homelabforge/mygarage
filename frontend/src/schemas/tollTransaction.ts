@@ -1,14 +1,11 @@
 import { z } from 'zod'
-import { optionalStringToUndefined, coerceToNumber } from './shared'
 
 export const tollTransactionSchema = z.object({
   transaction_date: z.string().min(1, 'Transaction date is required'),
-  amount: coerceToNumber.refine(val => val !== undefined && val >= 0, {
-    message: 'Amount must be 0 or greater',
-  }),
+  amount: z.coerce.number().min(0, 'Amount must be 0 or greater').optional(),
   location: z.string().min(1, 'Location is required'),
-  toll_tag_id: coerceToNumber.optional(),
-  notes: optionalStringToUndefined,
+  toll_tag_id: z.coerce.number().optional(),
+  notes: z.string().optional(),
 })
 
 export type TollTransactionFormData = z.infer<typeof tollTransactionSchema>

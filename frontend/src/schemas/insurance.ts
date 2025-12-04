@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import { optionalStringToUndefined } from './shared'
 
 /**
  * Insurance policy schema matching backend Pydantic validators.
@@ -28,20 +27,11 @@ export const insuranceSchema = z.object({
   policy_type: z.string().min(1, 'Policy type is required'),
   start_date: z.string().min(1, 'Start date is required'),
   end_date: z.string().min(1, 'End date is required'),
-  premium_amount: z.preprocess(
-    optionalStringToUndefined,
-    z.coerce.number().min(0, 'Premium amount cannot be negative').optional()
-  ),
-  premium_frequency: z.preprocess(
-    optionalStringToUndefined,
-    z.string().optional()
-  ),
-  deductible: z.preprocess(
-    optionalStringToUndefined,
-    z.coerce.number().min(0, 'Deductible cannot be negative').optional()
-  ),
-  coverage_limits: z.preprocess(optionalStringToUndefined, z.string().optional()),
-  notes: z.preprocess(optionalStringToUndefined, z.string().optional()),
+  premium_amount: z.coerce.number().min(0, 'Premium amount cannot be negative').optional(),
+  premium_frequency: z.string().optional(),
+  deductible: z.coerce.number().min(0, 'Deductible cannot be negative').optional(),
+  coverage_limits: z.string().optional(),
+  notes: z.string().optional(),
 })
 
 export type InsuranceFormData = z.infer<typeof insuranceSchema>

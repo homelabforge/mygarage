@@ -44,6 +44,8 @@ export default defineConfig({
         },
       },
     },
+    // Copy service worker to build output
+    copyPublicDir: true,
   },
   server: {
     port: 3000,

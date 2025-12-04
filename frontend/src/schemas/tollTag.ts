@@ -19,8 +19,7 @@ export const TOLL_SYSTEMS = [
 
 export const tollTagSchema = z.object({
   toll_system: z.enum(TOLL_SYSTEMS, {
-    required_error: 'Toll system is required',
-    invalid_type_error: 'Invalid toll system',
+    message: 'Toll system is required',
   }),
   tag_number: z
     .string()

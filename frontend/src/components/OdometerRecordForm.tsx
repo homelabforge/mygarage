@@ -45,7 +45,7 @@ export default function OdometerRecordForm({ vin, record, onClose, onSuccess }: 
     resolver: zodResolver(odometerRecordSchema),
     defaultValues: {
       date: formatDateForInput(record?.date),
-      mileage: record?.mileage?.toString() || '',
+      mileage: record?.mileage ?? undefined,
       notes: record?.notes || '',
     },
   })
