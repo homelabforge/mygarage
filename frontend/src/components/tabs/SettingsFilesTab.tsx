@@ -62,20 +62,15 @@ export default function SettingsFilesTab() {
   }, [loadSettings])
 
   const handleSave = useCallback(async () => {
-    try {
-      await api.post('/settings/batch', {
-        settings: {
-          max_upload_size_mb: formData.max_upload_size_mb,
-          allowed_photo_types: formData.allowed_photo_types.join(','),
-          allowed_attachment_types: formData.allowed_attachment_types.join(','),
-          window_sticker_enabled: formData.window_sticker_enabled,
-          window_sticker_ocr_enabled: formData.window_sticker_ocr_enabled,
-        },
-      })
-    } catch (error) {
-      // Removed console.error
-      throw error
-    }
+    await api.post('/settings/batch', {
+      settings: {
+        max_upload_size_mb: formData.max_upload_size_mb,
+        allowed_photo_types: formData.allowed_photo_types.join(','),
+        allowed_attachment_types: formData.allowed_attachment_types.join(','),
+        window_sticker_enabled: formData.window_sticker_enabled,
+        window_sticker_ocr_enabled: formData.window_sticker_ocr_enabled,
+      },
+    })
   }, [formData])
 
   // Register save handler

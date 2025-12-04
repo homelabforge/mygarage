@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
 
 type Theme = 'light' | 'dark';
@@ -27,6 +27,17 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   const [theme, setThemeState] = useState<Theme>('dark');
   const [isInitialized, setIsInitialized] = useState(false);
 
+  const applyTheme = useCallback((newTheme: Theme) => {
+    const html = document.documentElement;
+    if (newTheme === 'light') {
+      html.classList.add('light');
+      html.classList.remove('dark');
+    } else {
+      html.classList.add('dark');
+      html.classList.remove('light');
+    }
+  }, []);
+
   // Initialize theme from localStorage and database
   useEffect(() => {
     const initializeTheme = async () => {
@@ -42,6 +53,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
       try {
         const response = await axios.get('/api/settings/public');
         const settings = response.data.settings; // API returns { settings: [...], total: N }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const themeSetting = settings.find((s: any) => s.key === 'theme');
 
         if (themeSetting && themeSetting.value) {
@@ -67,18 +79,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
     };
 
     initializeTheme();
-  }, []);
-
-  const applyTheme = (newTheme: Theme) => {
-    const html = document.documentElement;
-    if (newTheme === 'light') {
-      html.classList.add('light');
-      html.classList.remove('dark');
-    } else {
-      html.classList.add('dark');
-      html.classList.remove('light');
-    }
-  };
+  }, [applyTheme]);
 
   const setTheme = async (newTheme: Theme) => {
     // Apply immediately to DOM

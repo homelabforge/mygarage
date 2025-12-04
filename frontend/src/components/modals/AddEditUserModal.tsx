@@ -76,7 +76,8 @@ export default function AddEditUserModal({ isOpen, onClose, user, onSave, curren
     if (!isEditMode || formData.password) {
       try {
         passwordSchema.parse(formData.password)
-      } catch (err: any) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (err: any) {
         validationErrors.password = err.errors?.[0]?.message || 'Invalid password'
       }
 

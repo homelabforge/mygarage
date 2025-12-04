@@ -62,20 +62,15 @@ export default function SettingsIntegrationsTab() {
   }, [loadSettings])
 
   const handleSave = useCallback(async () => {
-    try {
-      await api.post('/settings/batch', {
-        settings: {
-          nhtsa_enabled: formData.nhtsa_enabled,
-          nhtsa_auto_check: formData.nhtsa_auto_check,
-          nhtsa_recall_check_interval: formData.nhtsa_recall_check_interval,
-          nhtsa_recalls_api_url: formData.nhtsa_recalls_api_url,
-          carcomplaints_enabled: formData.carcomplaints_enabled,
-        },
-      })
-    } catch (error) {
-      // Removed console.error
-      throw error
-    }
+    await api.post('/settings/batch', {
+      settings: {
+        nhtsa_enabled: formData.nhtsa_enabled,
+        nhtsa_auto_check: formData.nhtsa_auto_check,
+        nhtsa_recall_check_interval: formData.nhtsa_recall_check_interval,
+        nhtsa_recalls_api_url: formData.nhtsa_recalls_api_url,
+        carcomplaints_enabled: formData.carcomplaints_enabled,
+      },
+    })
   }, [formData])
 
   // Register save handler

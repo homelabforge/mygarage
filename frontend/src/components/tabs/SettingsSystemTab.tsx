@@ -154,7 +154,6 @@ export default function SettingsSystemTab() {
   }, [])
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadSettings()
   }, [loadSettings])
 
@@ -206,20 +205,15 @@ export default function SettingsSystemTab() {
 
   // Save settings
   const handleSave = useCallback(async () => {
-    try {
-      await api.post('/settings/batch', { settings: formData })
+    await api.post('/settings/batch', { settings: formData })
 
-      const restartRequired = formData.debug !== 'false'
-      if (restartRequired) {
-        setMessage({
-          type: 'success',
-          text: '⚠️ Restart the application for debug mode changes to take effect.'
-        })
-        setTimeout(() => setMessage(null), 5000)
-      }
-    } catch (error) {
-      // Removed console.error
-      throw error
+    const restartRequired = formData.debug !== 'false'
+    if (restartRequired) {
+      setMessage({
+        type: 'success',
+        text: '⚠️ Restart the application for debug mode changes to take effect.'
+      })
+      setTimeout(() => setMessage(null), 5000)
     }
   }, [formData])
 

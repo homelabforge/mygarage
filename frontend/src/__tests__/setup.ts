@@ -4,6 +4,7 @@ import '@testing-library/jest-dom/vitest'
 
 // Mock axios before any imports that might use it
 vi.mock('axios', () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mockAxios: any = {
     get: vi.fn(() => Promise.resolve({ data: {} })),
     post: vi.fn(() => Promise.resolve({ data: {} })),
@@ -59,6 +60,7 @@ globalThis.IntersectionObserver = class IntersectionObserver {
     return []
   }
   unobserve() {}
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
 } as any
 
 // Mock ResizeObserver (for responsive components)
@@ -67,4 +69,5 @@ globalThis.ResizeObserver = class ResizeObserver {
   disconnect() {}
   observe() {}
   unobserve() {}
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
 } as any

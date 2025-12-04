@@ -31,6 +31,7 @@ export default function DeleteUserModal({ isOpen, onClose, user, onConfirm }: De
       onConfirm()
       onClose()
       setConfirmText('')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       const detail = error.response?.data?.detail
       if (typeof detail === 'string') {
