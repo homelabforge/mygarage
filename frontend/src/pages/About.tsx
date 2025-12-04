@@ -8,9 +8,7 @@ import {
   Layers,
   Sparkles,
   Heart,
-  Wrench,
   BarChart3,
-  Activity,
   Bell,
   Calendar,
 } from 'lucide-react'

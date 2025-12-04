@@ -49,7 +49,7 @@ export default function VehicleEdit() {
         drive_type: data.drive_type,
         doors: data.doors,
         gvwr_class: data.gvwr_class,
-        displacement_l: data.displacement_l ? parseFloat(data.displacement_l) : undefined,
+        displacement_l: data.displacement_l,
         cylinders: data.cylinders,
         fuel_type: data.fuel_type,
         transmission_type: data.transmission_type,

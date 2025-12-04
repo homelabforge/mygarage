@@ -12,10 +12,22 @@ export const reminderSchema = z
       .min(1, 'Description is required')
       .max(200, 'Description too long (max 200 characters)'),
     due_date: z.string().optional(),
-    due_mileage: z.coerce.number().int().min(0, 'Mileage cannot be negative').optional(),
-    is_recurring: z.boolean().default(false),
-    recurrence_days: z.coerce.number().int().min(1, 'Recurrence days must be at least 1').optional(),
-    recurrence_miles: z.coerce.number().int().min(1, 'Recurrence miles must be at least 1').optional(),
+    due_mileage: z
+      .number({ invalid_type_error: 'Mileage must be a number' })
+      .int('Mileage must be a whole number')
+      .min(0, 'Mileage cannot be negative')
+      .optional(),
+    is_recurring: z.boolean().default(false).pipe(z.boolean()),
+    recurrence_days: z
+      .number({ invalid_type_error: 'Recurrence days must be a number' })
+      .int('Must be a whole number')
+      .min(1, 'Recurrence days must be at least 1')
+      .optional(),
+    recurrence_miles: z
+      .number({ invalid_type_error: 'Recurrence miles must be a number' })
+      .int('Must be a whole number')
+      .min(1, 'Recurrence miles must be at least 1')
+      .optional(),
     notes: z.string().optional(),
   })
   .refine((data) => data.due_date || data.due_mileage, {

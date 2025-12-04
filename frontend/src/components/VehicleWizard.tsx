@@ -36,7 +36,7 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
     setValue,
     watch,
     getValues,
-    formState: { errors, isValid },
+    formState: { errors },
   } = useForm<VehicleEditFormData>({
     resolver: zodResolver(vehicleEditSchema),
     mode: 'onChange',

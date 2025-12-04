@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import api from '../services/api'
-import { Car, Wrench, Fuel, Shield, FileText, Download, HelpCircle, LineChart } from 'lucide-react'
+import { Car, Wrench, Fuel, Shield, FileText, Download, HelpCircle } from 'lucide-react'
 import {
   ResponsiveContainer,
   PieChart as RechartsPieChart,

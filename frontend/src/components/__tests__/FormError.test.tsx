@@ -4,7 +4,7 @@ import { FormError } from '../FormError'
 
 describe('FormError', () => {
   it('renders error message', () => {
-    render(<FormError error={{ message: "This field is required" }} />)
+    render(<FormError error={{ type: 'required', message: "This field is required" }} />)
 
     expect(screen.getByText(/This field is required/i)).toBeInTheDocument()
   })
@@ -16,7 +16,7 @@ describe('FormError', () => {
   })
 
   it('applies error styling', () => {
-    const { container } = render(<FormError error={{ message: "Error" }} />)
+    const { container } = render(<FormError error={{ type: 'validation', message: "Error" }} />)
 
     const errorElement = container.firstChild
     expect(errorElement).toHaveClass('text-red-500')
@@ -24,7 +24,7 @@ describe('FormError', () => {
 
   it('handles long error messages', () => {
     const longMessage = 'This is a very long error message that should still be displayed properly'
-    render(<FormError error={{ message: longMessage }} />)
+    render(<FormError error={{ type: 'validation', message: longMessage }} />)
 
     expect(screen.getByText(longMessage)).toBeInTheDocument()
   })

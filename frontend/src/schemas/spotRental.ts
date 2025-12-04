@@ -8,25 +8,19 @@ import { dateSchema, notesSchema } from './shared'
  * CRITICAL: This schema fixes 8 missing isNaN validation bugs in SpotRentalForm
  */
 
-// Currency validators specific to spot rental limits
-const nightlyRateSchema = z.coerce
-  .number({
-    message: 'Nightly rate must be a number',
-  })
+// Currency validators specific to spot rental limits - simple optional number schemas
+const nightlyRateSchema = z
+  .number({ invalid_type_error: 'Nightly rate must be a number' })
   .min(0, 'Nightly rate cannot be negative')
   .max(9999.99, 'Nightly rate too large (max $9,999.99)')
 
-const largeRateSchema = z.coerce
-  .number({
-    message: 'Rate must be a number',
-  })
+const largeRateSchema = z
+  .number({ invalid_type_error: 'Rate must be a number' })
   .min(0, 'Rate cannot be negative')
   .max(99999.99, 'Rate too large (max $99,999.99)')
 
-const utilitySchema = z.coerce
-  .number({
-    message: 'Utility cost must be a number',
-  })
+const utilitySchema = z
+  .number({ invalid_type_error: 'Utility cost must be a number' })
   .min(0, 'Utility cost cannot be negative')
   .max(9999.99, 'Utility cost too large (max $9,999.99)')
 

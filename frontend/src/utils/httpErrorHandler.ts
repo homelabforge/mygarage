@@ -68,7 +68,7 @@ export function parseApiError(error: unknown, context?: string): ParsedApiError 
   // Handle Axios errors
   if (isAxiosError(error)) {
     const status = error.response?.status || 0
-    const detail = error.response?.data?.detail || error.message
+    const detail = (error.response?.data as { detail?: string })?.detail || error.message
 
     // Network error (no response)
     if (!error.response) {

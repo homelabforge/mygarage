@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { dateSchema, notesSchema } from './shared'
+import { dateSchema } from './shared'
 
 /**
  * Note schema matching backend Pydantic validators.

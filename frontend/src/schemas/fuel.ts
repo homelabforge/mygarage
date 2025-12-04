@@ -21,9 +21,9 @@ export const fuelRecordSchema = z.object({
   cost: optionalCurrencySchema,
   price_per_unit: optionalPricePerUnitSchema,
   fuel_type: z.string().max(50, 'Fuel type too long').optional(),
-  is_full_tank: z.boolean().default(true),
-  missed_fillup: z.boolean().default(false),
-  is_hauling: z.boolean().default(false),
+  is_full_tank: z.boolean().default(true).pipe(z.boolean()),
+  missed_fillup: z.boolean().default(false).pipe(z.boolean()),
+  is_hauling: z.boolean().default(false).pipe(z.boolean()),
   notes: notesSchema.optional(),
 })
 

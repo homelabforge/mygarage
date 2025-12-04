@@ -15,7 +15,9 @@ export const warrantySchema = z.object({
   provider: z.string().optional(),
   start_date: z.string().min(1, 'Start date is required'),
   end_date: z.string().optional(),
-  mileage_limit: z.coerce.number().optional(),
+  mileage_limit: z
+    .number({ invalid_type_error: 'Mileage limit must be a number' })
+    .optional(),
   coverage_details: z.string().optional(),
   policy_number: z.string().optional(),
   notes: z.string().optional(),

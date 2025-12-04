@@ -28,7 +28,7 @@ export const recallSchema = z.object({
     .max(2000, 'Remedy description too long (max 2,000 characters)')
     .optional(),
   date_announced: dateSchema.optional(),
-  is_resolved: z.boolean().default(false),
+  is_resolved: z.boolean().default(false).pipe(z.boolean()),
   notes: notesSchema.optional(),
 })
 

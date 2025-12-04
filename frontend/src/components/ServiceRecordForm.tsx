@@ -68,6 +68,7 @@ export default function ServiceRecordForm({ vin, record, onClose, onSuccess }: S
 
   // Watch fields needed for controlled components
   const description = watch('description')
+  const vendor_name = watch('vendor_name')
 
   const [createReminder, setCreateReminder] = useState(false)
   const [reminderData, setReminderData] = useState({
