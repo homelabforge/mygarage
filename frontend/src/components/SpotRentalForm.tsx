@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { X, Save } from 'lucide-react'
 import type { SpotRental, SpotRentalCreate, SpotRentalUpdate } from '../types/spotRental'
@@ -42,7 +42,7 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<SpotRentalFormData>({
-    resolver: zodResolver(spotRentalSchema),
+    resolver: zodResolver(spotRentalSchema) as Resolver<SpotRentalFormData>,
     defaultValues: {
       location_name: rental?.location_name || '',
       location_address: rental?.location_address || '',

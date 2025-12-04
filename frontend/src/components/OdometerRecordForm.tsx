@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { X, Save } from 'lucide-react'
 import type { OdometerRecord, OdometerRecordCreate, OdometerRecordUpdate } from '../types/odometer'
@@ -42,7 +42,7 @@ export default function OdometerRecordForm({ vin, record, onClose, onSuccess }: 
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<OdometerRecordFormData>({
-    resolver: zodResolver(odometerRecordSchema),
+    resolver: zodResolver(odometerRecordSchema) as Resolver<OdometerRecordFormData>,
     defaultValues: {
       date: formatDateForInput(record?.date),
       mileage: record?.mileage ?? undefined,

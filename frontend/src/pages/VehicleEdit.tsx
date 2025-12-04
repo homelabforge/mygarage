@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useForm } from 'react-hook-form'
+import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ArrowLeft, Save } from 'lucide-react'
 import api from '../services/api'
@@ -21,7 +21,7 @@ export default function VehicleEdit() {
     formState: { errors, isSubmitting },
     reset,
   } = useForm<VehicleEditFormData>({
-    resolver: zodResolver(vehicleEditSchema),
+    resolver: zodResolver(vehicleEditSchema) as Resolver<VehicleEditFormData>,
     defaultValues: {},
   })
 

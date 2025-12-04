@@ -12,4 +12,6 @@ export const odometerRecordSchema = z.object({
   notes: notesSchema.optional(),
 })
 
-export type OdometerRecordFormData = z.infer<typeof odometerRecordSchema>
+// Export both input and output types for Zod v4 zodResolver compatibility
+export type OdometerRecordInput = z.input<typeof odometerRecordSchema>
+export type OdometerRecordFormData = z.output<typeof odometerRecordSchema>

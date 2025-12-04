@@ -8,23 +8,23 @@ import { dateSchema, notesSchema } from './shared'
  * CRITICAL: This schema fixes 8 missing isNaN validation bugs in SpotRentalForm
  */
 
-// Currency validators specific to spot rental limits - simple optional number schemas
-const nightlyRateSchema = z
+// Currency validators specific to spot rental limits - use z.coerce to handle string inputs
+const nightlyRateSchema = z.coerce
   .number()
   .min(0, 'Nightly rate cannot be negative')
   .max(9999.99, 'Nightly rate too large (max $9,999.99)')
 
-const largeRateSchema = z
+const largeRateSchema = z.coerce
   .number()
   .min(0, 'Rate cannot be negative')
   .max(99999.99, 'Rate too large (max $99,999.99)')
 
-const utilitySchema = z
+const utilitySchema = z.coerce
   .number()
   .min(0, 'Utility cost cannot be negative')
   .max(9999.99, 'Utility cost too large (max $9,999.99)')
 
-// Optional versions - React Hook Form's zodResolver automatically converts empty strings to undefined
+// Optional versions - use .optional() directly with z.coerce
 const optionalNightlyRateSchema = nightlyRateSchema.optional()
 
 const optionalLargeRateSchema = largeRateSchema.optional()
@@ -47,4 +47,6 @@ export const spotRentalSchema = z.object({
   notes: notesSchema.optional(),
 })
 
-export type SpotRentalFormData = z.infer<typeof spotRentalSchema>
+// Use z.output for Zod v4 compatibility with z.coerce fields
+export type SpotRentalInput = z.input<typeof spotRentalSchema>
+export type SpotRentalFormData = z.output<typeof spotRentalSchema>

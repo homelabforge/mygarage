@@ -6,24 +6,24 @@ import { z } from 'zod'
  */
 
 // Numeric validators - required number fields
-// Note: Forms must use valueAsNumber on inputs or convert strings to numbers before validation
-export const mileageSchema = z
+// Using z.coerce to automatically convert HTML form string inputs to numbers
+export const mileageSchema = z.coerce
   .number()
   .int('Mileage must be a whole number')
   .min(0, 'Mileage cannot be negative')
   .max(9999999, 'Mileage too large')
 
-export const currencySchema = z
+export const currencySchema = z.coerce
   .number()
   .min(0, 'Amount cannot be negative')
   .max(99999.99, 'Amount too large')
 
-export const gallonsSchema = z
+export const gallonsSchema = z.coerce
   .number()
   .min(0, 'Gallons cannot be negative')
   .max(999.999, 'Gallons too large')
 
-export const pricePerUnitSchema = z
+export const pricePerUnitSchema = z.coerce
   .number()
   .min(0, 'Price cannot be negative')
   .max(999.99, 'Price too large')
@@ -50,29 +50,42 @@ export const vinSchema = z
   .length(17, 'VIN must be exactly 17 characters')
   .regex(/^[A-HJ-NPR-Z0-9]{17}$/, 'Invalid VIN format')
 
-// Optional numeric fields - simple optional number schemas
-// Note: Forms must use valueAsNumber on inputs or convert strings to numbers before validation
-export const optionalMileageSchema = z
-  .number()
-  .int('Mileage must be a whole number')
-  .min(0, 'Mileage cannot be negative')
-  .max(9999999, 'Mileage too large')
-  .optional()
+// Optional numeric fields - define as base schema then make optional
+// Using z.coerce to automatically convert HTML form string inputs to numbers
+// IMPORTANT: Preprocess empty strings to undefined to prevent coercion to 0
+export const optionalMileageSchema = z.preprocess(
+  (val) => (val === '' || val === null ? undefined : val),
+  z.coerce
+    .number()
+    .int('Mileage must be a whole number')
+    .min(0, 'Mileage cannot be negative')
+    .max(9999999, 'Mileage too large')
+    .optional()
+)
 
-export const optionalCurrencySchema = z
-  .number()
-  .min(0, 'Amount cannot be negative')
-  .max(99999.99, 'Amount too large')
-  .optional()
+export const optionalCurrencySchema = z.preprocess(
+  (val) => (val === '' || val === null ? undefined : val),
+  z.coerce
+    .number()
+    .min(0, 'Amount cannot be negative')
+    .max(99999.99, 'Amount too large')
+    .optional()
+)
 
-export const optionalGallonsSchema = z
-  .number()
-  .min(0, 'Gallons cannot be negative')
-  .max(999.999, 'Gallons too large')
-  .optional()
+export const optionalGallonsSchema = z.preprocess(
+  (val) => (val === '' || val === null ? undefined : val),
+  z.coerce
+    .number()
+    .min(0, 'Gallons cannot be negative')
+    .max(999.999, 'Gallons too large')
+    .optional()
+)
 
-export const optionalPricePerUnitSchema = z
-  .number()
-  .min(0, 'Price cannot be negative')
-  .max(999.99, 'Price too large')
-  .optional()
+export const optionalPricePerUnitSchema = z.preprocess(
+  (val) => (val === '' || val === null ? undefined : val),
+  z.coerce
+    .number()
+    .min(0, 'Price cannot be negative')
+    .max(999.99, 'Price too large')
+    .optional()
+)

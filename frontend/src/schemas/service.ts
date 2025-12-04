@@ -31,4 +31,6 @@ export const serviceRecordSchema = z.object({
   insurance_claim: z.string().max(50, 'Insurance claim too long (max 50 characters)').optional(),
 })
 
-export type ServiceRecordFormData = z.infer<typeof serviceRecordSchema>
+// Use z.output for Zod v4 compatibility with z.coerce fields
+export type ServiceRecordInput = z.input<typeof serviceRecordSchema>
+export type ServiceRecordFormData = z.output<typeof serviceRecordSchema>

@@ -1,5 +1,5 @@
 import { X, Save } from 'lucide-react'
-import { useForm } from 'react-hook-form'
+import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
 import type { Reminder, ReminderCreate, ReminderUpdate } from '../types/reminder'
@@ -23,7 +23,7 @@ export default function ReminderForm({ vin, reminder, onClose, onSuccess }: Remi
     formState: { errors, isSubmitting },
     watch,
   } = useForm<ReminderFormData>({
-    resolver: zodResolver(reminderSchema),
+    resolver: zodResolver(reminderSchema) as Resolver<ReminderFormData>,
     defaultValues: {
       description: reminder?.description || '',
       due_date: reminder?.due_date,

@@ -16,4 +16,6 @@ export const taxRecordSchema = z.object({
   notes: notesSchema.optional(),
 })
 
-export type TaxRecordFormData = z.infer<typeof taxRecordSchema>
+// Use z.output for Zod v4 compatibility with z.coerce fields
+export type TaxRecordInput = z.input<typeof taxRecordSchema>
+export type TaxRecordFormData = z.output<typeof taxRecordSchema>

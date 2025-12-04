@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { X, Save } from 'lucide-react'
 import type { TollTransaction, TollTransactionCreate, TollTransactionUpdate, TollTag } from '../types/toll'
@@ -24,7 +24,7 @@ export default function TollTransactionForm({ vin, tollTags, transaction, onClos
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<TollTransactionFormData>({
-    resolver: zodResolver(tollTransactionSchema),
+    resolver: zodResolver(tollTransactionSchema) as Resolver<TollTransactionFormData>,
     defaultValues: {
       transaction_date: transaction?.transaction_date || new Date().toISOString().split('T')[0],
       amount: transaction?.amount ?? undefined,

@@ -27,4 +27,8 @@ export const fuelRecordSchema = z.object({
   notes: notesSchema.optional(),
 })
 
-export type FuelRecordFormData = z.infer<typeof fuelRecordSchema>
+// Export both input and output types for Zod v4 zodResolver compatibility
+// z.input = what the form supplies (unknown for coerce fields)
+// z.output = coerced result after validation (numbers)
+export type FuelRecordInput = z.input<typeof fuelRecordSchema>
+export type FuelRecordFormData = z.output<typeof fuelRecordSchema>

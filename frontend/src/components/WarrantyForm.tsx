@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { X, Save } from 'lucide-react'
 import type { WarrantyRecord, WarrantyRecordCreate, WarrantyRecordUpdate } from '../types/warranty'
@@ -44,7 +44,7 @@ export default function WarrantyForm({ vin, record, onClose, onSuccess }: Warran
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<WarrantyFormData>({
-    resolver: zodResolver(warrantySchema),
+    resolver: zodResolver(warrantySchema) as Resolver<WarrantyFormData>,
     defaultValues: {
       warranty_type: record?.warranty_type || '',
       provider: record?.provider || '',

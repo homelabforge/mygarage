@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { X, Save } from 'lucide-react'
 import { toast } from 'sonner'
@@ -52,7 +52,7 @@ export default function ServiceRecordForm({ vin, record, onClose, onSuccess }: S
     setValue,
     watch,
   } = useForm<ServiceRecordFormData>({
-    resolver: zodResolver(serviceRecordSchema),
+    resolver: zodResolver(serviceRecordSchema) as Resolver<ServiceRecordFormData>,
     defaultValues: {
       date: formatDateForInput(record?.date),
       mileage: record?.mileage ?? undefined,

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { X, Save } from 'lucide-react'
 import type { FuelRecord, FuelRecordCreate, FuelRecordUpdate } from '../types/fuel'
@@ -47,7 +47,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
     setValue,
     watch,
   } = useForm<FuelRecordFormData>({
-    resolver: zodResolver(fuelRecordSchema),
+    resolver: zodResolver(fuelRecordSchema) as Resolver<FuelRecordFormData>,
     defaultValues: {
       date: formatDateForInput(record?.date),
       mileage: record?.mileage ?? undefined,
@@ -85,7 +85,15 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
   }, [vin, record, setValue])
 
   // Auto-calculate total cost when gallons and price per unit change
+  // Skip auto-calc on mount when editing to preserve manually entered cost
+  const [isInitialMount, setIsInitialMount] = useState(true)
+
   useEffect(() => {
+    if (isInitialMount) {
+      setIsInitialMount(false)
+      return
+    }
+
     if (gallons && pricePerUnit) {
       const gallonsNum = typeof gallons === 'number' ? gallons : parseFloat(gallons)
       const priceNum = typeof pricePerUnit === 'number' ? pricePerUnit : parseFloat(pricePerUnit)
@@ -95,7 +103,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
         setValue('cost', parseFloat(total.toFixed(2)))
       }
     }
-  }, [gallons, pricePerUnit, setValue])
+  }, [gallons, pricePerUnit, setValue, isInitialMount])
 
   const onSubmit = async (data: FuelRecordFormData) => {
     setError(null)

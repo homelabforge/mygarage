@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { X, Save } from 'lucide-react'
 import type { TaxRecord, TaxRecordCreate, TaxRecordUpdate } from '../types/tax'
@@ -42,7 +42,7 @@ export default function TaxRecordForm({ vin, record, onClose, onSuccess }: TaxRe
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<TaxRecordFormData>({
-    resolver: zodResolver(taxRecordSchema),
+    resolver: zodResolver(taxRecordSchema) as Resolver<TaxRecordFormData>,
     defaultValues: {
       date: formatDateForInput(record?.date),
       tax_type: record?.tax_type ?? undefined,

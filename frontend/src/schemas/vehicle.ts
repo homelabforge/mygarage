@@ -15,6 +15,29 @@ export const VEHICLE_TYPES = [
   'FifthWheel',
 ] as const
 
+const yearSchema = z.coerce
+  .number()
+  .int('Year must be a whole number')
+  .min(1900, 'Year must be 1900 or later')
+  .max(2100, 'Year must be 2100 or earlier')
+  .optional()
+
+const doorsSchema = z.coerce
+  .number()
+  .int('Doors must be a whole number')
+  .min(0, 'Doors cannot be negative')
+  .optional()
+
+const cylindersSchema = z.coerce
+  .number()
+  .int('Cylinders must be a whole number')
+  .min(0, 'Cylinders cannot be negative')
+  .optional()
+
+const purchasePriceSchema = z.coerce.number().optional()
+
+const soldPriceSchema = z.coerce.number().optional()
+
 export const vehicleEditSchema = z.object({
   // Basic Information
   nickname: z.string().optional(),
@@ -23,12 +46,7 @@ export const vehicleEditSchema = z.object({
   color: z.string().optional(),
 
   // Vehicle Details
-  year: z
-    .number()
-    .int('Year must be a whole number')
-    .min(1900, 'Year must be 1900 or later')
-    .max(2100, 'Year must be 2100 or earlier')
-    .optional(),
+  year: yearSchema,
   make: z.string().optional(),
   model: z.string().optional(),
 
@@ -36,31 +54,25 @@ export const vehicleEditSchema = z.object({
   trim: z.string().optional(),
   body_class: z.string().optional(),
   drive_type: z.string().optional(),
-  doors: z
-    .number()
-    .int('Doors must be a whole number')
-    .min(0, 'Doors cannot be negative')
-    .optional(),
+  doors: doorsSchema,
   gvwr_class: z.string().optional(),
 
   // Engine & Transmission
   displacement_l: z.string().optional(), // Backend expects string
-  cylinders: z
-    .number()
-    .int('Cylinders must be a whole number')
-    .min(0, 'Cylinders cannot be negative')
-    .optional(),
+  cylinders: cylindersSchema,
   fuel_type: z.string().optional(),
   transmission_type: z.string().optional(),
   transmission_speeds: z.string().optional(),
 
   // Purchase Information
   purchase_date: z.string().optional(),
-  purchase_price: z.number().optional(),
+  purchase_price: purchasePriceSchema,
 
   // Sale Information
   sold_date: z.string().optional(),
-  sold_price: z.number().optional(),
+  sold_price: soldPriceSchema,
 })
 
-export type VehicleEditFormData = z.infer<typeof vehicleEditSchema>
+// Use z.output for Zod v4 compatibility with z.coerce fields
+export type VehicleEditInput = z.input<typeof vehicleEditSchema>
+export type VehicleEditFormData = z.output<typeof vehicleEditSchema>

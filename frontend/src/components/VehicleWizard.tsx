@@ -8,7 +8,7 @@
 
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useForm } from 'react-hook-form'
+import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { X, ChevronLeft, ChevronRight, Check } from 'lucide-react'
 import VINInput from './VINInput'
@@ -38,7 +38,7 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
     getValues,
     formState: { errors },
   } = useForm<VehicleEditFormData>({
-    resolver: zodResolver(vehicleEditSchema),
+    resolver: zodResolver(vehicleEditSchema) as Resolver<VehicleEditFormData>,
     mode: 'onChange',
     defaultValues: {
       nickname: '',
