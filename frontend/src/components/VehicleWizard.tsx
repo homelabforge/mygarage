@@ -547,7 +547,7 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-sm text-garage-text-muted">VIN</p>
-                    <p className="text-garage-text font-mono">{formData.vin}</p>
+                    <p className="text-garage-text font-mono">{vin}</p>
                   </div>
                   <div>
                     <p className="text-sm text-garage-text-muted">Nickname</p>

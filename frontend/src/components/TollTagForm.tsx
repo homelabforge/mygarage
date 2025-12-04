@@ -25,7 +25,7 @@ export default function TollTagForm({ vin, tag, onClose, onSuccess }: TollTagFor
   } = useForm<TollTagFormData>({
     resolver: zodResolver(tollTagSchema),
     defaultValues: {
-      toll_system: tag?.toll_system ?? undefined,
+      toll_system: (tag?.toll_system as (typeof TOLL_SYSTEMS)[number]) ?? 'EZ TAG',
       tag_number: tag?.tag_number || '',
       status: tag?.status || 'active',
       notes: tag?.notes || '',

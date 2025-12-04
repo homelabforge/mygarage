@@ -274,7 +274,7 @@ export default function ServiceRecordForm({ vin, record, onClose, onSuccess }: S
             </label>
             <AddressBookAutocomplete
               id="vendor_name"
-              value={vendor_name}
+              value={vendor_name ?? ""}
               onChange={(value) => setValue('vendor_name', value)}
               onSelectEntry={handleAddressBookSelect}
               placeholder="Type to search vendors..."

@@ -24,7 +24,7 @@ export const vehicleEditSchema = z.object({
 
   // Vehicle Details
   year: z
-    .number({ invalid_type_error: 'Year must be a number' })
+    .number()
     .int('Year must be a whole number')
     .min(1900, 'Year must be 1900 or later')
     .max(2100, 'Year must be 2100 or earlier')
@@ -37,7 +37,7 @@ export const vehicleEditSchema = z.object({
   body_class: z.string().optional(),
   drive_type: z.string().optional(),
   doors: z
-    .number({ invalid_type_error: 'Doors must be a number' })
+    .number()
     .int('Doors must be a whole number')
     .min(0, 'Doors cannot be negative')
     .optional(),
@@ -46,7 +46,7 @@ export const vehicleEditSchema = z.object({
   // Engine & Transmission
   displacement_l: z.string().optional(), // Backend expects string
   cylinders: z
-    .number({ invalid_type_error: 'Cylinders must be a number' })
+    .number()
     .int('Cylinders must be a whole number')
     .min(0, 'Cylinders cannot be negative')
     .optional(),
@@ -56,15 +56,11 @@ export const vehicleEditSchema = z.object({
 
   // Purchase Information
   purchase_date: z.string().optional(),
-  purchase_price: z
-    .number({ invalid_type_error: 'Purchase price must be a number' })
-    .optional(),
+  purchase_price: z.number().optional(),
 
   // Sale Information
   sold_date: z.string().optional(),
-  sold_price: z
-    .number({ invalid_type_error: 'Sold price must be a number' })
-    .optional(),
+  sold_price: z.number().optional(),
 })
 
 export type VehicleEditFormData = z.infer<typeof vehicleEditSchema>

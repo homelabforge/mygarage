@@ -27,15 +27,9 @@ export const insuranceSchema = z.object({
   policy_type: z.string().min(1, 'Policy type is required'),
   start_date: z.string().min(1, 'Start date is required'),
   end_date: z.string().min(1, 'End date is required'),
-  premium_amount: z
-    .number({ invalid_type_error: 'Premium amount must be a number' })
-    .min(0, 'Premium amount cannot be negative')
-    .optional(),
+  premium_amount: z.string().optional(),
   premium_frequency: z.string().optional(),
-  deductible: z
-    .number({ invalid_type_error: 'Deductible must be a number' })
-    .min(0, 'Deductible cannot be negative')
-    .optional(),
+  deductible: z.string().optional(),
   coverage_limits: z.string().optional(),
   notes: z.string().optional(),
 })

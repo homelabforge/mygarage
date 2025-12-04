@@ -25,7 +25,7 @@ export const tollTagSchema = z.object({
     .string()
     .min(1, 'Tag number is required')
     .max(50, 'Tag number too long (max 50 characters)'),
-  status: z.enum(['active', 'inactive']).default('active').pipe(z.enum(['active', 'inactive'])),
+  status: z.enum(['active', 'inactive']),
   notes: notesSchema.optional(),
 })
 

@@ -92,7 +92,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
 
       if (!isNaN(gallonsNum) && !isNaN(priceNum)) {
         const total = gallonsNum * priceNum
-        setValue('cost', total.toFixed(2))
+        setValue('cost', parseFloat(total.toFixed(2)))
       }
     }
   }, [gallons, pricePerUnit, setValue])
