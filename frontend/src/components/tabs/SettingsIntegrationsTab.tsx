@@ -49,7 +49,7 @@ export default function SettingsIntegrationsTab() {
       }
       setFormData(newFormData)
       setLoadedFormData(newFormData)
-    } catch (error) {
+    } catch {
       // Removed console.error
       setMessage({ type: 'error', text: 'Failed to load settings' })
     } finally {
@@ -98,7 +98,7 @@ export default function SettingsIntegrationsTab() {
 
       setMessage({ type: 'success', text: 'NHTSA API connection successful!' })
       setTimeout(() => setMessage(null), 3000)
-    } catch (error) {
+    } catch {
       // Removed console.error
       setMessage({ type: 'error', text: 'NHTSA API connection failed. Please check your internet connection.' })
     } finally {

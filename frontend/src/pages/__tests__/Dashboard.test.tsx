@@ -4,13 +4,23 @@ import Dashboard from '../Dashboard'
 
 // Mock axios with create method
 vi.mock('axios', () => {
-  const mockAxios: any = {
+  interface MockAxios {
+    get: ReturnType<typeof vi.fn>
+    post: ReturnType<typeof vi.fn>
+    interceptors: {
+      request: { use: ReturnType<typeof vi.fn>; eject: ReturnType<typeof vi.fn> }
+      response: { use: ReturnType<typeof vi.fn>; eject: ReturnType<typeof vi.fn> }
+    }
+    create: ReturnType<typeof vi.fn>
+  }
+  const mockAxios: MockAxios = {
     get: vi.fn(() => Promise.resolve({ data: [] })),
     post: vi.fn(() => Promise.resolve({ data: {} })),
     interceptors: {
       request: { use: vi.fn(), eject: vi.fn() },
       response: { use: vi.fn(), eject: vi.fn() },
     },
+    create: vi.fn(),
   }
   mockAxios.create = vi.fn(() => mockAxios)
   return { default: mockAxios }

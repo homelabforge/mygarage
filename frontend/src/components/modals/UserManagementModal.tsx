@@ -48,7 +48,7 @@ export default function UserManagementModal({
       try {
         const response = await api.get('/auth/users')
         setUsers(response.data)
-      } catch (error) {
+      } catch {
         toast.error('Failed to load users')
       } finally {
         setLoading(false)

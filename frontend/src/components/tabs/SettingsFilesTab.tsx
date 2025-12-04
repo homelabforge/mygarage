@@ -49,7 +49,7 @@ export default function SettingsFilesTab() {
       }
       setFormData(newFormData)
       setLoadedFormData(newFormData)
-    } catch (error) {
+    } catch {
       // Removed console.error
       setMessage({ type: 'error', text: 'Failed to load settings' })
     } finally {

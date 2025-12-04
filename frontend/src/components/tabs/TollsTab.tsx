@@ -25,7 +25,7 @@ export default function TollsTab({ vin }: TollsTabProps) {
       try {
         const response = await api.get(`/vehicles/${vin}/toll-tags`)
         setTollTags(response.data.toll_tags || [])
-      } catch (err) {
+      } catch {
         // Removed console.error
       }
     }

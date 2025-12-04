@@ -163,7 +163,7 @@ export default function SettingsSystemTab() {
       try {
         const response = await api.get('/dashboard')
         setDashboardStats(response.data)
-      } catch (error) {
+      } catch {
         // Removed console.error
       }
     }
@@ -338,7 +338,8 @@ export default function SettingsSystemTab() {
       })
       toast.success(`User ${user.is_active ? 'disabled' : 'enabled'} successfully`)
       await loadUsers()
-    } catch (error: any) {
+    } catch (err) {
+      const error = err as { response?: { data?: { detail?: string } } }
       const detail = error.response?.data?.detail
       if (typeof detail === 'string') {
         toast.error(detail)

@@ -76,9 +76,9 @@ export default function AddEditUserModal({ isOpen, onClose, user, onSave, curren
     if (!isEditMode || formData.password) {
       try {
         passwordSchema.parse(formData.password)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (err: any) {
-        validationErrors.password = err.errors?.[0]?.message || 'Invalid password'
+      } catch (err) {
+        const error = err as { errors?: Array<{ message: string }> }
+        validationErrors.password = error.errors?.[0]?.message || 'Invalid password'
       }
 
       if (formData.password !== formData.confirmPassword) {
@@ -135,7 +135,8 @@ export default function AddEditUserModal({ isOpen, onClose, user, onSave, curren
 
       onSave()
       onClose()
-    } catch (error: any) {
+    } catch (err) {
+      const error = err as { response?: { data?: { detail?: string } } }
       const detail = error.response?.data?.detail
       if (typeof detail === 'string') {
         toast.error(detail)

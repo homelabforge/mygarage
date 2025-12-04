@@ -55,9 +55,10 @@ export default function LinkAccount() {
       // Navigate to redirect URL (default to dashboard)
       const redirectUrl = response.data.redirect_url || '/'
       navigate(redirectUrl)
-    } catch (err: any) {
+    } catch (err) {
       // Display backend error message directly (contains specific errors)
-      const errorMessage = err.response?.data?.detail || 'Failed to link account. Please try again.'
+      const error = err as { response?: { data?: { detail?: string } } }
+      const errorMessage = error.response?.data?.detail || 'Failed to link account. Please try again.'
       setError(errorMessage)
     } finally {
       setIsLoading(false)

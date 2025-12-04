@@ -117,7 +117,7 @@ export default function SettingsBackupTab() {
       a.click()
       window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
-    } catch (error) {
+    } catch {
       // Removed console.error
       setMessage({ type: 'error', text: `Failed to download ${filename}` })
     }

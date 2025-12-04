@@ -33,7 +33,7 @@ export default function Login() {
         const data = await response.json()
         setOidcEnabled(data.enabled || false)
         setOidcProviderName(data.provider_name || 'SSO')
-      } catch (err) {
+      } catch {
         // OIDC not available, just use regular login
         setOidcEnabled(false)
       } finally {

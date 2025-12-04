@@ -36,7 +36,7 @@ export default function TollTransactionList({ vin, tollTags, onAddClick, onEditC
     try {
       const response = await api.get(`/vehicles/${vin}/toll-transactions/summary/statistics`)
       setSummary(response.data)
-    } catch (err) {
+    } catch {
       // Removed console.error
     }
   }, [vin])

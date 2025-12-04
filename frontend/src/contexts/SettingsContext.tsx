@@ -80,7 +80,6 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   )
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
 export function useSettings() {
   const context = useContext(SettingsContext)
   if (!context) {
