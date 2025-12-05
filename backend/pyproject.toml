@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mygarage"
-version = "2.14.1"
+version = "2.14.2"
 description = "Self-hosted vehicle maintenance tracking application"
 requires-python = ">=3.14"
 dependencies = [
