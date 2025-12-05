@@ -63,20 +63,20 @@ class SlackNotificationService(NotificationService):
 
             # Slack returns "ok" on success
             if response.text == "ok":
-                logger.info(f"[slack] Sent notification: {title}")
+                logger.info("[slack] Sent notification: %s", title)
                 return True
 
-            logger.error(f"[slack] Unexpected response: {response.text}")
+            logger.error("[slack] Unexpected response: %s", response.text)
             return False
 
         except httpx.HTTPStatusError as e:
-            logger.error(f"[slack] HTTP error: {e}")
+            logger.error("[slack] HTTP error: %s", e)
             return False
         except (httpx.ConnectError, httpx.TimeoutException) as e:
-            logger.error(f"[slack] Connection error: {e}")
+            logger.error("[slack] Connection error: %s", e)
             return False
         except (ValueError, KeyError) as e:
-            logger.error(f"[slack] Invalid data: {e}")
+            logger.error("[slack] Invalid data: %s", e)
             return False
 
     async def test_connection(self) -> tuple[bool, str]:

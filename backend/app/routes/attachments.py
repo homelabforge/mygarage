@@ -74,7 +74,7 @@ async def upload_service_attachment(
         await db.commit()
         await db.refresh(attachment)
 
-        logger.info(f"Uploaded attachment {attachment.id} for service record {record_id}")
+        logger.info("Uploaded attachment %s for service record %s", attachment.id, record_id)
 
         return AttachmentResponse(
             id=attachment.id,
@@ -92,15 +92,15 @@ async def upload_service_attachment(
         raise
     except IntegrityError as e:
         await db.rollback()
-        logger.error(f"Database constraint violation uploading attachment: {e}")
+        logger.error("Database constraint violation uploading attachment: %s", e)
         raise HTTPException(status_code=409, detail="Attachment record already exists")
     except OperationalError as e:
         await db.rollback()
-        logger.error(f"Database connection error uploading attachment: {e}")
+        logger.error("Database connection error uploading attachment: %s", e)
         raise HTTPException(status_code=503, detail="Database temporarily unavailable")
     except (OSError, IOError) as e:
         await db.rollback()
-        logger.error(f"File system error uploading attachment: {e}")
+        logger.error("File system error uploading attachment: %s", e)
         raise HTTPException(status_code=500, detail="Failed to save attachment file")
 
 
@@ -171,7 +171,7 @@ async def list_service_attachments(
     except HTTPException:
         raise
     except OperationalError as e:
-        logger.error(f"Database connection error listing attachments: {e}")
+        logger.error("Database connection error listing attachments: %s", e)
         raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
 
@@ -194,7 +194,7 @@ async def view_attachment(
         # Check if file exists
         file_path = Path(attachment.file_path)
         if not file_path.exists():
-            logger.error(f"Attachment file not found: {attachment.file_path}")
+            logger.error("Attachment file not found: %s", attachment.file_path)
             raise HTTPException(status_code=404, detail="Attachment file not found on disk")
 
         # Return file for inline viewing (no Content-Disposition header)
@@ -208,10 +208,10 @@ async def view_attachment(
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Attachment file not found")
     except PermissionError as e:
-        logger.error(f"Permission denied viewing attachment: {e}")
+        logger.error("Permission denied viewing attachment: %s", e)
         raise HTTPException(status_code=403, detail="Permission denied")
     except (OSError, IOError) as e:
-        logger.error(f"File system error viewing attachment: {e}")
+        logger.error("File system error viewing attachment: %s", e)
         raise HTTPException(status_code=500, detail="Error reading attachment file")
 
 
@@ -234,7 +234,7 @@ async def download_attachment(
         # Check if file exists
         file_path = Path(attachment.file_path)
         if not file_path.exists():
-            logger.error(f"Attachment file not found: {attachment.file_path}")
+            logger.error("Attachment file not found: %s", attachment.file_path)
             raise HTTPException(status_code=404, detail="Attachment file not found on disk")
 
         # Extract original filename
@@ -256,10 +256,10 @@ async def download_attachment(
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Attachment file not found")
     except PermissionError as e:
-        logger.error(f"Permission denied downloading attachment: {e}")
+        logger.error("Permission denied downloading attachment: %s", e)
         raise HTTPException(status_code=403, detail="Permission denied")
     except (OSError, IOError) as e:
-        logger.error(f"File system error downloading attachment: {e}")
+        logger.error("File system error downloading attachment: %s", e)
         raise HTTPException(status_code=500, detail="Error reading attachment file")
 
 
@@ -283,7 +283,7 @@ async def delete_attachment(
         file_path = Path(attachment.file_path)
         if file_path.exists():
             file_path.unlink()
-            logger.info(f"Deleted file: {attachment.file_path}")
+            logger.info("Deleted file: %s", attachment.file_path)
 
         # Delete database record
         await db.execute(
@@ -291,16 +291,16 @@ async def delete_attachment(
         )
         await db.commit()
 
-        logger.info(f"Deleted attachment {attachment_id}")
+        logger.info("Deleted attachment %s", attachment_id)
         return None
 
     except HTTPException:
         raise
     except OperationalError as e:
         await db.rollback()
-        logger.error(f"Database connection error deleting attachment: {e}")
+        logger.error("Database connection error deleting attachment: %s", e)
         raise HTTPException(status_code=503, detail="Database temporarily unavailable")
     except (OSError, IOError) as e:
         await db.rollback()
-        logger.error(f"File system error deleting attachment: {e}")
+        logger.error("File system error deleting attachment: %s", e)
         raise HTTPException(status_code=500, detail="Error deleting attachment file")

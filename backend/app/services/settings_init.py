@@ -475,7 +475,7 @@ async def initialize_default_settings(db: AsyncSession) -> None:
             )
             db.add(setting)
             settings_added += 1
-            logger.info(f"Added default setting: {key} = {config['value']}")
+            logger.info("Added default setting: %s = %s", key, config['value'])
         else:
             # Update category and description if they don't match
             # (preserves user-modified values)
@@ -498,7 +498,7 @@ async def initialize_default_settings(db: AsyncSession) -> None:
                 old_version = setting.value
                 setting.value = app_settings.app_version
                 needs_update = True
-                logger.info(f"Updated app version: {old_version} -> {app_settings.app_version}")
+                logger.info("Updated app version: %s -> %s", old_version, app_settings.app_version)
 
             if needs_update:
                 settings_updated += 1

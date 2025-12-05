@@ -161,7 +161,7 @@ async def parse_insurance_pdf(
 
     try:
         # Parse using unified document OCR service
-        logger.info(f"Parsing insurance document for VIN {vin} (provider hint: {provider})")
+        logger.info("Parsing insurance document for VIN %s (provider hint: %s)", vin, provider)
 
         parsed_data = await document_ocr_service.extract_insurance_data(
             file_bytes=contents,
@@ -206,10 +206,10 @@ async def parse_insurance_pdf(
         return response
 
     except ValueError as e:
-        logger.error(f"Document parsing error: {e}")
+        logger.error("Document parsing error: %s", e)
         raise HTTPException(status_code=400, detail=str(e))
     except (OSError, IOError) as e:
-        logger.error(f"File system error parsing document: {e}")
+        logger.error("File system error parsing document: %s", e)
         raise HTTPException(status_code=500, detail="Error reading uploaded document")
 
 

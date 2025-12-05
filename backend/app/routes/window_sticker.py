@@ -188,9 +188,9 @@ async def upload_window_sticker(
         if old_file_path.exists():
             try:
                 old_file_path.unlink()
-                logger.info(f"Deleted old window sticker: {old_file_path}")
+                logger.info("Deleted old window sticker: %s", old_file_path)
             except Exception as e:
-                logger.warning(f"Failed to delete old window sticker: {e}")
+                logger.warning("Failed to delete old window sticker: %s", e)
 
     # Save new file
     file_path = vin_dir / unique_filename
@@ -198,7 +198,7 @@ async def upload_window_sticker(
         content = await file.read()
         with open(file_path, "wb") as f:
             f.write(content)
-        logger.info(f"Saved window sticker to: {file_path}")
+        logger.info("Saved window sticker to: %s", file_path)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
 
@@ -210,9 +210,9 @@ async def upload_window_sticker(
             vin=vin,
             make=vehicle.make,
         )
-        logger.info(f"Extracted data from window sticker: {extracted_data}")
+        logger.info("Extracted data from window sticker: %s", extracted_data)
     except Exception as e:
-        logger.error(f"OCR extraction failed: {e}")
+        logger.error("OCR extraction failed: %s", e)
         extracted_data = {}
 
     # Update vehicle with file path and extracted data
@@ -327,7 +327,7 @@ async def test_window_sticker_extraction(
             try:
                 temp_path.unlink()
             except Exception as e:
-                logger.warning(f"Failed to delete temp file: {e}")
+                logger.warning("Failed to delete temp file: %s", e)
 
 
 @router.patch("/{vin}/window-sticker/data", response_model=WindowStickerResponse)
@@ -381,9 +381,9 @@ async def delete_window_sticker(
     if file_path.exists():
         try:
             file_path.unlink()
-            logger.info(f"Deleted window sticker: {file_path}")
+            logger.info("Deleted window sticker: %s", file_path)
         except Exception as e:
-            logger.error(f"Failed to delete window sticker file: {e}")
+            logger.error("Failed to delete window sticker file: %s", e)
 
     # Clear all window sticker data
     window_sticker_fields = [

@@ -116,7 +116,7 @@ async def check_nhtsa_recalls(vin: str, db: AsyncSession = Depends(get_db), curr
 
         await db.commit()
 
-        logger.info(f"Added {new_recalls_added} new recalls for vehicle {vin} from NHTSA")
+        logger.info("Added %s new recalls for vehicle %s from NHTSA", new_recalls_added, vin)
 
         # Return updated list
         result = await db.execute(
@@ -135,16 +135,16 @@ async def check_nhtsa_recalls(vin: str, db: AsyncSession = Depends(get_db), curr
         )
 
     except httpx.TimeoutException:
-        logger.error(f"NHTSA API timeout fetching recalls for VIN {vin}")
+        logger.error("NHTSA API timeout fetching recalls for VIN %s", vin)
         raise HTTPException(status_code=504, detail="NHTSA API request timed out")
     except httpx.ConnectError:
-        logger.error(f"Cannot connect to NHTSA API for VIN {vin}")
+        logger.error("Cannot connect to NHTSA API for VIN %s", vin)
         raise HTTPException(status_code=503, detail="Cannot connect to NHTSA API")
     except httpx.HTTPStatusError as e:
-        logger.error(f"NHTSA API error fetching recalls for VIN {vin}: {e}")
+        logger.error("NHTSA API error fetching recalls for VIN %s: %s", vin, e)
         raise HTTPException(status_code=e.response.status_code, detail="NHTSA API error")
     except OperationalError as e:
-        logger.error(f"Database error fetching recalls for VIN {vin}: {e}")
+        logger.error("Database error fetching recalls for VIN %s: %s", vin, e)
         raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
 
@@ -177,7 +177,7 @@ async def create_recall(vin: str, recall: RecallCreate, db: AsyncSession = Depen
     await db.commit()
     await db.refresh(db_recall)
 
-    logger.info(f"Created recall {db_recall.id} for vehicle {vin}")
+    logger.info("Created recall %s for vehicle %s", db_recall.id, vin)
     return RecallResponse.model_validate(db_recall)
 
 
@@ -231,7 +231,7 @@ async def update_recall(
     await db.commit()
     await db.refresh(recall)
 
-    logger.info(f"Updated recall {recall_id} for vehicle {vin}")
+    logger.info("Updated recall %s for vehicle %s", recall_id, vin)
     return RecallResponse.model_validate(recall)
 
 
@@ -248,5 +248,5 @@ async def delete_recall(vin: str, recall_id: int, db: AsyncSession = Depends(get
     await db.execute(delete(Recall).where(Recall.id == recall_id))
     await db.commit()
 
-    logger.info(f"Deleted recall {recall_id} for vehicle {vin}")
+    logger.info("Deleted recall %s for vehicle %s", recall_id, vin)
     return Response(status_code=204)

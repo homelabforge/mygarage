@@ -152,7 +152,7 @@ class FileUploadService:
                 strict=False  # Warn but allow
             )
             if not is_valid:
-                logger.warning(f"Magic byte validation warning: {error_msg}")
+                logger.warning("Magic byte validation warning: %s", error_msg)
 
         return contents
 
@@ -189,7 +189,7 @@ class FileUploadService:
             thumb.save(thumbnail_path, format="JPEG", quality=85)
 
         except UnidentifiedImageError as e:
-            logger.error(f"Failed to create thumbnail: {e}")
+            logger.error("Failed to create thumbnail: %s", e)
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid image file"
@@ -241,7 +241,7 @@ class FileUploadService:
             with open(validated_path, "wb") as f:
                 f.write(contents)
 
-            logger.info(f"Saved file: {validated_path}")
+            logger.info("Saved file: %s", validated_path)
 
             # Create thumbnail if configured and it's an image
             thumbnail_path = None
@@ -259,7 +259,7 @@ class FileUploadService:
                 # Validate thumbnail path
                 validate_path_within_base(thumbnail_path, config.base_dir, raise_error=True)
 
-                logger.info(f"Created thumbnail: {thumbnail_path}")
+                logger.info("Created thumbnail: %s", thumbnail_path)
 
             return UploadResult(
                 filename=filename,
@@ -272,7 +272,7 @@ class FileUploadService:
         except HTTPException:
             raise
         except Exception as e:
-            logger.error(f"File upload failed: {e}")
+            logger.error("File upload failed: %s", e)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Upload failed: {str(e)}"

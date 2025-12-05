@@ -69,20 +69,20 @@ class TelegramNotificationService(NotificationService):
 
             result = response.json()
             if result.get("ok"):
-                logger.info(f"[telegram] Sent notification: {title}")
+                logger.info("[telegram] Sent notification: %s", title)
                 return True
 
-            logger.error(f"[telegram] API error: {result}")
+            logger.error("[telegram] API error: %s", result)
             return False
 
         except httpx.HTTPStatusError as e:
-            logger.error(f"[telegram] HTTP error: {e}")
+            logger.error("[telegram] HTTP error: %s", e)
             return False
         except (httpx.ConnectError, httpx.TimeoutException) as e:
-            logger.error(f"[telegram] Connection error: {e}")
+            logger.error("[telegram] Connection error: %s", e)
             return False
         except (ValueError, KeyError) as e:
-            logger.error(f"[telegram] Invalid data: {e}")
+            logger.error("[telegram] Invalid data: %s", e)
             return False
 
     async def test_connection(self) -> tuple[bool, str]:

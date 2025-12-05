@@ -65,7 +65,7 @@ def verify_file_content_type(
                 return True
 
         # Signature didn't match
-        logger.warning(f"Magic byte mismatch for {declared_mime}")
+        logger.warning("Magic byte mismatch for %s", declared_mime)
         return False
 
     # Fallback: use python-magic if available
@@ -77,7 +77,7 @@ def verify_file_content_type(
                 return True
             return detected_mime == declared_mime
         except Exception as e:
-            logger.debug(f"Magic detection failed for {declared_mime}: {e}")
+            logger.debug("Magic detection failed for %s: %s", declared_mime, e)
             # If magic fails, allow (don't break uploads)
             return True
 
@@ -108,10 +108,10 @@ def validate_file_magic_bytes(
     if not is_valid:
         error_msg = f"File content does not match declared type {declared_mime}"
         if strict:
-            logger.error(f"Magic byte validation failed for {filename}: {error_msg}")
+            logger.error("Magic byte validation failed for %s: %s", filename, error_msg)
             return False, error_msg
         else:
-            logger.warning(f"Magic byte validation warning for {filename}: {error_msg}")
+            logger.warning("Magic byte validation warning for %s: %s", filename, error_msg)
             # In non-strict mode, just warn but allow
             return True, None
 
@@ -229,7 +229,7 @@ async def validate_image_upload(file: UploadFile, max_size: int = None, verify_m
             strict=False  # Non-strict: warn but allow
         )
         if not is_valid:
-            logger.warning(f"Image upload magic byte validation failed: {error_msg}")
+            logger.warning("Image upload magic byte validation failed: %s", error_msg)
 
     return contents
 
@@ -294,7 +294,7 @@ async def validate_document_upload(file: UploadFile, max_size: int = None, verif
             strict=False  # Non-strict: warn but allow
         )
         if not is_valid:
-            logger.warning(f"Document upload magic byte validation failed: {error_msg}")
+            logger.warning("Document upload magic byte validation failed: %s", error_msg)
 
     return contents
 
@@ -348,6 +348,6 @@ async def validate_attachment_upload(file: UploadFile, max_size: int = None, ver
             strict=False  # Non-strict: warn but allow
         )
         if not is_valid:
-            logger.warning(f"Attachment upload magic byte validation failed: {error_msg}")
+            logger.warning("Attachment upload magic byte validation failed: %s", error_msg)
 
     return contents

@@ -221,7 +221,7 @@ class NotificationDispatcher:
 
         # Check if event enabled
         if not await self._is_event_enabled(event_type):
-            logger.debug(f"Event type '{event_type}' is disabled")
+            logger.debug("Event type '%s' is disabled", event_type)
             return results
 
         # Get enabled services
@@ -267,7 +267,7 @@ class NotificationDispatcher:
 
                 results[service.service_name] = success
             except Exception as e:
-                logger.error(f"Error sending to {service.service_name}: {e}")
+                logger.error("Error sending to %s: %s", service.service_name, e)
                 results[service.service_name] = False
             finally:
                 await service.close()

@@ -246,7 +246,7 @@ async def create_trailer_details(
         await db.commit()
         await db.refresh(trailer)
 
-        logger.info(f"Created trailer details for: {vin}")
+        logger.info("Created trailer details for: %s", vin)
 
         return TrailerDetailsResponse.model_validate(trailer)
 
@@ -254,11 +254,11 @@ async def create_trailer_details(
         raise
     except IntegrityError as e:
         await db.rollback()
-        logger.error(f"Database constraint violation creating trailer details for {vin}: {e}")
+        logger.error("Database constraint violation creating trailer details for %s: %s", vin, e)
         raise HTTPException(status_code=409, detail=f"Trailer details already exist for VIN {vin}")
     except OperationalError as e:
         await db.rollback()
-        logger.error(f"Database connection error creating trailer details for {vin}: {e}")
+        logger.error("Database connection error creating trailer details for %s: %s", vin, e)
         raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
 
@@ -300,7 +300,7 @@ async def update_trailer_details(
         await db.commit()
         await db.refresh(trailer)
 
-        logger.info(f"Updated trailer details for: {vin}")
+        logger.info("Updated trailer details for: %s", vin)
 
         return TrailerDetailsResponse.model_validate(trailer)
 
@@ -308,9 +308,9 @@ async def update_trailer_details(
         raise
     except IntegrityError as e:
         await db.rollback()
-        logger.error(f"Database constraint violation updating trailer details for {vin}: {e}")
+        logger.error("Database constraint violation updating trailer details for %s: %s", vin, e)
         raise HTTPException(status_code=409, detail="Database constraint violation")
     except OperationalError as e:
         await db.rollback()
-        logger.error(f"Database connection error updating trailer details for {vin}: {e}")
+        logger.error("Database connection error updating trailer details for %s: %s", vin, e)
         raise HTTPException(status_code=503, detail="Database temporarily unavailable")

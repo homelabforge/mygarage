@@ -49,7 +49,7 @@ class MigrationRunner:
                 "SELECT migration_name FROM schema_migrations ORDER BY id"
             ))
             applied = {row[0] for row in result}
-            logger.debug(f"Found {len(applied)} applied migration(s)")
+            logger.debug("Found %s applied migration(s)", len(applied))
             return applied
 
     def _mark_migration_applied(self, name: str) -> None:
@@ -63,7 +63,7 @@ class MigrationRunner:
             conn.execute(text(
                 "INSERT INTO schema_migrations (migration_name) VALUES (:name)"
             ), {"name": name})
-            logger.debug(f"Marked migration '{name}' as applied")
+            logger.debug("Marked migration '%s' as applied", name)
 
     def _discover_migrations(self) -> List[Tuple[str, Path]]:
         """
@@ -87,7 +87,7 @@ class MigrationRunner:
         # Sort by filename (numeric prefix ensures correct order)
         migrations.sort(key=lambda x: x[0])
 
-        logger.debug(f"Discovered {len(migrations)} migration file(s)")
+        logger.debug("Discovered %s migration file(s)", len(migrations))
         return migrations
 
     def _load_and_run_migration(self, name: str, path: Path) -> None:
@@ -113,7 +113,7 @@ class MigrationRunner:
         if not hasattr(module, "upgrade"):
             raise AttributeError(f"Migration {name} missing upgrade() function")
 
-        logger.info(f"Running migration: {name}")
+        logger.info("Running migration: %s", name)
         module.upgrade()
 
     def run_pending_migrations(self) -> None:
@@ -145,7 +145,7 @@ class MigrationRunner:
             logger.info("No pending migrations")
             return
 
-        logger.info(f"Found {len(pending)} pending migration(s)")
+        logger.info("Found %s pending migration(s)", len(pending))
 
         # Run each pending migration
         successful = 0
@@ -155,11 +155,11 @@ class MigrationRunner:
                 self._mark_migration_applied(name)
                 successful += 1
             except Exception as e:
-                logger.error(f"Migration '{name}' failed: {e}")
+                logger.error("Migration '%s' failed: %s", name, e)
                 logger.error("Stopping migration run - fix errors and restart")
                 raise
 
-        logger.info(f"✓ All {successful} migration(s) applied successfully")
+        logger.info("✓ All %s migration(s) applied successfully", successful)
 
 
 def run_migrations(database_url: str, migrations_dir: Path) -> None:

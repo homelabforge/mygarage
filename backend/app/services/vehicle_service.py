@@ -62,7 +62,7 @@ class VehicleService:
             return vehicles, total
 
         except OperationalError as e:
-            logger.error(f"Database connection error listing vehicles: {e}")
+            logger.error("Database connection error listing vehicles: %s", e)
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
     async def get_vehicle(self, vin: str, current_user: Optional[User]) -> Vehicle:
@@ -129,7 +129,7 @@ class VehicleService:
             await self.db.commit()
             await self.db.refresh(vehicle)
 
-            logger.info(f"Created vehicle: {vehicle.vin} ({vehicle.nickname}) for user {username}")
+            logger.info("Created vehicle: %s (%s) for user %s", vehicle.vin, vehicle.nickname, username)
 
             return vehicle
 
@@ -137,11 +137,11 @@ class VehicleService:
             raise
         except IntegrityError as e:
             await self.db.rollback()
-            logger.error(f"Database constraint violation creating vehicle: {e}")
+            logger.error("Database constraint violation creating vehicle: %s", e)
             raise HTTPException(status_code=409, detail=f"Vehicle with VIN {vehicle_data.vin} already exists")
         except OperationalError as e:
             await self.db.rollback()
-            logger.error(f"Database connection error creating vehicle: {e}")
+            logger.error("Database connection error creating vehicle: %s", e)
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
     async def update_vehicle(
@@ -180,7 +180,7 @@ class VehicleService:
             await self.db.commit()
             await self.db.refresh(vehicle)
 
-            logger.info(f"Updated vehicle: {vehicle.vin}")
+            logger.info("Updated vehicle: %s", vehicle.vin)
 
             return vehicle
 
@@ -188,11 +188,11 @@ class VehicleService:
             raise
         except IntegrityError as e:
             await self.db.rollback()
-            logger.error(f"Database constraint violation updating vehicle {vin}: {e}")
+            logger.error("Database constraint violation updating vehicle %s: %s", vin, e)
             raise HTTPException(status_code=409, detail="Database constraint violation")
         except OperationalError as e:
             await self.db.rollback()
-            logger.error(f"Database connection error updating vehicle {vin}: {e}")
+            logger.error("Database connection error updating vehicle %s: %s", vin, e)
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
     async def delete_vehicle(self, vin: str, current_user: User) -> None:
@@ -218,15 +218,15 @@ class VehicleService:
             await self.db.execute(delete(Vehicle).where(Vehicle.vin == vin))
             await self.db.commit()
 
-            logger.info(f"Deleted vehicle: {vin}")
+            logger.info("Deleted vehicle: %s", vin)
 
         except HTTPException:
             raise
         except IntegrityError as e:
             await self.db.rollback()
-            logger.error(f"Database constraint violation deleting vehicle {vin}: {e}")
+            logger.error("Database constraint violation deleting vehicle %s: %s", vin, e)
             raise HTTPException(status_code=409, detail="Cannot delete vehicle with dependent records")
         except OperationalError as e:
             await self.db.rollback()
-            logger.error(f"Database connection error deleting vehicle {vin}: {e}")
+            logger.error("Database connection error deleting vehicle %s: %s", vin, e)
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")

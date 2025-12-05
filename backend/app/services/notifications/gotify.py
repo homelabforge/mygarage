@@ -70,17 +70,17 @@ class GotifyNotificationService(NotificationService):
             response = await self.client.post(endpoint, json=payload)
             response.raise_for_status()
 
-            logger.info(f"[gotify] Sent notification: {title}")
+            logger.info("[gotify] Sent notification: %s", title)
             return True
 
         except httpx.HTTPStatusError as e:
-            logger.error(f"[gotify] HTTP error: {e}")
+            logger.error("[gotify] HTTP error: %s", e)
             return False
         except (httpx.ConnectError, httpx.TimeoutException) as e:
-            logger.error(f"[gotify] Connection error: {e}")
+            logger.error("[gotify] Connection error: %s", e)
             return False
         except (ValueError, KeyError) as e:
-            logger.error(f"[gotify] Invalid data: {e}")
+            logger.error("[gotify] Invalid data: %s", e)
             return False
 
     async def test_connection(self) -> tuple[bool, str]:

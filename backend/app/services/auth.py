@@ -76,7 +76,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
             return bcrypt.checkpw(password_bytes, hashed_password.encode('utf-8'))
         except Exception as e:
-            logger.error(f"Error verifying bcrypt password: {e}")
+            logger.error("Error verifying bcrypt password: %s", e)
             return False
 
 
@@ -124,7 +124,7 @@ async def get_current_user(
 
     if not token:
         # Enhanced logging to help diagnose authentication issues
-        logger.error(f"No credentials provided - {request.method} {request.url.path}")
+        logger.error("No credentials provided - %s %s", request.method, request.url.path)
         raise credentials_exception
 
     # Security: Do not log token data
@@ -142,14 +142,14 @@ async def get_current_user(
         try:
             user_id = int(user_id_str)
         except (ValueError, TypeError):
-            logger.error(f"Invalid user_id format: {user_id_str}")
+            logger.error("Invalid user_id format: %s", user_id_str)
             raise credentials_exception
 
         # Security: Do not log decoded token contents
         logger.debug("Token decoded successfully")
         token_data = TokenData(user_id=user_id, username=username)
     except JoseError as e:
-        logger.error(f"JWT decode error: {e}")
+        logger.error("JWT decode error: %s", e)
         raise credentials_exception
 
     result = await db.execute(select(User).where(User.id == token_data.user_id))
@@ -244,7 +244,7 @@ async def authenticate_user(db: AsyncSession, username: str, password: str) -> O
 
     # SECURITY: Reject password login for OIDC-only users (no password set)
     if user.hashed_password is None:
-        logger.warning(f"Password login attempted for OIDC-only user: {username}")
+        logger.warning("Password login attempted for OIDC-only user: %s", username)
         return None
 
     if not verify_password(password, user.hashed_password):
@@ -252,7 +252,7 @@ async def authenticate_user(db: AsyncSession, username: str, password: str) -> O
 
     # Auto-migrate legacy bcrypt hashes to Argon2
     if not user.hashed_password.startswith('$argon2'):
-        logger.info(f"Auto-migrating password hash to Argon2 for user: {username}")
+        logger.info("Auto-migrating password hash to Argon2 for user: %s", username)
         user.hashed_password = hash_password(password)
         await db.commit()
 

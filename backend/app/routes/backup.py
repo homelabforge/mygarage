@@ -62,7 +62,7 @@ async def get_stats(current_user: Optional[User] = Depends(require_auth)) -> Dic
             "wal_mode_enabled": Path(f"{DATABASE_PATH}-wal").exists(),
         }
     except (OSError, IOError) as e:
-        logger.error(f"File system error getting stats: {e}")
+        logger.error("File system error getting stats: %s", e)
         raise HTTPException(status_code=500, detail="Error accessing backup files")
 
 
@@ -81,7 +81,7 @@ async def list_backups(backup_type: str = "all", current_user: Optional[User] = 
         backups = backup_service.get_backup_files(backup_type)
         return {"backups": backups}
     except (OSError, IOError) as e:
-        logger.error(f"File system error listing backups: {e}")
+        logger.error("File system error listing backups: %s", e)
         raise HTTPException(status_code=500, detail="Error accessing backup directory")
 
 
@@ -105,10 +105,10 @@ async def create_settings_backup(db: AsyncSession = Depends(get_db), current_use
             "backup": backup_info
         }
     except PermissionError as e:
-        logger.error(f"Permission denied creating settings backup: {e}")
+        logger.error("Permission denied creating settings backup: %s", e)
         raise HTTPException(status_code=403, detail="Permission denied: cannot write to backup directory")
     except (OSError, IOError) as e:
-        logger.error(f"File system error creating settings backup: {e}")
+        logger.error("File system error creating settings backup: %s", e)
         raise HTTPException(status_code=500, detail="Error writing backup file")
 
 
@@ -131,10 +131,10 @@ async def create_full_backup(current_user: Optional[User] = Depends(require_auth
             "backup": backup_info
         }
     except PermissionError as e:
-        logger.error(f"Permission denied creating full backup: {e}")
+        logger.error("Permission denied creating full backup: %s", e)
         raise HTTPException(status_code=403, detail="Permission denied: cannot write to backup directory")
     except (OSError, IOError) as e:
-        logger.error(f"File system error creating full backup: {e}")
+        logger.error("File system error creating full backup: %s", e)
         raise HTTPException(status_code=500, detail="Error creating backup archive")
 
 
@@ -174,10 +174,10 @@ async def download_backup(filename: str, current_user: Optional[User] = Depends(
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Backup file not found")
     except PermissionError as e:
-        logger.error(f"Permission denied downloading backup: {e}")
+        logger.error("Permission denied downloading backup: %s", e)
         raise HTTPException(status_code=403, detail="Permission denied: cannot read backup file")
     except (OSError, IOError) as e:
-        logger.error(f"File system error downloading backup: {e}")
+        logger.error("File system error downloading backup: %s", e)
         raise HTTPException(status_code=500, detail="Error reading backup file")
 
 
@@ -229,10 +229,10 @@ async def restore_backup(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except PermissionError as e:
-        logger.error(f"Permission denied restoring backup: {e}")
+        logger.error("Permission denied restoring backup: %s", e)
         raise HTTPException(status_code=403, detail="Permission denied: cannot write to data directory")
     except (OSError, IOError) as e:
-        logger.error(f"File system error restoring backup: {e}")
+        logger.error("File system error restoring backup: %s", e)
         raise HTTPException(status_code=500, detail="Error restoring backup files")
 
 
@@ -308,7 +308,7 @@ async def upload_backup(
         with open(backup_path, "wb") as f:
             f.write(content)
 
-        logger.info(f"Uploaded backup: {safe_filename}")
+        logger.info("Uploaded backup: %s", safe_filename)
 
         # Get file stats
         stat = backup_path.stat()
@@ -327,10 +327,10 @@ async def upload_backup(
     except HTTPException:
         raise
     except PermissionError as e:
-        logger.error(f"Permission denied uploading backup: {e}")
+        logger.error("Permission denied uploading backup: %s", e)
         raise HTTPException(status_code=403, detail="Permission denied: cannot write to backup directory")
     except (OSError, IOError) as e:
-        logger.error(f"File system error uploading backup: {e}")
+        logger.error("File system error uploading backup: %s", e)
         raise HTTPException(status_code=500, detail="Error saving backup file")
 
 
@@ -359,8 +359,8 @@ async def delete_backup(filename: str, current_user: Optional[User] = Depends(re
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except PermissionError as e:
-        logger.error(f"Permission denied deleting backup: {e}")
+        logger.error("Permission denied deleting backup: %s", e)
         raise HTTPException(status_code=403, detail="Permission denied: cannot delete backup file")
     except (OSError, IOError) as e:
-        logger.error(f"File system error deleting backup: {e}")
+        logger.error("File system error deleting backup: %s", e)
         raise HTTPException(status_code=500, detail="Error deleting backup file")

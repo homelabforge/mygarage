@@ -139,13 +139,13 @@ async def oidc_login(
         logger.error("Cannot connect to OIDC provider")
         raise HTTPException(status_code=503, detail="Cannot connect to OIDC provider")
     except JoseError as e:
-        logger.error(f"OIDC JWT error creating authorization URL: {e}")
+        logger.error("OIDC JWT error creating authorization URL: %s", e)
         raise HTTPException(status_code=401, detail="OIDC authentication error")
     except (ValueError, KeyError) as e:
-        logger.error(f"OIDC configuration error: {e}")
+        logger.error("OIDC configuration error: %s", e)
         raise HTTPException(status_code=500, detail="OIDC configuration error")
 
-    logger.info(f"Redirecting to OIDC provider for authentication (state: {state})")
+    logger.info("Redirecting to OIDC provider for authentication (state: %s)", state)
     return RedirectResponse(url=auth_url, status_code=status.HTTP_302_FOUND)
 
 
@@ -166,7 +166,7 @@ async def oidc_callback(
     Returns:
         Redirect to frontend with JWT token in URL fragment
     """
-    logger.info(f"Received OIDC callback (state: {state})")
+    logger.info("Received OIDC callback (state: %s)", state)
 
     # Validate and consume state from database
     state_data = await oidc_service.validate_and_consume_state(db, state)
@@ -232,7 +232,7 @@ async def oidc_callback(
 
         if isinstance(e, PendingLinkRequiredException):
             # Username match requires password verification
-            logger.info(f"Pending link required for username: {e.username}")
+            logger.info("Pending link required for username: %s", e.username)
 
             # Create pending link token
             pending_token = await oidc_service.create_pending_link_token(
@@ -250,7 +250,7 @@ async def oidc_callback(
             frontend_url = f"{scheme}://{host}"
             redirect_url = f"{frontend_url}/auth/link-account?token={pending_token}"
 
-            logger.info(f"Redirecting to link account page: {redirect_url}")
+            logger.info("Redirecting to link account page: %s", redirect_url)
             return RedirectResponse(url=redirect_url, status_code=status.HTTP_302_FOUND)
         else:
             # Re-raise other exceptions
@@ -293,7 +293,7 @@ async def oidc_callback(
         expires_delta=access_token_expires,
     )
 
-    logger.info(f"OIDC login successful for user: {user.username}")
+    logger.info("OIDC login successful for user: %s", user.username)
 
     # Set httpOnly cookie and redirect with CSRF token (Security Enhancement v2.10.0)
     # Frontend needs CSRF token for state-changing requests
@@ -404,7 +404,7 @@ async def link_oidc_account(
         db.add(audit_log)
         await db.commit()
 
-        logger.warning(f"OIDC link failed: {error_message}")
+        logger.warning("OIDC link failed: %s", error_message)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=error_message,
@@ -412,7 +412,7 @@ async def link_oidc_account(
 
     # Check if user is active
     if not user.is_active:
-        logger.warning(f"OIDC link attempt for inactive user: {user.username}")
+        logger.warning("OIDC link attempt for inactive user: %s", user.username)
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User account is disabled",
@@ -454,7 +454,7 @@ async def link_oidc_account(
         expires_delta=access_token_expires,
     )
 
-    logger.info(f"OIDC account linked successfully for user: {user.username}")
+    logger.info("OIDC account linked successfully for user: %s", user.username)
 
     # Set httpOnly cookie
     response.set_cookie(

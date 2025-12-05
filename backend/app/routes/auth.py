@@ -97,7 +97,7 @@ async def register(
     await db.commit()
     await db.refresh(new_user)
 
-    logger.info(f"First admin user registered: {new_user.username}")
+    logger.info("First admin user registered: %s", new_user.username)
 
     return new_user
 
@@ -165,7 +165,7 @@ async def login(
         max_age=settings.jwt_cookie_max_age,
     )
 
-    logger.info(f"User logged in: {user.username}")
+    logger.info("User logged in: %s", user.username)
 
     # Return token and CSRF token for frontend
     return {
@@ -194,7 +194,7 @@ async def logout(
         secure=settings.jwt_cookie_secure,
         samesite=settings.jwt_cookie_samesite,
     )
-    logger.info(f"User logged out: {current_user.username}")
+    logger.info("User logged out: %s", current_user.username)
     return {"message": "Successfully logged out"}
 
 
@@ -241,7 +241,7 @@ async def refresh_csrf_token(
     db.add(csrf_token)
     await db.commit()
 
-    logger.info(f"CSRF token refreshed for user: {current_user.username}")
+    logger.info("CSRF token refreshed for user: %s", current_user.username)
 
     return {"csrf_token": csrf_token_value}
 
@@ -283,7 +283,7 @@ async def update_current_user(
     await db.commit()
     await db.refresh(current_user)
 
-    logger.info(f"User updated their profile: {current_user.username}")
+    logger.info("User updated their profile: %s", current_user.username)
 
     return current_user
 
@@ -310,7 +310,7 @@ async def update_password(
 
     await db.commit()
 
-    logger.info(f"User changed password: {current_user.username}")
+    logger.info("User changed password: %s", current_user.username)
 
 
 # Admin-only endpoints
@@ -383,7 +383,7 @@ async def create_user(
     await db.commit()
     await db.refresh(new_user)
 
-    logger.info(f"Admin {current_user.username} created new user: {new_user.username}")
+    logger.info("Admin %s created new user: %s", current_user.username, new_user.username)
 
     return new_user
 
@@ -451,7 +451,7 @@ async def update_user(
     await db.commit()
     await db.refresh(user)
 
-    logger.info(f"Admin {current_user.username} updated user: {user.username}")
+    logger.info("Admin %s updated user: %s", current_user.username, user.username)
 
     return user
 
@@ -495,7 +495,7 @@ async def delete_user(
     await db.delete(user)
     await db.commit()
 
-    logger.info(f"Admin {current_user.username} deleted user: {user.username}")
+    logger.info("Admin %s deleted user: %s", current_user.username, user.username)
 
 
 @router.put("/users/{user_id}/password", status_code=status.HTTP_204_NO_CONTENT)
@@ -546,4 +546,4 @@ async def admin_reset_user_password(
 
     await db.commit()
 
-    logger.info(f"Admin {current_user.username} reset password for user: {user.username}")
+    logger.info("Admin %s reset password for user: %s", current_user.username, user.username)

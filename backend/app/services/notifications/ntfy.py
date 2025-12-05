@@ -58,17 +58,17 @@ class NtfyNotificationService(NotificationService):
             response = await self.client.post(endpoint, content=message, headers=headers)
             response.raise_for_status()
 
-            logger.info(f"[ntfy] Sent notification: {title}")
+            logger.info("[ntfy] Sent notification: %s", title)
             return True
 
         except httpx.HTTPStatusError as e:
-            logger.error(f"[ntfy] HTTP error: {e}")
+            logger.error("[ntfy] HTTP error: %s", e)
             return False
         except (httpx.ConnectError, httpx.TimeoutException) as e:
-            logger.error(f"[ntfy] Connection error: {e}")
+            logger.error("[ntfy] Connection error: %s", e)
             return False
         except (ValueError, KeyError) as e:
-            logger.error(f"[ntfy] Invalid data: {e}")
+            logger.error("[ntfy] Invalid data: %s", e)
             return False
 
     async def test_connection(self) -> tuple[bool, str]:

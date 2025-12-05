@@ -112,7 +112,7 @@ async def init_db():
         run_migrations(database_url, migrations_dir)
 
     except Exception as e:
-        logger.error(f"Migration error: {e}")
+        logger.error("Migration error: %s", e)
         import traceback
         traceback.print_exc()
         # Don't fail startup - log error and continue

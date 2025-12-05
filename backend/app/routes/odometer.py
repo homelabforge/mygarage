@@ -89,7 +89,7 @@ async def list_odometer_records(
     except HTTPException:
         raise
     except OperationalError as e:
-        logger.error(f"Database connection error listing odometer records for {vin}: {e}")
+        logger.error("Database connection error listing odometer records for %s: %s", vin, str(e))
         raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
 
@@ -170,7 +170,7 @@ async def create_odometer_record(
         await db.commit()
         await db.refresh(record)
 
-        logger.info(f"Created odometer record {record.id} for {vin}")
+        logger.info("Created odometer record %s for %s", record.id, vin)
 
         return OdometerRecordResponse.model_validate(record)
 
@@ -178,11 +178,11 @@ async def create_odometer_record(
         raise
     except IntegrityError as e:
         await db.rollback()
-        logger.error(f"Database constraint violation creating odometer record for {vin}: {e}")
+        logger.error("Database constraint violation creating odometer record for %s: %s", vin, str(e))
         raise HTTPException(status_code=409, detail="Duplicate or invalid odometer record")
     except OperationalError as e:
         await db.rollback()
-        logger.error(f"Database connection error creating odometer record for {vin}: {e}")
+        logger.error("Database connection error creating odometer record for %s: %s", vin, str(e))
         raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
 
@@ -233,7 +233,7 @@ async def update_odometer_record(
         await db.commit()
         await db.refresh(record)
 
-        logger.info(f"Updated odometer record {record_id} for {vin}")
+        logger.info("Updated odometer record %s for %s", record_id, vin)
 
         return OdometerRecordResponse.model_validate(record)
 
@@ -241,11 +241,11 @@ async def update_odometer_record(
         raise
     except IntegrityError as e:
         await db.rollback()
-        logger.error(f"Database constraint violation updating odometer record {record_id} for {vin}: {e}")
+        logger.error("Database constraint violation updating odometer record %s for %s: %s", record_id, vin, str(e))
         raise HTTPException(status_code=409, detail="Database constraint violation")
     except OperationalError as e:
         await db.rollback()
-        logger.error(f"Database connection error updating odometer record {record_id} for {vin}: {e}")
+        logger.error("Database connection error updating odometer record %s for %s: %s", record_id, vin, str(e))
         raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
 
@@ -289,7 +289,7 @@ async def delete_odometer_record(
         )
         await db.commit()
 
-        logger.info(f"Deleted odometer record {record_id} for {vin}")
+        logger.info("Deleted odometer record %s for %s", record_id, vin)
 
         return None
 
@@ -297,9 +297,9 @@ async def delete_odometer_record(
         raise
     except IntegrityError as e:
         await db.rollback()
-        logger.error(f"Database constraint violation deleting odometer record {record_id} for {vin}: {e}")
+        logger.error("Database constraint violation deleting odometer record %s for %s: %s", record_id, vin, str(e))
         raise HTTPException(status_code=409, detail="Cannot delete record with dependent data")
     except OperationalError as e:
         await db.rollback()
-        logger.error(f"Database connection error deleting odometer record {record_id} for {vin}: {e}")
+        logger.error("Database connection error deleting odometer record %s for %s: %s", record_id, vin, str(e))
         raise HTTPException(status_code=503, detail="Database temporarily unavailable")

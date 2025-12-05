@@ -62,20 +62,20 @@ class DiscordNotificationService(NotificationService):
 
             # Discord returns 204 No Content on success
             if response.status_code == 204:
-                logger.info(f"[discord] Sent notification: {title}")
+                logger.info("[discord] Sent notification: %s", title)
                 return True
 
             response.raise_for_status()
             return False
 
         except httpx.HTTPStatusError as e:
-            logger.error(f"[discord] HTTP error: {e}")
+            logger.error("[discord] HTTP error: %s", e)
             return False
         except (httpx.ConnectError, httpx.TimeoutException) as e:
-            logger.error(f"[discord] Connection error: {e}")
+            logger.error("[discord] Connection error: %s", e)
             return False
         except (ValueError, KeyError) as e:
-            logger.error(f"[discord] Invalid data: {e}")
+            logger.error("[discord] Invalid data: %s", e)
             return False
 
     async def test_connection(self) -> tuple[bool, str]:

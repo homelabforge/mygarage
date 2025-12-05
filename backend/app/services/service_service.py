@@ -111,7 +111,7 @@ class ServiceRecordService:
         except HTTPException:
             raise
         except OperationalError as e:
-            logger.error(f"Database connection error listing service records for {vin}: {e}")
+            logger.error("Database connection error listing service records for %s: %s", vin, e)
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
     async def get_service_record(
@@ -190,7 +190,7 @@ class ServiceRecordService:
             await self.db.commit()
             await self.db.refresh(record)
 
-            logger.info(f"Created service record {record.id} for {vin}")
+            logger.info("Created service record %s for %s", record.id, vin)
 
             # Auto-sync odometer if mileage provided
             if record.date and record.mileage:
@@ -204,7 +204,7 @@ class ServiceRecordService:
                         source_id=record.id
                     )
                 except Exception as e:
-                    logger.warning(f"Failed to auto-sync odometer for service record {record.id}: {e}")
+                    logger.warning("Failed to auto-sync odometer for service record %s: %s", record.id, e)
                     # Don't fail the request if odometer sync fails
 
             # Invalidate analytics cache for this vehicle
@@ -216,11 +216,11 @@ class ServiceRecordService:
             raise
         except IntegrityError as e:
             await self.db.rollback()
-            logger.error(f"Database constraint violation creating service record for {vin}: {e}")
+            logger.error("Database constraint violation creating service record for %s: %s", vin, e)
             raise HTTPException(status_code=409, detail="Duplicate or invalid service record")
         except OperationalError as e:
             await self.db.rollback()
-            logger.error(f"Database connection error creating service record for {vin}: {e}")
+            logger.error("Database connection error creating service record for %s: %s", vin, e)
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
     async def update_service_record(
@@ -272,7 +272,7 @@ class ServiceRecordService:
             await self.db.commit()
             await self.db.refresh(record)
 
-            logger.info(f"Updated service record {record_id} for {vin}")
+            logger.info("Updated service record %s for %s", record_id, vin)
 
             # Auto-sync odometer if mileage and date are present
             if record.date and record.mileage:
@@ -286,7 +286,7 @@ class ServiceRecordService:
                         source_id=record.id
                     )
                 except Exception as e:
-                    logger.warning(f"Failed to auto-sync odometer for service record {record_id}: {e}")
+                    logger.warning("Failed to auto-sync odometer for service record %s: %s", record_id, e)
                     # Don't fail the request if odometer sync fails
 
             # Invalidate analytics cache for this vehicle
@@ -298,11 +298,11 @@ class ServiceRecordService:
             raise
         except IntegrityError as e:
             await self.db.rollback()
-            logger.error(f"Database constraint violation updating service record {record_id} for {vin}: {e}")
+            logger.error("Database constraint violation updating service record %s for %s: %s", record_id, vin, e)
             raise HTTPException(status_code=409, detail="Database constraint violation")
         except OperationalError as e:
             await self.db.rollback()
-            logger.error(f"Database connection error updating service record {record_id} for {vin}: {e}")
+            logger.error("Database connection error updating service record %s for %s: %s", record_id, vin, e)
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
     async def delete_service_record(
@@ -349,7 +349,7 @@ class ServiceRecordService:
             )
             await self.db.commit()
 
-            logger.info(f"Deleted service record {record_id} for {vin}")
+            logger.info("Deleted service record %s for %s", record_id, vin)
 
             # Invalidate analytics cache for this vehicle
             await invalidate_cache_for_vehicle(vin)
@@ -358,9 +358,9 @@ class ServiceRecordService:
             raise
         except IntegrityError as e:
             await self.db.rollback()
-            logger.error(f"Database constraint violation deleting service record {record_id} for {vin}: {e}")
+            logger.error("Database constraint violation deleting service record %s for %s: %s", record_id, vin, e)
             raise HTTPException(status_code=409, detail="Cannot delete record with dependent data")
         except OperationalError as e:
             await self.db.rollback()
-            logger.error(f"Database connection error deleting service record {record_id} for {vin}: {e}")
+            logger.error("Database connection error deleting service record %s for %s: %s", record_id, vin, e)
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")

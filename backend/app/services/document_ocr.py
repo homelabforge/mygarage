@@ -81,7 +81,7 @@ class DocumentOCRService:
             result["validation_warnings"] = data.get_validation_warnings()
             return result
         except Exception as e:
-            logger.error(f"Error parsing insurance document: {e}")
+            logger.error("Error parsing insurance document: %s", e)
             return {
                 "success": False,
                 "error": str(e),
@@ -149,7 +149,7 @@ class DocumentOCRService:
             result["success"] = True
 
         except Exception as e:
-            logger.error(f"Test extraction failed: {e}")
+            logger.error("Test extraction failed: %s", e)
             result["error"] = str(e)
 
         return result
@@ -199,7 +199,7 @@ class DocumentOCRService:
             logger.warning("PyMuPDF not installed, falling back to OCR")
             return await self._ocr_pdf(file_path)
         except Exception as e:
-            logger.error(f"Error extracting text from PDF: {e}")
+            logger.error("Error extracting text from PDF: %s", e)
             return ""
 
     async def _extract_text_from_pdf_bytes(self, pdf_bytes: bytes) -> str:
@@ -226,7 +226,7 @@ class DocumentOCRService:
             logger.error("PyMuPDF not installed - cannot extract text from PDF")
             return ""
         except Exception as e:
-            logger.error(f"Error extracting text from PDF bytes: {e}")
+            logger.error("Error extracting text from PDF bytes: %s", e)
             return ""
 
     async def _ocr_pdf(self, file_path: str) -> str:
@@ -245,7 +245,7 @@ class DocumentOCRService:
 
             return "\n".join(text_content)
         except Exception as e:
-            logger.error(f"Error OCR-ing PDF: {e}")
+            logger.error("Error OCR-ing PDF: %s", e)
             return ""
 
     async def _ocr_pdf_bytes(self, pdf_bytes: bytes) -> str:
@@ -264,7 +264,7 @@ class DocumentOCRService:
 
             return "\n".join(text_content)
         except Exception as e:
-            logger.error(f"Error OCR-ing PDF bytes: {e}")
+            logger.error("Error OCR-ing PDF bytes: %s", e)
             return ""
 
     async def _extract_text_from_image(self, file_path: str) -> str:
@@ -275,7 +275,7 @@ class DocumentOCRService:
                 if text:
                     return text
             except Exception as e:
-                logger.warning(f"PaddleOCR failed, falling back to Tesseract: {e}")
+                logger.warning("PaddleOCR failed, falling back to Tesseract: %s", e)
 
         try:
             from PIL import Image
@@ -288,7 +288,7 @@ class DocumentOCRService:
             logger.warning("PIL or pytesseract not installed")
             return ""
         except Exception as e:
-            logger.error(f"Error extracting text from image: {e}")
+            logger.error("Error extracting text from image: %s", e)
             return ""
 
     async def _ocr_image_bytes(self, img_bytes: bytes) -> str:
@@ -299,7 +299,7 @@ class DocumentOCRService:
                 if text:
                     return text
             except Exception as e:
-                logger.warning(f"PaddleOCR bytes failed: {e}")
+                logger.warning("PaddleOCR bytes failed: %s", e)
 
         try:
             from PIL import Image
@@ -309,7 +309,7 @@ class DocumentOCRService:
             image = Image.open(io.BytesIO(img_bytes))
             return pytesseract.image_to_string(image)
         except Exception as e:
-            logger.error(f"Error OCR-ing image bytes: {e}")
+            logger.error("Error OCR-ing image bytes: %s", e)
             return ""
 
     async def _paddleocr_extract(self, file_path: str) -> str:
@@ -335,7 +335,7 @@ class DocumentOCRService:
             logger.warning("PaddleOCR not installed")
             return ""
         except Exception as e:
-            logger.error(f"PaddleOCR extraction failed: {e}")
+            logger.error("PaddleOCR extraction failed: %s", e)
             return ""
 
     async def _paddleocr_extract_bytes(self, img_bytes: bytes) -> str:
@@ -365,7 +365,7 @@ class DocumentOCRService:
             return "\n".join(lines)
 
         except Exception as e:
-            logger.error(f"PaddleOCR bytes extraction failed: {e}")
+            logger.error("PaddleOCR bytes extraction failed: %s", e)
             return ""
 
     @staticmethod

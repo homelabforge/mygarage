@@ -38,20 +38,20 @@ async def _decode_vin_helper(vin: str) -> VINDecodeResponse:
 
     except ValueError as e:
         # Invalid VIN format
-        logger.warning(f"Invalid VIN format: {e}")
+        logger.warning("Invalid VIN format: %s", e)
         raise HTTPException(
             status_code=400,
             detail=str(e)
         )
 
     except httpx.TimeoutException:
-        logger.error(f"NHTSA API timeout for VIN {vin}")
+        logger.error("NHTSA API timeout for VIN %s", vin)
         raise HTTPException(status_code=504, detail="NHTSA API request timed out")
     except httpx.ConnectError:
-        logger.error(f"Cannot connect to NHTSA API for VIN {vin}")
+        logger.error("Cannot connect to NHTSA API for VIN %s", vin)
         raise HTTPException(status_code=503, detail="Cannot connect to NHTSA API")
     except httpx.HTTPStatusError as e:
-        logger.error(f"NHTSA API error for VIN {vin}: {e}")
+        logger.error("NHTSA API error for VIN %s: %s", vin, e)
         raise HTTPException(status_code=e.response.status_code, detail="NHTSA API error")
 
 

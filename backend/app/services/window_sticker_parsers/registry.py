@@ -179,7 +179,7 @@ class ParserRegistry:
     def register(cls, manufacturer: str, parser_class: Type[BaseWindowStickerParser]) -> None:
         """Register a parser for a manufacturer."""
         cls._parsers[manufacturer.lower()] = parser_class
-        logger.debug(f"Registered parser for {manufacturer}: {parser_class.__name__}")
+        logger.debug("Registered parser for %s: %s", manufacturer, parser_class.__name__)
 
     @classmethod
     def get_parser(cls, manufacturer: str) -> Optional[BaseWindowStickerParser]:
@@ -193,7 +193,7 @@ class ParserRegistry:
         # Try generic fallback
         generic_class = cls._parsers.get("generic")
         if generic_class:
-            logger.info(f"No specific parser for {manufacturer}, using generic")
+            logger.info("No specific parser for %s, using generic", manufacturer)
             return generic_class()
 
         return None
@@ -210,10 +210,10 @@ class ParserRegistry:
         if manufacturer:
             parser = cls.get_parser(manufacturer)
             if parser:
-                logger.info(f"Selected {parser.__class__.__name__} for VIN {vin} (WMI: {wmi})")
+                logger.info("Selected %s for VIN %s (WMI: %s)", parser.__class__.__name__, vin, wmi)
                 return parser
 
-        logger.info(f"Unknown manufacturer for WMI {wmi}, using generic parser")
+        logger.info("Unknown manufacturer for WMI %s, using generic parser", wmi)
         return cls.get_parser("generic")
 
     @classmethod
@@ -248,34 +248,34 @@ class ParserRegistry:
             from .stellantis import StellantisWindowStickerParser
             cls.register("stellantis", StellantisWindowStickerParser)
         except ImportError as e:
-            logger.warning(f"Failed to load Stellantis parser: {e}")
+            logger.warning("Failed to load Stellantis parser: %s", e)
 
         try:
             from .toyota import ToyotaWindowStickerParser
             cls.register("toyota", ToyotaWindowStickerParser)
         except ImportError as e:
-            logger.warning(f"Failed to load Toyota parser: {e}")
+            logger.warning("Failed to load Toyota parser: %s", e)
 
         try:
             from .mitsubishi import MitsubishiWindowStickerParser
             cls.register("mitsubishi", MitsubishiWindowStickerParser)
         except ImportError as e:
-            logger.warning(f"Failed to load Mitsubishi parser: {e}")
+            logger.warning("Failed to load Mitsubishi parser: %s", e)
 
         try:
             from .tesla import TeslaWindowStickerParser
             cls.register("tesla", TeslaWindowStickerParser)
         except ImportError as e:
-            logger.warning(f"Failed to load Tesla parser: {e}")
+            logger.warning("Failed to load Tesla parser: %s", e)
 
         try:
             from .generic import GenericWindowStickerParser
             cls.register("generic", GenericWindowStickerParser)
         except ImportError as e:
-            logger.warning(f"Failed to load Generic parser: {e}")
+            logger.warning("Failed to load Generic parser: %s", e)
 
         cls._initialized = True
-        logger.info(f"Parser registry initialized with {len(cls._parsers)} parsers")
+        logger.info("Parser registry initialized with %s parsers", len(cls._parsers))
 
 
 def get_parser_for_vehicle(vin: str, make: Optional[str] = None) -> BaseWindowStickerParser:

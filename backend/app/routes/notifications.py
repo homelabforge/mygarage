@@ -64,7 +64,7 @@ async def test_ntfy_connection(
             response.raise_for_status()
             return {"success": True, "message": "Test notification sent"}
     except Exception as e:
-        logger.error(f"ntfy test failed: {e}")
+        logger.error("ntfy test failed: %s", e)
         return {"success": False, "message": str(e)}
 
 
@@ -99,7 +99,7 @@ async def test_gotify_connection(
             response.raise_for_status()
             return {"success": True, "message": "Test notification sent"}
     except Exception as e:
-        logger.error(f"Gotify test failed: {e}")
+        logger.error("Gotify test failed: %s", e)
         return {"success": False, "message": str(e)}
 
 
@@ -150,7 +150,7 @@ async def test_pushover_connection(
             response.raise_for_status()
             return {"success": True, "message": "Test notification sent"}
     except Exception as e:
-        logger.error(f"Pushover test failed: {e}")
+        logger.error("Pushover test failed: %s", e)
         return {"success": False, "message": str(e)}
 
 
@@ -188,7 +188,7 @@ async def test_slack_connection(
                 return {"success": True, "message": "Test notification sent"}
             return {"success": False, "message": f"Unexpected response: {response.text}"}
     except Exception as e:
-        logger.error(f"Slack test failed: {e}")
+        logger.error("Slack test failed: %s", e)
         return {"success": False, "message": str(e)}
 
 
@@ -227,7 +227,7 @@ async def test_discord_connection(
             response.raise_for_status()
             return {"success": False, "message": "Unexpected response"}
     except Exception as e:
-        logger.error(f"Discord test failed: {e}")
+        logger.error("Discord test failed: %s", e)
         return {"success": False, "message": str(e)}
 
 
@@ -270,7 +270,7 @@ async def test_telegram_connection(
                 return {"success": True, "message": "Test notification sent"}
             return {"success": False, "message": result.get("description", "Unknown error")}
     except Exception as e:
-        logger.error(f"Telegram test failed: {e}")
+        logger.error("Telegram test failed: %s", e)
         return {"success": False, "message": str(e)}
 
 
@@ -336,5 +336,5 @@ async def test_email_connection(
 
         return {"success": True, "message": "Test email sent"}
     except Exception as e:
-        logger.error(f"Email test failed: {e}")
+        logger.error("Email test failed: %s", e)
         return {"success": False, "message": str(e)}

@@ -194,7 +194,7 @@ async def store_oidc_state(db: AsyncSession, state: str, redirect_uri: str, nonc
     )
     db.add(oidc_state)
     await db.commit()
-    logger.debug(f"Stored OIDC state: {state[:16]}...")
+    logger.debug("Stored OIDC state: %s...", state[:16])
 
 
 async def validate_and_consume_state(db: AsyncSession, state: str) -> Optional[Dict[str, Any]]:
@@ -216,11 +216,11 @@ async def validate_and_consume_state(db: AsyncSession, state: str) -> Optional[D
     oidc_state = result.scalar_one_or_none()
 
     if not oidc_state:
-        logger.warning(f"Invalid or expired OIDC state: {state[:16]}...")
+        logger.warning("Invalid or expired OIDC state: %s...", state[:16])
         return None
 
     if oidc_state.is_expired():
-        logger.warning(f"OIDC state expired: {state[:16]}...")
+        logger.warning("OIDC state expired: %s...", state[:16])
         await db.delete(oidc_state)
         await db.commit()
         return None
@@ -236,7 +236,7 @@ async def validate_and_consume_state(db: AsyncSession, state: str) -> Optional[D
     await db.delete(oidc_state)
     await db.commit()
 
-    logger.debug(f"Validated and consumed OIDC state: {state[:16]}...")
+    logger.debug("Validated and consumed OIDC state: %s...", state[:16])
     return state_data
 
 
@@ -291,7 +291,7 @@ async def create_authorization_url(
     from urllib.parse import urlencode
     auth_url = f"{auth_endpoint}?{urlencode(params)}"
 
-    logger.info(f"Created OIDC authorization URL for state: {state}")
+    logger.info("Created OIDC authorization URL for state: %s", state)
     return auth_url, state
 
 
@@ -533,7 +533,7 @@ async def create_or_update_user_from_oidc(
     full_name = all_claims.get(name_claim, "")
 
     if not email:
-        logger.error(f"OIDC claims missing email (claim: {email_claim})")
+        logger.error("OIDC claims missing email (claim: %s)", email_claim)
         return None
 
     provider_name = config.get("provider_name", "OIDC Provider")
@@ -546,7 +546,7 @@ async def create_or_update_user_from_oidc(
 
     if user:
         # Update existing OIDC user
-        logger.info(f"Found existing OIDC user: {user.username}")
+        logger.info("Found existing OIDC user: %s", user.username)
         user.full_name = full_name or user.full_name
         user.last_login = datetime.now(timezone.utc)
         user.oidc_provider = provider_name
@@ -562,7 +562,7 @@ async def create_or_update_user_from_oidc(
 
     if user:
         # Link OIDC to existing local account
-        logger.info(f"Linking OIDC account to existing user: {user.username}")
+        logger.info("Linking OIDC account to existing user: %s", user.username)
         user.oidc_subject = sub
         user.oidc_provider = provider_name
         user.auth_method = "oidc"  # Primary auth method is now OIDC
@@ -582,15 +582,15 @@ async def create_or_update_user_from_oidc(
         # Username match found but no OIDC link exists
         if user.hashed_password is None:
             # OIDC-only user (no password) - raise explicit error
-            logger.error(f"Username match for OIDC-only user (no password): {username}")
+            logger.error("Username match for OIDC-only user (no password): %s", username)
             raise ValueError(f"Username '{username}' exists as SSO-only account. Contact support to link this account.")
         elif user.oidc_subject and user.oidc_subject != sub:
             # Already linked to different OIDC account - conflict
-            logger.error(f"Username conflict: {username} already linked to different OIDC account")
+            logger.error("Username conflict: %s already linked to different OIDC account", username)
             raise ValueError(f"Username '{username}' is already linked to a different account. Please contact support.")
         else:
             # Valid candidate for username-based linking - requires password verification
-            logger.info(f"Username match requires password verification: {username}")
+            logger.info("Username match requires password verification: %s", username)
             from app.exceptions import PendingLinkRequiredException
             raise PendingLinkRequiredException(
                 username=username,
@@ -602,11 +602,11 @@ async def create_or_update_user_from_oidc(
     # Check if auto-create is enabled
     auto_create = config.get("auto_create_users", "true").lower() == "true"
     if not auto_create:
-        logger.warning(f"User not found for email {email} and auto-create is disabled")
+        logger.warning("User not found for email %s and auto-create is disabled", email)
         return None
 
     # Create new user from OIDC claims
-    logger.info(f"Creating new user from OIDC claims: {email}")
+    logger.info("Creating new user from OIDC claims: %s", email)
 
     # Determine if user should be admin based on groups
     is_admin = False
@@ -615,7 +615,7 @@ async def create_or_update_user_from_oidc(
         groups = all_claims.get("groups", [])
         if isinstance(groups, list) and admin_group in groups:
             is_admin = True
-            logger.info(f"User is member of admin group '{admin_group}'")
+            logger.info("User is member of admin group '%s'", admin_group)
 
     # Check if this is the first user (auto-admin)
     result = await db.execute(select(User))
@@ -654,7 +654,7 @@ async def create_or_update_user_from_oidc(
     await db.commit()
     await db.refresh(user)
 
-    logger.info(f"Created new OIDC user: {user.username} (admin={is_admin})")
+    logger.info("Created new OIDC user: %s (admin=%s)", user.username, is_admin)
     return user
 
 
@@ -715,7 +715,7 @@ async def create_pending_link_token(
     db.add(pending_link)
     await db.commit()
 
-    logger.info(f"Created pending link token for username: {username} (expires in {expire_minutes} minutes)")
+    logger.info("Created pending link token for username: %s (expires in %s minutes)", username, expire_minutes)
     return token
 
 
@@ -759,12 +759,12 @@ async def validate_and_consume_pending_link(
     pending_link = result.scalar_one_or_none()
 
     if not pending_link:
-        logger.warning(f"Pending link token not found or expired: {token[:16]}...")
+        logger.warning("Pending link token not found or expired: %s...", token[:16])
         return (None, "Link expired, please log in again")
 
     # Check if expired
     if pending_link.is_expired():
-        logger.warning(f"Pending link token expired: {pending_link.username}")
+        logger.warning("Pending link token expired: %s", pending_link.username)
         await db.delete(pending_link)
         await db.commit()
         return (None, "Link expired, please log in again")
@@ -778,7 +778,7 @@ async def validate_and_consume_pending_link(
 
     # Check attempt count
     if pending_link.attempt_count >= max_attempts:
-        logger.warning(f"Max password attempts exceeded for username: {pending_link.username}")
+        logger.warning("Max password attempts exceeded for username: %s", pending_link.username)
         await db.delete(pending_link)
         await db.commit()
         return (None, "Too many failed attempts. Please log in again.")
@@ -790,14 +790,14 @@ async def validate_and_consume_pending_link(
     user = result.scalar_one_or_none()
 
     if not user:
-        logger.error(f"User not found for pending link: {pending_link.username}")
+        logger.error("User not found for pending link: %s", pending_link.username)
         await db.delete(pending_link)
         await db.commit()
         return (None, "Link expired, please log in again")
 
     # Security check: user must have a password (not OIDC-only)
     if user.hashed_password is None:
-        logger.error(f"Username match for OIDC-only user (no password): {pending_link.username}")
+        logger.error("Username match for OIDC-only user (no password): %s", pending_link.username)
         await db.delete(pending_link)
         await db.commit()
         return (None, "Link expired, please log in again")
@@ -815,7 +815,7 @@ async def validate_and_consume_pending_link(
 
     # Security check: user not already linked to different OIDC account
     if user.oidc_subject and user.oidc_subject != sub:
-        logger.error(f"Username conflict: {pending_link.username} already linked to different OIDC account")
+        logger.error("Username conflict: %s already linked to different OIDC account", pending_link.username)
         await db.delete(pending_link)
         await db.commit()
         return (None, "Account already linked to different provider. Please contact support.")
@@ -827,7 +827,7 @@ async def validate_and_consume_pending_link(
         await db.commit()
 
         remaining = max_attempts - pending_link.attempt_count
-        logger.warning(f"Invalid password attempt for username: {pending_link.username} ({pending_link.attempt_count}/{max_attempts})")
+        logger.warning("Invalid password attempt for username: %s (%s/%s)", pending_link.username, pending_link.attempt_count, max_attempts)
 
         if remaining <= 0:
             await db.delete(pending_link)
@@ -837,7 +837,7 @@ async def validate_and_consume_pending_link(
         return (None, f"Invalid password. {remaining} attempt(s) remaining.")
 
     # Password correct - link accounts
-    logger.info(f"Password verified, linking OIDC account to user: {pending_link.username}")
+    logger.info("Password verified, linking OIDC account to user: %s", pending_link.username)
 
     # Merge claims
     all_claims = {**claims}
@@ -861,7 +861,7 @@ async def validate_and_consume_pending_link(
     await db.commit()
     await db.refresh(user)
 
-    logger.info(f"Successfully linked OIDC account to existing user: {user.username}")
+    logger.info("Successfully linked OIDC account to existing user: %s", user.username)
     return (user, None)
 
 

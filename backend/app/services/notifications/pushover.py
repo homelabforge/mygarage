@@ -71,20 +71,20 @@ class PushoverNotificationService(NotificationService):
 
             result = response.json()
             if result.get("status") == 1:
-                logger.info(f"[pushover] Sent notification: {title}")
+                logger.info("[pushover] Sent notification: %s", title)
                 return True
 
-            logger.error(f"[pushover] API error: {result}")
+            logger.error("[pushover] API error: %s", result)
             return False
 
         except httpx.HTTPStatusError as e:
-            logger.error(f"[pushover] HTTP error: {e}")
+            logger.error("[pushover] HTTP error: %s", e)
             return False
         except (httpx.ConnectError, httpx.TimeoutException) as e:
-            logger.error(f"[pushover] Connection error: {e}")
+            logger.error("[pushover] Connection error: %s", e)
             return False
         except (ValueError, KeyError) as e:
-            logger.error(f"[pushover] Invalid data: {e}")
+            logger.error("[pushover] Invalid data: %s", e)
             return False
 
     async def test_connection(self) -> tuple[bool, str]:

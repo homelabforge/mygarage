@@ -80,7 +80,7 @@ def validate_path_within_base(
         return resolved_path
 
     except (ValueError, RuntimeError) as e:
-        logger.warning(f"Path traversal attempt detected: {file_path} outside {base_path}")
+        logger.warning("Path traversal attempt detected: %s outside %s", file_path, base_path)
 
         if raise_error:
             raise HTTPException(

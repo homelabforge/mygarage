@@ -151,5 +151,5 @@ class BaseDocumentParser(ABC):
             cleaned = value.replace('$', '').replace(',', '').strip()
             return Decimal(cleaned)
         except (ValueError, InvalidOperation, AttributeError) as e:
-            logger.debug(f"Failed to parse currency value '{value}': {e}")
+            logger.debug("Failed to parse currency value '%s': %s", value, e)
             return None

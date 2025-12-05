@@ -134,7 +134,7 @@ def upgrade():
                 if count > 0:
                     print(f"✓ Hydrated {count} photo(s) for vehicle {vin}")
             except Exception as e:
-                logger.error(f"Error hydrating photos for VIN {vin}: {e}")
+                logger.error("Error hydrating photos for VIN %s: %s", vin, e)
                 print(f"✗ Error hydrating photos for VIN {vin}: {e}")
 
         if total_photos > 0:

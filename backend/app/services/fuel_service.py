@@ -213,7 +213,7 @@ class FuelRecordService:
         except HTTPException:
             raise
         except OperationalError as e:
-            logger.error(f"Database connection error listing fuel records for {vin}: {e}")
+            logger.error("Database connection error listing fuel records for %s: %s", vin, e)
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
     async def get_fuel_record(
@@ -304,7 +304,7 @@ class FuelRecordService:
                 prev_record = await get_previous_full_tank(self.db, vin, record.date, record.mileage)
                 mpg = calculate_mpg(record, prev_record)
 
-            logger.info(f"Created fuel record {record.id} for {vin} (MPG: {mpg})")
+            logger.info("Created fuel record %s for %s (MPG: %s)", record.id, vin, mpg)
 
             # Auto-sync odometer if mileage provided
             if record.date and record.mileage:
@@ -318,7 +318,7 @@ class FuelRecordService:
                         source_id=record.id
                     )
                 except Exception as e:
-                    logger.warning(f"Failed to auto-sync odometer for fuel record {record.id}: {e}")
+                    logger.warning("Failed to auto-sync odometer for fuel record %s: %s", record.id, e)
                     # Don't fail the request if odometer sync fails
 
             # Invalidate analytics cache for this vehicle
@@ -330,11 +330,11 @@ class FuelRecordService:
             raise
         except IntegrityError as e:
             await self.db.rollback()
-            logger.error(f"Database constraint violation creating fuel record for {vin}: {e}")
+            logger.error("Database constraint violation creating fuel record for %s: %s", vin, e)
             raise HTTPException(status_code=409, detail="Duplicate or invalid fuel record")
         except OperationalError as e:
             await self.db.rollback()
-            logger.error(f"Database connection error creating fuel record for {vin}: {e}")
+            logger.error("Database connection error creating fuel record for %s: %s", vin, e)
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
     async def update_fuel_record(
@@ -392,7 +392,7 @@ class FuelRecordService:
                 prev_record = await get_previous_full_tank(self.db, vin, record.date, record.mileage)
                 mpg = calculate_mpg(record, prev_record)
 
-            logger.info(f"Updated fuel record {record_id} for {vin}")
+            logger.info("Updated fuel record %s for %s", record_id, vin)
 
             # Auto-sync odometer if mileage and date are present
             if record.date and record.mileage:
@@ -406,7 +406,7 @@ class FuelRecordService:
                         source_id=record.id
                     )
                 except Exception as e:
-                    logger.warning(f"Failed to auto-sync odometer for fuel record {record_id}: {e}")
+                    logger.warning("Failed to auto-sync odometer for fuel record %s: %s", record_id, e)
                     # Don't fail the request if odometer sync fails
 
             # Invalidate analytics cache for this vehicle
@@ -418,11 +418,11 @@ class FuelRecordService:
             raise
         except IntegrityError as e:
             await self.db.rollback()
-            logger.error(f"Database constraint violation updating fuel record {record_id} for {vin}: {e}")
+            logger.error("Database constraint violation updating fuel record %s for %s: %s", record_id, vin, e)
             raise HTTPException(status_code=409, detail="Database constraint violation")
         except OperationalError as e:
             await self.db.rollback()
-            logger.error(f"Database connection error updating fuel record {record_id} for {vin}: {e}")
+            logger.error("Database connection error updating fuel record %s for %s: %s", record_id, vin, e)
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
     async def delete_fuel_record(
@@ -469,7 +469,7 @@ class FuelRecordService:
             )
             await self.db.commit()
 
-            logger.info(f"Deleted fuel record {record_id} for {vin}")
+            logger.info("Deleted fuel record %s for %s", record_id, vin)
 
             # Invalidate analytics cache for this vehicle
             await invalidate_cache_for_vehicle(vin)
@@ -478,9 +478,9 @@ class FuelRecordService:
             raise
         except IntegrityError as e:
             await self.db.rollback()
-            logger.error(f"Database constraint violation deleting fuel record {record_id} for {vin}: {e}")
+            logger.error("Database constraint violation deleting fuel record %s for %s: %s", record_id, vin, e)
             raise HTTPException(status_code=409, detail="Cannot delete record with dependent data")
         except OperationalError as e:
             await self.db.rollback()
-            logger.error(f"Database connection error deleting fuel record {record_id} for {vin}: {e}")
+            logger.error("Database connection error deleting fuel record %s for %s: %s", record_id, vin, e)
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")

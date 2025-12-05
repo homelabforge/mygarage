@@ -78,7 +78,7 @@ async def create_toll_tag(vin: str, toll_tag: TollTagCreate, db: AsyncSession = 
     await db.commit()
     await db.refresh(db_toll_tag)
 
-    logger.info(f"Created toll tag {db_toll_tag.id} for vehicle {vin}")
+    logger.info("Created toll tag %s for vehicle %s", db_toll_tag.id, vin)
     return TollTagResponse.model_validate(db_toll_tag)
 
 
@@ -119,7 +119,7 @@ async def update_toll_tag(
     await db.commit()
     await db.refresh(toll_tag)
 
-    logger.info(f"Updated toll tag {tag_id} for vehicle {vin}")
+    logger.info("Updated toll tag %s for vehicle %s", tag_id, vin)
     return TollTagResponse.model_validate(toll_tag)
 
 
@@ -136,7 +136,7 @@ async def delete_toll_tag(vin: str, tag_id: int, db: AsyncSession = Depends(get_
     await db.execute(delete(TollTag).where(TollTag.id == tag_id))
     await db.commit()
 
-    logger.info(f"Deleted toll tag {tag_id} for vehicle {vin}")
+    logger.info("Deleted toll tag %s for vehicle %s", tag_id, vin)
     return Response(status_code=204)
 
 
@@ -221,7 +221,7 @@ async def create_toll_transaction(
     await db.commit()
     await db.refresh(db_transaction)
 
-    logger.info(f"Created toll transaction {db_transaction.id} for vehicle {vin}")
+    logger.info("Created toll transaction %s for vehicle %s", db_transaction.id, vin)
     return TollTransactionResponse.model_validate(db_transaction)
 
 
@@ -280,7 +280,7 @@ async def update_toll_transaction(
     await db.commit()
     await db.refresh(transaction)
 
-    logger.info(f"Updated toll transaction {transaction_id} for vehicle {vin}")
+    logger.info("Updated toll transaction %s for vehicle %s", transaction_id, vin)
     return TollTransactionResponse.model_validate(transaction)
 
 
@@ -300,7 +300,7 @@ async def delete_toll_transaction(vin: str, transaction_id: int, db: AsyncSessio
     await db.execute(delete(TollTransaction).where(TollTransaction.id == transaction_id))
     await db.commit()
 
-    logger.info(f"Deleted toll transaction {transaction_id} for vehicle {vin}")
+    logger.info("Deleted toll transaction %s for vehicle %s", transaction_id, vin)
     return Response(status_code=204)
 
 

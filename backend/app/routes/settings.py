@@ -125,7 +125,7 @@ async def create_setting(
     await db.commit()
     await db.refresh(db_setting)
 
-    logger.info(f"Created setting: {setting.key}")
+    logger.info("Created setting: %s", setting.key)
     return SettingResponse.model_validate(db_setting)
 
 
@@ -163,7 +163,7 @@ async def update_setting(
     await db.commit()
     await db.refresh(setting)
 
-    logger.info(f"Updated setting: {key}")
+    logger.info("Updated setting: %s", key)
     return SettingResponse.model_validate(setting)
 
 
@@ -208,7 +208,7 @@ async def batch_update_settings(
     for setting in updated_settings:
         await db.refresh(setting)
 
-    logger.info(f"Batch updated {len(updated_settings)} settings")
+    logger.info("Batch updated %s settings", len(updated_settings))
 
     return SettingsListResponse(
         settings=[SettingResponse.model_validate(s) for s in updated_settings],
@@ -232,7 +232,7 @@ async def delete_setting(
     await db.delete(setting)
     await db.commit()
 
-    logger.info(f"Deleted setting: {key}")
+    logger.info("Deleted setting: %s", key)
     return Response(status_code=204)
 
 

@@ -48,7 +48,7 @@ class NotificationService(ABC):
             if attempt < max_attempts - 1:
                 await asyncio.sleep(retry_delay)
 
-        logger.error(f"[{self.service_name}] All {max_attempts} attempts failed")
+        logger.error("[%s] All %s attempts failed", self.service_name, max_attempts)
         return False
 
     @abstractmethod

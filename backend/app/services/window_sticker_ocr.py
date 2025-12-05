@@ -55,7 +55,7 @@ class WindowStickerOCRService:
         if path.suffix.lower() not in self.supported_formats:
             raise ValueError(f"Unsupported file format: {path.suffix}. Supported: {self.supported_formats}")
 
-        logger.info(f"Extracting data from window sticker: {file_path}")
+        logger.info("Extracting data from window sticker: %s", file_path)
 
         try:
             # Extract text based on file type
@@ -65,12 +65,12 @@ class WindowStickerOCRService:
                 text = await self._extract_text_from_image(file_path)
 
             if not text or len(text.strip()) < 50:
-                logger.warning(f"Insufficient text extracted from {file_path}")
+                logger.warning("Insufficient text extracted from %s", file_path)
                 return {}
 
             # Get appropriate parser based on VIN/make
             parser = get_parser_for_vehicle(vin or "", make)
-            logger.info(f"Using parser: {parser.__class__.__name__}")
+            logger.info("Using parser: %s", parser.__class__.__name__)
 
             # Parse the extracted text
             sticker_data = parser.parse(text)
@@ -78,11 +78,11 @@ class WindowStickerOCRService:
             # Convert to dict for storage
             result = self._sticker_data_to_dict(sticker_data)
 
-            logger.info(f"Successfully extracted data from window sticker using {parser.__class__.__name__}")
+            logger.info("Successfully extracted data from window sticker using %s", parser.__class__.__name__)
             return result
 
         except Exception as e:
-            logger.error(f"Error extracting data from window sticker {file_path}: {e}")
+            logger.error("Error extracting data from window sticker %s: %s", file_path, e)
             # Return empty dict on error - user can manually enter data
             return {}
 
@@ -152,7 +152,7 @@ class WindowStickerOCRService:
             result["success"] = True
 
         except Exception as e:
-            logger.error(f"Test extraction failed: {e}")
+            logger.error("Test extraction failed: %s", e)
             result["error"] = str(e)
 
         return result
@@ -188,7 +188,7 @@ class WindowStickerOCRService:
             logger.warning("PyMuPDF not installed, falling back to OCR")
             return await self._ocr_pdf(file_path)
         except Exception as e:
-            logger.error(f"Error extracting text from PDF: {e}")
+            logger.error("Error extracting text from PDF: %s", e)
             return ""
 
     async def _ocr_pdf(self, file_path: str) -> str:
@@ -210,7 +210,7 @@ class WindowStickerOCRService:
 
             return "\n".join(text_content)
         except Exception as e:
-            logger.error(f"Error OCR-ing PDF: {e}")
+            logger.error("Error OCR-ing PDF: %s", e)
             return ""
 
     async def _extract_text_from_image(self, file_path: str) -> str:
@@ -230,7 +230,7 @@ class WindowStickerOCRService:
                 if text:
                     return text
             except Exception as e:
-                logger.warning(f"PaddleOCR failed, falling back to Tesseract: {e}")
+                logger.warning("PaddleOCR failed, falling back to Tesseract: %s", e)
 
         # Fallback to Tesseract
         try:
@@ -244,7 +244,7 @@ class WindowStickerOCRService:
             logger.warning("PIL or pytesseract not installed, OCR not available")
             return ""
         except Exception as e:
-            logger.error(f"Error extracting text from image: {e}")
+            logger.error("Error extracting text from image: %s", e)
             return ""
 
     async def _ocr_image_bytes(self, img_bytes: bytes) -> str:
@@ -256,7 +256,7 @@ class WindowStickerOCRService:
                 if text:
                     return text
             except Exception as e:
-                logger.warning(f"PaddleOCR bytes failed: {e}")
+                logger.warning("PaddleOCR bytes failed: %s", e)
 
         # Fallback to Tesseract
         try:
@@ -267,7 +267,7 @@ class WindowStickerOCRService:
             image = Image.open(io.BytesIO(img_bytes))
             return pytesseract.image_to_string(image)
         except Exception as e:
-            logger.error(f"Error OCR-ing image bytes: {e}")
+            logger.error("Error OCR-ing image bytes: %s", e)
             return ""
 
     async def _paddleocr_extract(self, file_path: str) -> str:
@@ -294,7 +294,7 @@ class WindowStickerOCRService:
             logger.warning("PaddleOCR not installed")
             return ""
         except Exception as e:
-            logger.error(f"PaddleOCR extraction failed: {e}")
+            logger.error("PaddleOCR extraction failed: %s", e)
             return ""
 
     async def _paddleocr_extract_bytes(self, img_bytes: bytes) -> str:
@@ -325,7 +325,7 @@ class WindowStickerOCRService:
             return "\n".join(lines)
 
         except Exception as e:
-            logger.error(f"PaddleOCR bytes extraction failed: {e}")
+            logger.error("PaddleOCR bytes extraction failed: %s", e)
             return ""
 
     def _sticker_data_to_dict(self, data: WindowStickerData) -> Dict[str, Any]:

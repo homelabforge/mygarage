@@ -157,7 +157,7 @@ class InsurancePDFParser:
                 result['notes'] = f"Auto-imported from Progressive PDF on {datetime.now().strftime('%Y-%m-%d')}"
 
         except Exception as e:
-            logger.error(f"Error parsing Progressive PDF: {e}")
+            logger.error("Error parsing Progressive PDF: %s", e)
             raise ValueError(f"Failed to parse PDF: {str(e)}")
 
         return result
@@ -212,7 +212,7 @@ class InsurancePDFParser:
             cleaned = value.replace('$', '').replace(',', '').strip()
             return Decimal(cleaned)
         except (ValueError, InvalidOperation) as e:
-            logger.debug(f"Failed to parse currency value '{value}': {e}")
+            logger.debug("Failed to parse currency value '%s': %s", value, e)
             return None
 
     def _extract_all_vins(self, text: str) -> list:
@@ -269,7 +269,7 @@ class InsurancePDFParser:
             else:
                 return 'Monthly'
         except (ValueError, AttributeError) as e:
-            logger.debug(f"Failed to determine frequency from dates {start_date} to {end_date}: {e}")
+            logger.debug("Failed to determine frequency from dates %s to %s: %s", start_date, end_date, e)
             return 'Semi-Annual'  # Progressive default
 
     def _determine_policy_type(self, text: str) -> str:

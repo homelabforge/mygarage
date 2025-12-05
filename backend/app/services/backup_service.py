@@ -60,7 +60,7 @@ class BackupService:
                 "exists": False,
             }
         except Exception as e:
-            logger.error(f"Error getting database stats: {e}")
+            logger.error("Error getting database stats: %s", e)
             return {
                 "path": str(self.database_path),
                 "size_mb": 0,
@@ -109,7 +109,7 @@ class BackupService:
                     })
 
         except Exception as e:
-            logger.error(f"Error listing backup files: {e}")
+            logger.error("Error listing backup files: %s", e)
 
         # Sort by created date (newest first)
         backups.sort(key=lambda x: x["created"], reverse=True)
@@ -155,7 +155,7 @@ class BackupService:
         with open(backup_path, "w") as f:
             json.dump(backup_data, f, indent=2)
 
-        logger.info(f"Created settings backup: {filename}")
+        logger.info("Created settings backup: %s", filename)
 
         # Get file stats
         stat = backup_path.stat()
@@ -180,46 +180,46 @@ class BackupService:
         filename = f"mygarage-full-{timestamp}.tar.gz"
         backup_path = self.backup_dir / filename
 
-        logger.info(f"Creating full backup: {filename}")
+        logger.info("Creating full backup: %s", filename)
 
         # Create tar.gz archive
         with tarfile.open(backup_path, "w:gz") as tar:
             # Add database file
             if self.database_path.exists():
                 tar.add(self.database_path, arcname="mygarage.db")
-                logger.info(f"Added database to backup: {self.database_path}")
+                logger.info("Added database to backup: %s", self.database_path)
 
             # Add WAL file if it exists (for SQLite WAL mode)
             wal_path = Path(str(self.database_path) + "-wal")
             if wal_path.exists():
                 tar.add(wal_path, arcname="mygarage.db-wal")
-                logger.info(f"Added WAL file to backup: {wal_path}")
+                logger.info("Added WAL file to backup: %s", wal_path)
 
             # Add SHM file if it exists (for SQLite WAL mode)
             shm_path = Path(str(self.database_path) + "-shm")
             if shm_path.exists():
                 tar.add(shm_path, arcname="mygarage.db-shm")
-                logger.info(f"Added SHM file to backup: {shm_path}")
+                logger.info("Added SHM file to backup: %s", shm_path)
 
             # Add photos directory if it exists
             photos_dir = self.data_dir / "photos"
             if photos_dir.exists() and any(photos_dir.iterdir()):
                 tar.add(photos_dir, arcname="photos")
-                logger.info(f"Added photos directory to backup")
+                logger.info("Added photos directory to backup")
 
             # Add documents directory if it exists
             documents_dir = self.data_dir / "documents"
             if documents_dir.exists() and any(documents_dir.iterdir()):
                 tar.add(documents_dir, arcname="documents")
-                logger.info(f"Added documents directory to backup")
+                logger.info("Added documents directory to backup")
 
             # Add attachments directory if it exists
             attachments_dir = self.data_dir / "attachments"
             if attachments_dir.exists() and any(attachments_dir.iterdir()):
                 tar.add(attachments_dir, arcname="attachments")
-                logger.info(f"Added attachments directory to backup")
+                logger.info("Added attachments directory to backup")
 
-        logger.info(f"Created full backup: {filename}")
+        logger.info("Created full backup: %s", filename)
 
         # Get file stats
         stat = backup_path.stat()
@@ -281,7 +281,7 @@ class BackupService:
             with open(safety_path, "w") as f:
                 json.dump(safety_data, f, indent=2)
 
-            logger.info(f"Created safety backup: {safety_filename}")
+            logger.info("Created safety backup: %s", safety_filename)
 
         # Read and validate backup file
         with open(backup_path, "r") as f:
@@ -302,7 +302,7 @@ class BackupService:
                 value = setting_data.get("value")
 
                 if not key:
-                    logger.warning(f"Skipping setting with no key: {setting_data}")
+                    logger.warning("Skipping setting with no key: %s", setting_data)
                     continue
 
                 # Update setting in database
@@ -317,12 +317,12 @@ class BackupService:
                 restored_count += 1
 
             except Exception as e:
-                logger.error(f"Error restoring setting {setting_data.get('key')}: {e}")
+                logger.error("Error restoring setting %s: %s", setting_data.get('key'), e)
                 # Continue with other settings
 
         await db.commit()
 
-        logger.info(f"Restored {restored_count} settings from {filename}")
+        logger.info("Restored %s settings from %s", restored_count, filename)
 
         return {
             "restored_count": restored_count,
@@ -354,7 +354,7 @@ class BackupService:
             safety_filename = f"mygarage-full-safety-{timestamp}.tar.gz"
             safety_path = self.backup_dir / safety_filename
 
-            logger.info(f"Creating safety backup: {safety_filename}")
+            logger.info("Creating safety backup: %s", safety_filename)
 
             with tarfile.open(safety_path, "w:gz") as tar:
                 if self.database_path.exists():
@@ -366,10 +366,10 @@ class BackupService:
                     if dir_path.exists() and any(dir_path.iterdir()):
                         tar.add(dir_path, arcname=dir_name)
 
-            logger.info(f"Created safety backup: {safety_filename}")
+            logger.info("Created safety backup: %s", safety_filename)
 
         # Extract backup
-        logger.info(f"Restoring full backup from: {filename}")
+        logger.info("Restoring full backup from: %s", filename)
 
         with tarfile.open(backup_path, "r:gz") as tar:
             members = tar.getmembers()
@@ -404,7 +404,7 @@ class BackupService:
                     normalized_parts,
                 )
 
-        logger.info(f"Successfully restored full backup from {filename}")
+        logger.info("Successfully restored full backup from %s", filename)
 
         return {
             "safety_backup": safety_filename,
@@ -469,7 +469,7 @@ class BackupService:
         # Delete the file
         backup_path.unlink()
 
-        logger.info(f"Deleted backup: {filename}")
+        logger.info("Deleted backup: %s", filename)
 
     # ------------------------------------------------------------------ #
     # Internal helpers

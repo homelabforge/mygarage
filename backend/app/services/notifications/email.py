@@ -103,17 +103,17 @@ class EmailNotificationService(NotificationService):
                 start_tls=self.use_tls,
             )
 
-            logger.info(f"[email] Sent notification: {title}")
+            logger.info("[email] Sent notification: %s", title)
             return True
 
         except aiosmtplib.SMTPException as e:
-            logger.error(f"[email] SMTP error: {e}")
+            logger.error("[email] SMTP error: %s", e)
             return False
         except (ConnectionError, TimeoutError, OSError) as e:
-            logger.error(f"[email] Connection error: {e}")
+            logger.error("[email] Connection error: %s", e)
             return False
         except (ValueError, KeyError) as e:
-            logger.error(f"[email] Invalid data: {e}")
+            logger.error("[email] Invalid data: %s", e)
             return False
 
     async def test_connection(self) -> tuple[bool, str]:

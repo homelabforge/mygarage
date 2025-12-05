@@ -49,7 +49,7 @@ async def lifespan(app: FastAPI):
     # Log secret key status (key was generated during config import)
     secret_key_file = Path("/data/secret.key")
     if secret_key_file.exists():
-        logger.info(f"✓ Secret key loaded from {secret_key_file}")
+        logger.info("✓ Secret key loaded from %s", secret_key_file)
     else:
         logger.warning("Secret key file not found - using temporary in-memory key")
 
@@ -62,7 +62,7 @@ async def lifespan(app: FastAPI):
         (settings.data_dir / "backups").mkdir(parents=True, exist_ok=True)
         logger.info("Data directories verified")
     except PermissionError as e:
-        logger.warning(f"Could not create data directories (may already exist): {e}")
+        logger.warning("Could not create data directories (may already exist): %s", e)
         # Continue anyway - directories might already exist with correct permissions
 
     # Initialize database
