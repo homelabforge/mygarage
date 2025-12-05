@@ -156,8 +156,8 @@ class FuelRecordService:
         vin = vin.upper().strip()
 
         try:
-            # Check vehicle ownership
-            vehicle = await get_vehicle_or_403(vin, current_user, self.db)
+            # Check vehicle ownership (raises 403 if unauthorized)
+            _ = await get_vehicle_or_403(vin, current_user, self.db)
 
             # Get fuel records
             result = await self.db.execute(
@@ -240,7 +240,7 @@ class FuelRecordService:
 
         vin = vin.upper().strip()
 
-        # Check vehicle ownership
+        # Check vehicle ownership (raises 403 if unauthorized)
         await get_vehicle_or_403(vin, current_user, self.db)
 
         result = await self.db.execute(
@@ -286,8 +286,8 @@ class FuelRecordService:
         vin = vin.upper().strip()
 
         try:
-            # Check vehicle ownership
-            vehicle = await get_vehicle_or_403(vin, current_user, self.db)
+            # Check vehicle ownership (raises 403 if unauthorized)
+            _ = await get_vehicle_or_403(vin, current_user, self.db)
 
             # Create fuel record
             record_dict = record_data.model_dump()
@@ -364,7 +364,7 @@ class FuelRecordService:
         vin = vin.upper().strip()
 
         try:
-            # Check vehicle ownership
+            # Check vehicle ownership (raises 403 if unauthorized)
             await get_vehicle_or_403(vin, current_user, self.db)
 
             # Get existing record
@@ -447,7 +447,7 @@ class FuelRecordService:
         vin = vin.upper().strip()
 
         try:
-            # Check vehicle ownership
+            # Check vehicle ownership (raises 403 if unauthorized)
             await get_vehicle_or_403(vin, current_user, self.db)
 
             # Check if record exists

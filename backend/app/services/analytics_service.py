@@ -3,7 +3,7 @@
 import pandas as pd
 import numpy as np
 from typing import List, Dict, Optional, Tuple
-from datetime import date as date_type, datetime, timedelta
+from datetime import date as date_type, timedelta
 from decimal import Decimal
 from collections import defaultdict
 import calendar

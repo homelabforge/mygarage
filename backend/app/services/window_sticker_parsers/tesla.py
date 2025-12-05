@@ -114,7 +114,7 @@ class TeslaWindowStickerParser(BaseWindowStickerParser):
                         if default_name and price > 0:
                             data.options_detail[default_name] = price
                     except (ValueError, Exception):
-                        pass
+                        pass  # Skip malformed price data - OCR extraction is best-effort
                 elif len(groups) == 2:
                     # Name and price
                     name = groups[0].strip() if not default_name else default_name
@@ -123,7 +123,7 @@ class TeslaWindowStickerParser(BaseWindowStickerParser):
                         if name and price > 0:
                             data.options_detail[name] = price
                     except (ValueError, Exception):
-                        pass
+                        pass  # Skip malformed price data - OCR extraction is best-effort
 
     def _extract_tesla_colors(self, text: str) -> tuple[Optional[str], Optional[str]]:
         """Extract Tesla color options."""

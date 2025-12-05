@@ -12,20 +12,17 @@ This service handles OAuth2/OIDC authentication flow with support for:
 import logging
 import secrets
 from typing import Optional, Dict, Any
-from datetime import datetime, timezone, timedelta
-from urllib.parse import urlparse
+from datetime import datetime, timezone
 
 import httpx
-from authlib.integrations.base_client import OAuthError
 from authlib.jose import jwt, JsonWebKey, JoseError
-from authlib.oauth2.rfc6749 import OAuth2Token
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
 from app.models.settings import Setting
 from app.models.oidc_state import OIDCState
-from app.services.auth import hash_password, create_access_token
+from app.services.auth import create_access_token
 from app.utils.url_validation import validate_oidc_url
 from app.exceptions import SSRFProtectionError
 

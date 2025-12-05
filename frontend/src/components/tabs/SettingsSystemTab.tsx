@@ -784,7 +784,7 @@ export default function SettingsSystemTab() {
                           <div>
                             <div className="text-sm font-medium text-garage-text">User Management</div>
                             <div className="text-xs text-garage-text-muted mt-0.5">
-                              {userCount} registered {userCount === 1 ? 'user' : 'users'}
+                              {userCount} registered users
                             </div>
                           </div>
                         </div>

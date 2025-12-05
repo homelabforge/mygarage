@@ -1,7 +1,7 @@
 """Vehicle CRUD API endpoints."""
 
 import logging
-from typing import List, Optional
+from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy import select
@@ -224,8 +224,8 @@ async def create_trailer_details(
     vin = vin.upper().strip()
 
     try:
-        # Check vehicle ownership
-        vehicle = await get_vehicle_or_403(vin, current_user, db)
+        # Check vehicle ownership (raises 403 if unauthorized)
+        _ = await get_vehicle_or_403(vin, current_user, db)
 
         # Check if trailer details already exist
         result = await db.execute(

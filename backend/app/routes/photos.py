@@ -14,7 +14,6 @@ from app.config import settings
 from app.database import get_db
 from app.models.photo import VehiclePhoto
 from app.models.user import User
-from app.models.vehicle import Vehicle
 from app.schemas.photo import PhotoUpdate
 from app.services.auth import require_auth, get_vehicle_or_403
 from app.services.photo_service import PhotoService
@@ -61,7 +60,7 @@ async def upload_vehicle_photo(
     vin = vin.upper().strip()
 
     try:
-        # Check vehicle ownership
+        # Check vehicle ownership (raises 403 if unauthorized)
         vehicle = await get_vehicle_or_403(vin, current_user, db)
 
         # Upload using shared service
@@ -138,7 +137,7 @@ async def get_vehicle_photo(
 
     safe_filename = sanitize_filename(filename)
 
-    # Check vehicle ownership
+    # Check vehicle ownership (raises 403 if unauthorized)
     vehicle = await get_vehicle_or_403(vin, current_user, db)
 
     # Get photo path
@@ -171,7 +170,7 @@ async def get_vehicle_thumbnail(
     vin = vin.upper().strip()
     safe_filename = sanitize_filename(filename)
 
-    # Check vehicle ownership
+    # Check vehicle ownership (raises 403 if unauthorized)
     vehicle = await get_vehicle_or_403(vin, current_user, db)
 
     thumb_path = PHOTO_DIR / vin / "thumbnails" / safe_filename
@@ -196,7 +195,7 @@ async def list_vehicle_photos(
     """
     vin = vin.upper().strip()
 
-    # Check vehicle ownership
+    # Check vehicle ownership (raises 403 if unauthorized)
     vehicle = await get_vehicle_or_403(vin, current_user, db)
 
     # Note: Legacy photo hydration now runs via migration 014_hydrate_legacy_photos.py
@@ -233,7 +232,7 @@ async def delete_vehicle_photo(
     safe_filename = sanitize_filename(filename)
 
     try:
-        # Check vehicle ownership
+        # Check vehicle ownership (raises 403 if unauthorized)
         vehicle = await get_vehicle_or_403(vin, current_user, db)
 
         result = await db.execute(
@@ -319,7 +318,7 @@ async def set_main_photo(
     safe_filename = sanitize_filename(filename)
 
     try:
-        # Check vehicle ownership
+        # Check vehicle ownership (raises 403 if unauthorized)
         vehicle = await get_vehicle_or_403(vin, current_user, db)
 
         # Check if photo exists
@@ -401,7 +400,7 @@ async def update_vehicle_photo_metadata(
     vin = vin.upper().strip()
 
     try:
-        # Check vehicle ownership
+        # Check vehicle ownership (raises 403 if unauthorized)
         vehicle = await get_vehicle_or_403(vin, current_user, db)
 
         result = await db.execute(

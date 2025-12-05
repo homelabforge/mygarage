@@ -3,10 +3,10 @@
 import logging
 import re
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from enum import Enum
-from typing import Optional, Any
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 

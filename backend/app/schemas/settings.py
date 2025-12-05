@@ -1,7 +1,7 @@
 """Settings Pydantic schemas for validation and serialization."""
 
 import datetime as dt
-from typing import Optional, Any
+from typing import Optional
 from pydantic import BaseModel, Field
 
 

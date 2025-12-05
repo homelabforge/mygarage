@@ -5,9 +5,7 @@ from typing import Optional
 import httpx
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import JSONResponse
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
 from app.models.user import User
 from app.schemas.vin import VINDecodeRequest, VINDecodeResponse
 from app.services.auth import require_auth

@@ -5,7 +5,7 @@ Tests user registration, login, logout, and protected endpoints.
 """
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import select, func, delete
+from sqlalchemy import select, delete
 from app.models.user import User
 from app.config import settings
 

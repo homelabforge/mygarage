@@ -1,7 +1,6 @@
 """Document routes for MyGarage API."""
 
 import logging
-import uuid
 from pathlib import Path
 from typing import Annotated, Optional
 

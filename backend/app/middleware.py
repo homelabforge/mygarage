@@ -4,8 +4,8 @@ import uuid
 from datetime import datetime, timezone
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-from starlette.responses import Response, JSONResponse
-from sqlalchemy import select, delete
+from starlette.responses import JSONResponse
+from sqlalchemy import select
 from app.models.csrf_token import CSRFToken
 from app.database import get_db
 

@@ -1,10 +1,8 @@
 """File attachment API routes for service records and other entities."""
 
-import os
 import logging
-from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,7 +13,7 @@ from app.database import get_db
 from app.models.attachment import Attachment
 from app.models.service import ServiceRecord
 from app.models.user import User
-from app.schemas.attachment import AttachmentResponse, AttachmentListResponse, AttachmentCreate
+from app.schemas.attachment import AttachmentResponse, AttachmentListResponse
 from app.services.auth import require_auth
 from app.config import settings
 from app.services.file_upload_service import FileUploadService, ATTACHMENT_UPLOAD_CONFIG

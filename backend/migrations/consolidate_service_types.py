@@ -13,7 +13,6 @@ Service Types: Maintenance, Inspection, Collision, Upgrades
 
 import sqlite3
 import os
-from datetime import datetime
 
 def migrate():
     db_path = os.environ.get('DATABASE_PATH', '/data/mygarage.db')

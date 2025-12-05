@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
-from datetime import date as date_type, timedelta
+from datetime import date as date_type
 from typing import Optional
 from pathlib import Path
 

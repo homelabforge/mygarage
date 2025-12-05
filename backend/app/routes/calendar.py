@@ -1,12 +1,12 @@
 """Calendar routes for MyGarage API."""
 
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from typing import Annotated, Optional
 from io import StringIO
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import Response
-from sqlalchemy import select, or_, desc
+from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db

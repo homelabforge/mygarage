@@ -212,7 +212,7 @@ class VehicleService:
 
         try:
             # Get vehicle with ownership check
-            vehicle = await get_vehicle_or_403(vin, current_user, self.db)
+            _ = await get_vehicle_or_403(vin, current_user, self.db)
 
             # Delete vehicle (cascade will handle related records)
             await self.db.execute(delete(Vehicle).where(Vehicle.vin == vin))

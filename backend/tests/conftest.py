@@ -153,6 +153,7 @@ async def vehicle_with_service_records(db_session: AsyncSession, test_user: User
         if service_result.scalar_one_or_none():
             return vehicle
 
+    # pytest.skip() raises Skipped exception - never returns None
     pytest.skip("No vehicles with service records found. Please add service records first.")
 
 
@@ -176,6 +177,7 @@ async def vehicle_with_fuel_records(db_session: AsyncSession, test_user: User) -
         if fuel_result.scalar_one_or_none():
             return vehicle
 
+    # pytest.skip() raises Skipped exception - never returns None
     pytest.skip("No vehicles with fuel records found. Please add fuel records first.")
 
 
@@ -205,6 +207,7 @@ async def vehicle_with_analytics_data(db_session: AsyncSession, test_user: User)
         if service_result.scalar_one_or_none() and fuel_result.scalar_one_or_none():
             return vehicle
 
+    # pytest.skip() raises Skipped exception - never returns None
     pytest.skip("No vehicles with both service and fuel records found. Please add more data first.")
 
 

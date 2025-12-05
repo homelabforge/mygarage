@@ -2,7 +2,6 @@
 
 from datetime import datetime, timezone
 from sqlalchemy import Column, String, Boolean, DateTime, Integer
-from sqlalchemy.orm import relationship
 from app.database import Base
 
 

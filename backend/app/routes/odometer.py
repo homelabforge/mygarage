@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete, func
 from sqlalchemy.exc import IntegrityError, OperationalError
-from typing import List, Optional
+from typing import Optional
 
 from app.database import get_db
 from app.models.odometer import OdometerRecord

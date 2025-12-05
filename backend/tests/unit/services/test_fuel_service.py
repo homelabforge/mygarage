@@ -5,7 +5,7 @@ Tests fuel economy calculations, partial fill-up handling, and hauling adjustmen
 """
 import pytest
 from decimal import Decimal
-from datetime import datetime, date
+from datetime import date
 
 from app.services.fuel_service import calculate_mpg
 from app.models.fuel import FuelRecord

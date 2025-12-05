@@ -51,19 +51,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `backend/app/exceptions.py` - Added `SSRFProtectionError` exception class
   - `fix_log_injection.py` - Automated log injection remediation script
 
+### Fixed
+- **Code Quality Improvements** - Resolved 101 CodeQL NOTE-level alerts
+  - Removed 59 unused imports from 39 Python files (automated)
+  - Added explanatory comments to 8 empty except blocks (optional dependency checks)
+  - Renamed 9 unused local variables to `_` for intentionally unused values
+  - Fixed useless comparison in frontend user count display
+  - Documented 3 Pydantic validator false positives (require `cls` parameter)
+  - Documented 3 pytest.skip false positives (raises exception, never returns None)
+
 ### Documentation
 - **SECURITY.md** - Added comprehensive CodeQL Security Analysis section
   - Documented all 140 fixed vulnerabilities (2 CRITICAL, 119 HIGH, 1 MEDIUM)
   - Documented 17 false positives with justification
   - Listed 136 deferred code quality items (NOTE level)
   - Updated security changelog for v2.14.2
+- **Cyclic Imports** - Documented 47 cyclic import alerts for future architectural refactoring
+  - Saved to `/srv/raid0/docker/documents/history/mygarage/2025-12-04-cyclic-imports-deferred.txt`
+  - Includes recommended fixes (TYPE_CHECKING, dependency injection, lazy imports)
 
 ### Technical Notes
-- All security fixes are backward compatible
+- All security and code quality fixes are backward compatible
 - No API changes or breaking changes
-- Total files modified: 47 (46 backend/frontend + 1 documentation)
-- CodeQL analysis: 140/272 security alerts resolved (all CRITICAL/HIGH/MEDIUM)
-- Remaining 136 alerts are code quality issues (unused imports, cyclic imports) deferred to future sprint
+- Total files modified: 86 (47 security + 39 code quality)
+- CodeQL analysis: 241/272 alerts resolved (140 security + 101 code quality)
+- Remaining 47 alerts are cyclic imports (architectural issue, deferred to refactoring sprint)
 
 ## [2.14.1] - 2025-12-03
 

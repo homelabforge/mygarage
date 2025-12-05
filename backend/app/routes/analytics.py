@@ -3,7 +3,7 @@
 import logging
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select, func
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from datetime import date as date_type, datetime, timedelta
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 from app.config import settings
 from app.database import get_db
-from app.models import Vehicle, ServiceRecord, FuelRecord, OdometerRecord, InsurancePolicy, TaxRecord
+from app.models import Vehicle, ServiceRecord, FuelRecord, OdometerRecord, TaxRecord
 from app.models.user import User
 from app.schemas.analytics import (
     VehicleAnalytics,
@@ -45,10 +45,9 @@ from app.schemas.analytics import (
     CategoryChange,
     AnomalyAlert,
 )
-from app.services.fuel_service import calculate_mpg
 from app.services.auth import require_auth
 from app.services import analytics_service
-from app.utils.cache import cached, invalidate_cache_for_vehicle
+from app.utils.cache import cached
 
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
 

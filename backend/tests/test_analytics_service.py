@@ -3,7 +3,7 @@
 import pytest
 import pandas as pd
 from decimal import Decimal
-from datetime import date, timedelta
+from datetime import date
 
 from app.services import analytics_service
 

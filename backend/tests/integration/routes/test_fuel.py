@@ -5,7 +5,6 @@ Tests fuel record CRUD operations and MPG calculations.
 """
 import pytest
 from httpx import AsyncClient
-from decimal import Decimal
 
 
 @pytest.mark.integration

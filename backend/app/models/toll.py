@@ -4,7 +4,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import String, Integer, Date, Numeric, Text, DateTime, ForeignKey, Index, Boolean
+from sqlalchemy import String, Integer, Date, Numeric, Text, DateTime, ForeignKey, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 

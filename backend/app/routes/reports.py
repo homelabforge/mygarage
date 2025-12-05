@@ -5,10 +5,9 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, extract
 from datetime import datetime, date as date_type
-from decimal import Decimal
 from typing import Optional
 import csv
-from io import StringIO, BytesIO
+from io import StringIO
 
 from app.database import get_db
 from app.models import (

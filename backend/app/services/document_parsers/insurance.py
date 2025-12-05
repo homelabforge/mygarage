@@ -6,7 +6,7 @@ from abc import abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional, Any
+from typing import Optional
 
 from .base import BaseDocumentParser, DocumentData, DocumentType
 

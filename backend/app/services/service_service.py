@@ -1,7 +1,6 @@
 """Service record business logic service layer."""
 
 import logging
-from typing import Optional
 
 from fastapi import HTTPException
 from sqlalchemy import select, delete, func, outerjoin
@@ -51,7 +50,7 @@ class ServiceRecordService:
         vin = vin.upper().strip()
 
         try:
-            # Check vehicle ownership
+            # Check vehicle ownership (raises 403 if unauthorized)
             vehicle = await get_vehicle_or_403(vin, current_user, self.db)
 
             # Get service records with attachment counts in a single query
@@ -138,7 +137,7 @@ class ServiceRecordService:
 
         vin = vin.upper().strip()
 
-        # Check vehicle ownership
+        # Check vehicle ownership (raises 403 if unauthorized)
         await get_vehicle_or_403(vin, current_user, self.db)
 
         result = await self.db.execute(
@@ -178,7 +177,7 @@ class ServiceRecordService:
         vin = vin.upper().strip()
 
         try:
-            # Check vehicle ownership
+            # Check vehicle ownership (raises 403 if unauthorized)
             vehicle = await get_vehicle_or_403(vin, current_user, self.db)
 
             # Create service record
@@ -250,7 +249,7 @@ class ServiceRecordService:
         vin = vin.upper().strip()
 
         try:
-            # Check vehicle ownership
+            # Check vehicle ownership (raises 403 if unauthorized)
             await get_vehicle_or_403(vin, current_user, self.db)
 
             # Get existing record
@@ -327,7 +326,7 @@ class ServiceRecordService:
         vin = vin.upper().strip()
 
         try:
-            # Check vehicle ownership
+            # Check vehicle ownership (raises 403 if unauthorized)
             await get_vehicle_or_403(vin, current_user, self.db)
 
             # Check if record exists

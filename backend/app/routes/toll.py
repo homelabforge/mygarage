@@ -3,7 +3,7 @@
 import logging
 from fastapi import APIRouter, HTTPException, Depends, Response
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete, func, extract
+from sqlalchemy import select, delete, func
 from typing import Optional
 from decimal import Decimal
 import datetime as dt

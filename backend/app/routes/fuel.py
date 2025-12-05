@@ -1,10 +1,9 @@
 """Fuel Record CRUD API endpoints with MPG calculation."""
 
 import logging
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List, Optional
-from decimal import Decimal
+from typing import Optional
 
 from app.database import get_db
 from app.models.user import User
