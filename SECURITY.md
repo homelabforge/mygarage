@@ -168,11 +168,11 @@ MyGarage v2.14.1 underwent comprehensive security analysis using GitHub CodeQL. 
 ### Summary
 
 - **Total Alerts Analyzed**: 272
-- **Security Fixes**: 140 (2 CRITICAL, 119 HIGH, 1 MEDIUM)
+- **Security Fixes**: 122 (2 CRITICAL, 119 HIGH, 1 MEDIUM)
 - **Code Quality Fixes**: 101 (NOTE level - unused imports, unused variables, etc.)
-- **False Positives**: 23 (17 security + 6 code quality)
+- **False Positives**: 23 (6 SSRF + 16 stack trace + 1 secret storage) + 6 code quality = 29 total
 - **Deferred**: 47 (Cyclic imports - architectural refactoring needed)
-- **Resolution Rate**: 89% (241/272 alerts resolved)
+- **Resolution Rate**: 89% (223 fixes + 29 false positives + 47 deferred = 272 alerts accounted for)
 
 ### CRITICAL Severity Fixes (2/2)
 
@@ -224,6 +224,19 @@ MyGarage v2.14.1 underwent comprehensive security analysis using GitHub CodeQL. 
 - **Commit**: Phase 5 - postMessage origin check
 
 ### FALSE POSITIVES
+
+#### SSRF Alerts (6 Alerts) - PROPERLY VALIDATED
+- **Analysis**: CodeQL cannot detect validation due to static analysis limitations
+- **Locations**: `backend/app/services/oidc.py` (4 instances), `backend/app/services/nhtsa.py` (2 instances)
+- **Protection**: All URLs validated by `validate_oidc_url()` or `validate_nhtsa_url()` before use
+- **Implementation**: `backend/app/utils/url_validation.py`
+  - Comprehensive SSRF protection (blocks private IPs, localhost, link-local, DNS rebinding)
+  - Domain whitelisting for NHTSA (*.nhtsa.dot.gov)
+  - HTTPS enforcement for NHTSA
+- **Why CodeQL Flags**: CodeQL's data-flow analysis traces URLs from user input to HTTP requests but cannot semantically verify validation effectiveness
+- **Note**: CodeQL Python does not support inline suppression comments (GitHub Issue #11427)
+- **Action**: Manually dismiss alerts via GitHub UI with justification
+- **Reference**: `/srv/raid0/docker/documents/history/mygarage/2025-12-04-codeql-suppression-limitation.md`
 
 #### Stack Trace Exposure (16 Alerts) - PROPERLY HANDLED
 - **Analysis**: Exception handlers only active in production (`settings.debug=false`)
