@@ -7,15 +7,35 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.utils.vin import validate_vin
+from app.utils.url_validation import validate_nhtsa_url
+from app.exceptions import SSRFProtectionError
 
 logger = logging.getLogger(__name__)
 
 
 class NHTSAService:
-    """Service for interacting with NHTSA vPIC API."""
+    """Service for interacting with NHTSA vPIC API.
+
+    Security:
+        - Validates all NHTSA API URLs against SSRF attacks
+        - Only allows requests to official NHTSA domains (*.nhtsa.dot.gov)
+        - Blocks private IPs, localhost, and cloud metadata endpoints
+    """
 
     def __init__(self):
-        self.base_url = settings.nhtsa_api_base_url
+        base_url = settings.nhtsa_api_base_url
+
+        # SECURITY: Validate base URL against SSRF attacks (CWE-918)
+        # This prevents attackers from modifying settings to point to internal services
+        try:
+            validate_nhtsa_url(base_url)
+            self.base_url = base_url
+        except (SSRFProtectionError, ValueError) as e:
+            logger.error("SSRF protection blocked NHTSA base URL: %s - %s", base_url, str(e))
+            # Fallback to official NHTSA URL if validation fails
+            self.base_url = "https://vpic.nhtsa.dot.gov/api"
+            logger.warning("Using fallback NHTSA URL: %s", self.base_url)
+
         self.timeout = 30.0
 
     async def decode_vin(self, vin: str) -> dict:
@@ -41,10 +61,11 @@ class NHTSAService:
         # Using DecodeVinValues endpoint which returns formatted data
         url = f"{self.base_url}/vehicles/DecodeVinValues/{vin}?format=json"
 
-        logger.info(f"Decoding VIN: {vin}")
+        logger.info("Decoding VIN: %s", vin)
 
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             try:
+                # codeql[py/partial-ssrf] - self.base_url validated in __init__ by validate_nhtsa_url
                 response = await client.get(url)
                 response.raise_for_status()
                 data = response.json()
@@ -61,27 +82,27 @@ class NHTSAService:
                 error_text = result.get("ErrorText", "")
 
                 if error_code and error_code != "0":
-                    logger.warning(f"NHTSA API returned error for VIN {vin}: {error_text}")
+                    logger.warning("NHTSA API returned error for VIN %s: %s", vin, error_text)
                     # Some error codes are just warnings, continue processing
 
                 # Extract key vehicle information
                 vehicle_info = self._extract_vehicle_info(result)
 
-                logger.info(f"Successfully decoded VIN {vin}: {vehicle_info.get('Make')} {vehicle_info.get('Model')}")
+                logger.info("Successfully decoded VIN %s: %s %s", vin, vehicle_info.get('Make'), vehicle_info.get('Model'))
 
                 return vehicle_info
 
             except httpx.TimeoutException:
-                logger.error(f"NHTSA API timeout decoding VIN {vin}")
+                logger.error("NHTSA API timeout decoding VIN %s", vin)
                 raise
             except httpx.ConnectError as e:
-                logger.error(f"Cannot connect to NHTSA API for VIN {vin}: {e}")
+                logger.error("Cannot connect to NHTSA API for VIN %s: %s", vin, str(e))
                 raise
             except httpx.HTTPStatusError as e:
-                logger.error(f"NHTSA API error decoding VIN {vin}: {e}")
+                logger.error("NHTSA API error decoding VIN %s: %s", vin, str(e))
                 raise
             except (ValueError, KeyError) as e:
-                logger.error(f"Error parsing NHTSA response for VIN {vin}: {e}")
+                logger.error("Error parsing NHTSA response for VIN %s: %s", vin, str(e))
                 raise ValueError(f"Invalid NHTSA response: {e}")
 
     def _extract_vehicle_info(self, result: dict) -> dict:
@@ -171,7 +192,7 @@ class NHTSAService:
         try:
             vehicle_info = await self.decode_vin(vin)
         except Exception as e:
-            logger.error(f"Failed to decode VIN {vin}: {e}")
+            logger.error("Failed to decode VIN %s: %s", vin, str(e))
             raise ValueError(f"Could not decode VIN to fetch recalls: {str(e)}")
 
         # Extract make, model, and year
@@ -180,7 +201,7 @@ class NHTSAService:
         year = vehicle_info.get("year")
 
         if not all([make, model, year]):
-            logger.warning(f"Incomplete vehicle info for VIN {vin}: make={make}, model={model}, year={year}")
+            logger.warning("Incomplete vehicle info for VIN %s: make=%s, model=%s, year=%s", vin, make, model, year)
             raise ValueError("Could not determine vehicle make, model, and year from VIN")
 
         # Get recalls API URL from settings
@@ -191,13 +212,26 @@ class NHTSAService:
         setting = result.scalar_one_or_none()
         recalls_api_base = setting.value if setting else "https://api.nhtsa.gov/recalls/recallsByVehicle"
 
-        # Query NHTSA recalls API by make/model/year
-        recalls_url = f"{recalls_api_base}?make={make}&model={model}&modelYear={year}"
+        # SECURITY: Validate recalls API base URL against SSRF attacks
+        try:
+            validate_nhtsa_url(recalls_api_base)
+        except (SSRFProtectionError, ValueError) as e:
+            logger.error("SSRF protection blocked recalls API URL: %s - %s", recalls_api_base, str(e))
+            # Use safe default if validation fails
+            recalls_api_base = "https://api.nhtsa.gov/recalls/recallsByVehicle"
+            logger.warning("Using fallback recalls API URL: %s", recalls_api_base)
 
-        logger.info(f"Fetching recalls for {year} {make} {model} (VIN: {vin})")
+        # Query NHTSA recalls API by make/model/year
+        # URL parameters should be properly encoded
+        from urllib.parse import urlencode
+        params = {"make": make, "model": model, "modelYear": year}
+        recalls_url = f"{recalls_api_base}?{urlencode(params)}"
+
+        logger.info("Fetching recalls for %s %s %s (VIN: %s)", year, make, model, vin)
 
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             try:
+                # codeql[py/partial-ssrf] - recalls_api_base validated by validate_nhtsa_url above
                 response = await client.get(recalls_url)
                 response.raise_for_status()
                 data = response.json()
@@ -205,16 +239,16 @@ class NHTSAService:
                 # Extract recalls from the response
                 recalls = data.get("results", [])
 
-                logger.info(f"Found {len(recalls)} recall(s) for {year} {make} {model}")
+                logger.info("Found %s recall(s) for %s %s %s", len(recalls), year, make, model)
 
                 return recalls
 
             except httpx.TimeoutException:
-                logger.error(f"NHTSA recalls API timeout for {year} {make} {model}")
+                logger.error("NHTSA recalls API timeout for %s %s %s", year, make, model)
                 return []  # Intentional fallback: don't break UI for timeout
             except httpx.ConnectError as e:
-                logger.error(f"Cannot connect to NHTSA recalls API for {year} {make} {model}: {e}")
+                logger.error("Cannot connect to NHTSA recalls API for %s %s %s: %s", year, make, model, str(e))
                 return []  # Intentional fallback: don't break UI for connection issues
             except httpx.HTTPStatusError as e:
-                logger.error(f"NHTSA recalls API error for {year} {make} {model}: {e}")
+                logger.error("NHTSA recalls API error for %s %s %s: %s", year, make, model, str(e))
                 return []  # Intentional fallback: return empty list on API error

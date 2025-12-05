@@ -28,10 +28,10 @@ def get_or_create_secret_key(key_file: Path = Path("/data/secret.key")) -> str:
         if key_file.exists():
             secret_key = key_file.read_text().strip()
             if secret_key:
-                logger.debug(f"Loaded existing secret key from {key_file}")
+                logger.debug("Loaded existing secret key from %s", key_file)
                 return secret_key
             else:
-                logger.warning(f"Secret key file at {key_file} is empty, generating new key")
+                logger.warning("Secret key file at %s is empty, generating new key", key_file)
 
         # Generate cryptographically secure key (32 bytes = 256 bits)
         secret_key = secrets.token_urlsafe(32)
@@ -40,6 +40,9 @@ def get_or_create_secret_key(key_file: Path = Path("/data/secret.key")) -> str:
         key_file.parent.mkdir(parents=True, exist_ok=True)
 
         # Write key to file
+        # codeql[py/clear-text-storage-sensitive-data] - Secret key must persist across restarts
+        # Security: File permissions set to 0o600 (owner-only access) and stored in protected /data volume
+        # This is standard practice for JWT signing keys - encryption would require external key management
         key_file.write_text(secret_key)
 
         # Set restrictive permissions (owner read/write only)
@@ -52,11 +55,11 @@ def get_or_create_secret_key(key_file: Path = Path("/data/secret.key")) -> str:
         return secret_key
 
     except PermissionError as e:
-        logger.error(f"Permission denied when accessing secret key file: {e}")
+        logger.error("Permission denied when accessing secret key file: %s", str(e))
         logger.warning("Using temporary in-memory secret key (will change on restart)")
         return secrets.token_urlsafe(32)
 
     except Exception as e:
-        logger.error(f"Failed to handle secret key file: {e}", exc_info=True)
+        logger.error("Failed to handle secret key file: %s", str(e), exc_info=True)
         logger.warning("Using temporary in-memory secret key (will change on restart)")
         return secrets.token_urlsafe(32)

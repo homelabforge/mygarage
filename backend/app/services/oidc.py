@@ -26,8 +26,35 @@ from app.models.user import User
 from app.models.settings import Setting
 from app.models.oidc_state import OIDCState
 from app.services.auth import hash_password, create_access_token
+from app.utils.url_validation import validate_oidc_url
+from app.exceptions import SSRFProtectionError
 
 logger = logging.getLogger(__name__)
+
+
+def mask_secret(secret: str, show_chars: int = 4) -> str:
+    """Mask a secret value for safe logging.
+
+    Shows only the first and last few characters of a secret,
+    masking the middle portion. This allows for debugging while
+    protecting sensitive data from log exposure.
+
+    Args:
+        secret: The secret string to mask
+        show_chars: Number of characters to show at start and end (default: 4)
+
+    Returns:
+        Masked string in format "abc****...****xyz"
+
+    Examples:
+        >>> mask_secret("very_secret_client_id_12345")
+        "very****...****2345"
+        >>> mask_secret("short")
+        "****"
+    """
+    if not secret or len(secret) <= show_chars * 2:
+        return "****"
+    return f"{secret[:show_chars]}****...****{secret[-show_chars:]}"
 
 
 async def _cleanup_expired_states(db: AsyncSession):
@@ -88,30 +115,50 @@ async def get_provider_metadata(issuer_url: str) -> Optional[Dict[str, Any]]:
 
     Returns:
         Provider metadata dictionary or None if fetch fails
+
+    Raises:
+        SSRFProtectionError: If issuer_url fails SSRF validation (private IPs, localhost, etc.)
     """
     # Ensure issuer URL doesn't have trailing slash
     issuer_url = issuer_url.rstrip("/")
 
+    # SECURITY: Validate issuer URL against SSRF attacks (CWE-918)
+    # This prevents attackers from accessing internal services, cloud metadata endpoints,
+    # or other private resources by manipulating the OIDC issuer URL
+    try:
+        validate_oidc_url(issuer_url)
+    except (SSRFProtectionError, ValueError) as e:
+        logger.error("SSRF protection blocked OIDC issuer URL: %s - %s", issuer_url, str(e))
+        raise SSRFProtectionError(f"Invalid OIDC issuer URL: {e}")
+
     # Try standard OIDC discovery endpoint
     discovery_url = f"{issuer_url}/.well-known/openid-configuration"
 
+    # SECURITY: Validate discovery URL as well (defense in depth)
+    try:
+        validate_oidc_url(discovery_url)
+    except (SSRFProtectionError, ValueError) as e:
+        logger.error("SSRF protection blocked OIDC discovery URL: %s - %s", discovery_url, str(e))
+        raise SSRFProtectionError(f"Invalid OIDC discovery URL: {e}")
+
     try:
         async with httpx.AsyncClient() as client:
+            # codeql[py/partial-ssrf] - URL validated by validate_oidc_url above
             response = await client.get(discovery_url, timeout=10.0)
             response.raise_for_status()
             metadata = response.json()
 
-            logger.info(f"Successfully fetched OIDC metadata from {discovery_url}")
+            logger.info("Successfully fetched OIDC metadata from %s", discovery_url)
             return metadata
 
     except httpx.TimeoutException:
-        logger.error(f"OIDC metadata request timeout: {discovery_url}")
+        logger.error("OIDC metadata request timeout: %s", discovery_url)
         return None  # Intentional fallback: metadata fetch is optional
     except httpx.ConnectError as e:
-        logger.error(f"Cannot connect to OIDC provider: {discovery_url}: {e}")
+        logger.error("Cannot connect to OIDC provider: %s: %s", discovery_url, str(e))
         return None  # Intentional fallback: allow graceful degradation
     except httpx.HTTPStatusError as e:
-        logger.error(f"OIDC provider returned error: {e}")
+        logger.error("OIDC provider returned error: %s", str(e))
         return None  # Intentional fallback
 
 
@@ -270,20 +317,30 @@ async def exchange_code_for_tokens(
         logger.error("Provider metadata missing token_endpoint")
         return None
 
+    # SECURITY: Validate token endpoint URL against SSRF attacks
+    try:
+        validate_oidc_url(token_endpoint)
+    except (SSRFProtectionError, ValueError) as e:
+        logger.error("SSRF protection blocked token endpoint: %s - %s", token_endpoint, str(e))
+        return None
+
     # Prepare token request
+    client_secret = config.get("client_secret", "")
     data = {
         "grant_type": "authorization_code",
         "code": code,
         "redirect_uri": redirect_uri,
         "client_id": config.get("client_id", ""),
-        "client_secret": config.get("client_secret", ""),
+        "client_secret": client_secret,
     }
 
     try:
         async with httpx.AsyncClient() as client:
-            logger.info(f"Exchanging code for tokens at {token_endpoint}")
-            logger.debug(f"Using redirect_uri: {redirect_uri}")
+            logger.info("Exchanging code for tokens at %s", token_endpoint)
+            logger.debug("Using redirect_uri: %s", redirect_uri)
+            logger.debug("Using client_secret: %s", mask_secret(client_secret))
 
+            # codeql[py/partial-ssrf] - URL validated by validate_oidc_url above
             response = await client.post(
                 token_endpoint,
                 data=data,
@@ -293,8 +350,8 @@ async def exchange_code_for_tokens(
 
             # Log response details for debugging
             if response.status_code != 200:
-                logger.error(f"Token exchange failed with status {response.status_code}")
-                logger.error(f"Response body: {response.text}")
+                logger.error("Token exchange failed with status %s", response.status_code)
+                logger.error("Response body: %s", response.text)
 
             response.raise_for_status()
             tokens = response.json()
@@ -303,15 +360,15 @@ async def exchange_code_for_tokens(
             return tokens
 
     except httpx.HTTPStatusError as e:
-        logger.error(f"HTTP error during token exchange: {e.response.status_code}")
-        logger.error(f"Response body: {e.response.text}")
-        logger.error(f"Request data: grant_type={data['grant_type']}, redirect_uri={data['redirect_uri']}")
+        logger.error("HTTP error during token exchange: %s", e.response.status_code)
+        logger.error("Response body: %s", e.response.text)
+        logger.error("Request data: grant_type=%s, redirect_uri=%s", data['grant_type'], data['redirect_uri'])
         return None  # Intentional fallback
     except httpx.TimeoutException:
         logger.error("Token exchange request timed out")
         return None  # Intentional fallback
     except httpx.ConnectError as e:
-        logger.error(f"Cannot connect to OIDC provider for token exchange: {e}")
+        logger.error("Cannot connect to OIDC provider for token exchange: %s", str(e))
         return None  # Intentional fallback
 
 
@@ -339,8 +396,16 @@ async def verify_id_token(
             logger.error("Provider metadata missing jwks_uri")
             return None
 
+        # SECURITY: Validate JWKS URI against SSRF attacks
+        try:
+            validate_oidc_url(jwks_uri)
+        except (SSRFProtectionError, ValueError) as e:
+            logger.error("SSRF protection blocked JWKS URI: %s - %s", jwks_uri, str(e))
+            return None
+
         # Fetch JWKS
         async with httpx.AsyncClient() as client:
+            # codeql[py/partial-ssrf] - URL validated by validate_oidc_url above
             response = await client.get(jwks_uri, timeout=10.0)
             response.raise_for_status()
             jwks = response.json()
@@ -360,17 +425,17 @@ async def verify_id_token(
         )
         claims.validate()
 
-        logger.info(f"Successfully verified ID token for subject: {claims.get('sub')}")
+        logger.info("Successfully verified ID token for subject: %s", claims.get('sub'))
         return dict(claims)
 
     except JoseError as e:
-        logger.error(f"ID token verification failed: {e}")
+        logger.error("ID token verification failed: %s", str(e))
         return None  # Intentional fallback: invalid token
     except httpx.TimeoutException:
         logger.error("JWKS fetch timed out during ID token verification")
         return None  # Intentional fallback
     except httpx.ConnectError as e:
-        logger.error(f"Cannot fetch JWKS for ID token verification: {e}")
+        logger.error("Cannot fetch JWKS for ID token verification: %s", str(e))
         return None  # Intentional fallback
 
 
@@ -392,8 +457,16 @@ async def get_userinfo(
         logger.warning("Provider metadata missing userinfo_endpoint, skipping userinfo fetch")
         return None
 
+    # SECURITY: Validate userinfo endpoint URL against SSRF attacks
+    try:
+        validate_oidc_url(userinfo_endpoint)
+    except (SSRFProtectionError, ValueError) as e:
+        logger.error("SSRF protection blocked userinfo endpoint: %s - %s", userinfo_endpoint, str(e))
+        return None
+
     try:
         async with httpx.AsyncClient() as client:
+            # codeql[py/partial-ssrf] - URL validated by validate_oidc_url above
             response = await client.get(
                 userinfo_endpoint,
                 headers={"Authorization": f"Bearer {access_token}"},
@@ -409,10 +482,10 @@ async def get_userinfo(
         logger.warning("Userinfo request timed out (non-critical)")
         return None  # Intentional fallback: userinfo is optional
     except httpx.ConnectError as e:
-        logger.warning(f"Cannot connect to userinfo endpoint (non-critical): {e}")
+        logger.warning("Cannot connect to userinfo endpoint (non-critical): %s", str(e))
         return None  # Intentional fallback
     except httpx.HTTPStatusError as e:
-        logger.warning(f"Userinfo endpoint returned error (non-critical): {e}")
+        logger.warning("Userinfo endpoint returned error (non-critical): %s", str(e))
         return None  # Intentional fallback
 
 
