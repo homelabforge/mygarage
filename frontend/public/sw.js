@@ -145,6 +145,13 @@ self.addEventListener('fetch', (event) => {
 
 // Listen for messages from the app
 self.addEventListener('message', (event) => {
+  // SECURITY: Validate message origin to prevent XSS and message spoofing (CWE-20291)
+  // Only accept messages from same origin (the app itself)
+  if (event.origin !== self.location.origin) {
+    console.warn('[PWA Security] Rejected postMessage from unauthorized origin:', event.origin);
+    return;
+  }
+
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
   }
