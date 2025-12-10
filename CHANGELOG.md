@@ -39,13 +39,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Docker image: ~40-60% smaller
 - CI/CD runtime: ~2x faster
 
+### Added
+- Added [compose.dev.yaml](compose.dev.yaml) for hot reload development with Bun + Vite HMR
+
 ### Documentation
 - Added comprehensive [DEVELOPMENT.md](DEVELOPMENT.md) guide
 - Updated [README.md](README.md) with Bun installation and usage
 - Updated wiki: Installation, Home, Troubleshooting guides
 - Updated SOPs: dev-sop.md, git-sop.md
-- Added [BUN_MIGRATION_PLAN.md](BUN_MIGRATION_PLAN.md) - detailed migration plan
-- Added [VITE_VS_BUN_BUNDLER.md](VITE_VS_BUN_BUNDLER.md) - bundler comparison
 
 ### Migration Notes
 - **Phase 1 complete**: Runtime swap to Bun while keeping Vite bundler
