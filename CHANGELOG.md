@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.14.4] - 2025-12-10
+
+### Fixed
+- **CI/CD Failures** - Fixed GitHub Actions workflow failures in frontend and Docker build jobs
+  - Fixed bun.lock dependency mismatch causing `bun install --frozen-lockfile` to fail
+  - Updated bun.lock to match lucide-react 0.556.0 from package.json
+  - Resolved "Process completed with exit code 1" errors in CI dependency installation
+  - Fixed Docker multi-stage build failures during frontend dependency installation
+
+- **Vitest Integration** - Fixed test runner compatibility issues with Bun 1.3.4 in CI environment
+  - Changed test command from `bun test --run` to `bun run test:run` to use Vitest instead of Bun's native test runner
+  - Fixed 'document is not defined' errors caused by Bun's test runner not setting up jsdom environment
+  - Added explicit vitest.config.ts as temporary workaround for Bun 1.3.4 CI compatibility
+  - Bun 1.3.4 doesn't load test config from vite.config.ts in GitHub Actions environment
+
+### Technical Notes
+- CI now passes all three jobs: Frontend Tests, Backend Tests, Docker Build Test
+- Lock file sync required after manual package.json version changes
+- Vitest configuration duplication (vite.config.ts + vitest.config.ts) is temporary until Bun 1.4+ improves integration
+
 ## [2.14.3] - 2025-12-09
 
 ### Changed
