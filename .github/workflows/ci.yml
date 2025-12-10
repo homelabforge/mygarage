@@ -63,7 +63,7 @@ jobs:
       - name: Run tests
         run: |
           cd frontend
-          bun test --run
+          bun run test:run
 
   docker-build-test:
     name: Docker Build Test
