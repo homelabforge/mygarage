@@ -106,6 +106,7 @@ backups/
 # Docker
 docker-compose.override.yml
 compose.yaml
+compose.dev.yaml
 
 # Alembic (migrations)
 alembic.ini
