@@ -52,7 +52,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Phase 1 complete**: Runtime swap to Bun while keeping Vite bundler
 - **Phase 2 evaluation**: Consider Bun.build() in 6-12 months when manual chunk splitting is supported
 - Rollback instructions included in Dockerfile comments
-- See [BUN_MIGRATION_PLAN.md](BUN_MIGRATION_PLAN.md) for full details
 
 ## [2.14.2] - 2025-12-04
 
