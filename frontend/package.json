@@ -19,7 +19,7 @@
     "@hookform/resolvers": "^5.2.2",
     "axios": "^1.13.2",
     "date-fns": "^4.1.0",
-    "lucide-react": "^0.555.0",
+    "lucide-react": "^0.556.0",
     "react": "^19.2.0",
     "react-big-calendar": "^1.19.4",
     "react-dom": "^19.2.0",
