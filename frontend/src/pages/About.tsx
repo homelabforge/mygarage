@@ -139,7 +139,7 @@ const backendStack = [
 ]
 
 const frontendStack = [
-  'React 19.2.0 + TypeScript 5.9.3 with Vite 7.2.4',
+  'React 19.2.0 + TypeScript 5.9.3 with Bun 1.3.4 runtime and Vite 7.2.4 bundler',
   'Tailwind CSS 4.1.17 with custom garage theme and light/dark mode',
   'React Router 7.9.6 for client-side navigation',
   'Recharts 3.5.0 for interactive analytics charts and visualizations',
