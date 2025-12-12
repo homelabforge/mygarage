@@ -1161,12 +1161,12 @@ export default function VehicleDetail() {
               <button
                 onClick={() => {
                   setShowMobileMenu(false)
-                  setShowDeleteConfirm(true)
+                  setShowRemoveModal(true)
                 }}
                 className="w-full flex items-center space-x-3 px-4 py-3 text-left text-red-400 hover:bg-red-900/20 rounded-lg transition-colors"
               >
                 <Trash2 className="w-5 h-5" />
-                <span>Delete Vehicle</span>
+                <span>Remove Vehicle</span>
               </button>
             </div>
           </div>

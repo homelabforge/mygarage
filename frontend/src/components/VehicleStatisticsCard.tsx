@@ -23,7 +23,7 @@ interface VehicleStatisticsCardProps {
 
 function VehicleStatisticsCard({ stats }: VehicleStatisticsCardProps) {
   const navigate = useNavigate()
-  const { system, showBoth } = useUnitPreference()
+  const { system } = useUnitPreference()
 
   const handleClick = () => {
     navigate(`/vehicles/${stats.vin}`)

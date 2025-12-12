@@ -452,7 +452,7 @@ export default function Analytics() {
                 <p className="text-sm">{alert.message}</p>
                 {(alert.recent_mpg || alert.baseline_mpg) && (
                   <p className="text-xs mt-2">
-                    Recent: {alert.recent_mpg ? UnitFormatter.formatFuelEconomy(alert.recent_mpg, system, showBoth) : '—'} • Baseline: {alert.baseline_mpg ? UnitFormatter.formatFuelEconomy(alert.baseline_mpg, system, showBoth) : '—'}
+                    Recent: {alert.recent_mpg ? UnitFormatter.formatFuelEconomy(parseFloat(alert.recent_mpg), system, showBoth) : '—'} • Baseline: {alert.baseline_mpg ? UnitFormatter.formatFuelEconomy(parseFloat(alert.baseline_mpg), system, showBoth) : '—'}
                   </p>
                 )}
               </div>
@@ -528,7 +528,7 @@ export default function Analytics() {
               <Fuel className="w-5 h-5 text-garage-text-muted" />
             </div>
             <p className="text-2xl font-bold text-garage-text">
-              {fuel_economy.average_mpg ? UnitFormatter.formatFuelEconomy(fuel_economy.average_mpg, system, showBoth) : 'N/A'}
+              {fuel_economy.average_mpg ? UnitFormatter.formatFuelEconomy(parseFloat(fuel_economy.average_mpg), system, showBoth) : 'N/A'}
             </p>
             <div className="flex items-center gap-2 mt-1">
               {getTrendIcon(fuel_economy.trend)}
@@ -999,19 +999,19 @@ export default function Analytics() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
             <div className="text-center p-4 bg-garage-bg rounded-lg">
               <p className="text-sm text-garage-text-muted mb-1">Average</p>
-              <p className="text-2xl font-bold text-garage-text">{UnitFormatter.formatFuelEconomy(fuel_economy.average_mpg, system, showBoth)}</p>
+              <p className="text-2xl font-bold text-garage-text">{fuel_economy.average_mpg ? UnitFormatter.formatFuelEconomy(parseFloat(fuel_economy.average_mpg), system, showBoth) : 'N/A'}</p>
             </div>
             <div className="text-center p-4 bg-garage-bg rounded-lg">
               <p className="text-sm text-garage-text-muted mb-1">Best</p>
-              <p className="text-2xl font-bold text-green-500">{UnitFormatter.formatFuelEconomy(fuel_economy.best_mpg, system, showBoth)}</p>
+              <p className="text-2xl font-bold text-green-500">{fuel_economy.best_mpg ? UnitFormatter.formatFuelEconomy(parseFloat(fuel_economy.best_mpg), system, showBoth) : 'N/A'}</p>
             </div>
             <div className="text-center p-4 bg-garage-bg rounded-lg">
               <p className="text-sm text-garage-text-muted mb-1">Worst</p>
-              <p className="text-2xl font-bold text-red-500">{UnitFormatter.formatFuelEconomy(fuel_economy.worst_mpg, system, showBoth)}</p>
+              <p className="text-2xl font-bold text-red-500">{fuel_economy.worst_mpg ? UnitFormatter.formatFuelEconomy(parseFloat(fuel_economy.worst_mpg), system, showBoth) : 'N/A'}</p>
             </div>
             <div className="text-center p-4 bg-garage-bg rounded-lg">
               <p className="text-sm text-garage-text-muted mb-1">Recent</p>
-              <p className="text-2xl font-bold text-primary">{UnitFormatter.formatFuelEconomy(fuel_economy.recent_mpg, system, showBoth)}</p>
+              <p className="text-2xl font-bold text-primary">{fuel_economy.recent_mpg ? UnitFormatter.formatFuelEconomy(parseFloat(fuel_economy.recent_mpg), system, showBoth) : 'N/A'}</p>
             </div>
           </div>
 
@@ -1524,7 +1524,7 @@ export default function Analytics() {
                         <div className="flex justify-between">
                           <span className="text-garage-text-muted">Avg Fuel Economy:</span>
                           <span className="font-medium text-garage-text">
-                            {UnitFormatter.formatFuelEconomy(comparisonData.period1_avg_mpg, system, showBoth)}
+                            {UnitFormatter.formatFuelEconomy(parseFloat(comparisonData.period1_avg_mpg), system, showBoth)}
                           </span>
                         </div>
                       )}
@@ -1553,7 +1553,7 @@ export default function Analytics() {
                         <div className="flex justify-between">
                           <span className="text-garage-text-muted">Avg Fuel Economy:</span>
                           <span className="font-medium text-garage-text">
-                            {UnitFormatter.formatFuelEconomy(comparisonData.period2_avg_mpg, system, showBoth)}
+                            {UnitFormatter.formatFuelEconomy(parseFloat(comparisonData.period2_avg_mpg), system, showBoth)}
                           </span>
                         </div>
                       )}
