@@ -64,8 +64,8 @@ export default function VehicleRemoveModal({ isOpen, onClose, vehicle, onConfirm
       onConfirm()
       onClose()
       resetForm()
-    } catch (error: any) {
-      const detail = error.response?.data?.detail
+    } catch (error: unknown) {
+      const detail = (error as { response?: { data?: { detail?: string } } }).response?.data?.detail
       if (typeof detail === 'string') {
         toast.error(detail)
       } else {
@@ -86,8 +86,8 @@ export default function VehicleRemoveModal({ isOpen, onClose, vehicle, onConfirm
       onConfirm()
       onClose()
       resetForm()
-    } catch (error: any) {
-      const detail = error.response?.data?.detail
+    } catch (error: unknown) {
+      const detail = (error as { response?: { data?: { detail?: string } } }).response?.data?.detail
       if (typeof detail === 'string') {
         toast.error(detail)
       } else {

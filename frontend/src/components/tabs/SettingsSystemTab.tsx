@@ -350,7 +350,7 @@ export default function SettingsSystemTab() {
       toast.success('Unit preference saved!')
       // Force a re-render to update displays
       window.dispatchEvent(new Event('storage'))
-    } catch (error) {
+    } catch {
       toast.error('Failed to save unit preference')
       // Revert on error
       if (isAuthenticated) {
@@ -385,7 +385,7 @@ export default function SettingsSystemTab() {
       toast.success('Display preference saved!')
       // Force a re-render to update displays
       window.dispatchEvent(new Event('storage'))
-    } catch (error) {
+    } catch {
       toast.error('Failed to save display preference')
       // Revert on error
       if (isAuthenticated) {
