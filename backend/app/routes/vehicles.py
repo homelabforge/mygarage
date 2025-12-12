@@ -365,7 +365,7 @@ async def archive_vehicle(
     await db.commit()
     await db.refresh(vehicle)
 
-    logger.info(f"Archived vehicle {vin} (reason: {archive_data.reason})")
+    logger.info("Archived vehicle %s (reason: %s)", vin, archive_data.reason)
     return VehicleResponse.model_validate(vehicle)
 
 
@@ -416,7 +416,7 @@ async def unarchive_vehicle(
     await db.commit()
     await db.refresh(vehicle)
 
-    logger.info(f"Unarchived vehicle {vin}")
+    logger.info("Unarchived vehicle %s", vin)
     return VehicleResponse.model_validate(vehicle)
 
 
@@ -519,5 +519,5 @@ async def toggle_archived_visibility(
     await db.commit()
     await db.refresh(vehicle)
 
-    logger.info(f"Set archived vehicle {vin} visibility to {visible}")
+    logger.info("Set archived vehicle %s visibility to %s", vin, visible)
     return VehicleResponse.model_validate(vehicle)
