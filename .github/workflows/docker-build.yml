@@ -56,7 +56,8 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.major }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
+          # Note: ARM64 support temporarily disabled due to pymupdf build issues with Python 3.14
 
       - name: Generate artifact attestation
         # Attestation only works on public repos or enterprise orgs
