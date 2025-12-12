@@ -51,7 +51,7 @@ class ServiceRecordService:
 
         try:
             # Check vehicle ownership (raises 403 if unauthorized)
-            vehicle = await get_vehicle_or_403(vin, current_user, self.db)
+            _ = await get_vehicle_or_403(vin, current_user, self.db)
 
             # Get service records with attachment counts in a single query
             # This avoids N+1 query problem by using LEFT JOIN and GROUP BY
@@ -178,7 +178,7 @@ class ServiceRecordService:
 
         try:
             # Check vehicle ownership (raises 403 if unauthorized)
-            vehicle = await get_vehicle_or_403(vin, current_user, self.db)
+            _ = await get_vehicle_or_403(vin, current_user, self.db)
 
             # Create service record
             record_dict = record_data.model_dump()

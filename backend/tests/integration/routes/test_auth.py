@@ -5,7 +5,7 @@ Tests user registration, login, logout, and protected endpoints.
 """
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import select, delete
+from sqlalchemy import delete  # noqa: F401
 from app.models.user import User
 from app.config import settings
 

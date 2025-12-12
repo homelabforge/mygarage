@@ -39,7 +39,7 @@ async def list_reminders(
     query = select(Reminder).where(Reminder.vin == vin)
 
     if not include_completed:
-        query = query.where(Reminder.is_completed == False)
+        query = query.where(Reminder.is_completed.is_(False))
 
     query = query.order_by(Reminder.due_date.asc().nullslast(), Reminder.due_mileage.asc().nullslast())
 
@@ -56,7 +56,7 @@ async def list_reminders(
     active_result = await db.execute(
         select(func.count())
         .select_from(Reminder)
-        .where(Reminder.vin == vin, Reminder.is_completed == False)
+        .where(Reminder.vin == vin, Reminder.is_completed.is_(False))
     )
     active = active_result.scalar_one()
 

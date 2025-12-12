@@ -483,7 +483,7 @@ async def delete_user(
 
     # Check if this is the last admin
     if user.is_admin:
-        result = await db.execute(select(func.count(User.id)).where(User.is_admin == True))
+        result = await db.execute(select(func.count(User.id)).where(User.is_admin.is_(True)))
         admin_count = result.scalar_one()
 
         if admin_count <= 1:

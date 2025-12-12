@@ -63,7 +63,7 @@ async def get_previous_full_tank(db: AsyncSession, vin: str, current_date, curre
     query = (
         select(FuelRecord)
         .where(FuelRecord.vin == vin)
-        .where(FuelRecord.is_full_tank == True)
+        .where(FuelRecord.is_full_tank.is_(True))
         .where(FuelRecord.date < current_date)
     )
 
@@ -92,14 +92,14 @@ async def calculate_average_mpg(db: AsyncSession, vin: str, exclude_hauling: boo
     query = (
         select(FuelRecord)
         .where(FuelRecord.vin == vin)
-        .where(FuelRecord.is_full_tank == True)
+        .where(FuelRecord.is_full_tank.is_(True))
         .where(FuelRecord.mileage.isnot(None))
         .where(FuelRecord.gallons.isnot(None))
     )
 
     # Optionally exclude hauling records for normal MPG calculation
     if exclude_hauling:
-        query = query.where(FuelRecord.is_hauling == False)
+        query = query.where(FuelRecord.is_hauling.is_(False))
 
     query = query.order_by(FuelRecord.date)
 
@@ -173,7 +173,7 @@ class FuelRecordService:
             full_tank_result = await self.db.execute(
                 select(FuelRecord)
                 .where(FuelRecord.vin == vin)
-                .where(FuelRecord.is_full_tank == True)
+                .where(FuelRecord.is_full_tank.is_(True))
                 .where(FuelRecord.mileage.isnot(None))
                 .order_by(FuelRecord.date.asc())
             )

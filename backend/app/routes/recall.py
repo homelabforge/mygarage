@@ -45,9 +45,9 @@ async def list_recalls(
     query = select(Recall).where(Recall.vin == vin)
 
     if status == 'active':
-        query = query.where(Recall.is_resolved == False)
+        query = query.where(Recall.is_resolved.is_(False))
     elif status == 'resolved':
-        query = query.where(Recall.is_resolved == True)
+        query = query.where(Recall.is_resolved.is_(True))
 
     query = query.order_by(Recall.is_resolved.asc(), Recall.date_announced.desc())
 

@@ -4,12 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mygarage"
-version = "2.14.4"
+version = "2.15.1"
 description = "Self-hosted vehicle maintenance tracking application"
 requires-python = ">=3.14"
 dependencies = [
     "fastapi>=0.121.1",
-    "granian>=2.5.7",
+    "granian>=2.6.0",
     "sqlalchemy>=2.0.44",
     "aiosqlite>=0.21.0",
     "pydantic>=2.12.3",
@@ -50,8 +50,6 @@ include = ["app*"]
 # - main.py: Imports after app initialization (required for FastAPI middleware setup)
 # - models/*: Forward reference imports at end of file (circular dependency resolution)
 # - services/window_sticker_parsers/*: Registry pattern imports
-[tool.ruff.per-file-ignores]
-"app/main.py" = ["E402"]
-"app/models/*.py" = ["E402"]
-"app/routes/analytics.py" = ["E402"]
-"app/services/window_sticker_parsers/*.py" = ["E402"]
+
+[tool.ruff.lint]
+per-file-ignores = { "app/main.py" = ["E402"], "app/models/*.py" = ["E402"], "app/routes/analytics.py" = ["E402"], "app/services/window_sticker_parsers/*.py" = ["E402"] }

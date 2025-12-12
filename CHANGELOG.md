@@ -7,6 +7,106 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.15.1] - 2025-12-11
+
+### Security
+- **CRITICAL: Updated React to 19.2.3** - Patches CVE-2025-55182 (CVSS 10.0), a remote code execution vulnerability actively exploited in the wild
+  - Updated `react` from 19.2.0 to 19.2.3
+  - Updated `react-dom` from 19.2.0 to 19.2.3
+  - Updated `react-is` from 19.2.0 to 19.2.3
+  - Includes enhanced loop protection for React Server Functions
+
+### Changed
+- **Frontend Dependencies** - Updated all low-risk dependencies for improved performance and security
+  - Updated `vite` from 7.2.4 to 7.2.7 (security fix for request-target validation)
+  - Updated `@testing-library/jest-dom` from 6.6.3 to 6.9.1 (new accessibility matchers)
+  - Updated `@testing-library/react` from 16.1.0 to 16.3.0
+  - Updated `@testing-library/user-event` from 14.5.2 to 14.6.1
+  - Updated `@typescript-eslint/eslint-plugin` from 8.48.1 to 8.49.0
+  - Updated `@typescript-eslint/parser` from 8.48.1 to 8.49.0
+  - Updated `typescript-eslint` from 8.48.1 to 8.49.0
+  - Updated `jsdom` from 27.2.0 to 27.3.0
+  - Updated `react-hook-form` from 7.67.0 to 7.68.0 (new FormStateSubscribe component)
+  - Updated `react-router-dom` from 7.9.6 to 7.10.1 (React Router v7 stabilization fixes)
+
+- **Backend Dependencies** - Updated ruff linter with new features and improved performance
+  - Updated `ruff` from 0.7.0 to 0.14.9
+  - New RUF100 rule for detecting unused suppressions (preview mode)
+  - Improved performance with faster line index computation
+  - Better rule accuracy (S506, B008, D417 improvements)
+
+### Fixed
+- **Code Quality** - Fixed 26 linting violations identified by ruff 0.14.9
+  - Fixed 17 E712 violations: Changed SQLAlchemy boolean comparisons from `== True/False` to `.is_(True/False)`
+  - Fixed 5 F841 violations: Marked intentionally unused ownership validation variables with `_`
+  - Fixed 4 F401 violations: Added `# noqa: F401` to imports used for availability checking
+- **Configuration** - Updated ruff configuration to fix deprecation warning
+  - Moved `per-file-ignores` from top-level to `[tool.ruff.lint]` section in pyproject.toml
+
+## [2.15.0] - 2025-12-11
+
+### Added
+- **Unit Conversion System** - Per-user Imperial/Metric unit preferences
+  - Full support for distance (mi/km), volume (gal/L), fuel economy (MPG/L/100km)
+  - Per-user preferences stored in user settings
+  - Optional "Show Both Units" mode displays both systems simultaneously (e.g., "25 MPG (9.4 L/100km)")
+  - Applied across all forms: Fuel, Odometer, Service records
+  - Applied across all displays: Dashboard, Analytics, Record lists
+  - Dynamic chart labels and tooltips adapt to user preference
+  - Canonical storage pattern: all data stored in Imperial, converted at display time
+  - Comprehensive conversion utilities: `UnitConverter` and `UnitFormatter` classes
+  - See [docs/UNIT_CONVERSION.md](docs/UNIT_CONVERSION.md) for technical details
+
+- **Vehicle Archive System** - Safe vehicle archiving with complete data preservation
+  - Replace dangerous "Delete" with "Archive" workflow
+  - Archive metadata: reason, sale price, sale date, notes
+  - Dashboard visibility toggle for archived vehicles
+  - Visual watermark on dashboard cards for archived vehicles (diagonal red "ARCHIVED" banner)
+  - Un-archive capability to restore vehicles to active status
+  - Permanent delete only available after archiving
+  - Preserves all records: service, fuel, odometer, documents, photos, notes
+  - Archived vehicles list in Settings with management actions
+  - Archive reasons: Sold, Traded, Totaled, Donated, End of Lease, Other
+  - See [docs/ARCHIVE_SYSTEM.md](docs/ARCHIVE_SYSTEM.md) for complete guide
+
+### Changed
+- **Dashboard Filtering** - Now shows active vehicles + archived vehicles with visibility enabled
+- **Vehicle Detail Page** - "Delete" button replaced with "Remove Vehicle" (archive workflow)
+- **VehicleStatisticsCard** - Added unit conversion for odometer and fuel economy displays
+- **Analytics Page** - All charts and tables now respect unit preferences
+  - Fuel Economy chart Y-axis shows "MPG" or "L/100km" based on preference
+  - All statistics, tables, and tooltips display in user's preferred units
+
+### Fixed
+- **Archive System - Authentication Mode Compatibility**
+  - Archive endpoints now work correctly in `auth_mode='none'` without requiring login
+  - CSRF middleware now skips validation when `auth_mode='none'`
+  - Archived vehicles with NULL `user_id` now visible to all users in authenticated modes
+  - Dashboard properly refreshes after archiving a vehicle
+  - Archive watermark positioning corrected (no longer cut off at top edge)
+
+- **Unit Preferences - Non-Authenticated Support**
+  - Unit preferences now work in `auth_mode='none'` using localStorage
+  - Settings page shows Unit System and Archived Vehicles sections regardless of auth mode
+  - Unit preferences persist across authentication mode changes
+
+### Technical
+- Added database columns: `archived_at`, `archive_reason`, `archive_sale_price`, `archive_sale_date`, `archive_notes`, `archived_visible`
+- New backend endpoints: `/api/vehicles/{vin}/archive`, `/api/vehicles/{vin}/unarchive`, `/api/vehicles/archived/list`
+- Archive endpoints use `optional_auth` for compatibility with all authentication modes
+- CSRF middleware checks `auth_mode` setting before enforcing token validation
+- New frontend components: `VehicleRemoveModal`, `ArchivedVehiclesList`
+- New React hooks: `useUnitPreference` for accessing unit preferences (with localStorage fallback)
+- New utility classes: `UnitConverter` (conversion methods), `UnitFormatter` (display formatting)
+- Dashboard endpoint filtering: `WHERE archived_at IS NULL OR (archived_at IS NOT NULL AND archived_visible = TRUE)`
+- Dashboard uses `useLocation` hook to trigger reload on navigation
+- Archived vehicles query includes NULL `user_id` vehicles for authenticated users
+
+### Documentation
+- Added [docs/UNIT_CONVERSION.md](docs/UNIT_CONVERSION.md) - Complete unit conversion system guide
+- Added [docs/ARCHIVE_SYSTEM.md](docs/ARCHIVE_SYSTEM.md) - Complete vehicle archive system guide
+- Updated [README.md](README.md) - Added new features to key features list and quick links
+
 ## [2.14.4] - 2025-12-10
 
 ### Fixed

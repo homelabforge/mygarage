@@ -89,7 +89,7 @@ async def calculate_vehicle_stats(
         select(func.count(Reminder.id))
         .where(
             Reminder.vin == vehicle.vin,
-            Reminder.is_completed == False,
+            Reminder.is_completed.is_(False),
             Reminder.due_date >= today,
         )
     )
@@ -97,7 +97,7 @@ async def calculate_vehicle_stats(
         select(func.count(Reminder.id))
         .where(
             Reminder.vin == vehicle.vin,
-            Reminder.is_completed == False,
+            Reminder.is_completed.is_(False),
             Reminder.due_date < today,
         )
     )
@@ -154,6 +154,8 @@ async def calculate_vehicle_stats(
         overdue_reminders_count=overdue_count or 0,
         average_mpg=average_mpg,
         recent_mpg=recent_mpg,
+        archived_at=vehicle.archived_at,
+        archived_visible=vehicle.archived_visible,
     )
 
 
@@ -161,9 +163,15 @@ async def calculate_vehicle_stats(
 async def get_dashboard(db: AsyncSession = Depends(get_db), current_user: Optional[User] = Depends(optional_auth)):
     """
     Get complete dashboard with statistics for all vehicles
+    Shows active vehicles + archived vehicles where archived_visible=True
     """
-    # Get all vehicles
-    result = await db.execute(select(Vehicle))
+    # Get active vehicles and archived vehicles that are marked visible
+    result = await db.execute(
+        select(Vehicle).where(
+            (Vehicle.archived_at.is_(None)) |
+            ((Vehicle.archived_at.isnot(None)) & (Vehicle.archived_visible.is_(True)))
+        )
+    )
     vehicles = result.scalars().all()
 
     # Calculate statistics for each vehicle

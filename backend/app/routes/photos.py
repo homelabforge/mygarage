@@ -138,13 +138,13 @@ async def get_vehicle_photo(
     safe_filename = sanitize_filename(filename)
 
     # Check vehicle ownership (raises 403 if unauthorized)
-    vehicle = await get_vehicle_or_403(vin, current_user, db)
+    _ = await get_vehicle_or_403(vin, current_user, db)
 
     # Get photo path
     file_path = PHOTO_DIR / vin / safe_filename
 
     # Validate file type before serving
-    if not file_path.suffix.lower() in settings.allowed_photo_extensions:
+    if file_path.suffix.lower() not in settings.allowed_photo_extensions:
         raise HTTPException(status_code=400, detail="Invalid file type")
 
     if not file_path.exists():
@@ -171,7 +171,7 @@ async def get_vehicle_thumbnail(
     safe_filename = sanitize_filename(filename)
 
     # Check vehicle ownership (raises 403 if unauthorized)
-    vehicle = await get_vehicle_or_403(vin, current_user, db)
+    _ = await get_vehicle_or_403(vin, current_user, db)
 
     thumb_path = PHOTO_DIR / vin / "thumbnails" / safe_filename
     if not thumb_path.exists():
@@ -196,7 +196,7 @@ async def list_vehicle_photos(
     vin = vin.upper().strip()
 
     # Check vehicle ownership (raises 403 if unauthorized)
-    vehicle = await get_vehicle_or_403(vin, current_user, db)
+    _ = await get_vehicle_or_403(vin, current_user, db)
 
     # Note: Legacy photo hydration now runs via migration 014_hydrate_legacy_photos.py
     # No need to hydrate on every request
@@ -325,7 +325,7 @@ async def set_main_photo(
         file_path = PHOTO_DIR / vin / safe_filename
 
         # Validate file type
-        if not file_path.suffix.lower() in settings.allowed_photo_extensions:
+        if file_path.suffix.lower() not in settings.allowed_photo_extensions:
             raise HTTPException(status_code=400, detail="Invalid file type")
 
         if not file_path.exists():

@@ -12,7 +12,6 @@ from pathlib import Path
 from app.services.document_parsers import (
     DocumentType,
     DocumentParserRegistry,
-    InsuranceData,
     get_parser_for_document,
 )
 
@@ -205,7 +204,6 @@ class DocumentOCRService:
         """Extract text from PDF bytes."""
         try:
             import fitz  # PyMuPDF
-            import io
 
             text_content = []
             with fitz.open(stream=pdf_bytes, filetype="pdf") as doc:
@@ -383,20 +381,20 @@ class DocumentOCRService:
         }
 
         try:
-            import fitz
+            import fitz  # noqa: F401
             status["pymupdf_available"] = True
         except ImportError:
             pass  # PyMuPDF is optional - status remains False if not installed
 
         try:
-            import pytesseract
+            import pytesseract  # noqa: F401
             status["tesseract_available"] = True
         except ImportError:
             pass  # Tesseract is optional - status remains False if not installed
 
         if PADDLEOCR_ENABLED:
             try:
-                from paddleocr import PaddleOCR
+                from paddleocr import PaddleOCR  # noqa: F401
                 status["paddleocr_available"] = True
             except ImportError:
                 pass  # PaddleOCR is optional - status remains False if not installed

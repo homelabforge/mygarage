@@ -428,20 +428,20 @@ class WindowStickerOCRService:
         }
 
         try:
-            import fitz
+            import fitz  # noqa: F401
             status["pymupdf_available"] = True
         except ImportError:
             pass  # PyMuPDF is optional - status remains False if not installed
 
         try:
-            import pytesseract
+            import pytesseract  # noqa: F401
             status["tesseract_available"] = True
         except ImportError:
             pass  # Tesseract is optional - status remains False if not installed
 
         if PADDLEOCR_ENABLED:
             try:
-                from paddleocr import PaddleOCR
+                from paddleocr import PaddleOCR  # noqa: F401
                 status["paddleocr_available"] = True
             except ImportError:
                 pass  # PaddleOCR is optional - status remains False if not installed
