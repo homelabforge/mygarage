@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useLocation } from 'react-router-dom'
 import { Plus, Car as CarIcon, SlidersHorizontal } from 'lucide-react'
 import VehicleStatisticsCard from '../components/VehicleStatisticsCard'
 import VehicleWizard from '../components/VehicleWizard'
@@ -8,15 +9,16 @@ import api from '../services/api'
 type SortOption = 'name' | 'year-new' | 'year-old' | 'reminders'
 
 export default function Dashboard() {
+  const location = useLocation()
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [showWizard, setShowWizard] = useState(false)
   const [sortBy, setSortBy] = useState<SortOption>('name')
 
   useEffect(() => {
-    // Load dashboard data
+    // Load dashboard data when component mounts or navigation occurs
     loadDashboard()
-  }, [])
+  }, [location.key])
 
   const loadDashboard = async () => {
     try {

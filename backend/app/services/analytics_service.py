@@ -3,9 +3,8 @@
 import pandas as pd
 import numpy as np
 from typing import List, Dict, Optional, Tuple
-from datetime import date as date_type, timedelta
+from datetime import date as date_type
 from decimal import Decimal
-from collections import defaultdict
 import calendar
 
 from app.models import ServiceRecord, FuelRecord

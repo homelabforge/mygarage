@@ -22,7 +22,6 @@ References:
 """
 
 import ipaddress
-import re
 import socket
 from typing import Optional, List
 from urllib.parse import urlparse, ParseResult

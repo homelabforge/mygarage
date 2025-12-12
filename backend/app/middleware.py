@@ -109,6 +109,19 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
         if any(request.url.path.startswith(path) for path in self.EXEMPT_PATHS):
             return await call_next(request)
 
+        # Check if auth is disabled - skip CSRF validation
+        try:
+            from app.services.auth import get_auth_mode
+            async for db in get_db():
+                auth_mode = await get_auth_mode(db)
+                if auth_mode == 'none':
+                    # Auth disabled, skip CSRF validation
+                    return await call_next(request)
+                break
+        except Exception:
+            # If we can't check auth mode, proceed with CSRF validation
+            pass
+
         # Get CSRF token from header
         csrf_token = request.headers.get("X-CSRF-Token")
 

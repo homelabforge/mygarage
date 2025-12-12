@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from typing import Optional
-from datetime import date as date_type
+from datetime import date as date_type, datetime
 
 
 class VehicleStatistics(BaseModel):
@@ -33,6 +33,10 @@ class VehicleStatistics(BaseModel):
     # Fuel statistics
     average_mpg: Optional[float] = None
     recent_mpg: Optional[float] = None
+
+    # Archive status
+    archived_at: Optional[datetime] = None
+    archived_visible: bool = True
 
     class Config:
         from_attributes = True

@@ -27,6 +27,10 @@ export interface VehicleStatistics {
   // Fuel statistics
   average_mpg?: number
   recent_mpg?: number
+
+  // Archive status
+  archived_at?: string
+  archived_visible: boolean
 }
 
 export interface DashboardResponse {

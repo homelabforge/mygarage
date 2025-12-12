@@ -11,6 +11,8 @@ import ServiceAttachmentUpload from './ServiceAttachmentUpload'
 import ServiceAttachmentList from './ServiceAttachmentList'
 import AddressBookAutocomplete from './AddressBookAutocomplete'
 import api from '../services/api'
+import { useUnitPreference } from '../hooks/useUnitPreference'
+import { UnitConverter, UnitFormatter } from '../utils/units'
 
 interface ServiceRecordFormProps {
   vin: string
@@ -23,6 +25,7 @@ export default function ServiceRecordForm({ vin, record, onClose, onSuccess }: S
   const isEdit = !!record
   const [error, setError] = useState<string | null>(null)
   const [attachmentRefreshTrigger, setAttachmentRefreshTrigger] = useState(0)
+  const { system } = useUnitPreference()
 
   // Helper to format date for input[type="date"] without timezone issues
   const formatDateForInput = (dateString?: string): string => {
@@ -55,7 +58,9 @@ export default function ServiceRecordForm({ vin, record, onClose, onSuccess }: S
     resolver: zodResolver(serviceRecordSchema) as Resolver<ServiceRecordFormData>,
     defaultValues: {
       date: formatDateForInput(record?.date),
-      mileage: record?.mileage ?? undefined,
+      mileage: system === 'metric' && record?.mileage
+        ? UnitConverter.milesToKm(record.mileage) ?? undefined
+        : record?.mileage ?? undefined,
       description: record?.description || '',
       cost: record?.cost ?? undefined,
       notes: record?.notes || '',
@@ -95,11 +100,13 @@ export default function ServiceRecordForm({ vin, record, onClose, onSuccess }: S
     setError(null)
 
     try {
-      // Zod has already validated and coerced mileage and cost - no parseFloat/parseInt/isNaN needed!
+      // Convert from user's unit system to imperial (canonical storage format)
       const payload: ServiceRecordCreate | ServiceRecordUpdate = {
         vin,
         date: data.date,
-        mileage: data.mileage,
+        mileage: system === 'metric' && data.mileage
+          ? UnitConverter.kmToMiles(data.mileage) ?? data.mileage
+          : data.mileage,
         description: data.description,
         cost: data.cost,
         notes: data.notes,
@@ -118,12 +125,22 @@ export default function ServiceRecordForm({ vin, record, onClose, onSuccess }: S
       // If creating a reminder, create it now
       if (createReminder && (reminderData.due_mileage || reminderData.due_date)) {
         try {
-          // Validate reminder mileage
-          const reminderMileage = reminderData.due_mileage ? parseInt(reminderData.due_mileage) : undefined
-          if (reminderData.due_mileage && isNaN(reminderMileage as number)) {
-            toast.error('Invalid reminder mileage value')
-            // Continue without creating reminder
-          } else {
+          // Validate and convert reminder mileage
+          let reminderMileage: number | undefined
+          if (reminderData.due_mileage) {
+            const parsedMileage = parseInt(reminderData.due_mileage)
+            if (isNaN(parsedMileage)) {
+              toast.error('Invalid reminder mileage value')
+              // Continue without creating reminder
+            } else {
+              // Convert from user's unit system to imperial
+              reminderMileage = system === 'metric'
+                ? UnitConverter.kmToMiles(parsedMileage) ?? parsedMileage
+                : parsedMileage
+            }
+          }
+
+          if (reminderMileage !== undefined || reminderData.due_date) {
             const reminderPayload = {
               vin: vin,
               description: reminderData.description || `Next ${data.description}`,
@@ -192,14 +209,14 @@ export default function ServiceRecordForm({ vin, record, onClose, onSuccess }: S
 
             <div>
               <label htmlFor="mileage" className="block text-sm font-medium text-garage-text mb-1">
-                Mileage
+                Mileage ({UnitFormatter.getDistanceUnit(system)})
               </label>
               <input
                 type="number"
                 id="mileage"
                 {...register('mileage')}
                 min="0"
-                placeholder="45000"
+                placeholder={system === 'imperial' ? '45000' : '72420'}
                 className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
                   errors.mileage ? 'border-red-500' : 'border-garage-border'
                 }`}
@@ -351,7 +368,7 @@ export default function ServiceRecordForm({ vin, record, onClose, onSuccess }: S
               <div className="ml-6 space-y-3 pl-4 border-l-2 border-primary/30">
                 <div>
                   <label htmlFor="reminder_mileage" className="block text-sm font-medium text-garage-text mb-1">
-                    Due at odometer (miles)
+                    Due at odometer ({UnitFormatter.getDistanceUnit(system)})
                   </label>
                   <input
                     type="number"
@@ -359,7 +376,7 @@ export default function ServiceRecordForm({ vin, record, onClose, onSuccess }: S
                     min="0"
                     value={reminderData.due_mileage}
                     onChange={(e) => setReminderData({ ...reminderData, due_mileage: e.target.value })}
-                    placeholder="55000"
+                    placeholder={system === 'imperial' ? '55000' : '88514'}
                     className="w-full px-3 py-2 border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text"
                   />
                 </div>

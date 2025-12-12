@@ -247,7 +247,6 @@ app.include_router(notifications_router)
 static_dir = Path("/app/static")
 if static_dir.exists():
     from fastapi.responses import FileResponse
-    from starlette.exceptions import HTTPException as StarletteHTTPException
     from fastapi.exception_handlers import http_exception_handler
 
     # Mount static assets (CSS, JS, images)
@@ -265,11 +264,20 @@ if static_dir.exists():
 
 
 if __name__ == "__main__":
-    import uvicorn
+    import subprocess
+    import sys
 
-    uvicorn.run(
+    # Use same server as production (Granian) for consistency
+    cmd = [
+        "granian",
+        "--interface", "asgi",
+        "--host", settings.host,
+        "--port", str(settings.port),
         "app.main:app",
-        host=settings.host,
-        port=settings.port,
-        reload=settings.debug,
-    )
+    ]
+
+    # Enable auto-reload in debug mode
+    if settings.debug:
+        cmd.append("--reload")
+
+    sys.exit(subprocess.run(cmd).returncode)

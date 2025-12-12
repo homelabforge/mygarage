@@ -61,6 +61,13 @@ export interface Vehicle {
   window_sticker_extracted_vin?: string
   created_at: string
   updated_at?: string
+  // Archive fields
+  archived_at?: string | null
+  archive_reason?: string | null
+  archive_sale_price?: number | null
+  archive_sale_date?: string | null
+  archive_notes?: string | null
+  archived_visible?: boolean
 }
 
 export interface VehicleCreate {

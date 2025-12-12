@@ -14,6 +14,8 @@ import {
 } from 'lucide-react'
 import type { VehicleStatistics } from '../types/dashboard'
 import { formatDateForDisplay } from '../utils/dateUtils'
+import { useUnitPreference } from '../hooks/useUnitPreference'
+import { UnitFormatter } from '../utils/units'
 
 interface VehicleStatisticsCardProps {
   stats: VehicleStatistics
@@ -21,6 +23,7 @@ interface VehicleStatisticsCardProps {
 
 function VehicleStatisticsCard({ stats }: VehicleStatisticsCardProps) {
   const navigate = useNavigate()
+  const { system, showBoth } = useUnitPreference()
 
   const handleClick = () => {
     navigate(`/vehicles/${stats.vin}`)
@@ -79,6 +82,15 @@ function VehicleStatisticsCard({ stats }: VehicleStatisticsCardProps) {
             {stats.upcoming_reminders_count} Upcoming
           </div>
         )}
+
+        {/* Archived watermark */}
+        {stats.archived_at && (
+          <div className="absolute inset-0 pointer-events-none overflow-hidden">
+            <div className="absolute top-8 right-0 transform rotate-45 translate-x-1/4 -translate-y-1/4 bg-red-600/20 text-red-600 font-bold text-2xl px-16 py-2 border-y-2 border-red-600 shadow-lg">
+              ARCHIVED
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Statistics Grid */}
@@ -132,7 +144,7 @@ function VehicleStatisticsCard({ stats }: VehicleStatisticsCardProps) {
                 <ActivityRow
                   icon={<Gauge className="w-3.5 h-3.5" />}
                   label="Latest Odometer"
-                  value={`${stats.latest_odometer_reading.toLocaleString()} mi`}
+                  value={UnitFormatter.formatDistance(stats.latest_odometer_reading, system, false)}
                 />
               )}
             </div>
@@ -145,15 +157,17 @@ function VehicleStatisticsCard({ stats }: VehicleStatisticsCardProps) {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <TrendingUp className="w-4 h-4 text-primary" />
-                <span className="text-sm text-garage-text-muted">Avg MPG</span>
+                <span className="text-sm text-garage-text-muted">
+                  Avg {UnitFormatter.getFuelEconomyUnit(system)}
+                </span>
               </div>
               <span className="text-lg font-bold text-garage-text">
-                {stats.average_mpg.toFixed(1)}
+                {UnitFormatter.formatFuelEconomy(stats.average_mpg, system, false)}
               </span>
             </div>
             {stats.recent_mpg && stats.recent_mpg !== stats.average_mpg && (
               <div className="text-xs text-garage-text-muted mt-1">
-                Recent: {stats.recent_mpg.toFixed(1)} MPG
+                Recent: {UnitFormatter.formatFuelEconomy(stats.recent_mpg, system, false)}
               </div>
             )}
           </div>

@@ -14,8 +14,7 @@ from slowapi.util import get_remote_address
 from app.config import settings
 from app.database import get_db
 from app.models import (
-    Vehicle, ServiceRecord, FuelRecord, OdometerRecord, Reminder, Document, Note, VehiclePhoto,
-    WarrantyRecord, InsurancePolicy, TaxRecord
+    Vehicle, ServiceRecord, FuelRecord, OdometerRecord, Reminder, Note, WarrantyRecord, InsurancePolicy, TaxRecord
 )
 from app.models.user import User
 from app.services.auth import require_auth

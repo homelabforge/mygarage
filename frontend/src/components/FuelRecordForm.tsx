@@ -7,6 +7,8 @@ import type { Vehicle } from '../types/vehicle'
 import { fuelRecordSchema, type FuelRecordFormData } from '../schemas/fuel'
 import { FormError } from './FormError'
 import api from '../services/api'
+import { useUnitPreference } from '../hooks/useUnitPreference'
+import { UnitConverter, UnitFormatter } from '../utils/units'
 
 interface FuelRecordFormProps {
   vin: string
@@ -18,6 +20,7 @@ interface FuelRecordFormProps {
 export default function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps) {
   const isEdit = !!record
   const [error, setError] = useState<string | null>(null)
+  const { system } = useUnitPreference()
 
   // Helper to format date for input[type="date"] without timezone issues
   const formatDateForInput = (dateString?: string): string => {
@@ -50,9 +53,15 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
     resolver: zodResolver(fuelRecordSchema) as Resolver<FuelRecordFormData>,
     defaultValues: {
       date: formatDateForInput(record?.date),
-      mileage: record?.mileage ?? undefined,
-      gallons: record?.gallons ?? undefined,
-      propane_gallons: record?.propane_gallons ?? undefined,
+      mileage: system === 'metric' && record?.mileage
+        ? UnitConverter.milesToKm(record.mileage) ?? undefined
+        : record?.mileage ?? undefined,
+      gallons: system === 'metric' && record?.gallons
+        ? UnitConverter.gallonsToLiters(record.gallons) ?? undefined
+        : record?.gallons ?? undefined,
+      propane_gallons: system === 'metric' && record?.propane_gallons
+        ? UnitConverter.gallonsToLiters(record.propane_gallons) ?? undefined
+        : record?.propane_gallons ?? undefined,
       price_per_unit: record?.price_per_unit ?? undefined,
       cost: record?.cost ?? undefined,
       fuel_type: record?.fuel_type || '',
@@ -109,13 +118,19 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
     setError(null)
 
     try {
-      // Zod has already validated and coerced all numeric fields - no parseFloat/parseInt/isNaN needed!
+      // Convert from user's unit system to imperial (canonical storage format)
       const payload: FuelRecordCreate | FuelRecordUpdate = {
         vin,
         date: data.date,
-        mileage: data.mileage,
-        gallons: data.gallons,
-        propane_gallons: data.propane_gallons,
+        mileage: system === 'metric' && data.mileage
+          ? UnitConverter.kmToMiles(data.mileage) ?? data.mileage
+          : data.mileage,
+        gallons: system === 'metric' && data.gallons
+          ? UnitConverter.litersToGallons(data.gallons) ?? data.gallons
+          : data.gallons,
+        propane_gallons: system === 'metric' && data.propane_gallons
+          ? UnitConverter.litersToGallons(data.propane_gallons) ?? data.propane_gallons
+          : data.propane_gallons,
         price_per_unit: data.price_per_unit,
         cost: data.cost,
         fuel_type: data.fuel_type,
@@ -179,14 +194,14 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
 
             <div>
               <label htmlFor="mileage" className="block text-sm font-medium text-garage-text mb-1">
-                Mileage
+                Mileage ({UnitFormatter.getDistanceUnit(system)})
               </label>
               <input
                 type="number"
                 id="mileage"
                 {...register('mileage')}
                 min="0"
-                placeholder="45000"
+                placeholder={system === 'imperial' ? '45000' : '72420'}
                 className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
                   errors.mileage ? 'border-red-500' : 'border-garage-border'
                 }`}
@@ -199,7 +214,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
           <div className="grid grid-cols-3 gap-4">
             <div>
               <label htmlFor="gallons" className="block text-sm font-medium text-garage-text mb-1">
-                Gallons
+                Volume ({UnitFormatter.getVolumeUnit(system)})
               </label>
               <input
                 type="number"
@@ -207,7 +222,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
                 {...register('gallons')}
                 min="0"
                 step="0.001"
-                placeholder="12.500"
+                placeholder={system === 'imperial' ? '12.500' : '47.318'}
                 className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
                   errors.gallons ? 'border-red-500' : 'border-garage-border'
                 }`}
@@ -218,7 +233,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
 
             <div>
               <label htmlFor="propane_gallons" className="block text-sm font-medium text-garage-text mb-1">
-                Propane (gal)
+                Propane ({UnitFormatter.getVolumeUnit(system)})
               </label>
               <input
                 type="number"
@@ -237,7 +252,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
 
             <div>
               <label htmlFor="price_per_unit" className="block text-sm font-medium text-garage-text mb-1">
-                Price per Gallon
+                Price per {UnitFormatter.getVolumeUnit(system)}
               </label>
               <div className="relative">
                 <span className="absolute left-3 top-2 text-garage-text-muted">$</span>
@@ -247,7 +262,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
                   {...register('price_per_unit')}
                   min="0"
                   step="0.001"
-                  placeholder="3.499"
+                  placeholder={system === 'imperial' ? '3.499' : '0.924'}
                   className={`w-full pl-7 pr-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
                     errors.price_per_unit ? 'border-red-500' : 'border-garage-border'
                   }`}

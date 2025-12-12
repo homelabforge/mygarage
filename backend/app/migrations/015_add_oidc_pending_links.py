@@ -107,7 +107,7 @@ def upgrade():
         row = result.fetchone()
         pending_count = row[0] if row else 0
 
-        print(f"\nOIDC pending links table status:")
+        print("\nOIDC pending links table status:")
         print(f"  Pending link tokens: {pending_count}")
 
         print("\n✓ OIDC pending links migration completed successfully")

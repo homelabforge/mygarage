@@ -85,6 +85,8 @@ docker run -d \
 - **VIN Decoding** - Automatic vehicle details via NHTSA API
 - **Service Records** - Track maintenance with attachments and service reminders
 - **Fuel Tracking** - Log fill-ups with automatic MPG calculations and fuel economy analytics
+- **Unit Conversion** - Imperial/Metric units with per-user preferences (MPG ↔ L/100km, miles ↔ km, gallons ↔ liters)
+- **Vehicle Archive** - Safely archive sold/traded vehicles while preserving complete history
 - **Document Management** - Store registration, insurance, manuals with OCR text extraction
 - **Photo Gallery** - Vehicle photos with thumbnails and full-size viewing
 - **Multi-User Support** - Separate accounts with per-vehicle ownership and admin controls
@@ -100,13 +102,14 @@ MyGarage is **zero-config by default**. Everything is auto-generated and can be 
 
 ### Web UI Configuration (Recommended)
 
-After first startup, configure MyGarage in **Settings → System**:
+After first startup, configure MyGarage in **Settings**:
 
-- **Authentication Mode**: Switch from `none` to `local` or `oidc`
-- **Multi-User Support**: Enable/disable additional user accounts
-- **Date/Time Format**: Customize display formats
-- **Units**: Miles vs kilometers, gallons vs liters
-- **Debug Mode**: Enable detailed logging
+- **System Settings**: Authentication mode, multi-user support, date/time format, debug logging
+- **Unit Preferences**: Choose Imperial (miles, gallons, MPG) or Metric (km, liters, L/100km)
+  - Per-user preferences - each user can choose their preferred units
+  - Optional "Show Both" mode displays both units simultaneously
+- **Vehicle Archive**: View and manage archived vehicles, restore or permanently delete
+- **Theme**: Light/dark mode and color customization
 
 All settings persist to the database and survive container restarts.
 
@@ -416,6 +419,8 @@ Having trouble? Here are the most common issues and quick fixes:
 - **❓ [FAQ](https://github.com/homelabforge/mygarage/wiki/FAQ)** - Common questions answered
 - **🔧 [Troubleshooting](https://github.com/homelabforge/mygarage/wiki/Troubleshooting)** - Fix common issues
 - **🔐 [Authentication Guide](https://github.com/homelabforge/mygarage/wiki/Authentication)** - Setup local, OIDC, or SSO
+- **📏 [Unit Conversion System](docs/UNIT_CONVERSION.md)** - Imperial/Metric units and preferences
+- **🗃️ [Vehicle Archive System](docs/ARCHIVE_SYSTEM.md)** - Archive vehicles while preserving history
 - **🗄️ [Database Configuration](https://github.com/homelabforge/mygarage/wiki/Database-Configuration)** - SQLite vs PostgreSQL
 - **🌐 [Reverse Proxy Setup](https://github.com/homelabforge/mygarage/wiki/Reverse-Proxy)** - Traefik, Nginx, Caddy
 

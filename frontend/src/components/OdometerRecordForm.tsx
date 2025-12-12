@@ -6,6 +6,8 @@ import type { OdometerRecord, OdometerRecordCreate, OdometerRecordUpdate } from 
 import { odometerRecordSchema, type OdometerRecordFormData } from '../schemas/odometer'
 import { FormError } from './FormError'
 import api from '../services/api'
+import { useUnitPreference } from '../hooks/useUnitPreference'
+import { UnitConverter, UnitFormatter } from '../utils/units'
 
 interface OdometerRecordFormProps {
   vin: string
@@ -17,6 +19,7 @@ interface OdometerRecordFormProps {
 export default function OdometerRecordForm({ vin, record, onClose, onSuccess }: OdometerRecordFormProps) {
   const isEdit = !!record
   const [error, setError] = useState<string | null>(null)
+  const { system } = useUnitPreference()
 
   // Helper to format date for input[type="date"]
   const formatDateForInput = (dateString?: string): string => {
@@ -45,7 +48,9 @@ export default function OdometerRecordForm({ vin, record, onClose, onSuccess }: 
     resolver: zodResolver(odometerRecordSchema) as Resolver<OdometerRecordFormData>,
     defaultValues: {
       date: formatDateForInput(record?.date),
-      mileage: record?.mileage ?? undefined,
+      mileage: system === 'metric' && record?.mileage
+        ? UnitConverter.milesToKm(record.mileage) ?? undefined
+        : record?.mileage ?? undefined,
       notes: record?.notes || '',
     },
   })
@@ -54,11 +59,13 @@ export default function OdometerRecordForm({ vin, record, onClose, onSuccess }: 
     setError(null)
 
     try {
-      // Zod has already validated mileage - no parseInt/isNaN needed!
+      // Convert from user's unit system to imperial (canonical storage format)
       const payload: OdometerRecordCreate | OdometerRecordUpdate = {
         vin,
         date: data.date,
-        mileage: data.mileage,
+        mileage: system === 'metric' && data.mileage
+          ? UnitConverter.kmToMiles(data.mileage) ?? data.mileage
+          : data.mileage,
         notes: data.notes,
       }
 
@@ -115,13 +122,13 @@ export default function OdometerRecordForm({ vin, record, onClose, onSuccess }: 
 
           <div>
             <label htmlFor="mileage" className="block text-sm font-medium text-garage-text mb-1">
-              Mileage <span className="text-danger">*</span>
+              Mileage ({UnitFormatter.getDistanceUnit(system)}) <span className="text-danger">*</span>
             </label>
             <input
               type="number"
               id="mileage"
               {...register('mileage')}
-              placeholder="45000"
+              placeholder={system === 'imperial' ? '45000' : '72420'}
               className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
                 errors.mileage ? 'border-red-500' : 'border-garage-border'
               }`}

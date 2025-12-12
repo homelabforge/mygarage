@@ -87,7 +87,7 @@ def upgrade():
 
         if row:
             total_vehicles, users_with_vehicles = row
-            print(f"\nMigration summary:")
+            print("\nMigration summary:")
             print(f"  Total vehicles: {total_vehicles}")
             print(f"  Users with vehicles: {users_with_vehicles}")
 

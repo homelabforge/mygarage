@@ -4,6 +4,8 @@ import { Gauge, Plus, Edit, Trash2, Calendar, Download, Upload } from 'lucide-re
 import { toast } from 'sonner'
 import type { OdometerRecord } from '../types/odometer'
 import api from '../services/api'
+import { useUnitPreference } from '../hooks/useUnitPreference'
+import { UnitFormatter } from '../utils/units'
 
 interface OdometerRecordListProps {
   vin: string
@@ -21,6 +23,7 @@ export default function OdometerRecordList({ vin, onAddClick, onEditClick, onRef
   const [exporting, setExporting] = useState(false)
   const [importing, setImporting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const { system, showBoth } = useUnitPreference()
 
   const fetchRecords = useCallback(async () => {
     try {
@@ -214,7 +217,7 @@ export default function OdometerRecordList({ vin, onAddClick, onEditClick, onRef
             <div>
               <p className="text-sm text-garage-text-muted">Latest Mileage</p>
               <p className="text-2xl font-bold text-garage-text">
-                {latestMileage.toLocaleString()} miles
+                {UnitFormatter.formatDistance(latestMileage, system, showBoth)}
               </p>
             </div>
           </div>
@@ -246,7 +249,7 @@ export default function OdometerRecordList({ vin, onAddClick, onEditClick, onRef
                     Date
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-garage-text-muted uppercase tracking-wider">
-                    Mileage
+                    Mileage ({UnitFormatter.getDistanceUnit(system)})
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-garage-text-muted uppercase tracking-wider">
                     Notes
@@ -268,7 +271,7 @@ export default function OdometerRecordList({ vin, onAddClick, onEditClick, onRef
                     <td className="px-4 py-3 whitespace-nowrap">
                       <div className="flex items-center gap-2 text-sm font-medium text-garage-text">
                         <Gauge className="w-4 h-4 text-garage-text-muted" />
-                        {record.mileage.toLocaleString()} miles
+                        {UnitFormatter.formatDistance(record.mileage, system, showBoth)}
                       </div>
                     </td>
                     <td className="px-4 py-3">

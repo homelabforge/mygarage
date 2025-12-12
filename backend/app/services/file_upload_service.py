@@ -12,7 +12,6 @@ from io import BytesIO
 from app.config import settings
 from app.utils.path_validation import sanitize_filename, validate_path_within_base
 from app.utils.file_validation import (
-    verify_file_content_type,
     validate_file_magic_bytes
 )
 

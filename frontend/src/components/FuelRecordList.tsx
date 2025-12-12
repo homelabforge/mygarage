@@ -4,6 +4,8 @@ import { toast } from 'sonner'
 import type { FuelRecord } from '../types/fuel'
 import { formatDateForDisplay } from '../utils/dateUtils'
 import api from '../services/api'
+import { useUnitPreference } from '../hooks/useUnitPreference'
+import { UnitFormatter } from '../utils/units'
 
 interface FuelRecordListProps {
   vin: string
@@ -23,6 +25,7 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick, onRefresh
   const [importing, setImporting] = useState(false)
   const [includeHauling, setIncludeHauling] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const { system, showBoth } = useUnitPreference()
 
   const fetchRecords = useCallback(async () => {
     try {
@@ -258,7 +261,7 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick, onRefresh
                   Average Fuel Economy {includeHauling ? '(Including Towing)' : '(Normal Driving)'}
                 </p>
                 <p className="text-2xl font-bold text-garage-text">
-                  {averageMpg.toFixed(2)} MPG
+                  {UnitFormatter.formatFuelEconomy(averageMpg, system, showBoth)}
                 </p>
               </div>
             </div>
@@ -305,19 +308,19 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick, onRefresh
                     Mileage
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-garage-text-muted uppercase tracking-wider">
-                    Gallons
+                    Volume ({UnitFormatter.getVolumeUnit(system)})
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-garage-text-muted uppercase tracking-wider">
-                    Propane
+                    Propane ({UnitFormatter.getVolumeUnit(system)})
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-garage-text-muted uppercase tracking-wider">
-                    Price/Gal
+                    Price/{UnitFormatter.getVolumeUnit(system)}
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-garage-text-muted uppercase tracking-wider">
                     Total Cost
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-garage-text-muted uppercase tracking-wider">
-                    MPG
+                    Fuel Economy
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-garage-text-muted uppercase tracking-wider">
                     Full Tank
@@ -351,17 +354,17 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick, onRefresh
                       {record.mileage ? (
                         <div className="flex items-center gap-2 text-sm text-garage-text">
                           <Gauge className="w-4 h-4 text-garage-text-muted" />
-                          {record.mileage.toLocaleString()}
+                          {UnitFormatter.formatDistance(record.mileage, system, showBoth)}
                         </div>
                       ) : (
                         <span className="text-sm text-garage-text-muted">-</span>
                       )}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-garage-text">
-                      {record.gallons ? `${parseFloat(record.gallons.toString()).toFixed(2)} gal` : '-'}
+                      {record.gallons ? UnitFormatter.formatVolume(parseFloat(record.gallons.toString()), system, showBoth) : '-'}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-garage-text">
-                      {record.propane_gallons ? `${parseFloat(record.propane_gallons.toString()).toFixed(3)} gal` : '-'}
+                      {record.propane_gallons ? UnitFormatter.formatVolume(parseFloat(record.propane_gallons.toString()), system, showBoth) : '-'}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-garage-text">
                       {record.price_per_unit ? formatCurrency(parseFloat(record.price_per_unit.toString())) : '-'}
@@ -379,7 +382,7 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick, onRefresh
                     <td className="px-4 py-3 whitespace-nowrap">
                       {record.mpg ? (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                          {parseFloat(record.mpg.toString()).toFixed(2)} MPG
+                          {UnitFormatter.formatFuelEconomy(parseFloat(record.mpg.toString()), system, showBoth)}
                         </span>
                       ) : (
                         <span className="text-sm text-garage-text-muted">-</span>

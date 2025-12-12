@@ -118,15 +118,15 @@ def upgrade():
         """))
         tables = [row[0] for row in result.fetchall()]
 
-        print(f"\n✓ Security hardening migration completed successfully")
+        print("\n✓ Security hardening migration completed successfully")
         print(f"  Created tables: {', '.join(tables)}")
-        print(f"\nSecurity improvements:")
-        print(f"  • CSRF protection: State-changing operations now require CSRF tokens")
-        print(f"  • OIDC reliability: Authentication state persists across workers/restarts")
-        print(f"\nNext steps:")
-        print(f"  1. Frontend will automatically receive CSRF tokens on login")
-        print(f"  2. OIDC flows will work reliably in multi-worker deployments")
-        print(f"  3. Review security documentation in README.md")
+        print("\nSecurity improvements:")
+        print("  • CSRF protection: State-changing operations now require CSRF tokens")
+        print("  • OIDC reliability: Authentication state persists across workers/restarts")
+        print("\nNext steps:")
+        print("  1. Frontend will automatically receive CSRF tokens on login")
+        print("  2. OIDC flows will work reliably in multi-worker deployments")
+        print("  3. Review security documentation in README.md")
 
 
 def downgrade():

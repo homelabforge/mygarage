@@ -140,7 +140,7 @@ def upgrade():
             oidc = oidc or 0
             linked = linked or 0
 
-            print(f"\nAuthentication method status:")
+            print("\nAuthentication method status:")
             print(f"  Total users: {total}")
             print(f"  Local authentication: {local}")
             print(f"  OIDC authentication: {oidc}")

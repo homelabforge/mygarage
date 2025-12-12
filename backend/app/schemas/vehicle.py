@@ -135,6 +135,13 @@ class VehicleResponse(VehicleBase):
     window_sticker_parser_used: Optional[str] = None
     window_sticker_confidence_score: Optional[Decimal] = None
     window_sticker_extracted_vin: Optional[str] = None
+    # Archive fields
+    archived_at: Optional[datetime] = None
+    archive_reason: Optional[str] = None
+    archive_sale_price: Optional[Decimal] = None
+    archive_sale_date: Optional[date] = None
+    archive_notes: Optional[str] = None
+    archived_visible: bool = True
 
     model_config = {
         "from_attributes": True,
@@ -242,4 +249,37 @@ class TrailerDetailsResponse(TrailerDetailsBase):
 
     model_config = {
         "from_attributes": True
+    }
+
+
+class VehicleArchiveRequest(BaseModel):
+    """Schema for archiving a vehicle."""
+
+    reason: str = Field(..., description="Reason for archiving (Sold, Totaled, Gifted, Trade-in, Other)", max_length=50)
+    sale_price: Optional[Decimal] = Field(None, description="Sale price (if applicable)")
+    sale_date: Optional[date] = Field(None, description="Sale/disposal date")
+    notes: Optional[str] = Field(None, description="Additional notes about the archive", max_length=1000)
+    visible: bool = Field(True, description="Whether to show vehicle in main list with watermark")
+
+    @field_validator('reason')
+    @classmethod
+    def validate_reason(cls, v: str) -> str:
+        """Validate archive reason."""
+        valid_reasons = ['Sold', 'Totaled', 'Gifted', 'Trade-in', 'Other']
+        if v not in valid_reasons:
+            raise ValueError(f'Archive reason must be one of: {", ".join(valid_reasons)}')
+        return v
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "reason": "Sold",
+                    "sale_price": 25000.00,
+                    "sale_date": "2025-12-01",
+                    "notes": "Sold to private buyer via Craigslist",
+                    "visible": True
+                }
+            ]
+        }
     }

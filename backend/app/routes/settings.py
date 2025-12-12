@@ -15,7 +15,7 @@ from app.models.settings import Setting
 from app.models.user import User
 from app.models.vehicle import Vehicle
 from app.config import settings as app_settings
-from app.services.auth import get_optional_user, get_current_admin_user
+from app.services.auth import get_current_admin_user
 from app.schemas.settings import (
     SettingCreate,
     SettingUpdate,

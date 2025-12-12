@@ -22,7 +22,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.user import User
 from app.models.settings import Setting
 from app.models.oidc_state import OIDCState
-from app.services.auth import create_access_token
 from app.utils.url_validation import validate_oidc_url
 from app.exceptions import SSRFProtectionError
 

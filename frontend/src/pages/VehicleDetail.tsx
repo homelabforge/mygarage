@@ -50,6 +50,7 @@ import TaxRecordList from '../components/TaxRecordList'
 import SpotRentalsTab from '../components/tabs/SpotRentalsTab'
 import SubTabNav from '../components/SubTabNav'
 import WindowStickerUpload from '../components/WindowStickerUpload'
+import VehicleRemoveModal from '../components/modals/VehicleRemoveModal'
 import { useOnlineStatus } from '../hooks/useOnlineStatus'
 
 type ApiError = {
@@ -91,7 +92,7 @@ export default function VehicleDetail() {
   const [error, setError] = useState<string | null>(null)
   const [activePrimaryTab, setActivePrimaryTab] = useState<PrimaryTabType>('overview')
   const [activeSubTab, setActiveSubTab] = useState<SubTabType | null>(null)
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showRemoveModal, setShowRemoveModal] = useState(false)
   const [showWindowStickerUpload, setShowWindowStickerUpload] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [importing, setImporting] = useState(false)
@@ -161,16 +162,9 @@ export default function VehicleDetail() {
     }
   }, [searchParams])
 
-  const handleDelete = async () => {
-    if (!vin) return
-
-    try {
-      await vehicleService.delete(vin)
-      navigate('/')
-    } catch (error) {
-      setError(getApiErrorMessage(error, 'Failed to delete vehicle'))
-      setShowDeleteConfirm(false)
-    }
+  const handleVehicleRemoved = () => {
+    // Navigate home after vehicle is removed (archived or deleted)
+    navigate('/')
   }
 
   const handleExportJSON = async () => {
@@ -558,11 +552,11 @@ export default function VehicleDetail() {
                   <span>Edit</span>
                 </button>
                 <button
-                  onClick={() => setShowDeleteConfirm(true)}
+                  onClick={() => setShowRemoveModal(true)}
                   className="flex items-center space-x-2 px-5 py-3 bg-red-900/30 border border-red-700 text-red-400 rounded-lg hover:bg-red-800/50 transition-colors"
                 >
                   <Trash2 className="w-4 h-4" />
-                  <span>Delete</span>
+                  <span>Remove</span>
                 </button>
               </div>
 
@@ -1100,32 +1094,13 @@ export default function VehicleDetail() {
         {activePrimaryTab === 'financial' && activeSubTab === 'spotrentals' && vin && <SpotRentalsTab vin={vin} />}
       </div>
 
-      {/* Delete Confirmation Modal */}
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-garage-surface rounded-lg shadow-xl max-w-md w-full p-6">
-            <h3 className="text-xl font-semibold text-garage-text mb-2">Delete Vehicle?</h3>
-            <p className="text-garage-text-muted mb-6">
-              Are you sure you want to delete <strong>{vehicle.nickname}</strong>? This action cannot be
-              undone and will delete all associated records.
-            </p>
-            <div className="flex space-x-3">
-              <button
-                onClick={() => setShowDeleteConfirm(false)}
-                className="flex-1 btn-primary"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDelete}
-                className="flex-1 px-4 py-2 bg-danger text-white rounded-lg hover:bg-danger/90 transition-colors"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Vehicle Remove Modal */}
+      <VehicleRemoveModal
+        isOpen={showRemoveModal}
+        onClose={() => setShowRemoveModal(false)}
+        vehicle={vehicle}
+        onConfirm={handleVehicleRemoved}
+      />
 
       {/* Mobile Actions Menu */}
       {showMobileMenu && (

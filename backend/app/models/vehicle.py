@@ -71,6 +71,13 @@ class Vehicle(Base):
     window_sticker_extracted_vin: Mapped[Optional[str]] = mapped_column(String(17))
     # Multi-user support
     user_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    # Archive fields
+    archived_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    archive_reason: Mapped[Optional[str]] = mapped_column(String(50))  # Sold, Totaled, Gifted, Trade-in, Other
+    archive_sale_price: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2))
+    archive_sale_date: Mapped[Optional[date]] = mapped_column(Date)
+    archive_notes: Mapped[Optional[str]] = mapped_column(String(1000))
+    archived_visible: Mapped[bool] = mapped_column(Integer, server_default="1")  # SQLite uses INTEGER for BOOLEAN
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, onupdate=func.now())
 

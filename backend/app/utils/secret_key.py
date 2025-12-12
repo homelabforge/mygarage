@@ -50,7 +50,7 @@ def get_or_create_secret_key(key_file: Path = Path("/data/secret.key")) -> str:
 
         # Use print() instead of logger since logging isn't configured yet during import
         print(f"✓ Generated new secret key and saved to {key_file}")
-        print(f"✓ Secret key will persist across container restarts")
+        print("✓ Secret key will persist across container restarts")
 
         return secret_key
 

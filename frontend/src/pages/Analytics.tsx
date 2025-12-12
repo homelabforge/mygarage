@@ -5,6 +5,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import api from '../services/api'
+import { useUnitPreference } from '../hooks/useUnitPreference'
+import { UnitFormatter } from '../utils/units'
 import {
   ArrowLeft,
   TrendingUp,
@@ -54,6 +56,7 @@ import AnalyticsHelpModal from '../components/AnalyticsHelpModal'
 
 export default function Analytics() {
   const { vin } = useParams<{ vin: string }>()
+  const { system, showBoth } = useUnitPreference()
   const [analytics, setAnalytics] = useState<VehicleAnalytics | null>(null)
   const [vendorAnalytics, setVendorAnalytics] = useState<VendorAnalyticsSummary | null>(null)
   const [seasonalAnalytics, setSeasonalAnalytics] = useState<SeasonalAnalyticsSummary | null>(null)
@@ -449,7 +452,7 @@ export default function Analytics() {
                 <p className="text-sm">{alert.message}</p>
                 {(alert.recent_mpg || alert.baseline_mpg) && (
                   <p className="text-xs mt-2">
-                    Recent: {alert.recent_mpg ?? '—'} MPG • Baseline: {alert.baseline_mpg ?? '—'} MPG
+                    Recent: {alert.recent_mpg ? UnitFormatter.formatFuelEconomy(alert.recent_mpg, system, showBoth) : '—'} • Baseline: {alert.baseline_mpg ? UnitFormatter.formatFuelEconomy(alert.baseline_mpg, system, showBoth) : '—'}
                   </p>
                 )}
               </div>
@@ -525,7 +528,7 @@ export default function Analytics() {
               <Fuel className="w-5 h-5 text-garage-text-muted" />
             </div>
             <p className="text-2xl font-bold text-garage-text">
-              {fuel_economy.average_mpg || 'N/A'} {fuel_economy.average_mpg && 'MPG'}
+              {fuel_economy.average_mpg ? UnitFormatter.formatFuelEconomy(fuel_economy.average_mpg, system, showBoth) : 'N/A'}
             </p>
             <div className="flex items-center gap-2 mt-1">
               {getTrendIcon(fuel_economy.trend)}
@@ -545,7 +548,7 @@ export default function Analytics() {
             </p>
             {analytics.total_miles_driven && (
               <p className="text-xs text-garage-text-muted mt-1">
-                {analytics.total_miles_driven.toLocaleString()} miles driven
+                {UnitFormatter.formatDistance(analytics.total_miles_driven, system, showBoth)} driven
               </p>
             )}
           </div>
@@ -791,7 +794,7 @@ export default function Analytics() {
                       <span>Due: {formatDate(prediction.predicted_date)}</span>
                     )}
                     {prediction.predicted_mileage && (
-                      <span>@ {prediction.predicted_mileage.toLocaleString()} miles</span>
+                      <span>@ {UnitFormatter.formatDistance(prediction.predicted_mileage, system, false)}</span>
                     )}
                   </div>
                 </div>
@@ -809,7 +812,7 @@ export default function Analytics() {
                   )}
                   {prediction.miles_until_due !== null && (
                     <p className="text-xs text-garage-text-muted mt-1">
-                      {prediction.miles_until_due < 0 ? 'Past mileage' : `${prediction.miles_until_due} miles`}
+                      {prediction.miles_until_due < 0 ? 'Past mileage' : UnitFormatter.formatDistance(prediction.miles_until_due, system, false)}
                     </p>
                   )}
                 </div>
@@ -996,25 +999,25 @@ export default function Analytics() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
             <div className="text-center p-4 bg-garage-bg rounded-lg">
               <p className="text-sm text-garage-text-muted mb-1">Average</p>
-              <p className="text-2xl font-bold text-garage-text">{fuel_economy.average_mpg} MPG</p>
+              <p className="text-2xl font-bold text-garage-text">{UnitFormatter.formatFuelEconomy(fuel_economy.average_mpg, system, showBoth)}</p>
             </div>
             <div className="text-center p-4 bg-garage-bg rounded-lg">
               <p className="text-sm text-garage-text-muted mb-1">Best</p>
-              <p className="text-2xl font-bold text-green-500">{fuel_economy.best_mpg} MPG</p>
+              <p className="text-2xl font-bold text-green-500">{UnitFormatter.formatFuelEconomy(fuel_economy.best_mpg, system, showBoth)}</p>
             </div>
             <div className="text-center p-4 bg-garage-bg rounded-lg">
               <p className="text-sm text-garage-text-muted mb-1">Worst</p>
-              <p className="text-2xl font-bold text-red-500">{fuel_economy.worst_mpg} MPG</p>
+              <p className="text-2xl font-bold text-red-500">{UnitFormatter.formatFuelEconomy(fuel_economy.worst_mpg, system, showBoth)}</p>
             </div>
             <div className="text-center p-4 bg-garage-bg rounded-lg">
               <p className="text-sm text-garage-text-muted mb-1">Recent</p>
-              <p className="text-2xl font-bold text-primary">{fuel_economy.recent_mpg} MPG</p>
+              <p className="text-2xl font-bold text-primary">{UnitFormatter.formatFuelEconomy(fuel_economy.recent_mpg, system, showBoth)}</p>
             </div>
           </div>
 
           {/* Fuel Economy Trend Chart */}
           <div className="mb-6 bg-garage-bg rounded-lg p-4">
-            <h3 className="text-sm font-medium text-garage-text-muted mb-4">MPG Trend Over Time</h3>
+            <h3 className="text-sm font-medium text-garage-text-muted mb-4">Fuel Economy Trend Over Time</h3>
             <ResponsiveContainer width="100%" height={300}>
               <RechartsLineChart
                 data={fuel_economy.data_points.map(point => ({
@@ -1033,7 +1036,7 @@ export default function Analytics() {
                 <YAxis
                   stroke="#9E9E9E"
                   style={{ fontSize: '12px' }}
-                  label={{ value: 'MPG', angle: -90, position: 'insideLeft', fill: '#9E9E9E' }}
+                  label={{ value: UnitFormatter.getFuelEconomyUnit(system), angle: -90, position: 'insideLeft', fill: '#9E9E9E' }}
                 />
                 <Tooltip
                   cursor={false}
@@ -1044,11 +1047,11 @@ export default function Analytics() {
                         <div style={{ backgroundColor: '#1a1f28', border: '1px solid #3a4050', borderRadius: '8px', padding: '12px', color: '#e4e6eb' }}>
                           <p style={{ fontWeight: '600', marginBottom: '8px' }}>{label}</p>
                           <p style={{ fontSize: '14px', color: '#9ca3af' }}>
-                            MPG: {payload[0].value}
+                            {UnitFormatter.formatFuelEconomy(payload[0].value as number, system, showBoth)}
                           </p>
                           {payload[0].payload.mileage && (
                             <p style={{ fontSize: '12px', color: '#9ca3af', marginTop: '4px' }}>
-                              {payload[0].payload.mileage.toLocaleString()} miles
+                              {UnitFormatter.formatDistance(payload[0].payload.mileage, system, false)}
                             </p>
                           )}
                         </div>
@@ -1078,9 +1081,9 @@ export default function Analytics() {
               <thead>
                 <tr className="border-b border-garage-border">
                   <th className="text-left py-2 px-4 text-sm font-medium text-garage-text-muted">Date</th>
-                  <th className="text-right py-2 px-4 text-sm font-medium text-garage-text-muted">MPG</th>
-                  <th className="text-right py-2 px-4 text-sm font-medium text-garage-text-muted">Mileage</th>
-                  <th className="text-right py-2 px-4 text-sm font-medium text-garage-text-muted">Gallons</th>
+                  <th className="text-right py-2 px-4 text-sm font-medium text-garage-text-muted">Fuel Economy</th>
+                  <th className="text-right py-2 px-4 text-sm font-medium text-garage-text-muted">Mileage ({UnitFormatter.getDistanceUnit(system)})</th>
+                  <th className="text-right py-2 px-4 text-sm font-medium text-garage-text-muted">Volume ({UnitFormatter.getVolumeUnit(system)})</th>
                   <th className="text-right py-2 px-4 text-sm font-medium text-garage-text-muted">Cost</th>
                 </tr>
               </thead>
@@ -1088,9 +1091,9 @@ export default function Analytics() {
                 {fuel_economy.data_points.slice(-10).reverse().map((point, idx) => (
                   <tr key={idx} className="border-b border-garage-border/50">
                     <td className="py-2 px-4 text-sm text-garage-text">{formatDate(point.date)}</td>
-                    <td className="py-2 px-4 text-sm text-garage-text text-right font-medium">{point.mpg}</td>
-                    <td className="py-2 px-4 text-sm text-garage-text text-right">{point.mileage.toLocaleString()}</td>
-                    <td className="py-2 px-4 text-sm text-garage-text text-right">{point.gallons}</td>
+                    <td className="py-2 px-4 text-sm text-garage-text text-right font-medium">{UnitFormatter.formatFuelEconomy(parseFloat(point.mpg), system, showBoth)}</td>
+                    <td className="py-2 px-4 text-sm text-garage-text text-right">{UnitFormatter.formatDistance(point.mileage, system, false)}</td>
+                    <td className="py-2 px-4 text-sm text-garage-text text-right">{UnitFormatter.formatVolume(parseFloat(point.gallons), system, false)}</td>
                     <td className="py-2 px-4 text-sm text-garage-text text-right">{formatCurrency(point.cost)}</td>
                   </tr>
                 ))}
@@ -1121,7 +1124,7 @@ export default function Analytics() {
                     <p className="text-sm text-garage-text-muted mb-2">{item.description}</p>
                   )}
                   <div className="flex items-center gap-4 text-xs text-garage-text-muted">
-                    {item.mileage && <span>{item.mileage.toLocaleString()} miles</span>}
+                    {item.mileage && <span>{UnitFormatter.formatDistance(item.mileage, system, false)}</span>}
                     {item.vendor_name && <span>{item.vendor_name}</span>}
                     {item.days_since_last && (
                       <span className="text-primary">
@@ -1130,7 +1133,7 @@ export default function Analytics() {
                     )}
                     {item.miles_since_last && (
                       <span className="text-primary">
-                        {item.miles_since_last.toLocaleString()} miles since last
+                        {UnitFormatter.formatDistance(item.miles_since_last, system, false)} since last
                       </span>
                     )}
                   </div>
@@ -1519,9 +1522,9 @@ export default function Analytics() {
                       </div>
                       {comparisonData.period1_avg_mpg && (
                         <div className="flex justify-between">
-                          <span className="text-garage-text-muted">Avg MPG:</span>
+                          <span className="text-garage-text-muted">Avg Fuel Economy:</span>
                           <span className="font-medium text-garage-text">
-                            {comparisonData.period1_avg_mpg}
+                            {UnitFormatter.formatFuelEconomy(comparisonData.period1_avg_mpg, system, showBoth)}
                           </span>
                         </div>
                       )}
@@ -1548,9 +1551,9 @@ export default function Analytics() {
                       </div>
                       {comparisonData.period2_avg_mpg && (
                         <div className="flex justify-between">
-                          <span className="text-garage-text-muted">Avg MPG:</span>
+                          <span className="text-garage-text-muted">Avg Fuel Economy:</span>
                           <span className="font-medium text-garage-text">
-                            {comparisonData.period2_avg_mpg}
+                            {UnitFormatter.formatFuelEconomy(comparisonData.period2_avg_mpg, system, showBoth)}
                           </span>
                         </div>
                       )}
@@ -1591,7 +1594,7 @@ export default function Analytics() {
 
                     {comparisonData.mpg_change_percent && (
                       <div className="text-center p-4 bg-garage-surface rounded-lg">
-                        <p className="text-sm text-garage-text-muted mb-1">MPG Change</p>
+                        <p className="text-sm text-garage-text-muted mb-1">Fuel Economy Change</p>
                         <p className={`text-2xl font-bold ${
                           parseFloat(comparisonData.mpg_change_percent) > 0
                             ? 'text-success'

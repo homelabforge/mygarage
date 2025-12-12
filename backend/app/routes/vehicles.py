@@ -2,14 +2,15 @@
 
 import logging
 from typing import Optional
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, Depends
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models.vehicle import TrailerDetails
+from app.models.vehicle import TrailerDetails, Vehicle
 from app.models.user import User
 from app.schemas.vehicle import (
     VehicleCreate,
@@ -19,8 +20,9 @@ from app.schemas.vehicle import (
     TrailerDetailsCreate,
     TrailerDetailsUpdate,
     TrailerDetailsResponse,
+    VehicleArchiveRequest,
 )
-from app.services.auth import require_auth
+from app.services.auth import require_auth, optional_auth
 from app.services.vehicle_service import VehicleService
 
 logger = logging.getLogger(__name__)
@@ -314,3 +316,208 @@ async def update_trailer_details(
         await db.rollback()
         logger.error("Database connection error updating trailer details for %s: %s", vin, e)
         raise HTTPException(status_code=503, detail="Database temporarily unavailable")
+
+
+# ========== ARCHIVE ENDPOINTS ==========
+
+@router.post("/{vin}/archive", response_model=VehicleResponse)
+async def archive_vehicle(
+    vin: str,
+    archive_data: VehicleArchiveRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(optional_auth)
+):
+    """
+    Archive a vehicle (soft delete).
+
+    **Args:**
+    - **vin**: Vehicle VIN
+    - **archive_data**: Archive metadata (reason, price, date, notes, visible)
+
+    **Returns:**
+    - Updated vehicle with archive metadata
+
+    **Raises:**
+    - **404**: Vehicle not found
+    - **403**: Not authorized (when authenticated)
+    """
+    vin = vin.upper().strip()
+    service = VehicleService(db)
+
+    # In auth mode, check ownership; in none mode, allow all
+    if current_user:
+        vehicle = await service.get_vehicle(vin, current_user)
+    else:
+        # No auth mode: get vehicle directly
+        result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
+        vehicle = result.scalar_one_or_none()
+        if not vehicle:
+            raise HTTPException(status_code=404, detail="Vehicle not found")
+
+    # Set archive fields
+    vehicle.archived_at = datetime.now(timezone.utc)
+    vehicle.archive_reason = archive_data.reason
+    vehicle.archive_sale_price = archive_data.sale_price
+    vehicle.archive_sale_date = archive_data.sale_date
+    vehicle.archive_notes = archive_data.notes
+    vehicle.archived_visible = archive_data.visible
+
+    await db.commit()
+    await db.refresh(vehicle)
+
+    logger.info(f"Archived vehicle {vin} (reason: {archive_data.reason})")
+    return VehicleResponse.model_validate(vehicle)
+
+
+@router.post("/{vin}/unarchive", response_model=VehicleResponse)
+async def unarchive_vehicle(
+    vin: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(optional_auth)
+):
+    """
+    Restore an archived vehicle to active status.
+
+    **Args:**
+    - **vin**: Vehicle VIN
+
+    **Returns:**
+    - Updated vehicle (active)
+
+    **Raises:**
+    - **404**: Vehicle not found
+    - **403**: Not authorized (when authenticated)
+    - **400**: Vehicle is not archived
+    """
+    vin = vin.upper().strip()
+    service = VehicleService(db)
+
+    # In auth mode, check ownership; in none mode, allow all
+    if current_user:
+        vehicle = await service.get_vehicle(vin, current_user)
+    else:
+        # No auth mode: get vehicle directly
+        result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
+        vehicle = result.scalar_one_or_none()
+        if not vehicle:
+            raise HTTPException(status_code=404, detail="Vehicle not found")
+
+    if not vehicle.archived_at:
+        raise HTTPException(status_code=400, detail="Vehicle is not archived")
+
+    # Clear archive fields
+    vehicle.archived_at = None
+    vehicle.archive_reason = None
+    vehicle.archive_sale_price = None
+    vehicle.archive_sale_date = None
+    vehicle.archive_notes = None
+    vehicle.archived_visible = True
+
+    await db.commit()
+    await db.refresh(vehicle)
+
+    logger.info(f"Unarchived vehicle {vin}")
+    return VehicleResponse.model_validate(vehicle)
+
+
+@router.get("/archived/list", response_model=VehicleListResponse)
+async def list_archived_vehicles(
+    skip: int = 0,
+    limit: int = 100,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(optional_auth)
+):
+    """
+    Get list of archived vehicles (user's own only in auth mode, all in none mode).
+
+    **Query Parameters:**
+    - **skip**: Number of records to skip
+    - **limit**: Maximum number of records to return
+
+    **Returns:**
+    - List of archived vehicles with total count
+
+    **Security:**
+    - When authenticated: Users see ONLY their own archived vehicles (admin does NOT see all)
+    - When auth_mode=none: Returns all archived vehicles
+    """
+    # Build query for archived vehicles
+    if current_user:
+        # Auth mode: user's archived vehicles + vehicles with NULL user_id (created in none mode)
+        logger.info(f"Fetching archived vehicles for user_id={current_user.id}")
+        query = select(Vehicle).where(
+            ((Vehicle.user_id == current_user.id) | (Vehicle.user_id.is_(None))),
+            Vehicle.archived_at.isnot(None)
+        ).order_by(Vehicle.archived_at.desc())
+    else:
+        # No auth mode: all archived vehicles
+        logger.info("Fetching all archived vehicles (auth_mode=none)")
+        query = select(Vehicle).where(
+            Vehicle.archived_at.isnot(None)
+        ).order_by(Vehicle.archived_at.desc())
+
+    # Get total count
+    count_query = select(func.count()).select_from(query.subquery())
+    result = await db.execute(count_query)
+    total = result.scalar() or 0
+
+    logger.info(f"Found {total} archived vehicles")
+
+    # Get paginated results
+    query = query.offset(skip).limit(limit)
+    result = await db.execute(query)
+    vehicles = result.scalars().all()
+
+    logger.info(f"Returning {len(vehicles)} archived vehicles")
+
+    return VehicleListResponse(
+        vehicles=[VehicleResponse.model_validate(v) for v in vehicles],
+        total=total
+    )
+
+
+@router.patch("/{vin}/archive/visibility", response_model=VehicleResponse)
+async def toggle_archived_visibility(
+    vin: str,
+    visible: bool,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(optional_auth)
+):
+    """
+    Toggle visibility of archived vehicle in main list.
+
+    **Args:**
+    - **vin**: Vehicle VIN
+    - **visible**: Whether to show in main list
+
+    **Returns:**
+    - Updated vehicle
+
+    **Raises:**
+    - **404**: Vehicle not found
+    - **403**: Not authorized (when authenticated)
+    - **400**: Vehicle is not archived
+    """
+    vin = vin.upper().strip()
+    service = VehicleService(db)
+
+    # In auth mode, check ownership; in none mode, allow all
+    if current_user:
+        vehicle = await service.get_vehicle(vin, current_user)
+    else:
+        # No auth mode: get vehicle directly
+        result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
+        vehicle = result.scalar_one_or_none()
+        if not vehicle:
+            raise HTTPException(status_code=404, detail="Vehicle not found")
+
+    if not vehicle.archived_at:
+        raise HTTPException(status_code=400, detail="Vehicle is not archived")
+
+    vehicle.archived_visible = visible
+
+    await db.commit()
+    await db.refresh(vehicle)
+
+    logger.info(f"Set archived vehicle {vin} visibility to {visible}")
+    return VehicleResponse.model_validate(vehicle)

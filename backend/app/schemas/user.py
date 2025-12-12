@@ -48,6 +48,8 @@ class UserUpdate(BaseModel):
     full_name: str | None = Field(None, max_length=255)
     is_active: bool | None = None
     is_admin: bool | None = None
+    unit_preference: str | None = Field(None, pattern="^(imperial|metric)$")
+    show_both_units: bool | None = None
 
 
 class UserPasswordUpdate(BaseModel):
@@ -78,6 +80,8 @@ class UserResponse(UserBase):
     id: int
     is_active: bool
     is_admin: bool
+    unit_preference: str = "imperial"
+    show_both_units: bool = False
     created_at: datetime
     updated_at: datetime
     last_login: datetime | None

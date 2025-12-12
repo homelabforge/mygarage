@@ -149,13 +149,13 @@ def migrate():
 
         print("\n=== Migration complete! ===")
         print("Summary:")
-        print(f"  ✓ Added insurance_claim field to service_records")
+        print("  ✓ Added insurance_claim field to service_records")
         if collision_table_exists:
-            print(f"  ✓ Migrated collision records to service_records")
-            print(f"  ✓ Backed up and dropped collision_records table")
+            print("  ✓ Migrated collision records to service_records")
+            print("  ✓ Backed up and dropped collision_records table")
         if upgrade_table_exists:
-            print(f"  ✓ Migrated upgrade records to service_records")
-            print(f"  ✓ Backed up and dropped upgrade_records table")
+            print("  ✓ Migrated upgrade records to service_records")
+            print("  ✓ Backed up and dropped upgrade_records table")
         print(f"  ✓ Total service records: {total_count}")
 
     except Exception as e:

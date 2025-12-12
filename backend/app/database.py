@@ -90,7 +90,6 @@ async def init_db():
     import os
     from pathlib import Path
 
-    from app.models import vehicle, service, fuel, odometer, reminder, tax, note, recall, attachment, photo, spot_rental, settings as settings_model, toll, address_book, user, audit_log
 
     async with engine.begin() as conn:
         logger.info("Creating database tables...")

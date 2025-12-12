@@ -6,6 +6,8 @@ interface User {
   username: string
   email: string
   is_admin: boolean
+  unit_preference?: 'imperial' | 'metric'
+  show_both_units?: boolean
 }
 
 interface AuthContextType {

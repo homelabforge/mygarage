@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
-import { Server, CheckCircle, AlertCircle, Info, Shield, Users, AlertTriangle, Key, Wrench, Fuel, Bell, FileText, StickyNote, Camera, Sun, Moon, Eye, EyeOff, Loader } from 'lucide-react'
+import { Server, CheckCircle, AlertCircle, Info, Shield, Users, AlertTriangle, Key, Wrench, Fuel, Bell, FileText, StickyNote, Camera, Sun, Moon, Eye, EyeOff, Loader, Ruler, Archive } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useSettings } from '@/contexts/SettingsContext'
 import { useTheme } from '@/contexts/ThemeContext'
@@ -10,6 +10,7 @@ import { toast } from 'sonner'
 import UserManagementModal from '@/components/modals/UserManagementModal'
 import AddEditUserModal from '@/components/modals/AddEditUserModal'
 import DeleteUserModal from '@/components/modals/DeleteUserModal'
+import ArchivedVehiclesList from '@/components/ArchivedVehiclesList'
 
 type RawSetting = {
   key: string
@@ -82,6 +83,11 @@ export default function SettingsSystemTab() {
   const [oidcTestLoading, setOidcTestLoading] = useState(false)
   const [oidcTestResult, setOidcTestResult] = useState<{ success: boolean, message?: string, metadata?: object, errors?: string[] } | null>(null)
   const [showClientSecret, setShowClientSecret] = useState(false)
+
+  // Unit preference state
+  const [unitPreference, setUnitPreference] = useState<'imperial' | 'metric'>('imperial')
+  const [showBothUnits, setShowBothUnits] = useState(false)
+  const [unitPreferenceSaving, setUnitPreferenceSaving] = useState(false)
 
   // Common timezones
   const timezones = [
@@ -156,6 +162,21 @@ export default function SettingsSystemTab() {
   useEffect(() => {
     void loadSettings()
   }, [loadSettings])
+
+  // Load user's unit preferences
+  useEffect(() => {
+    if (currentUser) {
+      // If authenticated, load from user profile
+      setUnitPreference(currentUser.unit_preference || 'imperial')
+      setShowBothUnits(currentUser.show_both_units || false)
+    } else {
+      // If not authenticated, load from localStorage
+      const storedSystem = localStorage.getItem('unit_preference') as 'imperial' | 'metric' | null
+      const storedShowBoth = localStorage.getItem('show_both_units') === 'true'
+      setUnitPreference(storedSystem || 'imperial')
+      setShowBothUnits(storedShowBoth)
+    }
+  }, [currentUser])
 
   // Load dashboard stats
   useEffect(() => {
@@ -304,6 +325,77 @@ export default function SettingsSystemTab() {
       })
     } finally {
       setOidcTestLoading(false)
+    }
+  }
+
+  // Handle unit preference change
+  const handleUnitPreferenceChange = async (system: 'imperial' | 'metric') => {
+    setUnitPreferenceSaving(true)
+    setUnitPreference(system)
+
+    try {
+      if (isAuthenticated) {
+        // Save to user profile if authenticated
+        await api.put('/auth/me', {
+          unit_preference: system,
+        })
+
+        // Refresh user to update AuthContext
+        await api.get('/auth/me')
+      } else {
+        // Save to localStorage if not authenticated
+        localStorage.setItem('unit_preference', system)
+      }
+
+      toast.success('Unit preference saved!')
+      // Force a re-render to update displays
+      window.dispatchEvent(new Event('storage'))
+    } catch (error) {
+      toast.error('Failed to save unit preference')
+      // Revert on error
+      if (isAuthenticated) {
+        setUnitPreference(currentUser?.unit_preference || 'imperial')
+      } else {
+        const stored = localStorage.getItem('unit_preference') as 'imperial' | 'metric' | null
+        setUnitPreference(stored || 'imperial')
+      }
+    } finally {
+      setUnitPreferenceSaving(false)
+    }
+  }
+
+  const handleShowBothUnitsChange = async (showBoth: boolean) => {
+    setUnitPreferenceSaving(true)
+    setShowBothUnits(showBoth)
+
+    try {
+      if (isAuthenticated) {
+        // Save to user profile if authenticated
+        await api.put('/auth/me', {
+          show_both_units: showBoth,
+        })
+
+        // Refresh user to update AuthContext
+        await api.get('/auth/me')
+      } else {
+        // Save to localStorage if not authenticated
+        localStorage.setItem('show_both_units', showBoth.toString())
+      }
+
+      toast.success('Display preference saved!')
+      // Force a re-render to update displays
+      window.dispatchEvent(new Event('storage'))
+    } catch (error) {
+      toast.error('Failed to save display preference')
+      // Revert on error
+      if (isAuthenticated) {
+        setShowBothUnits(currentUser?.show_both_units || false)
+      } else {
+        const stored = localStorage.getItem('show_both_units') === 'true'
+        setShowBothUnits(stored)
+      }
+    } finally {
+      setUnitPreferenceSaving(false)
     }
   }
 
@@ -526,6 +618,64 @@ export default function SettingsSystemTab() {
           </p>
         </div>
 
+        {/* Unit System Setting */}
+        <div>
+          <label className="block text-sm font-medium text-garage-text mb-3">
+            Unit System
+          </label>
+          <div className="flex gap-3">
+            <button
+              onClick={() => handleUnitPreferenceChange('imperial')}
+              disabled={unitPreferenceSaving}
+              className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 transition-all ${
+                unitPreference === 'imperial'
+                  ? 'border-primary bg-primary/10 text-primary'
+                  : 'border-garage-border bg-garage-bg text-garage-text hover:border-garage-border-light'
+              } ${unitPreferenceSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              <Ruler className="w-5 h-5" />
+              <span className="font-medium">Imperial</span>
+            </button>
+            <button
+              onClick={() => handleUnitPreferenceChange('metric')}
+              disabled={unitPreferenceSaving}
+              className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 transition-all ${
+                unitPreference === 'metric'
+                  ? 'border-primary bg-primary/10 text-primary'
+                  : 'border-garage-border bg-garage-bg text-garage-text hover:border-garage-border-light'
+              } ${unitPreferenceSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              <Ruler className="w-5 h-5" />
+              <span className="font-medium">Metric</span>
+            </button>
+          </div>
+          <p className="mt-2 text-sm text-garage-text-muted">
+            {unitPreference === 'imperial'
+              ? 'Using imperial units: gallons, miles, MPG, °F, PSI, lbs, lb-ft'
+              : 'Using metric units: liters, kilometers, L/100km, °C, bar, kg, Nm'
+            }
+          </p>
+
+          {/* Show Both Units Checkbox */}
+          <div className="mt-4">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showBothUnits}
+                onChange={(e) => handleShowBothUnitsChange(e.target.checked)}
+                disabled={unitPreferenceSaving}
+                className="w-4 h-4 text-primary bg-garage-bg border-garage-border rounded focus:ring-primary focus:ring-2"
+              />
+              <span className="text-sm text-garage-text">
+                Show both units
+              </span>
+            </label>
+            <p className="mt-1 ml-7 text-sm text-garage-text-muted">
+              Display values in both imperial and metric (e.g., "25 MPG (9.4 L/100km)")
+            </p>
+          </div>
+        </div>
+
         {/* Info Box - Secret Key */}
         <div className="p-4 bg-primary/10 border border-primary/30 rounded-lg">
           <div className="flex items-start gap-2">
@@ -649,6 +799,26 @@ export default function SettingsSystemTab() {
           )}
         </div>
       )}
+
+      {/* Archive Management Card */}
+      <div className="bg-garage-surface rounded-lg border border-garage-border p-6 space-y-6">
+        {/* Header */}
+        <div className="flex items-start gap-3">
+          <Archive className="w-6 h-6 text-primary mt-1" />
+          <div className="flex-1">
+            <h2 className="text-xl font-semibold text-garage-text mb-2">
+              Archived Vehicles
+            </h2>
+            <p className="text-sm text-garage-text-muted">
+              View and manage vehicles you've archived (sold, totaled, gifted, etc.).
+              Archived vehicles remain in analytics but can be hidden from the main list.
+            </p>
+          </div>
+        </div>
+
+        {/* Archived Vehicles List */}
+        <ArchivedVehiclesList />
+      </div>
       </div>
 
       {/* Right Column */}

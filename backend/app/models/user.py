@@ -23,6 +23,10 @@ class User(Base):
     oidc_provider = Column(String(100), nullable=True, index=True)  # Provider name (e.g., 'Authentik', 'Keycloak')
     auth_method = Column(String(20), default="local", nullable=False, index=True)  # 'local' or 'oidc'
 
+    # Unit preference
+    unit_preference = Column(String(20), default="imperial", nullable=False)  # 'imperial' or 'metric'
+    show_both_units = Column(Boolean, default=False, nullable=False)
+
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
     last_login = Column(DateTime, nullable=True)

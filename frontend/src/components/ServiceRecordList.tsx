@@ -5,6 +5,8 @@ import { toast } from 'sonner'
 import type { ServiceRecord } from '../types/service'
 import AttachmentQuickView from './AttachmentQuickView'
 import api from '../services/api'
+import { useUnitPreference } from '../hooks/useUnitPreference'
+import { UnitFormatter } from '../utils/units'
 
 interface ServiceRecordListProps {
   vin: string
@@ -24,6 +26,7 @@ export default function ServiceRecordList({ vin, onAddClick, onEditClick, onRefr
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [quickViewRecordId, setQuickViewRecordId] = useState<number | null>(null)
   const [quickViewPosition, setQuickViewPosition] = useState({ top: 0, left: 0 })
+  const { system, showBoth } = useUnitPreference()
 
   const fetchRecords = useCallback(async () => {
     try {
@@ -316,7 +319,7 @@ export default function ServiceRecordList({ vin, onAddClick, onEditClick, onRefr
                     Description
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-garage-text-muted uppercase tracking-wider">
-                    Mileage
+                    Mileage ({UnitFormatter.getDistanceUnit(system)})
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-garage-text-muted uppercase tracking-wider">
                     Cost
@@ -368,7 +371,7 @@ export default function ServiceRecordList({ vin, onAddClick, onEditClick, onRefr
                       {record.mileage ? (
                         <div className="flex items-center gap-2 text-sm text-garage-text">
                           <Gauge className="w-4 h-4 text-garage-text-muted" />
-                          {record.mileage.toLocaleString()}
+                          {UnitFormatter.formatDistance(record.mileage, system, showBoth)}
                         </div>
                       ) : (
                         <span className="text-sm text-garage-text-muted">-</span>
