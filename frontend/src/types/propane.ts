@@ -19,7 +19,7 @@ export interface PropaneRecordCreate {
   notes?: string
 }
 
-export interface PropaneRecordUpdate extends Partial<PropaneRecordCreate> {}
+export type PropaneRecordUpdate = Partial<PropaneRecordCreate>
 
 export interface PropaneRecordListResponse {
   fuel_records: PropaneRecord[]

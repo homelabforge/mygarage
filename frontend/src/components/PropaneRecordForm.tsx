@@ -84,8 +84,8 @@ export default function PropaneRecordForm({
     }
 
     if (gallons && pricePerUnit) {
-      const gallonsNum = typeof gallons === 'number' ? gallons : parseFloat(gallons as any)
-      const priceNum = typeof pricePerUnit === 'number' ? pricePerUnit : parseFloat(pricePerUnit as any)
+      const gallonsNum = typeof gallons === 'number' ? gallons : parseFloat(String(gallons))
+      const priceNum = typeof pricePerUnit === 'number' ? pricePerUnit : parseFloat(String(pricePerUnit))
 
       if (!isNaN(gallonsNum) && !isNaN(priceNum)) {
         const total = gallonsNum * priceNum

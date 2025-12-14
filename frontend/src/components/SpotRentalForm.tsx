@@ -93,7 +93,7 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
         category: 'RV Park'
       })
       toast.success('Location saved to address book')
-    } catch (err) {
+    } catch {
       toast.error('Failed to save to address book')
     } finally {
       setShowSaveToAddressBook(false)
