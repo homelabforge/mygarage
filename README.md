@@ -60,40 +60,6 @@ Open http://localhost:8686 and start tracking your vehicles.
 
 ---
 
-## Documentation
-
-### Getting Started
-- **[Installation](https://github.com/homelabforge/mygarage/wiki/Installation)** - Docker setup and configuration
-- **[Quick Start Guide](https://github.com/homelabforge/mygarage/wiki/Quick-Start)** - Get running in 5 minutes
-- **[First Time Setup](https://github.com/homelabforge/mygarage/wiki/First-Time-Setup)** - Initial configuration
-
-### Features
-- **[Managing Vehicles](https://github.com/homelabforge/mygarage/wiki/Managing-Vehicles)** - Adding and organizing vehicles
-- **[Service Records](https://github.com/homelabforge/mygarage/wiki/Service-Records)** - Maintenance tracking
-- **[Fuel Tracking](https://github.com/homelabforge/mygarage/wiki/Fuel-Tracking)** - MPG and economy analytics
-- **[Fifth Wheels & RVs](https://github.com/homelabforge/mygarage/wiki/Fifth-Wheels-And-RVs)** - RV-specific features
-- **[Documents](https://github.com/homelabforge/mygarage/wiki/Documents)** - File management and OCR
-- **[Dashboard](https://github.com/homelabforge/mygarage/wiki/Dashboard)** - Overview and analytics
-
-### Configuration
-- **[Authentication](https://github.com/homelabforge/mygarage/wiki/Authentication)** - Local, OIDC, and SSO setup
-- **[Database Configuration](https://github.com/homelabforge/mygarage/wiki/Database-Configuration)** - SQLite vs PostgreSQL
-- **[Reverse Proxy](https://github.com/homelabforge/mygarage/wiki/Reverse-Proxy)** - Traefik, Nginx, Caddy examples
-
-### Help
-- **[FAQ](https://github.com/homelabforge/mygarage/wiki/FAQ)** - Common questions
-- **[Troubleshooting](https://github.com/homelabforge/mygarage/wiki/Troubleshooting)** - Fix common issues
-
----
-
-## Technology Stack
-
-**Backend:** FastAPI (Python), SQLAlchemy, SQLite/PostgreSQL, JWT Auth, OIDC Support
-**Frontend:** React, TypeScript, Tailwind CSS, Bun, Vite
-
----
-
-
 ## Support
 
 - **📚 Documentation**: [GitHub Wiki](https://github.com/homelabforge/mygarage/wiki)
