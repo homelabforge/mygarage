@@ -435,34 +435,36 @@ export default function Analytics() {
           <p className="text-xs text-garage-text-muted mt-4">{cost_projection.assumptions}</p>
         </div>
 
-        <div className="bg-garage-surface border border-garage-border rounded-lg p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-garage-text">Fuel Efficiency Alerts</h3>
-            <Fuel className="w-5 h-5 text-garage-text-muted" />
-          </div>
-          {(!fuel_alerts || fuel_alerts.length === 0) && (
-            <p className="text-sm text-garage-text-muted">No fuel efficiency concerns detected.</p>
-          )}
-          <div className="space-y-3">
-            {fuel_alerts?.map((alert, idx) => (
-              <div
-                key={`${alert.title}-${idx}`}
-                className={`border rounded-lg p-4 ${getAlertStyles(alert.severity)}`}
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <p className="text-sm font-semibold">{alert.title}</p>
-                  <span className="text-xs uppercase tracking-wide">{alert.severity}</span>
+        {isMotorized && (
+          <div className="bg-garage-surface border border-garage-border rounded-lg p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-garage-text">Fuel Efficiency Alerts</h3>
+              <Fuel className="w-5 h-5 text-garage-text-muted" />
+            </div>
+            {(!fuel_alerts || fuel_alerts.length === 0) && (
+              <p className="text-sm text-garage-text-muted">No fuel efficiency concerns detected.</p>
+            )}
+            <div className="space-y-3">
+              {fuel_alerts?.map((alert, idx) => (
+                <div
+                  key={`${alert.title}-${idx}`}
+                  className={`border rounded-lg p-4 ${getAlertStyles(alert.severity)}`}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-sm font-semibold">{alert.title}</p>
+                    <span className="text-xs uppercase tracking-wide">{alert.severity}</span>
+                  </div>
+                  <p className="text-sm">{alert.message}</p>
+                  {(alert.recent_mpg || alert.baseline_mpg) && (
+                    <p className="text-xs mt-2">
+                      Recent: {alert.recent_mpg ? UnitFormatter.formatFuelEconomy(parseFloat(alert.recent_mpg), system, showBoth) : '—'} • Baseline: {alert.baseline_mpg ? UnitFormatter.formatFuelEconomy(parseFloat(alert.baseline_mpg), system, showBoth) : '—'}
+                    </p>
+                  )}
                 </div>
-                <p className="text-sm">{alert.message}</p>
-                {(alert.recent_mpg || alert.baseline_mpg) && (
-                  <p className="text-xs mt-2">
-                    Recent: {alert.recent_mpg ? UnitFormatter.formatFuelEconomy(parseFloat(alert.recent_mpg), system, showBoth) : '—'} • Baseline: {alert.baseline_mpg ? UnitFormatter.formatFuelEconomy(parseFloat(alert.baseline_mpg), system, showBoth) : '—'}
-                  </p>
-                )}
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Spending Anomaly Alerts */}
         <div className="bg-garage-surface border border-garage-border rounded-lg p-6">
@@ -1147,12 +1149,23 @@ export default function Analytics() {
                   <XAxis dataKey="month_name" stroke="#9CA3AF" />
                   <YAxis stroke="#9CA3AF" />
                   <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#1F2937',
-                      border: '1px solid #374151',
-                      borderRadius: '0.375rem',
+                    cursor={false}
+                    wrapperStyle={{ outline: 'none' }}
+                    content={({ active, payload, label }) => {
+                      if (active && payload && payload.length) {
+                        return (
+                          <div style={{ backgroundColor: '#1a1f28', border: '1px solid #3a4050', borderRadius: '8px', padding: '12px', color: '#e4e6eb' }}>
+                            <p style={{ fontWeight: '600', marginBottom: '8px' }}>{label}</p>
+                            {payload.map((entry, index) => (
+                              <p key={index} style={{ fontSize: '14px', color: '#9ca3af' }}>
+                                {entry.name}: {formatCurrency(entry.value as number)}
+                              </p>
+                            ))}
+                          </div>
+                        )
+                      }
+                      return null
                     }}
-                    formatter={(value: number) => formatCurrency(value)}
                   />
                   <Legend />
                   <Bar dataKey="total_cost" fill="#3B82F6" name="Total Cost" />
@@ -1201,20 +1214,29 @@ export default function Analytics() {
                   <XAxis dataKey="month_name" stroke="#9CA3AF" />
                   <YAxis stroke="#9CA3AF" />
                   <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#1F2937',
-                      border: '1px solid #374151',
-                      borderRadius: '0.375rem',
-                    }}
-                    formatter={(value: number, name: string) => {
-                      const labels: Record<string, string> = {
-                        total_cost: 'Total',
-                        monthly_rate: 'Monthly Rate',
-                        electric: 'Electric',
-                        water: 'Water',
-                        waste: 'Waste',
+                    cursor={false}
+                    wrapperStyle={{ outline: 'none' }}
+                    content={({ active, payload, label }) => {
+                      if (active && payload && payload.length) {
+                        const labels: Record<string, string> = {
+                          total_cost: 'Total',
+                          monthly_rate: 'Monthly Rate',
+                          electric: 'Electric',
+                          water: 'Water',
+                          waste: 'Waste',
+                        }
+                        return (
+                          <div style={{ backgroundColor: '#1a1f28', border: '1px solid #3a4050', borderRadius: '8px', padding: '12px', color: '#e4e6eb' }}>
+                            <p style={{ fontWeight: '600', marginBottom: '8px' }}>{label}</p>
+                            {payload.map((entry, index) => (
+                              <p key={index} style={{ fontSize: '14px', color: '#9ca3af' }}>
+                                {labels[entry.dataKey as string] || entry.name}: {formatCurrency(entry.value as number)}
+                              </p>
+                            ))}
+                          </div>
+                        )
                       }
-                      return [formatCurrency(value), labels[name] || name]
+                      return null
                     }}
                   />
                   <Legend />

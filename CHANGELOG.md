@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.17.3] - 2025-12-14
+
+### Fixed
+- **Fifth Wheel Analytics & Reports**
+  - Excluded fuel efficiency metrics from fifth wheel analytics (previously showing incorrectly)
+  - Fixed cost summary PDF reports to exclude fuel data for fifth wheels
+  - Hidden fuel efficiency alerts card for non-motorized vehicles (fifth wheels and trailers)
+
+- **Analytics UI Improvements**
+  - Fixed propane analysis bar chart tooltip background (now displays dark theme properly)
+  - Fixed spot rental analysis bar chart tooltip background (now displays dark theme properly)
+  - Improved tooltip consistency across all analytics charts
+
+- **Type Safety**
+  - Fixed TypeScript type errors in FuelRecordForm component for Decimal field handling
+  - Fixed PropaneRecordList filter to properly handle string/number type conversions
+  - Added proper type conversion helpers for API Decimal values returned as strings
+
 ## [2.17.2] - 2025-12-14
 
 ### Fixed

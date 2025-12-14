@@ -195,8 +195,8 @@ class PDFReportGenerator:
             ['Category', 'Count', 'Total Cost', 'Average']
         ]
 
-        # Check if vehicle is motorized
-        is_motorized = vehicle_info.get('vehicle_type') not in ['Trailer']
+        # Check if vehicle is motorized (not a trailer or fifth wheel)
+        is_motorized = vehicle_info.get('vehicle_type') not in ['Trailer', 'FifthWheel']
 
         # Build categories list - exclude Fuel for non-motorized vehicles
         categories = [

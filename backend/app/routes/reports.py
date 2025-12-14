@@ -103,8 +103,8 @@ async def download_cost_summary_pdf(
     if not vehicle:
         raise HTTPException(status_code=404, detail="Vehicle not found")
 
-    # Check if vehicle is motorized (not a trailer)
-    is_motorized = vehicle.vehicle_type not in ['Trailer']
+    # Check if vehicle is motorized (not a trailer or fifth wheel)
+    is_motorized = vehicle.vehicle_type not in ['Trailer', 'FifthWheel']
 
     # Prepare vehicle info
     vehicle_info = {
