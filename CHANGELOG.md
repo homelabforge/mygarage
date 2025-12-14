@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.17.1] - 2025-12-14
+
+### Security
+- **[HIGH] Fixed Log Injection vulnerabilities in vehicle routes**
+  - Prevented potential log injection attacks in vehicle route endpoints
+  - Converted f-string logging to parameterized format to prevent log forgery
+
+### Documentation
+- **Streamlined README** - Reduced from 455 to 143 lines (68% reduction)
+  - Removed verbose configuration examples and troubleshooting details
+  - Organized wiki links into clear sections (Getting Started, Features, Configuration, Help)
+  - Centered badges and screenshot for improved visual presentation
+  - All detailed information now accessible through comprehensive wiki documentation
+
+### Fixed
+- **Code Quality** - Fixed ESLint and TypeScript errors in fifth wheel components
+  - Resolved type errors in PropaneTab, BillingEntryForm, and related components
+  - Removed unused imports and variables
+  - Updated bun lockfile to fix CI build issues
+
 ## [2.17.0] - 2025-12-13
 
 ### Added
