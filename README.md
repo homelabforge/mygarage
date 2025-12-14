@@ -1,4 +1,5 @@
 <div align="center">
+  
 Self-hosted vehicle maintenance tracking with VIN decoding, service records, fuel logging, and document management.
 
 [![CI](https://github.com/homelabforge/mygarage/actions/workflows/ci.yml/badge.svg)](https://github.com/homelabforge/mygarage/actions/workflows/ci.yml)
@@ -12,6 +13,7 @@ Self-hosted vehicle maintenance tracking with VIN decoding, service records, fue
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ![MyGarage Dashboard](docs/screenshots/dashboard.png)
+
 </div>
 
 ---
