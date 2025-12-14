@@ -251,7 +251,36 @@ if static_dir.exists():
     from fastapi.responses import FileResponse
     from fastapi.exception_handlers import http_exception_handler
 
-    # Mount static assets (CSS, JS, images)
+    # Serve PWA files with correct MIME types
+    @app.get("/sw.js", include_in_schema=False)
+    async def service_worker():
+        return FileResponse(
+            static_dir / "sw.js",
+            media_type="application/javascript"
+        )
+
+    @app.get("/manifest.json", include_in_schema=False)
+    async def manifest():
+        return FileResponse(
+            static_dir / "manifest.json",
+            media_type="application/json"
+        )
+
+    # Serve icon files with correct MIME type
+    @app.get("/icon-192.png", include_in_schema=False)
+    async def icon_192():
+        return FileResponse(static_dir / "icon-192.png", media_type="image/png")
+
+    @app.get("/icon-512.png", include_in_schema=False)
+    async def icon_512():
+        return FileResponse(static_dir / "icon-512.png", media_type="image/png")
+
+    # Serve root index.html
+    @app.get("/", include_in_schema=False)
+    async def root():
+        return FileResponse(static_dir / "index.html", media_type="text/html")
+
+    # Mount static assets (CSS, JS, images) - must be after route definitions
     app.mount("/assets", StaticFiles(directory=str(static_dir / "assets")), name="assets")
 
     # Custom 404 handler to serve SPA for non-API routes

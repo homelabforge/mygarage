@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { X, Save } from 'lucide-react'
@@ -23,6 +23,11 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
   const [selectedAddressEntry, setSelectedAddressEntry] = useState<AddressBookEntry | null>(null)
   const [showSaveToAddressBook, setShowSaveToAddressBook] = useState(false)
   const [pendingLocationData, setPendingLocationData] = useState<{name: string, address: string} | null>(null)
+  const [rateType, setRateType] = useState<'nightly' | 'weekly' | 'monthly'>(() => {
+    if (rental?.monthly_rate) return 'monthly'
+    if (rental?.weekly_rate) return 'weekly'
+    return 'nightly'
+  })
 
   // Helper to format date for input[type="date"]
   const formatDateForInput = (dateString?: string): string => {
@@ -67,6 +72,42 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
       notes: rental?.notes || '',
     },
   })
+
+  // Auto-calculate total cost from rate + utilities
+  const nightlyRate = watch('nightly_rate')
+  const weeklyRate = watch('weekly_rate')
+  const monthlyRate = watch('monthly_rate')
+  const electric = watch('electric')
+  const water = watch('water')
+  const waste = watch('waste')
+
+  useEffect(() => {
+    // Convert all values to numbers, handling both string and number inputs
+    const toNumber = (val: number | string | undefined): number => {
+      if (!val) return 0
+      const num = typeof val === 'string' ? parseFloat(val) : val
+      return isNaN(num) ? 0 : num
+    }
+
+    let baseRate = 0
+
+    if (rateType === 'nightly' && nightlyRate) {
+      baseRate = toNumber(nightlyRate)
+    } else if (rateType === 'weekly' && weeklyRate) {
+      baseRate = toNumber(weeklyRate)
+    } else if (rateType === 'monthly' && monthlyRate) {
+      baseRate = toNumber(monthlyRate)
+    }
+
+    const elec = toNumber(electric)
+    const wat = toNumber(water)
+    const wst = toNumber(waste)
+    const calculatedTotal = baseRate + elec + wat + wst
+
+    if (calculatedTotal > 0) {
+      setValue('total_cost', parseFloat(calculatedTotal.toFixed(2)))
+    }
+  }, [rateType, nightlyRate, weeklyRate, monthlyRate, electric, water, waste, setValue])
 
   const handleAddressBookSelect = (entry: AddressBookEntry | null) => {
     setSelectedAddressEntry(entry)
@@ -185,7 +226,6 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
                   }
                 }}
                 onSelectEntry={handleAddressBookSelect}
-                categoryFilter="RV Park"
                 placeholder="e.g., Happy Hills RV Park"
                 className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
                   errors.location_name ? 'border-red-500' : 'border-garage-border'
@@ -252,68 +292,63 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <label htmlFor="nightly_rate" className="block text-sm font-medium text-garage-text mb-1">
-                Nightly Rate
+              <label htmlFor="rate_type" className="block text-sm font-medium text-garage-text mb-1">
+                Rate Type
               </label>
-              <div className="relative">
-                <span className="absolute left-3 top-2 text-garage-text-muted">$</span>
-                <input
-                  type="number"
-                  id="nightly_rate"
-                  step="0.01"
-                  {...register('nightly_rate')}
-                  placeholder="45.00"
-                  className={`w-full pl-7 pr-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
-                    errors.nightly_rate ? 'border-red-500' : 'border-garage-border'
-                  }`}
-                  disabled={isSubmitting}
-                />
-              </div>
-              <FormError error={errors.nightly_rate} />
+              <select
+                id="rate_type"
+                value={rateType}
+                onChange={(e) => {
+                  const newType = e.target.value as 'nightly' | 'weekly' | 'monthly'
+                  setRateType(newType)
+                  // Clear other rate fields when switching
+                  if (newType === 'nightly') {
+                    setValue('weekly_rate', undefined)
+                    setValue('monthly_rate', undefined)
+                  } else if (newType === 'weekly') {
+                    setValue('nightly_rate', undefined)
+                    setValue('monthly_rate', undefined)
+                  } else {
+                    setValue('nightly_rate', undefined)
+                    setValue('weekly_rate', undefined)
+                  }
+                }}
+                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text border-garage-border"
+                disabled={isSubmitting}
+              >
+                <option value="nightly">Nightly</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+              </select>
             </div>
 
             <div>
-              <label htmlFor="weekly_rate" className="block text-sm font-medium text-garage-text mb-1">
-                Weekly Rate
+              <label htmlFor="rate_amount" className="block text-sm font-medium text-garage-text mb-1">
+                {rateType === 'nightly' ? 'Nightly' : rateType === 'weekly' ? 'Weekly' : 'Monthly'} Rate
               </label>
               <div className="relative">
                 <span className="absolute left-3 top-2 text-garage-text-muted">$</span>
                 <input
                   type="number"
-                  id="weekly_rate"
+                  id="rate_amount"
                   step="0.01"
-                  {...register('weekly_rate')}
-                  placeholder="280.00"
+                  {...register(rateType === 'nightly' ? 'nightly_rate' : rateType === 'weekly' ? 'weekly_rate' : 'monthly_rate')}
+                  placeholder={rateType === 'nightly' ? '45.00' : rateType === 'weekly' ? '280.00' : '950.00'}
                   className={`w-full pl-7 pr-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
-                    errors.weekly_rate ? 'border-red-500' : 'border-garage-border'
+                    (rateType === 'nightly' && errors.nightly_rate) ||
+                    (rateType === 'weekly' && errors.weekly_rate) ||
+                    (rateType === 'monthly' && errors.monthly_rate)
+                      ? 'border-red-500'
+                      : 'border-garage-border'
                   }`}
                   disabled={isSubmitting}
                 />
               </div>
-              <FormError error={errors.weekly_rate} />
-            </div>
-
-            <div>
-              <label htmlFor="monthly_rate" className="block text-sm font-medium text-garage-text mb-1">
-                Monthly Rate
-              </label>
-              <div className="relative">
-                <span className="absolute left-3 top-2 text-garage-text-muted">$</span>
-                <input
-                  type="number"
-                  id="monthly_rate"
-                  step="0.01"
-                  {...register('monthly_rate')}
-                  placeholder="950.00"
-                  className={`w-full pl-7 pr-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
-                    errors.monthly_rate ? 'border-red-500' : 'border-garage-border'
-                  }`}
-                  disabled={isSubmitting}
-                />
-              </div>
-              <FormError error={errors.monthly_rate} />
+              {rateType === 'nightly' && <FormError error={errors.nightly_rate} />}
+              {rateType === 'weekly' && <FormError error={errors.weekly_rate} />}
+              {rateType === 'monthly' && <FormError error={errors.monthly_rate} />}
             </div>
           </div>
 
@@ -393,16 +428,14 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
                 id="total_cost"
                 step="0.01"
                 {...register('total_cost')}
-                placeholder="2850.00"
-                className={`w-full pl-7 pr-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
-                  errors.total_cost ? 'border-red-500' : 'border-garage-border'
-                }`}
-                disabled={isSubmitting}
+                placeholder="Auto-calculated"
+                className="w-full pl-7 pr-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg/50 text-garage-text border-garage-border"
+                readOnly
               />
             </div>
             <FormError error={errors.total_cost} />
             <p className="text-xs text-garage-text-muted mt-1">
-              Total amount paid for this rental period
+              Automatically calculated from rate + electric + water + waste
             </p>
           </div>
 

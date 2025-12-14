@@ -1,6 +1,6 @@
 """Address book schemas for validation."""
 
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, Field, EmailStr, field_validator
 from datetime import datetime
 from typing import Optional
 
@@ -19,6 +19,14 @@ class AddressBookEntryBase(BaseModel):
     website: Optional[str] = Field(None, max_length=200)
     category: Optional[str] = Field(None, max_length=50)
     notes: Optional[str] = None
+
+    @field_validator('email', 'website', mode='before')
+    @classmethod
+    def empty_str_to_none(cls, v):
+        """Convert empty strings to None for optional fields."""
+        if v == '':
+            return None
+        return v
 
 
 class AddressBookEntryCreate(AddressBookEntryBase):
@@ -41,6 +49,14 @@ class AddressBookEntryUpdate(BaseModel):
     website: Optional[str] = Field(None, max_length=200)
     category: Optional[str] = Field(None, max_length=50)
     notes: Optional[str] = None
+
+    @field_validator('email', 'website', mode='before')
+    @classmethod
+    def empty_str_to_none(cls, v):
+        """Convert empty strings to None for optional fields."""
+        if v == '':
+            return None
+        return v
 
 
 class AddressBookEntryResponse(AddressBookEntryBase):

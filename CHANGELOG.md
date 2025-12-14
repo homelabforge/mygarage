@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.17.2] - 2025-12-14
+
+### Fixed
+- **Spot Rental Form Improvements**
+  - Fixed total cost auto-calculation with proper type conversion (resolved `toFixed()` errors)
+  - Simplified rate input to single field based on selected rate type (nightly/weekly/monthly)
+  - Auto-creates first billing entry when spot rental is created with monthly rate
+  - Billing entries now restricted to monthly rate rentals only
+
+- **Propane Tank Management**
+  - Fixed decimal validation to accept values like "30.5" in propane gallons field
+  - Improved form validation for propane capacity inputs
+
+- **Address Book Enhancements**
+  - Fixed address book edit functionality - now properly loads existing address data
+  - Corrected form field binding for editing addresses
+
+- **PWA & Service Worker**
+  - Fixed service worker MIME type (now served as `application/javascript`)
+  - Fixed manifest.json MIME type (now served as `application/json`)
+  - Fixed icon files to be served with correct `image/png` MIME type
+  - Added explicit root route handler to serve index.html
+  - Improved static file serving for PWA functionality
+
+### Changed
+- **Billing Entry UI**
+  - Updated styling to match dark theme consistently across billing forms
+  - Improved visual presentation of billing entry components
+
 ## [2.17.1] - 2025-12-14
 
 ### Security

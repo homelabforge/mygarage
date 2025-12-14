@@ -135,15 +135,15 @@ export default function BillingEntryForm({
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-gray-900">
+    <div className="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
+      <div className="bg-garage-surface rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-garage-border">
+        <div className="sticky top-0 bg-garage-surface border-b border-garage-border px-6 py-4 flex items-center justify-between rounded-t-lg">
+          <h2 className="text-xl font-semibold text-garage-text">
             {isEdit ? 'Edit Billing Entry' : 'Add Billing Entry'}
           </h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-500 transition-colors"
+            className="text-garage-text-muted hover:text-garage-text transition-colors"
             aria-label="Close"
           >
             <X className="h-6 w-6" />
@@ -152,42 +152,49 @@ export default function BillingEntryForm({
 
         <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-6">
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-              {error}
+            <div className="bg-danger/10 border border-danger rounded-lg p-3">
+              <p className="text-sm text-danger">{error}</p>
             </div>
           )}
 
           {/* Billing Date */}
           <div>
-            <label htmlFor="billing_date" className="block text-sm font-medium text-gray-700">
-              Billing Date <span className="text-red-500">*</span>
+            <label htmlFor="billing_date" className="block text-sm font-medium text-garage-text mb-1">
+              Billing Date <span className="text-danger">*</span>
             </label>
             <input
               type="date"
               id="billing_date"
               {...register('billing_date')}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
+                errors.billing_date ? 'border-red-500' : 'border-garage-border'
+              }`}
             />
             {errors.billing_date && (
-              <p className="mt-1 text-sm text-red-600">{errors.billing_date.message}</p>
+              <p className="mt-1 text-sm text-danger">{errors.billing_date.message}</p>
             )}
           </div>
 
           {/* Monthly Rate */}
           <div>
-            <label htmlFor="monthly_rate" className="block text-sm font-medium text-gray-700">
-              Monthly Rate ($)
+            <label htmlFor="monthly_rate" className="block text-sm font-medium text-garage-text mb-1">
+              Monthly Rate
             </label>
-            <input
-              type="number"
-              id="monthly_rate"
-              step="0.01"
-              {...register('monthly_rate')}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-              placeholder="0.00"
-            />
+            <div className="relative">
+              <span className="absolute left-3 top-2 text-garage-text-muted">$</span>
+              <input
+                type="number"
+                id="monthly_rate"
+                step="0.01"
+                {...register('monthly_rate')}
+                placeholder="0.00"
+                className={`w-full pl-7 pr-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
+                  errors.monthly_rate ? 'border-red-500' : 'border-garage-border'
+                }`}
+              />
+            </div>
             {errors.monthly_rate && (
-              <p className="mt-1 text-sm text-red-600">{errors.monthly_rate.message}</p>
+              <p className="mt-1 text-sm text-danger">{errors.monthly_rate.message}</p>
             )}
           </div>
 
@@ -195,114 +202,136 @@ export default function BillingEntryForm({
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Electric */}
             <div>
-              <label htmlFor="electric" className="block text-sm font-medium text-gray-700">
-                Electric ($)
+              <label htmlFor="electric" className="block text-sm font-medium text-garage-text mb-1">
+                Electric
               </label>
-              <input
-                type="number"
-                id="electric"
-                step="0.01"
-                {...register('electric')}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                placeholder="0.00"
-              />
+              <div className="relative">
+                <span className="absolute left-3 top-2 text-garage-text-muted">$</span>
+                <input
+                  type="number"
+                  id="electric"
+                  step="0.01"
+                  {...register('electric')}
+                  placeholder="0.00"
+                  className={`w-full pl-7 pr-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
+                    errors.electric ? 'border-red-500' : 'border-garage-border'
+                  }`}
+                />
+              </div>
               {errors.electric && (
-                <p className="mt-1 text-sm text-red-600">{errors.electric.message}</p>
+                <p className="mt-1 text-sm text-danger">{errors.electric.message}</p>
               )}
             </div>
 
             {/* Water */}
             <div>
-              <label htmlFor="water" className="block text-sm font-medium text-gray-700">
-                Water ($)
+              <label htmlFor="water" className="block text-sm font-medium text-garage-text mb-1">
+                Water
               </label>
-              <input
-                type="number"
-                id="water"
-                step="0.01"
-                {...register('water')}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                placeholder="0.00"
-              />
+              <div className="relative">
+                <span className="absolute left-3 top-2 text-garage-text-muted">$</span>
+                <input
+                  type="number"
+                  id="water"
+                  step="0.01"
+                  {...register('water')}
+                  placeholder="0.00"
+                  className={`w-full pl-7 pr-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
+                    errors.water ? 'border-red-500' : 'border-garage-border'
+                  }`}
+                />
+              </div>
               {errors.water && (
-                <p className="mt-1 text-sm text-red-600">{errors.water.message}</p>
+                <p className="mt-1 text-sm text-danger">{errors.water.message}</p>
               )}
             </div>
 
             {/* Waste */}
             <div>
-              <label htmlFor="waste" className="block text-sm font-medium text-gray-700">
-                Waste ($)
+              <label htmlFor="waste" className="block text-sm font-medium text-garage-text mb-1">
+                Waste
               </label>
-              <input
-                type="number"
-                id="waste"
-                step="0.01"
-                {...register('waste')}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                placeholder="0.00"
-              />
+              <div className="relative">
+                <span className="absolute left-3 top-2 text-garage-text-muted">$</span>
+                <input
+                  type="number"
+                  id="waste"
+                  step="0.01"
+                  {...register('waste')}
+                  placeholder="0.00"
+                  className={`w-full pl-7 pr-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
+                    errors.waste ? 'border-red-500' : 'border-garage-border'
+                  }`}
+                />
+              </div>
               {errors.waste && (
-                <p className="mt-1 text-sm text-red-600">{errors.waste.message}</p>
+                <p className="mt-1 text-sm text-danger">{errors.waste.message}</p>
               )}
             </div>
           </div>
 
           {/* Total (Auto-calculated) */}
           <div>
-            <label htmlFor="total" className="block text-sm font-medium text-gray-700">
-              Total ($)
+            <label htmlFor="total" className="block text-sm font-medium text-garage-text mb-1">
+              Total
             </label>
-            <input
-              type="number"
-              id="total"
-              step="0.01"
-              {...register('total')}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm bg-gray-50"
-              placeholder="Auto-calculated"
-              readOnly
-            />
+            <div className="relative">
+              <span className="absolute left-3 top-2 text-garage-text-muted">$</span>
+              <input
+                type="number"
+                id="total"
+                step="0.01"
+                {...register('total')}
+                placeholder="Auto-calculated"
+                className="w-full pl-7 pr-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg/50 text-garage-text border-garage-border"
+                readOnly
+              />
+            </div>
             {errors.total && (
-              <p className="mt-1 text-sm text-red-600">{errors.total.message}</p>
+              <p className="mt-1 text-sm text-danger">{errors.total.message}</p>
             )}
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="mt-1 text-xs text-garage-text-muted">
               Automatically calculated from Monthly Rate + Electric + Water + Waste
             </p>
           </div>
 
           {/* Notes */}
           <div>
-            <label htmlFor="notes" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="notes" className="block text-sm font-medium text-garage-text mb-1">
               Notes
             </label>
             <textarea
               id="notes"
               rows={4}
               {...register('notes')}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
               placeholder="Any additional notes about this billing period..."
+              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
+                errors.notes ? 'border-red-500' : 'border-garage-border'
+              }`}
             />
             {errors.notes && (
-              <p className="mt-1 text-sm text-red-600">{errors.notes.message}</p>
+              <p className="mt-1 text-sm text-danger">{errors.notes.message}</p>
             )}
           </div>
 
           {/* Actions */}
-          <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            >
-              Cancel
-            </button>
+          <div className="flex gap-3 pt-4">
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Save className="h-4 w-4" />
-              {isSubmitting ? 'Saving...' : 'Save Billing Entry'}
+              <Save className="w-4 h-4" />
+              <span>{isSubmitting ? 'Saving...' : isEdit ? 'Update' : 'Create'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isSubmitting}
+              className="btn btn-primary rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Cancel
             </button>
           </div>
         </form>

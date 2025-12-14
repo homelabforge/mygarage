@@ -61,11 +61,30 @@ export default function PropaneRecordForm({
     resolver: zodResolver(propaneRecordSchema) as Resolver<PropaneRecordFormData>,
     defaultValues: {
       date: formatDateForInput(record?.date),
-      propane_gallons: system === 'metric' && record?.propane_gallons
-        ? UnitConverter.gallonsToLiters(record.propane_gallons) ?? undefined
-        : record?.propane_gallons ?? undefined,
-      price_per_unit: record?.price_per_unit ?? undefined,
-      cost: record?.cost ?? undefined,
+      propane_gallons: (() => {
+        if (!record?.propane_gallons) return undefined
+        const gallons = typeof record.propane_gallons === 'string'
+          ? parseFloat(record.propane_gallons)
+          : record.propane_gallons
+        if (isNaN(gallons)) return undefined
+        return system === 'metric'
+          ? UnitConverter.gallonsToLiters(gallons) ?? undefined
+          : gallons
+      })(),
+      price_per_unit: (() => {
+        if (!record?.price_per_unit) return undefined
+        const price = typeof record.price_per_unit === 'string'
+          ? parseFloat(record.price_per_unit)
+          : record.price_per_unit
+        return isNaN(price) ? undefined : price
+      })(),
+      cost: (() => {
+        if (!record?.cost) return undefined
+        const cost = typeof record.cost === 'string'
+          ? parseFloat(record.cost)
+          : record.cost
+        return isNaN(cost) ? undefined : cost
+      })(),
       vendor: extractVendor(record?.notes) || '',
       notes: record?.notes?.replace(/^Vendor: .+?\n/, '') || '',
     },

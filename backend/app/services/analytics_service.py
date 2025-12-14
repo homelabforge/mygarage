@@ -511,9 +511,9 @@ async def calculate_spot_rental_costs(db, vin: str) -> Dict:
     Returns:
         Dictionary with spot rental statistics and monthly trends
     """
-    from sqlalchemy import select, func
+    from sqlalchemy import select
     from sqlalchemy.orm import selectinload
-    from app.models import SpotRental, SpotRentalBilling
+    from app.models import SpotRental
 
     # Get all spot rentals with billings for this vehicle
     result = await db.execute(

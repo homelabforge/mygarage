@@ -3,10 +3,9 @@
 from pydantic import BaseModel, Field
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Optional, TYPE_CHECKING
+from typing import Optional
 
-if TYPE_CHECKING:
-    from app.schemas.spot_rental_billing import SpotRentalBillingResponse
+from app.schemas.spot_rental_billing import SpotRentalBillingResponse
 
 
 class SpotRentalBase(BaseModel):
@@ -57,7 +56,7 @@ class SpotRentalResponse(SpotRentalBase):
     id: int
     vin: str
     created_at: datetime
-    billings: list["SpotRentalBillingResponse"] = []
+    billings: list[SpotRentalBillingResponse] = []
 
     model_config = {"from_attributes": True}
 

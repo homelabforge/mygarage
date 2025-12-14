@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-export const ADDRESS_BOOK_CATEGORIES = ['Service', 'Parts', 'Dealer', 'Insurance', 'Other'] as const
+export const ADDRESS_BOOK_CATEGORIES = ['Service', 'Parts', 'Dealer', 'Insurance', 'RV Park', 'Other'] as const
 
 export const addressBookSchema = z.object({
   business_name: z.string().min(1, 'Business name is required').max(150, 'Business name too long'),

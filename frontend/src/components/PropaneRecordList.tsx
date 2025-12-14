@@ -76,21 +76,26 @@ export default function PropaneRecordList({ vin }: PropaneRecordListProps) {
     setShowForm(false)
   }
 
-  const formatCurrency = (amount?: number): string => {
+  const formatCurrency = (amount?: number | string): string => {
     if (!amount) return '-'
+    const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount
+    if (isNaN(numAmount)) return '-'
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
-    }).format(amount)
+    }).format(numAmount)
   }
 
-  const formatVolume = (gallons?: number): string => {
+  const formatVolume = (gallons?: number | string): string => {
     if (!gallons) return '-'
+    const numGallons = typeof gallons === 'string' ? parseFloat(gallons) : gallons
+    if (isNaN(numGallons)) return '-'
     if (system === 'metric') {
-      const liters = UnitConverter.gallonsToLiters(gallons)
-      return `${liters?.toFixed(3)} ${UnitFormatter.getVolumeUnit(system)}`
+      const liters = UnitConverter.gallonsToLiters(numGallons)
+      if (liters === null) return '-'
+      return `${liters.toFixed(3)} ${UnitFormatter.getVolumeUnit(system)}`
     }
-    return `${gallons.toFixed(3)} ${UnitFormatter.getVolumeUnit(system)}`
+    return `${numGallons.toFixed(3)} ${UnitFormatter.getVolumeUnit(system)}`
   }
 
   const extractVendor = (notes?: string): string => {
@@ -124,7 +129,10 @@ export default function PropaneRecordList({ vin }: PropaneRecordListProps) {
           {records.length > 0 && (
             <p className="text-sm text-garage-text-muted">
               {records.length} {records.length === 1 ? 'record' : 'records'} •
-              Total Spent: {formatCurrency(records.reduce((sum, r) => sum + (r.cost || 0), 0))}
+              Total Spent: {formatCurrency(records.reduce((sum, r) => {
+                const cost = typeof r.cost === 'string' ? parseFloat(r.cost) : (r.cost || 0)
+                return sum + (isNaN(cost) ? 0 : cost)
+              }, 0))}
             </p>
           )}
         </div>

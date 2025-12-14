@@ -9,6 +9,7 @@ from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.models import SpotRental, Vehicle
+from app.models.spot_rental_billing import SpotRentalBilling
 from app.models.user import User
 from app.services.auth import require_auth
 from app.schemas.spot_rental import (
@@ -101,6 +102,32 @@ async def create_spot_rental(
     await db.commit()
     await db.refresh(rental)
 
+    # Auto-create first billing entry if monthly rate is provided
+    if rental_data.monthly_rate is not None and rental_data.monthly_rate > 0:
+        billing_total = rental_data.monthly_rate
+        if rental_data.electric:
+            billing_total += rental_data.electric
+        if rental_data.water:
+            billing_total += rental_data.water
+        if rental_data.waste:
+            billing_total += rental_data.waste
+
+        billing = SpotRentalBilling(
+            spot_rental_id=rental.id,
+            billing_date=rental_data.check_in_date,
+            monthly_rate=rental_data.monthly_rate,
+            electric=rental_data.electric,
+            water=rental_data.water,
+            waste=rental_data.waste,
+            total=billing_total,
+            notes="Initial billing entry (auto-created)"
+        )
+        db.add(billing)
+        await db.commit()
+
+    # Eager-load billings relationship to avoid lazy-load issues
+    await db.refresh(rental, attribute_names=['billings'])
+
     return SpotRentalResponse.model_validate(rental)
 
 
@@ -113,7 +140,9 @@ async def get_spot_rental(
 ) -> SpotRentalResponse:
     """Get a specific spot rental record."""
     result = await db.execute(
-        select(SpotRental).where(SpotRental.id == rental_id, SpotRental.vin == vin)
+        select(SpotRental)
+        .where(SpotRental.id == rental_id, SpotRental.vin == vin)
+        .options(selectinload(SpotRental.billings))
     )
     rental = result.scalar_one_or_none()
     if not rental:
@@ -133,7 +162,9 @@ async def update_spot_rental(
     """Update a spot rental record."""
     # Get rental
     result = await db.execute(
-        select(SpotRental).where(SpotRental.id == rental_id, SpotRental.vin == vin)
+        select(SpotRental)
+        .where(SpotRental.id == rental_id, SpotRental.vin == vin)
+        .options(selectinload(SpotRental.billings))
     )
     rental = result.scalar_one_or_none()
     if not rental:
@@ -168,7 +199,7 @@ async def update_spot_rental(
         rental.notes = update_data.notes
 
     await db.commit()
-    await db.refresh(rental)
+    await db.refresh(rental, attribute_names=['billings'])
 
     return SpotRentalResponse.model_validate(rental)
 

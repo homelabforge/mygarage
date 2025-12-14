@@ -302,23 +302,24 @@ export default function SpotRentalList({ vin }: SpotRentalListProps) {
                 </div>
 
                 {/* Billing Summary */}
-                <div className="bg-garage-bg/50 rounded-lg p-3 mb-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <h5 className="text-sm font-semibold text-garage-text flex items-center gap-1">
-                      <DollarSign className="w-4 h-4" />
-                      Billing Summary
-                    </h5>
-                    <button
-                      onClick={() => handleAddBilling(rental.id)}
-                      className="px-2 py-1 text-xs bg-primary/10 text-primary hover:bg-primary/20 rounded transition-colors"
-                    >
-                      Add Billing
-                    </button>
-                  </div>
+                {rental.monthly_rate && rental.monthly_rate > 0 ? (
+                  <div className="bg-garage-bg/50 rounded-lg p-3 mb-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <h5 className="text-sm font-semibold text-garage-text flex items-center gap-1">
+                        <DollarSign className="w-4 h-4" />
+                        Billing Summary
+                      </h5>
+                      <button
+                        onClick={() => handleAddBilling(rental.id)}
+                        className="px-2 py-1 text-xs bg-primary/10 text-primary hover:bg-primary/20 rounded transition-colors"
+                      >
+                        Add Billing
+                      </button>
+                    </div>
 
-                  {billingCount === 0 ? (
-                    <p className="text-xs text-garage-text-muted">No billing entries yet</p>
-                  ) : (
+                    {billingCount === 0 ? (
+                      <p className="text-xs text-garage-text-muted">No billing entries yet</p>
+                    ) : (
                     <>
                       <div className="grid grid-cols-3 gap-3 mb-2">
                         <div>
@@ -395,7 +396,18 @@ export default function SpotRentalList({ vin }: SpotRentalListProps) {
                       )}
                     </>
                   )}
-                </div>
+                  </div>
+                ) : (
+                  <div className="bg-garage-bg/50 rounded-lg p-3 mb-3">
+                    <h5 className="text-sm font-semibold text-garage-text flex items-center gap-1 mb-2">
+                      <DollarSign className="w-4 h-4" />
+                      Billing Summary
+                    </h5>
+                    <p className="text-xs text-garage-text-muted">
+                      Billing entries are only available for monthly rentals
+                    </p>
+                  </div>
+                )}
 
                 {/* Expanded Billings */}
                 {isExpanded && rental.billings && rental.billings.length > 0 && (
