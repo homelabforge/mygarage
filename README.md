@@ -13,35 +13,6 @@ Self-hosted vehicle maintenance tracking with VIN decoding, service records, fue
 [![Bun 1.3.4+](https://img.shields.io/badge/Bun-1.3.4+-000000?logo=bun&logoColor=white)](https://bun.sh)
 
 ![MyGarage Dashboard](docs/screenshots/dashboard.png)
-
----
-
-## Quick Start
-
-```yaml
-version: '3.8'
-
-services:
-  mygarage:
-    image: ghcr.io/homelabforge/mygarage:latest
-    container_name: mygarage
-    ports:
-      - "8686:8686"
-    volumes:
-      - ./data:/data
-    restart: unless-stopped
-```
-
-```bash
-docker-compose up -d
-```
-
-Open http://localhost:8686 and start tracking your vehicles.
-
-**Default Mode**: Runs with no authentication for easy setup. Configure authentication in Settings before exposing to the internet.
-
-📖 **[Complete Installation Guide](https://github.com/homelabforge/mygarage/wiki/Installation)**
-
 ---
 
 ## Key Features
@@ -57,6 +28,10 @@ Open http://localhost:8686 and start tracking your vehicles.
 - **Self-Hosted** - Your data stays on your infrastructure
 
 ---
+
+**Default Mode**: Runs with no authentication for easy setup. Configure authentication in Settings before exposing to the internet.
+
+📖 **[Complete Installation Guide](https://github.com/homelabforge/mygarage/wiki/Installation)**
 
 ## Support
 
