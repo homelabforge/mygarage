@@ -1,18 +1,23 @@
 # MyGarage
 
 Self-hosted vehicle maintenance tracking with VIN decoding, service records, fuel logging, and document management.
+<div align="center">
 
 [![CI](https://github.com/homelabforge/mygarage/actions/workflows/ci.yml/badge.svg)](https://github.com/homelabforge/mygarage/actions/workflows/ci.yml)
 [![Docker Build](https://github.com/homelabforge/mygarage/actions/workflows/docker-build.yml/badge.svg)](https://github.com/homelabforge/mygarage/actions/workflows/docker-build.yml)
 [![CodeQL](https://github.com/homelabforge/mygarage/actions/workflows/codeql.yml/badge.svg)](https://github.com/homelabforge/mygarage/actions/workflows/codeql.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 [![Version](https://img.shields.io/badge/Version-2.14.4-green.svg)](https://github.com/homelabforge/mygarage/releases)
 [![Docker](https://img.shields.io/badge/Docker-Available-2496ED?logo=docker&logoColor=white)](https://github.com/homelabforge/mygarage/pkgs/container/mygarage)
-[![Python 3.14+](https://img.shields.io/badge/Python-3.14+-3776AB?logo=python&logoColor=white)](https://www.python.org)
+[![Python 3.14](https://img.shields.io/badge/Python-3.14-3776AB?logo=python&logoColor=white)](https://www.python.org)
 [![React 19](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev)
-[![Bun 1.3.4+](https://img.shields.io/badge/Bun-1.3.4+-000000?logo=bun&logoColor=white)](https://bun.sh)
+[![Bun 1.3.4](https://img.shields.io/badge/Bun-1.3.4-000000?logo=bun&logoColor=white)](https://bun.sh)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ![MyGarage Dashboard](docs/screenshots/dashboard.png)
+
+</div>
+
 ---
 
 ## Key Features
