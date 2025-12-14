@@ -7,6 +7,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.16.0] - 2025-01-28
+
+### Added
+- **Fifth Wheel & Trailer Enhancement System**
+  - Propane-only tracking for fifth wheels using existing `fuel_records` table
+  - Propane tab visible only for fifth wheel vehicles (no fuel/odometer tabs)
+  - Spot rental billing entries system for ongoing rental cost tracking
+  - Multiple billing entries per rental with billing date, monthly rate, utilities (electric, water, waste)
+  - Address book integration with RV Park category filter and autocomplete
+  - Auto-fill address when selecting from address book
+  - "Save to Address Book?" prompt after creating new spot rentals
+  - Fifth wheel analytics showing propane spending trends and spot rental costs
+  - Analytics exclude MPG/fuel economy metrics for fifth wheels and trailers
+  - Propane analysis section with monthly cost trends and cost per gallon
+  - Spot rental analysis section with cumulative costs and monthly averages
+  - Billing summary cards showing total billed, billing periods, and monthly average
+  - Expandable billing history with "View All Billings" button
+  - Auto-calculated billing totals (monthly rate + electric + water + waste)
+
+### Changed
+- **Vehicle Type Tab Visibility**
+  - Motorized vehicles (Car, Truck, SUV, Motorcycle, RV): Fuel + Odometer tabs
+  - Fifth Wheel: Propane tab ONLY (no fuel, no odometer)
+  - Trailer: No fuel, no odometer, no propane tabs
+  - RVs remain motorized and keep fuel/odometer tabs
+- **Spot Rental UI Redesign**
+  - Billing summary card displays by default with last billing entry
+  - Full billing history expandable via "View All Billings" button
+  - Edit/delete buttons for individual billing entries
+  - Cumulative totals and monthly averages calculated automatically
+
+### Fixed
+- Fifth wheel vehicle type logic - correctly excludes both 'Trailer' and 'FifthWheel' from motorized vehicles
+- Propane records filtered client-side: `propane_gallons > 0 && !gallons`
+- Billing dates validated within rental check-in/check-out period
+
+### Technical
+- **Database Changes**
+  - Migration 018: Added `spot_rental_billings` table with FK to `spot_rentals`
+  - CASCADE delete ensures billing entries removed when parent rental deleted
+  - Existing `fuel_records.propane_gallons` column reused (no schema changes)
+- **Backend Changes**
+  - New model: `SpotRentalBilling` with relationship to `SpotRental`
+  - New endpoints: `/vehicles/{vin}/spot-rentals/{rental_id}/billings` (CRUD)
+  - Analytics service: `calculate_propane_costs()` and `calculate_spot_rental_costs()`
+  - Fifth wheel detection in analytics route skips fuel economy calculations
+  - Eager loading with `selectinload(SpotRental.billings)` prevents N+1 queries
+- **Frontend Changes**
+  - New components: `PropaneRecordForm`, `PropaneRecordList`, `PropaneTab`, `BillingEntryForm`
+  - Updated types: `SpotRentalBilling` interfaces and validation schemas
+  - Helper functions: `getBillingTotal()`, `getMonthlyAverage()`, `getLastBilling()`
+  - Address book autocomplete integration in `SpotRentalForm`
+  - Analytics conditional sections based on vehicle type
+
+### Documentation
+- Added comprehensive implementation summary at `/srv/raid0/docker/documents/history/mygarage/2025-01-28-fifth-wheel-enhancements.md`
+- Total: 5 backend files created, 8 backend files modified, 7 frontend files created, 6 frontend files modified
+
 ## [2.15.1] - 2025-12-11
 
 ### Security

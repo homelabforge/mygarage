@@ -4,10 +4,13 @@ from sqlalchemy import String, Integer, Numeric, Date, DateTime, Text, ForeignKe
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 from datetime import date, datetime
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 from decimal import Decimal
 
 from app.database import Base
+
+if TYPE_CHECKING:
+    from app.models.spot_rental_billing import SpotRentalBilling
 
 
 class SpotRental(Base):
@@ -34,6 +37,12 @@ class SpotRental(Base):
 
     # Relationships
     vehicle: Mapped["Vehicle"] = relationship("Vehicle", back_populates="spot_rentals")
+    billings: Mapped[list["SpotRentalBilling"]] = relationship(
+        "SpotRentalBilling",
+        back_populates="spot_rental",
+        cascade="all, delete-orphan",
+        order_by="SpotRentalBilling.billing_date.desc()"
+    )
 
     __table_args__ = (
         Index("idx_spot_rentals_vin", "vin"),

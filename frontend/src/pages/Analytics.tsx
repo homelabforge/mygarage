@@ -76,9 +76,12 @@ export default function Analytics() {
   // Help modal state
   const [showHelpModal, setShowHelpModal] = useState(false)
 
-  // Check if vehicle is motorized (not a trailer)
+  // Check if vehicle is motorized (not a trailer or fifth wheel)
   const isMotorized = analytics?.vehicle_type &&
-    !['Trailer'].includes(analytics.vehicle_type)
+    !['Trailer', 'FifthWheel'].includes(analytics.vehicle_type)
+
+  // Check if vehicle is a fifth wheel (for propane and spot rental tracking)
+  const isFifthWheel = analytics?.vehicle_type === 'FifthWheel'
 
   const fetchAnalytics = useCallback(async () => {
     if (!vin) return
@@ -1100,6 +1103,128 @@ export default function Analytics() {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* Propane Analysis for Fifth Wheels */}
+      {isFifthWheel && analytics.propane_analysis && analytics.propane_analysis.record_count > 0 && (
+        <div className="bg-garage-surface border border-garage-border rounded-lg p-6 mb-8">
+          <div className="flex items-center gap-2 mb-4">
+            <Fuel className="w-5 h-5 text-garage-text-muted" />
+            <h2 className="text-xl font-bold text-garage-text">Propane Analysis</h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div className="text-center p-4 bg-garage-bg rounded-lg">
+              <p className="text-sm text-garage-text-muted mb-1">Total Spent</p>
+              <p className="text-2xl font-bold text-garage-text">
+                {formatCurrency(analytics.propane_analysis.total_spent)}
+              </p>
+            </div>
+            <div className="text-center p-4 bg-garage-bg rounded-lg">
+              <p className="text-sm text-garage-text-muted mb-1">Total Gallons</p>
+              <p className="text-2xl font-bold text-garage-text">
+                {analytics.propane_analysis.total_gallons} gal
+              </p>
+            </div>
+            <div className="text-center p-4 bg-garage-bg rounded-lg">
+              <p className="text-sm text-garage-text-muted mb-1">Avg Price/Gallon</p>
+              <p className="text-2xl font-bold text-primary">
+                {analytics.propane_analysis.avg_price_per_gallon
+                  ? formatCurrency(analytics.propane_analysis.avg_price_per_gallon)
+                  : 'N/A'}
+              </p>
+            </div>
+          </div>
+
+          {/* Propane Cost Trend Chart */}
+          {analytics.propane_analysis.monthly_trend && analytics.propane_analysis.monthly_trend.length > 0 && (
+            <div className="mb-6 bg-garage-bg rounded-lg p-4">
+              <h3 className="text-sm font-medium text-garage-text-muted mb-4">Monthly Propane Costs</h3>
+              <ResponsiveContainer width="100%" height={300}>
+                <RechartsBarChart data={analytics.propane_analysis.monthly_trend}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                  <XAxis dataKey="month_name" stroke="#9CA3AF" />
+                  <YAxis stroke="#9CA3AF" />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#1F2937',
+                      border: '1px solid #374151',
+                      borderRadius: '0.375rem',
+                    }}
+                    formatter={(value: number) => formatCurrency(value)}
+                  />
+                  <Legend />
+                  <Bar dataKey="total_cost" fill="#3B82F6" name="Total Cost" />
+                </RechartsBarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Spot Rental Analysis for Fifth Wheels */}
+      {isFifthWheel && analytics.spot_rental_analysis && analytics.spot_rental_analysis.billing_count > 0 && (
+        <div className="bg-garage-surface border border-garage-border rounded-lg p-6 mb-8">
+          <div className="flex items-center gap-2 mb-4">
+            <DollarSign className="w-5 h-5 text-garage-text-muted" />
+            <h2 className="text-xl font-bold text-garage-text">Spot Rental Analysis</h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div className="text-center p-4 bg-garage-bg rounded-lg">
+              <p className="text-sm text-garage-text-muted mb-1">Total Cost</p>
+              <p className="text-2xl font-bold text-garage-text">
+                {formatCurrency(analytics.spot_rental_analysis.total_cost)}
+              </p>
+            </div>
+            <div className="text-center p-4 bg-garage-bg rounded-lg">
+              <p className="text-sm text-garage-text-muted mb-1">Billing Periods</p>
+              <p className="text-2xl font-bold text-garage-text">
+                {analytics.spot_rental_analysis.billing_count}
+              </p>
+            </div>
+            <div className="text-center p-4 bg-garage-bg rounded-lg">
+              <p className="text-sm text-garage-text-muted mb-1">Monthly Average</p>
+              <p className="text-2xl font-bold text-primary">
+                {formatCurrency(analytics.spot_rental_analysis.monthly_average)}
+              </p>
+            </div>
+          </div>
+
+          {/* Spot Rental Cost Trend Chart */}
+          {analytics.spot_rental_analysis.monthly_trend && analytics.spot_rental_analysis.monthly_trend.length > 0 && (
+            <div className="bg-garage-bg rounded-lg p-4">
+              <h3 className="text-sm font-medium text-garage-text-muted mb-4">Monthly Spot Rental Costs</h3>
+              <ResponsiveContainer width="100%" height={300}>
+                <RechartsBarChart data={analytics.spot_rental_analysis.monthly_trend}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                  <XAxis dataKey="month_name" stroke="#9CA3AF" />
+                  <YAxis stroke="#9CA3AF" />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#1F2937',
+                      border: '1px solid #374151',
+                      borderRadius: '0.375rem',
+                    }}
+                    formatter={(value: number, name: string) => {
+                      const labels: Record<string, string> = {
+                        total_cost: 'Total',
+                        monthly_rate: 'Monthly Rate',
+                        electric: 'Electric',
+                        water: 'Water',
+                        waste: 'Waste',
+                      }
+                      return [formatCurrency(value), labels[name] || name]
+                    }}
+                  />
+                  <Legend />
+                  <Bar dataKey="monthly_rate" stackId="a" fill="#3B82F6" name="Monthly Rate" />
+                  <Bar dataKey="electric" stackId="a" fill="#FBBF24" name="Electric" />
+                  <Bar dataKey="water" stackId="a" fill="#10B981" name="Water" />
+                  <Bar dataKey="waste" stackId="a" fill="#8B5CF6" name="Waste" />
+                </RechartsBarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </div>
       )}
 

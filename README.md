@@ -85,6 +85,11 @@ docker run -d \
 - **VIN Decoding** - Automatic vehicle details via NHTSA API
 - **Service Records** - Track maintenance with attachments and service reminders
 - **Fuel Tracking** - Log fill-ups with automatic MPG calculations and fuel economy analytics
+- **Fifth Wheel & Trailer Support** - Specialized tracking for RVs, fifth wheels, and trailers
+  - Propane-only tracking for fifth wheels (no fuel/odometer confusion)
+  - Spot rental billing with multiple entries per rental
+  - Address book integration for RV parks with autocomplete
+  - Analytics showing propane costs and spot rental trends
 - **Unit Conversion** - Imperial/Metric units with per-user preferences (MPG ↔ L/100km, miles ↔ km, gallons ↔ liters)
 - **Vehicle Archive** - Safely archive sold/traded vehicles while preserving complete history
 - **Document Management** - Store registration, insurance, manuals with OCR text extraction

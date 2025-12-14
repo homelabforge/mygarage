@@ -514,13 +514,27 @@ async def get_vehicle_analytics(
     if not vehicle:
         raise HTTPException(status_code=404, detail="Vehicle not found")
 
+    # Detect if this is a fifth wheel
+    is_fifth_wheel = vehicle.vehicle_type == 'FifthWheel'
+
     # Get cost analysis
     cost_analysis = await get_cost_analysis(db, vin)
     cost_projection = build_cost_projection(cost_analysis)
 
-    # Get fuel economy trends
-    fuel_economy = await get_fuel_economy_trend(db, vin)
-    fuel_alerts = build_fuel_alerts(fuel_economy)
+    # Get fuel economy trends (skip for fifth wheels - they don't have MPG tracking)
+    if is_fifth_wheel:
+        fuel_economy = FuelEconomyTrend(
+            data_points=[],
+            average_mpg=None,
+            best_mpg=None,
+            worst_mpg=None,
+            recent_average=None,
+            trend="stable"
+        )
+        fuel_alerts = []
+    else:
+        fuel_economy = await get_fuel_economy_trend(db, vin)
+        fuel_alerts = build_fuel_alerts(fuel_economy)
 
     # Get service history timeline
     service_history = await get_service_history_timeline(db, vin)
@@ -557,6 +571,20 @@ async def get_vehicle_analytics(
 
     vehicle_name = f"{vehicle.year} {vehicle.make} {vehicle.model}"
 
+    # Fifth wheel specific analytics
+    propane_analysis = None
+    spot_rental_analysis = None
+    if is_fifth_wheel:
+        # Get all fuel records for propane analysis
+        fuel_result = await db.execute(
+            select(FuelRecord).where(FuelRecord.vin == vin).order_by(FuelRecord.date)
+        )
+        all_fuel_records = fuel_result.scalars().all()
+        propane_analysis = analytics_service.calculate_propane_costs(all_fuel_records)
+
+        # Get spot rental costs
+        spot_rental_analysis = await analytics_service.calculate_spot_rental_costs(db, vin)
+
     return VehicleAnalytics(
         vin=vin,
         vehicle_name=vehicle_name,
@@ -570,6 +598,8 @@ async def get_vehicle_analytics(
         total_miles_driven=total_miles_driven,
         average_miles_per_month=average_miles_per_month,
         days_owned=days_owned,
+        propane_analysis=propane_analysis,
+        spot_rental_analysis=spot_rental_analysis,
     )
 
 

@@ -48,6 +48,7 @@ import TollsTab from '../components/tabs/TollsTab'
 import RecallsTab from '../components/tabs/RecallsTab'
 import TaxRecordList from '../components/TaxRecordList'
 import SpotRentalsTab from '../components/tabs/SpotRentalsTab'
+import PropaneTab from '../components/tabs/PropaneTab'
 import SubTabNav from '../components/SubTabNav'
 import WindowStickerUpload from '../components/WindowStickerUpload'
 import VehicleRemoveModal from '../components/modals/VehicleRemoveModal'
@@ -81,7 +82,7 @@ const getApiErrorMessage = (error: unknown, fallback: string) => {
 }
 
 type PrimaryTabType = 'overview' | 'media' | 'maintenance' | 'tracking' | 'financial'
-type SubTabType = 'photos' | 'documents' | 'service' | 'fuel' | 'odometer' | 'reminders' | 'notes' | 'warranties' | 'insurance' | 'tax' | 'tolls' | 'spotrentals' | 'recalls' | 'reports'
+type SubTabType = 'photos' | 'documents' | 'service' | 'fuel' | 'propane' | 'odometer' | 'reminders' | 'notes' | 'warranties' | 'insurance' | 'tax' | 'tolls' | 'spotrentals' | 'recalls' | 'reports'
 
 export default function VehicleDetail() {
   const { vin } = useParams<{ vin: string }>()
@@ -141,6 +142,7 @@ export default function VehicleDetail() {
     const tabMapping: Record<string, { primary: PrimaryTabType; sub: SubTabType }> = {
       'reminders': { primary: 'tracking', sub: 'reminders' },
       'insurance': { primary: 'financial', sub: 'insurance' },
+      'propane': { primary: 'maintenance', sub: 'propane' },
       'warranties': { primary: 'financial', sub: 'warranties' },
       'service': { primary: 'maintenance', sub: 'service' },
       'notes': { primary: 'tracking', sub: 'notes' },
@@ -353,9 +355,13 @@ export default function VehicleDetail() {
     }
   }
 
-  // Check if vehicle is motorized (not a trailer) or is a fifth wheel (which needs fuel tracking for propane)
+  // Check if vehicle is motorized (excludes non-motorized trailers and fifth wheels)
+  // RVs ARE motorized and keep fuel/odometer tabs
   const isMotorized = vehicle?.vehicle_type &&
-    (!['Trailer'].includes(vehicle.vehicle_type) || ['FifthWheel'].includes(vehicle.vehicle_type))
+    !['Trailer', 'FifthWheel'].includes(vehicle.vehicle_type)
+
+  // Check if vehicle is a fifth wheel (for propane tracking)
+  const isFifthWheel = vehicle?.vehicle_type === 'FifthWheel'
 
   // Check if vehicle is RV or Fifth Wheel (for spot rentals)
   const isRVOrFifthWheel = vehicle?.vehicle_type &&
@@ -404,7 +410,8 @@ export default function VehicleDetail() {
     maintenance: [
       { id: 'service' as const, label: 'Service', icon: Wrench },
       { id: 'fuel' as const, label: 'Fuel', icon: Fuel, visible: isMotorized },
-      { id: 'odometer' as const, label: 'Odometer', icon: Gauge },
+      { id: 'propane' as const, label: 'Propane', icon: Fuel, visible: isFifthWheel },
+      { id: 'odometer' as const, label: 'Odometer', icon: Gauge, visible: isMotorized },
       { id: 'recalls' as const, label: 'Recalls', icon: AlertTriangle },
     ],
     tracking: [
@@ -1078,6 +1085,7 @@ export default function VehicleDetail() {
         {/* Maintenance Sub-tabs */}
         {activePrimaryTab === 'maintenance' && activeSubTab === 'service' && vin && <ServiceTab vin={vin} />}
         {activePrimaryTab === 'maintenance' && activeSubTab === 'fuel' && vin && <FuelTab vin={vin} />}
+        {activePrimaryTab === 'maintenance' && activeSubTab === 'propane' && vin && <PropaneTab vin={vin} />}
         {activePrimaryTab === 'maintenance' && activeSubTab === 'odometer' && vin && <OdometerTab vin={vin} />}
         {activePrimaryTab === 'maintenance' && activeSubTab === 'recalls' && vin && <RecallsTab vin={vin} />}
 

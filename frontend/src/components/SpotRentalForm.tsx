@@ -3,9 +3,12 @@ import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { X, Save } from 'lucide-react'
 import type { SpotRental, SpotRentalCreate, SpotRentalUpdate } from '../types/spotRental'
+import type { AddressBookEntry } from '../types/addressBook'
 import { spotRentalSchema, type SpotRentalFormData } from '../schemas/spotRental'
 import { FormError } from './FormError'
+import AddressBookAutocomplete from './AddressBookAutocomplete'
 import api from '../services/api'
+import { toast } from 'sonner'
 
 interface SpotRentalFormProps {
   vin: string
@@ -17,6 +20,9 @@ interface SpotRentalFormProps {
 export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: SpotRentalFormProps) {
   const isEdit = !!rental
   const [error, setError] = useState<string | null>(null)
+  const [selectedAddressEntry, setSelectedAddressEntry] = useState<AddressBookEntry | null>(null)
+  const [showSaveToAddressBook, setShowSaveToAddressBook] = useState(false)
+  const [pendingLocationData, setPendingLocationData] = useState<{name: string, address: string} | null>(null)
 
   // Helper to format date for input[type="date"]
   const formatDateForInput = (dateString?: string): string => {
@@ -40,6 +46,8 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
   const {
     register,
     handleSubmit,
+    watch,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<SpotRentalFormData>({
     resolver: zodResolver(spotRentalSchema) as Resolver<SpotRentalFormData>,
@@ -59,6 +67,43 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
       notes: rental?.notes || '',
     },
   })
+
+  const handleAddressBookSelect = (entry: AddressBookEntry | null) => {
+    setSelectedAddressEntry(entry)
+    if (entry) {
+      // Auto-fill address from selected entry
+      const fullAddress = [
+        entry.address_line1,
+        entry.address_line2,
+        entry.city,
+        entry.state,
+        entry.postal_code,
+        entry.country
+      ].filter(Boolean).join(', ')
+
+      setValue('location_address', fullAddress)
+    }
+  }
+
+  const handleSaveToAddressBook = async () => {
+    if (!pendingLocationData) return
+
+    try {
+      await api.post('/address-book', {
+        business_name: pendingLocationData.name,
+        address_line1: pendingLocationData.address,
+        category: 'RV Park'
+      })
+      toast.success('Location saved to address book')
+    } catch (err) {
+      toast.error('Failed to save to address book')
+    } finally {
+      setShowSaveToAddressBook(false)
+      setPendingLocationData(null)
+      onSuccess()
+      onClose()
+    }
+  }
 
   const onSubmit = async (data: SpotRentalFormData) => {
     setError(null)
@@ -83,12 +128,23 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
 
       if (isEdit) {
         await api.put(`/vehicles/${vin}/spot-rentals/${rental.id}`, payload)
+        onSuccess()
+        onClose()
       } else {
         await api.post(`/vehicles/${vin}/spot-rentals`, payload)
-      }
 
-      onSuccess()
-      onClose()
+        // Check if this is a new location (not from address book)
+        if (data.location_name && !selectedAddressEntry) {
+          setPendingLocationData({
+            name: data.location_name,
+            address: data.location_address || ''
+          })
+          setShowSaveToAddressBook(true)
+        } else {
+          onSuccess()
+          onClose()
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
     }
@@ -121,17 +177,26 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
               <label htmlFor="location_name" className="block text-sm font-medium text-garage-text mb-1">
                 Location/Facility Name
               </label>
-              <input
-                type="text"
+              <AddressBookAutocomplete
                 id="location_name"
-                {...register('location_name')}
+                value={watch('location_name') || ''}
+                onChange={(value) => {
+                  setValue('location_name', value)
+                  if (!value) {
+                    setSelectedAddressEntry(null)
+                  }
+                }}
+                onSelectEntry={handleAddressBookSelect}
+                categoryFilter="RV Park"
                 placeholder="e.g., Happy Hills RV Park"
                 className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
                   errors.location_name ? 'border-red-500' : 'border-garage-border'
                 }`}
-                disabled={isSubmitting}
               />
               <FormError error={errors.location_name} />
+              <p className="text-xs text-garage-text-muted mt-1">
+                Start typing to search from your address book
+              </p>
             </div>
           </div>
 
@@ -398,6 +463,39 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
           </div>
         </form>
       </div>
+
+      {/* Save to Address Book Dialog */}
+      {showSaveToAddressBook && pendingLocationData && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60]">
+          <div className="bg-garage-surface rounded-lg shadow-xl max-w-md w-full p-6 border border-garage-border">
+            <h3 className="text-lg font-semibold text-garage-text mb-3">
+              Save to Address Book?
+            </h3>
+            <p className="text-sm text-garage-text-muted mb-4">
+              Would you like to save "{pendingLocationData.name}" to your address book for quicker access in the future?
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={handleSaveToAddressBook}
+                className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+              >
+                Yes, Save
+              </button>
+              <button
+                onClick={() => {
+                  setShowSaveToAddressBook(false)
+                  setPendingLocationData(null)
+                  onSuccess()
+                  onClose()
+                }}
+                className="flex-1 px-4 py-2 bg-garage-bg border border-garage-border text-garage-text rounded-lg hover:bg-garage-bg/80 transition-colors"
+              >
+                No, Skip
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

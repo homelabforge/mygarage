@@ -115,6 +115,35 @@ export interface VehicleAnalytics {
   total_miles_driven: number | null
   average_miles_per_month: number | null
   days_owned: number | null
+  propane_analysis?: {
+    total_spent: string
+    total_gallons: string
+    avg_price_per_gallon: string | null
+    record_count: number
+    monthly_trend: Array<{
+      year: number
+      month: number
+      month_name: string
+      total_cost: number
+      total_gallons: number
+      avg_price_per_gallon: number
+    }>
+  }
+  spot_rental_analysis?: {
+    total_cost: string
+    billing_count: number
+    monthly_average: string
+    monthly_trend: Array<{
+      year: number
+      month: number
+      month_name: string
+      total_cost: number
+      monthly_rate: number
+      electric: number
+      water: number
+      waste: number
+    }>
+  }
 }
 
 export interface FleetCostTotals {

@@ -23,6 +23,7 @@ from app.routes.backup import router as backup_router
 from app.routes.attachments import router as attachments_router
 from app.routes.tax import router as tax_router
 from app.routes.spot_rental import router as spot_rental_router
+from app.routes.spot_rental_billing import router as spot_rental_billing_router
 from app.routes.address_book import router as address_book_router
 from app.routes.calendar import router as calendar_router
 from app.routes.window_sticker import router as window_sticker_router
@@ -53,6 +54,7 @@ __all__ = [
     "attachments_router",
     "tax_router",
     "spot_rental_router",
+    "spot_rental_billing_router",
     "address_book_router",
     "calendar_router",
     "window_sticker_router",

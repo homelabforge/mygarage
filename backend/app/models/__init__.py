@@ -2,6 +2,7 @@
 
 from app.models.vehicle import Vehicle, TrailerDetails
 from app.models.spot_rental import SpotRental
+from app.models.spot_rental_billing import SpotRentalBilling
 from app.models.service import ServiceRecord
 from app.models.fuel import FuelRecord
 from app.models.odometer import OdometerRecord
@@ -23,6 +24,7 @@ __all__ = [
     "Vehicle",
     "TrailerDetails",
     "SpotRental",
+    "SpotRentalBilling",
     "ServiceRecord",
     "FuelRecord",
     "OdometerRecord",

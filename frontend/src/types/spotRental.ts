@@ -1,3 +1,36 @@
+export interface SpotRentalBilling {
+  id: number
+  spot_rental_id: number
+  billing_date: string
+  monthly_rate: number | null
+  electric: number | null
+  water: number | null
+  waste: number | null
+  total: number | null
+  notes: string | null
+  created_at: string
+}
+
+export interface SpotRentalBillingCreate {
+  billing_date: string
+  monthly_rate?: number | null
+  electric?: number | null
+  water?: number | null
+  waste?: number | null
+  total?: number | null
+  notes?: string | null
+}
+
+export interface SpotRentalBillingUpdate {
+  billing_date?: string
+  monthly_rate?: number | null
+  electric?: number | null
+  water?: number | null
+  waste?: number | null
+  total?: number | null
+  notes?: string | null
+}
+
 export interface SpotRental {
   id: number
   vin: string
@@ -15,6 +48,7 @@ export interface SpotRental {
   amenities: string | null
   notes: string | null
   created_at: string
+  billings?: SpotRentalBilling[]
 }
 
 export interface SpotRentalCreate {

@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Edit, Trash2, Plus, AlertCircle, MapPin, Calendar } from 'lucide-react'
+import { Edit, Trash2, Plus, AlertCircle, MapPin, Calendar, ChevronDown, ChevronUp, DollarSign } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateForDisplay } from '../utils/dateUtils'
-import type { SpotRental } from '../types/spotRental'
+import type { SpotRental, SpotRentalBilling } from '../types/spotRental'
 import SpotRentalForm from './SpotRentalForm'
+import BillingEntryForm from './BillingEntryForm'
 import api from '../services/api'
 
 interface SpotRentalListProps {
@@ -22,6 +23,10 @@ export default function SpotRentalList({ vin }: SpotRentalListProps) {
   const [showForm, setShowForm] = useState(false)
   const [editingRental, setEditingRental] = useState<SpotRental | undefined>()
   const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [expandedRentals, setExpandedRentals] = useState<Set<number>>(new Set())
+  const [showBillingForm, setShowBillingForm] = useState(false)
+  const [editingBilling, setEditingBilling] = useState<SpotRentalBilling | undefined>()
+  const [currentRentalId, setCurrentRentalId] = useState<number | null>(null)
 
   const fetchRentals = useCallback(async () => {
     try {
@@ -71,6 +76,67 @@ export default function SpotRentalList({ vin }: SpotRentalListProps) {
     setShowForm(false)
   }
 
+  const handleBillingSuccess = () => {
+    fetchRentals()
+    setShowBillingForm(false)
+    setEditingBilling(undefined)
+    setCurrentRentalId(null)
+  }
+
+  const handleAddBilling = (rentalId: number) => {
+    setCurrentRentalId(rentalId)
+    setEditingBilling(undefined)
+    setShowBillingForm(true)
+  }
+
+  const handleEditBilling = (rentalId: number, billing: SpotRentalBilling) => {
+    setCurrentRentalId(rentalId)
+    setEditingBilling(billing)
+    setShowBillingForm(true)
+  }
+
+  const handleDeleteBilling = async (rentalId: number, billingId: number) => {
+    if (!confirm('Are you sure you want to delete this billing entry?')) {
+      return
+    }
+
+    try {
+      await api.delete(`/vehicles/${vin}/spot-rentals/${rentalId}/billings/${billingId}`)
+      await fetchRentals()
+      toast.success('Billing entry deleted')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete billing entry')
+    }
+  }
+
+  const toggleExpand = (rentalId: number) => {
+    setExpandedRentals(prev => {
+      const next = new Set(prev)
+      if (next.has(rentalId)) {
+        next.delete(rentalId)
+      } else {
+        next.add(rentalId)
+      }
+      return next
+    })
+  }
+
+  const getBillingTotal = (billings?: SpotRentalBilling[]): number => {
+    if (!billings || billings.length === 0) return 0
+    return billings.reduce((sum, b) => sum + (b.total || 0), 0)
+  }
+
+  const getMonthlyAverage = (billings?: SpotRentalBilling[]): number => {
+    if (!billings || billings.length === 0) return 0
+    const total = getBillingTotal(billings)
+    return total / billings.length
+  }
+
+  const getLastBilling = (billings?: SpotRentalBilling[]): SpotRentalBilling | null => {
+    if (!billings || billings.length === 0) return null
+    return billings[0] // Already sorted by date desc from backend
+  }
+
   const formatCurrency = (amount: number | null): string => {
     if (amount === null) return '-'
     return new Intl.NumberFormat('en-US', {
@@ -80,7 +146,7 @@ export default function SpotRentalList({ vin }: SpotRentalListProps) {
   }
 
   const getTotalCost = (): number => {
-    return rentals.reduce((sum, rental) => sum + (rental.total_cost || 0), 0)
+    return rentals.reduce((sum, rental) => sum + getBillingTotal(rental.billings), 0)
   }
 
   const getActiveRentals = (): number => {
@@ -103,6 +169,20 @@ export default function SpotRentalList({ vin }: SpotRentalListProps) {
           rental={editingRental}
           onClose={() => setShowForm(false)}
           onSuccess={handleSuccess}
+        />
+      )}
+
+      {showBillingForm && currentRentalId !== null && (
+        <BillingEntryForm
+          vin={vin}
+          rentalId={currentRentalId}
+          billing={editingBilling}
+          onClose={() => {
+            setShowBillingForm(false)
+            setEditingBilling(undefined)
+            setCurrentRentalId(null)
+          }}
+          onSuccess={handleBillingSuccess}
         />
       )}
 
@@ -149,128 +229,278 @@ export default function SpotRentalList({ vin }: SpotRentalListProps) {
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-          {rentals.map((rental) => (
-            <div
-              key={rental.id}
-              className="bg-garage-surface border border-garage-border rounded-lg p-3 hover:border-primary/50 transition-colors"
-            >
-              <div className="flex justify-between items-start mb-2">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h4 className="text-sm font-semibold text-garage-text">
-                      {rental.location_name || 'Unnamed Location'}
-                    </h4>
-                    {!rental.check_out_date && (
-                      <span className="px-2 py-0.5 bg-success/20 text-success text-xs rounded-full border border-success/30">
-                        Active
-                      </span>
+        <div className="grid grid-cols-1 gap-4">
+          {rentals.map((rental) => {
+            const lastBilling = getLastBilling(rental.billings)
+            const billingTotal = getBillingTotal(rental.billings)
+            const monthlyAvg = getMonthlyAverage(rental.billings)
+            const isExpanded = expandedRentals.has(rental.id)
+            const billingCount = rental.billings?.length || 0
+
+            return (
+              <div
+                key={rental.id}
+                className="bg-garage-surface border border-garage-border rounded-lg p-4 hover:border-primary/50 transition-colors"
+              >
+                {/* Header */}
+                <div className="flex justify-between items-start mb-3">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h4 className="text-base font-semibold text-garage-text">
+                        {rental.location_name || 'Unnamed Location'}
+                      </h4>
+                      {!rental.check_out_date && (
+                        <span className="px-2 py-0.5 bg-success/20 text-success text-xs rounded-full border border-success/30">
+                          Active
+                        </span>
+                      )}
+                    </div>
+                    {rental.location_address && (
+                      <p className="text-sm text-garage-text-muted flex items-center gap-1">
+                        <MapPin className="w-3.5 h-3.5" />
+                        {rental.location_address}
+                      </p>
                     )}
                   </div>
-                  {rental.location_address && (
-                    <p className="text-xs text-garage-text-muted flex items-center gap-1">
-                      <MapPin className="w-3 h-3" />
-                      {rental.location_address}
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => handleEdit(rental)}
+                      className="p-1.5 text-primary hover:bg-primary/10 rounded transition-colors"
+                      aria-label="Edit Rental"
+                      title="Edit Rental"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(rental.id)}
+                      disabled={deletingId === rental.id}
+                      className="p-1.5 text-danger hover:bg-danger/10 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      aria-label="Delete Rental"
+                      title="Delete Rental"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Check-in/Check-out */}
+                <div className="grid grid-cols-2 gap-3 mb-3">
+                  <div>
+                    <p className="text-xs text-garage-text-muted mb-1">Check-In</p>
+                    <p className="text-sm text-garage-text font-medium flex items-center gap-1">
+                      <Calendar className="w-3.5 h-3.5" />
+                      {formatDateForDisplay(rental.check_in_date)}
                     </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-garage-text-muted mb-1">Check-Out</p>
+                    <p className="text-sm text-garage-text font-medium flex items-center gap-1">
+                      <Calendar className="w-3.5 h-3.5" />
+                      {rental.check_out_date ? formatDateForDisplay(rental.check_out_date) : 'Ongoing'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Billing Summary */}
+                <div className="bg-garage-bg/50 rounded-lg p-3 mb-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <h5 className="text-sm font-semibold text-garage-text flex items-center gap-1">
+                      <DollarSign className="w-4 h-4" />
+                      Billing Summary
+                    </h5>
+                    <button
+                      onClick={() => handleAddBilling(rental.id)}
+                      className="px-2 py-1 text-xs bg-primary/10 text-primary hover:bg-primary/20 rounded transition-colors"
+                    >
+                      Add Billing
+                    </button>
+                  </div>
+
+                  {billingCount === 0 ? (
+                    <p className="text-xs text-garage-text-muted">No billing entries yet</p>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-3 gap-3 mb-2">
+                        <div>
+                          <p className="text-xs text-garage-text-muted mb-0.5">Total Billed</p>
+                          <p className="text-sm text-garage-text font-semibold">
+                            {formatCurrency(billingTotal)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-garage-text-muted mb-0.5">Billing Periods</p>
+                          <p className="text-sm text-garage-text font-medium">{billingCount}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-garage-text-muted mb-0.5">Monthly Avg</p>
+                          <p className="text-sm text-garage-text font-medium">
+                            {formatCurrency(monthlyAvg)}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Last Billing Entry */}
+                      {lastBilling && (
+                        <div className="border-t border-garage-border pt-2">
+                          <p className="text-xs text-garage-text-muted mb-2">
+                            Last Billing ({formatDateForDisplay(lastBilling.billing_date)})
+                          </p>
+                          <div className="grid grid-cols-4 gap-2">
+                            <div>
+                              <p className="text-xs text-garage-text-muted">Monthly</p>
+                              <p className="text-xs text-garage-text font-medium">
+                                {formatCurrency(lastBilling.monthly_rate)}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-garage-text-muted">Electric</p>
+                              <p className="text-xs text-garage-text font-medium">
+                                {formatCurrency(lastBilling.electric)}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-garage-text-muted">Water</p>
+                              <p className="text-xs text-garage-text font-medium">
+                                {formatCurrency(lastBilling.water)}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-garage-text-muted">Waste</p>
+                              <p className="text-xs text-garage-text font-medium">
+                                {formatCurrency(lastBilling.waste)}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Expand/Collapse All Billings */}
+                      {billingCount > 1 && (
+                        <button
+                          onClick={() => toggleExpand(rental.id)}
+                          className="mt-2 w-full flex items-center justify-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
+                        >
+                          {isExpanded ? (
+                            <>
+                              <ChevronUp className="w-3.5 h-3.5" />
+                              Hide All Billings
+                            </>
+                          ) : (
+                            <>
+                              <ChevronDown className="w-3.5 h-3.5" />
+                              View All {billingCount} Billings
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
-                <div className="flex gap-1">
-                  <button
-                    onClick={() => handleEdit(rental)}
-                    className="p-1.5 text-primary hover:bg-primary/10 rounded transition-colors"
-                    aria-label="Edit"
-                    title="Edit"
-                  >
-                    <Edit className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(rental.id)}
-                    disabled={deletingId === rental.id}
-                    className="p-1.5 text-danger hover:bg-danger/10 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    aria-label="Delete"
-                    title="Delete"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
+
+                {/* Expanded Billings */}
+                {isExpanded && rental.billings && rental.billings.length > 0 && (
+                  <div className="border-t border-garage-border pt-3 space-y-2">
+                    <h6 className="text-xs font-semibold text-garage-text mb-2">All Billing Entries</h6>
+                    {rental.billings.map((billing) => (
+                      <div
+                        key={billing.id}
+                        className="bg-garage-bg/30 rounded p-2 border border-garage-border"
+                      >
+                        <div className="flex justify-between items-start mb-2">
+                          <p className="text-xs font-medium text-garage-text">
+                            {formatDateForDisplay(billing.billing_date)}
+                          </p>
+                          <div className="flex gap-1">
+                            <button
+                              onClick={() => handleEditBilling(rental.id, billing)}
+                              className="p-1 text-primary hover:bg-primary/10 rounded transition-colors"
+                              aria-label="Edit Billing"
+                              title="Edit Billing"
+                            >
+                              <Edit className="w-3 h-3" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteBilling(rental.id, billing.id)}
+                              className="p-1 text-danger hover:bg-danger/10 rounded transition-colors"
+                              aria-label="Delete Billing"
+                              title="Delete Billing"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-5 gap-2">
+                          <div>
+                            <p className="text-xs text-garage-text-muted">Monthly</p>
+                            <p className="text-xs text-garage-text font-medium">
+                              {formatCurrency(billing.monthly_rate)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-garage-text-muted">Electric</p>
+                            <p className="text-xs text-garage-text font-medium">
+                              {formatCurrency(billing.electric)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-garage-text-muted">Water</p>
+                            <p className="text-xs text-garage-text font-medium">
+                              {formatCurrency(billing.water)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-garage-text-muted">Waste</p>
+                            <p className="text-xs text-garage-text font-medium">
+                              {formatCurrency(billing.waste)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-garage-text-muted">Total</p>
+                            <p className="text-xs text-garage-text font-semibold">
+                              {formatCurrency(billing.total)}
+                            </p>
+                          </div>
+                        </div>
+                        {billing.notes && (
+                          <p className="text-xs text-garage-text-muted mt-2">
+                            {billing.notes}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Optional Fields */}
+                {(rental.nightly_rate || rental.weekly_rate || rental.amenities || rental.notes) && (
+                  <div className="border-t border-garage-border pt-3 mt-3 space-y-2">
+                    {(rental.nightly_rate || rental.weekly_rate) && (
+                      <div className="flex gap-3 text-xs text-garage-text-muted">
+                        {rental.nightly_rate && (
+                          <span>Nightly: {formatCurrency(rental.nightly_rate)}</span>
+                        )}
+                        {rental.weekly_rate && (
+                          <span>Weekly: {formatCurrency(rental.weekly_rate)}</span>
+                        )}
+                      </div>
+                    )}
+                    {rental.amenities && (
+                      <div>
+                        <p className="text-xs text-garage-text-muted mb-0.5">Amenities:</p>
+                        <p className="text-xs text-garage-text">{rental.amenities}</p>
+                      </div>
+                    )}
+                    {rental.notes && (
+                      <div>
+                        <p className="text-xs text-garage-text-muted mb-0.5">Notes:</p>
+                        <p className="text-xs text-garage-text-muted">{rental.notes}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
-
-              <div className="grid grid-cols-4 gap-2 mb-2">
-                <div>
-                  <p className="text-xs text-garage-text-muted mb-0.5">Check-In</p>
-                  <p className="text-xs text-garage-text font-medium flex items-center gap-1">
-                    <Calendar className="w-3 h-3" />
-                    {formatDateForDisplay(rental.check_in_date)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-garage-text-muted mb-0.5">Check-Out</p>
-                  <p className="text-xs text-garage-text font-medium flex items-center gap-1">
-                    <Calendar className="w-3 h-3" />
-                    {rental.check_out_date ? formatDateForDisplay(rental.check_out_date) : 'Ongoing'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-garage-text-muted mb-0.5">Monthly Rate</p>
-                  <p className="text-xs text-garage-text font-medium">
-                    {formatCurrency(rental.monthly_rate)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-garage-text-muted mb-0.5">Total Cost</p>
-                  <p className="text-xs text-garage-text font-semibold">
-                    {formatCurrency(rental.total_cost)}
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2 mb-2">
-                <div>
-                  <p className="text-xs text-garage-text-muted mb-0.5">Electric</p>
-                  <p className="text-xs text-garage-text font-medium">
-                    {formatCurrency(rental.electric)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-garage-text-muted mb-0.5">Water</p>
-                  <p className="text-xs text-garage-text font-medium">
-                    {formatCurrency(rental.water)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-garage-text-muted mb-0.5">Waste</p>
-                  <p className="text-xs text-garage-text font-medium">
-                    {formatCurrency(rental.waste)}
-                  </p>
-                </div>
-              </div>
-
-              {(rental.nightly_rate || rental.weekly_rate) && (
-                <div className="flex gap-3 mb-2 text-xs text-garage-text-muted">
-                  {rental.nightly_rate && (
-                    <span>Nightly: {formatCurrency(rental.nightly_rate)}</span>
-                  )}
-                  {rental.weekly_rate && (
-                    <span>Weekly: {formatCurrency(rental.weekly_rate)}</span>
-                  )}
-                </div>
-              )}
-
-              {rental.amenities && (
-                <div className="mb-1">
-                  <p className="text-xs text-garage-text-muted mb-0.5">Amenities:</p>
-                  <p className="text-xs text-garage-text">{rental.amenities}</p>
-                </div>
-              )}
-
-              {rental.notes && (
-                <div>
-                  <p className="text-xs text-garage-text-muted mb-0.5">Notes:</p>
-                  <p className="text-xs text-garage-text-muted">{rental.notes}</p>
-                </div>
-              )}
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>

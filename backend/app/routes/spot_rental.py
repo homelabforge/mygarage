@@ -5,6 +5,7 @@ from typing import Annotated, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.models import SpotRental, Vehicle
@@ -34,9 +35,11 @@ async def list_spot_rentals(
         raise HTTPException(status_code=404, detail="Vehicle not found")
 
     # Get spot rentals ordered by check-in date descending
+    # Eager-load billings to avoid N+1 queries
     query = (
         select(SpotRental)
         .where(SpotRental.vin == vin)
+        .options(selectinload(SpotRental.billings))
         .order_by(SpotRental.check_in_date.desc())
     )
     result = await db.execute(query)
