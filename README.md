@@ -1,7 +1,8 @@
+<div align="center">
+  
 # MyGarage
 
 Self-hosted vehicle maintenance tracking with VIN decoding, service records, fuel logging, and document management.
-<div align="center">
 
 [![CI](https://github.com/homelabforge/mygarage/actions/workflows/ci.yml/badge.svg)](https://github.com/homelabforge/mygarage/actions/workflows/ci.yml)
 [![Docker Build](https://github.com/homelabforge/mygarage/actions/workflows/docker-build.yml/badge.svg)](https://github.com/homelabforge/mygarage/actions/workflows/docker-build.yml)
