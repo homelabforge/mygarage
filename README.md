@@ -14,8 +14,6 @@ Self-hosted vehicle maintenance tracking with VIN decoding, service records, fue
 
 ![MyGarage Dashboard](docs/screenshots/dashboard.png)
 
-**📚 [Full Documentation (Wiki)](https://github.com/homelabforge/mygarage/wiki)** | **🌐 [Website](https://homelabforge.io/builds/mygarage/)** | **⭐ [Star on GitHub](https://github.com/homelabforge/mygarage)**
-
 ---
 
 ## Quick Start
