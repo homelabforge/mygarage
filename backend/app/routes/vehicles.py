@@ -29,6 +29,23 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/vehicles", tags=["Vehicles"])
 
 
+def sanitize_for_log(value: str) -> str:
+    """
+    Sanitize a string for safe logging by removing characters that could be used for log injection.
+
+    Removes newline characters (\n, \r) that could allow a malicious user to forge log entries.
+
+    Args:
+        value: The string to sanitize
+
+    Returns:
+        Sanitized string safe for logging
+    """
+    if not value:
+        return value
+    return value.replace('\r\n', '').replace('\r', '').replace('\n', '')
+
+
 @router.get("", response_model=VehicleListResponse)
 async def list_vehicles(
     skip: int = 0,
@@ -365,7 +382,7 @@ async def archive_vehicle(
     await db.commit()
     await db.refresh(vehicle)
 
-    logger.info("Archived vehicle %s (reason: %s)", vin, archive_data.reason)
+    logger.info("Archived vehicle %s (reason: %s)", sanitize_for_log(vin), sanitize_for_log(archive_data.reason))
     return VehicleResponse.model_validate(vehicle)
 
 
@@ -416,7 +433,7 @@ async def unarchive_vehicle(
     await db.commit()
     await db.refresh(vehicle)
 
-    logger.info("Unarchived vehicle %s", vin)
+    logger.info("Unarchived vehicle %s", sanitize_for_log(vin))
     return VehicleResponse.model_validate(vehicle)
 
 
@@ -519,5 +536,5 @@ async def toggle_archived_visibility(
     await db.commit()
     await db.refresh(vehicle)
 
-    logger.info("Set archived vehicle %s visibility to %s", vin, visible)
+    logger.info("Set archived vehicle %s visibility to %s", sanitize_for_log(vin), visible)
     return VehicleResponse.model_validate(vehicle)
