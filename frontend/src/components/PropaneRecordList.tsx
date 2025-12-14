@@ -28,9 +28,10 @@ export default function PropaneRecordList({ vin }: PropaneRecordListProps) {
       const allRecords = response.data.records || []
 
       // Filter to only records with propane_gallons and no regular gallons
-      const propaneRecords = allRecords.filter((r: FuelRecord) =>
-        r.propane_gallons && r.propane_gallons > 0 && !r.gallons
-      )
+      const propaneRecords = allRecords.filter((r: FuelRecord) => {
+        const propaneGallons = typeof r.propane_gallons === 'string' ? parseFloat(r.propane_gallons) : r.propane_gallons
+        return propaneGallons && propaneGallons > 0 && !r.gallons
+      })
 
       setRecords(propaneRecords)
       setError(null)

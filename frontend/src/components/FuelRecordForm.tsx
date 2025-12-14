@@ -44,6 +44,13 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
     return `${year}-${month}-${day}`
   }
 
+  // Helper to convert string | number to number
+  const toNumber = (val: number | string | undefined): number | undefined => {
+    if (val === undefined) return undefined
+    const num = typeof val === 'string' ? parseFloat(val) : val
+    return isNaN(num) ? undefined : num
+  }
+
   const {
     register,
     handleSubmit,
@@ -55,17 +62,17 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
     defaultValues: {
       date: formatDateForInput(record?.date),
       mileage: system === 'metric' && record?.mileage
-        ? UnitConverter.milesToKm(record.mileage) ?? undefined
-        : record?.mileage ?? undefined,
+        ? UnitConverter.milesToKm(toNumber(record.mileage)!) ?? undefined
+        : toNumber(record?.mileage),
       gallons: system === 'metric' && record?.gallons
-        ? UnitConverter.gallonsToLiters(record.gallons) ?? undefined
-        : record?.gallons ?? undefined,
+        ? UnitConverter.gallonsToLiters(toNumber(record.gallons)!) ?? undefined
+        : toNumber(record?.gallons),
       propane_gallons: system === 'metric' && record?.propane_gallons
-        ? UnitConverter.gallonsToLiters(record.propane_gallons) ?? undefined
-        : record?.propane_gallons ?? undefined,
-      kwh: record?.kwh ?? undefined,
-      price_per_unit: record?.price_per_unit ?? undefined,
-      cost: record?.cost ?? undefined,
+        ? UnitConverter.gallonsToLiters(toNumber(record.propane_gallons)!) ?? undefined
+        : toNumber(record?.propane_gallons),
+      kwh: toNumber(record?.kwh),
+      price_per_unit: toNumber(record?.price_per_unit),
+      cost: toNumber(record?.cost),
       fuel_type: record?.fuel_type || '',
       is_full_tank: record?.is_full_tank ?? true,
       missed_fillup: record?.missed_fillup ?? false,
