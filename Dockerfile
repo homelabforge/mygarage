@@ -43,6 +43,9 @@ FROM python:3.14-slim AS backend-builder
 
 WORKDIR /app
 
+# Prevent bytecode during build (speeds up and reduces image size)
+ENV PYTHONDONTWRITEBYTECODE=1
+
 # Upgrade pip to latest version and clean up old metadata
 RUN pip install --no-cache-dir --upgrade pip && \
     rm -rf /usr/local/lib/python3.14/site-packages/pip-25.2.dist-info 2>/dev/null || true
@@ -63,6 +66,11 @@ LABEL org.opencontainers.image.title="MyGarage"
 LABEL org.opencontainers.image.url="https://www.homelabforge.io"
 LABEL org.opencontainers.image.description="Vehicle and garage management platform with maintenance tracking"
 LABEL org.opencontainers.image.frontend.builder="bun-1.3.4"
+
+# HTTP server metadata
+LABEL http.server.name="granian"
+LABEL http.server.version="2.6.0"
+LABEL http.server.type="asgi"
 
 WORKDIR /app
 

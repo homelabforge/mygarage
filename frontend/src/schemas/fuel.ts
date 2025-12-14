@@ -5,6 +5,7 @@ import {
   optionalGallonsSchema,
   optionalCurrencySchema,
   optionalPricePerUnitSchema,
+  optionalKwhSchema,
   notesSchema,
 } from './shared'
 
@@ -18,6 +19,7 @@ export const fuelRecordSchema = z.object({
   mileage: optionalMileageSchema,
   gallons: optionalGallonsSchema,
   propane_gallons: optionalGallonsSchema,
+  kwh: optionalKwhSchema,
   cost: optionalCurrencySchema,
   price_per_unit: optionalPricePerUnitSchema,
   fuel_type: z.string().max(50, 'Fuel type too long').optional(),

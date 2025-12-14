@@ -203,6 +203,7 @@ from app.routes import (
     attachments_router,
     tax_router,
     spot_rental_router,
+    spot_rental_billing_router,
     address_book_router,
     calendar_router,
     window_sticker_router,
@@ -237,6 +238,7 @@ app.include_router(backup_router)
 app.include_router(attachments_router)
 app.include_router(tax_router)
 app.include_router(spot_rental_router)
+app.include_router(spot_rental_billing_router)
 app.include_router(address_book_router)
 app.include_router(calendar_router)
 app.include_router(window_sticker_router)

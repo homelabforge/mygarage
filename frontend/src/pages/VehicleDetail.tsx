@@ -360,8 +360,9 @@ export default function VehicleDetail() {
   const isMotorized = vehicle?.vehicle_type &&
     !['Trailer', 'FifthWheel'].includes(vehicle.vehicle_type)
 
-  // Check if vehicle is a fifth wheel (for propane tracking)
-  const isFifthWheel = vehicle?.vehicle_type === 'FifthWheel'
+  // Check if vehicle is a fifth wheel or RV (for propane tracking)
+  const hasPropane = vehicle?.vehicle_type &&
+    ['RV', 'FifthWheel'].includes(vehicle.vehicle_type)
 
   // Check if vehicle is RV or Fifth Wheel (for spot rentals)
   const isRVOrFifthWheel = vehicle?.vehicle_type &&
@@ -410,7 +411,7 @@ export default function VehicleDetail() {
     maintenance: [
       { id: 'service' as const, label: 'Service', icon: Wrench },
       { id: 'fuel' as const, label: 'Fuel', icon: Fuel, visible: isMotorized },
-      { id: 'propane' as const, label: 'Propane', icon: Fuel, visible: isFifthWheel },
+      { id: 'propane' as const, label: 'Propane', icon: Fuel, visible: hasPropane },
       { id: 'odometer' as const, label: 'Odometer', icon: Gauge, visible: isMotorized },
       { id: 'recalls' as const, label: 'Recalls', icon: AlertTriangle },
     ],

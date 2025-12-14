@@ -7,6 +7,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.17.0] - 2025-12-13
+
+### Added
+- **Electric Vehicle Support**
+  - New vehicle types: `Electric` and `Hybrid`
+  - kWh tracking for electric vehicle charging records
+  - Smart fuel form adapts fields based on vehicle fuel type
+  - Electric vehicles show Energy (kWh) field instead of Volume (gallons)
+  - Hybrid vehicles show both gallons and kWh fields
+  - Dynamic labels: "Price per kWh" for electric, "Charging Station" references
+  - Conditional checkboxes: Full Tank and Hauling hidden for electric vehicles
+  - Electric-specific tip: "Efficiency metrics (kWh/100mi) are calculated from charging records"
+
+### Changed
+- **Smart Fuel Form**
+  - Form now conditionally shows/hides fields based on vehicle fuel_type
+  - Field visibility logic:
+    - Electric: Shows kWh, hides gallons/propane/is_full_tank/is_hauling
+    - Hybrid: Shows both gallons and kWh
+    - Gas/Diesel: Shows gallons (existing behavior)
+    - Propane: Shows propane_gallons
+  - Auto-calculation updated to handle both gallons and kWh
+  - Missed Fill-up label changes to "Missed Charging Session" for electric vehicles
+
+### Fixed
+- **RV Propane Access Bug**
+  - RV vehicles now have access to propane tab (previously only Fifth Wheels)
+  - Updated `VehicleDetail.tsx` to check for both RV and FifthWheel
+  - Updated `Analytics.tsx` propane and spot rental sections for RVs
+  - Documentation now correctly reflects RV capabilities
+
+### Technical
+- **Database Changes**
+  - Migration 019: Added `kwh NUMERIC(8, 3)` column to `fuel_records` table
+  - Updated vehicle_type constraint to include 'Electric' and 'Hybrid'
+- **Backend Changes**
+  - `backend/app/models/fuel.py`: Added kwh field mapping
+  - `backend/app/models/vehicle.py`: Updated CheckConstraint for new vehicle types
+  - `backend/app/schemas/vehicle.py`: Added Electric/Hybrid to valid_types
+  - `backend/app/schemas/fuel.py`: Added kwh validation (0-99999.999, 3 decimal places)
+- **Frontend Changes**
+  - `frontend/src/types/vehicle.ts`: Added Electric and Hybrid to VehicleType
+  - `frontend/src/schemas/vehicle.ts`: Added RV (was missing), Electric, and Hybrid to VEHICLE_TYPES
+  - `frontend/src/types/fuel.ts`: Added kwh field to all interfaces
+  - `frontend/src/schemas/fuel.ts`: Added optionalKwhSchema validation
+  - `frontend/src/schemas/shared.ts`: Created optionalKwhSchema validator
+  - `frontend/src/components/FuelRecordForm.tsx`: Major smart form refactor with conditional rendering
+  - `frontend/src/pages/VehicleDetail.tsx`: Fixed propane tab visibility for RVs
+  - `frontend/src/pages/Analytics.tsx`: Fixed propane/spot rental sections for RVs
+
 ## [2.16.0] - 2025-01-28
 
 ### Added

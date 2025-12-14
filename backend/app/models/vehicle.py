@@ -135,7 +135,7 @@ class Vehicle(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "vehicle_type IN ('Car', 'Truck', 'SUV', 'Motorcycle', 'RV', 'Trailer', 'FifthWheel')",
+            "vehicle_type IN ('Car', 'Truck', 'SUV', 'Motorcycle', 'RV', 'Trailer', 'FifthWheel', 'Electric', 'Hybrid')",
             name="check_vehicle_type"
         ),
         Index("idx_vehicles_type", "vehicle_type"),

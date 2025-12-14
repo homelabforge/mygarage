@@ -36,7 +36,7 @@ class VehicleBase(BaseModel):
     @classmethod
     def validate_vehicle_type(cls, v: str) -> str:
         """Validate vehicle type."""
-        valid_types = ['Car', 'Truck', 'SUV', 'Motorcycle', 'RV', 'Trailer', 'FifthWheel']
+        valid_types = ['Car', 'Truck', 'SUV', 'Motorcycle', 'RV', 'Trailer', 'FifthWheel', 'Electric', 'Hybrid']
         if v not in valid_types:
             raise ValueError(f'Vehicle type must be one of: {", ".join(valid_types)}')
         return v

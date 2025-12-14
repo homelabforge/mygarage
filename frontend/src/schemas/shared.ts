@@ -89,3 +89,13 @@ export const optionalPricePerUnitSchema = z.preprocess(
     .max(999.99, 'Price too large')
     .optional()
 )
+
+// kWh validator for electric vehicles
+export const optionalKwhSchema = z.preprocess(
+  (val) => (val === '' || val === null ? undefined : val),
+  z.coerce
+    .number()
+    .min(0, 'kWh cannot be negative')
+    .max(99999.999, 'kWh too large')
+    .optional()
+)

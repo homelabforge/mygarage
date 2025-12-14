@@ -80,8 +80,9 @@ export default function Analytics() {
   const isMotorized = analytics?.vehicle_type &&
     !['Trailer', 'FifthWheel'].includes(analytics.vehicle_type)
 
-  // Check if vehicle is a fifth wheel (for propane and spot rental tracking)
-  const isFifthWheel = analytics?.vehicle_type === 'FifthWheel'
+  // Check if vehicle is a fifth wheel or RV (for propane and spot rental tracking)
+  const hasPropane = analytics?.vehicle_type &&
+    ['RV', 'FifthWheel'].includes(analytics.vehicle_type)
 
   const fetchAnalytics = useCallback(async () => {
     if (!vin) return
@@ -1106,8 +1107,8 @@ export default function Analytics() {
         </div>
       )}
 
-      {/* Propane Analysis for Fifth Wheels */}
-      {isFifthWheel && analytics.propane_analysis && analytics.propane_analysis.record_count > 0 && (
+      {/* Propane Analysis for Fifth Wheels and RVs */}
+      {hasPropane && analytics.propane_analysis && analytics.propane_analysis.record_count > 0 && (
         <div className="bg-garage-surface border border-garage-border rounded-lg p-6 mb-8">
           <div className="flex items-center gap-2 mb-4">
             <Fuel className="w-5 h-5 text-garage-text-muted" />
@@ -1162,8 +1163,8 @@ export default function Analytics() {
         </div>
       )}
 
-      {/* Spot Rental Analysis for Fifth Wheels */}
-      {isFifthWheel && analytics.spot_rental_analysis && analytics.spot_rental_analysis.billing_count > 0 && (
+      {/* Spot Rental Analysis for Fifth Wheels and RVs */}
+      {hasPropane && analytics.spot_rental_analysis && analytics.spot_rental_analysis.billing_count > 0 && (
         <div className="bg-garage-surface border border-garage-border rounded-lg p-6 mb-8">
           <div className="flex items-center gap-2 mb-4">
             <DollarSign className="w-5 h-5 text-garage-text-muted" />

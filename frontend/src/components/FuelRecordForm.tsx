@@ -20,6 +20,7 @@ interface FuelRecordFormProps {
 export default function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps) {
   const isEdit = !!record
   const [error, setError] = useState<string | null>(null)
+  const [vehicleFuelType, setVehicleFuelType] = useState<string>('')
   const { system } = useUnitPreference()
 
   // Helper to format date for input[type="date"] without timezone issues
@@ -62,6 +63,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
       propane_gallons: system === 'metric' && record?.propane_gallons
         ? UnitConverter.gallonsToLiters(record.propane_gallons) ?? undefined
         : record?.propane_gallons ?? undefined,
+      kwh: record?.kwh ?? undefined,
       price_per_unit: record?.price_per_unit ?? undefined,
       cost: record?.cost ?? undefined,
       fuel_type: record?.fuel_type || '',
@@ -72,8 +74,9 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
     },
   })
 
-  // Watch gallons and price_per_unit for auto-calculation
+  // Watch for auto-calculation
   const gallons = watch('gallons')
+  const kwh = watch('kwh')
   const pricePerUnit = watch('price_per_unit')
 
   // Fetch vehicle data to get fuel_type
@@ -82,6 +85,10 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
       try {
         const response = await api.get(`/vehicles/${vin}`)
         const vehicleData: Vehicle = response.data
+
+        // Store fuel_type for conditional rendering
+        setVehicleFuelType(vehicleData.fuel_type || '')
+
         // Auto-populate fuel_type from vehicle if not editing
         if (!record && vehicleData.fuel_type) {
           setValue('fuel_type', vehicleData.fuel_type || '')
@@ -93,7 +100,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
     fetchVehicle()
   }, [vin, record, setValue])
 
-  // Auto-calculate total cost when gallons and price per unit change
+  // Auto-calculate total cost when volume/energy and price per unit change
   // Skip auto-calc on mount when editing to preserve manually entered cost
   const [isInitialMount, setIsInitialMount] = useState(true)
 
@@ -103,16 +110,19 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
       return
     }
 
-    if (gallons && pricePerUnit) {
-      const gallonsNum = typeof gallons === 'number' ? gallons : parseFloat(gallons)
+    // Auto-calculate based on gallons or kwh
+    const volumeOrEnergy = gallons || kwh
+
+    if (volumeOrEnergy && pricePerUnit) {
+      const volumeNum = typeof volumeOrEnergy === 'number' ? volumeOrEnergy : parseFloat(volumeOrEnergy)
       const priceNum = typeof pricePerUnit === 'number' ? pricePerUnit : parseFloat(pricePerUnit)
 
-      if (!isNaN(gallonsNum) && !isNaN(priceNum)) {
-        const total = gallonsNum * priceNum
+      if (!isNaN(volumeNum) && !isNaN(priceNum)) {
+        const total = volumeNum * priceNum
         setValue('cost', parseFloat(total.toFixed(2)))
       }
     }
-  }, [gallons, pricePerUnit, setValue, isInitialMount])
+  }, [gallons, kwh, pricePerUnit, setValue, isInitialMount])
 
   const onSubmit = async (data: FuelRecordFormData) => {
     setError(null)
@@ -131,6 +141,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
         propane_gallons: system === 'metric' && data.propane_gallons
           ? UnitConverter.litersToGallons(data.propane_gallons) ?? data.propane_gallons
           : data.propane_gallons,
+        kwh: data.kwh,
         price_per_unit: data.price_per_unit,
         cost: data.cost,
         fuel_type: data.fuel_type,
@@ -152,6 +163,20 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
       setError(err instanceof Error ? err.message : 'An error occurred')
     }
   }
+
+  // Conditional field visibility based on fuel_type
+  const isElectric = vehicleFuelType?.toLowerCase().includes('electric')
+  const isHybrid = vehicleFuelType?.toLowerCase().includes('hybrid')
+  const isPropane = vehicleFuelType?.toLowerCase().includes('propane')
+
+  const showGallons = !isElectric || isHybrid
+  const showKwh = isElectric || isHybrid
+  const showPropane = isPropane
+  const showFullTankCheckbox = !isElectric
+  const showHaulingCheckbox = !isElectric
+
+  // Dynamic labels
+  const priceLabel = isElectric ? 'Price per kWh' : `Price per ${UnitFormatter.getVolumeUnit(system)}`
 
   return (
     <div className="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
@@ -212,47 +237,76 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
           </div>
 
           <div className="grid grid-cols-3 gap-4">
-            <div>
-              <label htmlFor="gallons" className="block text-sm font-medium text-garage-text mb-1">
-                Volume ({UnitFormatter.getVolumeUnit(system)})
-              </label>
-              <input
-                type="number"
-                id="gallons"
-                {...register('gallons')}
-                min="0"
-                step="0.001"
-                placeholder={system === 'imperial' ? '12.500' : '47.318'}
-                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
-                  errors.gallons ? 'border-red-500' : 'border-garage-border'
-                }`}
-                disabled={isSubmitting}
-              />
-              <FormError error={errors.gallons} />
-            </div>
+            {/* Regular Fuel (Gallons) - Show for gas/diesel/hybrid */}
+            {showGallons && (
+              <div>
+                <label htmlFor="gallons" className="block text-sm font-medium text-garage-text mb-1">
+                  Volume ({UnitFormatter.getVolumeUnit(system)})
+                </label>
+                <input
+                  type="number"
+                  id="gallons"
+                  {...register('gallons')}
+                  min="0"
+                  step="0.001"
+                  placeholder={system === 'imperial' ? '12.500' : '47.318'}
+                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
+                    errors.gallons ? 'border-red-500' : 'border-garage-border'
+                  }`}
+                  disabled={isSubmitting}
+                />
+                <FormError error={errors.gallons} />
+              </div>
+            )}
 
-            <div>
-              <label htmlFor="propane_gallons" className="block text-sm font-medium text-garage-text mb-1">
-                Propane ({UnitFormatter.getVolumeUnit(system)})
-              </label>
-              <input
-                type="number"
-                id="propane_gallons"
-                {...register('propane_gallons')}
-                min="0"
-                step="0.001"
-                placeholder="0.000"
-                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
-                  errors.propane_gallons ? 'border-red-500' : 'border-garage-border'
-                }`}
-                disabled={isSubmitting}
-              />
-              <FormError error={errors.propane_gallons} />
-            </div>
+            {/* Electric Energy (kWh) - Show for electric/hybrid */}
+            {showKwh && (
+              <div>
+                <label htmlFor="kwh" className="block text-sm font-medium text-garage-text mb-1">
+                  Energy (kWh)
+                </label>
+                <input
+                  type="number"
+                  id="kwh"
+                  {...register('kwh')}
+                  min="0"
+                  step="0.001"
+                  placeholder="45.500"
+                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
+                    errors.kwh ? 'border-red-500' : 'border-garage-border'
+                  }`}
+                  disabled={isSubmitting}
+                />
+                <FormError error={errors.kwh} />
+              </div>
+            )}
 
+            {/* Propane - Show for propane vehicles */}
+            {showPropane && (
+              <div>
+                <label htmlFor="propane_gallons" className="block text-sm font-medium text-garage-text mb-1">
+                  Propane ({UnitFormatter.getVolumeUnit(system)})
+                </label>
+                <input
+                  type="number"
+                  id="propane_gallons"
+                  {...register('propane_gallons')}
+                  min="0"
+                  step="0.001"
+                  placeholder="0.000"
+                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
+                    errors.propane_gallons ? 'border-red-500' : 'border-garage-border'
+                  }`}
+                  disabled={isSubmitting}
+                />
+                <FormError error={errors.propane_gallons} />
+              </div>
+            )}
+
+            {/* Price per unit */}
             <div>
               <label htmlFor="price_per_unit" className="block text-sm font-medium text-garage-text mb-1">
-                Price per {UnitFormatter.getVolumeUnit(system)}
+                {priceLabel}
               </label>
               <div className="relative">
                 <span className="absolute left-3 top-2 text-garage-text-muted">$</span>
@@ -262,7 +316,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
                   {...register('price_per_unit')}
                   min="0"
                   step="0.001"
-                  placeholder={system === 'imperial' ? '3.499' : '0.924'}
+                  placeholder={isElectric ? '0.130' : (system === 'imperial' ? '3.499' : '0.924')}
                   className={`w-full pl-7 pr-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
                     errors.price_per_unit ? 'border-red-500' : 'border-garage-border'
                   }`}
@@ -319,18 +373,20 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                id="is_full_tank"
-                {...register('is_full_tank')}
-                className="h-4 w-4 text-primary focus:ring-primary border-garage-border rounded bg-garage-bg"
-                disabled={isSubmitting}
-              />
-              <label htmlFor="is_full_tank" className="ml-2 block text-sm text-garage-text">
-                Full Tank Fill-up
-              </label>
-            </div>
+            {showFullTankCheckbox && (
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="is_full_tank"
+                  {...register('is_full_tank')}
+                  className="h-4 w-4 text-primary focus:ring-primary border-garage-border rounded bg-garage-bg"
+                  disabled={isSubmitting}
+                />
+                <label htmlFor="is_full_tank" className="ml-2 block text-sm text-garage-text">
+                  Full Tank Fill-up
+                </label>
+              </div>
+            )}
 
             <div className="flex items-center">
               <input
@@ -341,30 +397,42 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
                 disabled={isSubmitting}
               />
               <label htmlFor="missed_fillup" className="ml-2 block text-sm text-garage-text">
-                Missed Fill-up
+                {isElectric ? 'Missed Charging Session' : 'Missed Fill-up'}
               </label>
             </div>
           </div>
 
-          <div className="flex items-center">
-            <input
-              type="checkbox"
-              id="is_hauling"
-              {...register('is_hauling')}
-              className="h-4 w-4 text-primary focus:ring-primary border-garage-border rounded bg-garage-bg"
-              disabled={isSubmitting}
-            />
-            <label htmlFor="is_hauling" className="ml-2 block text-sm text-garage-text">
-              Towing/Hauling Load
-            </label>
-          </div>
+          {showHaulingCheckbox && (
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                id="is_hauling"
+                {...register('is_hauling')}
+                className="h-4 w-4 text-primary focus:ring-primary border-garage-border rounded bg-garage-bg"
+                disabled={isSubmitting}
+              />
+              <label htmlFor="is_hauling" className="ml-2 block text-sm text-garage-text">
+                Towing/Hauling Load
+              </label>
+            </div>
+          )}
 
-          <div className="bg-primary/10 border border-primary rounded-lg p-3">
-            <p className="text-sm text-primary">
-              <strong>Tip:</strong> MPG is only calculated for full tank fill-ups.
-              Check "Full Tank Fill-up" to enable MPG calculation.
-            </p>
-          </div>
+          {!isElectric && (
+            <div className="bg-primary/10 border border-primary rounded-lg p-3">
+              <p className="text-sm text-primary">
+                <strong>Tip:</strong> MPG is only calculated for full tank fill-ups.
+                Check "Full Tank Fill-up" to enable MPG calculation.
+              </p>
+            </div>
+          )}
+
+          {isElectric && (
+            <div className="bg-primary/10 border border-primary rounded-lg p-3">
+              <p className="text-sm text-primary">
+                <strong>Tip:</strong> Efficiency metrics (kWh/100mi) are calculated from charging records.
+              </p>
+            </div>
+          )}
 
           <div>
             <label htmlFor="notes" className="block text-sm font-medium text-garage-text mb-1">

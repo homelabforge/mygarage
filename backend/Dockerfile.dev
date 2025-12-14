@@ -1,0 +1,29 @@
+FROM python:3.14-slim
+
+# Install system dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        curl \
+        libmagic1 \
+        file && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy dependency file for better layer caching
+COPY pyproject.toml ./
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -e .[dev] && \
+    pip install --no-cache-dir 'granian[reload]'
+
+# Copy application code
+COPY . .
+
+EXPOSE 8686
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+CMD ["granian", "--interface", "asgi", "--host", "0.0.0.0", "--port", "8686", "app.main:app"]

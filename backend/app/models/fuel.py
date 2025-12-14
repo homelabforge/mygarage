@@ -21,6 +21,7 @@ class FuelRecord(Base):
     mileage: Mapped[Optional[int]] = mapped_column(Integer)
     gallons: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 3))
     propane_gallons: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 3))
+    kwh: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 3))
     cost: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 2))
     price_per_unit: Mapped[Optional[Decimal]] = mapped_column(Numeric(6, 3))
     fuel_type: Mapped[Optional[str]] = mapped_column(String(50))

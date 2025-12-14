@@ -37,7 +37,7 @@ dev = [
     "pytest>=8.3.3",
     "pytest-asyncio>=0.24.0",
     "pytest-cov>=5.0.0",
-    "ruff>=0.7.0",
+    "ruff>=0.14.9",
 ]
 
 [tool.setuptools.packages.find]

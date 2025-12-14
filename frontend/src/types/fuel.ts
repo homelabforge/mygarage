@@ -9,6 +9,7 @@ export interface FuelRecord {
   mileage?: number
   gallons?: number
   propane_gallons?: number
+  kwh?: number
   price_per_unit?: number
   cost?: number
   fuel_type?: string
@@ -26,6 +27,7 @@ export interface FuelRecordCreate {
   mileage?: number
   gallons?: number
   propane_gallons?: number
+  kwh?: number
   price_per_unit?: number
   cost?: number
   fuel_type?: string
@@ -40,6 +42,7 @@ export interface FuelRecordUpdate {
   mileage?: number
   gallons?: number
   propane_gallons?: number
+  kwh?: number
   price_per_unit?: number
   cost?: number
   fuel_type?: string

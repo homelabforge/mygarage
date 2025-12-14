@@ -11,8 +11,11 @@ export const VEHICLE_TYPES = [
   'SUV',
   'Truck',
   'Motorcycle',
+  'RV',
   'Trailer',
   'FifthWheel',
+  'Electric',
+  'Hybrid',
 ] as const
 
 const yearSchema = z.coerce
