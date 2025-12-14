@@ -23,6 +23,6 @@ export interface PropaneRecordUpdate extends Partial<PropaneRecordCreate> {}
 
 export interface PropaneRecordListResponse {
   fuel_records: PropaneRecord[]
-  total: int
+  total: number
   average_mpg?: number  // Not used for propane, but part of API response
 }

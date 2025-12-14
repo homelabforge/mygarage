@@ -73,12 +73,10 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
     if (entry) {
       // Auto-fill address from selected entry
       const fullAddress = [
-        entry.address_line1,
-        entry.address_line2,
+        entry.address,
         entry.city,
         entry.state,
-        entry.postal_code,
-        entry.country
+        entry.zip_code
       ].filter(Boolean).join(', ')
 
       setValue('location_address', fullAddress)
@@ -91,7 +89,7 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
     try {
       await api.post('/address-book', {
         business_name: pendingLocationData.name,
-        address_line1: pendingLocationData.address,
+        address: pendingLocationData.address,
         category: 'RV Park'
       })
       toast.success('Location saved to address book')

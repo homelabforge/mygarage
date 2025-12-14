@@ -108,8 +108,8 @@ export default function PropaneRecordForm({
       const payload: FuelRecordCreate | FuelRecordUpdate = {
         vin,
         date: data.date,
-        mileage: null,  // Never set for propane
-        gallons: null,  // Never set for propane
+        mileage: undefined,  // Never set for propane
+        gallons: undefined,  // Never set for propane
         propane_gallons: system === 'metric' && data.propane_gallons
           ? UnitConverter.litersToGallons(data.propane_gallons) ?? data.propane_gallons
           : data.propane_gallons,
