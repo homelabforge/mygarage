@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.17.4] - 2025-12-15
+
 ### Fixed
 - **Number Input Bug Across All Forms**
   - Fixed critical bug where numeric inputs were incorrectly formatting values (e.g., 500 → 500000, 192.68 → mangled output)
