@@ -238,13 +238,12 @@ export default function InsuranceForm({ vin, record, onClose, onSuccess }: Insur
                 Premium Amount
               </label>
               <input
-                type="number"
+                type="text"
                 id="premium_amount"
-                {...register('premium_amount', { valueAsNumber: true })}
+                {...register('premium_amount')}
                 disabled={isSubmitting}
                 className="input w-full"
                 placeholder="e.g., 150.00"
-                step="0.01"
               />
               <FormError error={errors.premium_amount} />
             </div>
@@ -273,13 +272,12 @@ export default function InsuranceForm({ vin, record, onClose, onSuccess }: Insur
               Deductible
             </label>
             <input
-              type="number"
+              type="text"
               id="deductible"
-              {...register('deductible', { valueAsNumber: true })}
+              {...register('deductible')}
               disabled={isSubmitting}
               className="input w-full"
               placeholder="e.g., 500.00"
-              step="0.01"
             />
             <FormError error={errors.deductible} />
           </div>

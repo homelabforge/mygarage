@@ -29,19 +29,16 @@ const optionalNightlyRateSchema = nightlyRateSchema
   .or(z.nan())
   .transform(val => isNaN(val) ? undefined : val)
   .optional()
-  .nullable()
 
 const optionalLargeRateSchema = largeRateSchema
   .or(z.nan())
   .transform(val => isNaN(val) ? undefined : val)
   .optional()
-  .nullable()
 
 const optionalUtilitySchema = utilitySchema
   .or(z.nan())
   .transform(val => isNaN(val) ? undefined : val)
   .optional()
-  .nullable()
 
 export const spotRentalSchema = z.object({
   location_name: z.string().max(100, 'Location name too long (max 100 characters)').optional(),

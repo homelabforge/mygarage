@@ -7,22 +7,19 @@ export const propaneRecordSchema = z.object({
     .positive('Propane must be greater than 0')
     .or(z.nan())
     .transform(val => isNaN(val) ? undefined : val)
-    .optional()
-    .nullable(),
+    .optional(),
   price_per_unit: z
     .number()
     .nonnegative('Price must be 0 or greater')
     .or(z.nan())
     .transform(val => isNaN(val) ? undefined : val)
-    .optional()
-    .nullable(),
+    .optional(),
   cost: z
     .number()
     .nonnegative('Cost must be 0 or greater')
     .or(z.nan())
     .transform(val => isNaN(val) ? undefined : val)
-    .optional()
-    .nullable(),
+    .optional(),
   vendor: z.string().max(100).optional(),
   notes: z.string().max(1000).optional(),
 })

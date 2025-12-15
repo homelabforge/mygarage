@@ -26,7 +26,6 @@ const yearSchema = z
   .or(z.nan())
   .transform(val => isNaN(val) ? undefined : val)
   .optional()
-  .nullable()
 
 const doorsSchema = z
   .number()
@@ -35,7 +34,6 @@ const doorsSchema = z
   .or(z.nan())
   .transform(val => isNaN(val) ? undefined : val)
   .optional()
-  .nullable()
 
 const cylindersSchema = z
   .number()
@@ -44,21 +42,18 @@ const cylindersSchema = z
   .or(z.nan())
   .transform(val => isNaN(val) ? undefined : val)
   .optional()
-  .nullable()
 
 const purchasePriceSchema = z
   .number()
   .or(z.nan())
   .transform(val => isNaN(val) ? undefined : val)
   .optional()
-  .nullable()
 
 const soldPriceSchema = z
   .number()
   .or(z.nan())
   .transform(val => isNaN(val) ? undefined : val)
   .optional()
-  .nullable()
 
 export const vehicleEditSchema = z.object({
   // Basic Information

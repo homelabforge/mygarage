@@ -17,7 +17,6 @@ const mileageLimitSchema = z
   .or(z.nan())
   .transform(val => isNaN(val) ? undefined : val)
   .optional()
-  .nullable()
 
 export const warrantySchema = z.object({
   warranty_type: z.string().min(1, 'Warranty type is required'),

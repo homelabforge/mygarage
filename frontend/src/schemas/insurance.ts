@@ -27,21 +27,9 @@ export const insuranceSchema = z.object({
   policy_type: z.string().min(1, 'Policy type is required'),
   start_date: z.string().min(1, 'Start date is required'),
   end_date: z.string().min(1, 'End date is required'),
-  premium_amount: z
-    .number()
-    .min(0, 'Premium amount cannot be negative')
-    .or(z.nan())
-    .transform(val => isNaN(val) ? undefined : val)
-    .optional()
-    .nullable(),
+  premium_amount: z.string().optional(),
   premium_frequency: z.string().optional(),
-  deductible: z
-    .number()
-    .min(0, 'Deductible cannot be negative')
-    .or(z.nan())
-    .transform(val => isNaN(val) ? undefined : val)
-    .optional()
-    .nullable(),
+  deductible: z.string().optional(),
   coverage_limits: z.string().optional(),
   notes: z.string().optional(),
 })

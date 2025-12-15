@@ -12,7 +12,6 @@ const dueMileageSchema = z
   .or(z.nan())
   .transform(val => isNaN(val) ? undefined : val)
   .optional()
-  .nullable()
 
 const recurrenceDaysSchema = z
   .number()
@@ -21,7 +20,6 @@ const recurrenceDaysSchema = z
   .or(z.nan())
   .transform(val => isNaN(val) ? undefined : val)
   .optional()
-  .nullable()
 
 const recurrenceMilesSchema = z
   .number()
@@ -30,7 +28,6 @@ const recurrenceMilesSchema = z
   .or(z.nan())
   .transform(val => isNaN(val) ? undefined : val)
   .optional()
-  .nullable()
 
 export const reminderSchema = z
   .object({

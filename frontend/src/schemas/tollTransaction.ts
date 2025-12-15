@@ -6,14 +6,12 @@ const amountSchema = z
   .or(z.nan())
   .transform(val => isNaN(val) ? undefined : val)
   .optional()
-  .nullable()
 
 const tollTagIdSchema = z
   .number()
   .or(z.nan())
   .transform(val => isNaN(val) ? undefined : val)
   .optional()
-  .nullable()
 
 export const tollTransactionSchema = z.object({
   transaction_date: z.string().min(1, 'Transaction date is required'),

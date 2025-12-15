@@ -61,7 +61,6 @@ export const optionalMileageSchema = z
   .or(z.nan())
   .transform(val => isNaN(val) ? undefined : val)
   .optional()
-  .nullable()
 
 export const optionalCurrencySchema = z
   .number()
@@ -70,7 +69,6 @@ export const optionalCurrencySchema = z
   .or(z.nan())
   .transform(val => isNaN(val) ? undefined : val)
   .optional()
-  .nullable()
 
 export const optionalGallonsSchema = z
   .number()
@@ -79,7 +77,6 @@ export const optionalGallonsSchema = z
   .or(z.nan())
   .transform(val => isNaN(val) ? undefined : val)
   .optional()
-  .nullable()
 
 export const optionalPricePerUnitSchema = z
   .number()
@@ -88,7 +85,6 @@ export const optionalPricePerUnitSchema = z
   .or(z.nan())
   .transform(val => isNaN(val) ? undefined : val)
   .optional()
-  .nullable()
 
 // kWh validator for electric vehicles
 export const optionalKwhSchema = z
@@ -98,4 +94,3 @@ export const optionalKwhSchema = z
   .or(z.nan())
   .transform(val => isNaN(val) ? undefined : val)
   .optional()
-  .nullable()

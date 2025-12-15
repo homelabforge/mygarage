@@ -7,37 +7,32 @@ export const spotRentalBillingSchema = z.object({
     .nonnegative('Monthly rate must be 0 or greater')
     .or(z.nan())
     .transform(val => isNaN(val) ? undefined : val)
-    .optional()
-    .nullable(),
+    .optional(),
   electric: z
     .number()
     .nonnegative('Electric cost must be 0 or greater')
     .or(z.nan())
     .transform(val => isNaN(val) ? undefined : val)
-    .optional()
-    .nullable(),
+    .optional(),
   water: z
     .number()
     .nonnegative('Water cost must be 0 or greater')
     .or(z.nan())
     .transform(val => isNaN(val) ? undefined : val)
-    .optional()
-    .nullable(),
+    .optional(),
   waste: z
     .number()
     .nonnegative('Waste cost must be 0 or greater')
     .or(z.nan())
     .transform(val => isNaN(val) ? undefined : val)
-    .optional()
-    .nullable(),
+    .optional(),
   total: z
     .number()
     .nonnegative('Total must be 0 or greater')
     .or(z.nan())
     .transform(val => isNaN(val) ? undefined : val)
-    .optional()
-    .nullable(),
-  notes: z.string().max(1000, 'Notes must be 1000 characters or less').optional().nullable(),
+    .optional(),
+  notes: z.string().max(1000, 'Notes must be 1000 characters or less').optional(),
 })
 
 export type SpotRentalBillingFormData = z.infer<typeof spotRentalBillingSchema>
