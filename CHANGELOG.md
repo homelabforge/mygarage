@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Number Input Bug Across All Forms**
+  - Fixed critical bug where numeric inputs were incorrectly formatting values (e.g., 500 → 500000, 192.68 → mangled output)
+  - Fixed issue where deleting all input left "0100" instead of clearing properly
+  - Updated all 13 forms to use `valueAsNumber: true` with React Hook Form for proper number handling
+  - Removed `z.coerce` from all Zod schemas and replaced with NaN transformation for optional fields
+  - Affected forms: BillingEntry, Fuel, Service, Insurance, Propane, SpotRental, Odometer, Tax, TollTransaction, Reminder, Warranty, VehicleEdit, VehicleWizard
+  - Fixed 40+ numeric input fields across the application
+
 ## [2.17.3] - 2025-12-14
 
 ### Fixed

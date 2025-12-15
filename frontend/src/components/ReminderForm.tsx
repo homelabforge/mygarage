@@ -124,7 +124,7 @@ export default function ReminderForm({ vin, reminder, onClose, onSuccess }: Remi
                 <input
                   type="number"
                   id="due_mileage"
-                  {...register('due_mileage')}
+                  {...register('due_mileage', { valueAsNumber: true })}
                   disabled={isSubmitting}
                   placeholder="e.g., 50000"
                   className="w-full px-3 py-2 border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text"
@@ -161,7 +161,7 @@ export default function ReminderForm({ vin, reminder, onClose, onSuccess }: Remi
                     <input
                       type="number"
                       id="recurrence_days"
-                      {...register('recurrence_days')}
+                      {...register('recurrence_days', { valueAsNumber: true })}
                       disabled={isSubmitting}
                       placeholder="e.g., 90"
                       className="w-full px-3 py-2 border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text"
@@ -176,7 +176,7 @@ export default function ReminderForm({ vin, reminder, onClose, onSuccess }: Remi
                     <input
                       type="number"
                       id="recurrence_miles"
-                      {...register('recurrence_miles')}
+                      {...register('recurrence_miles', { valueAsNumber: true })}
                       disabled={isSubmitting}
                       placeholder="e.g., 5000"
                       className="w-full px-3 py-2 border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text"

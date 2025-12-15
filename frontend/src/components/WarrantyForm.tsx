@@ -185,7 +185,7 @@ export default function WarrantyForm({ vin, record, onClose, onSuccess }: Warran
               <input
                 type="number"
                 id="mileage_limit"
-                {...register('mileage_limit')}
+                {...register('mileage_limit', { valueAsNumber: true })}
                 className={`input w-full ${errors.mileage_limit ? 'border-red-500' : ''}`}
                 placeholder="e.g., 100000"
                 min="0"

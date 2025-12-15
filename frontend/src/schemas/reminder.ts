@@ -5,23 +5,32 @@ import { z } from 'zod'
  * See: backend/app/schemas/reminder.py
  */
 
-const dueMileageSchema = z.coerce
+const dueMileageSchema = z
   .number()
   .int('Mileage must be a whole number')
   .min(0, 'Mileage cannot be negative')
+  .or(z.nan())
+  .transform(val => isNaN(val) ? undefined : val)
   .optional()
+  .nullable()
 
-const recurrenceDaysSchema = z.coerce
+const recurrenceDaysSchema = z
   .number()
   .int('Must be a whole number')
   .min(1, 'Recurrence days must be at least 1')
+  .or(z.nan())
+  .transform(val => isNaN(val) ? undefined : val)
   .optional()
+  .nullable()
 
-const recurrenceMilesSchema = z.coerce
+const recurrenceMilesSchema = z
   .number()
   .int('Must be a whole number')
   .min(1, 'Recurrence miles must be at least 1')
+  .or(z.nan())
+  .transform(val => isNaN(val) ? undefined : val)
   .optional()
+  .nullable()
 
 export const reminderSchema = z
   .object({

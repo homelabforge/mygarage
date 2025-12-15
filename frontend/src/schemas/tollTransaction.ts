@@ -1,11 +1,19 @@
 import { z } from 'zod'
 
-const amountSchema = z.coerce
+const amountSchema = z
   .number()
   .min(0, 'Amount must be 0 or greater')
+  .or(z.nan())
+  .transform(val => isNaN(val) ? undefined : val)
   .optional()
+  .nullable()
 
-const tollTagIdSchema = z.coerce.number().optional()
+const tollTagIdSchema = z
+  .number()
+  .or(z.nan())
+  .transform(val => isNaN(val) ? undefined : val)
+  .optional()
+  .nullable()
 
 export const tollTransactionSchema = z.object({
   transaction_date: z.string().min(1, 'Transaction date is required'),
@@ -15,6 +23,5 @@ export const tollTransactionSchema = z.object({
   notes: z.string().optional(),
 })
 
-// Use z.output for Zod v4 compatibility with z.coerce fields
 export type TollTransactionInput = z.input<typeof tollTransactionSchema>
 export type TollTransactionFormData = z.output<typeof tollTransactionSchema>

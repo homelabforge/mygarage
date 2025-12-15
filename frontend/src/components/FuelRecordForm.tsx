@@ -231,7 +231,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
               <input
                 type="number"
                 id="mileage"
-                {...register('mileage')}
+                {...register('mileage', { valueAsNumber: true })}
                 min="0"
                 placeholder={system === 'imperial' ? '45000' : '72420'}
                 className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
@@ -253,7 +253,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
                 <input
                   type="number"
                   id="gallons"
-                  {...register('gallons')}
+                  {...register('gallons', { valueAsNumber: true })}
                   min="0"
                   step="0.001"
                   placeholder={system === 'imperial' ? '12.500' : '47.318'}
@@ -275,7 +275,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
                 <input
                   type="number"
                   id="kwh"
-                  {...register('kwh')}
+                  {...register('kwh', { valueAsNumber: true })}
                   min="0"
                   step="0.001"
                   placeholder="45.500"
@@ -297,7 +297,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
                 <input
                   type="number"
                   id="propane_gallons"
-                  {...register('propane_gallons')}
+                  {...register('propane_gallons', { valueAsNumber: true })}
                   min="0"
                   step="0.001"
                   placeholder="0.000"
@@ -320,7 +320,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
                 <input
                   type="number"
                   id="price_per_unit"
-                  {...register('price_per_unit')}
+                  {...register('price_per_unit', { valueAsNumber: true })}
                   min="0"
                   step="0.001"
                   placeholder={isElectric ? '0.130' : (system === 'imperial' ? '3.499' : '0.924')}
@@ -343,7 +343,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
               <input
                 type="number"
                 id="cost"
-                {...register('cost')}
+                {...register('cost', { valueAsNumber: true })}
                 min="0"
                 step="0.01"
                 placeholder="42.99"

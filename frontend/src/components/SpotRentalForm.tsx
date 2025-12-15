@@ -334,7 +334,7 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
                   type="number"
                   id="rate_amount"
                   step="0.01"
-                  {...register(rateType === 'nightly' ? 'nightly_rate' : rateType === 'weekly' ? 'weekly_rate' : 'monthly_rate')}
+                  {...register(rateType === 'nightly' ? 'nightly_rate' : rateType === 'weekly' ? 'weekly_rate' : 'monthly_rate', { valueAsNumber: true })}
                   placeholder={rateType === 'nightly' ? '45.00' : rateType === 'weekly' ? '280.00' : '950.00'}
                   className={`w-full pl-7 pr-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
                     (rateType === 'nightly' && errors.nightly_rate) ||
@@ -363,7 +363,7 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
                   type="number"
                   id="electric"
                   step="0.01"
-                  {...register('electric')}
+                  {...register('electric', { valueAsNumber: true })}
                   placeholder="50.00"
                   className={`w-full pl-7 pr-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
                     errors.electric ? 'border-red-500' : 'border-garage-border'
@@ -384,7 +384,7 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
                   type="number"
                   id="water"
                   step="0.01"
-                  {...register('water')}
+                  {...register('water', { valueAsNumber: true })}
                   placeholder="30.00"
                   className={`w-full pl-7 pr-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
                     errors.water ? 'border-red-500' : 'border-garage-border'
@@ -405,7 +405,7 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
                   type="number"
                   id="waste"
                   step="0.01"
-                  {...register('waste')}
+                  {...register('waste', { valueAsNumber: true })}
                   placeholder="20.00"
                   className={`w-full pl-7 pr-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
                     errors.waste ? 'border-red-500' : 'border-garage-border'
@@ -427,7 +427,7 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
                 type="number"
                 id="total_cost"
                 step="0.01"
-                {...register('total_cost')}
+                {...register('total_cost', { valueAsNumber: true })}
                 placeholder="Auto-calculated"
                 className="w-full pl-7 pr-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg/50 text-garage-text border-garage-border"
                 readOnly

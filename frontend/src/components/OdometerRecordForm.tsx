@@ -127,7 +127,7 @@ export default function OdometerRecordForm({ vin, record, onClose, onSuccess }: 
             <input
               type="number"
               id="mileage"
-              {...register('mileage')}
+              {...register('mileage', { valueAsNumber: true })}
               placeholder={system === 'imperial' ? '45000' : '72420'}
               className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
                 errors.mileage ? 'border-red-500' : 'border-garage-border'

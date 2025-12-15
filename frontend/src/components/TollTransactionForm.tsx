@@ -114,7 +114,7 @@ export default function TollTransactionForm({ vin, tollTags, transaction, onClos
                 <input
                   type="number"
                   id="amount"
-                  {...register('amount')}
+                  {...register('amount', { valueAsNumber: true })}
                   className={`w-full pl-7 pr-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
                     errors.amount ? 'border-red-500' : 'border-garage-border'
                   }`}

@@ -216,7 +216,7 @@ export default function VehicleEdit() {
               <input
                 type="number"
                 id="year"
-                {...register('year')}
+                {...register('year', { valueAsNumber: true })}
                 className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-garage-text"
                 placeholder="2020"
                 min="1900"
@@ -308,7 +308,7 @@ export default function VehicleEdit() {
               <input
                 type="number"
                 id="doors"
-                {...register('doors')}
+                {...register('doors', { valueAsNumber: true })}
                 className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-garage-text"
                 placeholder="4"
               />
@@ -356,7 +356,7 @@ export default function VehicleEdit() {
               <input
                 type="number"
                 id="cylinders"
-                {...register('cylinders')}
+                {...register('cylinders', { valueAsNumber: true })}
                 className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-garage-text"
                 placeholder="4"
               />
@@ -435,7 +435,7 @@ export default function VehicleEdit() {
                 <input
                   type="number"
                   id="purchase_price"
-                  {...register('purchase_price')}
+                  {...register('purchase_price', { valueAsNumber: true })}
                   className="w-full pl-7 pr-3 py-2 bg-garage-bg border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-garage-text"
                   placeholder="25000.00"
                   step="0.01"
@@ -473,7 +473,7 @@ export default function VehicleEdit() {
                 <input
                   type="number"
                   id="sold_price"
-                  {...register('sold_price')}
+                  {...register('sold_price', { valueAsNumber: true })}
                   className="w-full pl-7 pr-3 py-2 bg-garage-bg border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-garage-text"
                   placeholder="20000.00"
                   step="0.01"

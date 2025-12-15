@@ -6,24 +6,24 @@ import { z } from 'zod'
  */
 
 // Numeric validators - required number fields
-// Using z.coerce to automatically convert HTML form string inputs to numbers
-export const mileageSchema = z.coerce
+// Using direct number validation (forms use valueAsNumber: true)
+export const mileageSchema = z
   .number()
   .int('Mileage must be a whole number')
   .min(0, 'Mileage cannot be negative')
   .max(9999999, 'Mileage too large')
 
-export const currencySchema = z.coerce
+export const currencySchema = z
   .number()
   .min(0, 'Amount cannot be negative')
   .max(99999.99, 'Amount too large')
 
-export const gallonsSchema = z.coerce
+export const gallonsSchema = z
   .number()
   .min(0, 'Gallons cannot be negative')
   .max(999.999, 'Gallons too large')
 
-export const pricePerUnitSchema = z.coerce
+export const pricePerUnitSchema = z
   .number()
   .min(0, 'Price cannot be negative')
   .max(999.99, 'Price too large')
@@ -51,51 +51,51 @@ export const vinSchema = z
   .regex(/^[A-HJ-NPR-Z0-9]{17}$/, 'Invalid VIN format')
 
 // Optional numeric fields - define as base schema then make optional
-// Using z.coerce to automatically convert HTML form string inputs to numbers
-// IMPORTANT: Preprocess empty strings to undefined to prevent coercion to 0
-export const optionalMileageSchema = z.preprocess(
-  (val) => (val === '' || val === null ? undefined : val),
-  z.coerce
-    .number()
-    .int('Mileage must be a whole number')
-    .min(0, 'Mileage cannot be negative')
-    .max(9999999, 'Mileage too large')
-    .optional()
-)
+// Forms use valueAsNumber: true, so empty fields become NaN
+// Transform NaN to undefined for optional fields
+export const optionalMileageSchema = z
+  .number()
+  .int('Mileage must be a whole number')
+  .min(0, 'Mileage cannot be negative')
+  .max(9999999, 'Mileage too large')
+  .or(z.nan())
+  .transform(val => isNaN(val) ? undefined : val)
+  .optional()
+  .nullable()
 
-export const optionalCurrencySchema = z.preprocess(
-  (val) => (val === '' || val === null ? undefined : val),
-  z.coerce
-    .number()
-    .min(0, 'Amount cannot be negative')
-    .max(99999.99, 'Amount too large')
-    .optional()
-)
+export const optionalCurrencySchema = z
+  .number()
+  .min(0, 'Amount cannot be negative')
+  .max(99999.99, 'Amount too large')
+  .or(z.nan())
+  .transform(val => isNaN(val) ? undefined : val)
+  .optional()
+  .nullable()
 
-export const optionalGallonsSchema = z.preprocess(
-  (val) => (val === '' || val === null ? undefined : val),
-  z.coerce
-    .number()
-    .min(0, 'Gallons cannot be negative')
-    .max(999.999, 'Gallons too large')
-    .optional()
-)
+export const optionalGallonsSchema = z
+  .number()
+  .min(0, 'Gallons cannot be negative')
+  .max(999.999, 'Gallons too large')
+  .or(z.nan())
+  .transform(val => isNaN(val) ? undefined : val)
+  .optional()
+  .nullable()
 
-export const optionalPricePerUnitSchema = z.preprocess(
-  (val) => (val === '' || val === null ? undefined : val),
-  z.coerce
-    .number()
-    .min(0, 'Price cannot be negative')
-    .max(999.99, 'Price too large')
-    .optional()
-)
+export const optionalPricePerUnitSchema = z
+  .number()
+  .min(0, 'Price cannot be negative')
+  .max(999.99, 'Price too large')
+  .or(z.nan())
+  .transform(val => isNaN(val) ? undefined : val)
+  .optional()
+  .nullable()
 
 // kWh validator for electric vehicles
-export const optionalKwhSchema = z.preprocess(
-  (val) => (val === '' || val === null ? undefined : val),
-  z.coerce
-    .number()
-    .min(0, 'kWh cannot be negative')
-    .max(99999.999, 'kWh too large')
-    .optional()
-)
+export const optionalKwhSchema = z
+  .number()
+  .min(0, 'kWh cannot be negative')
+  .max(99999.999, 'kWh too large')
+  .or(z.nan())
+  .transform(val => isNaN(val) ? undefined : val)
+  .optional()
+  .nullable()

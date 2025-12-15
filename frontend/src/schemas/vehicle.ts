@@ -18,28 +18,47 @@ export const VEHICLE_TYPES = [
   'Hybrid',
 ] as const
 
-const yearSchema = z.coerce
+const yearSchema = z
   .number()
   .int('Year must be a whole number')
   .min(1900, 'Year must be 1900 or later')
   .max(2100, 'Year must be 2100 or earlier')
+  .or(z.nan())
+  .transform(val => isNaN(val) ? undefined : val)
   .optional()
+  .nullable()
 
-const doorsSchema = z.coerce
+const doorsSchema = z
   .number()
   .int('Doors must be a whole number')
   .min(0, 'Doors cannot be negative')
+  .or(z.nan())
+  .transform(val => isNaN(val) ? undefined : val)
   .optional()
+  .nullable()
 
-const cylindersSchema = z.coerce
+const cylindersSchema = z
   .number()
   .int('Cylinders must be a whole number')
   .min(0, 'Cylinders cannot be negative')
+  .or(z.nan())
+  .transform(val => isNaN(val) ? undefined : val)
   .optional()
+  .nullable()
 
-const purchasePriceSchema = z.coerce.number().optional()
+const purchasePriceSchema = z
+  .number()
+  .or(z.nan())
+  .transform(val => isNaN(val) ? undefined : val)
+  .optional()
+  .nullable()
 
-const soldPriceSchema = z.coerce.number().optional()
+const soldPriceSchema = z
+  .number()
+  .or(z.nan())
+  .transform(val => isNaN(val) ? undefined : val)
+  .optional()
+  .nullable()
 
 export const vehicleEditSchema = z.object({
   // Basic Information

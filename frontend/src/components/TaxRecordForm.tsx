@@ -150,7 +150,7 @@ export default function TaxRecordForm({ vin, record, onClose, onSuccess }: TaxRe
                   type="number"
                   id="amount"
                   step="0.01"
-                  {...register('amount')}
+                  {...register('amount', { valueAsNumber: true })}
                   placeholder="85.50"
                   className={`w-full pl-7 pr-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
                     errors.amount ? 'border-red-500' : 'border-garage-border'

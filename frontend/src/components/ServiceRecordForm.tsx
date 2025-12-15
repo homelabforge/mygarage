@@ -214,7 +214,7 @@ export default function ServiceRecordForm({ vin, record, onClose, onSuccess }: S
               <input
                 type="number"
                 id="mileage"
-                {...register('mileage')}
+                {...register('mileage', { valueAsNumber: true })}
                 min="0"
                 placeholder={system === 'imperial' ? '45000' : '72420'}
                 className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
@@ -272,7 +272,7 @@ export default function ServiceRecordForm({ vin, record, onClose, onSuccess }: S
               <input
                 type="number"
                 id="cost"
-                {...register('cost')}
+                {...register('cost', { valueAsNumber: true })}
                 min="0"
                 step="0.01"
                 placeholder="89.99"

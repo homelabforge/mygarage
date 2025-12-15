@@ -299,7 +299,7 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
                   <label className="block text-sm font-medium text-garage-text mb-2">Year</label>
                   <input
                     type="number"
-                    {...register('year')}
+                    {...register('year', { valueAsNumber: true })}
                     className="w-full bg-garage-bg border border-garage-border rounded-lg px-4 py-2 text-garage-text focus:outline-none focus:border-primary"
                     placeholder="2019"
                   />
@@ -377,7 +377,7 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
                   <input
                     type="number"
                     step="0.01"
-                    {...register('purchase_price')}
+                    {...register('purchase_price', { valueAsNumber: true })}
                     className="w-full bg-garage-bg border border-garage-border rounded-lg px-4 py-2 text-garage-text focus:outline-none focus:border-primary"
                     placeholder="15000.00"
                   />
@@ -427,7 +427,7 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
                   <label className="block text-sm font-medium text-garage-text mb-2">Doors</label>
                   <input
                     type="number"
-                    {...register('doors')}
+                    {...register('doors', { valueAsNumber: true })}
                     className="w-full bg-garage-bg border border-garage-border rounded-lg px-4 py-2 text-garage-text focus:outline-none focus:border-primary"
                     placeholder="4"
                   />
@@ -453,7 +453,7 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
                   <label className="block text-sm font-medium text-garage-text mb-2">Cylinders</label>
                   <input
                     type="number"
-                    {...register('cylinders')}
+                    {...register('cylinders', { valueAsNumber: true })}
                     className="w-full bg-garage-bg border border-garage-border rounded-lg px-4 py-2 text-garage-text focus:outline-none focus:border-primary"
                     placeholder="4"
                   />

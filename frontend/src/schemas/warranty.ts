@@ -10,11 +10,14 @@ export const WARRANTY_TYPES = [
   'Other',
 ] as const
 
-const mileageLimitSchema = z.coerce
+const mileageLimitSchema = z
   .number()
   .int('Mileage must be a whole number')
   .min(0, 'Mileage cannot be negative')
+  .or(z.nan())
+  .transform(val => isNaN(val) ? undefined : val)
   .optional()
+  .nullable()
 
 export const warrantySchema = z.object({
   warranty_type: z.string().min(1, 'Warranty type is required'),
@@ -27,6 +30,5 @@ export const warrantySchema = z.object({
   notes: z.string().optional(),
 })
 
-// Use z.output for Zod v4 compatibility with z.coerce fields
 export type WarrantyInput = z.input<typeof warrantySchema>
 export type WarrantyFormData = z.output<typeof warrantySchema>

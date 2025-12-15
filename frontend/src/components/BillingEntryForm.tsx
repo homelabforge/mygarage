@@ -186,7 +186,7 @@ export default function BillingEntryForm({
                 type="number"
                 id="monthly_rate"
                 step="0.01"
-                {...register('monthly_rate')}
+                {...register('monthly_rate', { valueAsNumber: true })}
                 placeholder="0.00"
                 className={`w-full pl-7 pr-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
                   errors.monthly_rate ? 'border-red-500' : 'border-garage-border'
@@ -211,7 +211,7 @@ export default function BillingEntryForm({
                   type="number"
                   id="electric"
                   step="0.01"
-                  {...register('electric')}
+                  {...register('electric', { valueAsNumber: true })}
                   placeholder="0.00"
                   className={`w-full pl-7 pr-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
                     errors.electric ? 'border-red-500' : 'border-garage-border'
@@ -234,7 +234,7 @@ export default function BillingEntryForm({
                   type="number"
                   id="water"
                   step="0.01"
-                  {...register('water')}
+                  {...register('water', { valueAsNumber: true })}
                   placeholder="0.00"
                   className={`w-full pl-7 pr-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
                     errors.water ? 'border-red-500' : 'border-garage-border'
@@ -257,7 +257,7 @@ export default function BillingEntryForm({
                   type="number"
                   id="waste"
                   step="0.01"
-                  {...register('waste')}
+                  {...register('waste', { valueAsNumber: true })}
                   placeholder="0.00"
                   className={`w-full pl-7 pr-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
                     errors.waste ? 'border-red-500' : 'border-garage-border'
@@ -281,7 +281,7 @@ export default function BillingEntryForm({
                 type="number"
                 id="total"
                 step="0.01"
-                {...register('total')}
+                {...register('total', { valueAsNumber: true })}
                 placeholder="Auto-calculated"
                 className="w-full pl-7 pr-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg/50 text-garage-text border-garage-border"
                 readOnly

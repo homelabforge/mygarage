@@ -197,7 +197,7 @@ export default function PropaneRecordForm({
               <input
                 type="number"
                 id="propane_gallons"
-                {...register('propane_gallons')}
+                {...register('propane_gallons', { valueAsNumber: true })}
                 min="0"
                 step="0.001"
                 placeholder={system === 'imperial' ? '10.500' : '39.750'}
@@ -220,7 +220,7 @@ export default function PropaneRecordForm({
                 <input
                   type="number"
                   id="price_per_unit"
-                  {...register('price_per_unit')}
+                  {...register('price_per_unit', { valueAsNumber: true })}
                   min="0"
                   step="0.001"
                   placeholder={system === 'imperial' ? '2.899' : '0.766'}
@@ -242,7 +242,7 @@ export default function PropaneRecordForm({
                 <input
                   type="number"
                   id="cost"
-                  {...register('cost')}
+                  {...register('cost', { valueAsNumber: true })}
                   min="0"
                   step="0.01"
                   placeholder="30.44"

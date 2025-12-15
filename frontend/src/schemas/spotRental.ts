@@ -8,28 +8,40 @@ import { dateSchema, notesSchema } from './shared'
  * CRITICAL: This schema fixes 8 missing isNaN validation bugs in SpotRentalForm
  */
 
-// Currency validators specific to spot rental limits - use z.coerce to handle string inputs
-const nightlyRateSchema = z.coerce
+// Currency validators specific to spot rental limits - forms use valueAsNumber: true
+const nightlyRateSchema = z
   .number()
   .min(0, 'Nightly rate cannot be negative')
   .max(9999.99, 'Nightly rate too large (max $9,999.99)')
 
-const largeRateSchema = z.coerce
+const largeRateSchema = z
   .number()
   .min(0, 'Rate cannot be negative')
   .max(99999.99, 'Rate too large (max $99,999.99)')
 
-const utilitySchema = z.coerce
+const utilitySchema = z
   .number()
   .min(0, 'Utility cost cannot be negative')
   .max(9999.99, 'Utility cost too large (max $9,999.99)')
 
-// Optional versions - use .optional() directly with z.coerce
-const optionalNightlyRateSchema = nightlyRateSchema.optional()
+// Optional versions - handle NaN from empty inputs
+const optionalNightlyRateSchema = nightlyRateSchema
+  .or(z.nan())
+  .transform(val => isNaN(val) ? undefined : val)
+  .optional()
+  .nullable()
 
-const optionalLargeRateSchema = largeRateSchema.optional()
+const optionalLargeRateSchema = largeRateSchema
+  .or(z.nan())
+  .transform(val => isNaN(val) ? undefined : val)
+  .optional()
+  .nullable()
 
-const optionalUtilitySchema = utilitySchema.optional()
+const optionalUtilitySchema = utilitySchema
+  .or(z.nan())
+  .transform(val => isNaN(val) ? undefined : val)
+  .optional()
+  .nullable()
 
 export const spotRentalSchema = z.object({
   location_name: z.string().max(100, 'Location name too long (max 100 characters)').optional(),

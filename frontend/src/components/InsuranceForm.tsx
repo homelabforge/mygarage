@@ -240,7 +240,7 @@ export default function InsuranceForm({ vin, record, onClose, onSuccess }: Insur
               <input
                 type="number"
                 id="premium_amount"
-                {...register('premium_amount')}
+                {...register('premium_amount', { valueAsNumber: true })}
                 disabled={isSubmitting}
                 className="input w-full"
                 placeholder="e.g., 150.00"
@@ -275,7 +275,7 @@ export default function InsuranceForm({ vin, record, onClose, onSuccess }: Insur
             <input
               type="number"
               id="deductible"
-              {...register('deductible')}
+              {...register('deductible', { valueAsNumber: true })}
               disabled={isSubmitting}
               className="input w-full"
               placeholder="e.g., 500.00"
