@@ -1,4 +1,4 @@
-name: CodeQL Security Scanning
+name: CodeQL
 
 on:
   push:
