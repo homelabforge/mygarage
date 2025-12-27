@@ -11,23 +11,31 @@ class ServiceRecordBase(BaseModel):
 
     date: date_type = Field(..., description="Service date")
     mileage: Optional[int] = Field(None, description="Odometer reading", ge=0)
-    description: str = Field(..., description="Service description", min_length=1, max_length=200)
+    description: str = Field(
+        ..., description="Service description", min_length=1, max_length=200
+    )
     cost: Optional[Decimal] = Field(None, description="Service cost", ge=0)
     notes: Optional[str] = Field(None, description="Additional notes", max_length=5000)
-    vendor_name: Optional[str] = Field(None, description="Shop/vendor name", max_length=100)
-    vendor_location: Optional[str] = Field(None, description="Shop location", max_length=100)
+    vendor_name: Optional[str] = Field(
+        None, description="Shop/vendor name", max_length=100
+    )
+    vendor_location: Optional[str] = Field(
+        None, description="Shop location", max_length=100
+    )
     service_type: Optional[str] = Field(None, description="Type of service")
-    insurance_claim: Optional[str] = Field(None, description="Insurance claim number", max_length=50)
+    insurance_claim: Optional[str] = Field(
+        None, description="Insurance claim number", max_length=50
+    )
 
-    @field_validator('service_type')
+    @field_validator("service_type")
     @classmethod
     def validate_service_type(cls, v: Optional[str]) -> Optional[str]:
         """Validate service type."""
         if v is None:
             return v
-        valid_types = ['Maintenance', 'Inspection', 'Collision', 'Upgrades']
+        valid_types = ["Maintenance", "Inspection", "Collision", "Upgrades"]
         if v not in valid_types:
-            raise ValueError(f'Service type must be one of: {", ".join(valid_types)}')
+            raise ValueError(f"Service type must be one of: {', '.join(valid_types)}")
         return v
 
 
@@ -47,7 +55,7 @@ class ServiceRecordCreate(ServiceRecordBase):
                     "cost": 89.99,
                     "vendor_name": "Quick Lube",
                     "vendor_location": "123 Main St",
-                    "service_type": "Maintenance"
+                    "service_type": "Maintenance",
                 }
             ]
         }
@@ -59,33 +67,36 @@ class ServiceRecordUpdate(BaseModel):
 
     date: Optional[date_type] = Field(None, description="Service date")
     mileage: Optional[int] = Field(None, description="Odometer reading", ge=0)
-    description: Optional[str] = Field(None, description="Service description", min_length=1, max_length=200)
+    description: Optional[str] = Field(
+        None, description="Service description", min_length=1, max_length=200
+    )
     cost: Optional[Decimal] = Field(None, description="Service cost", ge=0)
     notes: Optional[str] = Field(None, description="Additional notes", max_length=5000)
-    vendor_name: Optional[str] = Field(None, description="Shop/vendor name", max_length=100)
-    vendor_location: Optional[str] = Field(None, description="Shop location", max_length=100)
+    vendor_name: Optional[str] = Field(
+        None, description="Shop/vendor name", max_length=100
+    )
+    vendor_location: Optional[str] = Field(
+        None, description="Shop location", max_length=100
+    )
     service_type: Optional[str] = Field(None, description="Type of service")
-    insurance_claim: Optional[str] = Field(None, description="Insurance claim number", max_length=50)
+    insurance_claim: Optional[str] = Field(
+        None, description="Insurance claim number", max_length=50
+    )
 
-    @field_validator('service_type')
+    @field_validator("service_type")
     @classmethod
     def validate_service_type(cls, v: Optional[str]) -> Optional[str]:
         """Validate service type."""
         if v is None:
             return v
-        valid_types = ['Maintenance', 'Inspection', 'Collision', 'Upgrades']
+        valid_types = ["Maintenance", "Inspection", "Collision", "Upgrades"]
         if v not in valid_types:
-            raise ValueError(f'Service type must be one of: {", ".join(valid_types)}')
+            raise ValueError(f"Service type must be one of: {', '.join(valid_types)}")
         return v
 
     model_config = {
         "json_schema_extra": {
-            "examples": [
-                {
-                    "cost": 95.00,
-                    "notes": "Used synthetic oil"
-                }
-            ]
+            "examples": [{"cost": 95.00, "notes": "Used synthetic oil"}]
         }
     }
 
@@ -113,10 +124,10 @@ class ServiceRecordResponse(ServiceRecordBase):
                     "vendor_name": "Quick Lube",
                     "vendor_location": "123 Main St",
                     "service_type": "Maintenance",
-                    "created_at": "2025-01-15T10:30:00"
+                    "created_at": "2025-01-15T10:30:00",
                 }
             ]
-        }
+        },
     }
 
 
@@ -139,10 +150,10 @@ class ServiceRecordListResponse(BaseModel):
                             "description": "Oil change",
                             "cost": "89.99",
                             "service_type": "Maintenance",
-                            "created_at": "2025-01-15T10:30:00"
+                            "created_at": "2025-01-15T10:30:00",
                         }
                     ],
-                    "total": 1
+                    "total": 1,
                 }
             ]
         }

@@ -34,24 +34,27 @@ class SSRFProtectionError(Exception):
     either because it points to a private/internal resource or violates
     other SSRF protection policies.
     """
+
     pass
 
 
 # Private IP ranges (RFC 1918, RFC 4193, and other reserved ranges)
 PRIVATE_IP_RANGES = [
-    ipaddress.ip_network("10.0.0.0/8"),       # Private Class A
-    ipaddress.ip_network("172.16.0.0/12"),    # Private Class B
-    ipaddress.ip_network("192.168.0.0/16"),   # Private Class C
-    ipaddress.ip_network("127.0.0.0/8"),      # Loopback
-    ipaddress.ip_network("169.254.0.0/16"),   # Link-local (AWS metadata: 169.254.169.254)
-    ipaddress.ip_network("::1/128"),          # IPv6 loopback
-    ipaddress.ip_network("fe80::/10"),        # IPv6 link-local
-    ipaddress.ip_network("fc00::/7"),         # IPv6 unique local addresses
-    ipaddress.ip_network("0.0.0.0/8"),        # "This" network
-    ipaddress.ip_network("100.64.0.0/10"),    # Shared address space (CGN)
-    ipaddress.ip_network("192.0.0.0/24"),     # IETF protocol assignments
-    ipaddress.ip_network("198.18.0.0/15"),    # Benchmarking
-    ipaddress.ip_network("240.0.0.0/4"),      # Reserved
+    ipaddress.ip_network("10.0.0.0/8"),  # Private Class A
+    ipaddress.ip_network("172.16.0.0/12"),  # Private Class B
+    ipaddress.ip_network("192.168.0.0/16"),  # Private Class C
+    ipaddress.ip_network("127.0.0.0/8"),  # Loopback
+    ipaddress.ip_network(
+        "169.254.0.0/16"
+    ),  # Link-local (AWS metadata: 169.254.169.254)
+    ipaddress.ip_network("::1/128"),  # IPv6 loopback
+    ipaddress.ip_network("fe80::/10"),  # IPv6 link-local
+    ipaddress.ip_network("fc00::/7"),  # IPv6 unique local addresses
+    ipaddress.ip_network("0.0.0.0/8"),  # "This" network
+    ipaddress.ip_network("100.64.0.0/10"),  # Shared address space (CGN)
+    ipaddress.ip_network("192.0.0.0/24"),  # IETF protocol assignments
+    ipaddress.ip_network("198.18.0.0/15"),  # Benchmarking
+    ipaddress.ip_network("240.0.0.0/4"),  # Reserved
 ]
 
 # Localhost hostnames that should be blocked
@@ -85,7 +88,7 @@ def is_private_ip(ip_address: str) -> bool:
 
         # Additional checks for IPv4-mapped IPv6 addresses
         # Example: ::ffff:127.0.0.1
-        if hasattr(ip_obj, 'ipv4_mapped') and ip_obj.ipv4_mapped:
+        if hasattr(ip_obj, "ipv4_mapped") and ip_obj.ipv4_mapped:
             return is_private_ip(str(ip_obj.ipv4_mapped))
 
         return False
@@ -114,7 +117,9 @@ def resolve_hostname(hostname: str) -> Optional[str]:
     try:
         # getaddrinfo returns a list of tuples: (family, type, proto, canonname, sockaddr)
         # We take the first result's sockaddr[0] which is the IP address
-        addr_info = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
+        addr_info = socket.getaddrinfo(
+            hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM
+        )
         if addr_info:
             # Extract IP from sockaddr (sockaddr format differs between IPv4/IPv6)
             ip_address = addr_info[0][4][0]
@@ -165,7 +170,7 @@ def matches_domain_pattern(hostname: str, pattern: str) -> bool:
         if not hostname.endswith("." + base_domain):
             return False
         # Ensure exactly one subdomain level
-        prefix = hostname[:-len(base_domain) - 1]  # Remove ".base_domain"
+        prefix = hostname[: -len(base_domain) - 1]  # Remove ".base_domain"
         return "." not in prefix
 
     return False
@@ -243,7 +248,7 @@ def validate_url_for_ssrf(
     # Normalize hostname (handle IDN - Internationalized Domain Names)
     try:
         # Convert IDN to ASCII (punycode)
-        hostname_ascii = hostname.encode('idna').decode('ascii').lower()
+        hostname_ascii = hostname.encode("idna").decode("ascii").lower()
     except (UnicodeError, UnicodeDecodeError):
         raise ValueError(f"Invalid hostname: {hostname}")
 
@@ -257,14 +262,12 @@ def validate_url_for_ssrf(
     is_ip = False
     try:
         # Try to parse as IP address
-        ip_obj = ipaddress.ip_address(hostname_ascii.strip('[]'))  # Remove [] for IPv6
+        ip_obj = ipaddress.ip_address(hostname_ascii.strip("[]"))  # Remove [] for IPv6
         is_ip = True
 
         # Check if IP is private/internal
         if block_private_ips and is_private_ip(str(ip_obj)):
-            raise SSRFProtectionError(
-                f"Blocked private IP address: {ip_obj}"
-            )
+            raise SSRFProtectionError(f"Blocked private IP address: {ip_obj}")
     except ValueError:
         # Not an IP address, it's a hostname
         pass

@@ -120,13 +120,13 @@ async def create_spot_rental(
             water=rental_data.water,
             waste=rental_data.waste,
             total=billing_total,
-            notes="Initial billing entry (auto-created)"
+            notes="Initial billing entry (auto-created)",
         )
         db.add(billing)
         await db.commit()
 
     # Eager-load billings relationship to avoid lazy-load issues
-    await db.refresh(rental, attribute_names=['billings'])
+    await db.refresh(rental, attribute_names=["billings"])
 
     return SpotRentalResponse.model_validate(rental)
 
@@ -199,7 +199,7 @@ async def update_spot_rental(
         rental.notes = update_data.notes
 
     await db.commit()
-    await db.refresh(rental, attribute_names=['billings'])
+    await db.refresh(rental, attribute_names=["billings"])
 
     return SpotRentalResponse.model_validate(rental)
 

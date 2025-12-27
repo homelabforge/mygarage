@@ -36,64 +36,80 @@ def upgrade():
         result = conn.execute(text("PRAGMA table_info(vehicles)"))
         existing_columns = {row[1] for row in result}
 
-        if 'archived_at' in existing_columns:
+        if "archived_at" in existing_columns:
             print("  → Archive columns already exist, skipping migration")
             return
 
         # Add archived_at timestamp (nullable)
-        conn.execute(text("""
+        conn.execute(
+            text("""
             ALTER TABLE vehicles
             ADD COLUMN archived_at DATETIME DEFAULT NULL
-        """))
+        """)
+        )
         print("  ✓ Added archived_at column")
 
         # Add archive_reason (nullable)
-        conn.execute(text("""
+        conn.execute(
+            text("""
             ALTER TABLE vehicles
             ADD COLUMN archive_reason VARCHAR(50) DEFAULT NULL
-        """))
+        """)
+        )
         print("  ✓ Added archive_reason column")
 
         # Add archive_sale_price (nullable, decimal)
-        conn.execute(text("""
+        conn.execute(
+            text("""
             ALTER TABLE vehicles
             ADD COLUMN archive_sale_price NUMERIC(10, 2) DEFAULT NULL
-        """))
+        """)
+        )
         print("  ✓ Added archive_sale_price column")
 
         # Add archive_sale_date (nullable)
-        conn.execute(text("""
+        conn.execute(
+            text("""
             ALTER TABLE vehicles
             ADD COLUMN archive_sale_date DATE DEFAULT NULL
-        """))
+        """)
+        )
         print("  ✓ Added archive_sale_date column")
 
         # Add archive_notes (nullable, text)
-        conn.execute(text("""
+        conn.execute(
+            text("""
             ALTER TABLE vehicles
             ADD COLUMN archive_notes TEXT DEFAULT NULL
-        """))
+        """)
+        )
         print("  ✓ Added archive_notes column")
 
         # Add archived_visible (boolean, default true)
-        conn.execute(text("""
+        conn.execute(
+            text("""
             ALTER TABLE vehicles
             ADD COLUMN archived_visible BOOLEAN DEFAULT 1
-        """))
+        """)
+        )
         print("  ✓ Added archived_visible column")
 
         # Create index on archived_at for filtering
-        conn.execute(text("""
+        conn.execute(
+            text("""
             CREATE INDEX IF NOT EXISTS idx_vehicles_archived_at
             ON vehicles(archived_at)
-        """))
+        """)
+        )
         print("  ✓ Created index on vehicles.archived_at")
 
         # Create composite index for user + archived queries
-        conn.execute(text("""
+        conn.execute(
+            text("""
             CREATE INDEX IF NOT EXISTS idx_vehicles_user_archived
             ON vehicles(user_id, archived_at)
-        """))
+        """)
+        )
         print("  ✓ Created composite index on vehicles(user_id, archived_at)")
 
         # Count existing vehicles

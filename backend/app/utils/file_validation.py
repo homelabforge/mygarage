@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 # Import python-magic for content-type verification
 try:
     import magic
+
     MAGIC_AVAILABLE = True
 except ImportError:
     MAGIC_AVAILABLE = False
@@ -18,24 +19,27 @@ except ImportError:
 
 # Magic byte signatures for common file types
 MAGIC_BYTES = {
-    'application/pdf': b'%PDF',
-    'image/jpeg': [b'\xFF\xD8\xFF\xE0', b'\xFF\xD8\xFF\xE1', b'\xFF\xD8\xFF\xE2', b'\xFF\xD8\xFF\xDB'],
-    'image/png': b'\x89PNG\r\n\x1a\n',
-    'image/gif': [b'GIF87a', b'GIF89a'],
-    'image/webp': b'RIFF',
+    "application/pdf": b"%PDF",
+    "image/jpeg": [
+        b"\xff\xd8\xff\xe0",
+        b"\xff\xd8\xff\xe1",
+        b"\xff\xd8\xff\xe2",
+        b"\xff\xd8\xff\xdb",
+    ],
+    "image/png": b"\x89PNG\r\n\x1a\n",
+    "image/gif": [b"GIF87a", b"GIF89a"],
+    "image/webp": b"RIFF",
     # Office formats use ZIP
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': b'PK\x03\x04',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': b'PK\x03\x04',
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": b"PK\x03\x04",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": b"PK\x03\x04",
     # Legacy Office formats
-    'application/msword': b'\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1',
-    'application/vnd.ms-excel': b'\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1',
+    "application/msword": b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1",
+    "application/vnd.ms-excel": b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1",
 }
 
 
 def verify_file_content_type(
-    file_content: bytes,
-    declared_mime: str,
-    max_read: int = 16
+    file_content: bytes, declared_mime: str, max_read: int = 16
 ) -> bool:
     """Verify file content matches declared MIME type using magic bytes.
 
@@ -73,7 +77,10 @@ def verify_file_content_type(
         try:
             detected_mime = magic.from_buffer(file_content, mime=True)
             # Be lenient with text files (text/plain vs text/csv)
-            if declared_mime in ['text/plain', 'text/csv'] and detected_mime in ['text/plain', 'text/csv']:
+            if declared_mime in ["text/plain", "text/csv"] and detected_mime in [
+                "text/plain",
+                "text/csv",
+            ]:
                 return True
             return detected_mime == declared_mime
         except Exception as e:
@@ -86,10 +93,7 @@ def verify_file_content_type(
 
 
 def validate_file_magic_bytes(
-    file_bytes: bytes,
-    filename: str,
-    declared_mime: str,
-    strict: bool = False
+    file_bytes: bytes, filename: str, declared_mime: str, strict: bool = False
 ) -> tuple[bool, Optional[str]]:
     """Complete file validation with magic byte check.
 
@@ -111,7 +115,9 @@ def validate_file_magic_bytes(
             logger.error("Magic byte validation failed for %s: %s", filename, error_msg)
             return False, error_msg
         else:
-            logger.warning("Magic byte validation warning for %s: %s", filename, error_msg)
+            logger.warning(
+                "Magic byte validation warning for %s: %s", filename, error_msg
+            )
             # In non-strict mode, just warn but allow
             return True, None
 
@@ -138,7 +144,7 @@ async def validate_csv_upload(file: UploadFile, max_size: int = None) -> str:
     if file.content_type not in ["text/csv", "application/vnd.ms-excel", "text/plain"]:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid file type: {file.content_type}. Expected CSV file."
+            detail=f"Invalid file type: {file.content_type}. Expected CSV file.",
         )
 
     # Read file with size limit
@@ -147,7 +153,7 @@ async def validate_csv_upload(file: UploadFile, max_size: int = None) -> str:
     if len(contents) > max_size:
         raise HTTPException(
             status_code=400,
-            detail=f"File too large. Maximum size: {max_size / (1024 * 1024):.1f}MB"
+            detail=f"File too large. Maximum size: {max_size / (1024 * 1024):.1f}MB",
         )
 
     # Decode content
@@ -155,8 +161,7 @@ async def validate_csv_upload(file: UploadFile, max_size: int = None) -> str:
         csv_data = contents.decode("utf-8")
     except UnicodeDecodeError:
         raise HTTPException(
-            status_code=400,
-            detail="Invalid file encoding. Expected UTF-8."
+            status_code=400, detail="Invalid file encoding. Expected UTF-8."
         )
 
     # Validate it's actually CSV format
@@ -164,22 +169,18 @@ async def validate_csv_upload(file: UploadFile, max_size: int = None) -> str:
         # Try to detect CSV format
         csv.Sniffer().sniff(csv_data[:1024] if len(csv_data) > 1024 else csv_data)
     except csv.Error as e:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid CSV format: {str(e)}"
-        )
+        raise HTTPException(status_code=400, detail=f"Invalid CSV format: {str(e)}")
 
     # Check if file is empty
     if not csv_data.strip():
-        raise HTTPException(
-            status_code=400,
-            detail="CSV file is empty"
-        )
+        raise HTTPException(status_code=400, detail="CSV file is empty")
 
     return csv_data
 
 
-async def validate_image_upload(file: UploadFile, max_size: int = None, verify_magic: bool = True) -> bytes:
+async def validate_image_upload(
+    file: UploadFile, max_size: int = None, verify_magic: bool = True
+) -> bytes:
     """Validate image file upload.
 
     Args:
@@ -201,7 +202,7 @@ async def validate_image_upload(file: UploadFile, max_size: int = None, verify_m
     if file.content_type not in allowed_types:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid file type: {file.content_type}. Allowed: {', '.join(allowed_types)}"
+            detail=f"Invalid file type: {file.content_type}. Allowed: {', '.join(allowed_types)}",
         )
 
     # Read file with size limit
@@ -210,15 +211,12 @@ async def validate_image_upload(file: UploadFile, max_size: int = None, verify_m
     if len(contents) > max_size:
         raise HTTPException(
             status_code=400,
-            detail=f"File too large. Maximum size: {max_size / (1024 * 1024):.1f}MB"
+            detail=f"File too large. Maximum size: {max_size / (1024 * 1024):.1f}MB",
         )
 
     # Check if file is empty
     if not contents:
-        raise HTTPException(
-            status_code=400,
-            detail="File is empty"
-        )
+        raise HTTPException(status_code=400, detail="File is empty")
 
     # Verify magic bytes (HEIC is excluded as it has complex signature)
     if verify_magic and file.content_type != "image/heic":
@@ -226,7 +224,7 @@ async def validate_image_upload(file: UploadFile, max_size: int = None, verify_m
             contents,
             file.filename,
             file.content_type,
-            strict=False  # Non-strict: warn but allow
+            strict=False,  # Non-strict: warn but allow
         )
         if not is_valid:
             logger.warning("Image upload magic byte validation failed: %s", error_msg)
@@ -234,7 +232,9 @@ async def validate_image_upload(file: UploadFile, max_size: int = None, verify_m
     return contents
 
 
-async def validate_document_upload(file: UploadFile, max_size: int = None, verify_magic: bool = True) -> bytes:
+async def validate_document_upload(
+    file: UploadFile, max_size: int = None, verify_magic: bool = True
+) -> bytes:
     """Validate document file upload.
 
     Args:
@@ -266,7 +266,7 @@ async def validate_document_upload(file: UploadFile, max_size: int = None, verif
     if file.content_type not in allowed_types:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid file type: {file.content_type}. Allowed types: PDF, DOC, DOCX, XLS, XLSX, TXT, CSV, JPG, PNG"
+            detail=f"Invalid file type: {file.content_type}. Allowed types: PDF, DOC, DOCX, XLS, XLSX, TXT, CSV, JPG, PNG",
         )
 
     # Read file with size limit
@@ -275,15 +275,12 @@ async def validate_document_upload(file: UploadFile, max_size: int = None, verif
     if len(contents) > max_size:
         raise HTTPException(
             status_code=400,
-            detail=f"File too large. Maximum size: {max_size / (1024 * 1024):.1f}MB"
+            detail=f"File too large. Maximum size: {max_size / (1024 * 1024):.1f}MB",
         )
 
     # Check if file is empty
     if not contents:
-        raise HTTPException(
-            status_code=400,
-            detail="File is empty"
-        )
+        raise HTTPException(status_code=400, detail="File is empty")
 
     # Verify magic bytes
     if verify_magic:
@@ -291,15 +288,19 @@ async def validate_document_upload(file: UploadFile, max_size: int = None, verif
             contents,
             file.filename,
             file.content_type,
-            strict=False  # Non-strict: warn but allow
+            strict=False,  # Non-strict: warn but allow
         )
         if not is_valid:
-            logger.warning("Document upload magic byte validation failed: %s", error_msg)
+            logger.warning(
+                "Document upload magic byte validation failed: %s", error_msg
+            )
 
     return contents
 
 
-async def validate_attachment_upload(file: UploadFile, max_size: int = None, verify_magic: bool = True) -> bytes:
+async def validate_attachment_upload(
+    file: UploadFile, max_size: int = None, verify_magic: bool = True
+) -> bytes:
     """Validate attachment file upload.
 
     Args:
@@ -320,7 +321,7 @@ async def validate_attachment_upload(file: UploadFile, max_size: int = None, ver
     if file.content_type not in settings.allowed_attachment_mime_types:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid file type: {file.content_type}. Allowed: {', '.join(settings.allowed_attachment_mime_types)}"
+            detail=f"Invalid file type: {file.content_type}. Allowed: {', '.join(settings.allowed_attachment_mime_types)}",
         )
 
     # Read file with size limit
@@ -329,15 +330,12 @@ async def validate_attachment_upload(file: UploadFile, max_size: int = None, ver
     if len(contents) > max_size:
         raise HTTPException(
             status_code=400,
-            detail=f"File too large. Maximum size: {max_size / (1024 * 1024):.1f}MB"
+            detail=f"File too large. Maximum size: {max_size / (1024 * 1024):.1f}MB",
         )
 
     # Check if file is empty
     if not contents:
-        raise HTTPException(
-            status_code=400,
-            detail="File is empty"
-        )
+        raise HTTPException(status_code=400, detail="File is empty")
 
     # Verify magic bytes
     if verify_magic:
@@ -345,9 +343,11 @@ async def validate_attachment_upload(file: UploadFile, max_size: int = None, ver
             contents,
             file.filename,
             file.content_type,
-            strict=False  # Non-strict: warn but allow
+            strict=False,  # Non-strict: warn but allow
         )
         if not is_valid:
-            logger.warning("Attachment upload magic byte validation failed: %s", error_msg)
+            logger.warning(
+                "Attachment upload magic byte validation failed: %s", error_msg
+            )
 
     return contents

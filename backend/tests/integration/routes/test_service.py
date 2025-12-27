@@ -3,6 +3,7 @@ Integration tests for service record routes.
 
 Tests service record CRUD operations and access control.
 """
+
 import pytest
 from httpx import AsyncClient
 

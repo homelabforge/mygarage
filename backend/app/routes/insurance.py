@@ -9,7 +9,11 @@ import logging
 from app.database import get_db
 from app.models import InsurancePolicy as InsurancePolicyModel, Vehicle
 from app.models.user import User
-from app.schemas.insurance import InsurancePolicy, InsurancePolicyCreate, InsurancePolicyUpdate
+from app.schemas.insurance import (
+    InsurancePolicy,
+    InsurancePolicyCreate,
+    InsurancePolicyUpdate,
+)
 from app.services.auth import require_auth
 from app.services.document_ocr import document_ocr_service
 
@@ -18,7 +22,11 @@ logger = logging.getLogger(__name__)
 
 
 @router.get("/vehicles/{vin}/insurance", response_model=List[InsurancePolicy])
-async def get_insurance_policies(vin: str, db: AsyncSession = Depends(get_db), current_user: Optional[User] = Depends(require_auth)):
+async def get_insurance_policies(
+    vin: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(require_auth),
+):
     """Get all insurance policies for a vehicle."""
     # Verify vehicle exists
     result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
@@ -36,12 +44,14 @@ async def get_insurance_policies(vin: str, db: AsyncSession = Depends(get_db), c
     return policies
 
 
-@router.post("/vehicles/{vin}/insurance", response_model=InsurancePolicy, status_code=201)
+@router.post(
+    "/vehicles/{vin}/insurance", response_model=InsurancePolicy, status_code=201
+)
 async def create_insurance_policy(
     vin: str,
     policy: InsurancePolicyCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth)
+    current_user: Optional[User] = Depends(require_auth),
 ):
     """Create a new insurance policy."""
     # Verify vehicle exists
@@ -59,11 +69,17 @@ async def create_insurance_policy(
 
 
 @router.get("/vehicles/{vin}/insurance/{policy_id}", response_model=InsurancePolicy)
-async def get_insurance_policy(vin: str, policy_id: int, db: AsyncSession = Depends(get_db), current_user: Optional[User] = Depends(require_auth)):
+async def get_insurance_policy(
+    vin: str,
+    policy_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(require_auth),
+):
     """Get a specific insurance policy."""
     result = await db.execute(
-        select(InsurancePolicyModel)
-        .where(InsurancePolicyModel.vin == vin, InsurancePolicyModel.id == policy_id)
+        select(InsurancePolicyModel).where(
+            InsurancePolicyModel.vin == vin, InsurancePolicyModel.id == policy_id
+        )
     )
     policy = result.scalar_one_or_none()
     if not policy:
@@ -77,12 +93,13 @@ async def update_insurance_policy(
     policy_id: int,
     policy_update: InsurancePolicyUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth)
+    current_user: Optional[User] = Depends(require_auth),
 ):
     """Update an insurance policy."""
     result = await db.execute(
-        select(InsurancePolicyModel)
-        .where(InsurancePolicyModel.vin == vin, InsurancePolicyModel.id == policy_id)
+        select(InsurancePolicyModel).where(
+            InsurancePolicyModel.vin == vin, InsurancePolicyModel.id == policy_id
+        )
     )
     db_policy = result.scalar_one_or_none()
     if not db_policy:
@@ -99,11 +116,17 @@ async def update_insurance_policy(
 
 
 @router.delete("/vehicles/{vin}/insurance/{policy_id}", status_code=204)
-async def delete_insurance_policy(vin: str, policy_id: int, db: AsyncSession = Depends(get_db), current_user: Optional[User] = Depends(require_auth)):
+async def delete_insurance_policy(
+    vin: str,
+    policy_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(require_auth),
+):
     """Delete an insurance policy."""
     result = await db.execute(
-        select(InsurancePolicyModel)
-        .where(InsurancePolicyModel.vin == vin, InsurancePolicyModel.id == policy_id)
+        select(InsurancePolicyModel).where(
+            InsurancePolicyModel.vin == vin, InsurancePolicyModel.id == policy_id
+        )
     )
     db_policy = result.scalar_one_or_none()
     if not db_policy:
@@ -118,9 +141,12 @@ async def delete_insurance_policy(vin: str, policy_id: int, db: AsyncSession = D
 async def parse_insurance_pdf(
     vin: str,
     file: UploadFile = File(...),
-    provider: Optional[str] = Query(None, description="Optional provider hint (progressive, statefarm, geico, allstate)"),
+    provider: Optional[str] = Query(
+        None,
+        description="Optional provider hint (progressive, statefarm, geico, allstate)",
+    ),
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth)
+    current_user: Optional[User] = Depends(require_auth),
 ) -> Dict[str, Any]:
     """
     Parse an insurance PDF and extract policy data.
@@ -139,12 +165,14 @@ async def parse_insurance_pdf(
         raise HTTPException(status_code=404, detail="Vehicle not found")
 
     # Validate file type - now supports images too
-    allowed_extensions = {'.pdf', '.jpg', '.jpeg', '.png'}
-    file_ext = '.' + file.filename.lower().split('.')[-1] if '.' in file.filename else ''
+    allowed_extensions = {".pdf", ".jpg", ".jpeg", ".png"}
+    file_ext = (
+        "." + file.filename.lower().split(".")[-1] if "." in file.filename else ""
+    )
     if file_ext not in allowed_extensions:
         raise HTTPException(
             status_code=400,
-            detail=f"File must be PDF or image (jpg, png). Got: {file_ext}"
+            detail=f"File must be PDF or image (jpg, png). Got: {file_ext}",
         )
 
     # Check file size BEFORE reading into memory to prevent DoS
@@ -161,7 +189,9 @@ async def parse_insurance_pdf(
 
     try:
         # Parse using unified document OCR service
-        logger.info("Parsing insurance document for VIN %s (provider hint: %s)", vin, provider)
+        logger.info(
+            "Parsing insurance document for VIN %s (provider hint: %s)", vin, provider
+        )
 
         parsed_data = await document_ocr_service.extract_insurance_data(
             file_bytes=contents,
@@ -169,34 +199,38 @@ async def parse_insurance_pdf(
             provider_hint=provider,
         )
 
-        if not parsed_data.get('success'):
-            raise ValueError(parsed_data.get('error', 'Failed to extract data'))
+        if not parsed_data.get("success"):
+            raise ValueError(parsed_data.get("error", "Failed to extract data"))
 
         # Format response (maintaining backward compatibility)
         response = {
-            'success': True,
-            'data': {
-                'provider': parsed_data.get('provider'),
-                'policy_number': parsed_data.get('policy_number'),
-                'policy_type': parsed_data.get('policy_type'),
-                'start_date': parsed_data.get('start_date'),
-                'end_date': parsed_data.get('end_date'),
-                'premium_amount': parsed_data.get('premium_amount'),
-                'premium_frequency': parsed_data.get('premium_frequency'),
-                'deductible': parsed_data.get('deductible'),
-                'coverage_limits': parsed_data.get('coverage_limits'),
-                'notes': parsed_data.get('notes'),
+            "success": True,
+            "data": {
+                "provider": parsed_data.get("provider"),
+                "policy_number": parsed_data.get("policy_number"),
+                "policy_type": parsed_data.get("policy_type"),
+                "start_date": parsed_data.get("start_date"),
+                "end_date": parsed_data.get("end_date"),
+                "premium_amount": parsed_data.get("premium_amount"),
+                "premium_frequency": parsed_data.get("premium_frequency"),
+                "deductible": parsed_data.get("deductible"),
+                "coverage_limits": parsed_data.get("coverage_limits"),
+                "notes": parsed_data.get("notes"),
             },
-            'confidence': parsed_data.get('field_confidence', {}),
-            'confidence_score': parsed_data.get('confidence_score', 0),
-            'parser_used': parsed_data.get('parser_name'),
-            'vehicles_found': parsed_data.get('vehicles_found', []),
-            'warnings': parsed_data.get('validation_warnings', []),
+            "confidence": parsed_data.get("field_confidence", {}),
+            "confidence_score": parsed_data.get("confidence_score", 0),
+            "parser_used": parsed_data.get("parser_name"),
+            "vehicles_found": parsed_data.get("vehicles_found", []),
+            "warnings": parsed_data.get("validation_warnings", []),
         }
 
         # Add warning if target VIN not found
-        if vin.upper() not in [v.upper() for v in parsed_data.get('vehicles_found', [])]:
-            response['warnings'].append(f'VIN {vin} not found in PDF - using policy-level data')
+        if vin.upper() not in [
+            v.upper() for v in parsed_data.get("vehicles_found", [])
+        ]:
+            response["warnings"].append(
+                f"VIN {vin} not found in PDF - using policy-level data"
+            )
 
         logger.info(
             f"Successfully parsed document using {parsed_data.get('parser_name')} - "
@@ -215,7 +249,7 @@ async def parse_insurance_pdf(
 
 @router.get("/insurance/parsers")
 async def list_insurance_parsers(
-    current_user: Optional[User] = Depends(require_auth)
+    current_user: Optional[User] = Depends(require_auth),
 ) -> Dict[str, Any]:
     """List available insurance document parsers."""
     return {
@@ -230,7 +264,7 @@ async def test_parse_insurance_pdf(
     file: UploadFile = File(...),
     provider: Optional[str] = Query(None, description="Optional provider hint"),
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth)
+    current_user: Optional[User] = Depends(require_auth),
 ) -> Dict[str, Any]:
     """
     Test parse an insurance document - returns full debug info including raw text.
@@ -244,8 +278,10 @@ async def test_parse_insurance_pdf(
         raise HTTPException(status_code=404, detail="Vehicle not found")
 
     # Validate file
-    allowed_extensions = {'.pdf', '.jpg', '.jpeg', '.png'}
-    file_ext = '.' + file.filename.lower().split('.')[-1] if '.' in file.filename else ''
+    allowed_extensions = {".pdf", ".jpg", ".jpeg", ".png"}
+    file_ext = (
+        "." + file.filename.lower().split(".")[-1] if "." in file.filename else ""
+    )
     if file_ext not in allowed_extensions:
         raise HTTPException(status_code=400, detail="File must be PDF or image")
 

@@ -16,8 +16,15 @@ from app.database import get_db
 from app.models.user import User
 from app.services.auth import require_auth
 from app.models import (
-    Vehicle, ServiceRecord, FuelRecord, OdometerRecord, Reminder, Note,
-    WarrantyRecord, InsurancePolicy, TaxRecord
+    Vehicle,
+    ServiceRecord,
+    FuelRecord,
+    OdometerRecord,
+    Reminder,
+    Note,
+    WarrantyRecord,
+    InsurancePolicy,
+    TaxRecord,
 )
 from app.config import settings
 from app.utils.file_validation import validate_csv_upload
@@ -28,6 +35,7 @@ limiter = Limiter(key_func=get_remote_address)
 
 class ImportResult:
     """Result of an import operation."""
+
     def __init__(self):
         self.success_count = 0
         self.error_count = 0
@@ -50,7 +58,9 @@ class ImportResult:
             "error_count": self.error_count,
             "skipped_count": self.skipped_count,
             "errors": self.errors,
-            "total_processed": self.success_count + self.error_count + self.skipped_count
+            "total_processed": self.success_count
+            + self.error_count
+            + self.skipped_count,
         }
 
 
@@ -63,13 +73,13 @@ def parse_date(date_str: str) -> Optional[date_type]:
 
     # Try different date formats
     formats = [
-        "%Y-%m-%d",           # 2025-01-15
-        "%m/%d/%Y",           # 01/15/2025
-        "%m-%d-%Y",           # 01-15-2025
-        "%Y/%m/%d",           # 2025/01/15
-        "%d/%m/%Y",           # 15/01/2025
-        "%b %d, %Y",          # Jan 15, 2025
-        "%B %d, %Y",          # January 15, 2025
+        "%Y-%m-%d",  # 2025-01-15
+        "%m/%d/%Y",  # 01/15/2025
+        "%m-%d-%Y",  # 01-15-2025
+        "%Y/%m/%d",  # 2025/01/15
+        "%d/%m/%Y",  # 15/01/2025
+        "%b %d, %Y",  # Jan 15, 2025
+        "%B %d, %Y",  # January 15, 2025
     ]
 
     for fmt in formats:
@@ -120,7 +130,7 @@ async def import_service_csv(
     file: UploadFile = File(...),
     skip_duplicates: bool = Form(True),
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth)
+    current_user: Optional[User] = Depends(require_auth),
 ):
     """Import service records from CSV file."""
     # Verify vehicle exists
@@ -159,7 +169,7 @@ async def import_service_csv(
                         ServiceRecord.vin == vin,
                         ServiceRecord.date == date,
                         ServiceRecord.service_type == service_type,
-                        ServiceRecord.mileage == mileage
+                        ServiceRecord.mileage == mileage,
                     )
                 )
                 if existing.scalar_one_or_none():
@@ -176,7 +186,7 @@ async def import_service_csv(
                 cost=cost,
                 vendor_name=vendor_name,
                 vendor_location=vendor_location,
-                notes=notes
+                notes=notes,
             )
             db.add(record)
             import_result.add_success()
@@ -198,7 +208,7 @@ async def import_fuel_csv(
     file: UploadFile = File(...),
     skip_duplicates: bool = Form(True),
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth)
+    current_user: Optional[User] = Depends(require_auth),
 ):
     """Import fuel records from CSV file."""
     # Verify vehicle exists
@@ -224,7 +234,9 @@ async def import_fuel_csv(
             # Parse optional fields
             mileage = parse_int(row.get("Mileage", ""))
             gallons = parse_decimal(row.get("Gallons", ""))
-            price_per_unit = parse_decimal(row.get("Price Per Gallon", "") or row.get("Price/Gal", ""))
+            price_per_unit = parse_decimal(
+                row.get("Price Per Gallon", "") or row.get("Price/Gal", "")
+            )
             cost = parse_decimal(row.get("Total Cost", "") or row.get("Cost", ""))
             is_full_tank = parse_bool(row.get("Full Tank", "True"))
             missed_fillup = parse_bool(row.get("Missed Fill-up", "False"))
@@ -236,7 +248,7 @@ async def import_fuel_csv(
                     select(FuelRecord).where(
                         FuelRecord.vin == vin,
                         FuelRecord.date == date,
-                        FuelRecord.mileage == mileage
+                        FuelRecord.mileage == mileage,
                     )
                 )
                 if existing.scalar_one_or_none():
@@ -253,7 +265,7 @@ async def import_fuel_csv(
                 cost=cost,
                 is_full_tank=is_full_tank,
                 missed_fillup=missed_fillup,
-                notes=notes
+                notes=notes,
             )
             db.add(record)
             import_result.add_success()
@@ -274,7 +286,7 @@ async def import_odometer_csv(
     file: UploadFile = File(...),
     skip_duplicates: bool = Form(True),
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth)
+    current_user: Optional[User] = Depends(require_auth),
 ):
     """Import odometer records from CSV file."""
     # Verify vehicle exists
@@ -310,7 +322,7 @@ async def import_odometer_csv(
                     select(OdometerRecord).where(
                         OdometerRecord.vin == vin,
                         OdometerRecord.date == date,
-                        OdometerRecord.mileage == mileage
+                        OdometerRecord.mileage == mileage,
                     )
                 )
                 if existing.scalar_one_or_none():
@@ -318,12 +330,7 @@ async def import_odometer_csv(
                     continue
 
             # Create record
-            record = OdometerRecord(
-                vin=vin,
-                date=date,
-                mileage=mileage,
-                notes=notes
-            )
+            record = OdometerRecord(vin=vin, date=date, mileage=mileage, notes=notes)
             db.add(record)
             import_result.add_success()
 
@@ -343,7 +350,7 @@ async def import_warranties_csv(
     file: UploadFile = File(...),
     skip_duplicates: bool = Form(True),
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth)
+    current_user: Optional[User] = Depends(require_auth),
 ):
     """Import warranties from CSV file."""
     # Verify vehicle exists
@@ -377,7 +384,7 @@ async def import_warranties_csv(
                     select(WarrantyRecord).where(
                         WarrantyRecord.vin == vin,
                         WarrantyRecord.provider == provider,
-                        WarrantyRecord.start_date == start_date
+                        WarrantyRecord.start_date == start_date,
                     )
                 )
                 if existing.scalar_one_or_none():
@@ -396,7 +403,7 @@ async def import_warranties_csv(
                 deductible=deductible,
                 max_claims=max_claims,
                 terms=terms,
-                notes=notes
+                notes=notes,
             )
             db.add(record)
             import_result.add_success()
@@ -417,7 +424,7 @@ async def import_insurance_csv(
     file: UploadFile = File(...),
     skip_duplicates: bool = Form(True),
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth)
+    current_user: Optional[User] = Depends(require_auth),
 ):
     """Import insurance records from CSV file."""
     # Verify vehicle exists
@@ -449,7 +456,7 @@ async def import_insurance_csv(
                 existing = await db.execute(
                     select(InsurancePolicy).where(
                         InsurancePolicy.vin == vin,
-                        InsurancePolicy.policy_number == policy_number
+                        InsurancePolicy.policy_number == policy_number,
                     )
                 )
                 if existing.scalar_one_or_none():
@@ -467,7 +474,7 @@ async def import_insurance_csv(
                 premium=premium,
                 deductible=deductible,
                 coverage_limits=coverage_limits,
-                notes=notes
+                notes=notes,
             )
             db.add(record)
             import_result.add_success()
@@ -488,7 +495,7 @@ async def import_tax_csv(
     file: UploadFile = File(...),
     skip_duplicates: bool = Form(True),
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth)
+    current_user: Optional[User] = Depends(require_auth),
 ):
     """Import tax records from CSV file."""
     # Verify vehicle exists
@@ -519,7 +526,7 @@ async def import_tax_csv(
                     select(TaxRecord).where(
                         TaxRecord.vin == vin,
                         TaxRecord.year == year,
-                        TaxRecord.tax_type == tax_type
+                        TaxRecord.tax_type == tax_type,
                     )
                 )
                 if existing.scalar_one_or_none():
@@ -535,7 +542,7 @@ async def import_tax_csv(
                 paid_date=paid_date,
                 due_date=due_date,
                 jurisdiction=jurisdiction,
-                notes=notes
+                notes=notes,
             )
             db.add(record)
             import_result.add_success()
@@ -556,7 +563,7 @@ async def import_notes_csv(
     file: UploadFile = File(...),
     skip_duplicates: bool = Form(True),
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth)
+    current_user: Optional[User] = Depends(require_auth),
 ):
     """Import notes from CSV file."""
     # Verify vehicle exists
@@ -581,9 +588,7 @@ async def import_notes_csv(
             if skip_duplicates and date and title:
                 existing = await db.execute(
                     select(Note).where(
-                        Note.vin == vin,
-                        Note.date == date,
-                        Note.title == title
+                        Note.vin == vin, Note.date == date, Note.title == title
                     )
                 )
                 if existing.scalar_one_or_none():
@@ -591,12 +596,7 @@ async def import_notes_csv(
                     continue
 
             # Create record
-            record = Note(
-                vin=vin,
-                date=date,
-                title=title,
-                content=content
-            )
+            record = Note(vin=vin, date=date, title=title, content=content)
             db.add(record)
             import_result.add_success()
 
@@ -614,7 +614,7 @@ async def import_vehicle_json(
     file: UploadFile = File(...),
     skip_duplicates: bool = Form(True),
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth)
+    current_user: Optional[User] = Depends(require_auth),
 ):
     """Import complete vehicle data from JSON file."""
     # Verify vehicle exists
@@ -632,7 +632,7 @@ async def import_vehicle_json(
     if file_size > MAX_IMPORT_SIZE:
         raise HTTPException(
             status_code=413,
-            detail=f"File size exceeds maximum of {MAX_IMPORT_SIZE // (1024 * 1024)}MB"
+            detail=f"File size exceeds maximum of {MAX_IMPORT_SIZE // (1024 * 1024)}MB",
         )
 
     # Now read and parse JSON
@@ -648,7 +648,7 @@ async def import_vehicle_json(
         "odometer_records": {"success": 0, "errors": 0, "skipped": 0},
         "reminders": {"success": 0, "errors": 0, "skipped": 0},
         "notes": {"success": 0, "errors": 0, "skipped": 0},
-        "errors": []
+        "errors": [],
     }
 
     # Import service records
@@ -662,7 +662,7 @@ async def import_vehicle_json(
                         ServiceRecord.vin == vin,
                         ServiceRecord.date == date,
                         ServiceRecord.service_type == record_data.get("service_type"),
-                        ServiceRecord.mileage == record_data.get("mileage")
+                        ServiceRecord.mileage == record_data.get("mileage"),
                     )
                 )
                 if existing.scalar_one_or_none():
@@ -675,10 +675,12 @@ async def import_vehicle_json(
                 service_type=record_data.get("service_type"),
                 description=record_data.get("description"),
                 mileage=record_data.get("mileage"),
-                cost=Decimal(str(record_data["cost"])) if record_data.get("cost") else None,
+                cost=Decimal(str(record_data["cost"]))
+                if record_data.get("cost")
+                else None,
                 vendor_name=record_data.get("vendor_name"),
                 vendor_location=record_data.get("vendor_location"),
-                notes=record_data.get("notes")
+                notes=record_data.get("notes"),
             )
             db.add(record)
             results["service_records"]["success"] += 1
@@ -696,7 +698,7 @@ async def import_vehicle_json(
                     select(FuelRecord).where(
                         FuelRecord.vin == vin,
                         FuelRecord.date == date,
-                        FuelRecord.mileage == record_data.get("mileage")
+                        FuelRecord.mileage == record_data.get("mileage"),
                     )
                 )
                 if existing.scalar_one_or_none():
@@ -707,12 +709,18 @@ async def import_vehicle_json(
                 vin=vin,
                 date=date,
                 mileage=record_data.get("mileage"),
-                gallons=Decimal(str(record_data["gallons"])) if record_data.get("gallons") else None,
-                price_per_unit=Decimal(str(record_data["price_per_unit"])) if record_data.get("price_per_unit") else None,
-                cost=Decimal(str(record_data["cost"])) if record_data.get("cost") else None,
+                gallons=Decimal(str(record_data["gallons"]))
+                if record_data.get("gallons")
+                else None,
+                price_per_unit=Decimal(str(record_data["price_per_unit"]))
+                if record_data.get("price_per_unit")
+                else None,
+                cost=Decimal(str(record_data["cost"]))
+                if record_data.get("cost")
+                else None,
                 is_full_tank=record_data.get("is_full_tank", True),
                 missed_fillup=record_data.get("missed_fillup", False),
-                notes=record_data.get("notes")
+                notes=record_data.get("notes"),
             )
             db.add(record)
             results["fuel_records"]["success"] += 1
@@ -730,7 +738,7 @@ async def import_vehicle_json(
                     select(OdometerRecord).where(
                         OdometerRecord.vin == vin,
                         OdometerRecord.date == date,
-                        OdometerRecord.mileage == record_data["reading"]
+                        OdometerRecord.mileage == record_data["reading"],
                     )
                 )
                 if existing.scalar_one_or_none():
@@ -741,7 +749,7 @@ async def import_vehicle_json(
                 vin=vin,
                 date=date,
                 mileage=record_data["reading"],
-                notes=record_data.get("notes")
+                notes=record_data.get("notes"),
             )
             db.add(record)
             results["odometer_records"]["success"] += 1
@@ -752,7 +760,11 @@ async def import_vehicle_json(
     # Import reminders
     for idx, reminder_data in enumerate(data.get("reminders", [])):
         try:
-            due_date = datetime.fromisoformat(reminder_data["due_date"]).date() if reminder_data.get("due_date") else None
+            due_date = (
+                datetime.fromisoformat(reminder_data["due_date"]).date()
+                if reminder_data.get("due_date")
+                else None
+            )
 
             reminder = Reminder(
                 vin=vin,
@@ -760,11 +772,13 @@ async def import_vehicle_json(
                 due_date=due_date,
                 due_mileage=reminder_data.get("due_mileage"),
                 is_completed=reminder_data.get("is_completed", False),
-                completed_at=datetime.fromisoformat(reminder_data["completed_at"]) if reminder_data.get("completed_at") else None,
+                completed_at=datetime.fromisoformat(reminder_data["completed_at"])
+                if reminder_data.get("completed_at")
+                else None,
                 is_recurring=reminder_data.get("is_recurring", False),
                 recurrence_days=reminder_data.get("recurrence_days"),
                 recurrence_miles=reminder_data.get("recurrence_miles"),
-                notes=reminder_data.get("notes")
+                notes=reminder_data.get("notes"),
             )
             db.add(reminder)
             results["reminders"]["success"] += 1
@@ -781,7 +795,7 @@ async def import_vehicle_json(
                 vin=vin,
                 date=date,
                 title=note_data["title"],
-                content=note_data["content"]
+                content=note_data["content"],
             )
             db.add(note)
             results["notes"]["success"] += 1
@@ -791,7 +805,13 @@ async def import_vehicle_json(
 
     await db.commit()
 
-    metric_keys = ("service_records", "fuel_records", "odometer_records", "reminders", "notes")
+    metric_keys = (
+        "service_records",
+        "fuel_records",
+        "odometer_records",
+        "reminders",
+        "notes",
+    )
     for key in metric_keys:
         bucket = results[key]
         bucket["success_count"] = bucket.get("success", 0)

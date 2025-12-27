@@ -1,6 +1,16 @@
 """Spot rental database model."""
 
-from sqlalchemy import String, Integer, Numeric, Date, DateTime, Text, ForeignKey, Index, CheckConstraint
+from sqlalchemy import (
+    String,
+    Integer,
+    Numeric,
+    Date,
+    DateTime,
+    Text,
+    ForeignKey,
+    Index,
+    CheckConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 from datetime import date, datetime
@@ -19,7 +29,9 @@ class SpotRental(Base):
     __tablename__ = "spot_rentals"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    vin: Mapped[str] = mapped_column(String(17), ForeignKey("vehicles.vin", ondelete="CASCADE"), nullable=False)
+    vin: Mapped[str] = mapped_column(
+        String(17), ForeignKey("vehicles.vin", ondelete="CASCADE"), nullable=False
+    )
     location_name: Mapped[Optional[str]] = mapped_column(String(100))
     location_address: Mapped[Optional[str]] = mapped_column(Text)
     check_in_date: Mapped[date] = mapped_column(Date, nullable=False)
@@ -41,20 +53,39 @@ class SpotRental(Base):
         "SpotRentalBilling",
         back_populates="spot_rental",
         cascade="all, delete-orphan",
-        order_by="SpotRentalBilling.billing_date.desc()"
+        order_by="SpotRentalBilling.billing_date.desc()",
     )
 
     __table_args__ = (
         Index("idx_spot_rentals_vin", "vin"),
         Index("idx_spot_rentals_dates", "check_in_date", "check_out_date"),
         # Check constraints to ensure non-negative values
-        CheckConstraint("electric IS NULL OR electric >= 0", name="ck_spot_rentals_electric_positive"),
-        CheckConstraint("water IS NULL OR water >= 0", name="ck_spot_rentals_water_positive"),
-        CheckConstraint("waste IS NULL OR waste >= 0", name="ck_spot_rentals_waste_positive"),
-        CheckConstraint("nightly_rate IS NULL OR nightly_rate >= 0", name="ck_spot_rentals_nightly_rate_positive"),
-        CheckConstraint("weekly_rate IS NULL OR weekly_rate >= 0", name="ck_spot_rentals_weekly_rate_positive"),
-        CheckConstraint("monthly_rate IS NULL OR monthly_rate >= 0", name="ck_spot_rentals_monthly_rate_positive"),
-        CheckConstraint("total_cost IS NULL OR total_cost >= 0", name="ck_spot_rentals_total_cost_positive"),
+        CheckConstraint(
+            "electric IS NULL OR electric >= 0",
+            name="ck_spot_rentals_electric_positive",
+        ),
+        CheckConstraint(
+            "water IS NULL OR water >= 0", name="ck_spot_rentals_water_positive"
+        ),
+        CheckConstraint(
+            "waste IS NULL OR waste >= 0", name="ck_spot_rentals_waste_positive"
+        ),
+        CheckConstraint(
+            "nightly_rate IS NULL OR nightly_rate >= 0",
+            name="ck_spot_rentals_nightly_rate_positive",
+        ),
+        CheckConstraint(
+            "weekly_rate IS NULL OR weekly_rate >= 0",
+            name="ck_spot_rentals_weekly_rate_positive",
+        ),
+        CheckConstraint(
+            "monthly_rate IS NULL OR monthly_rate >= 0",
+            name="ck_spot_rentals_monthly_rate_positive",
+        ),
+        CheckConstraint(
+            "total_cost IS NULL OR total_cost >= 0",
+            name="ck_spot_rentals_total_cost_positive",
+        ),
     )
 
 

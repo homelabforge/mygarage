@@ -55,7 +55,9 @@ class NtfyNotificationService(NotificationService):
             if url:
                 headers["Click"] = url
 
-            response = await self.client.post(endpoint, content=message, headers=headers)
+            response = await self.client.post(
+                endpoint, content=message, headers=headers
+            )
             response.raise_for_status()
 
             logger.info("[ntfy] Sent notification: %s", title)

@@ -3,6 +3,7 @@ Unit tests for authentication service.
 
 Tests password hashing, JWT token generation, and token verification.
 """
+
 import pytest
 from datetime import datetime, timedelta, timezone
 from authlib.jose import jwt, JoseError
@@ -178,7 +179,9 @@ class TestJWTTokens:
         assert "exp" in payload
         assert "iat" in payload
 
-    @pytest.mark.skip(reason="authlib jwt.decode() does not validate expiration by default")
+    @pytest.mark.skip(
+        reason="authlib jwt.decode() does not validate expiration by default"
+    )
     def test_decode_token_expired(self):
         """Test that expired tokens raise an error."""
         data = {"sub": "123", "username": "testuser"}

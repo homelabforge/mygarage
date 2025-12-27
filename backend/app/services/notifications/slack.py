@@ -11,11 +11,11 @@ logger = logging.getLogger(__name__)
 
 # Map standard priorities to Slack colors
 PRIORITY_COLORS = {
-    "min": "#808080",      # Gray
-    "low": "#36a64f",      # Green
+    "min": "#808080",  # Gray
+    "low": "#36a64f",  # Green
     "default": "#2196F3",  # Blue
-    "high": "#FF9800",     # Orange
-    "urgent": "#F44336",   # Red
+    "high": "#FF9800",  # Orange
+    "urgent": "#F44336",  # Red
 }
 
 

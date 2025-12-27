@@ -25,9 +25,7 @@ class SpotRentalBilling(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     spot_rental_id: Mapped[int] = mapped_column(
-        Integer,
-        ForeignKey("spot_rentals.id", ondelete="CASCADE"),
-        nullable=False
+        Integer, ForeignKey("spot_rentals.id", ondelete="CASCADE"), nullable=False
     )
     billing_date: Mapped[date] = mapped_column(Date, nullable=False)
     monthly_rate: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 2))
@@ -40,8 +38,7 @@ class SpotRentalBilling(Base):
 
     # Relationships
     spot_rental: Mapped["SpotRental"] = relationship(
-        "SpotRental",
-        back_populates="billings"
+        "SpotRental", back_populates="billings"
     )
 
     __table_args__ = (

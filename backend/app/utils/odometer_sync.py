@@ -14,7 +14,7 @@ async def sync_odometer_from_record(
     date: date_type,
     mileage: Optional[int],
     source_type: str,
-    source_id: int
+    source_id: int,
 ) -> Optional[OdometerRecord]:
     """
     Create or update odometer record from service/fuel record.
@@ -66,10 +66,7 @@ async def sync_odometer_from_record(
     else:
         # Create new odometer record
         odometer_record = OdometerRecord(
-            vin=vin,
-            date=date,
-            mileage=mileage,
-            notes=auto_sync_marker
+            vin=vin, date=date, mileage=mileage, notes=auto_sync_marker
         )
         db.add(odometer_record)
         await db.commit()

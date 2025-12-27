@@ -47,7 +47,9 @@ def upgrade(db_path: str = "/data/mygarage.db"):
 
         # 5. Recreate indexes
         cursor.execute("CREATE INDEX idx_service_records_vin ON service_records (vin)")
-        cursor.execute("CREATE INDEX idx_service_records_date ON service_records (date)")
+        cursor.execute(
+            "CREATE INDEX idx_service_records_date ON service_records (date)"
+        )
 
         conn.commit()
         print("✓ Successfully updated service_type constraint")

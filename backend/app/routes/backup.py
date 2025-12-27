@@ -25,14 +25,14 @@ DATABASE_PATH = Path(settings.database_url.replace("sqlite+aiosqlite:///", ""))
 def get_backup_service() -> BackupService:
     """Get backup service instance."""
     return BackupService(
-        backup_dir=BACKUP_DIR,
-        database_path=DATABASE_PATH,
-        data_dir=settings.data_dir
+        backup_dir=BACKUP_DIR, database_path=DATABASE_PATH, data_dir=settings.data_dir
     )
 
 
 @router.get("/stats")
-async def get_stats(current_user: Optional[User] = Depends(require_auth)) -> Dict[str, Any]:
+async def get_stats(
+    current_user: Optional[User] = Depends(require_auth),
+) -> Dict[str, Any]:
     """Get database and backup statistics.
 
     Returns:
@@ -67,7 +67,9 @@ async def get_stats(current_user: Optional[User] = Depends(require_auth)) -> Dic
 
 
 @router.get("/list")
-async def list_backups(backup_type: str = "all", current_user: Optional[User] = Depends(require_auth)) -> Dict[str, Any]:
+async def list_backups(
+    backup_type: str = "all", current_user: Optional[User] = Depends(require_auth)
+) -> Dict[str, Any]:
     """List all available backup files.
 
     Args:
@@ -86,7 +88,10 @@ async def list_backups(backup_type: str = "all", current_user: Optional[User] = 
 
 
 @router.post("/create")
-async def create_settings_backup(db: AsyncSession = Depends(get_db), current_user: Optional[User] = Depends(require_auth)) -> Dict[str, Any]:
+async def create_settings_backup(
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(require_auth),
+) -> Dict[str, Any]:
     """Create a new backup of all settings.
 
     Args:
@@ -102,18 +107,23 @@ async def create_settings_backup(db: AsyncSession = Depends(get_db), current_use
         return {
             "success": True,
             "message": "Settings backup created successfully",
-            "backup": backup_info
+            "backup": backup_info,
         }
     except PermissionError as e:
         logger.error("Permission denied creating settings backup: %s", e)
-        raise HTTPException(status_code=403, detail="Permission denied: cannot write to backup directory")
+        raise HTTPException(
+            status_code=403,
+            detail="Permission denied: cannot write to backup directory",
+        )
     except (OSError, IOError) as e:
         logger.error("File system error creating settings backup: %s", e)
         raise HTTPException(status_code=500, detail="Error writing backup file")
 
 
 @router.post("/create-full")
-async def create_full_backup(current_user: Optional[User] = Depends(require_auth)) -> Dict[str, Any]:
+async def create_full_backup(
+    current_user: Optional[User] = Depends(require_auth),
+) -> Dict[str, Any]:
     """Create a full backup including database and all uploaded files.
 
     This may take several minutes depending on the size of your data.
@@ -128,18 +138,23 @@ async def create_full_backup(current_user: Optional[User] = Depends(require_auth
         return {
             "success": True,
             "message": "Full backup created successfully",
-            "backup": backup_info
+            "backup": backup_info,
         }
     except PermissionError as e:
         logger.error("Permission denied creating full backup: %s", e)
-        raise HTTPException(status_code=403, detail="Permission denied: cannot write to backup directory")
+        raise HTTPException(
+            status_code=403,
+            detail="Permission denied: cannot write to backup directory",
+        )
     except (OSError, IOError) as e:
         logger.error("File system error creating full backup: %s", e)
         raise HTTPException(status_code=500, detail="Error creating backup archive")
 
 
 @router.get("/download/{filename}")
-async def download_backup(filename: str, current_user: Optional[User] = Depends(require_auth)):
+async def download_backup(
+    filename: str, current_user: Optional[User] = Depends(require_auth)
+):
     """Download a specific backup file.
 
     Args:
@@ -167,7 +182,7 @@ async def download_backup(filename: str, current_user: Optional[User] = Depends(
             path=backup_path,
             media_type=media_type,
             filename=filename,
-            headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
         )
     except HTTPException:
         raise
@@ -175,7 +190,9 @@ async def download_backup(filename: str, current_user: Optional[User] = Depends(
         raise HTTPException(status_code=404, detail="Backup file not found")
     except PermissionError as e:
         logger.error("Permission denied downloading backup: %s", e)
-        raise HTTPException(status_code=403, detail="Permission denied: cannot read backup file")
+        raise HTTPException(
+            status_code=403, detail="Permission denied: cannot read backup file"
+        )
     except (OSError, IOError) as e:
         logger.error("File system error downloading backup: %s", e)
         raise HTTPException(status_code=500, detail="Error reading backup file")
@@ -185,7 +202,7 @@ async def download_backup(filename: str, current_user: Optional[User] = Depends(
 async def restore_backup(
     filename: str,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth)
+    current_user: Optional[User] = Depends(require_auth),
 ) -> Dict[str, Any]:
     """Restore settings from a backup file.
 
@@ -209,7 +226,7 @@ async def restore_backup(
             return {
                 "success": True,
                 "message": f"Settings restored successfully from {filename}",
-                "details": details
+                "details": details,
             }
         elif filename.endswith(".tar.gz"):
             # Full backup
@@ -219,7 +236,7 @@ async def restore_backup(
                 "success": True,
                 "message": f"Full backup restored successfully from {filename}",
                 "details": details,
-                "warning": "Application restart may be required for changes to take effect."
+                "warning": "Application restart may be required for changes to take effect.",
             }
         else:
             raise HTTPException(status_code=400, detail="Invalid backup file type")
@@ -230,7 +247,9 @@ async def restore_backup(
         raise HTTPException(status_code=400, detail=str(e))
     except PermissionError as e:
         logger.error("Permission denied restoring backup: %s", e)
-        raise HTTPException(status_code=403, detail="Permission denied: cannot write to data directory")
+        raise HTTPException(
+            status_code=403, detail="Permission denied: cannot write to data directory"
+        )
     except (OSError, IOError) as e:
         logger.error("File system error restoring backup: %s", e)
         raise HTTPException(status_code=500, detail="Error restoring backup files")
@@ -240,7 +259,7 @@ async def restore_backup(
 async def upload_backup(
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth)
+    current_user: Optional[User] = Depends(require_auth),
 ) -> Dict[str, Any]:
     """Upload and save a backup file.
 
@@ -259,7 +278,7 @@ async def upload_backup(
         if not (file.filename.endswith(".json") or file.filename.endswith(".tar.gz")):
             raise HTTPException(
                 status_code=400,
-                detail="Invalid file type. Must be .json (settings) or .tar.gz (full backup)"
+                detail="Invalid file type. Must be .json (settings) or .tar.gz (full backup)",
             )
 
         # Check file size BEFORE reading into memory to prevent DoS
@@ -271,12 +290,13 @@ async def upload_backup(
         if file_size > MAX_BACKUP_SIZE:
             raise HTTPException(
                 status_code=413,
-                detail=f"File size exceeds maximum of {MAX_BACKUP_SIZE // (1024 * 1024)}MB"
+                detail=f"File size exceeds maximum of {MAX_BACKUP_SIZE // (1024 * 1024)}MB",
             )
 
         # Sanitize filename
         import os
         from datetime import datetime
+
         safe_filename = os.path.basename(file.filename)
 
         # Add timestamp if filename already exists
@@ -297,10 +317,15 @@ async def upload_backup(
         # Validate JSON backups
         if safe_filename.endswith(".json"):
             import json
+
             try:
                 backup_data = json.loads(content)
-                if "settings" not in backup_data or not isinstance(backup_data["settings"], list):
-                    raise HTTPException(status_code=400, detail="Invalid backup file structure")
+                if "settings" not in backup_data or not isinstance(
+                    backup_data["settings"], list
+                ):
+                    raise HTTPException(
+                        status_code=400, detail="Invalid backup file structure"
+                    )
             except json.JSONDecodeError:
                 raise HTTPException(status_code=400, detail="Invalid JSON file")
 
@@ -320,22 +345,29 @@ async def upload_backup(
             "backup": {
                 "filename": safe_filename,
                 "type": backup_type,
-                "size_mb": round(stat.st_size / 1024 / 1024, 4 if backup_type == "settings" else 2),
+                "size_mb": round(
+                    stat.st_size / 1024 / 1024, 4 if backup_type == "settings" else 2
+                ),
                 "created": datetime.fromtimestamp(stat.st_mtime).isoformat(),
-            }
+            },
         }
     except HTTPException:
         raise
     except PermissionError as e:
         logger.error("Permission denied uploading backup: %s", e)
-        raise HTTPException(status_code=403, detail="Permission denied: cannot write to backup directory")
+        raise HTTPException(
+            status_code=403,
+            detail="Permission denied: cannot write to backup directory",
+        )
     except (OSError, IOError) as e:
         logger.error("File system error uploading backup: %s", e)
         raise HTTPException(status_code=500, detail="Error saving backup file")
 
 
 @router.delete("/{filename}")
-async def delete_backup(filename: str, current_user: Optional[User] = Depends(require_auth)) -> Dict[str, Any]:
+async def delete_backup(
+    filename: str, current_user: Optional[User] = Depends(require_auth)
+) -> Dict[str, Any]:
     """Delete a backup file.
 
     Safety backups cannot be deleted to prevent accidental data loss.
@@ -350,17 +382,16 @@ async def delete_backup(filename: str, current_user: Optional[User] = Depends(re
         backup_service = get_backup_service()
         backup_service.delete_backup(filename)
 
-        return {
-            "success": True,
-            "message": f"Backup {filename} deleted successfully"
-        }
+        return {"success": True, "message": f"Backup {filename} deleted successfully"}
     except ValueError as e:
         raise HTTPException(status_code=403, detail=str(e))
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except PermissionError as e:
         logger.error("Permission denied deleting backup: %s", e)
-        raise HTTPException(status_code=403, detail="Permission denied: cannot delete backup file")
+        raise HTTPException(
+            status_code=403, detail="Permission denied: cannot delete backup file"
+        )
     except (OSError, IOError) as e:
         logger.error("File system error deleting backup: %s", e)
         raise HTTPException(status_code=500, detail="Error deleting backup file")

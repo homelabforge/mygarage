@@ -19,16 +19,31 @@ class User(Base):
     is_admin = Column(Boolean, default=False, nullable=False)
 
     # OIDC/SSO authentication fields
-    oidc_subject = Column(String(255), nullable=True, unique=True, index=True)  # 'sub' claim from OIDC provider
-    oidc_provider = Column(String(100), nullable=True, index=True)  # Provider name (e.g., 'Authentik', 'Keycloak')
-    auth_method = Column(String(20), default="local", nullable=False, index=True)  # 'local' or 'oidc'
+    oidc_subject = Column(
+        String(255), nullable=True, unique=True, index=True
+    )  # 'sub' claim from OIDC provider
+    oidc_provider = Column(
+        String(100), nullable=True, index=True
+    )  # Provider name (e.g., 'Authentik', 'Keycloak')
+    auth_method = Column(
+        String(20), default="local", nullable=False, index=True
+    )  # 'local' or 'oidc'
 
     # Unit preference
-    unit_preference = Column(String(20), default="imperial", nullable=False)  # 'imperial' or 'metric'
+    unit_preference = Column(
+        String(20), default="imperial", nullable=False
+    )  # 'imperial' or 'metric'
     show_both_units = Column(Boolean, default=False, nullable=False)
 
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(
+        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+    updated_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
     last_login = Column(DateTime, nullable=True)
 
     def __repr__(self):

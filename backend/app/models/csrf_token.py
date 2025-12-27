@@ -17,17 +17,19 @@ class CSRFToken(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     token = Column(String(64), unique=True, index=True, nullable=False)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    created_at = Column(
+        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+    )
     expires_at = Column(DateTime, nullable=False)
 
     # Relationship to user
     user = relationship("User", backref="csrf_tokens")
 
     # Composite index for efficient queries
-    __table_args__ = (
-        Index('ix_csrf_user_token', 'user_id', 'token'),
-    )
+    __table_args__ = (Index("ix_csrf_user_token", "user_id", "token"),)
 
     def __repr__(self):
         return f"<CSRFToken(user_id={self.user_id}, expires_at={self.expires_at})>"

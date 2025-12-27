@@ -14,7 +14,15 @@ from slowapi.util import get_remote_address
 from app.config import settings
 from app.database import get_db
 from app.models import (
-    Vehicle, ServiceRecord, FuelRecord, OdometerRecord, Reminder, Note, WarrantyRecord, InsurancePolicy, TaxRecord
+    Vehicle,
+    ServiceRecord,
+    FuelRecord,
+    OdometerRecord,
+    Reminder,
+    Note,
+    WarrantyRecord,
+    InsurancePolicy,
+    TaxRecord,
 )
 from app.models.user import User
 from app.services.auth import require_auth
@@ -41,7 +49,7 @@ async def export_service_records_csv(
     request: Request,
     vin: str,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth)
+    current_user: Optional[User] = Depends(require_auth),
 ):
     """Export service records as CSV"""
     # Verify vehicle exists
@@ -72,16 +80,18 @@ async def export_service_records_csv(
 
     rows = []
     for record in records:
-        rows.append([
-            record.date.isoformat() if record.date else "",
-            record.service_type or "",
-            record.description or "",
-            record.mileage or "",
-            f"{record.cost:.2f}" if record.cost else "",
-            record.vendor_name or "",
-            record.vendor_location or "",
-            record.notes or "",
-        ])
+        rows.append(
+            [
+                record.date.isoformat() if record.date else "",
+                record.service_type or "",
+                record.description or "",
+                record.mileage or "",
+                f"{record.cost:.2f}" if record.cost else "",
+                record.vendor_name or "",
+                record.vendor_location or "",
+                record.notes or "",
+            ]
+        )
 
     output = generate_csv_stream(headers, rows)
 
@@ -91,7 +101,7 @@ async def export_service_records_csv(
     return StreamingResponse(
         iter([output.getvalue()]),
         media_type="text/csv",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
@@ -101,7 +111,7 @@ async def export_fuel_records_csv(
     request: Request,
     vin: str,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth)
+    current_user: Optional[User] = Depends(require_auth),
 ):
     """Export fuel records as CSV"""
     # Verify vehicle exists
@@ -112,9 +122,7 @@ async def export_fuel_records_csv(
 
     # Get all fuel records
     result = await db.execute(
-        select(FuelRecord)
-        .where(FuelRecord.vin == vin)
-        .order_by(FuelRecord.date.desc())
+        select(FuelRecord).where(FuelRecord.vin == vin).order_by(FuelRecord.date.desc())
     )
     records = result.scalars().all()
 
@@ -133,17 +141,19 @@ async def export_fuel_records_csv(
 
     rows = []
     for record in records:
-        rows.append([
-            record.date.isoformat() if record.date else "",
-            record.mileage or "",
-            f"{record.gallons:.3f}" if record.gallons else "",
-            f"{record.price_per_unit:.3f}" if record.price_per_unit else "",
-            f"{record.cost:.2f}" if record.cost else "",
-            f"{record.mpg:.2f}" if record.mpg else "",
-            "Yes" if record.is_full_tank else "No",
-            "Yes" if record.missed_fillup else "No",
-            record.notes or "",
-        ])
+        rows.append(
+            [
+                record.date.isoformat() if record.date else "",
+                record.mileage or "",
+                f"{record.gallons:.3f}" if record.gallons else "",
+                f"{record.price_per_unit:.3f}" if record.price_per_unit else "",
+                f"{record.cost:.2f}" if record.cost else "",
+                f"{record.mpg:.2f}" if record.mpg else "",
+                "Yes" if record.is_full_tank else "No",
+                "Yes" if record.missed_fillup else "No",
+                record.notes or "",
+            ]
+        )
 
     output = generate_csv_stream(headers, rows)
 
@@ -153,7 +163,7 @@ async def export_fuel_records_csv(
     return StreamingResponse(
         iter([output.getvalue()]),
         media_type="text/csv",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
@@ -163,7 +173,7 @@ async def export_odometer_records_csv(
     request: Request,
     vin: str,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth)
+    current_user: Optional[User] = Depends(require_auth),
 ):
     """Export odometer records as CSV"""
     # Verify vehicle exists
@@ -185,11 +195,13 @@ async def export_odometer_records_csv(
 
     rows = []
     for record in records:
-        rows.append([
-            record.date.isoformat() if record.date else "",
-            record.mileage or "",
-            record.notes or "",
-        ])
+        rows.append(
+            [
+                record.date.isoformat() if record.date else "",
+                record.mileage or "",
+                record.notes or "",
+            ]
+        )
 
     output = generate_csv_stream(headers, rows)
 
@@ -199,7 +211,7 @@ async def export_odometer_records_csv(
     return StreamingResponse(
         iter([output.getvalue()]),
         media_type="text/csv",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
@@ -209,7 +221,7 @@ async def export_warranties_csv(
     request: Request,
     vin: str,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth)
+    current_user: Optional[User] = Depends(require_auth),
 ):
     """Export warranties as CSV"""
     # Verify vehicle exists
@@ -242,18 +254,20 @@ async def export_warranties_csv(
 
     rows = []
     for record in records:
-        rows.append([
-            record.provider or "",
-            record.warranty_type or "",
-            record.coverage or "",
-            record.start_date.isoformat() if record.start_date else "",
-            record.end_date.isoformat() if record.end_date else "",
-            f"{record.cost:.2f}" if record.cost else "",
-            f"{record.deductible:.2f}" if record.deductible else "",
-            record.max_claims or "",
-            record.terms or "",
-            record.notes or "",
-        ])
+        rows.append(
+            [
+                record.provider or "",
+                record.warranty_type or "",
+                record.coverage or "",
+                record.start_date.isoformat() if record.start_date else "",
+                record.end_date.isoformat() if record.end_date else "",
+                f"{record.cost:.2f}" if record.cost else "",
+                f"{record.deductible:.2f}" if record.deductible else "",
+                record.max_claims or "",
+                record.terms or "",
+                record.notes or "",
+            ]
+        )
 
     output = generate_csv_stream(headers, rows)
 
@@ -263,7 +277,7 @@ async def export_warranties_csv(
     return StreamingResponse(
         iter([output.getvalue()]),
         media_type="text/csv",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
@@ -273,7 +287,7 @@ async def export_insurance_csv(
     request: Request,
     vin: str,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth)
+    current_user: Optional[User] = Depends(require_auth),
 ):
     """Export insurance records as CSV"""
     # Verify vehicle exists
@@ -305,17 +319,19 @@ async def export_insurance_csv(
 
     rows = []
     for record in records:
-        rows.append([
-            record.provider or "",
-            record.policy_number or "",
-            record.policy_type or "",
-            record.start_date.isoformat() if record.start_date else "",
-            record.end_date.isoformat() if record.end_date else "",
-            f"{record.premium:.2f}" if record.premium else "",
-            f"{record.deductible:.2f}" if record.deductible else "",
-            record.coverage_limits or "",
-            record.notes or "",
-        ])
+        rows.append(
+            [
+                record.provider or "",
+                record.policy_number or "",
+                record.policy_type or "",
+                record.start_date.isoformat() if record.start_date else "",
+                record.end_date.isoformat() if record.end_date else "",
+                f"{record.premium:.2f}" if record.premium else "",
+                f"{record.deductible:.2f}" if record.deductible else "",
+                record.coverage_limits or "",
+                record.notes or "",
+            ]
+        )
 
     output = generate_csv_stream(headers, rows)
 
@@ -325,7 +341,7 @@ async def export_insurance_csv(
     return StreamingResponse(
         iter([output.getvalue()]),
         media_type="text/csv",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
@@ -335,7 +351,7 @@ async def export_tax_records_csv(
     request: Request,
     vin: str,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth)
+    current_user: Optional[User] = Depends(require_auth),
 ):
     """Export tax records as CSV"""
     # Verify vehicle exists
@@ -346,9 +362,7 @@ async def export_tax_records_csv(
 
     # Get all tax records
     result = await db.execute(
-        select(TaxRecord)
-        .where(TaxRecord.vin == vin)
-        .order_by(TaxRecord.year.desc())
+        select(TaxRecord).where(TaxRecord.vin == vin).order_by(TaxRecord.year.desc())
     )
     records = result.scalars().all()
 
@@ -365,15 +379,17 @@ async def export_tax_records_csv(
 
     rows = []
     for record in records:
-        rows.append([
-            record.year or "",
-            record.tax_type or "",
-            f"{record.amount:.2f}" if record.amount else "",
-            record.paid_date.isoformat() if record.paid_date else "",
-            record.due_date.isoformat() if record.due_date else "",
-            record.jurisdiction or "",
-            record.notes or "",
-        ])
+        rows.append(
+            [
+                record.year or "",
+                record.tax_type or "",
+                f"{record.amount:.2f}" if record.amount else "",
+                record.paid_date.isoformat() if record.paid_date else "",
+                record.due_date.isoformat() if record.due_date else "",
+                record.jurisdiction or "",
+                record.notes or "",
+            ]
+        )
 
     output = generate_csv_stream(headers, rows)
 
@@ -383,7 +399,7 @@ async def export_tax_records_csv(
     return StreamingResponse(
         iter([output.getvalue()]),
         media_type="text/csv",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
@@ -393,7 +409,7 @@ async def export_notes_csv(
     request: Request,
     vin: str,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth)
+    current_user: Optional[User] = Depends(require_auth),
 ):
     """Export notes as CSV"""
     # Verify vehicle exists
@@ -404,9 +420,7 @@ async def export_notes_csv(
 
     # Get all notes
     result = await db.execute(
-        select(Note)
-        .where(Note.vin == vin)
-        .order_by(Note.date.desc())
+        select(Note).where(Note.vin == vin).order_by(Note.date.desc())
     )
     records = result.scalars().all()
 
@@ -419,11 +433,13 @@ async def export_notes_csv(
 
     rows = []
     for record in records:
-        rows.append([
-            record.date.isoformat() if record.date else "",
-            record.title or "",
-            record.content or "",
-        ])
+        rows.append(
+            [
+                record.date.isoformat() if record.date else "",
+                record.title or "",
+                record.content or "",
+            ]
+        )
 
     output = generate_csv_stream(headers, rows)
 
@@ -433,7 +449,7 @@ async def export_notes_csv(
     return StreamingResponse(
         iter([output.getvalue()]),
         media_type="text/csv",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
@@ -443,7 +459,7 @@ async def export_vehicle_json(
     request: Request,
     vin: str,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth)
+    current_user: Optional[User] = Depends(require_auth),
 ):
     """Export complete vehicle data as JSON"""
     # Get vehicle
@@ -454,7 +470,9 @@ async def export_vehicle_json(
 
     # Get all related records
     service_result = await db.execute(
-        select(ServiceRecord).where(ServiceRecord.vin == vin).order_by(ServiceRecord.date.desc())
+        select(ServiceRecord)
+        .where(ServiceRecord.vin == vin)
+        .order_by(ServiceRecord.date.desc())
     )
     service_records = service_result.scalars().all()
 
@@ -464,7 +482,9 @@ async def export_vehicle_json(
     fuel_records = fuel_result.scalars().all()
 
     odometer_result = await db.execute(
-        select(OdometerRecord).where(OdometerRecord.vin == vin).order_by(OdometerRecord.date.desc())
+        select(OdometerRecord)
+        .where(OdometerRecord.vin == vin)
+        .order_by(OdometerRecord.date.desc())
     )
     odometer_records = odometer_result.scalars().all()
 
@@ -489,8 +509,12 @@ async def export_vehicle_json(
             "trim": vehicle.trim,
             "color": vehicle.color,
             "license_plate": vehicle.license_plate,
-            "purchase_date": vehicle.purchase_date.isoformat() if vehicle.purchase_date else None,
-            "purchase_price": float(vehicle.purchase_price) if vehicle.purchase_price else None,
+            "purchase_date": vehicle.purchase_date.isoformat()
+            if vehicle.purchase_date
+            else None,
+            "purchase_price": float(vehicle.purchase_price)
+            if vehicle.purchase_price
+            else None,
         },
         "service_records": [
             {
@@ -560,5 +584,5 @@ async def export_vehicle_json(
     return StreamingResponse(
         iter([json_str]),
         media_type="application/json",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

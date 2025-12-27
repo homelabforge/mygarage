@@ -1,6 +1,16 @@
 """Vehicle database models."""
 
-from sqlalchemy import String, Integer, Numeric, Date, DateTime, CheckConstraint, Index, ForeignKey, JSON
+from sqlalchemy import (
+    String,
+    Integer,
+    Numeric,
+    Date,
+    DateTime,
+    CheckConstraint,
+    Index,
+    ForeignKey,
+    JSON,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 from datetime import date, datetime
@@ -67,28 +77,40 @@ class Vehicle(Base):
     environmental_rating_ghg: Mapped[Optional[str]] = mapped_column(String(10))
     environmental_rating_smog: Mapped[Optional[str]] = mapped_column(String(10))
     window_sticker_parser_used: Mapped[Optional[str]] = mapped_column(String(50))
-    window_sticker_confidence_score: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2))
+    window_sticker_confidence_score: Mapped[Optional[Decimal]] = mapped_column(
+        Numeric(5, 2)
+    )
     window_sticker_extracted_vin: Mapped[Optional[str]] = mapped_column(String(17))
     # Multi-user support
-    user_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
     # Archive fields
     archived_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
-    archive_reason: Mapped[Optional[str]] = mapped_column(String(50))  # Sold, Totaled, Gifted, Trade-in, Other
+    archive_reason: Mapped[Optional[str]] = mapped_column(
+        String(50)
+    )  # Sold, Totaled, Gifted, Trade-in, Other
     archive_sale_price: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2))
     archive_sale_date: Mapped[Optional[date]] = mapped_column(Date)
     archive_notes: Mapped[Optional[str]] = mapped_column(String(1000))
-    archived_visible: Mapped[bool] = mapped_column(Integer, server_default="1")  # SQLite uses INTEGER for BOOLEAN
+    archived_visible: Mapped[bool] = mapped_column(
+        Integer, server_default="1"
+    )  # SQLite uses INTEGER for BOOLEAN
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, onupdate=func.now())
+    updated_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, onupdate=func.now()
+    )
 
     # Relationships
-    user: Mapped[Optional["User"]] = relationship("User", foreign_keys="[Vehicle.user_id]")
+    user: Mapped[Optional["User"]] = relationship(
+        "User", foreign_keys="[Vehicle.user_id]"
+    )
     trailer_details: Mapped[Optional["TrailerDetails"]] = relationship(
         "TrailerDetails",
         back_populates="vehicle",
         cascade="all, delete-orphan",
         uselist=False,
-        foreign_keys="[TrailerDetails.vin]"
+        foreign_keys="[TrailerDetails.vin]",
     )
     spot_rentals: Mapped[list["SpotRental"]] = relationship(
         "SpotRental", back_populates="vehicle", cascade="all, delete-orphan"
@@ -135,8 +157,8 @@ class Vehicle(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "vehicle_type IN ('Car', 'Truck', 'SUV', 'Motorcycle', 'RV', 'Trailer', 'FifthWheel', 'Electric', 'Hybrid')",
-            name="check_vehicle_type"
+            "vehicle_type IN ('Car', 'Truck', 'SUV', 'Motorcycle', 'RV', 'Trailer', 'FifthWheel', 'TravelTrailer', 'Electric', 'Hybrid')",
+            name="check_vehicle_type",
         ),
         Index("idx_vehicles_type", "vehicle_type"),
         Index("idx_vehicles_nickname", "nickname"),
@@ -148,7 +170,9 @@ class TrailerDetails(Base):
 
     __tablename__ = "trailer_details"
 
-    vin: Mapped[str] = mapped_column(String(17), ForeignKey("vehicles.vin", ondelete="CASCADE"), primary_key=True)
+    vin: Mapped[str] = mapped_column(
+        String(17), ForeignKey("vehicles.vin", ondelete="CASCADE"), primary_key=True
+    )
     gvwr: Mapped[Optional[int]] = mapped_column(Integer)
     hitch_type: Mapped[Optional[str]] = mapped_column(String(30))
     axle_count: Mapped[Optional[int]] = mapped_column(Integer)
@@ -156,23 +180,22 @@ class TrailerDetails(Base):
     length_ft: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2))
     width_ft: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2))
     height_ft: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2))
-    tow_vehicle_vin: Mapped[Optional[str]] = mapped_column(String(17), ForeignKey("vehicles.vin", ondelete="SET NULL"))
+    tow_vehicle_vin: Mapped[Optional[str]] = mapped_column(
+        String(17), ForeignKey("vehicles.vin", ondelete="SET NULL")
+    )
 
     # Relationships
     vehicle: Mapped["Vehicle"] = relationship(
-        "Vehicle",
-        back_populates="trailer_details",
-        foreign_keys="[TrailerDetails.vin]"
+        "Vehicle", back_populates="trailer_details", foreign_keys="[TrailerDetails.vin]"
     )
 
     __table_args__ = (
         CheckConstraint(
             "hitch_type IN ('Ball', 'Pintle', 'Fifth Wheel', 'Gooseneck')",
-            name="check_hitch_type"
+            name="check_hitch_type",
         ),
         CheckConstraint(
-            "brake_type IN ('None', 'Electric', 'Hydraulic')",
-            name="check_brake_type"
+            "brake_type IN ('None', 'Electric', 'Hydraulic')", name="check_brake_type"
         ),
     )
 

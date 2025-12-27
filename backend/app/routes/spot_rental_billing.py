@@ -21,7 +21,7 @@ router = APIRouter(prefix="/api/vehicles", tags=["spot-rental-billings"])
 
 @router.get(
     "/{vin}/spot-rentals/{rental_id}/billings",
-    response_model=SpotRentalBillingListResponse
+    response_model=SpotRentalBillingListResponse,
 )
 async def list_billings(
     vin: str,
@@ -32,10 +32,7 @@ async def list_billings(
     """List all billing entries for a spot rental."""
     # Verify spot rental exists and belongs to this vehicle
     result = await db.execute(
-        select(SpotRental).where(
-            SpotRental.id == rental_id,
-            SpotRental.vin == vin
-        )
+        select(SpotRental).where(SpotRental.id == rental_id, SpotRental.vin == vin)
     )
     rental = result.scalar_one_or_none()
     if not rental:
@@ -71,10 +68,7 @@ async def create_billing(
     """Create a new billing entry for a spot rental."""
     # Verify spot rental exists and belongs to this vehicle
     result = await db.execute(
-        select(SpotRental).where(
-            SpotRental.id == rental_id,
-            SpotRental.vin == vin
-        )
+        select(SpotRental).where(SpotRental.id == rental_id, SpotRental.vin == vin)
     )
     rental = result.scalar_one_or_none()
     if not rental:
@@ -83,14 +77,12 @@ async def create_billing(
     # Validate billing date is within rental period
     if billing_data.billing_date < rental.check_in_date:
         raise HTTPException(
-            status_code=400,
-            detail="Billing date cannot be before check-in date"
+            status_code=400, detail="Billing date cannot be before check-in date"
         )
 
     if rental.check_out_date and billing_data.billing_date > rental.check_out_date:
         raise HTTPException(
-            status_code=400,
-            detail="Billing date cannot be after check-out date"
+            status_code=400, detail="Billing date cannot be after check-out date"
         )
 
     # Create billing entry
@@ -132,7 +124,7 @@ async def update_billing(
         .where(
             SpotRentalBilling.id == billing_id,
             SpotRentalBilling.spot_rental_id == rental_id,
-            SpotRental.vin == vin
+            SpotRental.vin == vin,
         )
     )
     billing = result.scalar_one_or_none()
@@ -169,7 +161,7 @@ async def delete_billing(
         .where(
             SpotRentalBilling.id == billing_id,
             SpotRentalBilling.spot_rental_id == rental_id,
-            SpotRental.vin == vin
+            SpotRental.vin == vin,
         )
     )
     billing = result.scalar_one_or_none()

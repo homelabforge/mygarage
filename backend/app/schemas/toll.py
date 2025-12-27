@@ -9,35 +9,39 @@ from pydantic import BaseModel, Field, field_validator
 class TollTagBase(BaseModel):
     """Base toll tag schema with common fields."""
 
-    toll_system: str = Field(..., description="Toll system name", min_length=1, max_length=50)
-    tag_number: str = Field(..., description="Transponder/tag number", min_length=1, max_length=50)
+    toll_system: str = Field(
+        ..., description="Toll system name", min_length=1, max_length=50
+    )
+    tag_number: str = Field(
+        ..., description="Transponder/tag number", min_length=1, max_length=50
+    )
     status: str = Field("active", description="Tag status")
     notes: Optional[str] = Field(None, description="Additional notes")
 
-    @field_validator('status')
+    @field_validator("status")
     @classmethod
     def validate_status(cls, v: str) -> str:
         """Validate status."""
-        valid_statuses = ['active', 'inactive']
+        valid_statuses = ["active", "inactive"]
         if v not in valid_statuses:
-            raise ValueError(f'Status must be one of: {", ".join(valid_statuses)}')
+            raise ValueError(f"Status must be one of: {', '.join(valid_statuses)}")
         return v
 
-    @field_validator('toll_system')
+    @field_validator("toll_system")
     @classmethod
     def validate_toll_system(cls, v: str) -> str:
         """Validate and suggest common toll systems."""
         # Allow any toll system but normalize common ones
         common_systems = {
-            'eztag': 'EZ TAG',
-            'ez tag': 'EZ TAG',
-            'txtag': 'TxTag',
-            'tx tag': 'TxTag',
-            'ezpass': 'E-ZPass',
-            'e-zpass': 'E-ZPass',
-            'sunpass': 'SunPass',
-            'ntta': 'NTTA TollTag',
-            'tolltag': 'NTTA TollTag',
+            "eztag": "EZ TAG",
+            "ez tag": "EZ TAG",
+            "txtag": "TxTag",
+            "tx tag": "TxTag",
+            "ezpass": "E-ZPass",
+            "e-zpass": "E-ZPass",
+            "sunpass": "SunPass",
+            "ntta": "NTTA TollTag",
+            "tolltag": "NTTA TollTag",
         }
         return common_systems.get(v.lower(), v)
 
@@ -45,7 +49,9 @@ class TollTagBase(BaseModel):
 class TollTagCreate(TollTagBase):
     """Schema for creating a new toll tag."""
 
-    vin: str = Field(..., description="VIN of the vehicle", min_length=17, max_length=17)
+    vin: str = Field(
+        ..., description="VIN of the vehicle", min_length=17, max_length=17
+    )
 
     model_config = {
         "json_schema_extra": {
@@ -55,7 +61,7 @@ class TollTagCreate(TollTagBase):
                     "toll_system": "EZ TAG",
                     "tag_number": "0012345678",
                     "status": "active",
-                    "notes": "Primary toll tag for truck"
+                    "notes": "Primary toll tag for truck",
                 }
             ]
         }
@@ -65,20 +71,24 @@ class TollTagCreate(TollTagBase):
 class TollTagUpdate(BaseModel):
     """Schema for updating an existing toll tag."""
 
-    toll_system: Optional[str] = Field(None, description="Toll system name", min_length=1, max_length=50)
-    tag_number: Optional[str] = Field(None, description="Transponder/tag number", min_length=1, max_length=50)
+    toll_system: Optional[str] = Field(
+        None, description="Toll system name", min_length=1, max_length=50
+    )
+    tag_number: Optional[str] = Field(
+        None, description="Transponder/tag number", min_length=1, max_length=50
+    )
     status: Optional[str] = Field(None, description="Tag status")
     notes: Optional[str] = Field(None, description="Additional notes")
 
-    @field_validator('status')
+    @field_validator("status")
     @classmethod
     def validate_status(cls, v: Optional[str]) -> Optional[str]:
         """Validate status."""
         if v is None:
             return v
-        valid_statuses = ['active', 'inactive']
+        valid_statuses = ["active", "inactive"]
         if v not in valid_statuses:
-            raise ValueError(f'Status must be one of: {", ".join(valid_statuses)}')
+            raise ValueError(f"Status must be one of: {', '.join(valid_statuses)}")
         return v
 
 
@@ -102,10 +112,10 @@ class TollTagResponse(TollTagBase):
                     "status": "active",
                     "notes": "Primary toll tag for truck",
                     "created_at": "2025-11-08T10:00:00",
-                    "updated_at": None
+                    "updated_at": None,
                 }
             ]
-        }
+        },
     }
 
 
@@ -128,10 +138,10 @@ class TollTagListResponse(BaseModel):
                             "status": "active",
                             "notes": None,
                             "created_at": "2025-11-08T10:00:00",
-                            "updated_at": None
+                            "updated_at": None,
                         }
                     ],
-                    "total": 1
+                    "total": 1,
                 }
             ]
         }
@@ -143,7 +153,9 @@ class TollTransactionBase(BaseModel):
 
     transaction_date: dt.date = Field(..., description="Transaction date")
     amount: Decimal = Field(..., description="Toll amount", ge=0)
-    location: str = Field(..., description="Toll location/plaza", min_length=1, max_length=200)
+    location: str = Field(
+        ..., description="Toll location/plaza", min_length=1, max_length=200
+    )
     toll_tag_id: Optional[int] = Field(None, description="Associated toll tag ID")
     notes: Optional[str] = Field(None, description="Additional notes")
 
@@ -151,7 +163,9 @@ class TollTransactionBase(BaseModel):
 class TollTransactionCreate(TollTransactionBase):
     """Schema for creating a new toll transaction."""
 
-    vin: str = Field(..., description="VIN of the vehicle", min_length=17, max_length=17)
+    vin: str = Field(
+        ..., description="VIN of the vehicle", min_length=17, max_length=17
+    )
 
     model_config = {
         "json_schema_extra": {
@@ -162,7 +176,7 @@ class TollTransactionCreate(TollTransactionBase):
                     "amount": 2.50,
                     "location": "Hardy Toll Road - Spring",
                     "toll_tag_id": 1,
-                    "notes": "Morning commute"
+                    "notes": "Morning commute",
                 }
             ]
         }
@@ -174,7 +188,9 @@ class TollTransactionUpdate(BaseModel):
 
     transaction_date: Optional[dt.date] = Field(None, description="Transaction date")
     amount: Optional[Decimal] = Field(None, description="Toll amount", ge=0)
-    location: Optional[str] = Field(None, description="Toll location/plaza", min_length=1, max_length=200)
+    location: Optional[str] = Field(
+        None, description="Toll location/plaza", min_length=1, max_length=200
+    )
     toll_tag_id: Optional[int] = Field(None, description="Associated toll tag ID")
     notes: Optional[str] = Field(None, description="Additional notes")
 
@@ -198,10 +214,10 @@ class TollTransactionResponse(TollTransactionBase):
                     "location": "Hardy Toll Road - Spring",
                     "toll_tag_id": 1,
                     "notes": "Morning commute",
-                    "created_at": "2025-11-08T10:00:00"
+                    "created_at": "2025-11-08T10:00:00",
                 }
             ]
-        }
+        },
     }
 
 
@@ -224,10 +240,10 @@ class TollTransactionListResponse(BaseModel):
                             "location": "Hardy Toll Road - Spring",
                             "toll_tag_id": 1,
                             "notes": None,
-                            "created_at": "2025-11-08T10:00:00"
+                            "created_at": "2025-11-08T10:00:00",
                         }
                     ],
-                    "total": 1
+                    "total": 1,
                 }
             ]
         }
@@ -249,8 +265,8 @@ class TollTransactionSummary(BaseModel):
                     "total_amount": 62.50,
                     "monthly_totals": [
                         {"month": "2025-11", "count": 15, "amount": 37.50},
-                        {"month": "2025-10", "count": 10, "amount": 25.00}
-                    ]
+                        {"month": "2025-10", "count": 10, "amount": 25.00},
+                    ],
                 }
             ]
         }

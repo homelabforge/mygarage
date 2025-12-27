@@ -14,8 +14,8 @@ PRIORITY_EMOJI = {
     "min": "",
     "low": "",
     "default": "",
-    "high": "\u26a0\ufe0f ",      # Warning sign
-    "urgent": "\ud83d\udea8 ",    # Rotating light
+    "high": "\u26a0\ufe0f ",  # Warning sign
+    "urgent": "\ud83d\udea8 ",  # Rotating light
 }
 
 
@@ -96,7 +96,10 @@ class TelegramNotificationService(NotificationService):
 
             result = response.json()
             if not result.get("ok"):
-                return False, f"Bot verification failed: {result.get('description', 'Unknown error')}"
+                return (
+                    False,
+                    f"Bot verification failed: {result.get('description', 'Unknown error')}",
+                )
 
             # Now send test message
             success = await self.send(

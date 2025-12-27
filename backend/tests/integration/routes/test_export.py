@@ -3,6 +3,7 @@ Integration tests for export routes.
 
 Tests data export functionality (PDF, CSV).
 """
+
 import pytest
 from httpx import AsyncClient
 
@@ -88,15 +89,11 @@ class TestExportRoutes:
         """Test that unauthenticated users cannot export data."""
         vehicle = test_vehicle_with_records
 
-        response = await client.get(
-            f"/api/vehicles/{vehicle['vin']}/export/pdf"
-        )
+        response = await client.get(f"/api/vehicles/{vehicle['vin']}/export/pdf")
 
         assert response.status_code == 401
 
-    async def test_export_vehicle_not_found(
-        self, client: AsyncClient, auth_headers
-    ):
+    async def test_export_vehicle_not_found(self, client: AsyncClient, auth_headers):
         """Test exporting data for non-existent vehicle."""
         response = await client.get(
             "/api/vehicles/INVALIDVIN1234567/export/pdf",

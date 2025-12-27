@@ -34,14 +34,14 @@ def upgrade():
         result = conn.execute(text("PRAGMA table_info(vehicles)"))
         existing_columns = {row[1] for row in result}
 
-        if 'user_id' in existing_columns:
+        if "user_id" in existing_columns:
             print("  → user_id column already exists, skipping migration")
             return
 
         # Get first user ID to assign existing vehicles
-        first_user = conn.execute(text(
-            "SELECT id FROM users ORDER BY created_at LIMIT 1"
-        )).fetchone()
+        first_user = conn.execute(
+            text("SELECT id FROM users ORDER BY created_at LIMIT 1")
+        ).fetchone()
 
         if not first_user:
             raise RuntimeError(
@@ -53,36 +53,47 @@ def upgrade():
         print(f"  • Found first user (id={first_user_id}) to assign existing vehicles")
 
         # Add user_id column (nullable initially)
-        conn.execute(text("""
+        conn.execute(
+            text("""
             ALTER TABLE vehicles
             ADD COLUMN user_id INTEGER
-        """))
+        """)
+        )
         print("  ✓ Added user_id column to vehicles table")
 
         # Assign all existing vehicles to first user
-        result = conn.execute(text("""
+        result = conn.execute(
+            text("""
             UPDATE vehicles
             SET user_id = :user_id
             WHERE user_id IS NULL
-        """), {"user_id": first_user_id})
+        """),
+            {"user_id": first_user_id},
+        )
 
         vehicles_updated = result.rowcount
-        print(f"  ✓ Assigned {vehicles_updated} existing vehicle(s) to user {first_user_id}")
+        print(
+            f"  ✓ Assigned {vehicles_updated} existing vehicle(s) to user {first_user_id}"
+        )
 
         # Create index for faster lookups
-        conn.execute(text("""
+        conn.execute(
+            text("""
             CREATE INDEX IF NOT EXISTS idx_vehicles_user_id
             ON vehicles(user_id)
-        """))
+        """)
+        )
         print("  ✓ Created index on vehicles.user_id")
 
         # Verify migration
-        result = conn.execute(text("""
+        result = conn.execute(
+            text("""
             SELECT
                 COUNT(*) as total_vehicles,
                 COUNT(DISTINCT user_id) as users_with_vehicles
             FROM vehicles
-        """))
+        """)
+        )
         row = result.fetchone()
 
         if row:

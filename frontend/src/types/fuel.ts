@@ -9,6 +9,8 @@ export interface FuelRecord {
   mileage?: number
   gallons?: number | string  // Backend returns Decimal as string
   propane_gallons?: number | string  // Backend returns Decimal as string
+  tank_size_lb?: number | string  // Backend returns Decimal as string
+  tank_quantity?: number
   kwh?: number | string  // Backend returns Decimal as string
   price_per_unit?: number | string  // Backend returns Decimal as string
   cost?: number | string  // Backend returns Decimal as string
@@ -27,6 +29,8 @@ export interface FuelRecordCreate {
   mileage?: number
   gallons?: number
   propane_gallons?: number
+  tank_size_lb?: number
+  tank_quantity?: number
   kwh?: number
   price_per_unit?: number
   cost?: number
@@ -42,6 +46,8 @@ export interface FuelRecordUpdate {
   mileage?: number
   gallons?: number
   propane_gallons?: number
+  tank_size_lb?: number
+  tank_quantity?: number
   kwh?: number
   price_per_unit?: number
   cost?: number

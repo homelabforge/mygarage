@@ -22,7 +22,9 @@ router = APIRouter(prefix="/api/address-book", tags=["address-book"])
 
 @router.get("", response_model=AddressBookListResponse)
 async def list_entries(
-    search: Optional[str] = Query(None, description="Search by name, business name, or city"),
+    search: Optional[str] = Query(
+        None, description="Search by name, business name, or city"
+    ),
     category: Optional[str] = Query(None, description="Filter by category"),
     db: Annotated[AsyncSession, Depends(get_db)] = None,
     current_user: Optional[User] = Depends(require_auth),

@@ -32,7 +32,7 @@ async def list_recalls(
     vin: str,
     status: Optional[str] = None,  # 'active', 'resolved', or None for all
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth)
+    current_user: Optional[User] = Depends(require_auth),
 ):
     """Get all recalls for a vehicle with optional status filtering."""
     # Verify vehicle exists
@@ -44,9 +44,9 @@ async def list_recalls(
     # Build query
     query = select(Recall).where(Recall.vin == vin)
 
-    if status == 'active':
+    if status == "active":
         query = query.where(Recall.is_resolved.is_(False))
-    elif status == 'resolved':
+    elif status == "resolved":
         query = query.where(Recall.is_resolved.is_(True))
 
     query = query.order_by(Recall.is_resolved.asc(), Recall.date_announced.desc())
@@ -63,12 +63,16 @@ async def list_recalls(
         recalls=[RecallResponse.model_validate(recall) for recall in recalls],
         total=len(recalls),
         active_count=active_count,
-        resolved_count=resolved_count
+        resolved_count=resolved_count,
     )
 
 
 @recalls_router.post("/check-nhtsa", response_model=RecallListResponse)
-async def check_nhtsa_recalls(vin: str, db: AsyncSession = Depends(get_db), current_user: Optional[User] = Depends(require_auth)):
+async def check_nhtsa_recalls(
+    vin: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(require_auth),
+):
     """Fetch recalls from NHTSA API and store new ones in database."""
     # Verify vehicle exists
     result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
@@ -82,19 +86,16 @@ async def check_nhtsa_recalls(vin: str, db: AsyncSession = Depends(get_db), curr
         nhtsa_recalls = await nhtsa_service.get_vehicle_recalls(vin, db)
 
         # Get existing recalls
-        result = await db.execute(
-            select(Recall).where(Recall.vin == vin)
-        )
+        result = await db.execute(select(Recall).where(Recall.vin == vin))
         existing_recalls = result.scalars().all()
         existing_campaign_numbers = {
-            r.nhtsa_campaign_number for r in existing_recalls
-            if r.nhtsa_campaign_number
+            r.nhtsa_campaign_number for r in existing_recalls if r.nhtsa_campaign_number
         }
 
         # Add new recalls
         new_recalls_added = 0
         for nhtsa_recall in nhtsa_recalls:
-            campaign_number = nhtsa_recall.get('NHTSACampaignNumber')
+            campaign_number = nhtsa_recall.get("NHTSACampaignNumber")
 
             # Skip if we already have this recall
             if campaign_number and campaign_number in existing_campaign_numbers:
@@ -104,10 +105,10 @@ async def check_nhtsa_recalls(vin: str, db: AsyncSession = Depends(get_db), curr
             db_recall = Recall(
                 vin=vin,
                 nhtsa_campaign_number=campaign_number,
-                component=nhtsa_recall.get('Component', 'Unknown Component')[:200],
-                summary=nhtsa_recall.get('Summary', 'No summary available'),
-                consequence=nhtsa_recall.get('Consequence'),
-                remedy=nhtsa_recall.get('Remedy'),
+                component=nhtsa_recall.get("Component", "Unknown Component")[:200],
+                summary=nhtsa_recall.get("Summary", "No summary available"),
+                consequence=nhtsa_recall.get("Consequence"),
+                remedy=nhtsa_recall.get("Remedy"),
                 date_announced=None,  # NHTSA doesn't always provide date in consistent format
                 is_resolved=False,
             )
@@ -116,11 +117,15 @@ async def check_nhtsa_recalls(vin: str, db: AsyncSession = Depends(get_db), curr
 
         await db.commit()
 
-        logger.info("Added %s new recalls for vehicle %s from NHTSA", new_recalls_added, vin)
+        logger.info(
+            "Added %s new recalls for vehicle %s from NHTSA", new_recalls_added, vin
+        )
 
         # Return updated list
         result = await db.execute(
-            select(Recall).where(Recall.vin == vin).order_by(Recall.is_resolved.asc(), Recall.created_at.desc())
+            select(Recall)
+            .where(Recall.vin == vin)
+            .order_by(Recall.is_resolved.asc(), Recall.created_at.desc())
         )
         recalls = result.scalars().all()
 
@@ -131,7 +136,7 @@ async def check_nhtsa_recalls(vin: str, db: AsyncSession = Depends(get_db), curr
             recalls=[RecallResponse.model_validate(recall) for recall in recalls],
             total=len(recalls),
             active_count=active_count,
-            resolved_count=resolved_count
+            resolved_count=resolved_count,
         )
 
     except httpx.TimeoutException:
@@ -142,14 +147,21 @@ async def check_nhtsa_recalls(vin: str, db: AsyncSession = Depends(get_db), curr
         raise HTTPException(status_code=503, detail="Cannot connect to NHTSA API")
     except httpx.HTTPStatusError as e:
         logger.error("NHTSA API error fetching recalls for VIN %s: %s", vin, e)
-        raise HTTPException(status_code=e.response.status_code, detail="NHTSA API error")
+        raise HTTPException(
+            status_code=e.response.status_code, detail="NHTSA API error"
+        )
     except OperationalError as e:
         logger.error("Database error fetching recalls for VIN %s: %s", vin, e)
         raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
 
 @recalls_router.post("", response_model=RecallResponse, status_code=201)
-async def create_recall(vin: str, recall: RecallCreate, db: AsyncSession = Depends(get_db), current_user: Optional[User] = Depends(require_auth)):
+async def create_recall(
+    vin: str,
+    recall: RecallCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(require_auth),
+):
     """Create a new recall manually."""
     # Verify vehicle exists
     result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
@@ -182,7 +194,12 @@ async def create_recall(vin: str, recall: RecallCreate, db: AsyncSession = Depen
 
 
 @recalls_router.get("/{recall_id}", response_model=RecallResponse)
-async def get_recall(vin: str, recall_id: int, db: AsyncSession = Depends(get_db), current_user: Optional[User] = Depends(require_auth)):
+async def get_recall(
+    vin: str,
+    recall_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(require_auth),
+):
     """Get a specific recall."""
     result = await db.execute(
         select(Recall).where(Recall.id == recall_id, Recall.vin == vin)
@@ -200,7 +217,7 @@ async def update_recall(
     recall_id: int,
     recall_update: RecallUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth)
+    current_user: Optional[User] = Depends(require_auth),
 ):
     """Update a recall."""
     result = await db.execute(
@@ -214,8 +231,8 @@ async def update_recall(
     update_data = recall_update.model_dump(exclude_unset=True)
 
     # Handle is_resolved field specially
-    if 'is_resolved' in update_data:
-        new_resolved_status = update_data['is_resolved']
+    if "is_resolved" in update_data:
+        new_resolved_status = update_data["is_resolved"]
         old_resolved_status = recall.is_resolved
 
         # If marking as resolved for the first time
@@ -236,7 +253,12 @@ async def update_recall(
 
 
 @recalls_router.delete("/{recall_id}", status_code=204)
-async def delete_recall(vin: str, recall_id: int, db: AsyncSession = Depends(get_db), current_user: Optional[User] = Depends(require_auth)):
+async def delete_recall(
+    vin: str,
+    recall_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(require_auth),
+):
     """Delete a recall."""
     result = await db.execute(
         select(Recall).where(Recall.id == recall_id, Recall.vin == vin)

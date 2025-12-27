@@ -3,6 +3,7 @@ Integration tests for insurance routes.
 
 Tests insurance CRUD operations.
 """
+
 import pytest
 from httpx import AsyncClient
 from datetime import date, timedelta
@@ -182,9 +183,7 @@ class TestInsuranceRoutes:
         # Should fail validation or business logic check
         assert response.status_code in [400, 422]
 
-    async def test_insurance_unauthorized(
-        self, client: AsyncClient, test_vehicle
-    ):
+    async def test_insurance_unauthorized(self, client: AsyncClient, test_vehicle):
         """Test that unauthenticated users cannot create insurance."""
         start_date = date.today().isoformat()
         end_date = (date.today() + timedelta(days=365)).isoformat()

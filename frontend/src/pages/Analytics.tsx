@@ -76,13 +76,13 @@ export default function Analytics() {
   // Help modal state
   const [showHelpModal, setShowHelpModal] = useState(false)
 
-  // Check if vehicle is motorized (not a trailer or fifth wheel)
+  // Check if vehicle is motorized (not a trailer, fifth wheel, or travel trailer)
   const isMotorized = analytics?.vehicle_type &&
-    !['Trailer', 'FifthWheel'].includes(analytics.vehicle_type)
+    !['Trailer', 'FifthWheel', 'TravelTrailer'].includes(analytics.vehicle_type)
 
-  // Check if vehicle is a fifth wheel or RV (for propane and spot rental tracking)
+  // Check if vehicle is a fifth wheel, travel trailer, or RV (for propane and spot rental tracking)
   const hasPropane = analytics?.vehicle_type &&
-    ['RV', 'FifthWheel'].includes(analytics.vehicle_type)
+    ['RV', 'FifthWheel', 'TravelTrailer'].includes(analytics.vehicle_type)
 
   const fetchAnalytics = useCallback(async () => {
     if (!vin) return
@@ -922,6 +922,7 @@ export default function Analytics() {
                   month: `${month.month_name.slice(0, 3)} ${month.year}`,
                   Service: parseFloat(month.total_service_cost),
                   Fuel: parseFloat(month.total_fuel_cost),
+                  'Spot Rental': parseFloat(month.total_spot_rental_cost),
                 }))}
                 margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
               >
@@ -972,6 +973,7 @@ export default function Analytics() {
                 />
                 <Bar dataKey="Service" fill="#3B82F6" stackId="a" />
                 <Bar dataKey="Fuel" fill="#10B981" stackId="a" />
+                <Bar dataKey="Spot Rental" fill="#F59E0B" stackId="a" />
               </RechartsBarChart>
             </ResponsiveContainer>
           </div>
@@ -986,6 +988,7 @@ export default function Analytics() {
                   </p>
                   <p className="text-xs text-garage-text-muted">
                     Service: {formatCurrency(month.total_service_cost)} • Fuel: {formatCurrency(month.total_fuel_cost)}
+                    {parseFloat(month.total_spot_rental_cost) > 0 && ` • Spot Rental: ${formatCurrency(month.total_spot_rental_cost)}`}
                   </p>
                 </div>
                 <p className="font-bold text-garage-text">{formatCurrency(month.total_cost)}</p>

@@ -46,6 +46,7 @@ AsyncSessionLocal = async_sessionmaker(
 
 class Base(DeclarativeBase):
     """Base class for all database models."""
+
     pass
 
 
@@ -90,7 +91,6 @@ async def init_db():
     import os
     from pathlib import Path
 
-
     async with engine.begin() as conn:
         logger.info("Creating database tables...")
         await conn.run_sync(Base.metadata.create_all)
@@ -106,6 +106,7 @@ async def init_db():
 
         # Import and run migration runner
         from app.migrations.runner import run_migrations
+
         migrations_dir = Path(__file__).parent / "migrations"
 
         run_migrations(database_url, migrations_dir)
@@ -113,5 +114,6 @@ async def init_db():
     except Exception as e:
         logger.error("Migration error: %s", e)
         import traceback
+
         traceback.print_exc()
         # Don't fail startup - log error and continue

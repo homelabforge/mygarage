@@ -7,6 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.18.0] - 2025-12-27
+
+### Added
+- **Propane Tank Size Tracking**
+  - New tank size selection dropdown (20lb, 33lb, 100lb, 420lb) in propane entry form
+  - Number of tanks input field
+  - Auto-calculation of propane gallons based on tank size × quantity
+  - Conversion formula: gallons = (pounds ÷ 4.24) × quantity
+  - Manual override always available for precise measurements
+  - Tank fields optional (backwards compatible with existing records)
+  - Can edit existing records to add tank data
+  - Database migration 021: Added `tank_size_lb` and `tank_quantity` columns to fuel_records
+  - Backend auto-calculation in create/update endpoints
+  - Analytics service extended with tank breakdown, timeline, and refill frequency data
+  - Support for both imperial and metric unit systems
+
+- **Travel Trailer Vehicle Type**
+  - New vehicle type: `TravelTrailer` for bumper-pull recreational trailers
+  - Distinct from `FifthWheel` (gooseneck) and `Trailer` (utility/cargo)
+  - Includes propane tracking for appliances (fridge, stove, furnace, water heater)
+  - Includes spot rental tracking for RV parks
+  - No fuel/odometer tracking (non-motorized)
+  - Matches NHTSA vPIC "Travel Trailer" body class classification
+  - Database migration 020: Added `TravelTrailer` to vehicle_type check constraint
+
+### Fixed
+- **Fuel History UI - Propane Column Visibility**
+  - Hide propane column in fuel history table for non-propane vehicles
+  - Propane column now only displays when vehicle fuel_type includes "propane"
+  - Matches existing fuel entry form behavior (form already hid propane field for non-propane vehicles)
+  - Cleaner UI for gasoline/diesel/electric vehicles
+  - Dynamic colSpan adjustment (9 or 10 columns) for proper table layout
+  - Ready for RV propane tracking with BTU calculations
+
+- **Analytics - Spot Rental Inclusion**
+  - Fixed analytics calculations to include spot rental billing costs
+  - Spot rental costs now appear in Cost Trends with Rolling Averages
+  - Spot rental costs now appear in Monthly Cost Trend charts (bar chart and list view)
+  - Spot rental costs now appear in Seasonal Spending Patterns
+  - Spot rental costs now appear in Period Comparison analysis
+  - Updated `records_to_dataframe()` to accept SpotRentalBilling records
+  - Updated `calculate_monthly_aggregation()` to track spot_rental_cost and spot_rental_count
+  - All analytics endpoints now query and include spot rental billing data
+  - Added `total_spot_rental_cost` and `spot_rental_count` fields to MonthlyCostSummary schema
+  - Monthly Cost Trend chart now displays spot rental as orange stacked bar
+  - Spot rental only appears in list view when amount > 0
+
 ## [2.17.4] - 2025-12-15
 
 ### Fixed

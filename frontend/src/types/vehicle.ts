@@ -2,7 +2,7 @@
  * Vehicle type definitions
  */
 
-export type VehicleType = 'Car' | 'Truck' | 'SUV' | 'Motorcycle' | 'RV' | 'Trailer' | 'FifthWheel' | 'Electric' | 'Hybrid'
+export type VehicleType = 'Car' | 'Truck' | 'SUV' | 'Motorcycle' | 'RV' | 'Trailer' | 'FifthWheel' | 'TravelTrailer' | 'Electric' | 'Hybrid'
 
 export interface Vehicle {
   vin: string

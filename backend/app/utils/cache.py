@@ -21,7 +21,7 @@ class InMemoryCache:
 
         # Add positional args
         for arg in args:
-            if hasattr(arg, 'id'):  # For database sessions, use id
+            if hasattr(arg, "id"):  # For database sessions, use id
                 key_parts.append(f"session_{id(arg)}")
             else:
                 key_parts.append(str(arg))
@@ -67,8 +67,7 @@ class InMemoryCache:
         now = datetime.now()
         async with self._lock:
             expired_keys = [
-                key for key, (_, expiry) in self._cache.items()
-                if expiry <= now
+                key for key, (_, expiry) in self._cache.items() if expiry <= now
             ]
             for key in expired_keys:
                 del self._cache[key]
@@ -101,6 +100,7 @@ def cached(ttl_seconds: int = 300):
             # ... expensive computation
             return result
     """
+
     def decorator(func: Callable):
         @wraps(func)
         async def wrapper(*args, **kwargs):
@@ -117,7 +117,9 @@ def cached(ttl_seconds: int = 300):
             await cache.set(cache_key, result, ttl_seconds)
 
             return result
+
         return wrapper
+
     return decorator
 
 

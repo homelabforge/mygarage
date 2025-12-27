@@ -23,10 +23,14 @@ class DocumentParserRegistry:
     _initialized: bool = False
 
     @classmethod
-    def register_insurance_parser(cls, provider: str, parser_class: Type[InsuranceDocumentParser]) -> None:
+    def register_insurance_parser(
+        cls, provider: str, parser_class: Type[InsuranceDocumentParser]
+    ) -> None:
         """Register an insurance parser for a provider."""
         cls._insurance_parsers[provider.lower()] = parser_class
-        logger.debug("Registered insurance parser for %s: %s", provider, parser_class.__name__)
+        logger.debug(
+            "Registered insurance parser for %s: %s", provider, parser_class.__name__
+        )
 
     @classmethod
     def get_insurance_parser(cls, provider: str) -> Optional[InsuranceDocumentParser]:
@@ -65,7 +69,9 @@ class DocumentParserRegistry:
 
             parser = parser_class()
             if parser.can_parse(text):
-                logger.info("Auto-detected insurance provider: %s", parser.PROVIDER_NAME)
+                logger.info(
+                    "Auto-detected insurance provider: %s", parser.PROVIDER_NAME
+                )
                 return parser
 
         # Fall back to generic
@@ -99,7 +105,10 @@ class DocumentParserRegistry:
         cls.register_insurance_parser("generic", GenericInsuranceParser)
 
         cls._initialized = True
-        logger.info("Document parser registry initialized with %s insurance parsers", len(cls._insurance_parsers))
+        logger.info(
+            "Document parser registry initialized with %s insurance parsers",
+            len(cls._insurance_parsers),
+        )
 
 
 def get_parser_for_document(

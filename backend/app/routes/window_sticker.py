@@ -34,6 +34,7 @@ MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 
 class WindowStickerDataUpdate(BaseModel):
     """Schema for updating window sticker extracted data."""
+
     msrp_base: Decimal | None = None
     msrp_options: Decimal | None = None
     msrp_total: Decimal | None = None
@@ -52,6 +53,7 @@ class WindowStickerDataUpdate(BaseModel):
 
 class WindowStickerResponse(BaseModel):
     """Schema for window sticker response."""
+
     vin: str
     window_sticker_file_path: str | None
     window_sticker_uploaded_at: datetime | None
@@ -86,6 +88,7 @@ class WindowStickerResponse(BaseModel):
 
 class WindowStickerTestResponse(BaseModel):
     """Schema for window sticker test extraction response."""
+
     success: bool
     parser_name: str | None
     manufacturer_detected: str | None
@@ -97,6 +100,7 @@ class WindowStickerTestResponse(BaseModel):
 
 class ParserInfo(BaseModel):
     """Schema for parser information."""
+
     manufacturer: str
     parser_class: str
     supported_makes: list[str]
@@ -104,6 +108,7 @@ class ParserInfo(BaseModel):
 
 class OCRStatusResponse(BaseModel):
     """Schema for OCR status response."""
+
     pymupdf_available: bool
     tesseract_available: bool
     paddleocr_enabled: bool
@@ -141,7 +146,11 @@ async def get_window_sticker(
     return WindowStickerResponse.model_validate(vehicle)
 
 
-@router.post("/{vin}/window-sticker/upload", response_model=WindowStickerResponse, status_code=201)
+@router.post(
+    "/{vin}/window-sticker/upload",
+    response_model=WindowStickerResponse,
+    status_code=201,
+)
 async def upload_window_sticker(
     vin: str,
     file: Annotated[UploadFile, File(...)],
@@ -374,7 +383,9 @@ async def delete_window_sticker(
         raise HTTPException(status_code=404, detail="Vehicle not found")
 
     if not vehicle.window_sticker_file_path:
-        raise HTTPException(status_code=404, detail="No window sticker found for this vehicle")
+        raise HTTPException(
+            status_code=404, detail="No window sticker found for this vehicle"
+        )
 
     # Delete file
     file_path = Path(vehicle.window_sticker_file_path)
@@ -437,11 +448,15 @@ async def download_window_sticker_file(
         raise HTTPException(status_code=404, detail="Vehicle not found")
 
     if not vehicle.window_sticker_file_path:
-        raise HTTPException(status_code=404, detail="No window sticker found for this vehicle")
+        raise HTTPException(
+            status_code=404, detail="No window sticker found for this vehicle"
+        )
 
     file_path = Path(vehicle.window_sticker_file_path)
     if not file_path.exists():
-        raise HTTPException(status_code=404, detail="Window sticker file not found on disk")
+        raise HTTPException(
+            status_code=404, detail="Window sticker file not found on disk"
+        )
 
     # Determine media type based on extension
     media_type_map = {
@@ -450,7 +465,9 @@ async def download_window_sticker_file(
         ".jpeg": "image/jpeg",
         ".png": "image/png",
     }
-    media_type = media_type_map.get(file_path.suffix.lower(), "application/octet-stream")
+    media_type = media_type_map.get(
+        file_path.suffix.lower(), "application/octet-stream"
+    )
 
     return FileResponse(
         path=file_path,
@@ -460,6 +477,7 @@ async def download_window_sticker_file(
 
 
 # Additional routes for parser management
+
 
 @router.get("/window-sticker/parsers", response_model=list[ParserInfo])
 async def list_parsers(

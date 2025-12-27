@@ -4,9 +4,11 @@ export interface MonthlyCostSummary {
   month_name: string
   total_service_cost: string
   total_fuel_cost: string
+  total_spot_rental_cost: string
   total_cost: string
   service_count: number
   fuel_count: number
+  spot_rental_count: number
 }
 
 export interface ServiceTypeCostBreakdown {

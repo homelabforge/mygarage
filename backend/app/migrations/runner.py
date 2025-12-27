@@ -27,13 +27,15 @@ class MigrationRunner:
     def _ensure_migration_tracking_table(self) -> None:
         """Create schema_migrations table if it doesn't exist."""
         with self.engine.begin() as conn:
-            conn.execute(text("""
+            conn.execute(
+                text("""
                 CREATE TABLE IF NOT EXISTS schema_migrations (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     migration_name VARCHAR(255) NOT NULL UNIQUE,
                     applied_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
                 )
-            """))
+            """)
+            )
             logger.debug("Migration tracking table verified")
 
     def _get_applied_migrations(self) -> Set[str]:
@@ -44,9 +46,9 @@ class MigrationRunner:
             Set of migration names (without .py extension)
         """
         with self.engine.begin() as conn:
-            result = conn.execute(text(
-                "SELECT migration_name FROM schema_migrations ORDER BY id"
-            ))
+            result = conn.execute(
+                text("SELECT migration_name FROM schema_migrations ORDER BY id")
+            )
             applied = {row[0] for row in result}
             logger.debug("Found %s applied migration(s)", len(applied))
             return applied
@@ -59,9 +61,10 @@ class MigrationRunner:
             name: Migration name (without .py extension)
         """
         with self.engine.begin() as conn:
-            conn.execute(text(
-                "INSERT INTO schema_migrations (migration_name) VALUES (:name)"
-            ), {"name": name})
+            conn.execute(
+                text("INSERT INTO schema_migrations (migration_name) VALUES (:name)"),
+                {"name": name},
+            )
             logger.debug("Marked migration '%s' as applied", name)
 
     def _discover_migrations(self) -> List[Tuple[str, Path]]:

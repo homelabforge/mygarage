@@ -9,12 +9,16 @@ from pydantic import BaseModel, Field, field_validator
 class VehicleBase(BaseModel):
     """Base vehicle schema with common fields."""
 
-    nickname: str = Field(..., description="User-friendly display name", min_length=1, max_length=100)
+    nickname: str = Field(
+        ..., description="User-friendly display name", min_length=1, max_length=100
+    )
     vehicle_type: str = Field(..., description="Type of vehicle")
     year: Optional[int] = Field(None, description="Model year", ge=1900, le=2100)
     make: Optional[str] = Field(None, description="Manufacturer brand", max_length=50)
     model: Optional[str] = Field(None, description="Model name", max_length=50)
-    license_plate: Optional[str] = Field(None, description="License plate number", max_length=20)
+    license_plate: Optional[str] = Field(
+        None, description="License plate number", max_length=20
+    )
     color: Optional[str] = Field(None, description="Vehicle color", max_length=30)
     purchase_date: Optional[date] = Field(None, description="Date purchased")
     purchase_price: Optional[Decimal] = Field(None, description="Purchase price")
@@ -23,31 +27,55 @@ class VehicleBase(BaseModel):
     # VIN decoded fields
     trim: Optional[str] = Field(None, description="Trim level", max_length=50)
     body_class: Optional[str] = Field(None, description="Body class", max_length=50)
-    drive_type: Optional[str] = Field(None, description="Drive type (FWD, RWD, AWD, etc.)", max_length=30)
+    drive_type: Optional[str] = Field(
+        None, description="Drive type (FWD, RWD, AWD, etc.)", max_length=30
+    )
     doors: Optional[int] = Field(None, description="Number of doors")
     gvwr_class: Optional[str] = Field(None, description="GVWR class", max_length=50)
-    displacement_l: Optional[str] = Field(None, description="Engine displacement in liters", max_length=20)
+    displacement_l: Optional[str] = Field(
+        None, description="Engine displacement in liters", max_length=20
+    )
     cylinders: Optional[int] = Field(None, description="Number of cylinders")
     fuel_type: Optional[str] = Field(None, description="Fuel type", max_length=50)
-    transmission_type: Optional[str] = Field(None, description="Transmission type", max_length=50)
-    transmission_speeds: Optional[str] = Field(None, description="Transmission speeds", max_length=20)
+    transmission_type: Optional[str] = Field(
+        None, description="Transmission type", max_length=50
+    )
+    transmission_speeds: Optional[str] = Field(
+        None, description="Transmission speeds", max_length=20
+    )
 
-    @field_validator('vehicle_type')
+    @field_validator("vehicle_type")
     @classmethod
     def validate_vehicle_type(cls, v: str) -> str:
         """Validate vehicle type."""
-        valid_types = ['Car', 'Truck', 'SUV', 'Motorcycle', 'RV', 'Trailer', 'FifthWheel', 'Electric', 'Hybrid']
+        valid_types = [
+            "Car",
+            "Truck",
+            "SUV",
+            "Motorcycle",
+            "RV",
+            "Trailer",
+            "FifthWheel",
+            "TravelTrailer",
+            "Electric",
+            "Hybrid",
+        ]
         if v not in valid_types:
-            raise ValueError(f'Vehicle type must be one of: {", ".join(valid_types)}')
+            raise ValueError(f"Vehicle type must be one of: {', '.join(valid_types)}")
         return v
 
 
 class VehicleCreate(VehicleBase):
     """Schema for creating a new vehicle."""
 
-    vin: str = Field(..., description="17-character Vehicle Identification Number", min_length=17, max_length=17)
+    vin: str = Field(
+        ...,
+        description="17-character Vehicle Identification Number",
+        min_length=17,
+        max_length=17,
+    )
 
-    @field_validator('vin')
+    @field_validator("vin")
     @classmethod
     def validate_vin_format(cls, v: str) -> str:
         """Validate VIN format."""
@@ -72,7 +100,7 @@ class VehicleCreate(VehicleBase):
                     "license_plate": "ABC-1234",
                     "color": "Red",
                     "purchase_date": "2019-03-15",
-                    "purchase_price": 15000.00
+                    "purchase_price": 15000.00,
                 }
             ]
         }
@@ -82,7 +110,9 @@ class VehicleCreate(VehicleBase):
 class VehicleUpdate(VehicleBase):
     """Schema for updating an existing vehicle."""
 
-    nickname: Optional[str] = Field(None, description="User-friendly display name", min_length=1, max_length=100)
+    nickname: Optional[str] = Field(
+        None, description="User-friendly display name", min_length=1, max_length=100
+    )
     vehicle_type: Optional[str] = Field(None, description="Type of vehicle")
 
     model_config = {
@@ -91,7 +121,7 @@ class VehicleUpdate(VehicleBase):
                 {
                     "nickname": "My Red Mirage",
                     "license_plate": "XYZ-5678",
-                    "color": "Cherry Red"
+                    "color": "Cherry Red",
                 }
             ]
         }
@@ -160,10 +190,10 @@ class VehicleResponse(VehicleBase):
                     "purchase_price": 15000.00,
                     "main_photo": "/data/photos/ML32A5HJ9KH009478/main.jpg",
                     "created_at": "2025-11-07T22:00:00",
-                    "updated_at": None
+                    "updated_at": None,
                 }
             ]
-        }
+        },
     }
 
 
@@ -186,10 +216,10 @@ class VehicleListResponse(BaseModel):
                             "make": "MITSUBISHI",
                             "model": "Mirage",
                             "main_photo": None,
-                            "created_at": "2025-11-07T22:00:00"
+                            "created_at": "2025-11-07T22:00:00",
                         }
                     ],
-                    "total": 1
+                    "total": 1,
                 }
             ]
         }
@@ -206,39 +236,44 @@ class TrailerDetailsBase(BaseModel):
     length_ft: Optional[Decimal] = Field(None, description="Length in feet")
     width_ft: Optional[Decimal] = Field(None, description="Width in feet")
     height_ft: Optional[Decimal] = Field(None, description="Height in feet")
-    tow_vehicle_vin: Optional[str] = Field(None, description="VIN of tow vehicle", min_length=17, max_length=17)
+    tow_vehicle_vin: Optional[str] = Field(
+        None, description="VIN of tow vehicle", min_length=17, max_length=17
+    )
 
-    @field_validator('hitch_type')
+    @field_validator("hitch_type")
     @classmethod
     def validate_hitch_type(cls, v: Optional[str]) -> Optional[str]:
         """Validate hitch type."""
         if v is None:
             return v
-        valid_types = ['Ball', 'Pintle', 'Fifth Wheel', 'Gooseneck']
+        valid_types = ["Ball", "Pintle", "Fifth Wheel", "Gooseneck"]
         if v not in valid_types:
-            raise ValueError(f'Hitch type must be one of: {", ".join(valid_types)}')
+            raise ValueError(f"Hitch type must be one of: {', '.join(valid_types)}")
         return v
 
-    @field_validator('brake_type')
+    @field_validator("brake_type")
     @classmethod
     def validate_brake_type(cls, v: Optional[str]) -> Optional[str]:
         """Validate brake type."""
         if v is None:
             return v
-        valid_types = ['None', 'Electric', 'Hydraulic']
+        valid_types = ["None", "Electric", "Hydraulic"]
         if v not in valid_types:
-            raise ValueError(f'Brake type must be one of: {", ".join(valid_types)}')
+            raise ValueError(f"Brake type must be one of: {', '.join(valid_types)}")
         return v
 
 
 class TrailerDetailsCreate(TrailerDetailsBase):
     """Schema for creating trailer details."""
 
-    vin: str = Field(..., description="VIN of the trailer", min_length=17, max_length=17)
+    vin: str = Field(
+        ..., description="VIN of the trailer", min_length=17, max_length=17
+    )
 
 
 class TrailerDetailsUpdate(TrailerDetailsBase):
     """Schema for updating trailer details."""
+
     pass
 
 
@@ -247,27 +282,37 @@ class TrailerDetailsResponse(TrailerDetailsBase):
 
     vin: str
 
-    model_config = {
-        "from_attributes": True
-    }
+    model_config = {"from_attributes": True}
 
 
 class VehicleArchiveRequest(BaseModel):
     """Schema for archiving a vehicle."""
 
-    reason: str = Field(..., description="Reason for archiving (Sold, Totaled, Gifted, Trade-in, Other)", max_length=50)
-    sale_price: Optional[Decimal] = Field(None, description="Sale price (if applicable)")
+    reason: str = Field(
+        ...,
+        description="Reason for archiving (Sold, Totaled, Gifted, Trade-in, Other)",
+        max_length=50,
+    )
+    sale_price: Optional[Decimal] = Field(
+        None, description="Sale price (if applicable)"
+    )
     sale_date: Optional[date] = Field(None, description="Sale/disposal date")
-    notes: Optional[str] = Field(None, description="Additional notes about the archive", max_length=1000)
-    visible: bool = Field(True, description="Whether to show vehicle in main list with watermark")
+    notes: Optional[str] = Field(
+        None, description="Additional notes about the archive", max_length=1000
+    )
+    visible: bool = Field(
+        True, description="Whether to show vehicle in main list with watermark"
+    )
 
-    @field_validator('reason')
+    @field_validator("reason")
     @classmethod
     def validate_reason(cls, v: str) -> str:
         """Validate archive reason."""
-        valid_reasons = ['Sold', 'Totaled', 'Gifted', 'Trade-in', 'Other']
+        valid_reasons = ["Sold", "Totaled", "Gifted", "Trade-in", "Other"]
         if v not in valid_reasons:
-            raise ValueError(f'Archive reason must be one of: {", ".join(valid_reasons)}')
+            raise ValueError(
+                f"Archive reason must be one of: {', '.join(valid_reasons)}"
+            )
         return v
 
     model_config = {
@@ -278,7 +323,7 @@ class VehicleArchiveRequest(BaseModel):
                     "sale_price": 25000.00,
                     "sale_date": "2025-12-01",
                     "notes": "Sold to private buyer via Craigslist",
-                    "visible": True
+                    "visible": True,
                 }
             ]
         }

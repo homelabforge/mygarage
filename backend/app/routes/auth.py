@@ -41,7 +41,9 @@ router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 limiter = Limiter(key_func=get_remote_address)
 
 
-@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED
+)
 @limiter.limit(settings.rate_limit_auth)
 async def register(
     request: Request,
@@ -90,7 +92,7 @@ async def register(
         full_name=user_data.full_name,
         hashed_password=hashed_password,
         is_active=True,  # First user is auto-activated
-        is_admin=True,   # First user is admin
+        is_admin=True,  # First user is admin
     )
 
     db.add(new_user)
@@ -133,7 +135,7 @@ async def login(
     await db.execute(
         delete(CSRFToken).where(
             CSRFToken.user_id == user.id,
-            CSRFToken.expires_at <= datetime.now(timezone.utc)
+            CSRFToken.expires_at <= datetime.now(timezone.utc),
         )
     )
 
@@ -142,7 +144,7 @@ async def login(
     csrf_token = CSRFToken(
         token=csrf_token_value,
         user_id=user.id,
-        expires_at=CSRFToken.get_expiry_time(hours=24)  # Same as JWT expiry
+        expires_at=CSRFToken.get_expiry_time(hours=24),  # Same as JWT expiry
     )
     db.add(csrf_token)
 
@@ -227,7 +229,7 @@ async def refresh_csrf_token(
     await db.execute(
         delete(CSRFToken).where(
             CSRFToken.user_id == current_user.id,
-            CSRFToken.expires_at <= datetime.now(timezone.utc)
+            CSRFToken.expires_at <= datetime.now(timezone.utc),
         )
     )
 
@@ -236,7 +238,7 @@ async def refresh_csrf_token(
     csrf_token = CSRFToken(
         token=csrf_token_value,
         user_id=current_user.id,
-        expires_at=CSRFToken.get_expiry_time(hours=24)
+        expires_at=CSRFToken.get_expiry_time(hours=24),
     )
     db.add(csrf_token)
     await db.commit()
@@ -265,7 +267,9 @@ async def update_current_user(
     if user_update.email is not None:
         # Check if email is already taken by another user
         result = await db.execute(
-            select(User).where(User.email == user_update.email, User.id != current_user.id)
+            select(User).where(
+                User.email == user_update.email, User.id != current_user.id
+            )
         )
         if result.scalar_one_or_none():
             raise HTTPException(
@@ -298,7 +302,9 @@ async def update_password(
 ):
     """Update current user password."""
     # Verify current password
-    if not verify_password(password_update.current_password, current_user.hashed_password):
+    if not verify_password(
+        password_update.current_password, current_user.hashed_password
+    ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Current password is incorrect",
@@ -343,7 +349,9 @@ async def create_user(
     Requires multi_user_enabled setting to be true.
     """
     # Check if multi-user mode is enabled
-    result = await db.execute(select(Setting).where(Setting.key == "multi_user_enabled"))
+    result = await db.execute(
+        select(Setting).where(Setting.key == "multi_user_enabled")
+    )
     multi_user_setting = result.scalar_one_or_none()
 
     if multi_user_setting and multi_user_setting.value != "true":
@@ -376,14 +384,16 @@ async def create_user(
         full_name=user_data.full_name,
         hashed_password=hashed_password,
         is_active=False,  # Inactive by default, admin must activate
-        is_admin=False,   # Non-admin by default
+        is_admin=False,  # Non-admin by default
     )
 
     db.add(new_user)
     await db.commit()
     await db.refresh(new_user)
 
-    logger.info("Admin %s created new user: %s", current_user.username, new_user.username)
+    logger.info(
+        "Admin %s created new user: %s", current_user.username, new_user.username
+    )
 
     return new_user
 
@@ -483,7 +493,9 @@ async def delete_user(
 
     # Check if this is the last admin
     if user.is_admin:
-        result = await db.execute(select(func.count(User.id)).where(User.is_admin.is_(True)))
+        result = await db.execute(
+            select(func.count(User.id)).where(User.is_admin.is_(True))
+        )
         admin_count = result.scalar_one()
 
         if admin_count <= 1:
@@ -529,6 +541,7 @@ async def admin_reset_user_password(
 
     # Validate new password
     from app.schemas.user import passwordSchema
+
     try:
         new_password = password_data.get("new_password")
         if not new_password:
@@ -546,4 +559,6 @@ async def admin_reset_user_password(
 
     await db.commit()
 
-    logger.info("Admin %s reset password for user: %s", current_user.username, user.username)
+    logger.info(
+        "Admin %s reset password for user: %s", current_user.username, user.username
+    )

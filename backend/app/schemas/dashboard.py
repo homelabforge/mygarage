@@ -5,6 +5,7 @@ from datetime import date as date_type, datetime
 
 class VehicleStatistics(BaseModel):
     """Statistics for a single vehicle"""
+
     vin: str
     year: int
     make: str
@@ -44,6 +45,7 @@ class VehicleStatistics(BaseModel):
 
 class DashboardResponse(BaseModel):
     """Complete dashboard data"""
+
     total_vehicles: int
     vehicles: list[VehicleStatistics]
 

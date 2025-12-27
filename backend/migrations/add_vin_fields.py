@@ -9,8 +9,9 @@ Adds fields from NHTSA VIN decode:
 import sqlite3
 import os
 
+
 def migrate():
-    db_path = os.environ.get('DATABASE_PATH', '/data/mygarage.db')
+    db_path = os.environ.get("DATABASE_PATH", "/data/mygarage.db")
 
     print(f"Connecting to database: {db_path}")
     conn = sqlite3.connect(db_path)
@@ -50,6 +51,7 @@ def migrate():
     conn.close()
 
     print(f"\nMigration complete! Added {added_count} new columns.")
+
 
 if __name__ == "__main__":
     migrate()

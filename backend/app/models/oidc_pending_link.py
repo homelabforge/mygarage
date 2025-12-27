@@ -26,14 +26,18 @@ class OIDCPendingLink(Base):
     oidc_claims = Column(JSON, nullable=False)  # Full ID token claims
     userinfo_claims = Column(JSON, nullable=True)  # Optional userinfo endpoint claims
     provider_name = Column(String(100), nullable=False)  # Provider display name
-    attempt_count = Column(Integer, default=0, nullable=False)  # Failed password attempts
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    attempt_count = Column(
+        Integer, default=0, nullable=False
+    )  # Failed password attempts
+    created_at = Column(
+        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+    )
     expires_at = Column(DateTime, nullable=False)
 
     # Indexes for efficient queries and cleanup
     __table_args__ = (
-        Index('ix_oidc_pending_link_username', 'username'),
-        Index('ix_oidc_pending_link_expires_at', 'expires_at'),
+        Index("ix_oidc_pending_link_username", "username"),
+        Index("ix_oidc_pending_link_expires_at", "expires_at"),
     )
 
     def __repr__(self):

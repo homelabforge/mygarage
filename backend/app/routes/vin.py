@@ -37,10 +37,7 @@ async def _decode_vin_helper(vin: str) -> VINDecodeResponse:
     except ValueError as e:
         # Invalid VIN format
         logger.warning("Invalid VIN format: %s", e)
-        raise HTTPException(
-            status_code=400,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=400, detail=str(e))
 
     except httpx.TimeoutException:
         logger.error("NHTSA API timeout for VIN %s", vin)
@@ -50,11 +47,15 @@ async def _decode_vin_helper(vin: str) -> VINDecodeResponse:
         raise HTTPException(status_code=503, detail="Cannot connect to NHTSA API")
     except httpx.HTTPStatusError as e:
         logger.error("NHTSA API error for VIN %s: %s", vin, e)
-        raise HTTPException(status_code=e.response.status_code, detail="NHTSA API error")
+        raise HTTPException(
+            status_code=e.response.status_code, detail="NHTSA API error"
+        )
 
 
 @router.post("/decode", response_model=VINDecodeResponse)
-async def decode_vin(request: VINDecodeRequest, current_user: Optional[User] = Depends(require_auth)):
+async def decode_vin(
+    request: VINDecodeRequest, current_user: Optional[User] = Depends(require_auth)
+):
     """
     Decode a VIN using the NHTSA vPIC API.
 
@@ -76,7 +77,9 @@ async def decode_vin(request: VINDecodeRequest, current_user: Optional[User] = D
 
 
 @router.get("/decode/{vin}", response_model=VINDecodeResponse)
-async def decode_vin_get(vin: str, current_user: Optional[User] = Depends(require_auth)):
+async def decode_vin_get(
+    vin: str, current_user: Optional[User] = Depends(require_auth)
+):
     """
     Decode a VIN using the NHTSA vPIC API (GET endpoint).
 
@@ -97,7 +100,9 @@ async def decode_vin_get(vin: str, current_user: Optional[User] = Depends(requir
 
 
 @router.get("/validate/{vin}")
-async def validate_vin_endpoint(vin: str, current_user: Optional[User] = Depends(require_auth)):
+async def validate_vin_endpoint(
+    vin: str, current_user: Optional[User] = Depends(require_auth)
+):
     """
     Validate a VIN format without calling NHTSA API.
 
@@ -122,15 +127,11 @@ async def validate_vin_endpoint(vin: str, current_user: Optional[User] = Depends
             content={
                 "valid": True,
                 "vin": vin.strip().upper(),
-                "message": "VIN format is valid"
-            }
+                "message": "VIN format is valid",
+            },
         )
     else:
         return JSONResponse(
             status_code=400,
-            content={
-                "valid": False,
-                "vin": vin.strip().upper(),
-                "error": error_msg
-            }
+            content={"valid": False, "vin": vin.strip().upper(), "error": error_msg},
         )

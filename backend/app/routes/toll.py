@@ -35,7 +35,11 @@ toll_tags_router = APIRouter(prefix="/api/vehicles/{vin}/toll-tags", tags=["Toll
 
 
 @toll_tags_router.get("", response_model=TollTagListResponse)
-async def list_toll_tags(vin: str, db: AsyncSession = Depends(get_db), current_user: Optional[User] = Depends(require_auth)):
+async def list_toll_tags(
+    vin: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(require_auth),
+):
     """Get all toll tags for a vehicle."""
     # Verify vehicle exists
     result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
@@ -45,20 +49,23 @@ async def list_toll_tags(vin: str, db: AsyncSession = Depends(get_db), current_u
 
     # Get toll tags
     result = await db.execute(
-        select(TollTag)
-        .where(TollTag.vin == vin)
-        .order_by(TollTag.created_at.desc())
+        select(TollTag).where(TollTag.vin == vin).order_by(TollTag.created_at.desc())
     )
     toll_tags = result.scalars().all()
 
     return TollTagListResponse(
         toll_tags=[TollTagResponse.model_validate(tag) for tag in toll_tags],
-        total=len(toll_tags)
+        total=len(toll_tags),
     )
 
 
 @toll_tags_router.post("", response_model=TollTagResponse, status_code=201)
-async def create_toll_tag(vin: str, toll_tag: TollTagCreate, db: AsyncSession = Depends(get_db), current_user: Optional[User] = Depends(require_auth)):
+async def create_toll_tag(
+    vin: str,
+    toll_tag: TollTagCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(require_auth),
+):
     """Create a new toll tag for a vehicle."""
     # Verify vehicle exists
     result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
@@ -83,7 +90,12 @@ async def create_toll_tag(vin: str, toll_tag: TollTagCreate, db: AsyncSession = 
 
 
 @toll_tags_router.get("/{tag_id}", response_model=TollTagResponse)
-async def get_toll_tag(vin: str, tag_id: int, db: AsyncSession = Depends(get_db), current_user: Optional[User] = Depends(require_auth)):
+async def get_toll_tag(
+    vin: str,
+    tag_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(require_auth),
+):
     """Get a specific toll tag."""
     result = await db.execute(
         select(TollTag).where(TollTag.id == tag_id, TollTag.vin == vin)
@@ -101,7 +113,7 @@ async def update_toll_tag(
     tag_id: int,
     toll_tag_update: TollTagUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth)
+    current_user: Optional[User] = Depends(require_auth),
 ):
     """Update a toll tag."""
     result = await db.execute(
@@ -124,7 +136,12 @@ async def update_toll_tag(
 
 
 @toll_tags_router.delete("/{tag_id}", status_code=204)
-async def delete_toll_tag(vin: str, tag_id: int, db: AsyncSession = Depends(get_db), current_user: Optional[User] = Depends(require_auth)):
+async def delete_toll_tag(
+    vin: str,
+    tag_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(require_auth),
+):
     """Delete a toll tag."""
     result = await db.execute(
         select(TollTag).where(TollTag.id == tag_id, TollTag.vin == vin)
@@ -141,7 +158,9 @@ async def delete_toll_tag(vin: str, tag_id: int, db: AsyncSession = Depends(get_
 
 
 # Toll Transactions Router
-toll_transactions_router = APIRouter(prefix="/api/vehicles/{vin}/toll-transactions", tags=["Toll Transactions"])
+toll_transactions_router = APIRouter(
+    prefix="/api/vehicles/{vin}/toll-transactions", tags=["Toll Transactions"]
+)
 
 
 @toll_transactions_router.get("", response_model=TollTransactionListResponse)
@@ -151,7 +170,7 @@ async def list_toll_transactions(
     end_date: Optional[dt.date] = None,
     toll_tag_id: Optional[int] = None,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth)
+    current_user: Optional[User] = Depends(require_auth),
 ):
     """Get all toll transactions for a vehicle with optional filtering."""
     # Verify vehicle exists
@@ -177,17 +196,21 @@ async def list_toll_transactions(
     transactions = result.scalars().all()
 
     return TollTransactionListResponse(
-        transactions=[TollTransactionResponse.model_validate(txn) for txn in transactions],
-        total=len(transactions)
+        transactions=[
+            TollTransactionResponse.model_validate(txn) for txn in transactions
+        ],
+        total=len(transactions),
     )
 
 
-@toll_transactions_router.post("", response_model=TollTransactionResponse, status_code=201)
+@toll_transactions_router.post(
+    "", response_model=TollTransactionResponse, status_code=201
+)
 async def create_toll_transaction(
     vin: str,
     transaction: TollTransactionCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth)
+    current_user: Optional[User] = Depends(require_auth),
 ):
     """Create a new toll transaction for a vehicle."""
     # Verify vehicle exists
@@ -200,8 +223,7 @@ async def create_toll_transaction(
     if transaction.toll_tag_id:
         result = await db.execute(
             select(TollTag).where(
-                TollTag.id == transaction.toll_tag_id,
-                TollTag.vin == vin
+                TollTag.id == transaction.toll_tag_id, TollTag.vin == vin
             )
         )
         toll_tag = result.scalar_one_or_none()
@@ -225,13 +247,19 @@ async def create_toll_transaction(
     return TollTransactionResponse.model_validate(db_transaction)
 
 
-@toll_transactions_router.get("/{transaction_id}", response_model=TollTransactionResponse)
-async def get_toll_transaction(vin: str, transaction_id: int, db: AsyncSession = Depends(get_db), current_user: Optional[User] = Depends(require_auth)):
+@toll_transactions_router.get(
+    "/{transaction_id}", response_model=TollTransactionResponse
+)
+async def get_toll_transaction(
+    vin: str,
+    transaction_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(require_auth),
+):
     """Get a specific toll transaction."""
     result = await db.execute(
         select(TollTransaction).where(
-            TollTransaction.id == transaction_id,
-            TollTransaction.vin == vin
+            TollTransaction.id == transaction_id, TollTransaction.vin == vin
         )
     )
     transaction = result.scalar_one_or_none()
@@ -241,19 +269,20 @@ async def get_toll_transaction(vin: str, transaction_id: int, db: AsyncSession =
     return TollTransactionResponse.model_validate(transaction)
 
 
-@toll_transactions_router.put("/{transaction_id}", response_model=TollTransactionResponse)
+@toll_transactions_router.put(
+    "/{transaction_id}", response_model=TollTransactionResponse
+)
 async def update_toll_transaction(
     vin: str,
     transaction_id: int,
     transaction_update: TollTransactionUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth)
+    current_user: Optional[User] = Depends(require_auth),
 ):
     """Update a toll transaction."""
     result = await db.execute(
         select(TollTransaction).where(
-            TollTransaction.id == transaction_id,
-            TollTransaction.vin == vin
+            TollTransaction.id == transaction_id, TollTransaction.vin == vin
         )
     )
     transaction = result.scalar_one_or_none()
@@ -264,8 +293,7 @@ async def update_toll_transaction(
     if transaction_update.toll_tag_id:
         result = await db.execute(
             select(TollTag).where(
-                TollTag.id == transaction_update.toll_tag_id,
-                TollTag.vin == vin
+                TollTag.id == transaction_update.toll_tag_id, TollTag.vin == vin
             )
         )
         toll_tag = result.scalar_one_or_none()
@@ -285,27 +313,39 @@ async def update_toll_transaction(
 
 
 @toll_transactions_router.delete("/{transaction_id}", status_code=204)
-async def delete_toll_transaction(vin: str, transaction_id: int, db: AsyncSession = Depends(get_db), current_user: Optional[User] = Depends(require_auth)):
+async def delete_toll_transaction(
+    vin: str,
+    transaction_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(require_auth),
+):
     """Delete a toll transaction."""
     result = await db.execute(
         select(TollTransaction).where(
-            TollTransaction.id == transaction_id,
-            TollTransaction.vin == vin
+            TollTransaction.id == transaction_id, TollTransaction.vin == vin
         )
     )
     transaction = result.scalar_one_or_none()
     if not transaction:
         raise HTTPException(status_code=404, detail="Toll transaction not found")
 
-    await db.execute(delete(TollTransaction).where(TollTransaction.id == transaction_id))
+    await db.execute(
+        delete(TollTransaction).where(TollTransaction.id == transaction_id)
+    )
     await db.commit()
 
     logger.info("Deleted toll transaction %s for vehicle %s", transaction_id, vin)
     return Response(status_code=204)
 
 
-@toll_transactions_router.get("/summary/statistics", response_model=TollTransactionSummary)
-async def get_toll_transaction_summary(vin: str, db: AsyncSession = Depends(get_db), current_user: Optional[User] = Depends(require_auth)):
+@toll_transactions_router.get(
+    "/summary/statistics", response_model=TollTransactionSummary
+)
+async def get_toll_transaction_summary(
+    vin: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(require_auth),
+):
     """Get toll transaction summary and monthly statistics."""
     # Verify vehicle exists
     result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
@@ -315,20 +355,19 @@ async def get_toll_transaction_summary(vin: str, db: AsyncSession = Depends(get_
 
     # Get total count and amount
     result = await db.execute(
-        select(
-            func.count(TollTransaction.id),
-            func.sum(TollTransaction.amount)
-        ).where(TollTransaction.vin == vin)
+        select(func.count(TollTransaction.id), func.sum(TollTransaction.amount)).where(
+            TollTransaction.vin == vin
+        )
     )
     total_count, total_amount = result.one()
 
     # Get monthly totals
-    month_col = func.strftime('%Y-%m', TollTransaction.date).label('month')
+    month_col = func.strftime("%Y-%m", TollTransaction.date).label("month")
     result = await db.execute(
         select(
             month_col,
-            func.count(TollTransaction.id).label('count'),
-            func.sum(TollTransaction.amount).label('amount')
+            func.count(TollTransaction.id).label("count"),
+            func.sum(TollTransaction.amount).label("amount"),
         )
         .where(TollTransaction.vin == vin)
         .group_by(month_col)
@@ -340,7 +379,7 @@ async def get_toll_transaction_summary(vin: str, db: AsyncSession = Depends(get_
         {
             "month": row.month,
             "count": row.count,
-            "amount": float(row.amount) if row.amount else 0.0
+            "amount": float(row.amount) if row.amount else 0.0,
         }
         for row in monthly_data
     ]
@@ -348,7 +387,7 @@ async def get_toll_transaction_summary(vin: str, db: AsyncSession = Depends(get_
     return TollTransactionSummary(
         total_transactions=total_count or 0,
         total_amount=total_amount or Decimal("0.00"),
-        monthly_totals=monthly_totals
+        monthly_totals=monthly_totals,
     )
 
 
@@ -358,7 +397,7 @@ async def export_toll_transactions_csv(
     start_date: Optional[dt.date] = None,
     end_date: Optional[dt.date] = None,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth)
+    current_user: Optional[User] = Depends(require_auth),
 ):
     """Export toll transactions as CSV."""
     # Verify vehicle exists
@@ -368,9 +407,11 @@ async def export_toll_transactions_csv(
         raise HTTPException(status_code=404, detail="Vehicle not found")
 
     # Build query
-    query = select(TollTransaction, TollTag).outerjoin(
-        TollTag, TollTransaction.toll_tag_id == TollTag.id
-    ).where(TollTransaction.vin == vin)
+    query = (
+        select(TollTransaction, TollTag)
+        .outerjoin(TollTag, TollTransaction.toll_tag_id == TollTag.id)
+        .where(TollTransaction.vin == vin)
+    )
 
     if start_date:
         query = query.where(TollTransaction.date >= start_date)
@@ -388,29 +429,34 @@ async def export_toll_transactions_csv(
     writer = csv.writer(output)
 
     # Header
-    writer.writerow([
-        'Date',
-        'Amount',
-        'Location',
-        'Toll System',
-        'Tag Number',
-        'Notes',
-        'Vehicle',
-        'VIN'
-    ])
+    writer.writerow(
+        [
+            "Date",
+            "Amount",
+            "Location",
+            "Toll System",
+            "Tag Number",
+            "Notes",
+            "Vehicle",
+            "VIN",
+        ]
+    )
 
     # Data rows
     for transaction, toll_tag in rows:
-        writer.writerow([
-            transaction.date.isoformat(),
-            f"${float(transaction.amount):.2f}",
-            transaction.location,
-            toll_tag.toll_system if toll_tag else '',
-            toll_tag.tag_number if toll_tag else '',
-            transaction.notes or '',
-            f"{vehicle.year or ''} {vehicle.make or ''} {vehicle.model or ''}".strip() or vehicle.nickname,
-            vehicle.vin
-        ])
+        writer.writerow(
+            [
+                transaction.date.isoformat(),
+                f"${float(transaction.amount):.2f}",
+                transaction.location,
+                toll_tag.toll_system if toll_tag else "",
+                toll_tag.tag_number if toll_tag else "",
+                transaction.notes or "",
+                f"{vehicle.year or ''} {vehicle.make or ''} {vehicle.model or ''}".strip()
+                or vehicle.nickname,
+                vehicle.vin,
+            ]
+        )
 
     # Return CSV response
     csv_content = output.getvalue()
@@ -421,5 +467,5 @@ async def export_toll_transactions_csv(
         media_type="text/csv",
         headers={
             "Content-Disposition": f"attachment; filename=toll_transactions_{vin}_{dt.date.today().isoformat()}.csv"
-        }
+        },
     )

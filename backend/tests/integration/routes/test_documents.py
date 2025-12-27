@@ -3,6 +3,7 @@ Integration tests for document routes.
 
 Tests document upload, retrieval, and deletion.
 """
+
 import pytest
 from httpx import AsyncClient
 from io import BytesIO
@@ -18,7 +19,7 @@ class TestDocumentRoutes:
     ):
         """Test uploading a document to a vehicle."""
         # Create a fake PDF
-        fake_pdf = b'%PDF-1.4\n%\xE2\xE3\xCF\xD3\nTest PDF content'
+        fake_pdf = b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\nTest PDF content"
 
         response = await client.post(
             f"/api/vehicles/{test_vehicle['vin']}/documents",
@@ -51,7 +52,7 @@ class TestDocumentRoutes:
     ):
         """Test downloading a document."""
         # First upload a document
-        fake_pdf = b'%PDF-1.4\nTest content'
+        fake_pdf = b"%PDF-1.4\nTest content"
 
         upload_response = await client.post(
             f"/api/vehicles/{test_vehicle['vin']}/documents",
@@ -78,7 +79,7 @@ class TestDocumentRoutes:
     ):
         """Test deleting a document."""
         # Upload a document
-        fake_pdf = b'%PDF-1.4\nTest'
+        fake_pdf = b"%PDF-1.4\nTest"
 
         upload_response = await client.post(
             f"/api/vehicles/{test_vehicle['vin']}/documents",
@@ -104,7 +105,7 @@ class TestDocumentRoutes:
     ):
         """Test that invalid file types are rejected."""
         # Create an executable file (not allowed)
-        fake_exe = b'MZ\x90\x00'
+        fake_exe = b"MZ\x90\x00"
 
         response = await client.post(
             f"/api/vehicles/{test_vehicle['vin']}/documents",
@@ -118,7 +119,7 @@ class TestDocumentRoutes:
         self, client: AsyncClient, test_vehicle
     ):
         """Test that unauthenticated users cannot upload documents."""
-        fake_pdf = b'%PDF-1.4\n'
+        fake_pdf = b"%PDF-1.4\n"
 
         response = await client.post(
             f"/api/vehicles/{test_vehicle['vin']}/documents",
@@ -131,7 +132,7 @@ class TestDocumentRoutes:
         self, client: AsyncClient, auth_headers, test_vehicle
     ):
         """Test uploading document with metadata."""
-        fake_pdf = b'%PDF-1.4\n'
+        fake_pdf = b"%PDF-1.4\n"
 
         response = await client.post(
             f"/api/vehicles/{test_vehicle['vin']}/documents",

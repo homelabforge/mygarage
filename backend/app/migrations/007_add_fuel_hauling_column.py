@@ -20,25 +20,31 @@ def upgrade():
         result = conn.execute(text("PRAGMA table_info(fuel_records)"))
         columns = {row[1]: row for row in result}
 
-        if 'is_hauling' not in columns:
+        if "is_hauling" not in columns:
             print("Adding is_hauling column to fuel_records table...")
 
             # Add column with default value
-            conn.execute(text("""
+            conn.execute(
+                text("""
                 ALTER TABLE fuel_records
                 ADD COLUMN is_hauling BOOLEAN DEFAULT 0 NOT NULL
-            """))
+            """)
+            )
 
             # Create indexes for better query performance
-            conn.execute(text("""
+            conn.execute(
+                text("""
                 CREATE INDEX idx_fuel_hauling
                 ON fuel_records(is_hauling)
-            """))
+            """)
+            )
 
-            conn.execute(text("""
+            conn.execute(
+                text("""
                 CREATE INDEX idx_fuel_normal_mpg
                 ON fuel_records(vin, is_full_tank, is_hauling)
-            """))
+            """)
+            )
 
             print("✓ Successfully added is_hauling to fuel_records")
         else:

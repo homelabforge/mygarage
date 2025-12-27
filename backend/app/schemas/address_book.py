@@ -20,11 +20,11 @@ class AddressBookEntryBase(BaseModel):
     category: Optional[str] = Field(None, max_length=50)
     notes: Optional[str] = None
 
-    @field_validator('email', 'website', mode='before')
+    @field_validator("email", "website", mode="before")
     @classmethod
     def empty_str_to_none(cls, v):
         """Convert empty strings to None for optional fields."""
-        if v == '':
+        if v == "":
             return None
         return v
 
@@ -50,11 +50,11 @@ class AddressBookEntryUpdate(BaseModel):
     category: Optional[str] = Field(None, max_length=50)
     notes: Optional[str] = None
 
-    @field_validator('email', 'website', mode='before')
+    @field_validator("email", "website", mode="before")
     @classmethod
     def empty_str_to_none(cls, v):
         """Convert empty strings to None for optional fields."""
-        if v == '':
+        if v == "":
             return None
         return v
 

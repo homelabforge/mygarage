@@ -11,10 +11,10 @@ logger = logging.getLogger(__name__)
 
 # Map standard priorities to Discord embed colors (decimal)
 PRIORITY_COLORS = {
-    "min": 8421504,      # Gray (#808080)
-    "low": 3580497,      # Green (#36a64f)
+    "min": 8421504,  # Gray (#808080)
+    "low": 3580497,  # Green (#36a64f)
     "default": 2196943,  # Blue (#2196F3)
-    "high": 16750848,    # Orange (#FF9800)
+    "high": 16750848,  # Orange (#FF9800)
     "urgent": 16007990,  # Red (#F44336)
 }
 

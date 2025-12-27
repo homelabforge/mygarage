@@ -31,7 +31,9 @@ class NHTSAService:
             validate_nhtsa_url(base_url)
             self.base_url = base_url
         except (SSRFProtectionError, ValueError) as e:
-            logger.error("SSRF protection blocked NHTSA base URL: %s - %s", base_url, str(e))
+            logger.error(
+                "SSRF protection blocked NHTSA base URL: %s - %s", base_url, str(e)
+            )
             # Fallback to official NHTSA URL if validation fails
             self.base_url = "https://vpic.nhtsa.dot.gov/api"
             logger.warning("Using fallback NHTSA URL: %s", self.base_url)
@@ -82,13 +84,20 @@ class NHTSAService:
                 error_text = result.get("ErrorText", "")
 
                 if error_code and error_code != "0":
-                    logger.warning("NHTSA API returned error for VIN %s: %s", vin, error_text)
+                    logger.warning(
+                        "NHTSA API returned error for VIN %s: %s", vin, error_text
+                    )
                     # Some error codes are just warnings, continue processing
 
                 # Extract key vehicle information
                 vehicle_info = self._extract_vehicle_info(result)
 
-                logger.info("Successfully decoded VIN %s: %s %s", vin, vehicle_info.get('Make'), vehicle_info.get('Model'))
+                logger.info(
+                    "Successfully decoded VIN %s: %s %s",
+                    vin,
+                    vehicle_info.get("Make"),
+                    vehicle_info.get("Model"),
+                )
 
                 return vehicle_info
 
@@ -151,7 +160,11 @@ class NHTSAService:
         }
 
         # Clean up None values and empty strings
-        return {k: v for k, v in info.items() if v not in (None, "", "Not Applicable", "N/A")}
+        return {
+            k: v
+            for k, v in info.items()
+            if v not in (None, "", "Not Applicable", "N/A")
+        }
 
     def _parse_int(self, value: Optional[str]) -> Optional[int]:
         """
@@ -201,22 +214,40 @@ class NHTSAService:
         year = vehicle_info.get("year")
 
         if not all([make, model, year]):
-            logger.warning("Incomplete vehicle info for VIN %s: make=%s, model=%s, year=%s", vin, make, model, year)
-            raise ValueError("Could not determine vehicle make, model, and year from VIN")
+            logger.warning(
+                "Incomplete vehicle info for VIN %s: make=%s, model=%s, year=%s",
+                vin,
+                make,
+                model,
+                year,
+            )
+            raise ValueError(
+                "Could not determine vehicle make, model, and year from VIN"
+            )
 
         # Get recalls API URL from settings
         from app.models.settings import Setting
         from sqlalchemy import select
 
-        result = await db.execute(select(Setting).where(Setting.key == "nhtsa_recalls_api_url"))
+        result = await db.execute(
+            select(Setting).where(Setting.key == "nhtsa_recalls_api_url")
+        )
         setting = result.scalar_one_or_none()
-        recalls_api_base = setting.value if setting else "https://api.nhtsa.gov/recalls/recallsByVehicle"
+        recalls_api_base = (
+            setting.value
+            if setting
+            else "https://api.nhtsa.gov/recalls/recallsByVehicle"
+        )
 
         # SECURITY: Validate recalls API base URL against SSRF attacks
         try:
             validate_nhtsa_url(recalls_api_base)
         except (SSRFProtectionError, ValueError) as e:
-            logger.error("SSRF protection blocked recalls API URL: %s - %s", recalls_api_base, str(e))
+            logger.error(
+                "SSRF protection blocked recalls API URL: %s - %s",
+                recalls_api_base,
+                str(e),
+            )
             # Use safe default if validation fails
             recalls_api_base = "https://api.nhtsa.gov/recalls/recallsByVehicle"
             logger.warning("Using fallback recalls API URL: %s", recalls_api_base)
@@ -224,6 +255,7 @@ class NHTSAService:
         # Query NHTSA recalls API by make/model/year
         # URL parameters should be properly encoded
         from urllib.parse import urlencode
+
         params = {"make": make, "model": model, "modelYear": year}
         recalls_url = f"{recalls_api_base}?{urlencode(params)}"
 
@@ -239,16 +271,32 @@ class NHTSAService:
                 # Extract recalls from the response
                 recalls = data.get("results", [])
 
-                logger.info("Found %s recall(s) for %s %s %s", len(recalls), year, make, model)
+                logger.info(
+                    "Found %s recall(s) for %s %s %s", len(recalls), year, make, model
+                )
 
                 return recalls
 
             except httpx.TimeoutException:
-                logger.error("NHTSA recalls API timeout for %s %s %s", year, make, model)
+                logger.error(
+                    "NHTSA recalls API timeout for %s %s %s", year, make, model
+                )
                 return []  # Intentional fallback: don't break UI for timeout
             except httpx.ConnectError as e:
-                logger.error("Cannot connect to NHTSA recalls API for %s %s %s: %s", year, make, model, str(e))
+                logger.error(
+                    "Cannot connect to NHTSA recalls API for %s %s %s: %s",
+                    year,
+                    make,
+                    model,
+                    str(e),
+                )
                 return []  # Intentional fallback: don't break UI for connection issues
             except httpx.HTTPStatusError as e:
-                logger.error("NHTSA recalls API error for %s %s %s: %s", year, make, model, str(e))
+                logger.error(
+                    "NHTSA recalls API error for %s %s %s: %s",
+                    year,
+                    make,
+                    model,
+                    str(e),
+                )
                 return []  # Intentional fallback: return empty list on API error

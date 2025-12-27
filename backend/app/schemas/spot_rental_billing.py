@@ -8,8 +8,11 @@ from typing import Optional
 
 class SpotRentalBillingBase(BaseModel):
     """Base schema for billing entry."""
+
     billing_date: date_type = Field(..., description="Date of this billing entry")
-    monthly_rate: Optional[Decimal] = Field(None, ge=0, description="Monthly rate for this period")
+    monthly_rate: Optional[Decimal] = Field(
+        None, ge=0, description="Monthly rate for this period"
+    )
     electric: Optional[Decimal] = Field(None, ge=0, description="Electric charge")
     water: Optional[Decimal] = Field(None, ge=0, description="Water charge")
     waste: Optional[Decimal] = Field(None, ge=0, description="Waste charge")
@@ -19,11 +22,13 @@ class SpotRentalBillingBase(BaseModel):
 
 class SpotRentalBillingCreate(SpotRentalBillingBase):
     """Schema for creating a billing entry."""
+
     pass
 
 
 class SpotRentalBillingUpdate(BaseModel):
     """Schema for updating a billing entry (all fields optional)."""
+
     billing_date: Optional[date_type] = None
     monthly_rate: Optional[Decimal] = Field(None, ge=0)
     electric: Optional[Decimal] = Field(None, ge=0)
@@ -38,6 +43,7 @@ class SpotRentalBillingUpdate(BaseModel):
 
 class SpotRentalBillingResponse(SpotRentalBillingBase):
     """Schema for billing entry response."""
+
     id: int
     spot_rental_id: int
     created_at: datetime
@@ -48,5 +54,6 @@ class SpotRentalBillingResponse(SpotRentalBillingBase):
 
 class SpotRentalBillingListResponse(BaseModel):
     """Schema for list of billing entries."""
+
     billings: list[SpotRentalBillingResponse]
     total: int

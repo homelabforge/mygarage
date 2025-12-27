@@ -18,7 +18,9 @@ from app.utils.odometer_sync import sync_odometer_from_record
 logger = logging.getLogger(__name__)
 
 
-def calculate_mpg(current_record: FuelRecord, previous_record: Optional[FuelRecord]) -> Optional[Decimal]:
+def calculate_mpg(
+    current_record: FuelRecord, previous_record: Optional[FuelRecord]
+) -> Optional[Decimal]:
     """
     Calculate MPG for a fuel record.
 
@@ -54,7 +56,9 @@ def calculate_mpg(current_record: FuelRecord, previous_record: Optional[FuelReco
     return round(mpg, 2)
 
 
-async def get_previous_full_tank(db: AsyncSession, vin: str, current_date, current_mileage: Optional[int]) -> Optional[FuelRecord]:
+async def get_previous_full_tank(
+    db: AsyncSession, vin: str, current_date, current_mileage: Optional[int]
+) -> Optional[FuelRecord]:
     """
     Get the most recent previous full tank fill-up.
 
@@ -77,7 +81,9 @@ async def get_previous_full_tank(db: AsyncSession, vin: str, current_date, curre
 
 
 @cached(ttl_seconds=300)  # Cache for 5 minutes
-async def calculate_average_mpg(db: AsyncSession, vin: str, exclude_hauling: bool = True) -> Optional[Decimal]:
+async def calculate_average_mpg(
+    db: AsyncSession, vin: str, exclude_hauling: bool = True
+) -> Optional[Decimal]:
     """
     Calculate average MPG across all fuel records with MPG data.
 
@@ -133,7 +139,7 @@ class FuelRecordService:
         current_user: User,
         skip: int = 0,
         limit: int = 100,
-        include_hauling: bool = False
+        include_hauling: bool = False,
     ) -> tuple[list[FuelRecordResponse], int, Optional[Decimal]]:
         """
         Get all fuel records for a vehicle with MPG calculations.
@@ -187,7 +193,9 @@ class FuelRecordService:
                     # Find previous full tank from our pre-fetched list
                     prev_record = None
                     for ft_record in reversed(full_tank_records):
-                        if ft_record.date < record.date and (not record.mileage or ft_record.mileage < record.mileage):
+                        if ft_record.date < record.date and (
+                            not record.mileage or ft_record.mileage < record.mileage
+                        ):
                             prev_record = ft_record
                             break
 
@@ -196,31 +204,36 @@ class FuelRecordService:
 
                 # Build response
                 record_dict = record.__dict__.copy()
-                record_dict['mpg'] = mpg
+                record_dict["mpg"] = mpg
                 responses.append(FuelRecordResponse(**record_dict))
 
             # Get total count
             count_result = await self.db.execute(
-                select(func.count()).select_from(FuelRecord).where(FuelRecord.vin == vin)
+                select(func.count())
+                .select_from(FuelRecord)
+                .where(FuelRecord.vin == vin)
             )
             total = count_result.scalar()
 
             # Calculate average MPG
-            avg_mpg = await calculate_average_mpg(self.db, vin, exclude_hauling=not include_hauling)
+            avg_mpg = await calculate_average_mpg(
+                self.db, vin, exclude_hauling=not include_hauling
+            )
 
             return responses, total, avg_mpg
 
         except HTTPException:
             raise
         except OperationalError as e:
-            logger.error("Database connection error listing fuel records for %s: %s", vin, e)
-            raise HTTPException(status_code=503, detail="Database temporarily unavailable")
+            logger.error(
+                "Database connection error listing fuel records for %s: %s", vin, e
+            )
+            raise HTTPException(
+                status_code=503, detail="Database temporarily unavailable"
+            )
 
     async def get_fuel_record(
-        self,
-        vin: str,
-        record_id: int,
-        current_user: User
+        self, vin: str, record_id: int, current_user: User
     ) -> tuple[FuelRecord, Optional[Decimal]]:
         """
         Get a specific fuel record by ID with MPG calculation.
@@ -251,21 +264,22 @@ class FuelRecordService:
         record = result.scalar_one_or_none()
 
         if not record:
-            raise HTTPException(status_code=404, detail=f"Fuel record {record_id} not found")
+            raise HTTPException(
+                status_code=404, detail=f"Fuel record {record_id} not found"
+            )
 
         # Calculate MPG
         mpg = None
         if record.is_full_tank:
-            prev_record = await get_previous_full_tank(self.db, vin, record.date, record.mileage)
+            prev_record = await get_previous_full_tank(
+                self.db, vin, record.date, record.mileage
+            )
             mpg = calculate_mpg(record, prev_record)
 
         return record, mpg
 
     async def create_fuel_record(
-        self,
-        vin: str,
-        record_data: FuelRecordCreate,
-        current_user: User
+        self, vin: str, record_data: FuelRecordCreate, current_user: User
     ) -> tuple[FuelRecord, Optional[Decimal]]:
         """
         Create a new fuel record with MPG calculation.
@@ -291,7 +305,21 @@ class FuelRecordService:
 
             # Create fuel record
             record_dict = record_data.model_dump()
-            record_dict['vin'] = vin
+            record_dict["vin"] = vin
+
+            # Auto-calculate propane_gallons if tank data provided but gallons not
+            if (
+                record_dict.get("tank_size_lb") is not None
+                and record_dict.get("tank_quantity") is not None
+                and record_dict.get("propane_gallons") is None
+            ):
+                calculated = (
+                    float(record_dict["tank_size_lb"])
+                    / 4.24
+                    * record_dict["tank_quantity"]
+                )
+                record_dict["propane_gallons"] = Decimal(str(round(calculated, 3)))
+
             record = FuelRecord(**record_dict)
 
             self.db.add(record)
@@ -301,7 +329,9 @@ class FuelRecordService:
             # Calculate MPG
             mpg = None
             if record.is_full_tank:
-                prev_record = await get_previous_full_tank(self.db, vin, record.date, record.mileage)
+                prev_record = await get_previous_full_tank(
+                    self.db, vin, record.date, record.mileage
+                )
                 mpg = calculate_mpg(record, prev_record)
 
             logger.info("Created fuel record %s for %s (MPG: %s)", record.id, vin, mpg)
@@ -315,10 +345,14 @@ class FuelRecordService:
                         date=record.date,
                         mileage=record.mileage,
                         source_type="fuel",
-                        source_id=record.id
+                        source_id=record.id,
                     )
                 except Exception as e:
-                    logger.warning("Failed to auto-sync odometer for fuel record %s: %s", record.id, e)
+                    logger.warning(
+                        "Failed to auto-sync odometer for fuel record %s: %s",
+                        record.id,
+                        e,
+                    )
                     # Don't fail the request if odometer sync fails
 
             # Invalidate analytics cache for this vehicle
@@ -330,19 +364,27 @@ class FuelRecordService:
             raise
         except IntegrityError as e:
             await self.db.rollback()
-            logger.error("Database constraint violation creating fuel record for %s: %s", vin, e)
-            raise HTTPException(status_code=409, detail="Duplicate or invalid fuel record")
+            logger.error(
+                "Database constraint violation creating fuel record for %s: %s", vin, e
+            )
+            raise HTTPException(
+                status_code=409, detail="Duplicate or invalid fuel record"
+            )
         except OperationalError as e:
             await self.db.rollback()
-            logger.error("Database connection error creating fuel record for %s: %s", vin, e)
-            raise HTTPException(status_code=503, detail="Database temporarily unavailable")
+            logger.error(
+                "Database connection error creating fuel record for %s: %s", vin, e
+            )
+            raise HTTPException(
+                status_code=503, detail="Database temporarily unavailable"
+            )
 
     async def update_fuel_record(
         self,
         vin: str,
         record_id: int,
         record_data: FuelRecordUpdate,
-        current_user: User
+        current_user: User,
     ) -> tuple[FuelRecord, Optional[Decimal]]:
         """
         Update an existing fuel record.
@@ -376,10 +418,26 @@ class FuelRecordService:
             record = result.scalar_one_or_none()
 
             if not record:
-                raise HTTPException(status_code=404, detail=f"Fuel record {record_id} not found")
+                raise HTTPException(
+                    status_code=404, detail=f"Fuel record {record_id} not found"
+                )
 
             # Update fields
             update_data = record_data.model_dump(exclude_unset=True)
+
+            # Auto-calculate propane_gallons if tank data provided/updated but gallons not
+            if (
+                update_data.get("tank_size_lb") is not None
+                and update_data.get("tank_quantity") is not None
+                and update_data.get("propane_gallons") is None
+            ):
+                # Check if we have both tank fields (either from update or existing record)
+                tank_size = update_data.get("tank_size_lb", record.tank_size_lb)
+                tank_qty = update_data.get("tank_quantity", record.tank_quantity)
+                if tank_size is not None and tank_qty is not None:
+                    calculated = float(tank_size) / 4.24 * tank_qty
+                    update_data["propane_gallons"] = Decimal(str(round(calculated, 3)))
+
             for field, value in update_data.items():
                 setattr(record, field, value)
 
@@ -389,7 +447,9 @@ class FuelRecordService:
             # Calculate MPG
             mpg = None
             if record.is_full_tank:
-                prev_record = await get_previous_full_tank(self.db, vin, record.date, record.mileage)
+                prev_record = await get_previous_full_tank(
+                    self.db, vin, record.date, record.mileage
+                )
                 mpg = calculate_mpg(record, prev_record)
 
             logger.info("Updated fuel record %s for %s", record_id, vin)
@@ -403,10 +463,14 @@ class FuelRecordService:
                         date=record.date,
                         mileage=record.mileage,
                         source_type="fuel",
-                        source_id=record.id
+                        source_id=record.id,
                     )
                 except Exception as e:
-                    logger.warning("Failed to auto-sync odometer for fuel record %s: %s", record_id, e)
+                    logger.warning(
+                        "Failed to auto-sync odometer for fuel record %s: %s",
+                        record_id,
+                        e,
+                    )
                     # Don't fail the request if odometer sync fails
 
             # Invalidate analytics cache for this vehicle
@@ -418,18 +482,27 @@ class FuelRecordService:
             raise
         except IntegrityError as e:
             await self.db.rollback()
-            logger.error("Database constraint violation updating fuel record %s for %s: %s", record_id, vin, e)
+            logger.error(
+                "Database constraint violation updating fuel record %s for %s: %s",
+                record_id,
+                vin,
+                e,
+            )
             raise HTTPException(status_code=409, detail="Database constraint violation")
         except OperationalError as e:
             await self.db.rollback()
-            logger.error("Database connection error updating fuel record %s for %s: %s", record_id, vin, e)
-            raise HTTPException(status_code=503, detail="Database temporarily unavailable")
+            logger.error(
+                "Database connection error updating fuel record %s for %s: %s",
+                record_id,
+                vin,
+                e,
+            )
+            raise HTTPException(
+                status_code=503, detail="Database temporarily unavailable"
+            )
 
     async def delete_fuel_record(
-        self,
-        vin: str,
-        record_id: int,
-        current_user: User
+        self, vin: str, record_id: int, current_user: User
     ) -> None:
         """
         Delete a fuel record.
@@ -459,7 +532,9 @@ class FuelRecordService:
             record = result.scalar_one_or_none()
 
             if not record:
-                raise HTTPException(status_code=404, detail=f"Fuel record {record_id} not found")
+                raise HTTPException(
+                    status_code=404, detail=f"Fuel record {record_id} not found"
+                )
 
             # Delete record
             await self.db.execute(
@@ -478,9 +553,23 @@ class FuelRecordService:
             raise
         except IntegrityError as e:
             await self.db.rollback()
-            logger.error("Database constraint violation deleting fuel record %s for %s: %s", record_id, vin, e)
-            raise HTTPException(status_code=409, detail="Cannot delete record with dependent data")
+            logger.error(
+                "Database constraint violation deleting fuel record %s for %s: %s",
+                record_id,
+                vin,
+                e,
+            )
+            raise HTTPException(
+                status_code=409, detail="Cannot delete record with dependent data"
+            )
         except OperationalError as e:
             await self.db.rollback()
-            logger.error("Database connection error deleting fuel record %s for %s: %s", record_id, vin, e)
-            raise HTTPException(status_code=503, detail="Database temporarily unavailable")
+            logger.error(
+                "Database connection error deleting fuel record %s for %s: %s",
+                record_id,
+                vin,
+                e,
+            )
+            raise HTTPException(
+                status_code=503, detail="Database temporarily unavailable"
+            )

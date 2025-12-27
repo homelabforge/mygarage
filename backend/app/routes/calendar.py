@@ -10,7 +10,14 @@ from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models import Reminder, InsurancePolicy, WarrantyRecord, Vehicle, ServiceRecord, OdometerRecord
+from app.models import (
+    Reminder,
+    InsurancePolicy,
+    WarrantyRecord,
+    Vehicle,
+    ServiceRecord,
+    OdometerRecord,
+)
 from app.models.user import User
 from app.schemas.calendar import CalendarEvent, CalendarResponse, CalendarSummary
 from app.services.auth import require_auth
@@ -35,10 +42,18 @@ def calculate_urgency(event_date: date, is_overdue: bool) -> str:
 
 @router.get("/calendar", response_model=CalendarResponse)
 async def get_calendar_events(
-    start_date: Optional[date] = Query(None, description="Start date filter (default: 1 month ago)"),
-    end_date: Optional[date] = Query(None, description="End date filter (default: 1 year ahead)"),
-    vehicle_vins: Optional[str] = Query(None, description="Comma-separated VINs to filter by"),
-    event_types: Optional[str] = Query(None, description="Comma-separated event types (reminder,insurance,warranty)"),
+    start_date: Optional[date] = Query(
+        None, description="Start date filter (default: 1 month ago)"
+    ),
+    end_date: Optional[date] = Query(
+        None, description="End date filter (default: 1 year ahead)"
+    ),
+    vehicle_vins: Optional[str] = Query(
+        None, description="Comma-separated VINs to filter by"
+    ),
+    event_types: Optional[str] = Query(
+        None, description="Comma-separated event types (reminder,insurance,warranty)"
+    ),
     db: Annotated[AsyncSession, Depends(get_db)] = None,
     current_user: Optional[User] = Depends(require_auth),
 ) -> CalendarResponse:
@@ -52,7 +67,11 @@ async def get_calendar_events(
 
     # Parse filters
     vin_list = vehicle_vins.split(",") if vehicle_vins else None
-    type_list = event_types.split(",") if event_types else ["reminder", "insurance", "warranty", "service"]
+    type_list = (
+        event_types.split(",")
+        if event_types
+        else ["reminder", "insurance", "warranty", "service"]
+    )
 
     # Get all vehicles for nickname lookup
     vehicles_result = await db.execute(select(Vehicle))
@@ -80,23 +99,25 @@ async def get_calendar_events(
             vehicle = vehicles_dict.get(reminder.vin)
             is_overdue = reminder.due_date < today and not reminder.is_completed
 
-            events.append(CalendarEvent(
-                id=f"reminder-{reminder.id}",
-                type="reminder",
-                title=reminder.description,
-                description=reminder.notes,
-                date=reminder.due_date,
-                vehicle_vin=reminder.vin,
-                vehicle_nickname=vehicle.nickname if vehicle else None,
-                vehicle_color=None,  # Will be added in vehicle color feature
-                urgency=calculate_urgency(reminder.due_date, is_overdue),
-                is_recurring=reminder.is_recurring,
-                is_completed=reminder.is_completed,
-                is_estimated=False,
-                category="maintenance",
-                notes=reminder.notes,
-                due_mileage=reminder.due_mileage,
-            ))
+            events.append(
+                CalendarEvent(
+                    id=f"reminder-{reminder.id}",
+                    type="reminder",
+                    title=reminder.description,
+                    description=reminder.notes,
+                    date=reminder.due_date,
+                    vehicle_vin=reminder.vin,
+                    vehicle_nickname=vehicle.nickname if vehicle else None,
+                    vehicle_color=None,  # Will be added in vehicle color feature
+                    urgency=calculate_urgency(reminder.due_date, is_overdue),
+                    is_recurring=reminder.is_recurring,
+                    is_completed=reminder.is_completed,
+                    is_estimated=False,
+                    category="maintenance",
+                    notes=reminder.notes,
+                    due_mileage=reminder.due_mileage,
+                )
+            )
 
         # Fetch mileage-based reminders and estimate dates
         mileage_reminder_query = select(Reminder).where(
@@ -105,7 +126,9 @@ async def get_calendar_events(
         )
 
         if vin_list:
-            mileage_reminder_query = mileage_reminder_query.where(Reminder.vin.in_(vin_list))
+            mileage_reminder_query = mileage_reminder_query.where(
+                Reminder.vin.in_(vin_list)
+            )
 
         mileage_reminders_result = await db.execute(mileage_reminder_query)
         mileage_reminders = mileage_reminders_result.scalars().all()
@@ -114,28 +137,32 @@ async def get_calendar_events(
             vehicle = vehicles_dict.get(reminder.vin)
 
             # Estimate date from mileage
-            estimated_date = await estimate_date_from_mileage(reminder.vin, reminder.due_mileage, db)
+            estimated_date = await estimate_date_from_mileage(
+                reminder.vin, reminder.due_mileage, db
+            )
 
             if estimated_date and start_date <= estimated_date <= end_date:
                 is_overdue = estimated_date < today and not reminder.is_completed
 
-                events.append(CalendarEvent(
-                    id=f"reminder-{reminder.id}",
-                    type="reminder",
-                    title=f"{reminder.description} (est.)",
-                    description=reminder.notes,
-                    date=estimated_date,
-                    vehicle_vin=reminder.vin,
-                    vehicle_nickname=vehicle.nickname if vehicle else None,
-                    vehicle_color=None,
-                    urgency=calculate_urgency(estimated_date, is_overdue),
-                    is_recurring=reminder.is_recurring,
-                    is_completed=reminder.is_completed,
-                    is_estimated=True,  # Mark as estimated
-                    category="maintenance",
-                    notes=reminder.notes,
-                    due_mileage=reminder.due_mileage,
-                ))
+                events.append(
+                    CalendarEvent(
+                        id=f"reminder-{reminder.id}",
+                        type="reminder",
+                        title=f"{reminder.description} (est.)",
+                        description=reminder.notes,
+                        date=estimated_date,
+                        vehicle_vin=reminder.vin,
+                        vehicle_nickname=vehicle.nickname if vehicle else None,
+                        vehicle_color=None,
+                        urgency=calculate_urgency(estimated_date, is_overdue),
+                        is_recurring=reminder.is_recurring,
+                        is_completed=reminder.is_completed,
+                        is_estimated=True,  # Mark as estimated
+                        category="maintenance",
+                        notes=reminder.notes,
+                        due_mileage=reminder.due_mileage,
+                    )
+                )
 
     # Fetch insurance policies
     if "insurance" in type_list:
@@ -154,23 +181,25 @@ async def get_calendar_events(
             vehicle = vehicles_dict.get(policy.vin)
             is_overdue = policy.end_date < today
 
-            events.append(CalendarEvent(
-                id=f"insurance-{policy.id}",
-                type="insurance",
-                title=f"{policy.provider} - {policy.policy_type} Renewal",
-                description=f"Policy #{policy.policy_number}",
-                date=policy.end_date,
-                vehicle_vin=policy.vin,
-                vehicle_nickname=vehicle.nickname if vehicle else None,
-                vehicle_color=None,
-                urgency=calculate_urgency(policy.end_date, is_overdue),
-                is_recurring=True,  # Insurance typically renews annually
-                is_completed=False,
-                is_estimated=False,
-                category="legal",
-                notes=None,
-                due_mileage=None,
-            ))
+            events.append(
+                CalendarEvent(
+                    id=f"insurance-{policy.id}",
+                    type="insurance",
+                    title=f"{policy.provider} - {policy.policy_type} Renewal",
+                    description=f"Policy #{policy.policy_number}",
+                    date=policy.end_date,
+                    vehicle_vin=policy.vin,
+                    vehicle_nickname=vehicle.nickname if vehicle else None,
+                    vehicle_color=None,
+                    urgency=calculate_urgency(policy.end_date, is_overdue),
+                    is_recurring=True,  # Insurance typically renews annually
+                    is_completed=False,
+                    is_estimated=False,
+                    category="legal",
+                    notes=None,
+                    due_mileage=None,
+                )
+            )
 
     # Fetch warranties
     if "warranty" in type_list:
@@ -190,23 +219,28 @@ async def get_calendar_events(
             vehicle = vehicles_dict.get(warranty.vin)
             is_overdue = warranty.end_date < today
 
-            events.append(CalendarEvent(
-                id=f"warranty-{warranty.id}",
-                type="warranty",
-                title=f"{warranty.warranty_type} Warranty Expiration",
-                description=f"{warranty.provider or 'N/A'}" + (f" - {warranty.policy_number}" if warranty.policy_number else ""),
-                date=warranty.end_date,
-                vehicle_vin=warranty.vin,
-                vehicle_nickname=vehicle.nickname if vehicle else None,
-                vehicle_color=None,
-                urgency=calculate_urgency(warranty.end_date, is_overdue),
-                is_recurring=False,
-                is_completed=False,
-                is_estimated=False,
-                category="legal",
-                notes=None,
-                due_mileage=None,
-            ))
+            events.append(
+                CalendarEvent(
+                    id=f"warranty-{warranty.id}",
+                    type="warranty",
+                    title=f"{warranty.warranty_type} Warranty Expiration",
+                    description=f"{warranty.provider or 'N/A'}"
+                    + (
+                        f" - {warranty.policy_number}" if warranty.policy_number else ""
+                    ),
+                    date=warranty.end_date,
+                    vehicle_vin=warranty.vin,
+                    vehicle_nickname=vehicle.nickname if vehicle else None,
+                    vehicle_color=None,
+                    urgency=calculate_urgency(warranty.end_date, is_overdue),
+                    is_recurring=False,
+                    is_completed=False,
+                    is_estimated=False,
+                    category="legal",
+                    notes=None,
+                    due_mileage=None,
+                )
+            )
 
     # Fetch service history (past records only for historical context)
     if "service" in type_list:
@@ -224,31 +258,46 @@ async def get_calendar_events(
         for service in services:
             vehicle = vehicles_dict.get(service.vin)
 
-            events.append(CalendarEvent(
-                id=f"service-{service.id}",
-                type="service",
-                title=service.description,
-                description=f"{service.service_type or 'Service'}" + (f" - {service.vendor_name}" if service.vendor_name else ""),
-                date=service.date,
-                vehicle_vin=service.vin,
-                vehicle_nickname=vehicle.nickname if vehicle else None,
-                vehicle_color=None,
-                urgency="historical",  # Historical events don't have urgency
-                is_recurring=False,
-                is_completed=True,  # Service history is always completed
-                is_estimated=False,
-                category="history",
-                notes=service.notes if hasattr(service, 'notes') else None,
-                due_mileage=None,
-            ))
+            events.append(
+                CalendarEvent(
+                    id=f"service-{service.id}",
+                    type="service",
+                    title=service.description,
+                    description=f"{service.service_type or 'Service'}"
+                    + (f" - {service.vendor_name}" if service.vendor_name else ""),
+                    date=service.date,
+                    vehicle_vin=service.vin,
+                    vehicle_nickname=vehicle.nickname if vehicle else None,
+                    vehicle_color=None,
+                    urgency="historical",  # Historical events don't have urgency
+                    is_recurring=False,
+                    is_completed=True,  # Service history is always completed
+                    is_estimated=False,
+                    category="history",
+                    notes=service.notes if hasattr(service, "notes") else None,
+                    due_mileage=None,
+                )
+            )
 
     # Sort events by date
     events.sort(key=lambda e: e.date)
 
     # Calculate summary statistics
     overdue_count = sum(1 for e in events if e.urgency == "overdue")
-    upcoming_7_count = sum(1 for e in events if not e.is_completed and e.date >= today and e.date <= today + timedelta(days=7))
-    upcoming_30_count = sum(1 for e in events if not e.is_completed and e.date >= today and e.date <= today + timedelta(days=30))
+    upcoming_7_count = sum(
+        1
+        for e in events
+        if not e.is_completed
+        and e.date >= today
+        and e.date <= today + timedelta(days=7)
+    )
+    upcoming_30_count = sum(
+        1
+        for e in events
+        if not e.is_completed
+        and e.date >= today
+        and e.date <= today + timedelta(days=30)
+    )
 
     summary = CalendarSummary(
         total=len(events),
@@ -260,12 +309,17 @@ async def get_calendar_events(
     return CalendarResponse(events=events, summary=summary)
 
 
-async def calculate_average_miles_per_day(vin: str, db: AsyncSession) -> Optional[float]:
+async def calculate_average_miles_per_day(
+    vin: str, db: AsyncSession
+) -> Optional[float]:
     """Calculate average miles per day for a vehicle based on odometer history."""
     # Get last 30 days of odometer readings (or all if less than 30 days of data)
-    odometer_query = select(OdometerRecord).where(
-        OdometerRecord.vin == vin
-    ).order_by(desc(OdometerRecord.date)).limit(30)
+    odometer_query = (
+        select(OdometerRecord)
+        .where(OdometerRecord.vin == vin)
+        .order_by(desc(OdometerRecord.date))
+        .limit(30)
+    )
 
     result = await db.execute(odometer_query)
     records = result.scalars().all()
@@ -287,12 +341,17 @@ async def calculate_average_miles_per_day(vin: str, db: AsyncSession) -> Optiona
     return miles_diff / days_diff
 
 
-async def estimate_date_from_mileage(vin: str, due_mileage: int, db: AsyncSession) -> Optional[date]:
+async def estimate_date_from_mileage(
+    vin: str, due_mileage: int, db: AsyncSession
+) -> Optional[date]:
     """Estimate due date for a mileage-based reminder."""
     # Get current mileage
-    odometer_query = select(OdometerRecord).where(
-        OdometerRecord.vin == vin
-    ).order_by(desc(OdometerRecord.date)).limit(1)
+    odometer_query = (
+        select(OdometerRecord)
+        .where(OdometerRecord.vin == vin)
+        .order_by(desc(OdometerRecord.date))
+        .limit(1)
+    )
 
     result = await db.execute(odometer_query)
     current_record = result.scalar_one_or_none()
@@ -336,7 +395,7 @@ async def export_calendar_ical(
         end_date=end_date,
         vehicle_vins=vehicle_vins,
         event_types=event_types,
-        db=db
+        db=db,
     )
 
     # Generate iCal format
@@ -356,7 +415,12 @@ async def export_calendar_ical(
 
         if event.description:
             # Escape special characters in description
-            desc = event.description.replace("\\", "\\\\").replace(",", "\\,").replace(";", "\\;").replace("\n", "\\n")
+            desc = (
+                event.description.replace("\\", "\\\\")
+                .replace(",", "\\,")
+                .replace(";", "\\;")
+                .replace("\n", "\\n")
+            )
             ical.write(f"DESCRIPTION:{desc}\r\n")
 
         # Add vehicle info to location
@@ -388,5 +452,5 @@ async def export_calendar_ical(
         media_type="text/calendar",
         headers={
             "Content-Disposition": f"attachment; filename=mygarage-calendar-{date.today().strftime('%Y%m%d')}.ics"
-        }
+        },
     )

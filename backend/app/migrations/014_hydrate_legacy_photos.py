@@ -34,7 +34,9 @@ def _generate_thumbnail_for_existing(file_path: Path, photo_dir: Path) -> Option
     return str(thumb_path.relative_to(photo_dir))
 
 
-def _hydrate_legacy_photos_for_vin(vin: str, photo_dir: Path, session: Session, allowed_extensions: set[str]) -> int:
+def _hydrate_legacy_photos_for_vin(
+    vin: str, photo_dir: Path, session: Session, allowed_extensions: set[str]
+) -> int:
     """Create VehiclePhoto entries for existing filesystem photos for a single VIN."""
     vehicle_dir = photo_dir / vin
     if not vehicle_dir.exists():
@@ -42,15 +44,13 @@ def _hydrate_legacy_photos_for_vin(vin: str, photo_dir: Path, session: Session, 
 
     # Get existing photo records for this VIN
     result = session.execute(
-        text("SELECT file_path FROM vehicle_photos WHERE vin = :vin"),
-        {"vin": vin}
+        text("SELECT file_path FROM vehicle_photos WHERE vin = :vin"), {"vin": vin}
     )
     existing = {Path(row[0]).name for row in result.fetchall()}
 
     # Get vehicle's main_photo
     vehicle_result = session.execute(
-        text("SELECT main_photo FROM vehicles WHERE vin = :vin"),
-        {"vin": vin}
+        text("SELECT main_photo FROM vehicles WHERE vin = :vin"), {"vin": vin}
     )
     vehicle_row = vehicle_result.fetchone()
     main_photo = vehicle_row[0] if vehicle_row else None
@@ -84,8 +84,8 @@ def _hydrate_legacy_photos_for_vin(vin: str, photo_dir: Path, session: Session, 
                 "vin": vin,
                 "file_path": relative_photo_path,
                 "thumbnail_path": thumbnail_relative,
-                "is_main": is_main
-            }
+                "is_main": is_main,
+            },
         )
         new_count += 1
 
@@ -112,7 +112,11 @@ def upgrade():
 
     with engine.begin() as conn:
         # Check if vehicle_photos table exists
-        result = conn.execute(text("SELECT name FROM sqlite_master WHERE type='table' AND name='vehicle_photos'"))
+        result = conn.execute(
+            text(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='vehicle_photos'"
+            )
+        )
         if not result.fetchone():
             print("ℹ vehicle_photos table does not exist, skipping photo hydration")
             return
@@ -129,7 +133,9 @@ def upgrade():
         for vin in vins:
             try:
                 session = Session(bind=conn)
-                count = _hydrate_legacy_photos_for_vin(vin, photo_dir, session, allowed_extensions)
+                count = _hydrate_legacy_photos_for_vin(
+                    vin, photo_dir, session, allowed_extensions
+                )
                 total_photos += count
                 if count > 0:
                     print(f"✓ Hydrated {count} photo(s) for vehicle {vin}")
@@ -138,7 +144,9 @@ def upgrade():
                 print(f"✗ Error hydrating photos for VIN {vin}: {e}")
 
         if total_photos > 0:
-            print(f"✓ Total: Hydrated {total_photos} legacy photos across {len(vins)} vehicles")
+            print(
+                f"✓ Total: Hydrated {total_photos} legacy photos across {len(vins)} vehicles"
+            )
         else:
             print("ℹ No legacy photos found to hydrate")
 

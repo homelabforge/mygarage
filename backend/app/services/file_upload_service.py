@@ -11,9 +11,7 @@ from io import BytesIO
 
 from app.config import settings
 from app.utils.path_validation import sanitize_filename, validate_path_within_base
-from app.utils.file_validation import (
-    validate_file_magic_bytes
-)
+from app.utils.file_validation import validate_file_magic_bytes
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +28,7 @@ class FileUploadConfig:
         generate_unique_name: bool = True,
         verify_magic_bytes: bool = True,
         create_thumbnail: bool = False,
-        thumbnail_size: tuple = (300, 300)
+        thumbnail_size: tuple = (300, 300),
     ):
         self.base_dir = base_dir
         self.allowed_extensions = allowed_extensions
@@ -51,7 +49,7 @@ class UploadResult:
         file_path: Path,
         file_size: int,
         content_type: str,
-        thumbnail_path: Optional[Path] = None
+        thumbnail_path: Optional[Path] = None,
     ):
         self.filename = filename
         self.file_path = file_path
@@ -64,7 +62,9 @@ class FileUploadService:
     """Centralized service for handling file uploads."""
 
     @staticmethod
-    def generate_unique_filename(original_filename: str, include_timestamp: bool = True) -> str:
+    def generate_unique_filename(
+        original_filename: str, include_timestamp: bool = True
+    ) -> str:
         """Generate a unique filename with optional timestamp.
 
         Args:
@@ -91,10 +91,7 @@ class FileUploadService:
             return f"{unique_id}{extension}"
 
     @staticmethod
-    async def validate_upload(
-        file: UploadFile,
-        config: FileUploadConfig
-    ) -> bytes:
+    async def validate_upload(file: UploadFile, config: FileUploadConfig) -> bytes:
         """Validate uploaded file.
 
         Args:
@@ -112,14 +109,14 @@ class FileUploadService:
         if file_ext not in config.allowed_extensions:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid file extension. Allowed: {', '.join(config.allowed_extensions)}"
+                detail=f"Invalid file extension. Allowed: {', '.join(config.allowed_extensions)}",
             )
 
         # Validate MIME type
         if file.content_type not in config.allowed_mimes:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid file type. Allowed: {', '.join(config.allowed_mimes)}"
+                detail=f"Invalid file type. Allowed: {', '.join(config.allowed_mimes)}",
             )
 
         # Check file size BEFORE reading into memory
@@ -130,7 +127,7 @@ class FileUploadService:
         if file_size > config.max_size_bytes:
             raise HTTPException(
                 status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                detail=f"File size exceeds maximum of {config.max_size_bytes / (1024 * 1024):.1f}MB"
+                detail=f"File size exceeds maximum of {config.max_size_bytes / (1024 * 1024):.1f}MB",
             )
 
         # Read file contents
@@ -138,8 +135,7 @@ class FileUploadService:
 
         if not contents:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="File is empty"
+                status_code=status.HTTP_400_BAD_REQUEST, detail="File is empty"
             )
 
         # Verify magic bytes if configured
@@ -148,7 +144,7 @@ class FileUploadService:
                 contents,
                 file.filename,
                 file.content_type,
-                strict=False  # Warn but allow
+                strict=False,  # Warn but allow
             )
             if not is_valid:
                 logger.warning("Magic byte validation warning: %s", error_msg)
@@ -157,9 +153,7 @@ class FileUploadService:
 
     @staticmethod
     def create_thumbnail(
-        image_bytes: bytes,
-        thumbnail_path: Path,
-        size: tuple = (300, 300)
+        image_bytes: bytes, thumbnail_path: Path, size: tuple = (300, 300)
     ) -> None:
         """Create thumbnail from image bytes.
 
@@ -190,15 +184,12 @@ class FileUploadService:
         except UnidentifiedImageError as e:
             logger.error("Failed to create thumbnail: %s", e)
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid image file"
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid image file"
             )
 
     @staticmethod
     async def upload_file(
-        file: UploadFile,
-        config: FileUploadConfig,
-        subdirectory: Optional[str] = None
+        file: UploadFile, config: FileUploadConfig, subdirectory: Optional[str] = None
     ) -> UploadResult:
         """Complete file upload with validation, saving, and optional thumbnail.
 
@@ -234,7 +225,9 @@ class FileUploadService:
             file_path = destination_dir / filename
 
             # Validate path is within base directory
-            validated_path = validate_path_within_base(file_path, config.base_dir, raise_error=True)
+            validated_path = validate_path_within_base(
+                file_path, config.base_dir, raise_error=True
+            )
 
             # Save file
             with open(validated_path, "wb") as f:
@@ -250,13 +243,13 @@ class FileUploadService:
                 thumbnail_path = thumbnail_dir / thumbnail_filename
 
                 FileUploadService.create_thumbnail(
-                    contents,
-                    thumbnail_path,
-                    config.thumbnail_size
+                    contents, thumbnail_path, config.thumbnail_size
                 )
 
                 # Validate thumbnail path
-                validate_path_within_base(thumbnail_path, config.base_dir, raise_error=True)
+                validate_path_within_base(
+                    thumbnail_path, config.base_dir, raise_error=True
+                )
 
                 logger.info("Created thumbnail: %s", thumbnail_path)
 
@@ -265,7 +258,7 @@ class FileUploadService:
                 file_path=validated_path,
                 file_size=len(contents),
                 content_type=file.content_type,
-                thumbnail_path=thumbnail_path
+                thumbnail_path=thumbnail_path,
             )
 
         except HTTPException:
@@ -274,7 +267,7 @@ class FileUploadService:
             logger.error("File upload failed: %s", e)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Upload failed: {str(e)}"
+                detail=f"Upload failed: {str(e)}",
             )
 
 
@@ -288,7 +281,7 @@ PHOTO_UPLOAD_CONFIG = FileUploadConfig(
     generate_unique_name=True,
     verify_magic_bytes=True,
     create_thumbnail=True,
-    thumbnail_size=(512, 512)
+    thumbnail_size=(512, 512),
 )
 
 ATTACHMENT_UPLOAD_CONFIG = FileUploadConfig(
@@ -298,7 +291,7 @@ ATTACHMENT_UPLOAD_CONFIG = FileUploadConfig(
     max_size_bytes=settings.max_upload_size_bytes,
     generate_unique_name=True,
     verify_magic_bytes=True,
-    create_thumbnail=False
+    create_thumbnail=False,
 )
 
 DOCUMENT_UPLOAD_CONFIG = FileUploadConfig(
@@ -318,5 +311,5 @@ DOCUMENT_UPLOAD_CONFIG = FileUploadConfig(
     max_size_bytes=settings.max_document_size_bytes,
     generate_unique_name=True,
     verify_magic_bytes=True,
-    create_thumbnail=False
+    create_thumbnail=False,
 )

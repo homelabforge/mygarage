@@ -13,6 +13,7 @@ class SSRFProtectionError(Exception):
     Used by url_validation.py to prevent attackers from using the application
     to access internal services or sensitive endpoints.
     """
+
     pass
 
 

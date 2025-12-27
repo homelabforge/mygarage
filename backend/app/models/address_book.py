@@ -24,10 +24,14 @@ class AddressBookEntry(Base):
     phone: Mapped[Optional[str]] = mapped_column(String(20))
     email: Mapped[Optional[str]] = mapped_column(String(100))
     website: Mapped[Optional[str]] = mapped_column(String(200))
-    category: Mapped[Optional[str]] = mapped_column(String(50))  # service, insurance, parts, etc.
+    category: Mapped[Optional[str]] = mapped_column(
+        String(50)
+    )  # service, insurance, parts, etc.
     notes: Mapped[Optional[str]] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
 
     __table_args__ = (
         Index("idx_address_book_name", "name"),

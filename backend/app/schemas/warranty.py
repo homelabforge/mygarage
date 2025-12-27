@@ -12,8 +12,12 @@ class WarrantyRecordBase(BaseModel):
     provider: Optional[str] = Field(None, description="Warranty provider name")
     start_date: date_type = Field(..., description="Warranty start date")
     end_date: Optional[date_type] = Field(None, description="Warranty end date")
-    mileage_limit: Optional[int] = Field(None, description="Mileage limit if applicable", ge=0)
-    coverage_details: Optional[str] = Field(None, description="Details of what is covered")
+    mileage_limit: Optional[int] = Field(
+        None, description="Mileage limit if applicable", ge=0
+    )
+    coverage_details: Optional[str] = Field(
+        None, description="Details of what is covered"
+    )
     policy_number: Optional[str] = Field(None, description="Warranty policy number")
     notes: Optional[str] = Field(None, description="Additional notes")
 

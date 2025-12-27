@@ -1,6 +1,11 @@
 """Pydantic schemas for API request/response validation."""
 
-from app.schemas.vin import VINDecodeRequest, VINDecodeResponse, EngineInfo, TransmissionInfo
+from app.schemas.vin import (
+    VINDecodeRequest,
+    VINDecodeResponse,
+    EngineInfo,
+    TransmissionInfo,
+)
 from app.schemas.vehicle import (
     VehicleCreate,
     VehicleUpdate,

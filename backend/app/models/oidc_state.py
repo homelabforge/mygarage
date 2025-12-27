@@ -18,13 +18,13 @@ class OIDCState(Base):
     state = Column(String(128), primary_key=True, index=True, nullable=False)
     nonce = Column(String(128), nullable=False)
     redirect_uri = Column(String(512), nullable=False)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(
+        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+    )
     expires_at = Column(DateTime, nullable=False)
 
     # Index for efficient cleanup of expired states
-    __table_args__ = (
-        Index('ix_oidc_expires_at', 'expires_at'),
-    )
+    __table_args__ = (Index("ix_oidc_expires_at", "expires_at"),)
 
     def __repr__(self):
         return f"<OIDCState(state={self.state[:16]}..., expires_at={self.expires_at})>"

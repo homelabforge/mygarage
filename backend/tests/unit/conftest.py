@@ -3,6 +3,7 @@ Unit test fixtures and configuration.
 
 Unit tests should not require database access and test pure functions/logic.
 """
+
 import pytest
 from datetime import datetime, timedelta
 from decimal import Decimal

@@ -30,39 +30,47 @@ def upgrade():
         result = conn.execute(text("PRAGMA table_info(users)"))
         existing_columns = {row[1] for row in result}
 
-        if 'unit_preference' in existing_columns:
+        if "unit_preference" in existing_columns:
             print("  → unit_preference column already exists, skipping migration")
             return
 
         # Add unit_preference column (default: imperial)
-        conn.execute(text("""
+        conn.execute(
+            text("""
             ALTER TABLE users
             ADD COLUMN unit_preference VARCHAR(20) DEFAULT 'imperial'
-        """))
+        """)
+        )
         print("  ✓ Added unit_preference column to users table")
 
         # Add show_both_units column (default: false)
-        conn.execute(text("""
+        conn.execute(
+            text("""
             ALTER TABLE users
             ADD COLUMN show_both_units BOOLEAN DEFAULT 0
-        """))
+        """)
+        )
         print("  ✓ Added show_both_units column to users table")
 
         # Set all existing users to imperial (maintains current behavior)
-        result = conn.execute(text("""
+        result = conn.execute(
+            text("""
             UPDATE users
             SET unit_preference = 'imperial', show_both_units = 0
             WHERE unit_preference IS NULL
-        """))
+        """)
+        )
 
         users_updated = result.rowcount
         print(f"  ✓ Set {users_updated} existing user(s) to imperial units")
 
         # Create index for faster lookups
-        conn.execute(text("""
+        conn.execute(
+            text("""
             CREATE INDEX IF NOT EXISTS idx_users_unit_preference
             ON users(unit_preference)
-        """))
+        """)
+        )
         print("  ✓ Created index on users.unit_preference")
 
         print("\n✓ Unit preference migration completed successfully")

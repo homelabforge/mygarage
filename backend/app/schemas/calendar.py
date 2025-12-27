@@ -10,20 +10,32 @@ class CalendarEvent(BaseModel):
     """Schema for a calendar event."""
 
     id: str = Field(..., description="Unique identifier in format 'type-id'")
-    type: Literal["reminder", "insurance", "warranty", "service"] = Field(..., description="Event type")
+    type: Literal["reminder", "insurance", "warranty", "service"] = Field(
+        ..., description="Event type"
+    )
     title: str = Field(..., description="Event title/description")
     description: Optional[str] = Field(None, description="Additional details")
     date: date_type = Field(..., description="Event date")
     vehicle_vin: str = Field(..., description="Associated vehicle VIN")
     vehicle_nickname: Optional[str] = Field(None, description="Vehicle nickname")
-    vehicle_color: Optional[str] = Field(None, description="Custom vehicle color for calendar (Phase 3)")
-    urgency: Literal["overdue", "high", "medium", "low", "historical"] = Field(..., description="Event urgency level")
+    vehicle_color: Optional[str] = Field(
+        None, description="Custom vehicle color for calendar (Phase 3)"
+    )
+    urgency: Literal["overdue", "high", "medium", "low", "historical"] = Field(
+        ..., description="Event urgency level"
+    )
     is_recurring: bool = Field(default=False, description="Whether event recurs")
     is_completed: bool = Field(default=False, description="Whether event is completed")
-    is_estimated: bool = Field(default=False, description="Whether date is estimated from mileage (Phase 3)")
-    category: Literal["maintenance", "legal", "financial", "history"] = Field(..., description="Event category")
+    is_estimated: bool = Field(
+        default=False, description="Whether date is estimated from mileage (Phase 3)"
+    )
+    category: Literal["maintenance", "legal", "financial", "history"] = Field(
+        ..., description="Event category"
+    )
     notes: Optional[str] = Field(None, description="Event notes/comments (Phase 3)")
-    due_mileage: Optional[int] = Field(None, description="Due mileage for mileage-based reminders (Phase 3)")
+    due_mileage: Optional[int] = Field(
+        None, description="Due mileage for mileage-based reminders (Phase 3)"
+    )
 
 
 class CalendarSummary(BaseModel):
@@ -38,5 +50,7 @@ class CalendarSummary(BaseModel):
 class CalendarResponse(BaseModel):
     """Schema for calendar response."""
 
-    events: List[CalendarEvent] = Field(default_factory=list, description="List of calendar events")
+    events: List[CalendarEvent] = Field(
+        default_factory=list, description="List of calendar events"
+    )
     summary: CalendarSummary = Field(..., description="Summary statistics")

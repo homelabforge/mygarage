@@ -38,6 +38,7 @@ limiter = Limiter(key_func=get_remote_address)
 
 class OIDCConfigResponse(BaseModel):
     """OIDC configuration response (safe for frontend)."""
+
     enabled: bool
     provider_name: str
     issuer_url: str
@@ -47,6 +48,7 @@ class OIDCConfigResponse(BaseModel):
 
 class OIDCTestRequest(BaseModel):
     """OIDC connection test request."""
+
     issuer_url: str
     client_id: str
     client_secret: str
@@ -54,6 +56,7 @@ class OIDCTestRequest(BaseModel):
 
 class LinkOIDCAccountRequest(BaseModel):
     """Request to link OIDC account with password verification."""
+
     token: str
     password: str
 
@@ -272,7 +275,7 @@ async def oidc_callback(
     await db.execute(
         delete(CSRFToken).where(
             CSRFToken.user_id == user.id,
-            CSRFToken.expires_at <= datetime.now(timezone.utc)
+            CSRFToken.expires_at <= datetime.now(timezone.utc),
         )
     )
 
@@ -281,7 +284,7 @@ async def oidc_callback(
     csrf_token = CSRFToken(
         token=csrf_token_value,
         user_id=user.id,
-        expires_at=CSRFToken.get_expiry_time(hours=24)  # Same as JWT expiry
+        expires_at=CSRFToken.get_expiry_time(hours=24),  # Same as JWT expiry
     )
     db.add(csrf_token)
     await db.commit()
@@ -303,7 +306,9 @@ async def oidc_callback(
     frontend_url = f"{scheme}://{host}"
     redirect_url = f"{frontend_url}/auth/oidc/success?csrf_token={csrf_token_value}"
 
-    redirect_response = RedirectResponse(url=redirect_url, status_code=status.HTTP_302_FOUND)
+    redirect_response = RedirectResponse(
+        url=redirect_url, status_code=status.HTTP_302_FOUND
+    )
     redirect_response.set_cookie(
         key=settings.jwt_cookie_name,
         value=jwt_token,
@@ -433,7 +438,7 @@ async def link_oidc_account(
     await db.execute(
         delete(CSRFToken).where(
             CSRFToken.user_id == user.id,
-            CSRFToken.expires_at <= datetime.now(timezone.utc)
+            CSRFToken.expires_at <= datetime.now(timezone.utc),
         )
     )
 
@@ -442,7 +447,7 @@ async def link_oidc_account(
     csrf_token = CSRFToken(
         token=csrf_token_value,
         user_id=user.id,
-        expires_at=CSRFToken.get_expiry_time(hours=24)  # Same as JWT expiry
+        expires_at=CSRFToken.get_expiry_time(hours=24),  # Same as JWT expiry
     )
     db.add(csrf_token)
     await db.commit()

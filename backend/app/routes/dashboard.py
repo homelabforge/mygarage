@@ -6,7 +6,15 @@ from typing import Optional
 from pathlib import Path
 
 from app.database import get_db
-from app.models import Vehicle, ServiceRecord, FuelRecord, OdometerRecord, Reminder, Document, Note
+from app.models import (
+    Vehicle,
+    ServiceRecord,
+    FuelRecord,
+    OdometerRecord,
+    Reminder,
+    Document,
+    Note,
+)
 from app.models.user import User
 from app.schemas.dashboard import DashboardResponse, VehicleStatistics
 from app.services.fuel_service import calculate_mpg
@@ -16,7 +24,7 @@ router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
 # Photo directory configuration
 PHOTO_DIR = Path("/data/photos")
-ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp'}
+ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
 
 
 async def calculate_vehicle_stats(
@@ -49,7 +57,8 @@ async def calculate_vehicle_stats(
     vehicle_photo_dir = PHOTO_DIR / vehicle.vin
     if vehicle_photo_dir.exists():
         photo_count = sum(
-            1 for photo_file in vehicle_photo_dir.iterdir()
+            1
+            for photo_file in vehicle_photo_dir.iterdir()
             if photo_file.is_file() and photo_file.suffix.lower() in ALLOWED_EXTENSIONS
         )
 
@@ -86,16 +95,14 @@ async def calculate_vehicle_stats(
     # Count upcoming and overdue reminders
     today = date_type.today()
     upcoming_count = await db.scalar(
-        select(func.count(Reminder.id))
-        .where(
+        select(func.count(Reminder.id)).where(
             Reminder.vin == vehicle.vin,
             Reminder.is_completed.is_(False),
             Reminder.due_date >= today,
         )
     )
     overdue_count = await db.scalar(
-        select(func.count(Reminder.id))
-        .where(
+        select(func.count(Reminder.id)).where(
             Reminder.vin == vehicle.vin,
             Reminder.is_completed.is_(False),
             Reminder.due_date < today,
@@ -130,6 +137,7 @@ async def calculate_vehicle_stats(
         # main_photo is stored as "VIN/filename.jpg"
         # Extract just the filename
         from pathlib import Path
+
         filename = Path(vehicle.main_photo).name
         main_photo_url = f"/api/vehicles/{vehicle.vin}/photos/{filename}"
 
@@ -160,7 +168,10 @@ async def calculate_vehicle_stats(
 
 
 @router.get("", response_model=DashboardResponse)
-async def get_dashboard(db: AsyncSession = Depends(get_db), current_user: Optional[User] = Depends(optional_auth)):
+async def get_dashboard(
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(optional_auth),
+):
     """
     Get complete dashboard with statistics for all vehicles
     Shows active vehicles + archived vehicles where archived_visible=True
@@ -168,8 +179,8 @@ async def get_dashboard(db: AsyncSession = Depends(get_db), current_user: Option
     # Get active vehicles and archived vehicles that are marked visible
     result = await db.execute(
         select(Vehicle).where(
-            (Vehicle.archived_at.is_(None)) |
-            ((Vehicle.archived_at.isnot(None)) & (Vehicle.archived_visible.is_(True)))
+            (Vehicle.archived_at.is_(None))
+            | ((Vehicle.archived_at.isnot(None)) & (Vehicle.archived_visible.is_(True)))
         )
     )
     vehicles = result.scalars().all()

@@ -36,13 +36,15 @@ def upgrade():
 
     with engine.begin() as conn:
         # Check current password hash types for informational purposes
-        result = conn.execute(text("""
+        result = conn.execute(
+            text("""
             SELECT
                 COUNT(*) as total_users,
                 SUM(CASE WHEN hashed_password LIKE '$argon2%' THEN 1 ELSE 0 END) as argon2_hashes,
                 SUM(CASE WHEN hashed_password LIKE '$2b$%' THEN 1 ELSE 0 END) as bcrypt_hashes
             FROM users
-        """))
+        """)
+        )
         row = result.fetchone()
 
         if row:
@@ -60,10 +62,14 @@ def upgrade():
             if total == 0:
                 print("\n  ✓ No users found - migration tracking complete")
             elif bcrypt > 0:
-                print(f"\n  → {bcrypt} user(s) will auto-migrate to Argon2 on next login")
+                print(
+                    f"\n  → {bcrypt} user(s) will auto-migrate to Argon2 on next login"
+                )
             else:
                 print("\n  ✓ All passwords migrated to Argon2")
-                print("  Note: You can remove 'bcrypt' from pyproject.toml dependencies")
+                print(
+                    "  Note: You can remove 'bcrypt' from pyproject.toml dependencies"
+                )
         else:
             print("✓ No users found - migration tracking complete")
 

@@ -34,7 +34,7 @@ class TaxRecordCreate(TaxRecordBase):
                     "tax_type": "Registration",
                     "amount": 85.50,
                     "renewal_date": "2026-01-15",
-                    "notes": "Annual vehicle registration renewal"
+                    "notes": "Annual vehicle registration renewal",
                 }
             ]
         }
@@ -70,10 +70,10 @@ class TaxRecordResponse(TaxRecordBase):
                     "amount": 85.50,
                     "renewal_date": "2026-01-15",
                     "notes": "Annual vehicle registration renewal",
-                    "created_at": "2025-01-15T10:30:00"
+                    "created_at": "2025-01-15T10:30:00",
                 }
             ]
-        }
+        },
     }
 
 
@@ -96,10 +96,10 @@ class TaxRecordListResponse(BaseModel):
                             "amount": 85.50,
                             "renewal_date": "2026-01-15",
                             "notes": "Annual vehicle registration renewal",
-                            "created_at": "2025-01-15T10:30:00"
+                            "created_at": "2025-01-15T10:30:00",
                         }
                     ],
-                    "total": 1
+                    "total": 1,
                 }
             ]
         }

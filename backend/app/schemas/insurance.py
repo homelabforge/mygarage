@@ -15,7 +15,9 @@ class InsurancePolicyBase(BaseModel):
     start_date: date_type = Field(..., description="Policy start date")
     end_date: date_type = Field(..., description="Policy end date")
     premium_amount: Optional[Decimal] = Field(None, description="Premium amount", ge=0)
-    premium_frequency: Optional[str] = Field(None, description="How often premium is paid")
+    premium_frequency: Optional[str] = Field(
+        None, description="How often premium is paid"
+    )
     deductible: Optional[Decimal] = Field(None, description="Deductible amount", ge=0)
     coverage_limits: Optional[str] = Field(None, description="Coverage limits details")
     notes: Optional[str] = Field(None, description="Additional notes")

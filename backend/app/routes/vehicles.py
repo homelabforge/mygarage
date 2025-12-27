@@ -43,7 +43,7 @@ def sanitize_for_log(value: str) -> str:
     """
     if not value:
         return value
-    return value.replace('\r\n', '').replace('\r', '').replace('\n', '')
+    return value.replace("\r\n", "").replace("\r", "").replace("\n", "")
 
 
 @router.get("", response_model=VehicleListResponse)
@@ -51,7 +51,7 @@ async def list_vehicles(
     skip: int = 0,
     limit: int = 100,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth)
+    current_user: User = Depends(require_auth),
 ):
     """
     Get list of all vehicles.
@@ -71,8 +71,7 @@ async def list_vehicles(
     vehicles, total = await service.list_vehicles(current_user, skip, limit)
 
     return VehicleListResponse(
-        vehicles=[VehicleResponse.model_validate(v) for v in vehicles],
-        total=total
+        vehicles=[VehicleResponse.model_validate(v) for v in vehicles], total=total
     )
 
 
@@ -80,7 +79,7 @@ async def list_vehicles(
 async def get_vehicle(
     vin: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth)
+    current_user: User = Depends(require_auth),
 ):
     """
     Get a specific vehicle by VIN.
@@ -109,7 +108,7 @@ async def get_vehicle(
 async def create_vehicle(
     vehicle_data: VehicleCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth)
+    current_user: User = Depends(require_auth),
 ):
     """
     Create a new vehicle.
@@ -139,7 +138,7 @@ async def update_vehicle(
     vin: str,
     vehicle_data: VehicleUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth)
+    current_user: User = Depends(require_auth),
 ):
     """
     Update an existing vehicle.
@@ -170,7 +169,7 @@ async def update_vehicle(
 async def delete_vehicle(
     vin: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth)
+    current_user: User = Depends(require_auth),
 ):
     """
     Delete a vehicle.
@@ -195,11 +194,12 @@ async def delete_vehicle(
 
 # Trailer Details endpoints
 
+
 @router.get("/{vin}/trailer", response_model=TrailerDetailsResponse)
 async def get_trailer_details(
     vin: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth)
+    current_user: User = Depends(require_auth),
 ):
     """Get trailer details for a vehicle.
 
@@ -214,13 +214,13 @@ async def get_trailer_details(
     # Check vehicle ownership first
     await get_vehicle_or_403(vin, current_user, db)
 
-    result = await db.execute(
-        select(TrailerDetails).where(TrailerDetails.vin == vin)
-    )
+    result = await db.execute(select(TrailerDetails).where(TrailerDetails.vin == vin))
     trailer = result.scalar_one_or_none()
 
     if not trailer:
-        raise HTTPException(status_code=404, detail=f"Trailer details not found for VIN {vin}")
+        raise HTTPException(
+            status_code=404, detail=f"Trailer details not found for VIN {vin}"
+        )
 
     return TrailerDetailsResponse.model_validate(trailer)
 
@@ -230,7 +230,7 @@ async def create_trailer_details(
     vin: str,
     trailer_data: TrailerDetailsCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth)
+    current_user: User = Depends(require_auth),
 ):
     """Create trailer details for a vehicle.
 
@@ -254,8 +254,7 @@ async def create_trailer_details(
 
         if existing:
             raise HTTPException(
-                status_code=400,
-                detail=f"Trailer details already exist for VIN {vin}"
+                status_code=400, detail=f"Trailer details already exist for VIN {vin}"
             )
 
         # Create trailer details
@@ -273,11 +272,17 @@ async def create_trailer_details(
         raise
     except IntegrityError as e:
         await db.rollback()
-        logger.error("Database constraint violation creating trailer details for %s: %s", vin, e)
-        raise HTTPException(status_code=409, detail=f"Trailer details already exist for VIN {vin}")
+        logger.error(
+            "Database constraint violation creating trailer details for %s: %s", vin, e
+        )
+        raise HTTPException(
+            status_code=409, detail=f"Trailer details already exist for VIN {vin}"
+        )
     except OperationalError as e:
         await db.rollback()
-        logger.error("Database connection error creating trailer details for %s: %s", vin, e)
+        logger.error(
+            "Database connection error creating trailer details for %s: %s", vin, e
+        )
         raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
 
@@ -286,7 +291,7 @@ async def update_trailer_details(
     vin: str,
     trailer_data: TrailerDetailsUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth)
+    current_user: User = Depends(require_auth),
 ):
     """Update trailer details for a vehicle.
 
@@ -309,7 +314,9 @@ async def update_trailer_details(
         trailer = result.scalar_one_or_none()
 
         if not trailer:
-            raise HTTPException(status_code=404, detail=f"Trailer details not found for VIN {vin}")
+            raise HTTPException(
+                status_code=404, detail=f"Trailer details not found for VIN {vin}"
+            )
 
         # Update fields
         update_data = trailer_data.model_dump(exclude_unset=True)
@@ -327,22 +334,27 @@ async def update_trailer_details(
         raise
     except IntegrityError as e:
         await db.rollback()
-        logger.error("Database constraint violation updating trailer details for %s: %s", vin, e)
+        logger.error(
+            "Database constraint violation updating trailer details for %s: %s", vin, e
+        )
         raise HTTPException(status_code=409, detail="Database constraint violation")
     except OperationalError as e:
         await db.rollback()
-        logger.error("Database connection error updating trailer details for %s: %s", vin, e)
+        logger.error(
+            "Database connection error updating trailer details for %s: %s", vin, e
+        )
         raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
 
 # ========== ARCHIVE ENDPOINTS ==========
+
 
 @router.post("/{vin}/archive", response_model=VehicleResponse)
 async def archive_vehicle(
     vin: str,
     archive_data: VehicleArchiveRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(optional_auth)
+    current_user: Optional[User] = Depends(optional_auth),
 ):
     """
     Archive a vehicle (soft delete).
@@ -382,7 +394,11 @@ async def archive_vehicle(
     await db.commit()
     await db.refresh(vehicle)
 
-    logger.info("Archived vehicle %s (reason: %s)", sanitize_for_log(vin), sanitize_for_log(archive_data.reason))
+    logger.info(
+        "Archived vehicle %s (reason: %s)",
+        sanitize_for_log(vin),
+        sanitize_for_log(archive_data.reason),
+    )
     return VehicleResponse.model_validate(vehicle)
 
 
@@ -390,7 +406,7 @@ async def archive_vehicle(
 async def unarchive_vehicle(
     vin: str,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(optional_auth)
+    current_user: Optional[User] = Depends(optional_auth),
 ):
     """
     Restore an archived vehicle to active status.
@@ -442,7 +458,7 @@ async def list_archived_vehicles(
     skip: int = 0,
     limit: int = 100,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(optional_auth)
+    current_user: Optional[User] = Depends(optional_auth),
 ):
     """
     Get list of archived vehicles (user's own only in auth mode, all in none mode).
@@ -462,16 +478,22 @@ async def list_archived_vehicles(
     if current_user:
         # Auth mode: user's archived vehicles + vehicles with NULL user_id (created in none mode)
         logger.info(f"Fetching archived vehicles for user_id={current_user.id}")
-        query = select(Vehicle).where(
-            ((Vehicle.user_id == current_user.id) | (Vehicle.user_id.is_(None))),
-            Vehicle.archived_at.isnot(None)
-        ).order_by(Vehicle.archived_at.desc())
+        query = (
+            select(Vehicle)
+            .where(
+                ((Vehicle.user_id == current_user.id) | (Vehicle.user_id.is_(None))),
+                Vehicle.archived_at.isnot(None),
+            )
+            .order_by(Vehicle.archived_at.desc())
+        )
     else:
         # No auth mode: all archived vehicles
         logger.info("Fetching all archived vehicles (auth_mode=none)")
-        query = select(Vehicle).where(
-            Vehicle.archived_at.isnot(None)
-        ).order_by(Vehicle.archived_at.desc())
+        query = (
+            select(Vehicle)
+            .where(Vehicle.archived_at.isnot(None))
+            .order_by(Vehicle.archived_at.desc())
+        )
 
     # Get total count
     count_query = select(func.count()).select_from(query.subquery())
@@ -488,8 +510,7 @@ async def list_archived_vehicles(
     logger.info(f"Returning {len(vehicles)} archived vehicles")
 
     return VehicleListResponse(
-        vehicles=[VehicleResponse.model_validate(v) for v in vehicles],
-        total=total
+        vehicles=[VehicleResponse.model_validate(v) for v in vehicles], total=total
     )
 
 
@@ -498,7 +519,7 @@ async def toggle_archived_visibility(
     vin: str,
     visible: bool,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(optional_auth)
+    current_user: Optional[User] = Depends(optional_auth),
 ):
     """
     Toggle visibility of archived vehicle in main list.
@@ -536,5 +557,7 @@ async def toggle_archived_visibility(
     await db.commit()
     await db.refresh(vehicle)
 
-    logger.info("Set archived vehicle %s visibility to %s", sanitize_for_log(vin), visible)
+    logger.info(
+        "Set archived vehicle %s visibility to %s", sanitize_for_log(vin), visible
+    )
     return VehicleResponse.model_validate(vehicle)

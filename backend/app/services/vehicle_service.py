@@ -22,10 +22,7 @@ class VehicleService:
         self.db = db
 
     async def list_vehicles(
-        self,
-        current_user: Optional[User],
-        skip: int = 0,
-        limit: int = 100
+        self, current_user: Optional[User], skip: int = 0, limit: int = 100
     ) -> tuple[list[Vehicle], int]:
         """
         Get list of vehicles for the current user.
@@ -63,7 +60,9 @@ class VehicleService:
 
         except OperationalError as e:
             logger.error("Database connection error listing vehicles: %s", e)
-            raise HTTPException(status_code=503, detail="Database temporarily unavailable")
+            raise HTTPException(
+                status_code=503, detail="Database temporarily unavailable"
+            )
 
     async def get_vehicle(self, vin: str, current_user: Optional[User]) -> Vehicle:
         """
@@ -86,9 +85,7 @@ class VehicleService:
         return vehicle
 
     async def create_vehicle(
-        self,
-        vehicle_data: VehicleCreate,
-        current_user: Optional[User]
+        self, vehicle_data: VehicleCreate, current_user: Optional[User]
     ) -> Vehicle:
         """
         Create a new vehicle.
@@ -113,13 +110,13 @@ class VehicleService:
             if existing:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Vehicle with VIN {vehicle_data.vin} already exists"
+                    detail=f"Vehicle with VIN {vehicle_data.vin} already exists",
                 )
 
             # Create vehicle with ownership assigned to current user
             vehicle_dict = vehicle_data.model_dump()
             if current_user is not None:
-                vehicle_dict['user_id'] = current_user.id  # Assign ownership
+                vehicle_dict["user_id"] = current_user.id  # Assign ownership
                 username = current_user.username
             else:
                 username = "guest"
@@ -129,7 +126,12 @@ class VehicleService:
             await self.db.commit()
             await self.db.refresh(vehicle)
 
-            logger.info("Created vehicle: %s (%s) for user %s", vehicle.vin, vehicle.nickname, username)
+            logger.info(
+                "Created vehicle: %s (%s) for user %s",
+                vehicle.vin,
+                vehicle.nickname,
+                username,
+            )
 
             return vehicle
 
@@ -138,17 +140,19 @@ class VehicleService:
         except IntegrityError as e:
             await self.db.rollback()
             logger.error("Database constraint violation creating vehicle: %s", e)
-            raise HTTPException(status_code=409, detail=f"Vehicle with VIN {vehicle_data.vin} already exists")
+            raise HTTPException(
+                status_code=409,
+                detail=f"Vehicle with VIN {vehicle_data.vin} already exists",
+            )
         except OperationalError as e:
             await self.db.rollback()
             logger.error("Database connection error creating vehicle: %s", e)
-            raise HTTPException(status_code=503, detail="Database temporarily unavailable")
+            raise HTTPException(
+                status_code=503, detail="Database temporarily unavailable"
+            )
 
     async def update_vehicle(
-        self,
-        vin: str,
-        vehicle_data: VehicleUpdate,
-        current_user: User
+        self, vin: str, vehicle_data: VehicleUpdate, current_user: User
     ) -> Vehicle:
         """
         Update an existing vehicle.
@@ -188,12 +192,16 @@ class VehicleService:
             raise
         except IntegrityError as e:
             await self.db.rollback()
-            logger.error("Database constraint violation updating vehicle %s: %s", vin, e)
+            logger.error(
+                "Database constraint violation updating vehicle %s: %s", vin, e
+            )
             raise HTTPException(status_code=409, detail="Database constraint violation")
         except OperationalError as e:
             await self.db.rollback()
             logger.error("Database connection error updating vehicle %s: %s", vin, e)
-            raise HTTPException(status_code=503, detail="Database temporarily unavailable")
+            raise HTTPException(
+                status_code=503, detail="Database temporarily unavailable"
+            )
 
     async def delete_vehicle(self, vin: str, current_user: User) -> None:
         """
@@ -224,9 +232,15 @@ class VehicleService:
             raise
         except IntegrityError as e:
             await self.db.rollback()
-            logger.error("Database constraint violation deleting vehicle %s: %s", vin, e)
-            raise HTTPException(status_code=409, detail="Cannot delete vehicle with dependent records")
+            logger.error(
+                "Database constraint violation deleting vehicle %s: %s", vin, e
+            )
+            raise HTTPException(
+                status_code=409, detail="Cannot delete vehicle with dependent records"
+            )
         except OperationalError as e:
             await self.db.rollback()
             logger.error("Database connection error deleting vehicle %s: %s", vin, e)
-            raise HTTPException(status_code=503, detail="Database temporarily unavailable")
+            raise HTTPException(
+                status_code=503, detail="Database temporarily unavailable"
+            )

@@ -11,7 +11,9 @@ class AuditLog(Base):
     __tablename__ = "audit_logs"
 
     id = Column(Integer, primary_key=True, index=True)
-    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False, index=True)
+    timestamp = Column(
+        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False, index=True
+    )
     user_id = Column(Integer, nullable=True, index=True)  # Null for system operations
     username = Column(String(100), nullable=True)
     action = Column(String(100), nullable=False, index=True)
@@ -20,7 +22,9 @@ class AuditLog(Base):
     ip_address = Column(String(45), nullable=True)  # IPv6 max length
     user_agent = Column(String(500), nullable=True)
     details = Column(JSON, nullable=True)
-    success = Column(Integer, default=1, nullable=False)  # SQLite uses INTEGER for boolean
+    success = Column(
+        Integer, default=1, nullable=False
+    )  # SQLite uses INTEGER for boolean
     error_message = Column(Text, nullable=True)
 
     def __repr__(self):

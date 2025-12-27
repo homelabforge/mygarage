@@ -26,7 +26,7 @@ class DocumentOCRService:
 
     def __init__(self):
         """Initialize the OCR service."""
-        self.supported_formats = {'.pdf', '.jpg', '.jpeg', '.png'}
+        self.supported_formats = {".pdf", ".jpg", ".jpeg", ".png"}
         self._paddleocr = None
 
     async def extract_insurance_data(
@@ -138,7 +138,7 @@ class DocumentOCRService:
             )
 
             result["parser_name"] = parser.PARSER_NAME
-            result["provider_detected"] = getattr(parser, 'PROVIDER_NAME', None)
+            result["provider_detected"] = getattr(parser, "PROVIDER_NAME", None)
 
             # Parse
             data = parser.parse(text, target_vin=target_vin)
@@ -162,12 +162,14 @@ class DocumentOCRService:
         if path.suffix.lower() not in self.supported_formats:
             raise ValueError(f"Unsupported file format: {path.suffix}")
 
-        if path.suffix.lower() == '.pdf':
+        if path.suffix.lower() == ".pdf":
             return await self._extract_text_from_pdf(file_path)
         else:
             return await self._extract_text_from_image(file_path)
 
-    async def _extract_text_from_bytes(self, file_bytes: bytes, is_pdf: bool = True) -> str:
+    async def _extract_text_from_bytes(
+        self, file_bytes: bytes, is_pdf: bool = True
+    ) -> str:
         """Extract text from raw bytes."""
         if is_pdf:
             return await self._extract_text_from_pdf_bytes(file_bytes)
@@ -314,7 +316,10 @@ class DocumentOCRService:
         try:
             if self._paddleocr is None:
                 from paddleocr import PaddleOCR
-                self._paddleocr = PaddleOCR(use_angle_cls=True, lang='en', show_log=False)
+
+                self._paddleocr = PaddleOCR(
+                    use_angle_cls=True, lang="en", show_log=False
+                )
 
             result = self._paddleocr.ocr(file_path, cls=True)
 
@@ -344,7 +349,10 @@ class DocumentOCRService:
 
             if self._paddleocr is None:
                 from paddleocr import PaddleOCR
-                self._paddleocr = PaddleOCR(use_angle_cls=True, lang='en', show_log=False)
+
+                self._paddleocr = PaddleOCR(
+                    use_angle_cls=True, lang="en", show_log=False
+                )
 
             image = Image.open(io.BytesIO(img_bytes))
             img_array = np.array(image)
@@ -382,12 +390,14 @@ class DocumentOCRService:
 
         try:
             import fitz  # noqa: F401
+
             status["pymupdf_available"] = True
         except ImportError:
             pass  # PyMuPDF is optional - status remains False if not installed
 
         try:
             import pytesseract  # noqa: F401
+
             status["tesseract_available"] = True
         except ImportError:
             pass  # Tesseract is optional - status remains False if not installed
@@ -395,6 +405,7 @@ class DocumentOCRService:
         if PADDLEOCR_ENABLED:
             try:
                 from paddleocr import PaddleOCR  # noqa: F401
+
                 status["paddleocr_available"] = True
             except ImportError:
                 pass  # PaddleOCR is optional - status remains False if not installed

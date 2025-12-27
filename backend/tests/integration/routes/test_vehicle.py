@@ -3,6 +3,7 @@ Integration tests for vehicle routes.
 
 Tests vehicle CRUD operations and access control.
 """
+
 import pytest
 from httpx import AsyncClient
 
@@ -25,7 +26,9 @@ class TestVehicleRoutes:
         vehicle_ids = [v["id"] for v in data]
         assert test_vehicle["id"] in vehicle_ids
 
-    async def test_get_vehicle_by_id(self, client: AsyncClient, auth_headers, test_vehicle):
+    async def test_get_vehicle_by_id(
+        self, client: AsyncClient, auth_headers, test_vehicle
+    ):
         """Test retrieving a specific vehicle."""
         response = await client.get(
             f"/api/vehicles/{test_vehicle['id']}",
@@ -38,7 +41,9 @@ class TestVehicleRoutes:
         assert data["vin"] == test_vehicle["vin"]
         assert data["year"] == test_vehicle["year"]
 
-    async def test_create_vehicle(self, client: AsyncClient, auth_headers, sample_vehicle_payload):
+    async def test_create_vehicle(
+        self, client: AsyncClient, auth_headers, sample_vehicle_payload
+    ):
         """Test creating a new vehicle."""
         response = await client.post(
             "/api/vehicles",
@@ -52,7 +57,9 @@ class TestVehicleRoutes:
         assert data["year"] == sample_vehicle_payload["year"]
         assert "id" in data
 
-    async def test_update_vehicle(self, client: AsyncClient, auth_headers, test_vehicle):
+    async def test_update_vehicle(
+        self, client: AsyncClient, auth_headers, test_vehicle
+    ):
         """Test updating a vehicle."""
         update_data = {
             "license_plate": "UPDATED-123",
@@ -70,7 +77,9 @@ class TestVehicleRoutes:
         assert data["license_plate"] == "UPDATED-123"
         assert data["current_odometer"] == 16000
 
-    async def test_delete_vehicle(self, client: AsyncClient, auth_headers, test_vehicle):
+    async def test_delete_vehicle(
+        self, client: AsyncClient, auth_headers, test_vehicle
+    ):
         """Test deleting a vehicle."""
         response = await client.delete(
             f"/api/vehicles/{test_vehicle['id']}",

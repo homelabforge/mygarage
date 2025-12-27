@@ -3,6 +3,7 @@ Integration tests for photo upload routes.
 
 Tests photo upload, retrieval, and deletion.
 """
+
 import pytest
 from httpx import AsyncClient
 from io import BytesIO
@@ -14,16 +15,14 @@ from io import BytesIO
 class TestPhotoRoutes:
     """Test photo API endpoints."""
 
-    async def test_upload_photo(
-        self, client: AsyncClient, auth_headers, test_vehicle
-    ):
+    async def test_upload_photo(self, client: AsyncClient, auth_headers, test_vehicle):
         """Test uploading a photo to a vehicle."""
         # Create a fake image file (1x1 PNG)
         fake_png = (
-            b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01'
-            b'\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00'
-            b'\x00\x0cIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01\r\n-'
-            b'\xb4\x00\x00\x00\x00IEND\xaeB`\x82'
+            b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01"
+            b"\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00"
+            b"\x00\x0cIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01\r\n-"
+            b"\xb4\x00\x00\x00\x00IEND\xaeB`\x82"
         )
 
         response = await client.post(
@@ -52,16 +51,14 @@ class TestPhotoRoutes:
         data = response.json()
         assert isinstance(data, list) or ("photos" in data)
 
-    async def test_delete_photo(
-        self, client: AsyncClient, auth_headers, test_vehicle
-    ):
+    async def test_delete_photo(self, client: AsyncClient, auth_headers, test_vehicle):
         """Test deleting a photo."""
         # First upload a photo
         fake_png = (
-            b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01'
-            b'\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00'
-            b'\x00\x0cIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01\r\n-'
-            b'\xb4\x00\x00\x00\x00IEND\xaeB`\x82'
+            b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01"
+            b"\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00"
+            b"\x00\x0cIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01\r\n-"
+            b"\xb4\x00\x00\x00\x00IEND\xaeB`\x82"
         )
 
         upload_response = await client.post(
@@ -96,7 +93,11 @@ class TestPhotoRoutes:
             headers=auth_headers,
         )
 
-        assert response.status_code in [400, 415, 422]  # Bad request or unsupported media type
+        assert response.status_code in [
+            400,
+            415,
+            422,
+        ]  # Bad request or unsupported media type
 
     async def test_upload_exceeds_size_limit(
         self, client: AsyncClient, auth_headers, test_vehicle
@@ -113,11 +114,9 @@ class TestPhotoRoutes:
 
         assert response.status_code in [400, 413, 422]  # Payload too large
 
-    async def test_upload_photo_unauthorized(
-        self, client: AsyncClient, test_vehicle
-    ):
+    async def test_upload_photo_unauthorized(self, client: AsyncClient, test_vehicle):
         """Test that unauthenticated users cannot upload photos."""
-        fake_png = b'\x89PNG\r\n\x1a\n'
+        fake_png = b"\x89PNG\r\n\x1a\n"
 
         response = await client.post(
             f"/api/vehicles/{test_vehicle['vin']}/photos",
@@ -131,10 +130,10 @@ class TestPhotoRoutes:
     ):
         """Test setting a photo as the main photo."""
         fake_png = (
-            b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01'
-            b'\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00'
-            b'\x00\x0cIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01\r\n-'
-            b'\xb4\x00\x00\x00\x00IEND\xaeB`\x82'
+            b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01"
+            b"\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00"
+            b"\x00\x0cIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01\r\n-"
+            b"\xb4\x00\x00\x00\x00IEND\xaeB`\x82"
         )
 
         response = await client.post(
@@ -154,7 +153,7 @@ class TestPhotoRoutes:
         self, client: AsyncClient, auth_headers
     ):
         """Test uploading photo to non-existent vehicle."""
-        fake_png = b'\x89PNG\r\n\x1a\n'
+        fake_png = b"\x89PNG\r\n\x1a\n"
 
         response = await client.post(
             "/api/vehicles/INVALIDVIN1234567/photos",

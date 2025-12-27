@@ -3,6 +3,7 @@ Unit tests for VIN validation utilities.
 
 Tests VIN format validation, check digit calculation, and formatting.
 """
+
 import pytest
 
 from app.utils.vin import validate_vin, calculate_check_digit, format_vin
@@ -272,13 +273,16 @@ class TestVINValidationIntegration:
         # validate_vin should handle formatting internally
         assert is_valid is True
 
-    @pytest.mark.parametrize("vin", [
-        "1HGCM82633A123456",  # Honda Accord
-        "2HGFG12848H509766",  # Honda Civic
-        "1FTFW1ET8DFA00001",  # Ford F-150
-        "1G1ZD5ST0HF100001",  # Chevrolet Malibu
-        "JN1AZ4EH4GM300001",  # Nissan Maxima
-    ])
+    @pytest.mark.parametrize(
+        "vin",
+        [
+            "1HGCM82633A123456",  # Honda Accord
+            "2HGFG12848H509766",  # Honda Civic
+            "1FTFW1ET8DFA00001",  # Ford F-150
+            "1G1ZD5ST0HF100001",  # Chevrolet Malibu
+            "JN1AZ4EH4GM300001",  # Nissan Maxima
+        ],
+    )
     def test_validate_real_world_vins(self, vin):
         """Test validation with real-world VIN examples."""
         is_valid, error = validate_vin(vin)
@@ -287,16 +291,21 @@ class TestVINValidationIntegration:
         assert is_valid is True
         assert error is None
 
-    @pytest.mark.parametrize("invalid_vin,expected_error_substring", [
-        ("1HGCM82633A12345", "17 characters"),  # Too short
-        ("1HGCM82633A123456789", "17 characters"),  # Too long
-        ("1HGCM82633I123456", "I, O, or Q"),  # Contains I
-        ("1HGCM82633O123456", "I, O, or Q"),  # Contains O
-        ("1HGCM82633Q123456", "I, O, or Q"),  # Contains Q
-        ("1HGCM82633A!23456", "invalid characters"),  # Special char
-        ("", "17 characters"),  # Empty
-    ])
-    def test_validate_invalid_vins_with_errors(self, invalid_vin, expected_error_substring):
+    @pytest.mark.parametrize(
+        "invalid_vin,expected_error_substring",
+        [
+            ("1HGCM82633A12345", "17 characters"),  # Too short
+            ("1HGCM82633A123456789", "17 characters"),  # Too long
+            ("1HGCM82633I123456", "I, O, or Q"),  # Contains I
+            ("1HGCM82633O123456", "I, O, or Q"),  # Contains O
+            ("1HGCM82633Q123456", "I, O, or Q"),  # Contains Q
+            ("1HGCM82633A!23456", "invalid characters"),  # Special char
+            ("", "17 characters"),  # Empty
+        ],
+    )
+    def test_validate_invalid_vins_with_errors(
+        self, invalid_vin, expected_error_substring
+    ):
         """Test validation rejects invalid VINs with appropriate error messages."""
         is_valid, error = validate_vin(invalid_vin)
 

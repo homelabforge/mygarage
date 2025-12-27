@@ -77,10 +77,13 @@ async def lifespan(app: FastAPI):
 
         # Check for insecure auth_mode='none' and log warning
         from app.services.auth import get_auth_mode
+
         auth_mode = await get_auth_mode(db)
-        if auth_mode == 'none':
+        if auth_mode == "none":
             logger.warning("=" * 80)
-            logger.warning("⚠️  SECURITY WARNING: Authentication is disabled (auth_mode='none')")
+            logger.warning(
+                "⚠️  SECURITY WARNING: Authentication is disabled (auth_mode='none')"
+            )
             logger.warning("⚠️  All endpoints are accessible without authentication!")
             logger.warning("⚠️  This should NEVER be used in production environments!")
             logger.warning("=" * 80)
@@ -99,12 +102,18 @@ app = FastAPI(
 )
 
 # Configure rate limiting
-limiter = Limiter(key_func=get_remote_address, default_limits=[settings.rate_limit_default])
+limiter = Limiter(
+    key_func=get_remote_address, default_limits=[settings.rate_limit_default]
+)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Add security middleware
-from app.middleware import SecurityHeadersMiddleware, RequestIDMiddleware, CSRFProtectionMiddleware
+from app.middleware import (
+    SecurityHeadersMiddleware,
+    RequestIDMiddleware,
+    CSRFProtectionMiddleware,
+)
 from slowapi.middleware import SlowAPIMiddleware
 
 app.add_middleware(SecurityHeadersMiddleware)
@@ -134,7 +143,11 @@ app.add_middleware(
     allow_origins=settings.cors_origins,
     allow_credentials=True,  # Required for cookie-based authentication
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
-    allow_headers=["Content-Type", "Authorization", "X-CSRF-Token"],  # Added CSRF token header
+    allow_headers=[
+        "Content-Type",
+        "Authorization",
+        "X-CSRF-Token",
+    ],  # Added CSRF token header
     expose_headers=["Set-Cookie"],
     max_age=600,
 )
@@ -156,12 +169,12 @@ async def api_health_check(request: Request):
     """API health check endpoint with authenticator detection."""
     # Check for reverse proxy authenticator headers
     auth_headers = [
-        'x-forwarded-user',
-        'remote-user',
-        'x-auth-request-user',
-        'x-authentik-username',
-        'x-authentik-email',
-        'x-authelia-user',
+        "x-forwarded-user",
+        "remote-user",
+        "x-auth-request-user",
+        "x-authentik-username",
+        "x-authentik-email",
+        "x-authelia-user",
     ]
 
     authenticator_detected = any(
@@ -254,17 +267,11 @@ if static_dir.exists():
     # Serve PWA files with correct MIME types
     @app.get("/sw.js", include_in_schema=False)
     async def service_worker():
-        return FileResponse(
-            static_dir / "sw.js",
-            media_type="application/javascript"
-        )
+        return FileResponse(static_dir / "sw.js", media_type="application/javascript")
 
     @app.get("/manifest.json", include_in_schema=False)
     async def manifest():
-        return FileResponse(
-            static_dir / "manifest.json",
-            media_type="application/json"
-        )
+        return FileResponse(static_dir / "manifest.json", media_type="application/json")
 
     # Serve icon files with correct MIME type
     @app.get("/icon-192.png", include_in_schema=False)
@@ -281,7 +288,9 @@ if static_dir.exists():
         return FileResponse(static_dir / "index.html", media_type="text/html")
 
     # Mount static assets (CSS, JS, images) - must be after route definitions
-    app.mount("/assets", StaticFiles(directory=str(static_dir / "assets")), name="assets")
+    app.mount(
+        "/assets", StaticFiles(directory=str(static_dir / "assets")), name="assets"
+    )
 
     # Custom 404 handler to serve SPA for non-API routes
     @app.exception_handler(404)
@@ -301,9 +310,12 @@ if __name__ == "__main__":
     # Use same server as production (Granian) for consistency
     cmd = [
         "granian",
-        "--interface", "asgi",
-        "--host", settings.host,
-        "--port", str(settings.port),
+        "--interface",
+        "asgi",
+        "--host",
+        settings.host,
+        "--port",
+        str(settings.port),
         "app.main:app",
     ]
 

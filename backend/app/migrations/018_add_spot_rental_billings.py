@@ -28,9 +28,11 @@ def upgrade():
 
     with engine.begin() as conn:
         # Check if table already exists
-        result = conn.execute(text(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='spot_rental_billings'"
-        ))
+        result = conn.execute(
+            text(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='spot_rental_billings'"
+            )
+        )
 
         if result.fetchone() is not None:
             print("✓ spot_rental_billings table already exists, skipping migration")
@@ -39,7 +41,8 @@ def upgrade():
         print("Creating spot_rental_billings table...")
 
         # Create table
-        conn.execute(text("""
+        conn.execute(
+            text("""
             CREATE TABLE spot_rental_billings (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 spot_rental_id INTEGER NOT NULL,
@@ -53,21 +56,26 @@ def upgrade():
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (spot_rental_id) REFERENCES spot_rentals(id) ON DELETE CASCADE
             )
-        """))
+        """)
+        )
         print("  ✓ Created spot_rental_billings table")
 
         # Create index on spot_rental_id (most common query)
-        conn.execute(text("""
+        conn.execute(
+            text("""
             CREATE INDEX idx_spot_rental_billings_rental_id
             ON spot_rental_billings(spot_rental_id)
-        """))
+        """)
+        )
         print("  ✓ Created index on spot_rental_id")
 
         # Create index on billing_date (for time-based queries)
-        conn.execute(text("""
+        conn.execute(
+            text("""
             CREATE INDEX idx_spot_rental_billings_date
             ON spot_rental_billings(billing_date)
-        """))
+        """)
+        )
         print("  ✓ Created index on billing_date")
 
         print("\n✓ Spot rental billings migration completed successfully")

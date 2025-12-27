@@ -25,7 +25,7 @@ class OdometerRecordCreate(OdometerRecordBase):
                     "vin": "ML32A5HJ9KH009478",
                     "date": "2025-01-15",
                     "mileage": 45000,
-                    "notes": "Monthly reading"
+                    "notes": "Monthly reading",
                 }
             ]
         }
@@ -41,12 +41,7 @@ class OdometerRecordUpdate(BaseModel):
 
     model_config = {
         "json_schema_extra": {
-            "examples": [
-                {
-                    "mileage": 45100,
-                    "notes": "Corrected reading"
-                }
-            ]
+            "examples": [{"mileage": 45100, "notes": "Corrected reading"}]
         }
     }
 
@@ -68,10 +63,10 @@ class OdometerRecordResponse(OdometerRecordBase):
                     "date": "2025-01-15",
                     "mileage": 45000,
                     "notes": "Monthly reading",
-                    "created_at": "2025-01-15T09:00:00"
+                    "created_at": "2025-01-15T09:00:00",
                 }
             ]
-        }
+        },
     }
 
 
@@ -80,7 +75,9 @@ class OdometerRecordListResponse(BaseModel):
 
     records: list[OdometerRecordResponse]
     total: int
-    latest_mileage: Optional[int] = Field(None, description="Most recent odometer reading")
+    latest_mileage: Optional[int] = Field(
+        None, description="Most recent odometer reading"
+    )
 
     model_config = {
         "json_schema_extra": {
@@ -93,11 +90,11 @@ class OdometerRecordListResponse(BaseModel):
                             "date": "2025-01-15",
                             "mileage": 45000,
                             "notes": "Monthly reading",
-                            "created_at": "2025-01-15T09:00:00"
+                            "created_at": "2025-01-15T09:00:00",
                         }
                     ],
                     "total": 1,
-                    "latest_mileage": 45000
+                    "latest_mileage": 45000,
                 }
             ]
         }

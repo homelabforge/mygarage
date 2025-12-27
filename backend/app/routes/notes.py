@@ -24,7 +24,7 @@ router = APIRouter(prefix="/api/vehicles", tags=["notes"])
 async def list_notes(
     vin: str,
     db: Annotated[AsyncSession, Depends(get_db)] = None,
-    current_user: Optional[User] = Depends(require_auth)
+    current_user: Optional[User] = Depends(require_auth),
 ) -> NoteListResponse:
     """List all notes for a vehicle."""
     # Verify vehicle exists
@@ -50,7 +50,7 @@ async def create_note(
     vin: str,
     note_data: NoteCreate,
     db: Annotated[AsyncSession, Depends(get_db)] = None,
-    current_user: Optional[User] = Depends(require_auth)
+    current_user: Optional[User] = Depends(require_auth),
 ) -> NoteResponse:
     """Create a new note for a vehicle."""
     # Verify vehicle exists
@@ -79,12 +79,10 @@ async def get_note(
     vin: str,
     note_id: int,
     db: Annotated[AsyncSession, Depends(get_db)] = None,
-    current_user: Optional[User] = Depends(require_auth)
+    current_user: Optional[User] = Depends(require_auth),
 ) -> NoteResponse:
     """Get a specific note."""
-    result = await db.execute(
-        select(Note).where(Note.id == note_id, Note.vin == vin)
-    )
+    result = await db.execute(select(Note).where(Note.id == note_id, Note.vin == vin))
     note = result.scalar_one_or_none()
     if not note:
         raise HTTPException(status_code=404, detail="Note not found")
@@ -98,13 +96,11 @@ async def update_note(
     note_id: int,
     update_data: NoteUpdate,
     db: Annotated[AsyncSession, Depends(get_db)] = None,
-    current_user: Optional[User] = Depends(require_auth)
+    current_user: Optional[User] = Depends(require_auth),
 ) -> NoteResponse:
     """Update a note."""
     # Get note
-    result = await db.execute(
-        select(Note).where(Note.id == note_id, Note.vin == vin)
-    )
+    result = await db.execute(select(Note).where(Note.id == note_id, Note.vin == vin))
     note = result.scalar_one_or_none()
     if not note:
         raise HTTPException(status_code=404, detail="Note not found")
@@ -128,13 +124,11 @@ async def delete_note(
     vin: str,
     note_id: int,
     db: Annotated[AsyncSession, Depends(get_db)] = None,
-    current_user: Optional[User] = Depends(require_auth)
+    current_user: Optional[User] = Depends(require_auth),
 ) -> None:
     """Delete a note."""
     # Get note
-    result = await db.execute(
-        select(Note).where(Note.id == note_id, Note.vin == vin)
-    )
+    result = await db.execute(select(Note).where(Note.id == note_id, Note.vin == vin))
     note = result.scalar_one_or_none()
     if not note:
         raise HTTPException(status_code=404, detail="Note not found")

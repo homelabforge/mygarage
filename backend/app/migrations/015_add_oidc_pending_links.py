@@ -42,7 +42,8 @@ def upgrade():
 
         # Create oidc_pending_links table
         try:
-            conn.execute(text("""
+            conn.execute(
+                text("""
                 CREATE TABLE IF NOT EXISTS oidc_pending_links (
                     token TEXT PRIMARY KEY NOT NULL,
                     username TEXT NOT NULL,
@@ -53,7 +54,8 @@ def upgrade():
                     created_at TEXT NOT NULL,
                     expires_at TEXT NOT NULL
                 )
-            """))
+            """)
+            )
             print("  ✓ Created oidc_pending_links table")
         except Exception as e:
             if "already exists" in str(e).lower():
@@ -63,10 +65,12 @@ def upgrade():
 
         # Create index on token (primary key already indexed, but explicit for clarity)
         try:
-            conn.execute(text("""
+            conn.execute(
+                text("""
                 CREATE INDEX IF NOT EXISTS ix_oidc_pending_links_token
                 ON oidc_pending_links(token)
-            """))
+            """)
+            )
             print("  ✓ Created index on token")
         except Exception as e:
             if "already exists" in str(e).lower():
@@ -76,10 +80,12 @@ def upgrade():
 
         # Create index on username for efficient lookups
         try:
-            conn.execute(text("""
+            conn.execute(
+                text("""
                 CREATE INDEX IF NOT EXISTS ix_oidc_pending_link_username
                 ON oidc_pending_links(username)
-            """))
+            """)
+            )
             print("  ✓ Created index on username")
         except Exception as e:
             if "already exists" in str(e).lower():
@@ -89,10 +95,12 @@ def upgrade():
 
         # Create index on expires_at for efficient cleanup
         try:
-            conn.execute(text("""
+            conn.execute(
+                text("""
                 CREATE INDEX IF NOT EXISTS ix_oidc_pending_link_expires_at
                 ON oidc_pending_links(expires_at)
-            """))
+            """)
+            )
             print("  ✓ Created index on expires_at")
         except Exception as e:
             if "already exists" in str(e).lower():
@@ -101,9 +109,11 @@ def upgrade():
                 raise
 
         # Check if table is empty
-        result = conn.execute(text("""
+        result = conn.execute(
+            text("""
             SELECT COUNT(*) as pending_count FROM oidc_pending_links
-        """))
+        """)
+        )
         row = result.fetchone()
         pending_count = row[0] if row else 0
 
@@ -113,7 +123,9 @@ def upgrade():
         print("\n✓ OIDC pending links migration completed successfully")
         print("\nFeature enabled:")
         print("  - Username-based account linking with password verification")
-        print("  - Users prompted for password when username matches but no OIDC link exists")
+        print(
+            "  - Users prompted for password when username matches but no OIDC link exists"
+        )
         print("  - Tokens expire after 5 minutes (configurable via settings)")
         print("  - Maximum 3 password attempts per token (configurable via settings)")
         print("\nNew settings available:")

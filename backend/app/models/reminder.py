@@ -15,7 +15,9 @@ class Reminder(Base):
     __tablename__ = "reminders"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    vin: Mapped[str] = mapped_column(String(17), ForeignKey("vehicles.vin", ondelete="CASCADE"), nullable=False)
+    vin: Mapped[str] = mapped_column(
+        String(17), ForeignKey("vehicles.vin", ondelete="CASCADE"), nullable=False
+    )
     description: Mapped[str] = mapped_column(String(200), nullable=False)
     due_date: Mapped[Optional[date]] = mapped_column(Date)
     due_mileage: Mapped[Optional[int]] = mapped_column(Integer)

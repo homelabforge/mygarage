@@ -14,8 +14,9 @@ Service Types: Maintenance, Inspection, Collision, Upgrades
 import sqlite3
 import os
 
+
 def migrate():
-    db_path = os.environ.get('DATABASE_PATH', '/data/mygarage.db')
+    db_path = os.environ.get("DATABASE_PATH", "/data/mygarage.db")
 
     print(f"Connecting to database: {db_path}")
     conn = sqlite3.connect(db_path)
@@ -27,8 +28,10 @@ def migrate():
         cursor.execute("PRAGMA table_info(service_records)")
         existing_columns = [row[1] for row in cursor.fetchall()]
 
-        if 'insurance_claim' not in existing_columns:
-            cursor.execute("ALTER TABLE service_records ADD COLUMN insurance_claim VARCHAR(50)")
+        if "insurance_claim" not in existing_columns:
+            cursor.execute(
+                "ALTER TABLE service_records ADD COLUMN insurance_claim VARCHAR(50)"
+            )
             print("✓ Added insurance_claim column")
         else:
             print("✓ insurance_claim column already exists")
@@ -37,7 +40,9 @@ def migrate():
 
         # Step 2: Check if collision_records table exists
         print("\n=== Step 2: Checking for collision_records table ===")
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='collision_records'")
+        cursor.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='collision_records'"
+        )
         collision_table_exists = cursor.fetchone() is not None
 
         if collision_table_exists:
@@ -50,7 +55,9 @@ def migrate():
                 # Create backup table
                 print("\n=== Creating collision_records_backup ===")
                 cursor.execute("DROP TABLE IF EXISTS collision_records_backup")
-                cursor.execute("CREATE TABLE collision_records_backup AS SELECT * FROM collision_records")
+                cursor.execute(
+                    "CREATE TABLE collision_records_backup AS SELECT * FROM collision_records"
+                )
                 print(f"✓ Backed up {collision_count} collision records")
 
                 # Migrate collision records to service_records
@@ -78,16 +85,22 @@ def migrate():
             else:
                 print("✓ No collision records to migrate")
                 # Still create empty backup and drop table
-                cursor.execute("CREATE TABLE IF NOT EXISTS collision_records_backup AS SELECT * FROM collision_records")
+                cursor.execute(
+                    "CREATE TABLE IF NOT EXISTS collision_records_backup AS SELECT * FROM collision_records"
+                )
                 cursor.execute("DROP TABLE collision_records")
         else:
-            print("✓ collision_records table does not exist (already migrated or never created)")
+            print(
+                "✓ collision_records table does not exist (already migrated or never created)"
+            )
 
         conn.commit()
 
         # Step 3: Check if upgrade_records table exists
         print("\n=== Step 3: Checking for upgrade_records table ===")
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='upgrade_records'")
+        cursor.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='upgrade_records'"
+        )
         upgrade_table_exists = cursor.fetchone() is not None
 
         if upgrade_table_exists:
@@ -100,7 +113,9 @@ def migrate():
                 # Create backup table
                 print("\n=== Creating upgrade_records_backup ===")
                 cursor.execute("DROP TABLE IF EXISTS upgrade_records_backup")
-                cursor.execute("CREATE TABLE upgrade_records_backup AS SELECT * FROM upgrade_records")
+                cursor.execute(
+                    "CREATE TABLE upgrade_records_backup AS SELECT * FROM upgrade_records"
+                )
                 print(f"✓ Backed up {upgrade_count} upgrade records")
 
                 # Migrate upgrade records to service_records
@@ -127,16 +142,22 @@ def migrate():
             else:
                 print("✓ No upgrade records to migrate")
                 # Still create empty backup and drop table
-                cursor.execute("CREATE TABLE IF NOT EXISTS upgrade_records_backup AS SELECT * FROM upgrade_records")
+                cursor.execute(
+                    "CREATE TABLE IF NOT EXISTS upgrade_records_backup AS SELECT * FROM upgrade_records"
+                )
                 cursor.execute("DROP TABLE upgrade_records")
         else:
-            print("✓ upgrade_records table does not exist (already migrated or never created)")
+            print(
+                "✓ upgrade_records table does not exist (already migrated or never created)"
+            )
 
         conn.commit()
 
         # Step 4: Verify migration
         print("\n=== Step 4: Verifying migration ===")
-        cursor.execute("SELECT service_type, COUNT(*) FROM service_records GROUP BY service_type")
+        cursor.execute(
+            "SELECT service_type, COUNT(*) FROM service_records GROUP BY service_type"
+        )
         type_counts = cursor.fetchall()
 
         print("\nService records by type:")
@@ -164,6 +185,7 @@ def migrate():
         raise
     finally:
         conn.close()
+
 
 if __name__ == "__main__":
     migrate()

@@ -9,6 +9,13 @@ import api from '../services/api'
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { UnitConverter, UnitFormatter } from '../utils/units'
 
+const TANK_SIZES = [
+  { label: '20 lb (portable)', value: 20, gallons: 4.7 },
+  { label: '33 lb (portable)', value: 33, gallons: 7.8 },
+  { label: '100 lb (RV)', value: 100, gallons: 23.6 },
+  { label: '420 lb (RV)', value: 420, gallons: 99.1 },
+] as const
+
 interface PropaneRecordFormProps {
   vin: string
   record?: FuelRecord
@@ -87,12 +94,16 @@ export default function PropaneRecordForm({
       })(),
       vendor: extractVendor(record?.notes) || '',
       notes: record?.notes?.replace(/^Vendor: .+?\n/, '') || '',
+      tank_size_lb: record?.tank_size_lb ? parseFloat(record.tank_size_lb.toString()) : undefined,
+      tank_quantity: record?.tank_quantity ?? undefined,
     },
   })
 
   // Watch gallons and price for auto-calculation
   const gallons = watch('propane_gallons')
   const pricePerUnit = watch('price_per_unit')
+  const tankSizeLb = watch('tank_size_lb')
+  const tankQuantity = watch('tank_quantity')
 
   const [isInitialMount, setIsInitialMount] = useState(true)
 
@@ -113,6 +124,21 @@ export default function PropaneRecordForm({
     }
   }, [gallons, pricePerUnit, setValue, isInitialMount])
 
+  // Auto-calculate propane_gallons from tank data
+  useEffect(() => {
+    if (isInitialMount) return
+
+    if (tankSizeLb && tankQuantity) {
+      const calculated = (parseFloat(tankSizeLb.toString()) / 4.24) * tankQuantity
+      const convertedValue = system === 'metric'
+        ? UnitConverter.gallonsToLiters(calculated)
+        : calculated
+      if (convertedValue !== null) {
+        setValue('propane_gallons', parseFloat(convertedValue.toFixed(3)))
+      }
+    }
+  }, [tankSizeLb, tankQuantity, system, setValue, isInitialMount])
+
   const onSubmit = async (data: PropaneRecordFormData) => {
     setError(null)
 
@@ -132,6 +158,8 @@ export default function PropaneRecordForm({
         propane_gallons: system === 'metric' && data.propane_gallons
           ? UnitConverter.litersToGallons(data.propane_gallons) ?? data.propane_gallons
           : data.propane_gallons,
+        tank_size_lb: data.tank_size_lb,
+        tank_quantity: data.tank_quantity,
         price_per_unit: data.price_per_unit,
         cost: data.cost,
         fuel_type: 'Propane',  // Always propane
@@ -189,25 +217,84 @@ export default function PropaneRecordForm({
               />
               <FormError error={errors.date} />
             </div>
+          </div>
 
-            <div>
-              <label htmlFor="propane_gallons" className="block text-sm font-medium text-garage-text mb-1">
-                Propane ({UnitFormatter.getVolumeUnit(system)})
-              </label>
-              <input
-                type="number"
-                id="propane_gallons"
-                {...register('propane_gallons', { valueAsNumber: true })}
-                min="0"
-                step="0.001"
-                placeholder={system === 'imperial' ? '10.500' : '39.750'}
-                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
-                  errors.propane_gallons ? 'border-red-500' : 'border-garage-border'
-                }`}
-                disabled={isSubmitting}
-              />
-              <FormError error={errors.propane_gallons} />
+          {/* Tank Information Section */}
+          <div className="border-t border-garage-border pt-4 mt-4">
+            <h3 className="text-sm font-medium text-garage-text mb-3">
+              Tank Information (Optional)
+            </h3>
+
+            <div className="grid grid-cols-2 gap-4">
+              {/* Tank Size */}
+              <div>
+                <label htmlFor="tank_size_lb" className="block text-sm font-medium text-garage-text mb-1">
+                  Tank Size
+                </label>
+                <select
+                  id="tank_size_lb"
+                  {...register('tank_size_lb', { valueAsNumber: true })}
+                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text border-garage-border"
+                  disabled={isSubmitting}
+                >
+                  <option value="">Select tank size...</option>
+                  {TANK_SIZES.map(tank => (
+                    <option key={tank.value} value={tank.value}>
+                      {tank.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Tank Quantity */}
+              <div>
+                <label htmlFor="tank_quantity" className="block text-sm font-medium text-garage-text mb-1">
+                  Number of Tanks
+                </label>
+                <input
+                  type="number"
+                  id="tank_quantity"
+                  {...register('tank_quantity', { valueAsNumber: true })}
+                  min="1"
+                  step="1"
+                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
+                    errors.tank_quantity ? 'border-red-500' : 'border-garage-border'
+                  }`}
+                  disabled={isSubmitting}
+                />
+                <FormError error={errors.tank_quantity} />
+              </div>
             </div>
+
+            {/* Calculated Gallons Hint */}
+            {tankSizeLb && tankQuantity && (
+              <p className="text-xs text-garage-text-muted mt-2">
+                Auto-calculated: {((parseFloat(tankSizeLb.toString()) / 4.24) * tankQuantity).toFixed(2)} gallons
+                {system === 'metric' && UnitConverter.gallonsToLiters((parseFloat(tankSizeLb.toString()) / 4.24) * tankQuantity) && (
+                  ` (${UnitConverter.gallonsToLiters((parseFloat(tankSizeLb.toString()) / 4.24) * tankQuantity)?.toFixed(2)} L)`
+                )}
+              </p>
+            )}
+          </div>
+
+          {/* Propane Gallons Field */}
+          <div>
+            <label htmlFor="propane_gallons" className="block text-sm font-medium text-garage-text mb-1">
+              Propane ({UnitFormatter.getVolumeUnit(system)})
+            </label>
+            <input
+              type="number"
+              id="propane_gallons"
+              {...register('propane_gallons', { valueAsNumber: true })}
+              min="0"
+              step="0.001"
+              placeholder={system === 'imperial' ? '10.500' : '39.750'}
+              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
+                errors.propane_gallons ? 'border-red-500' : 'border-garage-border'
+              }`}
+              disabled={isSubmitting}
+            />
+            <FormError error={errors.propane_gallons} />
           </div>
 
           <div className="grid grid-cols-2 gap-4">

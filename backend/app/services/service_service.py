@@ -10,7 +10,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.service import ServiceRecord
 from app.models.attachment import Attachment
 from app.models.user import User
-from app.schemas.service import ServiceRecordCreate, ServiceRecordUpdate, ServiceRecordResponse
+from app.schemas.service import (
+    ServiceRecordCreate,
+    ServiceRecordUpdate,
+    ServiceRecordResponse,
+)
 from app.utils.cache import invalidate_cache_for_vehicle
 from app.utils.odometer_sync import sync_odometer_from_record
 
@@ -24,11 +28,7 @@ class ServiceRecordService:
         self.db = db
 
     async def list_service_records(
-        self,
-        vin: str,
-        current_user: User,
-        skip: int = 0,
-        limit: int = 100
+        self, vin: str, current_user: User, skip: int = 0, limit: int = 100
     ) -> tuple[list[ServiceRecordResponse], int]:
         """
         Get all service records for a vehicle with attachment counts.
@@ -58,13 +58,16 @@ class ServiceRecordService:
             result = await self.db.execute(
                 select(
                     ServiceRecord,
-                    func.coalesce(func.count(Attachment.id), 0).label("attachment_count")
+                    func.coalesce(func.count(Attachment.id), 0).label(
+                        "attachment_count"
+                    ),
                 )
                 .select_from(
                     outerjoin(
                         ServiceRecord,
                         Attachment,
-                        (ServiceRecord.id == Attachment.record_id) & (Attachment.record_type == "service")
+                        (ServiceRecord.id == Attachment.record_id)
+                        & (Attachment.record_type == "service"),
                     )
                 )
                 .where(ServiceRecord.vin == vin)
@@ -81,7 +84,9 @@ class ServiceRecordService:
 
             # Get total count
             count_result = await self.db.execute(
-                select(func.count()).select_from(ServiceRecord).where(ServiceRecord.vin == vin)
+                select(func.count())
+                .select_from(ServiceRecord)
+                .where(ServiceRecord.vin == vin)
             )
             total = count_result.scalar()
 
@@ -101,7 +106,7 @@ class ServiceRecordService:
                     "service_type": record.service_type,
                     "insurance_claim": record.insurance_claim,
                     "created_at": record.created_at,
-                    "attachment_count": attachment_counts.get(record.id, 0)
+                    "attachment_count": attachment_counts.get(record.id, 0),
                 }
                 record_responses.append(ServiceRecordResponse(**record_dict))
 
@@ -110,14 +115,15 @@ class ServiceRecordService:
         except HTTPException:
             raise
         except OperationalError as e:
-            logger.error("Database connection error listing service records for %s: %s", vin, e)
-            raise HTTPException(status_code=503, detail="Database temporarily unavailable")
+            logger.error(
+                "Database connection error listing service records for %s: %s", vin, e
+            )
+            raise HTTPException(
+                status_code=503, detail="Database temporarily unavailable"
+            )
 
     async def get_service_record(
-        self,
-        vin: str,
-        record_id: int,
-        current_user: User
+        self, vin: str, record_id: int, current_user: User
     ) -> ServiceRecord:
         """
         Get a specific service record by ID.
@@ -148,15 +154,14 @@ class ServiceRecordService:
         record = result.scalar_one_or_none()
 
         if not record:
-            raise HTTPException(status_code=404, detail=f"Service record {record_id} not found")
+            raise HTTPException(
+                status_code=404, detail=f"Service record {record_id} not found"
+            )
 
         return record
 
     async def create_service_record(
-        self,
-        vin: str,
-        record_data: ServiceRecordCreate,
-        current_user: User
+        self, vin: str, record_data: ServiceRecordCreate, current_user: User
     ) -> ServiceRecord:
         """
         Create a new service record.
@@ -182,7 +187,7 @@ class ServiceRecordService:
 
             # Create service record
             record_dict = record_data.model_dump()
-            record_dict['vin'] = vin
+            record_dict["vin"] = vin
             record = ServiceRecord(**record_dict)
 
             self.db.add(record)
@@ -200,10 +205,14 @@ class ServiceRecordService:
                         date=record.date,
                         mileage=record.mileage,
                         source_type="service",
-                        source_id=record.id
+                        source_id=record.id,
                     )
                 except Exception as e:
-                    logger.warning("Failed to auto-sync odometer for service record %s: %s", record.id, e)
+                    logger.warning(
+                        "Failed to auto-sync odometer for service record %s: %s",
+                        record.id,
+                        e,
+                    )
                     # Don't fail the request if odometer sync fails
 
             # Invalidate analytics cache for this vehicle
@@ -215,19 +224,29 @@ class ServiceRecordService:
             raise
         except IntegrityError as e:
             await self.db.rollback()
-            logger.error("Database constraint violation creating service record for %s: %s", vin, e)
-            raise HTTPException(status_code=409, detail="Duplicate or invalid service record")
+            logger.error(
+                "Database constraint violation creating service record for %s: %s",
+                vin,
+                e,
+            )
+            raise HTTPException(
+                status_code=409, detail="Duplicate or invalid service record"
+            )
         except OperationalError as e:
             await self.db.rollback()
-            logger.error("Database connection error creating service record for %s: %s", vin, e)
-            raise HTTPException(status_code=503, detail="Database temporarily unavailable")
+            logger.error(
+                "Database connection error creating service record for %s: %s", vin, e
+            )
+            raise HTTPException(
+                status_code=503, detail="Database temporarily unavailable"
+            )
 
     async def update_service_record(
         self,
         vin: str,
         record_id: int,
         record_data: ServiceRecordUpdate,
-        current_user: User
+        current_user: User,
     ) -> ServiceRecord:
         """
         Update an existing service record.
@@ -261,7 +280,9 @@ class ServiceRecordService:
             record = result.scalar_one_or_none()
 
             if not record:
-                raise HTTPException(status_code=404, detail=f"Service record {record_id} not found")
+                raise HTTPException(
+                    status_code=404, detail=f"Service record {record_id} not found"
+                )
 
             # Update fields
             update_data = record_data.model_dump(exclude_unset=True)
@@ -282,10 +303,14 @@ class ServiceRecordService:
                         date=record.date,
                         mileage=record.mileage,
                         source_type="service",
-                        source_id=record.id
+                        source_id=record.id,
                     )
                 except Exception as e:
-                    logger.warning("Failed to auto-sync odometer for service record %s: %s", record_id, e)
+                    logger.warning(
+                        "Failed to auto-sync odometer for service record %s: %s",
+                        record_id,
+                        e,
+                    )
                     # Don't fail the request if odometer sync fails
 
             # Invalidate analytics cache for this vehicle
@@ -297,18 +322,27 @@ class ServiceRecordService:
             raise
         except IntegrityError as e:
             await self.db.rollback()
-            logger.error("Database constraint violation updating service record %s for %s: %s", record_id, vin, e)
+            logger.error(
+                "Database constraint violation updating service record %s for %s: %s",
+                record_id,
+                vin,
+                e,
+            )
             raise HTTPException(status_code=409, detail="Database constraint violation")
         except OperationalError as e:
             await self.db.rollback()
-            logger.error("Database connection error updating service record %s for %s: %s", record_id, vin, e)
-            raise HTTPException(status_code=503, detail="Database temporarily unavailable")
+            logger.error(
+                "Database connection error updating service record %s for %s: %s",
+                record_id,
+                vin,
+                e,
+            )
+            raise HTTPException(
+                status_code=503, detail="Database temporarily unavailable"
+            )
 
     async def delete_service_record(
-        self,
-        vin: str,
-        record_id: int,
-        current_user: User
+        self, vin: str, record_id: int, current_user: User
     ) -> None:
         """
         Delete a service record.
@@ -338,7 +372,9 @@ class ServiceRecordService:
             record = result.scalar_one_or_none()
 
             if not record:
-                raise HTTPException(status_code=404, detail=f"Service record {record_id} not found")
+                raise HTTPException(
+                    status_code=404, detail=f"Service record {record_id} not found"
+                )
 
             # Delete record
             await self.db.execute(
@@ -357,9 +393,23 @@ class ServiceRecordService:
             raise
         except IntegrityError as e:
             await self.db.rollback()
-            logger.error("Database constraint violation deleting service record %s for %s: %s", record_id, vin, e)
-            raise HTTPException(status_code=409, detail="Cannot delete record with dependent data")
+            logger.error(
+                "Database constraint violation deleting service record %s for %s: %s",
+                record_id,
+                vin,
+                e,
+            )
+            raise HTTPException(
+                status_code=409, detail="Cannot delete record with dependent data"
+            )
         except OperationalError as e:
             await self.db.rollback()
-            logger.error("Database connection error deleting service record %s for %s: %s", record_id, vin, e)
-            raise HTTPException(status_code=503, detail="Database temporarily unavailable")
+            logger.error(
+                "Database connection error deleting service record %s for %s: %s",
+                record_id,
+                vin,
+                e,
+            )
+            raise HTTPException(
+                status_code=503, detail="Database temporarily unavailable"
+            )

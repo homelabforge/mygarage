@@ -15,7 +15,9 @@ class VehiclePhoto(Base):
     __tablename__ = "vehicle_photos"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    vin: Mapped[str] = mapped_column(String(17), ForeignKey("vehicles.vin", ondelete="CASCADE"), nullable=False)
+    vin: Mapped[str] = mapped_column(
+        String(17), ForeignKey("vehicles.vin", ondelete="CASCADE"), nullable=False
+    )
     file_path: Mapped[str] = mapped_column(String(255), nullable=False)
     thumbnail_path: Mapped[Optional[str]] = mapped_column(String(255))
     is_main: Mapped[bool] = mapped_column(Boolean, default=False)

@@ -39,35 +39,49 @@ class TestAnalyticsService:
 
     def test_calculate_rolling_averages(self):
         """Test rolling average calculations."""
-        df = pd.DataFrame({
-            'total_cost': [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200, 1300]
-        })
+        df = pd.DataFrame(
+            {
+                "total_cost": [
+                    100,
+                    200,
+                    300,
+                    400,
+                    500,
+                    600,
+                    700,
+                    800,
+                    900,
+                    1000,
+                    1100,
+                    1200,
+                    1300,
+                ]
+            }
+        )
 
         rolling_avgs = analytics_service.calculate_rolling_averages(df)
 
-        assert 'rolling_3m' in rolling_avgs
-        assert 'rolling_6m' in rolling_avgs
-        assert 'rolling_12m' in rolling_avgs
+        assert "rolling_3m" in rolling_avgs
+        assert "rolling_6m" in rolling_avgs
+        assert "rolling_12m" in rolling_avgs
 
         # 3-month rolling average of last 3 values: (1100 + 1200 + 1300) / 3 = 1200
-        assert rolling_avgs['rolling_3m'] == Decimal('1200.00')
+        assert rolling_avgs["rolling_3m"] == Decimal("1200.00")
 
         # 6-month rolling average
         expected_6m = sum([800, 900, 1000, 1100, 1200, 1300]) / 6
-        assert rolling_avgs['rolling_6m'] == Decimal(str(round(expected_6m, 2)))
+        assert rolling_avgs["rolling_6m"] == Decimal(str(round(expected_6m, 2)))
 
     def test_calculate_rolling_averages_insufficient_data(self):
         """Test rolling averages with insufficient data."""
-        df = pd.DataFrame({
-            'total_cost': [100, 200]
-        })
+        df = pd.DataFrame({"total_cost": [100, 200]})
 
         rolling_avgs = analytics_service.calculate_rolling_averages(df)
 
         # With only 2 months, 3m/6m/12m averages should be None
-        assert rolling_avgs['rolling_3m'] is None
-        assert rolling_avgs['rolling_6m'] is None
-        assert rolling_avgs['rolling_12m'] is None
+        assert rolling_avgs["rolling_3m"] is None
+        assert rolling_avgs["rolling_6m"] is None
+        assert rolling_avgs["rolling_12m"] is None
 
     def test_detect_anomalies_z_score(self):
         """Test anomaly detection using Z-score method."""
@@ -101,12 +115,14 @@ class TestAnalyticsService:
     def test_calculate_monthly_aggregation(self):
         """Test monthly cost aggregation."""
         # Create sample data
-        dates = pd.date_range(start='2024-01-01', end='2024-03-31', freq='D')
-        df = pd.DataFrame({
-            'date': dates,
-            'type': ['service'] * 30 + ['fuel'] * 30 + ['service'] * 31,
-            'cost': [100.0] * len(dates)
-        })
+        dates = pd.date_range(start="2024-01-01", end="2024-03-31", freq="D")
+        df = pd.DataFrame(
+            {
+                "date": dates,
+                "type": ["service"] * 30 + ["fuel"] * 30 + ["service"] * 31,
+                "cost": [100.0] * len(dates),
+            }
+        )
 
         monthly_df = analytics_service.calculate_monthly_aggregation(df)
 
@@ -114,28 +130,28 @@ class TestAnalyticsService:
         assert len(monthly_df) == 3
 
         # Check columns
-        assert 'year' in monthly_df.columns
-        assert 'month' in monthly_df.columns
-        assert 'month_name' in monthly_df.columns
-        assert 'service_cost' in monthly_df.columns
-        assert 'fuel_cost' in monthly_df.columns
-        assert 'total_cost' in monthly_df.columns
-        assert 'service_count' in monthly_df.columns
-        assert 'fuel_count' in monthly_df.columns
+        assert "year" in monthly_df.columns
+        assert "month" in monthly_df.columns
+        assert "month_name" in monthly_df.columns
+        assert "service_cost" in monthly_df.columns
+        assert "fuel_cost" in monthly_df.columns
+        assert "total_cost" in monthly_df.columns
+        assert "service_count" in monthly_df.columns
+        assert "fuel_count" in monthly_df.columns
 
         # January should have 30 service records
-        jan_row = monthly_df[monthly_df['month'] == 1].iloc[0]
-        assert jan_row['service_count'] == 30
-        assert jan_row['fuel_count'] == 0
+        jan_row = monthly_df[monthly_df["month"] == 1].iloc[0]
+        assert jan_row["service_count"] == 30
+        assert jan_row["fuel_count"] == 0
 
     def test_records_to_dataframe_empty(self):
         """Test converting empty record lists to DataFrame."""
         df = analytics_service.records_to_dataframe([], [])
 
         assert df.empty
-        assert 'date' in df.columns
-        assert 'type' in df.columns
-        assert 'cost' in df.columns
+        assert "date" in df.columns
+        assert "type" in df.columns
+        assert "cost" in df.columns
 
 
 @pytest.mark.unit

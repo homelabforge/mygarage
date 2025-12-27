@@ -14,9 +14,11 @@ class MonthlyCostSummary(BaseModel):
     month_name: str
     total_service_cost: Decimal = Field(default=Decimal("0.00"))
     total_fuel_cost: Decimal = Field(default=Decimal("0.00"))
+    total_spot_rental_cost: Decimal = Field(default=Decimal("0.00"))
     total_cost: Decimal = Field(default=Decimal("0.00"))
     service_count: int = 0
     fuel_count: int = 0
+    spot_rental_count: int = 0
 
     model_config = {"from_attributes": True}
 
@@ -242,6 +244,7 @@ class FleetAnalytics(BaseModel):
 
 
 # New analytics schemas
+
 
 class VendorAnalysis(BaseModel):
     """Analysis of costs and services by vendor."""

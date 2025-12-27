@@ -26,7 +26,7 @@ async def list_service_records(
     skip: int = 0,
     limit: int = 100,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth)
+    current_user: User = Depends(require_auth),
 ):
     """
     Get all service records for a vehicle.
@@ -46,12 +46,11 @@ async def list_service_records(
     - Admin users can access all service records
     """
     service = ServiceRecordService(db)
-    record_responses, total = await service.list_service_records(vin, current_user, skip, limit)
-
-    return ServiceRecordListResponse(
-        records=record_responses,
-        total=total
+    record_responses, total = await service.list_service_records(
+        vin, current_user, skip, limit
     )
+
+    return ServiceRecordListResponse(records=record_responses, total=total)
 
 
 @router.get("/{record_id}", response_model=ServiceRecordResponse)
@@ -59,7 +58,7 @@ async def get_service_record(
     vin: str,
     record_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth)
+    current_user: User = Depends(require_auth),
 ):
     """
     Get a specific service record.
@@ -90,7 +89,7 @@ async def create_service_record(
     vin: str,
     record_data: ServiceRecordCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth)
+    current_user: User = Depends(require_auth),
 ):
     """
     Create a new service record.
@@ -125,7 +124,7 @@ async def update_service_record(
     record_id: int,
     record_data: ServiceRecordUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth)
+    current_user: User = Depends(require_auth),
 ):
     """
     Update an existing service record.
@@ -150,7 +149,9 @@ async def update_service_record(
     - Admin users can update all service records
     """
     service = ServiceRecordService(db)
-    record = await service.update_service_record(vin, record_id, record_data, current_user)
+    record = await service.update_service_record(
+        vin, record_id, record_data, current_user
+    )
 
     return ServiceRecordResponse.model_validate(record)
 
@@ -160,7 +161,7 @@ async def delete_service_record(
     vin: str,
     record_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth)
+    current_user: User = Depends(require_auth),
 ):
     """
     Delete a service record.

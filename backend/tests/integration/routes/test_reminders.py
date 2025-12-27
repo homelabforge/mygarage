@@ -3,6 +3,7 @@ Integration tests for reminder routes.
 
 Tests reminder CRUD operations and upcoming reminders.
 """
+
 import pytest
 from httpx import AsyncClient
 from datetime import date, timedelta
@@ -237,9 +238,7 @@ class TestReminderRoutes:
 
         assert response.status_code == 422
 
-    async def test_reminder_unauthorized(
-        self, client: AsyncClient, test_vehicle
-    ):
+    async def test_reminder_unauthorized(self, client: AsyncClient, test_vehicle):
         """Test that unauthenticated users cannot create reminders."""
         tomorrow = (date.today() + timedelta(days=1)).isoformat()
 

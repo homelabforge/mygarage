@@ -23,7 +23,7 @@ class WindowStickerOCRService:
 
     def __init__(self):
         """Initialize the OCR service."""
-        self.supported_formats = {'.pdf', '.jpg', '.jpeg', '.png'}
+        self.supported_formats = {".pdf", ".jpg", ".jpeg", ".png"}
         self._paddleocr = None
 
     async def extract_data_from_file(
@@ -53,13 +53,15 @@ class WindowStickerOCRService:
             raise FileNotFoundError(f"Window sticker file not found: {file_path}")
 
         if path.suffix.lower() not in self.supported_formats:
-            raise ValueError(f"Unsupported file format: {path.suffix}. Supported: {self.supported_formats}")
+            raise ValueError(
+                f"Unsupported file format: {path.suffix}. Supported: {self.supported_formats}"
+            )
 
         logger.info("Extracting data from window sticker: %s", file_path)
 
         try:
             # Extract text based on file type
-            if path.suffix.lower() == '.pdf':
+            if path.suffix.lower() == ".pdf":
                 text = await self._extract_text_from_pdf(file_path)
             else:
                 text = await self._extract_text_from_image(file_path)
@@ -78,11 +80,16 @@ class WindowStickerOCRService:
             # Convert to dict for storage
             result = self._sticker_data_to_dict(sticker_data)
 
-            logger.info("Successfully extracted data from window sticker using %s", parser.__class__.__name__)
+            logger.info(
+                "Successfully extracted data from window sticker using %s",
+                parser.__class__.__name__,
+            )
             return result
 
         except Exception as e:
-            logger.error("Error extracting data from window sticker %s: %s", file_path, e)
+            logger.error(
+                "Error extracting data from window sticker %s: %s", file_path, e
+            )
             # Return empty dict on error - user can manually enter data
             return {}
 
@@ -122,7 +129,7 @@ class WindowStickerOCRService:
 
         try:
             # Extract text
-            if path.suffix.lower() == '.pdf':
+            if path.suffix.lower() == ".pdf":
                 text = await self._extract_text_from_pdf(file_path)
             else:
                 text = await self._extract_text_from_image(file_path)
@@ -143,7 +150,9 @@ class WindowStickerOCRService:
                 parser = get_parser_for_vehicle(vin or "", make)
 
             result["parser_name"] = parser.__class__.__name__
-            result["manufacturer_detected"] = ParserRegistry.get_manufacturer_for_vin(vin) if vin else None
+            result["manufacturer_detected"] = (
+                ParserRegistry.get_manufacturer_for_vin(vin) if vin else None
+            )
 
             # Parse
             sticker_data = parser.parse(text)
@@ -200,7 +209,9 @@ class WindowStickerOCRService:
             with fitz.open(file_path) as doc:
                 for page_num, page in enumerate(doc):
                     # Render page to image
-                    pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))  # 2x scale for better OCR
+                    pix = page.get_pixmap(
+                        matrix=fitz.Matrix(2, 2)
+                    )  # 2x scale for better OCR
                     img_data = pix.tobytes("png")
 
                     # OCR the image
@@ -275,7 +286,10 @@ class WindowStickerOCRService:
         try:
             if self._paddleocr is None:
                 from paddleocr import PaddleOCR
-                self._paddleocr = PaddleOCR(use_angle_cls=True, lang='en', show_log=False)
+
+                self._paddleocr = PaddleOCR(
+                    use_angle_cls=True, lang="en", show_log=False
+                )
 
             result = self._paddleocr.ocr(file_path, cls=True)
 
@@ -306,7 +320,10 @@ class WindowStickerOCRService:
 
             if self._paddleocr is None:
                 from paddleocr import PaddleOCR
-                self._paddleocr = PaddleOCR(use_angle_cls=True, lang='en', show_log=False)
+
+                self._paddleocr = PaddleOCR(
+                    use_angle_cls=True, lang="en", show_log=False
+                )
 
             # Convert bytes to numpy array
             image = Image.open(io.BytesIO(img_bytes))
@@ -406,7 +423,9 @@ class WindowStickerOCRService:
         if data.parser_name:
             result["window_sticker_parser_used"] = data.parser_name
         if data.confidence_score:
-            result["window_sticker_confidence_score"] = Decimal(str(data.confidence_score))
+            result["window_sticker_confidence_score"] = Decimal(
+                str(data.confidence_score)
+            )
         if data.extracted_vin:
             result["window_sticker_extracted_vin"] = data.extracted_vin
 
@@ -429,12 +448,14 @@ class WindowStickerOCRService:
 
         try:
             import fitz  # noqa: F401
+
             status["pymupdf_available"] = True
         except ImportError:
             pass  # PyMuPDF is optional - status remains False if not installed
 
         try:
             import pytesseract  # noqa: F401
+
             status["tesseract_available"] = True
         except ImportError:
             pass  # Tesseract is optional - status remains False if not installed
@@ -442,6 +463,7 @@ class WindowStickerOCRService:
         if PADDLEOCR_ENABLED:
             try:
                 from paddleocr import PaddleOCR  # noqa: F401
+
                 status["paddleocr_available"] = True
             except ImportError:
                 pass  # PaddleOCR is optional - status remains False if not installed

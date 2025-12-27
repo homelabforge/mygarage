@@ -17,17 +17,27 @@ class TollTag(Base):
     __tablename__ = "toll_tags"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    vin: Mapped[str] = mapped_column(String(17), ForeignKey("vehicles.vin", ondelete="CASCADE"), nullable=False)
-    toll_system: Mapped[str] = mapped_column(String(50), nullable=False)  # 'EZ TAG', 'TxTag', 'E-ZPass', etc.
+    vin: Mapped[str] = mapped_column(
+        String(17), ForeignKey("vehicles.vin", ondelete="CASCADE"), nullable=False
+    )
+    toll_system: Mapped[str] = mapped_column(
+        String(50), nullable=False
+    )  # 'EZ TAG', 'TxTag', 'E-ZPass', etc.
     tag_number: Mapped[str] = mapped_column(String(50), nullable=False)
-    status: Mapped[str] = mapped_column(String(20), default="active")  # 'active', 'inactive'
+    status: Mapped[str] = mapped_column(
+        String(20), default="active"
+    )  # 'active', 'inactive'
     notes: Mapped[Optional[str]] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, onupdate=func.now())
+    updated_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, onupdate=func.now()
+    )
 
     # Relationships
     vehicle: Mapped["Vehicle"] = relationship("Vehicle", back_populates="toll_tags")
-    transactions: Mapped[list["TollTransaction"]] = relationship("TollTransaction", back_populates="toll_tag", cascade="all, delete-orphan")
+    transactions: Mapped[list["TollTransaction"]] = relationship(
+        "TollTransaction", back_populates="toll_tag", cascade="all, delete-orphan"
+    )
 
     __table_args__ = (
         Index("idx_toll_tags_vin", "vin"),
@@ -41,8 +51,12 @@ class TollTransaction(Base):
     __tablename__ = "toll_transactions"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    vin: Mapped[str] = mapped_column(String(17), ForeignKey("vehicles.vin", ondelete="CASCADE"), nullable=False)
-    toll_tag_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("toll_tags.id", ondelete="SET NULL"))
+    vin: Mapped[str] = mapped_column(
+        String(17), ForeignKey("vehicles.vin", ondelete="CASCADE"), nullable=False
+    )
+    toll_tag_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("toll_tags.id", ondelete="SET NULL")
+    )
     date: Mapped[date] = mapped_column(Date, nullable=False)
     amount: Mapped[Decimal] = mapped_column(Numeric(8, 2), nullable=False)
     location: Mapped[str] = mapped_column(String(200), nullable=False)
@@ -50,8 +64,12 @@ class TollTransaction(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     # Relationships
-    vehicle: Mapped["Vehicle"] = relationship("Vehicle", back_populates="toll_transactions")
-    toll_tag: Mapped[Optional["TollTag"]] = relationship("TollTag", back_populates="transactions")
+    vehicle: Mapped["Vehicle"] = relationship(
+        "Vehicle", back_populates="toll_transactions"
+    )
+    toll_tag: Mapped[Optional["TollTag"]] = relationship(
+        "TollTag", back_populates="transactions"
+    )
 
     __table_args__ = (
         Index("idx_toll_transactions_vin", "vin"),

@@ -30,12 +30,16 @@ def get_file_extension(filename: str) -> str:
     return Path(filename).suffix.lower()
 
 
-@router.post("/service/{record_id}/attachments", response_model=AttachmentResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/service/{record_id}/attachments",
+    response_model=AttachmentResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def upload_service_attachment(
     record_id: int,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth)
+    current_user: Optional[User] = Depends(require_auth),
 ):
     """
     Upload a file attachment to a service record.
@@ -50,13 +54,13 @@ async def upload_service_attachment(
         )
         service_record = result.scalar_one_or_none()
         if not service_record:
-            raise HTTPException(status_code=404, detail=f"Service record {record_id} not found")
+            raise HTTPException(
+                status_code=404, detail=f"Service record {record_id} not found"
+            )
 
         # Upload using shared service
         upload_result = await FileUploadService.upload_file(
-            file,
-            ATTACHMENT_UPLOAD_CONFIG,
-            subdirectory=f"service/{record_id}"
+            file, ATTACHMENT_UPLOAD_CONFIG, subdirectory=f"service/{record_id}"
         )
 
         # Create database record
@@ -65,14 +69,16 @@ async def upload_service_attachment(
             record_id=record_id,
             file_path=str(upload_result.file_path),
             file_type=upload_result.content_type,
-            file_size=upload_result.file_size
+            file_size=upload_result.file_size,
         )
 
         db.add(attachment)
         await db.commit()
         await db.refresh(attachment)
 
-        logger.info("Uploaded attachment %s for service record %s", attachment.id, record_id)
+        logger.info(
+            "Uploaded attachment %s for service record %s", attachment.id, record_id
+        )
 
         return AttachmentResponse(
             id=attachment.id,
@@ -83,7 +89,7 @@ async def upload_service_attachment(
             file_size=attachment.file_size,
             uploaded_at=attachment.uploaded_at,
             download_url=f"/api/attachments/{attachment.id}/download",
-            view_url=f"/api/attachments/{attachment.id}/view"
+            view_url=f"/api/attachments/{attachment.id}/view",
         )
 
     except HTTPException:
@@ -106,7 +112,7 @@ async def upload_service_attachment(
 async def list_service_attachments(
     record_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth)
+    current_user: Optional[User] = Depends(require_auth),
 ):
     """Get all attachments for a service record."""
     try:
@@ -116,7 +122,9 @@ async def list_service_attachments(
         )
         service_record = result.scalar_one_or_none()
         if not service_record:
-            raise HTTPException(status_code=404, detail=f"Service record {record_id} not found")
+            raise HTTPException(
+                status_code=404, detail=f"Service record {record_id} not found"
+            )
 
         # Get attachments
         result = await db.execute(
@@ -142,8 +150,8 @@ async def list_service_attachments(
             # Extract original filename from path
             filename = Path(att.file_path).name
             # Remove timestamp prefix if present
-            if '_' in filename:
-                parts = filename.split('_', 2)
+            if "_" in filename:
+                parts = filename.split("_", 2)
                 if len(parts) >= 3:
                     filename = parts[2]  # Get part after timestamp
 
@@ -157,13 +165,12 @@ async def list_service_attachments(
                     file_size=att.file_size,
                     uploaded_at=att.uploaded_at,
                     download_url=f"/api/attachments/{att.id}/download",
-                    view_url=f"/api/attachments/{att.id}/view"
+                    view_url=f"/api/attachments/{att.id}/view",
                 )
             )
 
         return AttachmentListResponse(
-            attachments=attachment_responses,
-            total=total or 0
+            attachments=attachment_responses, total=total or 0
         )
 
     except HTTPException:
@@ -177,7 +184,7 @@ async def list_service_attachments(
 async def view_attachment(
     attachment_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth)
+    current_user: Optional[User] = Depends(require_auth),
 ):
     """View an attachment file inline (for preview)."""
     try:
@@ -193,12 +200,14 @@ async def view_attachment(
         file_path = Path(attachment.file_path)
         if not file_path.exists():
             logger.error("Attachment file not found: %s", attachment.file_path)
-            raise HTTPException(status_code=404, detail="Attachment file not found on disk")
+            raise HTTPException(
+                status_code=404, detail="Attachment file not found on disk"
+            )
 
         # Return file for inline viewing (no Content-Disposition header)
         return FileResponse(
             path=str(file_path),
-            media_type=attachment.file_type or 'application/octet-stream'
+            media_type=attachment.file_type or "application/octet-stream",
         )
 
     except HTTPException:
@@ -217,7 +226,7 @@ async def view_attachment(
 async def download_attachment(
     attachment_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth)
+    current_user: Optional[User] = Depends(require_auth),
 ):
     """Download an attachment file."""
     try:
@@ -233,12 +242,14 @@ async def download_attachment(
         file_path = Path(attachment.file_path)
         if not file_path.exists():
             logger.error("Attachment file not found: %s", attachment.file_path)
-            raise HTTPException(status_code=404, detail="Attachment file not found on disk")
+            raise HTTPException(
+                status_code=404, detail="Attachment file not found on disk"
+            )
 
         # Extract original filename
         filename = file_path.name
-        if '_' in filename:
-            parts = filename.split('_', 2)
+        if "_" in filename:
+            parts = filename.split("_", 2)
             if len(parts) >= 3:
                 filename = parts[2]
 
@@ -246,7 +257,7 @@ async def download_attachment(
         return FileResponse(
             path=str(file_path),
             filename=filename,
-            media_type=attachment.file_type or 'application/octet-stream'
+            media_type=attachment.file_type or "application/octet-stream",
         )
 
     except HTTPException:
@@ -265,7 +276,7 @@ async def download_attachment(
 async def delete_attachment(
     attachment_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth)
+    current_user: Optional[User] = Depends(require_auth),
 ):
     """Delete an attachment."""
     try:
@@ -284,9 +295,7 @@ async def delete_attachment(
             logger.info("Deleted file: %s", attachment.file_path)
 
         # Delete database record
-        await db.execute(
-            delete(Attachment).where(Attachment.id == attachment_id)
-        )
+        await db.execute(delete(Attachment).where(Attachment.id == attachment_id))
         await db.commit()
 
         logger.info("Deleted attachment %s", attachment_id)

@@ -55,14 +55,14 @@ async def get_public_settings(db: AsyncSession = Depends(get_db)):
 
     return SettingsListResponse(
         settings=[SettingResponse.model_validate(s) for s in settings],
-        total=len(settings)
+        total=len(settings),
     )
 
 
 @router.get("", response_model=SettingsListResponse)
 async def list_settings(
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_admin_user)
+    current_user: Optional[User] = Depends(get_current_admin_user),
 ):
     """Get all settings (admin only).
 
@@ -78,7 +78,7 @@ async def list_settings(
 
     return SettingsListResponse(
         settings=[SettingResponse.model_validate(s) for s in settings],
-        total=len(settings)
+        total=len(settings),
     )
 
 
@@ -86,7 +86,7 @@ async def list_settings(
 async def get_setting(
     key: str,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_admin_user)
+    current_user: Optional[User] = Depends(get_current_admin_user),
 ):
     """Get a specific setting by key (admin only)."""
     result = await db.execute(select(Setting).where(Setting.key == key))
@@ -102,7 +102,7 @@ async def get_setting(
 async def create_setting(
     setting: SettingCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_admin_user)
+    current_user: Optional[User] = Depends(get_current_admin_user),
 ):
     """Create a new setting (admin only)."""
     # Check if setting already exists
@@ -110,14 +110,16 @@ async def create_setting(
     existing = result.scalar_one_or_none()
 
     if existing:
-        raise HTTPException(status_code=400, detail=f"Setting '{setting.key}' already exists")
+        raise HTTPException(
+            status_code=400, detail=f"Setting '{setting.key}' already exists"
+        )
 
     # Create new setting
     db_setting = Setting(
         key=setting.key,
         value=setting.value,
         description=setting.description,
-        updated_at=dt.datetime.now()
+        updated_at=dt.datetime.now(),
     )
 
     db.add(db_setting)
@@ -133,7 +135,7 @@ async def update_setting(
     key: str,
     setting_update: SettingUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_admin_user)
+    current_user: Optional[User] = Depends(get_current_admin_user),
 ):
     """Update a setting (admin only)."""
     result = await db.execute(select(Setting).where(Setting.key == key))
@@ -146,9 +148,9 @@ async def update_setting(
     update_data = setting_update.model_dump(exclude_unset=True)
 
     # Security: Log warning when disabling authentication
-    if key == 'auth_mode' and 'value' in update_data:
-        new_auth_mode = update_data['value']
-        if new_auth_mode == 'none':
+    if key == "auth_mode" and "value" in update_data:
+        new_auth_mode = update_data["value"]
+        if new_auth_mode == "none":
             logger.warning(
                 "⚠️  SECURITY WARNING: Authentication is being disabled (auth_mode='none'). "
                 "This exposes your application to unauthorized access. Use with caution!"
@@ -170,13 +172,13 @@ async def update_setting(
 async def batch_update_settings(
     batch: SettingsBatchUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_admin_user)
+    current_user: Optional[User] = Depends(get_current_admin_user),
 ):
     """Batch update or create multiple settings (admin only)."""
     updated_settings = []
 
     # Security: Log warning when disabling authentication
-    if 'auth_mode' in batch.settings and batch.settings['auth_mode'] == 'none':
+    if "auth_mode" in batch.settings and batch.settings["auth_mode"] == "none":
         logger.warning(
             "⚠️  SECURITY WARNING: Authentication is being disabled (auth_mode='none'). "
             "This exposes your application to unauthorized access. Use with caution!"
@@ -192,11 +194,7 @@ async def batch_update_settings(
             setting.updated_at = dt.datetime.now()
         else:
             # Create new
-            setting = Setting(
-                key=key,
-                value=value,
-                updated_at=dt.datetime.now()
-            )
+            setting = Setting(key=key, value=value, updated_at=dt.datetime.now())
             db.add(setting)
 
         updated_settings.append(setting)
@@ -211,7 +209,7 @@ async def batch_update_settings(
 
     return SettingsListResponse(
         settings=[SettingResponse.model_validate(s) for s in updated_settings],
-        total=len(updated_settings)
+        total=len(updated_settings),
     )
 
 
@@ -219,7 +217,7 @@ async def batch_update_settings(
 async def delete_setting(
     key: str,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_admin_user)
+    current_user: Optional[User] = Depends(get_current_admin_user),
 ):
     """Delete a setting (admin only)."""
     result = await db.execute(select(Setting).where(Setting.key == key))
@@ -238,7 +236,7 @@ async def delete_setting(
 @router.get("/system/info", response_model=SystemInfoResponse)
 async def get_system_info(
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_admin_user)
+    current_user: Optional[User] = Depends(get_current_admin_user),
 ):
     """Get system information and statistics (admin only)."""
     # Count total vehicles
@@ -262,5 +260,5 @@ async def get_system_info(
         data_directory=str(app_settings.data_dir),
         total_vehicles=total_vehicles,
         database_size_mb=round(database_size_mb, 2),
-        uptime_seconds=round(uptime_seconds, 0)
+        uptime_seconds=round(uptime_seconds, 0),
     )

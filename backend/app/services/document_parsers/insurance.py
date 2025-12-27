@@ -22,7 +22,9 @@ class InsuranceData(DocumentData):
 
     # Policy details
     policy_number: Optional[str] = None
-    policy_type: Optional[str] = None  # Liability/Comprehensive/Collision/Full Coverage/Other
+    policy_type: Optional[str] = (
+        None  # Liability/Comprehensive/Collision/Full Coverage/Other
+    )
 
     # Dates
     start_date: Optional[str] = None  # YYYY-MM-DD format
@@ -49,20 +51,24 @@ class InsuranceData(DocumentData):
     def to_dict(self) -> dict:
         """Convert to dictionary for API response."""
         base = super().to_dict()
-        base.update({
-            "provider": self.provider,
-            "policy_number": self.policy_number,
-            "policy_type": self.policy_type,
-            "start_date": self.start_date,
-            "end_date": self.end_date,
-            "premium_amount": str(self.premium_amount) if self.premium_amount else None,
-            "premium_frequency": self.premium_frequency,
-            "deductible": str(self.deductible) if self.deductible else None,
-            "coverage_limits": self.coverage_limits,
-            "vehicles_found": self.vehicles_found,
-            "notes": self.notes,
-            "field_confidence": self.field_confidence,
-        })
+        base.update(
+            {
+                "provider": self.provider,
+                "policy_number": self.policy_number,
+                "policy_type": self.policy_type,
+                "start_date": self.start_date,
+                "end_date": self.end_date,
+                "premium_amount": str(self.premium_amount)
+                if self.premium_amount
+                else None,
+                "premium_frequency": self.premium_frequency,
+                "deductible": str(self.deductible) if self.deductible else None,
+                "coverage_limits": self.coverage_limits,
+                "vehicles_found": self.vehicles_found,
+                "notes": self.notes,
+                "field_confidence": self.field_confidence,
+            }
+        )
         return base
 
     def get_validation_warnings(self) -> list[str]:
@@ -95,18 +101,18 @@ class InsuranceDocumentParser(BaseDocumentParser):
     def _parse_date(self, date_str: str) -> Optional[str]:
         """Parse various date formats to YYYY-MM-DD."""
         date_formats = [
-            '%B %d, %Y',      # August 26, 2025
-            '%b %d, %Y',      # Aug 26, 2025
-            '%m/%d/%Y',       # 08/26/2025
-            '%m-%d-%Y',       # 08-26-2025
-            '%Y-%m-%d',       # 2025-08-26
-            '%d/%m/%Y',       # 26/08/2025
+            "%B %d, %Y",  # August 26, 2025
+            "%b %d, %Y",  # Aug 26, 2025
+            "%m/%d/%Y",  # 08/26/2025
+            "%m-%d-%Y",  # 08-26-2025
+            "%Y-%m-%d",  # 2025-08-26
+            "%d/%m/%Y",  # 26/08/2025
         ]
 
         for fmt in date_formats:
             try:
                 dt = datetime.strptime(date_str.strip(), fmt)
-                return dt.strftime('%Y-%m-%d')
+                return dt.strftime("%Y-%m-%d")
             except ValueError:
                 continue
         return None
@@ -114,37 +120,37 @@ class InsuranceDocumentParser(BaseDocumentParser):
     def _determine_frequency(self, start_date: str, end_date: str) -> str:
         """Determine payment frequency from policy period."""
         try:
-            start = datetime.strptime(start_date, '%Y-%m-%d')
-            end = datetime.strptime(end_date, '%Y-%m-%d')
+            start = datetime.strptime(start_date, "%Y-%m-%d")
+            end = datetime.strptime(end_date, "%Y-%m-%d")
             months = (end.year - start.year) * 12 + end.month - start.month
 
             if 5 <= months <= 7:
-                return 'Semi-Annual'
+                return "Semi-Annual"
             elif 11 <= months <= 13:
-                return 'Annual'
+                return "Annual"
             elif 2 <= months <= 4:
-                return 'Quarterly'
+                return "Quarterly"
             else:
-                return 'Monthly'
+                return "Monthly"
         except ValueError:
-            return 'Semi-Annual'
+            return "Semi-Annual"
 
     def _determine_policy_type(self, text: str) -> str:
         """Determine policy type from coverage information."""
         text_lower = text.lower()
 
-        if all(c in text_lower for c in ['comprehensive', 'collision', 'liability']):
-            return 'Full Coverage'
-        elif 'comprehensive' in text_lower and 'collision' in text_lower:
-            return 'Full Coverage'
-        elif 'comprehensive' in text_lower:
-            return 'Comprehensive'
-        elif 'collision' in text_lower:
-            return 'Collision'
-        elif 'liability' in text_lower:
-            return 'Liability'
+        if all(c in text_lower for c in ["comprehensive", "collision", "liability"]):
+            return "Full Coverage"
+        elif "comprehensive" in text_lower and "collision" in text_lower:
+            return "Full Coverage"
+        elif "comprehensive" in text_lower:
+            return "Comprehensive"
+        elif "collision" in text_lower:
+            return "Collision"
+        elif "liability" in text_lower:
+            return "Liability"
         else:
-            return 'Other'
+            return "Other"
 
     def _calculate_confidence(self, data: InsuranceData) -> float:
         """Calculate overall confidence score."""
@@ -167,7 +173,7 @@ class InsuranceDocumentParser(BaseDocumentParser):
             score += 10
         if data.coverage_limits:
             score += 10
-        if data.policy_type and data.policy_type != 'Other':
+        if data.policy_type and data.policy_type != "Other":
             score += 10
         if data.vehicles_found:
             score += 10
@@ -182,36 +188,36 @@ class ProgressiveInsuranceParser(InsuranceDocumentParser):
     PROVIDER_NAME = "Progressive"
 
     PATTERNS = {
-        'policy_number': [
-            r'Auto\s+(\d{10,})',
-            r'Policy\s+(?:Number|#):\s*(\d+)',
-            r'Policy:\s*Auto\s+(\d+)',
-            r'Auto Policy\s+#?\s*(\d+)',
+        "policy_number": [
+            r"Auto\s+(\d{10,})",
+            r"Policy\s+(?:Number|#):\s*(\d+)",
+            r"Policy:\s*Auto\s+(\d+)",
+            r"Auto Policy\s+#?\s*(\d+)",
         ],
-        'policy_period': [
-            r'Policy period\s+([A-Za-z]+\s+\d{1,2},\s+\d{4})\s*[-–]\s*([A-Za-z]+\s+\d{1,2},\s+\d{4})',
-            r'(\d{1,2}/\d{1,2}/\d{4})\s*[-–]\s*(\d{1,2}/\d{1,2}/\d{4})',
-            r'Effective\s+date[:\s]*([A-Za-z]+\s+\d{1,2},\s+\d{4}).*?(?:Expir|End)[^\d]*(\d{1,2}/\d{1,2}/\d{4}|[A-Za-z]+\s+\d{1,2},\s+\d{4})',
+        "policy_period": [
+            r"Policy period\s+([A-Za-z]+\s+\d{1,2},\s+\d{4})\s*[-–]\s*([A-Za-z]+\s+\d{1,2},\s+\d{4})",
+            r"(\d{1,2}/\d{1,2}/\d{4})\s*[-–]\s*(\d{1,2}/\d{1,2}/\d{4})",
+            r"Effective\s+date[:\s]*([A-Za-z]+\s+\d{1,2},\s+\d{4}).*?(?:Expir|End)[^\d]*(\d{1,2}/\d{1,2}/\d{4}|[A-Za-z]+\s+\d{1,2},\s+\d{4})",
         ],
-        'total_premium': [
-            r'Total\s+policy\s+premium\s*\$?([\d,]+\.?\d*)',
-            r'Total\s+premium\s*:?\s*\$?([\d,]+\.?\d*)',
-            r'Premium\s+total\s*:?\s*\$?([\d,]+\.?\d*)',
+        "total_premium": [
+            r"Total\s+policy\s+premium\s*\$?([\d,]+\.?\d*)",
+            r"Total\s+premium\s*:?\s*\$?([\d,]+\.?\d*)",
+            r"Premium\s+total\s*:?\s*\$?([\d,]+\.?\d*)",
         ],
-        'vehicle_premium': [
-            r'Total\s+vehicle\s+[Pp]remium\s*\$?([\d,]+\.?\d*)',
+        "vehicle_premium": [
+            r"Total\s+vehicle\s+[Pp]remium\s*\$?([\d,]+\.?\d*)",
         ],
-        'deductible': [
-            r'\$(\d+)\s+[Dd]eductible',
-            r'[Dd]eductible[:\s]*\$?(\d+)',
-            r'Comprehensive.*?\$(\d+)',
-            r'Collision.*?\$(\d+)',
+        "deductible": [
+            r"\$(\d+)\s+[Dd]eductible",
+            r"[Dd]eductible[:\s]*\$?(\d+)",
+            r"Comprehensive.*?\$(\d+)",
+            r"Collision.*?\$(\d+)",
         ],
     }
 
     def can_parse(self, text: str) -> bool:
         """Check if text appears to be from Progressive."""
-        indicators = ['progressive', 'mayfield village', 'oh 44143']
+        indicators = ["progressive", "mayfield village", "oh 44143"]
         text_lower = text.lower()
         return any(indicator in text_lower for indicator in indicators)
 
@@ -224,17 +230,17 @@ class ProgressiveInsuranceParser(InsuranceDocumentParser):
         )
 
         # Extract policy number
-        policy_num = self._extract_pattern(text, self.PATTERNS['policy_number'])
+        policy_num = self._extract_pattern(text, self.PATTERNS["policy_number"])
         if policy_num:
             data.policy_number = policy_num
-            data.field_confidence['policy_number'] = 'high'
+            data.field_confidence["policy_number"] = "high"
 
         # Extract policy period
         period = self._extract_policy_period(text)
         if period:
-            data.start_date = period['start']
-            data.end_date = period['end']
-            data.field_confidence['dates'] = 'high'
+            data.start_date = period["start"]
+            data.end_date = period["end"]
+            data.field_confidence["dates"] = "high"
 
             # Determine frequency
             data.premium_frequency = self._determine_frequency(
@@ -242,31 +248,33 @@ class ProgressiveInsuranceParser(InsuranceDocumentParser):
             )
 
         # Extract total premium
-        premium = self._extract_pattern(text, self.PATTERNS['total_premium'])
+        premium = self._extract_pattern(text, self.PATTERNS["total_premium"])
         if premium:
             data.premium_amount = self._parse_currency(premium)
-            data.field_confidence['premium_amount'] = 'high'
+            data.field_confidence["premium_amount"] = "high"
 
         # Extract all VINs
         data.vehicles_found = self._extract_all_vins(text)
 
         # If target VIN specified, extract vehicle-specific data
-        if target_vin and target_vin.upper() in [v.upper() for v in data.vehicles_found]:
+        if target_vin and target_vin.upper() in [
+            v.upper() for v in data.vehicles_found
+        ]:
             vehicle_data = self._extract_vehicle_specific_data(text, target_vin)
-            if vehicle_data.get('premium_amount'):
-                data.premium_amount = vehicle_data['premium_amount']
-                data.field_confidence['premium_amount'] = 'high'
-            if vehicle_data.get('deductible'):
-                data.deductible = vehicle_data['deductible']
-                data.field_confidence['deductible'] = 'medium'
+            if vehicle_data.get("premium_amount"):
+                data.premium_amount = vehicle_data["premium_amount"]
+                data.field_confidence["premium_amount"] = "high"
+            if vehicle_data.get("deductible"):
+                data.deductible = vehicle_data["deductible"]
+                data.field_confidence["deductible"] = "medium"
             data.extracted_vin = target_vin.upper()
 
         # Extract deductible if not already set
         if not data.deductible:
-            deductible = self._extract_pattern(text, self.PATTERNS['deductible'])
+            deductible = self._extract_pattern(text, self.PATTERNS["deductible"])
             if deductible:
                 data.deductible = self._parse_currency(deductible)
-                data.field_confidence['deductible'] = 'medium'
+                data.field_confidence["deductible"] = "medium"
 
         # Determine policy type
         data.policy_type = self._determine_policy_type(text)
@@ -274,7 +282,7 @@ class ProgressiveInsuranceParser(InsuranceDocumentParser):
         # Extract coverage limits
         data.coverage_limits = self._extract_coverage_limits(text)
         if data.coverage_limits:
-            data.field_confidence['coverage_limits'] = 'medium'
+            data.field_confidence["coverage_limits"] = "medium"
 
         # Calculate confidence
         data.confidence_score = self._calculate_confidence(data)
@@ -286,7 +294,7 @@ class ProgressiveInsuranceParser(InsuranceDocumentParser):
 
     def _extract_policy_period(self, text: str) -> Optional[dict]:
         """Extract policy period dates."""
-        for pattern in self.PATTERNS['policy_period']:
+        for pattern in self.PATTERNS["policy_period"]:
             match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
             if match:
                 start_str = match.group(1)
@@ -296,7 +304,7 @@ class ProgressiveInsuranceParser(InsuranceDocumentParser):
                 end_date = self._parse_date(end_str)
 
                 if start_date and end_date:
-                    return {'start': start_date, 'end': end_date}
+                    return {"start": start_date, "end": end_date}
         return None
 
     def _extract_vehicle_specific_data(self, text: str, vin: str) -> dict:
@@ -304,33 +312,35 @@ class ProgressiveInsuranceParser(InsuranceDocumentParser):
         data = {}
 
         # Find section for this VIN
-        vin_pattern = rf'VIN\s+{re.escape(vin)}.*?(?=VIN\s+[A-HJ-NPR-Z0-9]{{17}}|$)'
+        vin_pattern = rf"VIN\s+{re.escape(vin)}.*?(?=VIN\s+[A-HJ-NPR-Z0-9]{{17}}|$)"
         match = re.search(vin_pattern, text, re.IGNORECASE | re.DOTALL)
 
         if match:
             section = match.group(0)
 
             # Extract vehicle premium
-            vehicle_premium = self._extract_pattern(section, self.PATTERNS['vehicle_premium'])
+            vehicle_premium = self._extract_pattern(
+                section, self.PATTERNS["vehicle_premium"]
+            )
             if vehicle_premium:
-                data['premium_amount'] = self._parse_currency(vehicle_premium)
+                data["premium_amount"] = self._parse_currency(vehicle_premium)
 
             # Extract deductible
-            deductible = self._extract_pattern(section, self.PATTERNS['deductible'])
+            deductible = self._extract_pattern(section, self.PATTERNS["deductible"])
             if deductible:
-                data['deductible'] = self._parse_currency(deductible)
+                data["deductible"] = self._parse_currency(deductible)
 
         return data
 
     def _extract_coverage_limits(self, text: str) -> Optional[str]:
         """Extract coverage limit information."""
-        pattern = r'(\$?\d{2,3},?\d{3})\s+each\s+person.*?(\$?\d{2,3},?\d{3})\s+each\s+accident.*?(\$?\d{2,3},?\d{3})\s+each\s+accident'
+        pattern = r"(\$?\d{2,3},?\d{3})\s+each\s+person.*?(\$?\d{2,3},?\d{3})\s+each\s+accident.*?(\$?\d{2,3},?\d{3})\s+each\s+accident"
         match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
 
         if match:
-            bi_person = match.group(1).replace('$', '').replace(',', '')
-            bi_accident = match.group(2).replace('$', '').replace(',', '')
-            pd = match.group(3).replace('$', '').replace(',', '')
+            bi_person = match.group(1).replace("$", "").replace(",", "")
+            bi_accident = match.group(2).replace("$", "").replace(",", "")
+            pd = match.group(3).replace("$", "").replace(",", "")
             return f"Bodily Injury: {bi_person}/{bi_accident}, Property Damage: {pd}"
 
         return None
@@ -343,28 +353,28 @@ class StateFarmInsuranceParser(InsuranceDocumentParser):
     PROVIDER_NAME = "State Farm"
 
     PATTERNS = {
-        'policy_number': [
-            r'Policy\s+(?:Number|#)[:\s]*([A-Z0-9\-]+)',
-            r'Policy[:\s]*([A-Z0-9]{3,}\-[A-Z0-9\-]+)',
+        "policy_number": [
+            r"Policy\s+(?:Number|#)[:\s]*([A-Z0-9\-]+)",
+            r"Policy[:\s]*([A-Z0-9]{3,}\-[A-Z0-9\-]+)",
         ],
-        'policy_period': [
-            r'(?:Policy\s+)?[Pp]eriod[:\s]*(\d{1,2}/\d{1,2}/\d{4})\s*(?:to|[-–])\s*(\d{1,2}/\d{1,2}/\d{4})',
-            r'[Ee]ffective[:\s]*(\d{1,2}/\d{1,2}/\d{4}).*?[Ee]xpir\w*[:\s]*(\d{1,2}/\d{1,2}/\d{4})',
+        "policy_period": [
+            r"(?:Policy\s+)?[Pp]eriod[:\s]*(\d{1,2}/\d{1,2}/\d{4})\s*(?:to|[-–])\s*(\d{1,2}/\d{1,2}/\d{4})",
+            r"[Ee]ffective[:\s]*(\d{1,2}/\d{1,2}/\d{4}).*?[Ee]xpir\w*[:\s]*(\d{1,2}/\d{1,2}/\d{4})",
         ],
-        'total_premium': [
-            r'[Tt]otal\s+[Pp]remium[:\s]*\$?([\d,]+\.?\d*)',
-            r'[Pp]remium[:\s]*\$?([\d,]+\.?\d*)',
-            r'[Aa]mount\s+[Dd]ue[:\s]*\$?([\d,]+\.?\d*)',
+        "total_premium": [
+            r"[Tt]otal\s+[Pp]remium[:\s]*\$?([\d,]+\.?\d*)",
+            r"[Pp]remium[:\s]*\$?([\d,]+\.?\d*)",
+            r"[Aa]mount\s+[Dd]ue[:\s]*\$?([\d,]+\.?\d*)",
         ],
-        'deductible': [
-            r'[Dd]eductible[:\s]*\$?(\d+)',
-            r'\$(\d+)\s+[Dd]eductible',
+        "deductible": [
+            r"[Dd]eductible[:\s]*\$?(\d+)",
+            r"\$(\d+)\s+[Dd]eductible",
         ],
     }
 
     def can_parse(self, text: str) -> bool:
         """Check if text appears to be from State Farm."""
-        indicators = ['state farm', 'bloomington', 'il 61710']
+        indicators = ["state farm", "bloomington", "il 61710"]
         text_lower = text.lower()
         return any(indicator in text_lower for indicator in indicators)
 
@@ -377,13 +387,13 @@ class StateFarmInsuranceParser(InsuranceDocumentParser):
         )
 
         # Extract policy number
-        policy_num = self._extract_pattern(text, self.PATTERNS['policy_number'])
+        policy_num = self._extract_pattern(text, self.PATTERNS["policy_number"])
         if policy_num:
             data.policy_number = policy_num
-            data.field_confidence['policy_number'] = 'high'
+            data.field_confidence["policy_number"] = "high"
 
         # Extract policy period
-        for pattern in self.PATTERNS['policy_period']:
+        for pattern in self.PATTERNS["policy_period"]:
             match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
             if match:
                 start_date = self._parse_date(match.group(1))
@@ -391,15 +401,17 @@ class StateFarmInsuranceParser(InsuranceDocumentParser):
                 if start_date and end_date:
                     data.start_date = start_date
                     data.end_date = end_date
-                    data.field_confidence['dates'] = 'high'
-                    data.premium_frequency = self._determine_frequency(start_date, end_date)
+                    data.field_confidence["dates"] = "high"
+                    data.premium_frequency = self._determine_frequency(
+                        start_date, end_date
+                    )
                     break
 
         # Extract premium
-        premium = self._extract_pattern(text, self.PATTERNS['total_premium'])
+        premium = self._extract_pattern(text, self.PATTERNS["total_premium"])
         if premium:
             data.premium_amount = self._parse_currency(premium)
-            data.field_confidence['premium_amount'] = 'high'
+            data.field_confidence["premium_amount"] = "high"
 
         # Extract all VINs
         data.vehicles_found = self._extract_all_vins(text)
@@ -407,10 +419,10 @@ class StateFarmInsuranceParser(InsuranceDocumentParser):
             data.extracted_vin = target_vin.upper()
 
         # Extract deductible
-        deductible = self._extract_pattern(text, self.PATTERNS['deductible'])
+        deductible = self._extract_pattern(text, self.PATTERNS["deductible"])
         if deductible:
             data.deductible = self._parse_currency(deductible)
-            data.field_confidence['deductible'] = 'medium'
+            data.field_confidence["deductible"] = "medium"
 
         # Determine policy type
         data.policy_type = self._determine_policy_type(text)
@@ -430,28 +442,28 @@ class GeicoInsuranceParser(InsuranceDocumentParser):
     PROVIDER_NAME = "GEICO"
 
     PATTERNS = {
-        'policy_number': [
-            r'[Pp]olicy\s*(?:#|[Nn]umber)?[:\s]*(\d{10,})',
-            r'[Pp]olicy[:\s]*(\d+-\d+-\d+)',
+        "policy_number": [
+            r"[Pp]olicy\s*(?:#|[Nn]umber)?[:\s]*(\d{10,})",
+            r"[Pp]olicy[:\s]*(\d+-\d+-\d+)",
         ],
-        'policy_period': [
-            r'[Pp]olicy\s+[Pp]eriod[:\s]*(\d{1,2}/\d{1,2}/\d{2,4})\s*[-–to]+\s*(\d{1,2}/\d{1,2}/\d{2,4})',
-            r'[Ee]ffective[:\s]*(\d{1,2}/\d{1,2}/\d{4}).*?[Ee]xpir\w*[:\s]*(\d{1,2}/\d{1,2}/\d{4})',
+        "policy_period": [
+            r"[Pp]olicy\s+[Pp]eriod[:\s]*(\d{1,2}/\d{1,2}/\d{2,4})\s*[-–to]+\s*(\d{1,2}/\d{1,2}/\d{2,4})",
+            r"[Ee]ffective[:\s]*(\d{1,2}/\d{1,2}/\d{4}).*?[Ee]xpir\w*[:\s]*(\d{1,2}/\d{1,2}/\d{4})",
         ],
-        'total_premium': [
-            r'[Tt]otal\s+[Pp]olicy\s+[Pp]remium[:\s]*\$?([\d,]+\.?\d*)',
-            r'[Ss]ix[- ][Mm]onth\s+[Pp]remium[:\s]*\$?([\d,]+\.?\d*)',
-            r'[Pp]remium[:\s]*\$?([\d,]+\.?\d*)',
+        "total_premium": [
+            r"[Tt]otal\s+[Pp]olicy\s+[Pp]remium[:\s]*\$?([\d,]+\.?\d*)",
+            r"[Ss]ix[- ][Mm]onth\s+[Pp]remium[:\s]*\$?([\d,]+\.?\d*)",
+            r"[Pp]remium[:\s]*\$?([\d,]+\.?\d*)",
         ],
-        'deductible': [
-            r'[Dd]eductible[:\s]*\$?(\d+)',
-            r'\$(\d+)\s+[Dd]ed(?:uctible)?',
+        "deductible": [
+            r"[Dd]eductible[:\s]*\$?(\d+)",
+            r"\$(\d+)\s+[Dd]ed(?:uctible)?",
         ],
     }
 
     def can_parse(self, text: str) -> bool:
         """Check if text appears to be from GEICO."""
-        indicators = ['geico', 'government employees insurance']
+        indicators = ["geico", "government employees insurance"]
         text_lower = text.lower()
         return any(indicator in text_lower for indicator in indicators)
 
@@ -464,13 +476,13 @@ class GeicoInsuranceParser(InsuranceDocumentParser):
         )
 
         # Extract policy number
-        policy_num = self._extract_pattern(text, self.PATTERNS['policy_number'])
+        policy_num = self._extract_pattern(text, self.PATTERNS["policy_number"])
         if policy_num:
             data.policy_number = policy_num
-            data.field_confidence['policy_number'] = 'high'
+            data.field_confidence["policy_number"] = "high"
 
         # Extract policy period
-        for pattern in self.PATTERNS['policy_period']:
+        for pattern in self.PATTERNS["policy_period"]:
             match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
             if match:
                 start_date = self._parse_date(match.group(1))
@@ -478,15 +490,17 @@ class GeicoInsuranceParser(InsuranceDocumentParser):
                 if start_date and end_date:
                     data.start_date = start_date
                     data.end_date = end_date
-                    data.field_confidence['dates'] = 'high'
-                    data.premium_frequency = self._determine_frequency(start_date, end_date)
+                    data.field_confidence["dates"] = "high"
+                    data.premium_frequency = self._determine_frequency(
+                        start_date, end_date
+                    )
                     break
 
         # Extract premium
-        premium = self._extract_pattern(text, self.PATTERNS['total_premium'])
+        premium = self._extract_pattern(text, self.PATTERNS["total_premium"])
         if premium:
             data.premium_amount = self._parse_currency(premium)
-            data.field_confidence['premium_amount'] = 'high'
+            data.field_confidence["premium_amount"] = "high"
 
         # Extract all VINs
         data.vehicles_found = self._extract_all_vins(text)
@@ -494,10 +508,10 @@ class GeicoInsuranceParser(InsuranceDocumentParser):
             data.extracted_vin = target_vin.upper()
 
         # Extract deductible
-        deductible = self._extract_pattern(text, self.PATTERNS['deductible'])
+        deductible = self._extract_pattern(text, self.PATTERNS["deductible"])
         if deductible:
             data.deductible = self._parse_currency(deductible)
-            data.field_confidence['deductible'] = 'medium'
+            data.field_confidence["deductible"] = "medium"
 
         # Determine policy type
         data.policy_type = self._determine_policy_type(text)
@@ -505,7 +519,9 @@ class GeicoInsuranceParser(InsuranceDocumentParser):
         # Calculate confidence
         data.confidence_score = self._calculate_confidence(data)
 
-        data.notes = f"Auto-imported from GEICO PDF on {datetime.now().strftime('%Y-%m-%d')}"
+        data.notes = (
+            f"Auto-imported from GEICO PDF on {datetime.now().strftime('%Y-%m-%d')}"
+        )
 
         return data
 
@@ -517,25 +533,25 @@ class AllstateInsuranceParser(InsuranceDocumentParser):
     PROVIDER_NAME = "Allstate"
 
     PATTERNS = {
-        'policy_number': [
-            r'[Pp]olicy\s*(?:#|[Nn]umber)?[:\s]*(\d{3}\s*\d{3}\s*\d{3})',
-            r'[Pp]olicy[:\s]*([A-Z0-9]{9,})',
+        "policy_number": [
+            r"[Pp]olicy\s*(?:#|[Nn]umber)?[:\s]*(\d{3}\s*\d{3}\s*\d{3})",
+            r"[Pp]olicy[:\s]*([A-Z0-9]{9,})",
         ],
-        'policy_period': [
-            r'[Pp]olicy\s+[Pp]eriod[:\s]*(\d{1,2}/\d{1,2}/\d{4})\s*[-–to]+\s*(\d{1,2}/\d{1,2}/\d{4})',
+        "policy_period": [
+            r"[Pp]olicy\s+[Pp]eriod[:\s]*(\d{1,2}/\d{1,2}/\d{4})\s*[-–to]+\s*(\d{1,2}/\d{1,2}/\d{4})",
         ],
-        'total_premium': [
-            r'[Tt]otal\s+[Pp]remium[:\s]*\$?([\d,]+\.?\d*)',
-            r'[Pp]olicy\s+[Pp]remium[:\s]*\$?([\d,]+\.?\d*)',
+        "total_premium": [
+            r"[Tt]otal\s+[Pp]remium[:\s]*\$?([\d,]+\.?\d*)",
+            r"[Pp]olicy\s+[Pp]remium[:\s]*\$?([\d,]+\.?\d*)",
         ],
-        'deductible': [
-            r'[Dd]eductible[:\s]*\$?(\d+)',
+        "deductible": [
+            r"[Dd]eductible[:\s]*\$?(\d+)",
         ],
     }
 
     def can_parse(self, text: str) -> bool:
         """Check if text appears to be from Allstate."""
-        indicators = ['allstate', 'you\'re in good hands']
+        indicators = ["allstate", "you're in good hands"]
         text_lower = text.lower()
         return any(indicator in text_lower for indicator in indicators)
 
@@ -548,13 +564,13 @@ class AllstateInsuranceParser(InsuranceDocumentParser):
         )
 
         # Extract policy number
-        policy_num = self._extract_pattern(text, self.PATTERNS['policy_number'])
+        policy_num = self._extract_pattern(text, self.PATTERNS["policy_number"])
         if policy_num:
-            data.policy_number = policy_num.replace(' ', '')
-            data.field_confidence['policy_number'] = 'high'
+            data.policy_number = policy_num.replace(" ", "")
+            data.field_confidence["policy_number"] = "high"
 
         # Extract policy period
-        for pattern in self.PATTERNS['policy_period']:
+        for pattern in self.PATTERNS["policy_period"]:
             match = re.search(pattern, text, re.IGNORECASE)
             if match:
                 start_date = self._parse_date(match.group(1))
@@ -562,15 +578,17 @@ class AllstateInsuranceParser(InsuranceDocumentParser):
                 if start_date and end_date:
                     data.start_date = start_date
                     data.end_date = end_date
-                    data.field_confidence['dates'] = 'high'
-                    data.premium_frequency = self._determine_frequency(start_date, end_date)
+                    data.field_confidence["dates"] = "high"
+                    data.premium_frequency = self._determine_frequency(
+                        start_date, end_date
+                    )
                     break
 
         # Extract premium
-        premium = self._extract_pattern(text, self.PATTERNS['total_premium'])
+        premium = self._extract_pattern(text, self.PATTERNS["total_premium"])
         if premium:
             data.premium_amount = self._parse_currency(premium)
-            data.field_confidence['premium_amount'] = 'high'
+            data.field_confidence["premium_amount"] = "high"
 
         # Extract all VINs
         data.vehicles_found = self._extract_all_vins(text)
@@ -578,10 +596,10 @@ class AllstateInsuranceParser(InsuranceDocumentParser):
             data.extracted_vin = target_vin.upper()
 
         # Extract deductible
-        deductible = self._extract_pattern(text, self.PATTERNS['deductible'])
+        deductible = self._extract_pattern(text, self.PATTERNS["deductible"])
         if deductible:
             data.deductible = self._parse_currency(deductible)
-            data.field_confidence['deductible'] = 'medium'
+            data.field_confidence["deductible"] = "medium"
 
         # Determine policy type
         data.policy_type = self._determine_policy_type(text)
@@ -589,7 +607,9 @@ class AllstateInsuranceParser(InsuranceDocumentParser):
         # Calculate confidence
         data.confidence_score = self._calculate_confidence(data)
 
-        data.notes = f"Auto-imported from Allstate PDF on {datetime.now().strftime('%Y-%m-%d')}"
+        data.notes = (
+            f"Auto-imported from Allstate PDF on {datetime.now().strftime('%Y-%m-%d')}"
+        )
 
         return data
 
@@ -601,24 +621,24 @@ class GenericInsuranceParser(InsuranceDocumentParser):
     PROVIDER_NAME = "Unknown"
 
     PATTERNS = {
-        'policy_number': [
-            r'[Pp]olicy\s*(?:#|[Nn]o\.?|[Nn]umber)?[:\s]*([A-Z0-9\-]{6,})',
+        "policy_number": [
+            r"[Pp]olicy\s*(?:#|[Nn]o\.?|[Nn]umber)?[:\s]*([A-Z0-9\-]{6,})",
         ],
-        'policy_period': [
-            r'(\d{1,2}/\d{1,2}/\d{4})\s*[-–to]+\s*(\d{1,2}/\d{1,2}/\d{4})',
-            r'([A-Za-z]+\s+\d{1,2},\s+\d{4})\s*[-–to]+\s*([A-Za-z]+\s+\d{1,2},\s+\d{4})',
+        "policy_period": [
+            r"(\d{1,2}/\d{1,2}/\d{4})\s*[-–to]+\s*(\d{1,2}/\d{1,2}/\d{4})",
+            r"([A-Za-z]+\s+\d{1,2},\s+\d{4})\s*[-–to]+\s*([A-Za-z]+\s+\d{1,2},\s+\d{4})",
         ],
-        'total_premium': [
-            r'[Tt]otal[:\s]*\$?([\d,]+\.?\d*)',
-            r'[Pp]remium[:\s]*\$?([\d,]+\.?\d*)',
-            r'[Aa]mount[:\s]*\$?([\d,]+\.?\d*)',
+        "total_premium": [
+            r"[Tt]otal[:\s]*\$?([\d,]+\.?\d*)",
+            r"[Pp]remium[:\s]*\$?([\d,]+\.?\d*)",
+            r"[Aa]mount[:\s]*\$?([\d,]+\.?\d*)",
         ],
-        'deductible': [
-            r'[Dd]eductible[:\s]*\$?(\d+)',
-            r'\$(\d+)\s+[Dd]ed',
+        "deductible": [
+            r"[Dd]eductible[:\s]*\$?(\d+)",
+            r"\$(\d+)\s+[Dd]ed",
         ],
-        'provider': [
-            r'(Progressive|State Farm|Geico|GEICO|Allstate|Farmers|USAA|Nationwide|Liberty Mutual|Travelers)',
+        "provider": [
+            r"(Progressive|State Farm|Geico|GEICO|Allstate|Farmers|USAA|Nationwide|Liberty Mutual|Travelers)",
         ],
     }
 
@@ -634,21 +654,21 @@ class GenericInsuranceParser(InsuranceDocumentParser):
         )
 
         # Try to detect provider
-        provider = self._extract_pattern(text, self.PATTERNS['provider'])
+        provider = self._extract_pattern(text, self.PATTERNS["provider"])
         if provider:
             data.provider = provider
-            data.field_confidence['provider'] = 'medium'
+            data.field_confidence["provider"] = "medium"
         else:
             data.provider = self.PROVIDER_NAME
 
         # Extract policy number
-        policy_num = self._extract_pattern(text, self.PATTERNS['policy_number'])
+        policy_num = self._extract_pattern(text, self.PATTERNS["policy_number"])
         if policy_num:
             data.policy_number = policy_num
-            data.field_confidence['policy_number'] = 'medium'
+            data.field_confidence["policy_number"] = "medium"
 
         # Extract policy period
-        for pattern in self.PATTERNS['policy_period']:
+        for pattern in self.PATTERNS["policy_period"]:
             match = re.search(pattern, text, re.IGNORECASE)
             if match:
                 start_date = self._parse_date(match.group(1))
@@ -656,15 +676,17 @@ class GenericInsuranceParser(InsuranceDocumentParser):
                 if start_date and end_date:
                     data.start_date = start_date
                     data.end_date = end_date
-                    data.field_confidence['dates'] = 'medium'
-                    data.premium_frequency = self._determine_frequency(start_date, end_date)
+                    data.field_confidence["dates"] = "medium"
+                    data.premium_frequency = self._determine_frequency(
+                        start_date, end_date
+                    )
                     break
 
         # Extract premium
-        premium = self._extract_pattern(text, self.PATTERNS['total_premium'])
+        premium = self._extract_pattern(text, self.PATTERNS["total_premium"])
         if premium:
             data.premium_amount = self._parse_currency(premium)
-            data.field_confidence['premium_amount'] = 'low'
+            data.field_confidence["premium_amount"] = "low"
 
         # Extract all VINs
         data.vehicles_found = self._extract_all_vins(text)
@@ -672,10 +694,10 @@ class GenericInsuranceParser(InsuranceDocumentParser):
             data.extracted_vin = target_vin.upper()
 
         # Extract deductible
-        deductible = self._extract_pattern(text, self.PATTERNS['deductible'])
+        deductible = self._extract_pattern(text, self.PATTERNS["deductible"])
         if deductible:
             data.deductible = self._parse_currency(deductible)
-            data.field_confidence['deductible'] = 'low'
+            data.field_confidence["deductible"] = "low"
 
         # Determine policy type
         data.policy_type = self._determine_policy_type(text)

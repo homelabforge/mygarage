@@ -40,6 +40,7 @@ def get_token_from_request(
 
     return None
 
+
 # Initialize Argon2 password hasher with recommended parameters
 # time_cost=2, memory_cost=102400 (100MB), parallelism=8
 ph = PasswordHasher(time_cost=2, memory_cost=102400, parallelism=8)
@@ -52,10 +53,11 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     Argon2 hashes start with '$argon2', bcrypt hashes start with '$2b$'.
     """
     import logging
+
     logger = logging.getLogger(__name__)
 
     # Detect hash type
-    if hashed_password.startswith('$argon2'):
+    if hashed_password.startswith("$argon2"):
         # Argon2 hash - use argon2-cffi
         try:
             ph.verify(hashed_password, plain_password)
@@ -67,14 +69,17 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         # This allows gradual migration without breaking existing passwords
         try:
             import bcrypt
-            password_bytes = plain_password.encode('utf-8')
+
+            password_bytes = plain_password.encode("utf-8")
 
             # bcrypt v5.0+ has 72-byte limitation
             if len(password_bytes) > 72:
-                logger.debug("Password verification failed: exceeds 72 bytes (bcrypt legacy)")
+                logger.debug(
+                    "Password verification failed: exceeds 72 bytes (bcrypt legacy)"
+                )
                 return False
 
-            return bcrypt.checkpw(password_bytes, hashed_password.encode('utf-8'))
+            return bcrypt.checkpw(password_bytes, hashed_password.encode("utf-8"))
         except Exception as e:
             logger.error("Error verifying bcrypt password: %s", e)
             return False
@@ -99,12 +104,16 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     if expires_delta:
         expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(minutes=settings.access_token_expire_minutes)
+        expire = datetime.now(timezone.utc) + timedelta(
+            minutes=settings.access_token_expire_minutes
+        )
 
     to_encode.update({"exp": expire, "iat": datetime.now(timezone.utc)})
     header = {"alg": settings.algorithm}
     encoded_jwt = jwt.encode(header, to_encode, settings.secret_key)
-    return encoded_jwt.decode('utf-8') if isinstance(encoded_jwt, bytes) else encoded_jwt
+    return (
+        encoded_jwt.decode("utf-8") if isinstance(encoded_jwt, bytes) else encoded_jwt
+    )
 
 
 async def get_current_user(
@@ -114,6 +123,7 @@ async def get_current_user(
 ) -> User:
     """Get the current authenticated user from JWT token (cookie or header)."""
     import logging
+
     logger = logging.getLogger(__name__)
 
     credentials_exception = HTTPException(
@@ -124,7 +134,9 @@ async def get_current_user(
 
     if not token:
         # Enhanced logging to help diagnose authentication issues
-        logger.error("No credentials provided - %s %s", request.method, request.url.path)
+        logger.error(
+            "No credentials provided - %s %s", request.method, request.url.path
+        )
         raise credentials_exception
 
     # Security: Do not log token data
@@ -188,7 +200,9 @@ async def get_optional_user(
         return None
 
 
-async def get_current_active_user(current_user: User = Depends(get_current_user)) -> User:
+async def get_current_active_user(
+    current_user: User = Depends(get_current_user),
+) -> User:
     """Get the current active user."""
     if not current_user.is_active:
         raise HTTPException(
@@ -213,7 +227,7 @@ async def get_current_admin_user(
     auth_mode = await get_auth_mode(db)
 
     # If auth is disabled, return None (allow all access)
-    if auth_mode == 'none':
+    if auth_mode == "none":
         return None
 
     # Auth is enabled - get current user
@@ -228,12 +242,15 @@ async def get_current_admin_user(
     return current_user
 
 
-async def authenticate_user(db: AsyncSession, username: str, password: str) -> Optional[User]:
+async def authenticate_user(
+    db: AsyncSession, username: str, password: str
+) -> Optional[User]:
     """Authenticate a user by username and password.
 
     Auto-rehashes legacy bcrypt passwords to Argon2 on successful login.
     """
     import logging
+
     logger = logging.getLogger(__name__)
 
     result = await db.execute(select(User).where(User.username == username))
@@ -251,7 +268,7 @@ async def authenticate_user(db: AsyncSession, username: str, password: str) -> O
         return None
 
     # Auto-migrate legacy bcrypt hashes to Argon2
-    if not user.hashed_password.startswith('$argon2'):
+    if not user.hashed_password.startswith("$argon2"):
         logger.info("Auto-migrating password hash to Argon2 for user: %s", username)
         user.hashed_password = hash_password(password)
         await db.commit()
@@ -289,7 +306,7 @@ async def get_auth_mode(db: AsyncSession) -> str:
         return auth_mode_setting.value.lower()
 
     # Default to 'local' if not set
-    return 'local'
+    return "local"
 
 
 async def optional_auth(
@@ -304,7 +321,7 @@ async def optional_auth(
     """
     auth_mode = await get_auth_mode(db)
 
-    if auth_mode == 'none':
+    if auth_mode == "none":
         return None
 
     # Auth optional - try to get current user, but don't raise if missing
@@ -331,18 +348,14 @@ async def require_auth(
     auth_mode = await get_auth_mode(db)
 
     # If auth is disabled, return None (no user)
-    if auth_mode == 'none':
+    if auth_mode == "none":
         return None
 
     # Auth is enabled - enforce authentication
     return await get_current_user(request, db, token)
 
 
-async def get_vehicle_or_403(
-    vin: str,
-    current_user: Optional[User],
-    db: AsyncSession
-):
+async def get_vehicle_or_403(vin: str, current_user: Optional[User], db: AsyncSession):
     """Get vehicle if user owns it or is admin, else raise 403.
 
     Args:
@@ -374,10 +387,9 @@ async def get_vehicle_or_403(
         return vehicle
 
     # Check if vehicle belongs to user
-    if not hasattr(vehicle, 'user_id') or vehicle.user_id != current_user.id:
+    if not hasattr(vehicle, "user_id") or vehicle.user_id != current_user.id:
         raise HTTPException(
-            status_code=403,
-            detail="Not authorized to access this vehicle"
+            status_code=403, detail="Not authorized to access this vehicle"
         )
 
     return vehicle
@@ -402,8 +414,7 @@ def check_vehicle_ownership(vehicle, current_user: Optional[User]) -> None:
         return
 
     # Check if vehicle belongs to user
-    if not hasattr(vehicle, 'user_id') or vehicle.user_id != current_user.id:
+    if not hasattr(vehicle, "user_id") or vehicle.user_id != current_user.id:
         raise HTTPException(
-            status_code=403,
-            detail="Not authorized to access this vehicle"
+            status_code=403, detail="Not authorized to access this vehicle"
         )

@@ -29,7 +29,7 @@ class AttachmentCreate(AttachmentBase):
                     "file_name": "oil_change_receipt.pdf",
                     "file_type": "application/pdf",
                     "file_size": 245678,
-                    "file_path": "/data/attachments/service/123/20250106_120000_oil_change_receipt.pdf"
+                    "file_path": "/data/attachments/service/123/20250106_120000_oil_change_receipt.pdf",
                 }
             ]
         }
@@ -58,10 +58,10 @@ class AttachmentResponse(AttachmentBase):
                     "file_type": "application/pdf",
                     "file_size": 245678,
                     "uploaded_at": "2025-01-06T12:00:00",
-                    "download_url": "/api/attachments/1/download"
+                    "download_url": "/api/attachments/1/download",
                 }
             ]
-        }
+        },
     }
 
 
@@ -84,10 +84,10 @@ class AttachmentListResponse(BaseModel):
                             "file_type": "application/pdf",
                             "file_size": 245678,
                             "uploaded_at": "2025-01-06T12:00:00",
-                            "download_url": "/api/attachments/1/download"
+                            "download_url": "/api/attachments/1/download",
                         }
                     ],
-                    "total": 1
+                    "total": 1,
                 }
             ]
         }

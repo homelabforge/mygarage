@@ -14,6 +14,7 @@ export const VEHICLE_TYPES = [
   'RV',
   'Trailer',
   'FifthWheel',
+  'TravelTrailer',
   'Electric',
   'Hybrid',
 ] as const

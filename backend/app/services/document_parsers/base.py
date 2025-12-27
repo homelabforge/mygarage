@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 class DocumentType(Enum):
     """Types of documents that can be parsed."""
+
     WINDOW_STICKER = "window_sticker"
     INSURANCE = "insurance"
     # Future types can be added here
@@ -57,8 +58,8 @@ class BaseDocumentParser(ABC):
     DOCUMENT_TYPE: DocumentType = DocumentType.WINDOW_STICKER
 
     # Common regex patterns
-    VIN_PATTERN = r'[A-HJ-NPR-Z0-9]{17}'
-    PRICE_PATTERN = r'\$?\s*([\d,]+\.?\d*)'
+    VIN_PATTERN = r"[A-HJ-NPR-Z0-9]{17}"
+    PRICE_PATTERN = r"\$?\s*([\d,]+\.?\d*)"
 
     def __init__(self):
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
@@ -93,11 +94,12 @@ class BaseDocumentParser(ABC):
     def _extract_price(self, text: str, patterns: list[str]) -> Optional[Decimal]:
         """Extract a price value using multiple patterns."""
         import decimal
+
         for pattern in patterns:
             match = re.search(pattern, text, re.IGNORECASE)
             if match:
                 try:
-                    value = match.group(1).replace(',', '').replace('$', '')
+                    value = match.group(1).replace(",", "").replace("$", "")
                     return Decimal(value)
                 except (ValueError, IndexError, decimal.InvalidOperation):
                     continue
@@ -107,17 +109,17 @@ class BaseDocumentParser(ABC):
         """Extract VIN from text."""
         # Look for VIN label first
         vin_patterns = [
-            r'VIN[:\s]*([A-HJ-NPR-Z0-9\-\s]{17,21})',
-            r'V\.I\.N\.[:\s]*([A-HJ-NPR-Z0-9\-\s]{17,21})',
-            r'VEHICLE\s*IDENTIFICATION\s*NUMBER[:\s]*([A-HJ-NPR-Z0-9\-\s]{17,21})',
+            r"VIN[:\s]*([A-HJ-NPR-Z0-9\-\s]{17,21})",
+            r"V\.I\.N\.[:\s]*([A-HJ-NPR-Z0-9\-\s]{17,21})",
+            r"VEHICLE\s*IDENTIFICATION\s*NUMBER[:\s]*([A-HJ-NPR-Z0-9\-\s]{17,21})",
         ]
 
         for pattern in vin_patterns:
             match = re.search(pattern, text, re.IGNORECASE)
             if match:
                 vin = match.group(1).upper()
-                vin = re.sub(r'[\-\s]', '', vin)
-                if len(vin) == 17 and re.match(r'^[A-HJ-NPR-Z0-9]{17}$', vin):
+                vin = re.sub(r"[\-\s]", "", vin)
+                if len(vin) == 17 and re.match(r"^[A-HJ-NPR-Z0-9]{17}$", vin):
                     return vin
 
         # Fallback: find any 17-char alphanumeric
@@ -148,7 +150,7 @@ class BaseDocumentParser(ABC):
     def _parse_currency(self, value: str) -> Optional[Decimal]:
         """Parse currency string to Decimal."""
         try:
-            cleaned = value.replace('$', '').replace(',', '').strip()
+            cleaned = value.replace("$", "").replace(",", "").strip()
             return Decimal(cleaned)
         except (ValueError, InvalidOperation, AttributeError) as e:
             logger.debug("Failed to parse currency value '%s': %s", value, e)

@@ -15,7 +15,9 @@ class Recall(Base):
     __tablename__ = "recalls"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    vin: Mapped[str] = mapped_column(String(17), ForeignKey("vehicles.vin", ondelete="CASCADE"), nullable=False)
+    vin: Mapped[str] = mapped_column(
+        String(17), ForeignKey("vehicles.vin", ondelete="CASCADE"), nullable=False
+    )
     nhtsa_campaign_number: Mapped[Optional[str]] = mapped_column(String(20))
     component: Mapped[Optional[str]] = mapped_column(String(100))
     summary: Mapped[Optional[str]] = mapped_column(Text)

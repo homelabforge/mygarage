@@ -56,14 +56,24 @@ class Settings(BaseSettings):
     allowed_photo_extensions: set = {".jpg", ".jpeg", ".png", ".webp", ".heic"}
     allowed_attachment_extensions: set = {".jpg", ".jpeg", ".png", ".gif", ".pdf"}
     allowed_document_extensions: set = {
-        ".pdf", ".doc", ".docx", ".xls", ".xlsx",
-        ".txt", ".csv", ".jpg", ".jpeg", ".png"
+        ".pdf",
+        ".doc",
+        ".docx",
+        ".xls",
+        ".xlsx",
+        ".txt",
+        ".csv",
+        ".jpg",
+        ".jpeg",
+        ".png",
     }
 
     # MIME types for validation
     allowed_attachment_mime_types: set = {
-        "image/jpeg", "image/png", "image/gif",
-        "application/pdf"
+        "image/jpeg",
+        "image/png",
+        "image/gif",
+        "application/pdf",
     }
 
     # JWT Authentication
@@ -101,7 +111,9 @@ class Settings(BaseSettings):
 
     # Security Settings
     auth_enabled: bool = True
-    allow_auth_none: bool = False  # Allow auth_mode='none' in production (security risk!)
+    allow_auth_none: bool = (
+        False  # Allow auth_mode='none' in production (security risk!)
+    )
     cors_origins: list = [
         "http://localhost:3000",
         "http://localhost:5173",
@@ -122,10 +134,15 @@ class Settings(BaseSettings):
         if env_origins:
             return [origin.strip() for origin in env_origins.split(",")]
         return self.cors_origins  # Default localhost list
+
     rate_limit_default: str = "200/minute"
     rate_limit_uploads: str = "20/minute"
-    rate_limit_auth: str = "5/minute"  # Strict limit for auth endpoints to prevent brute force
-    rate_limit_exports: str = "5/minute"  # Strict limit for expensive export operations (PDF/CSV)
+    rate_limit_auth: str = (
+        "5/minute"  # Strict limit for auth endpoints to prevent brute force
+    )
+    rate_limit_exports: str = (
+        "5/minute"  # Strict limit for expensive export operations (PDF/CSV)
+    )
 
     # CSV Import Settings
     max_csv_size_mb: int = 10

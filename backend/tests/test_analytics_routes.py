@@ -17,12 +17,12 @@ class TestAnalyticsEndpoints:
         self,
         client: AsyncClient,
         vehicle_with_analytics_data: Vehicle,
-        auth_headers: dict
+        auth_headers: dict,
     ):
         """Test getting vehicle analytics with sufficient data."""
         response = await client.get(
             f"/api/analytics/vehicles/{vehicle_with_analytics_data.vin}",
-            headers=auth_headers
+            headers=auth_headers,
         )
 
         assert response.status_code == 200
@@ -47,14 +47,11 @@ class TestAnalyticsEndpoints:
         assert isinstance(cost_analysis["anomalies"], list)
 
     async def test_get_vehicle_analytics_invalid_vin(
-        self,
-        client: AsyncClient,
-        auth_headers: dict
+        self, client: AsyncClient, auth_headers: dict
     ):
         """Test getting analytics for non-existent vehicle."""
         response = await client.get(
-            "/api/analytics/vehicles/INVALIDVIN123",
-            headers=auth_headers
+            "/api/analytics/vehicles/INVALIDVIN123", headers=auth_headers
         )
 
         assert response.status_code == 404
@@ -63,12 +60,12 @@ class TestAnalyticsEndpoints:
         self,
         client: AsyncClient,
         vehicle_with_service_records: Vehicle,
-        auth_headers: dict
+        auth_headers: dict,
     ):
         """Test getting vendor analytics."""
         response = await client.get(
             f"/api/analytics/vehicles/{vehicle_with_service_records.vin}/vendors",
-            headers=auth_headers
+            headers=auth_headers,
         )
 
         assert response.status_code == 200
@@ -82,12 +79,12 @@ class TestAnalyticsEndpoints:
         self,
         client: AsyncClient,
         vehicle_with_service_records: Vehicle,
-        auth_headers: dict
+        auth_headers: dict,
     ):
         """Test getting seasonal analytics."""
         response = await client.get(
             f"/api/analytics/vehicles/{vehicle_with_service_records.vin}/seasonal",
-            headers=auth_headers
+            headers=auth_headers,
         )
 
         assert response.status_code == 200
@@ -105,7 +102,7 @@ class TestAnalyticsEndpoints:
         self,
         client: AsyncClient,
         vehicle_with_analytics_data: Vehicle,
-        auth_headers: dict
+        auth_headers: dict,
     ):
         """Test period comparison endpoint."""
         response = await client.get(
@@ -114,9 +111,9 @@ class TestAnalyticsEndpoints:
                 "period1_start": "2024-01-01",
                 "period1_end": "2024-03-31",
                 "period2_start": "2024-04-01",
-                "period2_end": "2024-06-30"
+                "period2_end": "2024-06-30",
             },
-            headers=auth_headers
+            headers=auth_headers,
         )
 
         # May return 200 or 400 depending on data availability
@@ -133,10 +130,7 @@ class TestAnalyticsEndpoints:
             assert "category_changes" in data
 
     async def test_compare_periods_missing_params(
-        self,
-        client: AsyncClient,
-        test_vehicle: Vehicle,
-        auth_headers: dict
+        self, client: AsyncClient, test_vehicle: Vehicle, auth_headers: dict
     ):
         """Test period comparison with missing parameters."""
         response = await client.get(
@@ -145,7 +139,7 @@ class TestAnalyticsEndpoints:
                 "period1_start": "2024-01-01",
                 # Missing other required params
             },
-            headers=auth_headers
+            headers=auth_headers,
         )
 
         # Should return 422 for validation error
@@ -155,12 +149,12 @@ class TestAnalyticsEndpoints:
         self,
         client: AsyncClient,
         vehicle_with_analytics_data: Vehicle,
-        auth_headers: dict
+        auth_headers: dict,
     ):
         """Test PDF export endpoint."""
         response = await client.get(
             f"/api/analytics/vehicles/{vehicle_with_analytics_data.vin}/export",
-            headers=auth_headers
+            headers=auth_headers,
         )
 
         assert response.status_code == 200
@@ -171,16 +165,10 @@ class TestAnalyticsEndpoints:
         assert len(response.content) > 0
 
     async def test_fleet_analytics(
-        self,
-        client: AsyncClient,
-        test_user: User,
-        auth_headers: dict
+        self, client: AsyncClient, test_user: User, auth_headers: dict
     ):
         """Test fleet-wide analytics endpoint."""
-        response = await client.get(
-            "/api/analytics/fleet",
-            headers=auth_headers
-        )
+        response = await client.get("/api/analytics/fleet", headers=auth_headers)
 
         assert response.status_code == 200
         data = response.json()
@@ -202,26 +190,18 @@ class TestAnalyticsEndpoints:
 @pytest.mark.analytics
 @pytest.mark.asyncio
 async def test_analytics_caching(
-    client: AsyncClient,
-    vehicle_with_analytics_data: Vehicle,
-    auth_headers: dict
+    client: AsyncClient, vehicle_with_analytics_data: Vehicle, auth_headers: dict
 ):
     """Test that analytics results are cached."""
     vin = vehicle_with_analytics_data.vin
 
     # First request - should hit database
-    response1 = await client.get(
-        f"/api/analytics/vehicles/{vin}",
-        headers=auth_headers
-    )
+    response1 = await client.get(f"/api/analytics/vehicles/{vin}", headers=auth_headers)
     assert response1.status_code == 200
     data1 = response1.json()
 
     # Second request - should be from cache (faster)
-    response2 = await client.get(
-        f"/api/analytics/vehicles/{vin}",
-        headers=auth_headers
-    )
+    response2 = await client.get(f"/api/analytics/vehicles/{vin}", headers=auth_headers)
     assert response2.status_code == 200
     data2 = response2.json()
 
@@ -233,14 +213,12 @@ async def test_analytics_caching(
 @pytest.mark.analytics
 @pytest.mark.asyncio
 async def test_anomaly_detection(
-    client: AsyncClient,
-    vehicle_with_analytics_data: Vehicle,
-    auth_headers: dict
+    client: AsyncClient, vehicle_with_analytics_data: Vehicle, auth_headers: dict
 ):
     """Test that anomaly detection is working."""
     response = await client.get(
         f"/api/analytics/vehicles/{vehicle_with_analytics_data.vin}",
-        headers=auth_headers
+        headers=auth_headers,
     )
 
     assert response.status_code == 200

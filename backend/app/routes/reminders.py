@@ -26,7 +26,7 @@ async def list_reminders(
     vin: str,
     include_completed: bool = False,
     db: Annotated[AsyncSession, Depends(get_db)] = None,
-    current_user: Optional[User] = Depends(require_auth)
+    current_user: Optional[User] = Depends(require_auth),
 ) -> ReminderListResponse:
     """List all reminders for a vehicle."""
     # Verify vehicle exists
@@ -41,7 +41,9 @@ async def list_reminders(
     if not include_completed:
         query = query.where(Reminder.is_completed.is_(False))
 
-    query = query.order_by(Reminder.due_date.asc().nullslast(), Reminder.due_mileage.asc().nullslast())
+    query = query.order_by(
+        Reminder.due_date.asc().nullslast(), Reminder.due_mileage.asc().nullslast()
+    )
 
     # Get reminders
     result = await db.execute(query)
@@ -75,7 +77,7 @@ async def create_reminder(
     vin: str,
     reminder_data: ReminderCreate,
     db: Annotated[AsyncSession, Depends(get_db)] = None,
-    current_user: Optional[User] = Depends(require_auth)
+    current_user: Optional[User] = Depends(require_auth),
 ) -> ReminderResponse:
     """Create a new reminder for a vehicle."""
     # Verify vehicle exists
@@ -123,7 +125,7 @@ async def get_reminder(
     vin: str,
     reminder_id: int,
     db: Annotated[AsyncSession, Depends(get_db)] = None,
-    current_user: Optional[User] = Depends(require_auth)
+    current_user: Optional[User] = Depends(require_auth),
 ) -> ReminderResponse:
     """Get a specific reminder."""
     result = await db.execute(
@@ -142,7 +144,7 @@ async def update_reminder(
     reminder_id: int,
     update_data: ReminderUpdate,
     db: Annotated[AsyncSession, Depends(get_db)] = None,
-    current_user: Optional[User] = Depends(require_auth)
+    current_user: Optional[User] = Depends(require_auth),
 ) -> ReminderResponse:
     """Update a reminder."""
     # Get reminder
@@ -188,7 +190,7 @@ async def delete_reminder(
     vin: str,
     reminder_id: int,
     db: Annotated[AsyncSession, Depends(get_db)] = None,
-    current_user: Optional[User] = Depends(require_auth)
+    current_user: Optional[User] = Depends(require_auth),
 ) -> None:
     """Delete a reminder."""
     # Get reminder
@@ -208,7 +210,7 @@ async def complete_reminder(
     vin: str,
     reminder_id: int,
     db: Annotated[AsyncSession, Depends(get_db)] = None,
-    current_user: Optional[User] = Depends(require_auth)
+    current_user: Optional[User] = Depends(require_auth),
 ) -> ReminderResponse:
     """Mark a reminder as completed."""
     # Get reminder
@@ -231,12 +233,14 @@ async def complete_reminder(
     return ReminderResponse.model_validate(reminder)
 
 
-@router.post("/{vin}/reminders/{reminder_id}/uncomplete", response_model=ReminderResponse)
+@router.post(
+    "/{vin}/reminders/{reminder_id}/uncomplete", response_model=ReminderResponse
+)
 async def uncomplete_reminder(
     vin: str,
     reminder_id: int,
     db: Annotated[AsyncSession, Depends(get_db)] = None,
-    current_user: Optional[User] = Depends(require_auth)
+    current_user: Optional[User] = Depends(require_auth),
 ) -> ReminderResponse:
     """Mark a reminder as not completed."""
     # Get reminder

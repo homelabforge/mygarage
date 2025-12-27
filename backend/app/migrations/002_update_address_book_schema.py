@@ -23,7 +23,8 @@ def upgrade():
         # SQLite doesn't support ALTER COLUMN, so we need to recreate the table
 
         # 1. Create new table with updated schema
-        conn.execute(text("""
+        conn.execute(
+            text("""
             CREATE TABLE address_book_new (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 business_name VARCHAR(150) NOT NULL,
@@ -40,11 +41,13 @@ def upgrade():
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
-        """))
+        """)
+        )
 
         # 2. Copy data from old table to new table
         # Set business_name to name if business_name is empty, and name to NULL if it was the same
-        conn.execute(text("""
+        conn.execute(
+            text("""
             INSERT INTO address_book_new (
                 id, business_name, name, address, city, state, zip_code,
                 phone, email, website, category, notes, created_at, updated_at
@@ -56,7 +59,8 @@ def upgrade():
                 address, city, state, zip_code,
                 phone, email, website, category, notes, created_at, updated_at
             FROM address_book
-        """))
+        """)
+        )
 
         # 3. Drop old table
         conn.execute(text("DROP TABLE address_book"))
@@ -66,7 +70,9 @@ def upgrade():
 
         # 5. Recreate indexes
         conn.execute(text("CREATE INDEX idx_address_book_name ON address_book(name)"))
-        conn.execute(text("CREATE INDEX idx_address_book_category ON address_book(category)"))
+        conn.execute(
+            text("CREATE INDEX idx_address_book_category ON address_book(category)")
+        )
 
         print("✓ Successfully updated address_book table schema")
 
@@ -82,7 +88,8 @@ def downgrade():
 
     with sync_engine.begin() as conn:
         # Create old table structure
-        conn.execute(text("""
+        conn.execute(
+            text("""
             CREATE TABLE address_book_new (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name VARCHAR(100) NOT NULL,
@@ -99,10 +106,12 @@ def downgrade():
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
-        """))
+        """)
+        )
 
         # Copy data back
-        conn.execute(text("""
+        conn.execute(
+            text("""
             INSERT INTO address_book_new (
                 id, name, business_name, address, city, state, zip_code,
                 phone, email, website, category, notes, created_at, updated_at
@@ -114,12 +123,15 @@ def downgrade():
                 address, city, state, zip_code,
                 phone, email, website, category, notes, created_at, updated_at
             FROM address_book
-        """))
+        """)
+        )
 
         conn.execute(text("DROP TABLE address_book"))
         conn.execute(text("ALTER TABLE address_book_new RENAME TO address_book"))
         conn.execute(text("CREATE INDEX idx_address_book_name ON address_book(name)"))
-        conn.execute(text("CREATE INDEX idx_address_book_category ON address_book(category)"))
+        conn.execute(
+            text("CREATE INDEX idx_address_book_category ON address_book(category)")
+        )
 
         print("✓ Successfully reverted address_book table schema")
 

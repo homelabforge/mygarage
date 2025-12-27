@@ -86,27 +86,35 @@ class BackupService:
             if backup_type in ["settings", "all"]:
                 for backup_file in self.backup_dir.glob("mygarage-settings-*.json"):
                     stat = backup_file.stat()
-                    backups.append({
-                        "filename": backup_file.name,
-                        "type": "settings",
-                        "size_mb": round(stat.st_size / 1024 / 1024, 4),
-                        "size_bytes": stat.st_size,
-                        "created": datetime.fromtimestamp(stat.st_mtime).isoformat(),
-                        "is_safety": "safety" in backup_file.name.lower(),
-                    })
+                    backups.append(
+                        {
+                            "filename": backup_file.name,
+                            "type": "settings",
+                            "size_mb": round(stat.st_size / 1024 / 1024, 4),
+                            "size_bytes": stat.st_size,
+                            "created": datetime.fromtimestamp(
+                                stat.st_mtime
+                            ).isoformat(),
+                            "is_safety": "safety" in backup_file.name.lower(),
+                        }
+                    )
 
             # Get full backups (tar.gz files)
             if backup_type in ["full", "all"]:
                 for backup_file in self.backup_dir.glob("mygarage-full-*.tar.gz"):
                     stat = backup_file.stat()
-                    backups.append({
-                        "filename": backup_file.name,
-                        "type": "full",
-                        "size_mb": round(stat.st_size / 1024 / 1024, 2),
-                        "size_bytes": stat.st_size,
-                        "created": datetime.fromtimestamp(stat.st_mtime).isoformat(),
-                        "is_safety": "safety" in backup_file.name.lower(),
-                    })
+                    backups.append(
+                        {
+                            "filename": backup_file.name,
+                            "type": "full",
+                            "size_mb": round(stat.st_size / 1024 / 1024, 2),
+                            "size_bytes": stat.st_size,
+                            "created": datetime.fromtimestamp(
+                                stat.st_mtime
+                            ).isoformat(),
+                            "is_safety": "safety" in backup_file.name.lower(),
+                        }
+                    )
 
         except Exception as e:
             logger.error("Error listing backup files: %s", e)
@@ -143,7 +151,7 @@ class BackupService:
                     "encrypted": s.encrypted,
                 }
                 for s in settings
-            ]
+            ],
         }
 
         # Generate filename with timestamp
@@ -232,10 +240,7 @@ class BackupService:
         }
 
     async def restore_settings_backup(
-        self,
-        filename: str,
-        db: AsyncSession,
-        create_safety: bool = True
+        self, filename: str, db: AsyncSession, create_safety: bool = True
     ) -> Dict[str, Any]:
         """Restore settings from a backup file.
 
@@ -274,7 +279,7 @@ class BackupService:
                         "encrypted": s.encrypted,
                     }
                     for s in current_settings
-                ]
+                ],
             }
 
             safety_path = self.backup_dir / safety_filename
@@ -317,7 +322,9 @@ class BackupService:
                 restored_count += 1
 
             except Exception as e:
-                logger.error("Error restoring setting %s: %s", setting_data.get('key'), e)
+                logger.error(
+                    "Error restoring setting %s: %s", setting_data.get("key"), e
+                )
                 # Continue with other settings
 
         await db.commit()
@@ -330,7 +337,9 @@ class BackupService:
             "source_backup": filename,
         }
 
-    async def restore_full_backup(self, filename: str, create_safety: bool = True) -> Dict[str, Any]:
+    async def restore_full_backup(
+        self, filename: str, create_safety: bool = True
+    ) -> Dict[str, Any]:
         """Restore from a full backup file.
 
         WARNING: This will overwrite the current database and all files!

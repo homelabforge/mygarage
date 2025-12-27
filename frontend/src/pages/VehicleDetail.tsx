@@ -355,18 +355,18 @@ export default function VehicleDetail() {
     }
   }
 
-  // Check if vehicle is motorized (excludes non-motorized trailers and fifth wheels)
+  // Check if vehicle is motorized (excludes non-motorized trailers, fifth wheels, and travel trailers)
   // RVs ARE motorized and keep fuel/odometer tabs
   const isMotorized = vehicle?.vehicle_type &&
-    !['Trailer', 'FifthWheel'].includes(vehicle.vehicle_type)
+    !['Trailer', 'FifthWheel', 'TravelTrailer'].includes(vehicle.vehicle_type)
 
-  // Check if vehicle is a fifth wheel or RV (for propane tracking)
+  // Check if vehicle is a fifth wheel, travel trailer, or RV (for propane tracking)
   const hasPropane = vehicle?.vehicle_type &&
-    ['RV', 'FifthWheel'].includes(vehicle.vehicle_type)
+    ['RV', 'FifthWheel', 'TravelTrailer'].includes(vehicle.vehicle_type)
 
-  // Check if vehicle is RV or Fifth Wheel (for spot rentals)
+  // Check if vehicle is RV, Fifth Wheel, or Travel Trailer (for spot rentals)
   const isRVOrFifthWheel = vehicle?.vehicle_type &&
-    ['RV', 'Fifth Wheel', 'FifthWheel'].includes(vehicle.vehicle_type)
+    ['RV', 'FifthWheel', 'TravelTrailer'].includes(vehicle.vehicle_type)
 
   // Primary tabs configuration
   const primaryTabs = [

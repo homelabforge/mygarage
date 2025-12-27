@@ -22,35 +22,33 @@ def sanitize_filename(filename: str) -> str:
         HTTPException: If filename is invalid or empty after sanitization
     """
     # Remove null bytes
-    filename = filename.replace('\0', '')
+    filename = filename.replace("\0", "")
 
     # Remove path separators (both Unix and Windows)
-    filename = re.sub(r'[/\\]', '', filename)
+    filename = re.sub(r"[/\\]", "", filename)
 
     # Remove leading dots to prevent hidden files and relative paths
-    filename = filename.lstrip('.')
+    filename = filename.lstrip(".")
 
     # Ensure filename is not empty after sanitization
     if not filename or len(filename.strip()) == 0:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid filename: filename cannot be empty"
+            detail="Invalid filename: filename cannot be empty",
         )
 
     # Limit filename length (filesystem limits)
     if len(filename) > 255:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid filename: filename too long (max 255 characters)"
+            detail="Invalid filename: filename too long (max 255 characters)",
         )
 
     return filename
 
 
 def validate_path_within_base(
-    file_path: Path,
-    base_path: Path,
-    raise_error: bool = True
+    file_path: Path, base_path: Path, raise_error: bool = True
 ) -> Optional[Path]:
     """Ensure file_path is within base_path to prevent path traversal.
 
@@ -80,20 +78,20 @@ def validate_path_within_base(
         return resolved_path
 
     except (ValueError, RuntimeError):
-        logger.warning("Path traversal attempt detected: %s outside %s", file_path, base_path)
+        logger.warning(
+            "Path traversal attempt detected: %s outside %s", file_path, base_path
+        )
 
         if raise_error:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid file path: path traversal not allowed"
+                detail="Invalid file path: path traversal not allowed",
             )
         return None
 
 
 def validate_and_resolve_path(
-    filename: str,
-    base_dir: Path,
-    allowed_extensions: Optional[set] = None
+    filename: str, base_dir: Path, allowed_extensions: Optional[set] = None
 ) -> Path:
     """Complete validation: sanitize filename, check extension, prevent traversal.
 
@@ -120,7 +118,7 @@ def validate_and_resolve_path(
         if file_ext not in allowed_extensions:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid file extension: {file_ext}. Allowed: {', '.join(allowed_extensions)}"
+                detail=f"Invalid file extension: {file_ext}. Allowed: {', '.join(allowed_extensions)}",
             )
 
     # Step 3: Build full path and validate it's within base directory

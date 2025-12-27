@@ -83,7 +83,10 @@ async def test_gotify_connection(
             return {"success": False, "message": "Gotify notifications are disabled"}
 
         if not gotify_server or not gotify_token:
-            return {"success": False, "message": "Gotify server or token not configured"}
+            return {
+                "success": False,
+                "message": "Gotify server or token not configured",
+            }
 
         server_url = gotify_server.rstrip("/")
         async with httpx.AsyncClient(timeout=10.0) as client:
@@ -186,7 +189,10 @@ async def test_slack_connection(
             )
             if response.text == "ok":
                 return {"success": True, "message": "Test notification sent"}
-            return {"success": False, "message": f"Unexpected response: {response.text}"}
+            return {
+                "success": False,
+                "message": f"Unexpected response: {response.text}",
+            }
     except Exception as e:
         logger.error("Slack test failed: %s", e)
         return {"success": False, "message": str(e)}
@@ -246,7 +252,10 @@ async def test_telegram_connection(
             return {"success": False, "message": "Telegram notifications are disabled"}
 
         if not bot_token or not chat_id:
-            return {"success": False, "message": "Telegram bot token or chat ID not configured"}
+            return {
+                "success": False,
+                "message": "Telegram bot token or chat ID not configured",
+            }
 
         base_url = f"https://api.telegram.org/bot{bot_token}"
 
@@ -268,7 +277,10 @@ async def test_telegram_connection(
             result = response.json()
             if result.get("ok"):
                 return {"success": True, "message": "Test notification sent"}
-            return {"success": False, "message": result.get("description", "Unknown error")}
+            return {
+                "success": False,
+                "message": result.get("description", "Unknown error"),
+            }
     except Exception as e:
         logger.error("Telegram test failed: %s", e)
         return {"success": False, "message": str(e)}
@@ -311,7 +323,9 @@ async def test_email_connection(
         msg["From"] = from_address
         msg["To"] = to_address
 
-        text_content = "MyGarage Test Notification\n\nThis is a test notification from MyGarage."
+        text_content = (
+            "MyGarage Test Notification\n\nThis is a test notification from MyGarage."
+        )
         html_content = """
         <html>
         <body style="font-family: Arial, sans-serif;">

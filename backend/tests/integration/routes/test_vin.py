@@ -3,6 +3,7 @@ Integration tests for VIN-related routes.
 
 Tests VIN decoding and validation endpoints.
 """
+
 import pytest
 from httpx import AsyncClient
 from unittest.mock import patch
@@ -66,9 +67,7 @@ class TestVINRoutes:
         assert data["vin"] == "1HGBH41JXMN109186"
         assert data["make"] == "HONDA"
 
-    async def test_decode_vin_invalid_length(
-        self, client: AsyncClient, auth_headers
-    ):
+    async def test_decode_vin_invalid_length(self, client: AsyncClient, auth_headers):
         """Test that VINs with invalid length are rejected."""
         response = await client.post(
             "/api/vin/decode",
@@ -99,6 +98,7 @@ class TestVINRoutes:
     ):
         """Test handling of NHTSA API timeout."""
         import httpx
+
         mock_decode.side_effect = httpx.TimeoutException("Request timed out")
 
         response = await client.post(
@@ -117,6 +117,7 @@ class TestVINRoutes:
     ):
         """Test handling of NHTSA API connection errors."""
         import httpx
+
         mock_decode.side_effect = httpx.ConnectError("Cannot connect")
 
         response = await client.post(
@@ -129,9 +130,7 @@ class TestVINRoutes:
         data = response.json()
         assert "connect" in data["detail"].lower()
 
-    async def test_validate_vin_valid(
-        self, client: AsyncClient, auth_headers
-    ):
+    async def test_validate_vin_valid(self, client: AsyncClient, auth_headers):
         """Test VIN validation endpoint with valid VIN."""
         response = await client.get(
             "/api/vin/validate/1HGBH41JXMN109186",
@@ -144,9 +143,7 @@ class TestVINRoutes:
         assert data["vin"] == "1HGBH41JXMN109186"
         assert "message" in data
 
-    async def test_validate_vin_invalid_length(
-        self, client: AsyncClient, auth_headers
-    ):
+    async def test_validate_vin_invalid_length(self, client: AsyncClient, auth_headers):
         """Test VIN validation with invalid length."""
         response = await client.get(
             "/api/vin/validate/SHORT",
@@ -225,9 +222,7 @@ class TestVINRoutes:
         # Should be normalized and accepted
         assert response.status_code in [200, 400]
 
-    async def test_validate_vin_empty_string(
-        self, client: AsyncClient, auth_headers
-    ):
+    async def test_validate_vin_empty_string(self, client: AsyncClient, auth_headers):
         """Test VIN validation with empty string."""
         response = await client.get(
             "/api/vin/validate/",

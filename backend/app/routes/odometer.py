@@ -30,7 +30,7 @@ async def list_odometer_records(
     skip: int = 0,
     limit: int = 100,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth)
+    current_user: Optional[User] = Depends(require_auth),
 ):
     """
     Get all odometer records for a vehicle.
@@ -53,7 +53,9 @@ async def list_odometer_records(
         vehicle = result.scalar_one_or_none()
 
         if not vehicle:
-            raise HTTPException(status_code=404, detail=f"Vehicle with VIN {vin} not found")
+            raise HTTPException(
+                status_code=404, detail=f"Vehicle with VIN {vin} not found"
+            )
 
         # Get odometer records
         result = await db.execute(
@@ -67,7 +69,9 @@ async def list_odometer_records(
 
         # Get total count
         count_result = await db.execute(
-            select(func.count()).select_from(OdometerRecord).where(OdometerRecord.vin == vin)
+            select(func.count())
+            .select_from(OdometerRecord)
+            .where(OdometerRecord.vin == vin)
         )
         total = count_result.scalar()
 
@@ -83,13 +87,15 @@ async def list_odometer_records(
         return OdometerRecordListResponse(
             records=[OdometerRecordResponse.model_validate(r) for r in records],
             total=total,
-            latest_mileage=latest_mileage
+            latest_mileage=latest_mileage,
         )
 
     except HTTPException:
         raise
     except OperationalError as e:
-        logger.error("Database connection error listing odometer records for %s: %s", vin, str(e))
+        logger.error(
+            "Database connection error listing odometer records for %s: %s", vin, str(e)
+        )
         raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
 
@@ -98,7 +104,7 @@ async def get_odometer_record(
     vin: str,
     record_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth)
+    current_user: Optional[User] = Depends(require_auth),
 ):
     """
     Get a specific odometer record.
@@ -123,7 +129,9 @@ async def get_odometer_record(
     record = result.scalar_one_or_none()
 
     if not record:
-        raise HTTPException(status_code=404, detail=f"Odometer record {record_id} not found")
+        raise HTTPException(
+            status_code=404, detail=f"Odometer record {record_id} not found"
+        )
 
     return OdometerRecordResponse.model_validate(record)
 
@@ -133,7 +141,7 @@ async def create_odometer_record(
     vin: str,
     record_data: OdometerRecordCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth)
+    current_user: Optional[User] = Depends(require_auth),
 ):
     """
     Create a new odometer record.
@@ -159,11 +167,13 @@ async def create_odometer_record(
         vehicle = result.scalar_one_or_none()
 
         if not vehicle:
-            raise HTTPException(status_code=404, detail=f"Vehicle with VIN {vin} not found")
+            raise HTTPException(
+                status_code=404, detail=f"Vehicle with VIN {vin} not found"
+            )
 
         # Create odometer record
         record_dict = record_data.model_dump()
-        record_dict['vin'] = vin
+        record_dict["vin"] = vin
         record = OdometerRecord(**record_dict)
 
         db.add(record)
@@ -178,11 +188,19 @@ async def create_odometer_record(
         raise
     except IntegrityError as e:
         await db.rollback()
-        logger.error("Database constraint violation creating odometer record for %s: %s", vin, str(e))
-        raise HTTPException(status_code=409, detail="Duplicate or invalid odometer record")
+        logger.error(
+            "Database constraint violation creating odometer record for %s: %s",
+            vin,
+            str(e),
+        )
+        raise HTTPException(
+            status_code=409, detail="Duplicate or invalid odometer record"
+        )
     except OperationalError as e:
         await db.rollback()
-        logger.error("Database connection error creating odometer record for %s: %s", vin, str(e))
+        logger.error(
+            "Database connection error creating odometer record for %s: %s", vin, str(e)
+        )
         raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
 
@@ -192,7 +210,7 @@ async def update_odometer_record(
     record_id: int,
     record_data: OdometerRecordUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth)
+    current_user: Optional[User] = Depends(require_auth),
 ):
     """
     Update an existing odometer record.
@@ -223,7 +241,9 @@ async def update_odometer_record(
         record = result.scalar_one_or_none()
 
         if not record:
-            raise HTTPException(status_code=404, detail=f"Odometer record {record_id} not found")
+            raise HTTPException(
+                status_code=404, detail=f"Odometer record {record_id} not found"
+            )
 
         # Update fields
         update_data = record_data.model_dump(exclude_unset=True)
@@ -241,11 +261,21 @@ async def update_odometer_record(
         raise
     except IntegrityError as e:
         await db.rollback()
-        logger.error("Database constraint violation updating odometer record %s for %s: %s", record_id, vin, str(e))
+        logger.error(
+            "Database constraint violation updating odometer record %s for %s: %s",
+            record_id,
+            vin,
+            str(e),
+        )
         raise HTTPException(status_code=409, detail="Database constraint violation")
     except OperationalError as e:
         await db.rollback()
-        logger.error("Database connection error updating odometer record %s for %s: %s", record_id, vin, str(e))
+        logger.error(
+            "Database connection error updating odometer record %s for %s: %s",
+            record_id,
+            vin,
+            str(e),
+        )
         raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
 
@@ -254,7 +284,7 @@ async def delete_odometer_record(
     vin: str,
     record_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth)
+    current_user: Optional[User] = Depends(require_auth),
 ):
     """
     Delete an odometer record.
@@ -279,7 +309,9 @@ async def delete_odometer_record(
         record = result.scalar_one_or_none()
 
         if not record:
-            raise HTTPException(status_code=404, detail=f"Odometer record {record_id} not found")
+            raise HTTPException(
+                status_code=404, detail=f"Odometer record {record_id} not found"
+            )
 
         # Delete record
         await db.execute(
@@ -297,9 +329,21 @@ async def delete_odometer_record(
         raise
     except IntegrityError as e:
         await db.rollback()
-        logger.error("Database constraint violation deleting odometer record %s for %s: %s", record_id, vin, str(e))
-        raise HTTPException(status_code=409, detail="Cannot delete record with dependent data")
+        logger.error(
+            "Database constraint violation deleting odometer record %s for %s: %s",
+            record_id,
+            vin,
+            str(e),
+        )
+        raise HTTPException(
+            status_code=409, detail="Cannot delete record with dependent data"
+        )
     except OperationalError as e:
         await db.rollback()
-        logger.error("Database connection error deleting odometer record %s for %s: %s", record_id, vin, str(e))
+        logger.error(
+            "Database connection error deleting odometer record %s for %s: %s",
+            record_id,
+            vin,
+            str(e),
+        )
         raise HTTPException(status_code=503, detail="Database temporarily unavailable")

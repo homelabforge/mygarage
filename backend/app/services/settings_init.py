@@ -30,7 +30,6 @@ DEFAULT_SETTINGS = {
         "description": "Authentication mode (none, local, oidc)",
         "encrypted": False,
     },
-
     # OIDC/SSO Authentication settings
     "oidc_enabled": {
         "value": "false",
@@ -122,7 +121,6 @@ DEFAULT_SETTINGS = {
         "description": "Enable multi-user mode (allows creating additional users beyond first admin)",
         "encrypted": False,
     },
-
     "date_format": {
         "value": "MM/DD/YYYY",
         "category": "general",
@@ -141,7 +139,6 @@ DEFAULT_SETTINGS = {
         "description": "Fuel unit (gallons or liters)",
         "encrypted": False,
     },
-
     # File management settings
     "max_upload_size_mb": {
         "value": "10",
@@ -161,7 +158,6 @@ DEFAULT_SETTINGS = {
         "description": "Allowed attachment file types",
         "encrypted": False,
     },
-
     # NHTSA Integration
     "nhtsa_enabled": {
         "value": "true",
@@ -193,7 +189,6 @@ DEFAULT_SETTINGS = {
         "description": "NHTSA Recalls API URL",
         "encrypted": False,
     },
-
     # Window Sticker Integration
     "window_sticker_enabled": {
         "value": "true",
@@ -207,11 +202,9 @@ DEFAULT_SETTINGS = {
         "description": "Automatically extract data from uploaded window stickers using OCR",
         "encrypted": False,
     },
-
     # ============================================
     # Multi-Service Notification Settings
     # ============================================
-
     # Retry settings (global)
     "notification_retry_attempts": {
         "value": "3",
@@ -225,7 +218,6 @@ DEFAULT_SETTINGS = {
         "description": "Base delay between retry attempts (seconds)",
         "encrypted": False,
     },
-
     # ntfy service
     "ntfy_enabled": {
         "value": "false",
@@ -251,7 +243,6 @@ DEFAULT_SETTINGS = {
         "description": "ntfy API token (optional, for authentication)",
         "encrypted": True,
     },
-
     # Gotify service
     "gotify_enabled": {
         "value": "false",
@@ -271,7 +262,6 @@ DEFAULT_SETTINGS = {
         "description": "Gotify application token",
         "encrypted": True,
     },
-
     # Pushover service
     "pushover_enabled": {
         "value": "false",
@@ -291,7 +281,6 @@ DEFAULT_SETTINGS = {
         "description": "Pushover API token",
         "encrypted": True,
     },
-
     # Slack service
     "slack_enabled": {
         "value": "false",
@@ -305,7 +294,6 @@ DEFAULT_SETTINGS = {
         "description": "Slack incoming webhook URL",
         "encrypted": True,
     },
-
     # Discord service
     "discord_enabled": {
         "value": "false",
@@ -319,7 +307,6 @@ DEFAULT_SETTINGS = {
         "description": "Discord webhook URL",
         "encrypted": True,
     },
-
     # Telegram service
     "telegram_enabled": {
         "value": "false",
@@ -339,7 +326,6 @@ DEFAULT_SETTINGS = {
         "description": "Telegram chat/group/channel ID",
         "encrypted": False,
     },
-
     # Email service
     "email_enabled": {
         "value": "false",
@@ -389,7 +375,6 @@ DEFAULT_SETTINGS = {
         "description": "Email recipient address",
         "encrypted": False,
     },
-
     # Event notification toggles
     "notify_recalls": {
         "value": "true",
@@ -475,7 +460,7 @@ async def initialize_default_settings(db: AsyncSession) -> None:
             )
             db.add(setting)
             settings_added += 1
-            logger.info("Added default setting: %s = %s", key, config['value'])
+            logger.info("Added default setting: %s = %s", key, config["value"])
         else:
             # Update category and description if they don't match
             # (preserves user-modified values)
@@ -498,7 +483,11 @@ async def initialize_default_settings(db: AsyncSession) -> None:
                 old_version = setting.value
                 setting.value = app_settings.app_version
                 needs_update = True
-                logger.info("Updated app version: %s -> %s", old_version, app_settings.app_version)
+                logger.info(
+                    "Updated app version: %s -> %s",
+                    old_version,
+                    app_settings.app_version,
+                )
 
             if needs_update:
                 settings_updated += 1

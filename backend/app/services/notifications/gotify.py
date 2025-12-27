@@ -61,11 +61,7 @@ class GotifyNotificationService(NotificationService):
 
             # Add click URL via extras if provided
             if url:
-                payload["extras"] = {
-                    "client::notification": {
-                        "click": {"url": url}
-                    }
-                }
+                payload["extras"] = {"client::notification": {"click": {"url": url}}}
 
             response = await self.client.post(endpoint, json=payload)
             response.raise_for_status()

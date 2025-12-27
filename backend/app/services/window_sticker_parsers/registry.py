@@ -30,7 +30,6 @@ WMI_MAPPING: dict[str, str] = {
     "3D3": "Stellantis",
     "3D4": "Stellantis",
     "3D7": "Stellantis",
-
     # Toyota/Lexus
     "1TM": "Toyota",
     "2T1": "Toyota",
@@ -59,7 +58,6 @@ WMI_MAPPING: dict[str, str] = {
     "JTL": "Toyota",
     "JTM": "Toyota",
     "JTN": "Toyota",
-
     # Mitsubishi
     "4A3": "Mitsubishi",
     "4A4": "Mitsubishi",
@@ -68,14 +66,12 @@ WMI_MAPPING: dict[str, str] = {
     "JA4": "Mitsubishi",
     "JA7": "Mitsubishi",
     "JMY": "Mitsubishi",
-
     # Tesla
     "5YJ": "Tesla",
     "7SA": "Tesla",
     "7G2": "Tesla",
     "LRW": "Tesla",
     "XP7": "Tesla",
-
     # Ford (for generic fallback reference)
     "1FA": "Ford",
     "1FB": "Ford",
@@ -89,7 +85,6 @@ WMI_MAPPING: dict[str, str] = {
     "2FT": "Ford",
     "3FA": "Ford",
     "3FM": "Ford",
-
     # GM (for generic fallback reference)
     "1G1": "GM",
     "1G2": "GM",
@@ -107,7 +102,6 @@ WMI_MAPPING: dict[str, str] = {
     "3G5": "GM",
     "3GN": "GM",
     "3GT": "GM",
-
     # Honda/Acura
     "1HG": "Honda",
     "2HG": "Honda",
@@ -124,7 +118,6 @@ WMI_MAPPING: dict[str, str] = {
     "JHM": "Honda",
     "19U": "Honda",
     "19X": "Honda",
-
     # Nissan/Infiniti
     "1N4": "Nissan",
     "1N6": "Nissan",
@@ -133,7 +126,6 @@ WMI_MAPPING: dict[str, str] = {
     "JN1": "Nissan",
     "JN6": "Nissan",
     "JN8": "Nissan",
-
     # Hyundai/Kia/Genesis
     "5NM": "Hyundai",
     "5NP": "Hyundai",
@@ -144,14 +136,12 @@ WMI_MAPPING: dict[str, str] = {
     "KNA": "Kia",
     "KNC": "Kia",
     "KND": "Kia",
-
     # BMW
     "WBA": "BMW",
     "WBS": "BMW",
     "WBY": "BMW",
     "5UX": "BMW",
     "5UY": "BMW",
-
     # Mercedes-Benz
     "WDB": "Mercedes",
     "WDC": "Mercedes",
@@ -159,7 +149,6 @@ WMI_MAPPING: dict[str, str] = {
     "WDF": "Mercedes",
     "4JG": "Mercedes",
     "55S": "Mercedes",
-
     # Volkswagen/Audi
     "WVW": "VW",
     "WV1": "VW",
@@ -176,10 +165,14 @@ class ParserRegistry:
     _initialized: bool = False
 
     @classmethod
-    def register(cls, manufacturer: str, parser_class: Type[BaseWindowStickerParser]) -> None:
+    def register(
+        cls, manufacturer: str, parser_class: Type[BaseWindowStickerParser]
+    ) -> None:
         """Register a parser for a manufacturer."""
         cls._parsers[manufacturer.lower()] = parser_class
-        logger.debug("Registered parser for %s: %s", manufacturer, parser_class.__name__)
+        logger.debug(
+            "Registered parser for %s: %s", manufacturer, parser_class.__name__
+        )
 
     @classmethod
     def get_parser(cls, manufacturer: str) -> Optional[BaseWindowStickerParser]:
@@ -210,7 +203,12 @@ class ParserRegistry:
         if manufacturer:
             parser = cls.get_parser(manufacturer)
             if parser:
-                logger.info("Selected %s for VIN %s (WMI: %s)", parser.__class__.__name__, vin, wmi)
+                logger.info(
+                    "Selected %s for VIN %s (WMI: %s)",
+                    parser.__class__.__name__,
+                    vin,
+                    wmi,
+                )
                 return parser
 
         logger.info("Unknown manufacturer for WMI %s, using generic parser", wmi)
@@ -246,30 +244,35 @@ class ParserRegistry:
         # Import and register all parsers
         try:
             from .stellantis import StellantisWindowStickerParser
+
             cls.register("stellantis", StellantisWindowStickerParser)
         except ImportError as e:
             logger.warning("Failed to load Stellantis parser: %s", e)
 
         try:
             from .toyota import ToyotaWindowStickerParser
+
             cls.register("toyota", ToyotaWindowStickerParser)
         except ImportError as e:
             logger.warning("Failed to load Toyota parser: %s", e)
 
         try:
             from .mitsubishi import MitsubishiWindowStickerParser
+
             cls.register("mitsubishi", MitsubishiWindowStickerParser)
         except ImportError as e:
             logger.warning("Failed to load Mitsubishi parser: %s", e)
 
         try:
             from .tesla import TeslaWindowStickerParser
+
             cls.register("tesla", TeslaWindowStickerParser)
         except ImportError as e:
             logger.warning("Failed to load Tesla parser: %s", e)
 
         try:
             from .generic import GenericWindowStickerParser
+
             cls.register("generic", GenericWindowStickerParser)
         except ImportError as e:
             logger.warning("Failed to load Generic parser: %s", e)
@@ -278,7 +281,9 @@ class ParserRegistry:
         logger.info("Parser registry initialized with %s parsers", len(cls._parsers))
 
 
-def get_parser_for_vehicle(vin: str, make: Optional[str] = None) -> BaseWindowStickerParser:
+def get_parser_for_vehicle(
+    vin: str, make: Optional[str] = None
+) -> BaseWindowStickerParser:
     """
     Get the appropriate parser for a vehicle.
 

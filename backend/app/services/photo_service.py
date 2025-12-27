@@ -77,7 +77,9 @@ class PhotoService:
         file_path = destination_dir / filename
 
         # Validate path is within allowed directory
-        validated_path = validate_path_within_base(file_path, PHOTO_DIR, raise_error=True)
+        validated_path = validate_path_within_base(
+            file_path, PHOTO_DIR, raise_error=True
+        )
 
         image_to_save = image.copy()
         if image_format in ("JPEG", "WEBP") and image_to_save.mode in ("RGBA", "P"):
@@ -92,7 +94,9 @@ class PhotoService:
         thumbnail_path = thumbnail_dir / thumbnail_filename
 
         # Validate thumbnail path is within allowed directory
-        validated_thumb_path = validate_path_within_base(thumbnail_path, PHOTO_DIR, raise_error=True)
+        validated_thumb_path = validate_path_within_base(
+            thumbnail_path, PHOTO_DIR, raise_error=True
+        )
 
         thumb = image.copy()
         thumb.thumbnail(THUMBNAIL_SIZE)
@@ -119,7 +123,9 @@ class PhotoService:
             image = Image.open(file_path)
             image = ImageOps.exif_transpose(image)
         except UnidentifiedImageError:
-            logger.warning("Failed to open image for thumbnail generation: %s", file_path)
+            logger.warning(
+                "Failed to open image for thumbnail generation: %s", file_path
+            )
             return None
 
         thumb = image.copy()

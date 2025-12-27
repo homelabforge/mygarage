@@ -25,7 +25,7 @@ class Attachment(Base):
     __table_args__ = (
         CheckConstraint(
             "record_type IN ('service', 'fuel', 'upgrade', 'collision', 'tax', 'note')",
-            name="check_record_type"
+            name="check_record_type",
         ),
         Index("idx_attachments_record", "record_type", "record_id"),
     )

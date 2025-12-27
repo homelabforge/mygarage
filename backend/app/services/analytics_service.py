@@ -7,12 +7,13 @@ from datetime import date as date_type
 from decimal import Decimal
 import calendar
 
-from app.models import ServiceRecord, FuelRecord
+from app.models import ServiceRecord, FuelRecord, SpotRentalBilling
 
 
 def records_to_dataframe(
     service_records: List[ServiceRecord],
     fuel_records: List[FuelRecord],
+    spot_rental_billings: Optional[List[SpotRentalBilling]] = None,
 ) -> pd.DataFrame:
     """
     Convert SQLAlchemy records to a unified pandas DataFrame.
@@ -20,6 +21,7 @@ def records_to_dataframe(
     Args:
         service_records: List of ServiceRecord objects
         fuel_records: List of FuelRecord objects
+        spot_rental_billings: Optional list of SpotRentalBilling objects
 
     Returns:
         DataFrame with columns: date, cost, type, vendor, mileage, service_type, etc.
@@ -28,42 +30,71 @@ def records_to_dataframe(
     service_data = []
     for record in service_records:
         if record.date and record.cost:
-            service_data.append({
-                'date': pd.Timestamp(record.date),
-                'cost': float(record.cost),
-                'type': 'service',
-                'vendor': record.vendor_name or 'Unknown',
-                'mileage': record.mileage,
-                'service_type': record.service_type or 'Other',
-                'description': record.description,
-            })
+            service_data.append(
+                {
+                    "date": pd.Timestamp(record.date),
+                    "cost": float(record.cost),
+                    "type": "service",
+                    "vendor": record.vendor_name or "Unknown",
+                    "mileage": record.mileage,
+                    "service_type": record.service_type or "Other",
+                    "description": record.description,
+                }
+            )
 
     # Convert fuel records
     fuel_data = []
     for record in fuel_records:
         if record.date and record.cost:
-            fuel_data.append({
-                'date': pd.Timestamp(record.date),
-                'cost': float(record.cost),
-                'type': 'fuel',
-                'vendor': 'Fuel Station',  # FuelRecord doesn't have a station/vendor field
-                'mileage': record.mileage,
-                'service_type': 'Fuel',
-                'gallons': float(record.gallons) if record.gallons else None,
-            })
+            fuel_data.append(
+                {
+                    "date": pd.Timestamp(record.date),
+                    "cost": float(record.cost),
+                    "type": "fuel",
+                    "vendor": "Fuel Station",  # FuelRecord doesn't have a station/vendor field
+                    "mileage": record.mileage,
+                    "service_type": "Fuel",
+                    "gallons": float(record.gallons) if record.gallons else None,
+                }
+            )
+
+    # Convert spot rental billing records
+    spot_rental_data = []
+    if spot_rental_billings:
+        for record in spot_rental_billings:
+            if record.billing_date and record.total:
+                spot_rental_data.append(
+                    {
+                        "date": pd.Timestamp(record.billing_date),
+                        "cost": float(record.total),
+                        "type": "spot_rental",
+                        "vendor": "RV Park",
+                        "mileage": None,
+                        "service_type": "Spot Rental",
+                        "description": record.notes or "Monthly RV spot rental",
+                    }
+                )
 
     # Combine and create DataFrame
-    all_data = service_data + fuel_data
+    all_data = service_data + fuel_data + spot_rental_data
 
     if not all_data:
         # Return empty DataFrame with expected columns
-        return pd.DataFrame(columns=[
-            'date', 'cost', 'type', 'vendor', 'mileage',
-            'service_type', 'description', 'gallons'
-        ])
+        return pd.DataFrame(
+            columns=[
+                "date",
+                "cost",
+                "type",
+                "vendor",
+                "mileage",
+                "service_type",
+                "description",
+                "gallons",
+            ]
+        )
 
     df = pd.DataFrame(all_data)
-    df = df.sort_values('date').reset_index(drop=True)
+    df = df.sort_values("date").reset_index(drop=True)
 
     return df
 
@@ -79,53 +110,80 @@ def calculate_monthly_aggregation(df: pd.DataFrame) -> pd.DataFrame:
         DataFrame with monthly aggregations
     """
     if df.empty:
-        return pd.DataFrame(columns=[
-            'year', 'month', 'service_cost', 'fuel_cost',
-            'service_count', 'fuel_count', 'total_cost'
-        ])
+        return pd.DataFrame(
+            columns=[
+                "year",
+                "month",
+                "service_cost",
+                "fuel_cost",
+                "spot_rental_cost",
+                "service_count",
+                "fuel_count",
+                "spot_rental_count",
+                "total_cost",
+            ]
+        )
 
     # Add year and month columns
-    df['year'] = df['date'].dt.year
-    df['month'] = df['date'].dt.month
+    df["year"] = df["date"].dt.year
+    df["month"] = df["date"].dt.month
 
-    # Separate service and fuel
-    service_df = df[df['type'] == 'service'].copy()
-    fuel_df = df[df['type'] == 'fuel'].copy()
+    # Separate service, fuel, and spot rental
+    service_df = df[df["type"] == "service"].copy()
+    fuel_df = df[df["type"] == "fuel"].copy()
+    spot_rental_df = df[df["type"] == "spot_rental"].copy()
 
     # Aggregate service by month
-    service_monthly = service_df.groupby(['year', 'month']).agg({
-        'cost': ['sum', 'count']
-    }).reset_index()
-    service_monthly.columns = ['year', 'month', 'service_cost', 'service_count']
+    service_monthly = (
+        service_df.groupby(["year", "month"])
+        .agg({"cost": ["sum", "count"]})
+        .reset_index()
+    )
+    service_monthly.columns = ["year", "month", "service_cost", "service_count"]
 
     # Aggregate fuel by month
-    fuel_monthly = fuel_df.groupby(['year', 'month']).agg({
-        'cost': ['sum', 'count']
-    }).reset_index()
-    fuel_monthly.columns = ['year', 'month', 'fuel_cost', 'fuel_count']
+    fuel_monthly = (
+        fuel_df.groupby(["year", "month"]).agg({"cost": ["sum", "count"]}).reset_index()
+    )
+    fuel_monthly.columns = ["year", "month", "fuel_cost", "fuel_count"]
 
-    # Merge service and fuel
+    # Aggregate spot rental by month
+    spot_rental_monthly = (
+        spot_rental_df.groupby(["year", "month"])
+        .agg({"cost": ["sum", "count"]})
+        .reset_index()
+    )
+    spot_rental_monthly.columns = [
+        "year",
+        "month",
+        "spot_rental_cost",
+        "spot_rental_count",
+    ]
+
+    # Merge service, fuel, and spot rental
+    monthly = pd.merge(service_monthly, fuel_monthly, on=["year", "month"], how="outer")
     monthly = pd.merge(
-        service_monthly,
-        fuel_monthly,
-        on=['year', 'month'],
-        how='outer'
+        monthly, spot_rental_monthly, on=["year", "month"], how="outer"
     ).fillna(0)
 
     # Calculate totals
-    monthly['total_cost'] = monthly['service_cost'] + monthly['fuel_cost']
-    monthly['month_name'] = monthly['month'].apply(lambda x: calendar.month_name[int(x)])
+    monthly["total_cost"] = (
+        monthly["service_cost"] + monthly["fuel_cost"] + monthly["spot_rental_cost"]
+    )
+    monthly["month_name"] = monthly["month"].apply(
+        lambda x: calendar.month_name[int(x)]
+    )
 
     # Convert to integers where appropriate
-    monthly['service_count'] = monthly['service_count'].astype(int)
-    monthly['fuel_count'] = monthly['fuel_count'].astype(int)
+    monthly["service_count"] = monthly["service_count"].astype(int)
+    monthly["fuel_count"] = monthly["fuel_count"].astype(int)
+    monthly["spot_rental_count"] = monthly["spot_rental_count"].astype(int)
 
-    return monthly.sort_values(['year', 'month'])
+    return monthly.sort_values(["year", "month"])
 
 
 def calculate_rolling_averages(
-    monthly_df: pd.DataFrame,
-    windows: List[int] = [3, 6, 12]
+    monthly_df: pd.DataFrame, windows: List[int] = [3, 6, 12]
 ) -> Dict[str, Optional[Decimal]]:
     """
     Calculate rolling averages for different time windows.
@@ -138,18 +196,20 @@ def calculate_rolling_averages(
         Dictionary with rolling averages for each window
     """
     if monthly_df.empty or len(monthly_df) < 2:
-        return {f'rolling_{w}m': None for w in windows}
+        return {f"rolling_{w}m": None for w in windows}
 
     # Ensure sorted by date
-    monthly_df = monthly_df.sort_values(['year', 'month']).copy()
+    monthly_df = monthly_df.sort_values(["year", "month"]).copy()
 
     result = {}
     for window in windows:
         if len(monthly_df) >= window:
-            rolling_avg = monthly_df['total_cost'].rolling(window=window).mean().iloc[-1]
-            result[f'rolling_{window}m'] = Decimal(str(round(rolling_avg, 2)))
+            rolling_avg = (
+                monthly_df["total_cost"].rolling(window=window).mean().iloc[-1]
+            )
+            result[f"rolling_{window}m"] = Decimal(str(round(rolling_avg, 2)))
         else:
-            result[f'rolling_{window}m'] = None
+            result[f"rolling_{window}m"] = None
 
     return result
 
@@ -190,7 +250,9 @@ def calculate_trend_direction(values: pd.Series, threshold: float = 0.05) -> str
         return "stable"
 
 
-def calculate_fuel_economy_with_pandas(fuel_records: List[FuelRecord]) -> Tuple[pd.DataFrame, Dict]:
+def calculate_fuel_economy_with_pandas(
+    fuel_records: List[FuelRecord],
+) -> Tuple[pd.DataFrame, Dict]:
     """
     Calculate fuel economy statistics using pandas.
 
@@ -207,36 +269,38 @@ def calculate_fuel_economy_with_pandas(fuel_records: List[FuelRecord]) -> Tuple[
     data = []
     for record in fuel_records:
         if record.date and record.gallons and record.mileage:
-            data.append({
-                'date': pd.Timestamp(record.date),
-                'mileage': record.mileage,
-                'gallons': float(record.gallons),
-                'cost': float(record.cost) if record.cost else 0.0,
-            })
+            data.append(
+                {
+                    "date": pd.Timestamp(record.date),
+                    "mileage": record.mileage,
+                    "gallons": float(record.gallons),
+                    "cost": float(record.cost) if record.cost else 0.0,
+                }
+            )
 
     if not data:
         return pd.DataFrame(), {}
 
-    df = pd.DataFrame(data).sort_values('date').reset_index(drop=True)
+    df = pd.DataFrame(data).sort_values("date").reset_index(drop=True)
 
     # Calculate MPG using diff
-    df['miles_driven'] = df['mileage'].diff()
-    df['mpg'] = df['miles_driven'] / df['gallons']
+    df["miles_driven"] = df["mileage"].diff()
+    df["mpg"] = df["miles_driven"] / df["gallons"]
 
     # Remove first row (no previous record to compare)
-    df = df[df['mpg'].notna()].copy()
+    df = df[df["mpg"].notna()].copy()
 
     if df.empty:
         return pd.DataFrame(), {}
 
     # Calculate statistics
     stats = {
-        'average_mpg': Decimal(str(round(df['mpg'].mean(), 2))),
-        'best_mpg': Decimal(str(round(df['mpg'].max(), 2))),
-        'worst_mpg': Decimal(str(round(df['mpg'].min(), 2))),
-        'recent_mpg': Decimal(str(round(df['mpg'].tail(5).mean(), 2))),
-        'trend': calculate_trend_direction(df['mpg'].tail(10)),
-        'std_dev': Decimal(str(round(df['mpg'].std(), 2))),
+        "average_mpg": Decimal(str(round(df["mpg"].mean(), 2))),
+        "best_mpg": Decimal(str(round(df["mpg"].max(), 2))),
+        "worst_mpg": Decimal(str(round(df["mpg"].min(), 2))),
+        "recent_mpg": Decimal(str(round(df["mpg"].tail(5).mean(), 2))),
+        "trend": calculate_trend_direction(df["mpg"].tail(10)),
+        "std_dev": Decimal(str(round(df["mpg"].std(), 2))),
     }
 
     return df, stats
@@ -253,33 +317,35 @@ def calculate_seasonal_patterns(df: pd.DataFrame) -> pd.DataFrame:
         DataFrame with seasonal aggregations
     """
     if df.empty:
-        return pd.DataFrame(columns=['season', 'total_cost', 'avg_cost', 'count'])
+        return pd.DataFrame(columns=["season", "total_cost", "avg_cost", "count"])
 
     # Define seasons based on month
     def get_season(month: int) -> str:
         if month in [12, 1, 2]:
-            return 'Winter'
+            return "Winter"
         elif month in [3, 4, 5]:
-            return 'Spring'
+            return "Spring"
         elif month in [6, 7, 8]:
-            return 'Summer'
+            return "Summer"
         else:  # 9, 10, 11
-            return 'Fall'
+            return "Fall"
 
-    df['month'] = df['date'].dt.month
-    df['season'] = df['month'].apply(get_season)
+    df["month"] = df["date"].dt.month
+    df["season"] = df["month"].apply(get_season)
 
     # Aggregate by season
-    seasonal = df.groupby('season').agg({
-        'cost': ['sum', 'mean', 'count']
-    }).reset_index()
+    seasonal = (
+        df.groupby("season").agg({"cost": ["sum", "mean", "count"]}).reset_index()
+    )
 
-    seasonal.columns = ['season', 'total_cost', 'avg_cost', 'count']
+    seasonal.columns = ["season", "total_cost", "avg_cost", "count"]
 
     # Order seasons chronologically
-    season_order = ['Winter', 'Spring', 'Summer', 'Fall']
-    seasonal['season'] = pd.Categorical(seasonal['season'], categories=season_order, ordered=True)
-    seasonal = seasonal.sort_values('season')
+    season_order = ["Winter", "Spring", "Summer", "Fall"]
+    seasonal["season"] = pd.Categorical(
+        seasonal["season"], categories=season_order, ordered=True
+    )
+    seasonal = seasonal.sort_values("season")
 
     return seasonal
 
@@ -294,35 +360,55 @@ def calculate_vendor_analysis(df: pd.DataFrame) -> pd.DataFrame:
     Returns:
         DataFrame with vendor aggregations
     """
-    if df.empty or 'vendor' not in df.columns:
-        return pd.DataFrame(columns=[
-            'vendor', 'total_spent', 'service_count',
-            'avg_cost', 'last_service_date'
-        ])
+    if df.empty or "vendor" not in df.columns:
+        return pd.DataFrame(
+            columns=[
+                "vendor",
+                "total_spent",
+                "service_count",
+                "avg_cost",
+                "last_service_date",
+            ]
+        )
 
     # Filter out fuel records for vendor analysis
-    service_df = df[df['type'] == 'service'].copy()
+    service_df = df[df["type"] == "service"].copy()
 
     if service_df.empty:
-        return pd.DataFrame(columns=[
-            'vendor', 'total_spent', 'service_count',
-            'avg_cost', 'last_service_date'
-        ])
+        return pd.DataFrame(
+            columns=[
+                "vendor",
+                "total_spent",
+                "service_count",
+                "avg_cost",
+                "last_service_date",
+            ]
+        )
 
     # Aggregate by vendor
-    vendor_stats = service_df.groupby('vendor').agg({
-        'cost': ['sum', 'mean', 'count'],
-        'date': 'max',
-        'service_type': lambda x: list(x.unique())
-    }).reset_index()
+    vendor_stats = (
+        service_df.groupby("vendor")
+        .agg(
+            {
+                "cost": ["sum", "mean", "count"],
+                "date": "max",
+                "service_type": lambda x: list(x.unique()),
+            }
+        )
+        .reset_index()
+    )
 
     vendor_stats.columns = [
-        'vendor', 'total_spent', 'avg_cost',
-        'service_count', 'last_service_date', 'service_types'
+        "vendor",
+        "total_spent",
+        "avg_cost",
+        "service_count",
+        "last_service_date",
+        "service_types",
     ]
 
     # Sort by total spent (descending)
-    vendor_stats = vendor_stats.sort_values('total_spent', ascending=False)
+    vendor_stats = vendor_stats.sort_values("total_spent", ascending=False)
 
     return vendor_stats
 
@@ -349,26 +435,26 @@ def compare_time_periods(
     """
     if df.empty:
         return {
-            'period1_cost': Decimal("0.00"),
-            'period2_cost': Decimal("0.00"),
-            'cost_change_pct': Decimal("0.00"),
-            'period1_count': 0,
-            'period2_count': 0,
+            "period1_cost": Decimal("0.00"),
+            "period2_cost": Decimal("0.00"),
+            "cost_change_pct": Decimal("0.00"),
+            "period1_count": 0,
+            "period2_count": 0,
         }
 
     # Filter by periods
     period1 = df[
-        (df['date'] >= pd.Timestamp(period1_start)) &
-        (df['date'] <= pd.Timestamp(period1_end))
+        (df["date"] >= pd.Timestamp(period1_start))
+        & (df["date"] <= pd.Timestamp(period1_end))
     ]
     period2 = df[
-        (df['date'] >= pd.Timestamp(period2_start)) &
-        (df['date'] <= pd.Timestamp(period2_end))
+        (df["date"] >= pd.Timestamp(period2_start))
+        & (df["date"] <= pd.Timestamp(period2_end))
     ]
 
     # Calculate metrics
-    p1_cost = period1['cost'].sum() if not period1.empty else 0.0
-    p2_cost = period2['cost'].sum() if not period2.empty else 0.0
+    p1_cost = period1["cost"].sum() if not period1.empty else 0.0
+    p2_cost = period2["cost"].sum() if not period2.empty else 0.0
 
     # Calculate percentage change
     if p1_cost > 0:
@@ -377,13 +463,17 @@ def compare_time_periods(
         change_pct = 0.0
 
     return {
-        'period1_cost': Decimal(str(round(p1_cost, 2))),
-        'period2_cost': Decimal(str(round(p2_cost, 2))),
-        'cost_change_pct': Decimal(str(round(change_pct, 2))),
-        'period1_count': len(period1),
-        'period2_count': len(period2),
-        'period1_service_count': len(period1[period1['type'] == 'service']) if not period1.empty else 0,
-        'period2_service_count': len(period2[period2['type'] == 'service']) if not period2.empty else 0,
+        "period1_cost": Decimal(str(round(p1_cost, 2))),
+        "period2_cost": Decimal(str(round(p2_cost, 2))),
+        "cost_change_pct": Decimal(str(round(change_pct, 2))),
+        "period1_count": len(period1),
+        "period2_count": len(period2),
+        "period1_service_count": len(period1[period1["type"] == "service"])
+        if not period1.empty
+        else 0,
+        "period2_service_count": len(period2[period2["type"] == "service"])
+        if not period2.empty
+        else 0,
     }
 
 
@@ -425,78 +515,162 @@ def calculate_propane_costs(fuel_records: List[FuelRecord]) -> Dict:
         fuel_records: List of FuelRecord objects (filtered for propane)
 
     Returns:
-        Dictionary with propane statistics and monthly trends
+        Dictionary with propane statistics, monthly trends, and tank breakdown
     """
     # Filter for propane records (propane_gallons > 0 and gallons is None)
     propane_records = [
-        r for r in fuel_records
+        r
+        for r in fuel_records
         if r.propane_gallons and r.propane_gallons > 0 and not r.gallons
     ]
 
     if not propane_records:
         return {
-            'total_spent': Decimal("0.00"),
-            'total_gallons': Decimal("0.00"),
-            'avg_price_per_gallon': None,
-            'record_count': 0,
-            'monthly_trend': [],
+            "total_spent": Decimal("0.00"),
+            "total_gallons": Decimal("0.00"),
+            "avg_price_per_gallon": None,
+            "record_count": 0,
+            "monthly_trend": [],
+            "tank_breakdown": {},
+            "tank_timeline": [],
+            "refill_frequency": {},
         }
 
     # Convert to DataFrame for analysis
     data = []
     for record in propane_records:
         if record.date and record.cost and record.propane_gallons:
-            data.append({
-                'date': pd.Timestamp(record.date),
-                'cost': float(record.cost),
-                'gallons': float(record.propane_gallons),
-                'price_per_gallon': float(record.price_per_unit) if record.price_per_unit else None,
-            })
+            data.append(
+                {
+                    "date": pd.Timestamp(record.date),
+                    "cost": float(record.cost),
+                    "gallons": float(record.propane_gallons),
+                    "price_per_gallon": float(record.price_per_unit)
+                    if record.price_per_unit
+                    else None,
+                    "tank_size_lb": float(record.tank_size_lb)
+                    if record.tank_size_lb
+                    else None,
+                    "tank_quantity": int(record.tank_quantity)
+                    if record.tank_quantity
+                    else None,
+                }
+            )
 
     if not data:
         return {
-            'total_spent': Decimal("0.00"),
-            'total_gallons': Decimal("0.00"),
-            'avg_price_per_gallon': None,
-            'record_count': 0,
-            'monthly_trend': [],
+            "total_spent": Decimal("0.00"),
+            "total_gallons": Decimal("0.00"),
+            "avg_price_per_gallon": None,
+            "record_count": 0,
+            "monthly_trend": [],
+            "tank_breakdown": {},
+            "tank_timeline": [],
+            "refill_frequency": {},
         }
 
-    df = pd.DataFrame(data).sort_values('date').reset_index(drop=True)
+    df = pd.DataFrame(data).sort_values("date").reset_index(drop=True)
 
     # Calculate totals
-    total_spent = df['cost'].sum()
-    total_gallons = df['gallons'].sum()
+    total_spent = df["cost"].sum()
+    total_gallons = df["gallons"].sum()
     avg_price = total_spent / total_gallons if total_gallons > 0 else 0
 
     # Monthly trend
-    df['year'] = df['date'].dt.year
-    df['month'] = df['date'].dt.month
-    monthly = df.groupby(['year', 'month']).agg({
-        'cost': 'sum',
-        'gallons': 'sum'
-    }).reset_index()
-    monthly['month_name'] = monthly['month'].apply(lambda x: calendar.month_name[int(x)])
-    monthly['avg_price'] = monthly['cost'] / monthly['gallons']
+    df["year"] = df["date"].dt.year
+    df["month"] = df["date"].dt.month
+    monthly = (
+        df.groupby(["year", "month"])
+        .agg({"cost": "sum", "gallons": "sum"})
+        .reset_index()
+    )
+    monthly["month_name"] = monthly["month"].apply(
+        lambda x: calendar.month_name[int(x)]
+    )
+    monthly["avg_price"] = monthly["cost"] / monthly["gallons"]
 
     monthly_trend = [
         {
-            'year': int(row['year']),
-            'month': int(row['month']),
-            'month_name': row['month_name'],
-            'total_cost': round(row['cost'], 2),
-            'total_gallons': round(row['gallons'], 2),
-            'avg_price_per_gallon': round(row['avg_price'], 2),
+            "year": int(row["year"]),
+            "month": int(row["month"]),
+            "month_name": row["month_name"],
+            "total_cost": round(row["cost"], 2),
+            "total_gallons": round(row["gallons"], 2),
+            "avg_price_per_gallon": round(row["avg_price"], 2),
         }
         for _, row in monthly.iterrows()
     ]
 
+    # Tank breakdown analytics
+    tank_breakdown = {}
+    tank_timeline = []
+    refill_frequency = {}
+
+    # Group by tank size
+    df["tank_key"] = (
+        df["tank_size_lb"]
+        .fillna("unknown")
+        .apply(lambda x: str(int(x)) if x != "unknown" else "unknown")
+    )
+
+    for tank_key in df["tank_key"].unique():
+        tank_records = df[df["tank_key"] == tank_key]
+        total_tank_gallons = tank_records["gallons"].sum()
+        total_tank_cost = tank_records["cost"].sum()
+        refill_count = len(tank_records)
+
+        avg_price_per_gallon = (
+            total_tank_cost / total_tank_gallons if total_tank_gallons > 0 else 0
+        )
+
+        tank_breakdown[tank_key] = {
+            "total_gallons": round(total_tank_gallons, 2),
+            "total_cost": round(total_tank_cost, 2),
+            "refill_count": refill_count,
+            "avg_price_per_gallon": round(avg_price_per_gallon, 2),
+        }
+
+        # Calculate refill frequency for this tank size
+        if refill_count > 1:
+            tank_dates = tank_records["date"].sort_values()
+            days_between = [
+                (tank_dates.iloc[i + 1] - tank_dates.iloc[i]).days
+                for i in range(len(tank_dates) - 1)
+            ]
+            if days_between:
+                refill_frequency[tank_key] = {
+                    "avg_days_between": round(sum(days_between) / len(days_between), 1),
+                    "min_days": int(min(days_between)),
+                    "max_days": int(max(days_between)),
+                }
+
+    # Timeline data
+    for _, row in df.iterrows():
+        tank_timeline.append(
+            {
+                "date": row["date"].strftime("%Y-%m-%d"),
+                "tank_size_lb": int(row["tank_size_lb"])
+                if pd.notna(row["tank_size_lb"])
+                else None,
+                "tank_quantity": int(row["tank_quantity"])
+                if pd.notna(row["tank_quantity"])
+                else None,
+                "gallons": round(row["gallons"], 2),
+                "cost": round(row["cost"], 2),
+            }
+        )
+
     return {
-        'total_spent': Decimal(str(round(total_spent, 2))),
-        'total_gallons': Decimal(str(round(total_gallons, 2))),
-        'avg_price_per_gallon': Decimal(str(round(avg_price, 2))) if avg_price > 0 else None,
-        'record_count': len(propane_records),
-        'monthly_trend': monthly_trend,
+        "total_spent": Decimal(str(round(total_spent, 2))),
+        "total_gallons": Decimal(str(round(total_gallons, 2))),
+        "avg_price_per_gallon": Decimal(str(round(avg_price, 2)))
+        if avg_price > 0
+        else None,
+        "record_count": len(propane_records),
+        "monthly_trend": monthly_trend,
+        "tank_breakdown": tank_breakdown,
+        "tank_timeline": tank_timeline,
+        "refill_frequency": refill_frequency,
     }
 
 
@@ -531,68 +705,80 @@ async def calculate_spot_rental_costs(db, vin: str) -> Dict:
 
     if not all_billings:
         return {
-            'total_cost': Decimal("0.00"),
-            'billing_count': 0,
-            'monthly_average': Decimal("0.00"),
-            'monthly_trend': [],
+            "total_cost": Decimal("0.00"),
+            "billing_count": 0,
+            "monthly_average": Decimal("0.00"),
+            "monthly_trend": [],
         }
 
     # Convert to DataFrame for analysis
     data = []
     for billing in all_billings:
         if billing.billing_date and billing.total:
-            data.append({
-                'date': pd.Timestamp(billing.billing_date),
-                'total': float(billing.total),
-                'monthly_rate': float(billing.monthly_rate) if billing.monthly_rate else 0,
-                'electric': float(billing.electric) if billing.electric else 0,
-                'water': float(billing.water) if billing.water else 0,
-                'waste': float(billing.waste) if billing.waste else 0,
-            })
+            data.append(
+                {
+                    "date": pd.Timestamp(billing.billing_date),
+                    "total": float(billing.total),
+                    "monthly_rate": float(billing.monthly_rate)
+                    if billing.monthly_rate
+                    else 0,
+                    "electric": float(billing.electric) if billing.electric else 0,
+                    "water": float(billing.water) if billing.water else 0,
+                    "waste": float(billing.waste) if billing.waste else 0,
+                }
+            )
 
     if not data:
         return {
-            'total_cost': Decimal("0.00"),
-            'billing_count': 0,
-            'monthly_average': Decimal("0.00"),
-            'monthly_trend': [],
+            "total_cost": Decimal("0.00"),
+            "billing_count": 0,
+            "monthly_average": Decimal("0.00"),
+            "monthly_trend": [],
         }
 
-    df = pd.DataFrame(data).sort_values('date').reset_index(drop=True)
+    df = pd.DataFrame(data).sort_values("date").reset_index(drop=True)
 
     # Calculate totals
-    total_cost = df['total'].sum()
-    monthly_avg = df['total'].mean()
+    total_cost = df["total"].sum()
+    monthly_avg = df["total"].mean()
 
     # Monthly trend
-    df['year'] = df['date'].dt.year
-    df['month'] = df['date'].dt.month
-    monthly = df.groupby(['year', 'month']).agg({
-        'total': 'sum',
-        'monthly_rate': 'sum',
-        'electric': 'sum',
-        'water': 'sum',
-        'waste': 'sum',
-    }).reset_index()
-    monthly['month_name'] = monthly['month'].apply(lambda x: calendar.month_name[int(x)])
+    df["year"] = df["date"].dt.year
+    df["month"] = df["date"].dt.month
+    monthly = (
+        df.groupby(["year", "month"])
+        .agg(
+            {
+                "total": "sum",
+                "monthly_rate": "sum",
+                "electric": "sum",
+                "water": "sum",
+                "waste": "sum",
+            }
+        )
+        .reset_index()
+    )
+    monthly["month_name"] = monthly["month"].apply(
+        lambda x: calendar.month_name[int(x)]
+    )
 
     monthly_trend = [
         {
-            'year': int(row['year']),
-            'month': int(row['month']),
-            'month_name': row['month_name'],
-            'total_cost': round(row['total'], 2),
-            'monthly_rate': round(row['monthly_rate'], 2),
-            'electric': round(row['electric'], 2),
-            'water': round(row['water'], 2),
-            'waste': round(row['waste'], 2),
+            "year": int(row["year"]),
+            "month": int(row["month"]),
+            "month_name": row["month_name"],
+            "total_cost": round(row["total"], 2),
+            "monthly_rate": round(row["monthly_rate"], 2),
+            "electric": round(row["electric"], 2),
+            "water": round(row["water"], 2),
+            "waste": round(row["waste"], 2),
         }
         for _, row in monthly.iterrows()
     ]
 
     return {
-        'total_cost': Decimal(str(round(total_cost, 2))),
-        'billing_count': len(all_billings),
-        'monthly_average': Decimal(str(round(monthly_avg, 2))),
-        'monthly_trend': monthly_trend,
+        "total_cost": Decimal(str(round(total_cost, 2))),
+        "billing_count": len(all_billings),
+        "monthly_average": Decimal(str(round(monthly_avg, 2))),
+        "monthly_trend": monthly_trend,
     }

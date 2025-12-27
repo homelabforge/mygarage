@@ -31,7 +31,9 @@ def get_or_create_secret_key(key_file: Path = Path("/data/secret.key")) -> str:
                 logger.debug("Loaded existing secret key from %s", key_file)
                 return secret_key
             else:
-                logger.warning("Secret key file at %s is empty, generating new key", key_file)
+                logger.warning(
+                    "Secret key file at %s is empty, generating new key", key_file
+                )
 
         # Generate cryptographically secure key (32 bytes = 256 bits)
         secret_key = secrets.token_urlsafe(32)

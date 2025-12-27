@@ -27,7 +27,7 @@ async def list_fuel_records(
     limit: int = 100,
     include_hauling: bool = False,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth)
+    current_user: User = Depends(require_auth),
 ):
     """
     Get all fuel records for a vehicle with MPG calculations.
@@ -52,11 +52,7 @@ async def list_fuel_records(
         vin, current_user, skip, limit, include_hauling
     )
 
-    return FuelRecordListResponse(
-        records=responses,
-        total=total,
-        average_mpg=avg_mpg
-    )
+    return FuelRecordListResponse(records=responses, total=total, average_mpg=avg_mpg)
 
 
 @router.get("/{record_id}", response_model=FuelRecordResponse)
@@ -64,7 +60,7 @@ async def get_fuel_record(
     vin: str,
     record_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth)
+    current_user: User = Depends(require_auth),
 ):
     """
     Get a specific fuel record with MPG calculation.
@@ -89,7 +85,7 @@ async def get_fuel_record(
 
     # Build response with MPG
     record_dict = record.__dict__.copy()
-    record_dict['mpg'] = mpg
+    record_dict["mpg"] = mpg
 
     return FuelRecordResponse(**record_dict)
 
@@ -99,7 +95,7 @@ async def create_fuel_record(
     vin: str,
     record_data: FuelRecordCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth)
+    current_user: User = Depends(require_auth),
 ):
     """
     Create a new fuel record with MPG calculation.
@@ -113,7 +109,7 @@ async def create_fuel_record(
 
     # Build response with MPG
     record_dict = record.__dict__.copy()
-    record_dict['mpg'] = mpg
+    record_dict["mpg"] = mpg
 
     return FuelRecordResponse(**record_dict)
 
@@ -124,7 +120,7 @@ async def update_fuel_record(
     record_id: int,
     record_data: FuelRecordUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth)
+    current_user: User = Depends(require_auth),
 ):
     """
     Update an existing fuel record.
@@ -134,11 +130,13 @@ async def update_fuel_record(
     - Admin users can update all fuel records
     """
     service = FuelRecordService(db)
-    record, mpg = await service.update_fuel_record(vin, record_id, record_data, current_user)
+    record, mpg = await service.update_fuel_record(
+        vin, record_id, record_data, current_user
+    )
 
     # Build response with MPG
     record_dict = record.__dict__.copy()
-    record_dict['mpg'] = mpg
+    record_dict["mpg"] = mpg
 
     return FuelRecordResponse(**record_dict)
 
@@ -148,7 +146,7 @@ async def delete_fuel_record(
     vin: str,
     record_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth)
+    current_user: User = Depends(require_auth),
 ):
     """
     Delete a fuel record.

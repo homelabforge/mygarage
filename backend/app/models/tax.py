@@ -1,6 +1,16 @@
 """Tax record database model."""
 
-from sqlalchemy import String, Integer, Numeric, Date, DateTime, Text, ForeignKey, Index, CheckConstraint
+from sqlalchemy import (
+    String,
+    Integer,
+    Numeric,
+    Date,
+    DateTime,
+    Text,
+    ForeignKey,
+    Index,
+    CheckConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 from datetime import date, datetime
@@ -16,7 +26,9 @@ class TaxRecord(Base):
     __tablename__ = "tax_records"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    vin: Mapped[str] = mapped_column(String(17), ForeignKey("vehicles.vin", ondelete="CASCADE"), nullable=False)
+    vin: Mapped[str] = mapped_column(
+        String(17), ForeignKey("vehicles.vin", ondelete="CASCADE"), nullable=False
+    )
     date: Mapped[date] = mapped_column(Date, nullable=False)
     tax_type: Mapped[Optional[str]] = mapped_column(String(30))
     amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
@@ -30,7 +42,7 @@ class TaxRecord(Base):
     __table_args__ = (
         CheckConstraint(
             "tax_type IN ('Registration', 'Inspection', 'Property Tax', 'Tolls')",
-            name="check_tax_type"
+            name="check_tax_type",
         ),
         Index("idx_tax_records_vin", "vin"),
         Index("idx_tax_records_date", "date"),

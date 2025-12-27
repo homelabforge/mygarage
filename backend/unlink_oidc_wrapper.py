@@ -6,7 +6,10 @@ import sys
 
 # Run the script from the correct directory
 result = subprocess.run(
-    ["python3", "-c", """
+    [
+        "python3",
+        "-c",
+        """
 import sys
 sys.path.insert(0, '/app/app')
 import asyncio
@@ -39,8 +42,10 @@ async def unlink_oidc_account(username: str):
 
 username = sys.argv[1] if len(sys.argv) > 1 else "oaniach1"
 asyncio.run(unlink_oidc_account(username))
-"""] + sys.argv[1:],
-    cwd="/app/app"
+""",
+    ]
+    + sys.argv[1:],
+    cwd="/app/app",
 )
 
 sys.exit(result.returncode)

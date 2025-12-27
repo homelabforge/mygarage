@@ -75,7 +75,9 @@ class WindowStickerData:
             "msrp_base": str(self.msrp_base) if self.msrp_base else None,
             "msrp_total": str(self.msrp_total) if self.msrp_total else None,
             "msrp_options": str(self.msrp_options) if self.msrp_options else None,
-            "destination_charge": str(self.destination_charge) if self.destination_charge else None,
+            "destination_charge": str(self.destination_charge)
+            if self.destination_charge
+            else None,
             "options_detail": {k: str(v) for k, v in self.options_detail.items()},
             "packages": self.packages,
             "exterior_color": self.exterior_color,
@@ -127,9 +129,13 @@ class WindowStickerData:
         # Check fuel economy reasonableness
         if self.fuel_economy_combined:
             if self.fuel_economy_combined < 5:
-                warnings.append(f"Combined MPG seems unusually low: {self.fuel_economy_combined}")
+                warnings.append(
+                    f"Combined MPG seems unusually low: {self.fuel_economy_combined}"
+                )
             elif self.fuel_economy_combined > 150:
-                warnings.append(f"Combined MPG seems unusually high: {self.fuel_economy_combined}")
+                warnings.append(
+                    f"Combined MPG seems unusually high: {self.fuel_economy_combined}"
+                )
 
         return warnings
 
@@ -142,8 +148,8 @@ class BaseWindowStickerParser(ABC):
     SUPPORTED_MAKES: list[str] = []
 
     # Common regex patterns
-    PRICE_PATTERN = r'\$?\s*([\d,]+\.?\d*)'
-    VIN_PATTERN = r'[A-HJ-NPR-Z0-9]{17}'
+    PRICE_PATTERN = r"\$?\s*([\d,]+\.?\d*)"
+    VIN_PATTERN = r"[A-HJ-NPR-Z0-9]{17}"
 
     def __init__(self):
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
@@ -167,7 +173,7 @@ class BaseWindowStickerParser(ABC):
             match = re.search(pattern, text, re.IGNORECASE)
             if match:
                 try:
-                    value = match.group(1).replace(',', '').replace('$', '')
+                    value = match.group(1).replace(",", "").replace("$", "")
                     return Decimal(value)
                 except (ValueError, IndexError, decimal.InvalidOperation):
                     continue
@@ -177,9 +183,9 @@ class BaseWindowStickerParser(ABC):
         """Extract VIN from text."""
         # Look for VIN label first - handle VINs with dashes/spaces
         vin_patterns = [
-            r'VIN[:\s]*([A-HJ-NPR-Z0-9\-–\s]{17,21})',
-            r'V\.I\.N\.[:\s]*([A-HJ-NPR-Z0-9\-–\s]{17,21})',
-            r'VEHICLE\s*IDENTIFICATION\s*NUMBER[:\s]*([A-HJ-NPR-Z0-9\-–\s]{17,21})',
+            r"VIN[:\s]*([A-HJ-NPR-Z0-9\-–\s]{17,21})",
+            r"V\.I\.N\.[:\s]*([A-HJ-NPR-Z0-9\-–\s]{17,21})",
+            r"VEHICLE\s*IDENTIFICATION\s*NUMBER[:\s]*([A-HJ-NPR-Z0-9\-–\s]{17,21})",
         ]
 
         for pattern in vin_patterns:
@@ -187,8 +193,8 @@ class BaseWindowStickerParser(ABC):
             if match:
                 # Clean up the VIN - remove dashes, spaces, en-dashes
                 vin = match.group(1).upper()
-                vin = re.sub(r'[\-–\s]', '', vin)
-                if len(vin) == 17 and re.match(r'^[A-HJ-NPR-Z0-9]{17}$', vin):
+                vin = re.sub(r"[\-–\s]", "", vin)
+                if len(vin) == 17 and re.match(r"^[A-HJ-NPR-Z0-9]{17}$", vin):
                     return vin
 
         # Fallback: find any 17-char alphanumeric without I, O, Q
@@ -198,7 +204,9 @@ class BaseWindowStickerParser(ABC):
 
         return None
 
-    def _extract_fuel_economy(self, text: str) -> tuple[Optional[int], Optional[int], Optional[int]]:
+    def _extract_fuel_economy(
+        self, text: str
+    ) -> tuple[Optional[int], Optional[int], Optional[int]]:
         """Extract city, highway, and combined MPG."""
         city = None
         highway = None
@@ -206,9 +214,9 @@ class BaseWindowStickerParser(ABC):
 
         # City patterns
         city_patterns = [
-            r'CITY[:\s]*(\d+)\s*MPG',
-            r'(\d+)\s*MPG\s*CITY',
-            r'CITY\s*(\d+)',
+            r"CITY[:\s]*(\d+)\s*MPG",
+            r"(\d+)\s*MPG\s*CITY",
+            r"CITY\s*(\d+)",
         ]
         for pattern in city_patterns:
             match = re.search(pattern, text, re.IGNORECASE)
@@ -218,9 +226,9 @@ class BaseWindowStickerParser(ABC):
 
         # Highway patterns
         highway_patterns = [
-            r'(?:HWY|HIGHWAY)[:\s]*(\d+)\s*MPG',
-            r'(\d+)\s*MPG\s*(?:HWY|HIGHWAY)',
-            r'HIGHWAY\s*(\d+)',
+            r"(?:HWY|HIGHWAY)[:\s]*(\d+)\s*MPG",
+            r"(\d+)\s*MPG\s*(?:HWY|HIGHWAY)",
+            r"HIGHWAY\s*(\d+)",
         ]
         for pattern in highway_patterns:
             match = re.search(pattern, text, re.IGNORECASE)
@@ -230,9 +238,9 @@ class BaseWindowStickerParser(ABC):
 
         # Combined patterns
         combined_patterns = [
-            r'COMBINED[:\s]*(\d+)\s*MPG',
-            r'(\d+)\s*MPG\s*COMBINED',
-            r'COMBINED\s*(\d+)',
+            r"COMBINED[:\s]*(\d+)\s*MPG",
+            r"(\d+)\s*MPG\s*COMBINED",
+            r"COMBINED\s*(\d+)",
         ]
         for pattern in combined_patterns:
             match = re.search(pattern, text, re.IGNORECASE)
@@ -245,11 +253,11 @@ class BaseWindowStickerParser(ABC):
     def _extract_assembly_location(self, text: str) -> Optional[str]:
         """Extract assembly/manufacturing location."""
         patterns = [
-            r'ASSEMBLY\s*POINT[/\s]*PORT\s*OF\s*ENTRY[:\s]*([^\n]+)',
-            r'FINAL\s*ASSEMBLY\s*POINT[:\s]*([^\n]+)',
-            r'ASSEMBLED\s*IN[:\s]*([^\n]+)',
-            r'COUNTRY\s*OF\s*ORIGIN[:\s]*([^\n]+)',
-            r'MANUFACTURED\s*(?:IN|AT)[:\s]*([^\n]+)',
+            r"ASSEMBLY\s*POINT[/\s]*PORT\s*OF\s*ENTRY[:\s]*([^\n]+)",
+            r"FINAL\s*ASSEMBLY\s*POINT[:\s]*([^\n]+)",
+            r"ASSEMBLED\s*IN[:\s]*([^\n]+)",
+            r"COUNTRY\s*OF\s*ORIGIN[:\s]*([^\n]+)",
+            r"MANUFACTURED\s*(?:IN|AT)[:\s]*([^\n]+)",
         ]
 
         for pattern in patterns:
@@ -257,13 +265,13 @@ class BaseWindowStickerParser(ABC):
             if match:
                 location = match.group(1).strip()
                 # Clean up trailing punctuation
-                location = re.sub(r'[;\.]$', '', location).strip()
-                location = re.sub(r'\s+', ' ', location)
+                location = re.sub(r"[;\.]$", "", location).strip()
+                location = re.sub(r"\s+", " ", location)
                 # Remove trailing codes/numbers (but not location names)
                 # Only remove if it's clearly a code (uppercase letters/digits without lowercase)
-                location = re.sub(r'\s+[A-Z0-9]{3,}[-–][A-Z0-9]+$', '', location)
+                location = re.sub(r"\s+[A-Z0-9]{3,}[-–][A-Z0-9]+$", "", location)
                 # Remove trailing comma if at end
-                location = re.sub(r',\s*$', '', location).strip()
+                location = re.sub(r",\s*$", "", location).strip()
                 if location and len(location) > 2:
                     return location[:100]
 
@@ -276,27 +284,27 @@ class BaseWindowStickerParser(ABC):
 
         # Powertrain warranty
         powertrain_patterns = [
-            r'(\d+)[- ]?(?:year|yr)[/ ](?:or\s*)?(\d+,?\d*)[- ]?(?:mile|mi).*?powertrain',
-            r'powertrain.*?(\d+)[- ]?(?:year|yr)[/ ](?:or\s*)?(\d+,?\d*)[- ]?(?:mile|mi)',
+            r"(\d+)[- ]?(?:year|yr)[/ ](?:or\s*)?(\d+,?\d*)[- ]?(?:mile|mi).*?powertrain",
+            r"powertrain.*?(\d+)[- ]?(?:year|yr)[/ ](?:or\s*)?(\d+,?\d*)[- ]?(?:mile|mi)",
         ]
         for pattern in powertrain_patterns:
             match = re.search(pattern, text, re.IGNORECASE)
             if match:
                 years = match.group(1)
-                miles = match.group(2).replace(',', '')
+                miles = match.group(2).replace(",", "")
                 powertrain = f"{years}-year or {int(miles):,}-mile Powertrain"
                 break
 
         # Basic warranty
         basic_patterns = [
-            r'(\d+)[- ]?(?:year|yr)[/ ](?:or\s*)?(\d+,?\d*)[- ]?(?:mile|mi).*?basic',
-            r'basic.*?(\d+)[- ]?(?:year|yr)[/ ](?:or\s*)?(\d+,?\d*)[- ]?(?:mile|mi)',
+            r"(\d+)[- ]?(?:year|yr)[/ ](?:or\s*)?(\d+,?\d*)[- ]?(?:mile|mi).*?basic",
+            r"basic.*?(\d+)[- ]?(?:year|yr)[/ ](?:or\s*)?(\d+,?\d*)[- ]?(?:mile|mi)",
         ]
         for pattern in basic_patterns:
             match = re.search(pattern, text, re.IGNORECASE)
             if match:
                 years = match.group(1)
-                miles = match.group(2).replace(',', '')
+                miles = match.group(2).replace(",", "")
                 basic = f"{years}-year or {int(miles):,}-mile Basic"
                 break
 
@@ -309,73 +317,81 @@ class BaseWindowStickerParser(ABC):
 
         # Exterior color patterns
         ext_patterns = [
-            r'EXTERIOR\s*COLOR[:\s]*([^\n]+?)(?:INTERIOR|$|\n)',
-            r'EXT(?:ERIOR)?\.?\s*COLOR[:\s]*([^\n]+)',
-            r'EXTERIOR[:\s]*([^\n]+?)(?:INTERIOR|$|\n)',
+            r"EXTERIOR\s*COLOR[:\s]*([^\n]+?)(?:INTERIOR|$|\n)",
+            r"EXT(?:ERIOR)?\.?\s*COLOR[:\s]*([^\n]+)",
+            r"EXTERIOR[:\s]*([^\n]+?)(?:INTERIOR|$|\n)",
         ]
         for pattern in ext_patterns:
             match = re.search(pattern, text, re.IGNORECASE)
             if match:
                 color = match.group(1).strip()
-                color = re.sub(r'[,;\.]$', '', color).strip()
+                color = re.sub(r"[,;\.]$", "", color).strip()
                 if color and len(color) > 2:
                     exterior = color[:100]
                     break
 
         # Interior color patterns
         int_patterns = [
-            r'INTERIOR\s*COLOR[:\s]*([^\n]+)',
-            r'INT(?:ERIOR)?\.?\s*COLOR[:\s]*([^\n]+)',
-            r'INTERIOR[:\s]*([^\n]+?)(?:ENGINE|TRANS|$|\n)',
+            r"INTERIOR\s*COLOR[:\s]*([^\n]+)",
+            r"INT(?:ERIOR)?\.?\s*COLOR[:\s]*([^\n]+)",
+            r"INTERIOR[:\s]*([^\n]+?)(?:ENGINE|TRANS|$|\n)",
         ]
         for pattern in int_patterns:
             match = re.search(pattern, text, re.IGNORECASE)
             if match:
                 color = match.group(1).strip()
-                color = re.sub(r'[,;\.]$', '', color).strip()
+                color = re.sub(r"[,;\.]$", "", color).strip()
                 if color and len(color) > 2:
                     interior = color[:100]
                     break
 
         return exterior, interior
 
-    def _extract_engine_transmission(self, text: str) -> tuple[Optional[str], Optional[str]]:
+    def _extract_engine_transmission(
+        self, text: str
+    ) -> tuple[Optional[str], Optional[str]]:
         """Extract engine and transmission descriptions."""
         engine = None
         transmission = None
 
         # Engine patterns
         engine_patterns = [
-            r'ENGINE[:\s]*([^\n]+?)(?:TRANSMISSION|TRANS\.|$|\n)',
-            r'(\d+\.?\d*L?\s*[VI]\d+[^\n]*(?:TURBO|DIESEL|HYBRID)?[^\n]*)',
+            r"ENGINE[:\s]*([^\n]+?)(?:TRANSMISSION|TRANS\.|$|\n)",
+            r"(\d+\.?\d*L?\s*[VI]\d+[^\n]*(?:TURBO|DIESEL|HYBRID)?[^\n]*)",
         ]
         for pattern in engine_patterns:
             match = re.search(pattern, text, re.IGNORECASE)
             if match:
                 eng = match.group(1).strip()
-                eng = re.sub(r'[,;\.]$', '', eng).strip()
+                eng = re.sub(r"[,;\.]$", "", eng).strip()
                 if eng and len(eng) > 3:
                     engine = eng[:150]
                     break
 
         # Transmission patterns
         trans_patterns = [
-            r'TRANSMISSION[:\s]*([^\n]+)',
-            r'TRANS\.[:\s]*([^\n]+)',
-            r'(\d+)[- ]?SPEED\s*(?:AUTO|MANUAL|CVT)[^\n]*',
+            r"TRANSMISSION[:\s]*([^\n]+)",
+            r"TRANS\.[:\s]*([^\n]+)",
+            r"(\d+)[- ]?SPEED\s*(?:AUTO|MANUAL|CVT)[^\n]*",
         ]
         for pattern in trans_patterns:
             match = re.search(pattern, text, re.IGNORECASE)
             if match:
-                trans = match.group(1).strip() if match.lastindex else match.group(0).strip()
-                trans = re.sub(r'[,;\.]$', '', trans).strip()
+                trans = (
+                    match.group(1).strip()
+                    if match.lastindex
+                    else match.group(0).strip()
+                )
+                trans = re.sub(r"[,;\.]$", "", trans).strip()
                 if trans and len(trans) > 3:
                     transmission = trans[:150]
                     break
 
         return engine, transmission
 
-    def _extract_wheel_tire_specs(self, text: str) -> tuple[Optional[str], Optional[str]]:
+    def _extract_wheel_tire_specs(
+        self, text: str
+    ) -> tuple[Optional[str], Optional[str]]:
         """Extract wheel and tire specifications."""
         wheels = None
         tires = None
@@ -383,7 +399,7 @@ class BaseWindowStickerParser(ABC):
         # Wheel patterns
         wheel_patterns = [
             r'(\d+["\']?\s*[xX]\s*\d+\.?\d*["\']?\s*(?:INCH|IN\.?)?\s*[^\n]*(?:WHEEL|ALLOY|ALUM)[^\n]*)',
-            r'(\d+[- ]?INCH[^\n]*(?:WHEEL|ALLOY|ALUM)[^\n]*)',
+            r"(\d+[- ]?INCH[^\n]*(?:WHEEL|ALLOY|ALUM)[^\n]*)",
         ]
         for pattern in wheel_patterns:
             match = re.search(pattern, text, re.IGNORECASE)
@@ -393,8 +409,8 @@ class BaseWindowStickerParser(ABC):
 
         # Tire patterns
         tire_patterns = [
-            r'((?:LT|P)?\d{3}/\d{2}[RZ]\d{2}[A-Z]?\s*[^\n]*(?:TIRE|ALL[- ]?SEASON|ALL[- ]?TERRAIN)?[^\n]*)',
-            r'((?:LT|P)?\d{3}/\d{2}[RZ]\d{2})',
+            r"((?:LT|P)?\d{3}/\d{2}[RZ]\d{2}[A-Z]?\s*[^\n]*(?:TIRE|ALL[- ]?SEASON|ALL[- ]?TERRAIN)?[^\n]*)",
+            r"((?:LT|P)?\d{3}/\d{2}[RZ]\d{2})",
         ]
         for pattern in tire_patterns:
             match = re.search(pattern, text, re.IGNORECASE)

@@ -47,9 +47,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
         # Permissions Policy (formerly Feature-Policy)
         response.headers["Permissions-Policy"] = (
-            "geolocation=(), "
-            "microphone=(), "
-            "camera=()"
+            "geolocation=(), microphone=(), camera=()"
         )
 
         return response
@@ -96,8 +94,8 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
         "/api/auth/oidc/",
         "/api/health",
         "/api/settings/public",  # Public settings endpoint
-        "/api/backup/",          # Backup routes (protected by JWT auth, no user input)
-        "/api/settings/batch",   # User preferences (protected by JWT auth, auto-save)
+        "/api/backup/",  # Backup routes (protected by JWT auth, no user input)
+        "/api/settings/batch",  # User preferences (protected by JWT auth, auto-save)
     ]
 
     async def dispatch(self, request: Request, call_next):
@@ -112,9 +110,10 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
         # Check if auth is disabled - skip CSRF validation
         try:
             from app.services.auth import get_auth_mode
+
             async for db in get_db():
                 auth_mode = await get_auth_mode(db)
-                if auth_mode == 'none':
+                if auth_mode == "none":
                     # Auth disabled, skip CSRF validation
                     return await call_next(request)
                 break
@@ -130,7 +129,7 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
                 status_code=403,
                 content={
                     "detail": "CSRF token missing. Include X-CSRF-Token header with your request."
-                }
+                },
             )
 
         # Validate CSRF token against database
@@ -141,7 +140,7 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
                 result = await db.execute(
                     select(CSRFToken).where(
                         CSRFToken.token == csrf_token,
-                        CSRFToken.expires_at > datetime.now(timezone.utc)
+                        CSRFToken.expires_at > datetime.now(timezone.utc),
                     )
                 )
                 token_record = result.scalar_one_or_none()
@@ -151,7 +150,7 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
                         status_code=403,
                         content={
                             "detail": "Invalid or expired CSRF token. Please login again."
-                        }
+                        },
                     )
 
                 # Token is valid, process request
@@ -165,10 +164,7 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
 
         except Exception as e:
             return JSONResponse(
-                status_code=500,
-                content={
-                    "detail": f"CSRF validation error: {str(e)}"
-                }
+                status_code=500, content={"detail": f"CSRF validation error: {str(e)}"}
             )
 
         return await call_next(request)

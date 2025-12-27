@@ -19,8 +19,7 @@ from app.models.fuel import FuelRecord
 # Test database URL - defaults to SQLite for isolated testing
 # Override with TEST_DATABASE_URL environment variable if needed
 TEST_DATABASE_URL = os.getenv(
-    "TEST_DATABASE_URL",
-    "sqlite+aiosqlite:///./test_mygarage.db"
+    "TEST_DATABASE_URL", "sqlite+aiosqlite:///./test_mygarage.db"
 )
 
 
@@ -35,11 +34,7 @@ async def test_engine():
 @pytest_asyncio.fixture(scope="session")
 async def test_sessionmaker(test_engine):
     """Create session maker for tests."""
-    return async_sessionmaker(
-        test_engine,
-        class_=AsyncSession,
-        expire_on_commit=False
-    )
+    return async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
 
 
 @pytest_asyncio.fixture(scope="session")
@@ -72,8 +67,7 @@ async def client(db_session) -> AsyncGenerator[AsyncClient, None]:
     app.dependency_overrides[get_db] = override_get_db
 
     async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://test"
+        transport=ASGITransport(app=app), base_url="http://test"
     ) as ac:
         yield ac
 
@@ -97,7 +91,7 @@ async def test_user(db_session: AsyncSession, init_test_db) -> User:
         user = User(
             email="testuser@example.com",
             password_hash=hash_password("TestPassword123!"),
-            is_active=True
+            is_active=True,
         )
         db_session.add(user)
         await db_session.commit()
@@ -124,7 +118,7 @@ async def test_vehicle(db_session: AsyncSession, test_user: User) -> Vehicle:
             vehicle_type="Car",
             year=2018,
             make="Honda",
-            model="Accord"
+            model="Accord",
         )
         db_session.add(vehicle)
         await db_session.commit()
@@ -134,45 +128,43 @@ async def test_vehicle(db_session: AsyncSession, test_user: User) -> Vehicle:
 
 
 @pytest_asyncio.fixture
-async def vehicle_with_service_records(db_session: AsyncSession, test_user: User) -> Vehicle:
+async def vehicle_with_service_records(
+    db_session: AsyncSession, test_user: User
+) -> Vehicle:
     """Get a vehicle that has service records."""
     # Find a vehicle with service records
     result = await db_session.execute(
-        select(Vehicle)
-        .where(Vehicle.user_id == test_user.id)
-        .limit(10)
+        select(Vehicle).where(Vehicle.user_id == test_user.id).limit(10)
     )
     vehicles = result.scalars().all()
 
     for vehicle in vehicles:
         service_result = await db_session.execute(
-            select(ServiceRecord)
-            .where(ServiceRecord.vin == vehicle.vin)
-            .limit(1)
+            select(ServiceRecord).where(ServiceRecord.vin == vehicle.vin).limit(1)
         )
         if service_result.scalar_one_or_none():
             return vehicle
 
     # pytest.skip() raises Skipped exception - never returns None
-    pytest.skip("No vehicles with service records found. Please add service records first.")
+    pytest.skip(
+        "No vehicles with service records found. Please add service records first."
+    )
 
 
 @pytest_asyncio.fixture
-async def vehicle_with_fuel_records(db_session: AsyncSession, test_user: User) -> Vehicle:
+async def vehicle_with_fuel_records(
+    db_session: AsyncSession, test_user: User
+) -> Vehicle:
     """Get a vehicle that has fuel records."""
     # Find a vehicle with fuel records
     result = await db_session.execute(
-        select(Vehicle)
-        .where(Vehicle.user_id == test_user.id)
-        .limit(10)
+        select(Vehicle).where(Vehicle.user_id == test_user.id).limit(10)
     )
     vehicles = result.scalars().all()
 
     for vehicle in vehicles:
         fuel_result = await db_session.execute(
-            select(FuelRecord)
-            .where(FuelRecord.vin == vehicle.vin)
-            .limit(1)
+            select(FuelRecord).where(FuelRecord.vin == vehicle.vin).limit(1)
         )
         if fuel_result.scalar_one_or_none():
             return vehicle
@@ -182,33 +174,31 @@ async def vehicle_with_fuel_records(db_session: AsyncSession, test_user: User) -
 
 
 @pytest_asyncio.fixture
-async def vehicle_with_analytics_data(db_session: AsyncSession, test_user: User) -> Vehicle:
+async def vehicle_with_analytics_data(
+    db_session: AsyncSession, test_user: User
+) -> Vehicle:
     """Get a vehicle that has sufficient data for analytics (service + fuel records)."""
     # Find a vehicle with both service and fuel records
     result = await db_session.execute(
-        select(Vehicle)
-        .where(Vehicle.user_id == test_user.id)
-        .limit(10)
+        select(Vehicle).where(Vehicle.user_id == test_user.id).limit(10)
     )
     vehicles = result.scalars().all()
 
     for vehicle in vehicles:
         service_result = await db_session.execute(
-            select(ServiceRecord)
-            .where(ServiceRecord.vin == vehicle.vin)
-            .limit(1)
+            select(ServiceRecord).where(ServiceRecord.vin == vehicle.vin).limit(1)
         )
         fuel_result = await db_session.execute(
-            select(FuelRecord)
-            .where(FuelRecord.vin == vehicle.vin)
-            .limit(1)
+            select(FuelRecord).where(FuelRecord.vin == vehicle.vin).limit(1)
         )
 
         if service_result.scalar_one_or_none() and fuel_result.scalar_one_or_none():
             return vehicle
 
     # pytest.skip() raises Skipped exception - never returns None
-    pytest.skip("No vehicles with both service and fuel records found. Please add more data first.")
+    pytest.skip(
+        "No vehicles with both service and fuel records found. Please add more data first."
+    )
 
 
 @pytest.fixture
@@ -216,6 +206,4 @@ def auth_headers(test_user: User) -> dict:
     """Provide authentication headers for API requests."""
     # Note: In a real scenario, you'd generate a proper JWT token
     # For testing purposes, you might bypass auth or use a test token
-    return {
-        "X-Test-User-Id": str(test_user.id)
-    }
+    return {"X-Test-User-Id": str(test_user.id)}

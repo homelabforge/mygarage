@@ -60,10 +60,9 @@ async def _cleanup_expired_states(db: AsyncSession):
         db: Database session
     """
     from sqlalchemy import delete
+
     cutoff = datetime.now(timezone.utc)
-    await db.execute(
-        delete(OIDCState).where(OIDCState.expires_at <= cutoff)
-    )
+    await db.execute(delete(OIDCState).where(OIDCState.expires_at <= cutoff))
     await db.commit()
 
 
@@ -89,9 +88,7 @@ async def get_oidc_config(db: AsyncSession) -> Dict[str, str]:
     Returns:
         Dictionary with OIDC configuration values
     """
-    result = await db.execute(
-        select(Setting).where(Setting.key.like("oidc_%"))
-    )
+    result = await db.execute(select(Setting).where(Setting.key.like("oidc_%")))
     settings = result.scalars().all()
 
     config = {}
@@ -124,7 +121,9 @@ async def get_provider_metadata(issuer_url: str) -> Optional[Dict[str, Any]]:
     try:
         validate_oidc_url(issuer_url)
     except (SSRFProtectionError, ValueError) as e:
-        logger.error("SSRF protection blocked OIDC issuer URL: %s - %s", issuer_url, str(e))
+        logger.error(
+            "SSRF protection blocked OIDC issuer URL: %s - %s", issuer_url, str(e)
+        )
         raise SSRFProtectionError(f"Invalid OIDC issuer URL: {e}")
 
     # Try standard OIDC discovery endpoint
@@ -134,7 +133,9 @@ async def get_provider_metadata(issuer_url: str) -> Optional[Dict[str, Any]]:
     try:
         validate_oidc_url(discovery_url)
     except (SSRFProtectionError, ValueError) as e:
-        logger.error("SSRF protection blocked OIDC discovery URL: %s - %s", discovery_url, str(e))
+        logger.error(
+            "SSRF protection blocked OIDC discovery URL: %s - %s", discovery_url, str(e)
+        )
         raise SSRFProtectionError(f"Invalid OIDC discovery URL: {e}")
 
     try:
@@ -186,14 +187,16 @@ async def store_oidc_state(db: AsyncSession, state: str, redirect_uri: str, nonc
         nonce=nonce,
         redirect_uri=redirect_uri,
         created_at=datetime.now(timezone.utc),
-        expires_at=OIDCState.get_expiry_time(minutes=10)
+        expires_at=OIDCState.get_expiry_time(minutes=10),
     )
     db.add(oidc_state)
     await db.commit()
     logger.debug("Stored OIDC state: %s...", state[:16])
 
 
-async def validate_and_consume_state(db: AsyncSession, state: str) -> Optional[Dict[str, Any]]:
+async def validate_and_consume_state(
+    db: AsyncSession, state: str
+) -> Optional[Dict[str, Any]]:
     """Validate and consume OIDC state from database (one-time use).
 
     Args:
@@ -206,9 +209,7 @@ async def validate_and_consume_state(db: AsyncSession, state: str) -> Optional[D
     await _cleanup_expired_states(db)
 
     # Find and validate state
-    result = await db.execute(
-        select(OIDCState).where(OIDCState.state == state)
-    )
+    result = await db.execute(select(OIDCState).where(OIDCState.state == state))
     oidc_state = result.scalar_one_or_none()
 
     if not oidc_state:
@@ -285,6 +286,7 @@ async def create_authorization_url(
 
     # Construct URL
     from urllib.parse import urlencode
+
     auth_url = f"{auth_endpoint}?{urlencode(params)}"
 
     logger.info("Created OIDC authorization URL for state: %s", state)
@@ -317,7 +319,9 @@ async def exchange_code_for_tokens(
     try:
         validate_oidc_url(token_endpoint)
     except (SSRFProtectionError, ValueError) as e:
-        logger.error("SSRF protection blocked token endpoint: %s - %s", token_endpoint, str(e))
+        logger.error(
+            "SSRF protection blocked token endpoint: %s - %s", token_endpoint, str(e)
+        )
         return None
 
     # Prepare token request
@@ -346,7 +350,9 @@ async def exchange_code_for_tokens(
 
             # Log response details for debugging
             if response.status_code != 200:
-                logger.error("Token exchange failed with status %s", response.status_code)
+                logger.error(
+                    "Token exchange failed with status %s", response.status_code
+                )
                 logger.error("Response body: %s", response.text)
 
             response.raise_for_status()
@@ -358,7 +364,11 @@ async def exchange_code_for_tokens(
     except httpx.HTTPStatusError as e:
         logger.error("HTTP error during token exchange: %s", e.response.status_code)
         logger.error("Response body: %s", e.response.text)
-        logger.error("Request data: grant_type=%s, redirect_uri=%s", data['grant_type'], data['redirect_uri'])
+        logger.error(
+            "Request data: grant_type=%s, redirect_uri=%s",
+            data["grant_type"],
+            data["redirect_uri"],
+        )
         return None  # Intentional fallback
     except httpx.TimeoutException:
         logger.error("Token exchange request timed out")
@@ -421,7 +431,7 @@ async def verify_id_token(
         )
         claims.validate()
 
-        logger.info("Successfully verified ID token for subject: %s", claims.get('sub'))
+        logger.info("Successfully verified ID token for subject: %s", claims.get("sub"))
         return dict(claims)
 
     except JoseError as e:
@@ -450,14 +460,20 @@ async def get_userinfo(
     """
     userinfo_endpoint = metadata.get("userinfo_endpoint")
     if not userinfo_endpoint:
-        logger.warning("Provider metadata missing userinfo_endpoint, skipping userinfo fetch")
+        logger.warning(
+            "Provider metadata missing userinfo_endpoint, skipping userinfo fetch"
+        )
         return None
 
     # SECURITY: Validate userinfo endpoint URL against SSRF attacks
     try:
         validate_oidc_url(userinfo_endpoint)
     except (SSRFProtectionError, ValueError) as e:
-        logger.error("SSRF protection blocked userinfo endpoint: %s - %s", userinfo_endpoint, str(e))
+        logger.error(
+            "SSRF protection blocked userinfo endpoint: %s - %s",
+            userinfo_endpoint,
+            str(e),
+        )
         return None
 
     try:
@@ -524,7 +540,10 @@ async def create_or_update_user_from_oidc(
     email_claim = config.get("email_claim", "email")
     name_claim = config.get("name_claim", "name")
 
-    username = all_claims.get(username_claim, all_claims.get("preferred_username", all_claims.get("email", ""))).split("@")[0]
+    username = all_claims.get(
+        username_claim,
+        all_claims.get("preferred_username", all_claims.get("email", "")),
+    ).split("@")[0]
     email = all_claims.get(email_claim, "")
     full_name = all_claims.get(name_claim, "")
 
@@ -535,9 +554,7 @@ async def create_or_update_user_from_oidc(
     provider_name = config.get("provider_name", "OIDC Provider")
 
     # Check if user exists with this oidc_subject
-    result = await db.execute(
-        select(User).where(User.oidc_subject == sub)
-    )
+    result = await db.execute(select(User).where(User.oidc_subject == sub))
     user = result.scalar_one_or_none()
 
     if user:
@@ -551,9 +568,7 @@ async def create_or_update_user_from_oidc(
         return user
 
     # Check for existing user with matching email (account linking)
-    result = await db.execute(
-        select(User).where(User.email == email)
-    )
+    result = await db.execute(select(User).where(User.email == email))
     user = result.scalar_one_or_none()
 
     if user:
@@ -569,30 +584,35 @@ async def create_or_update_user_from_oidc(
         return user
 
     # Check for existing user with matching username (requires password verification)
-    result = await db.execute(
-        select(User).where(User.username == username)
-    )
+    result = await db.execute(select(User).where(User.username == username))
     user = result.scalar_one_or_none()
 
     if user:
         # Username match found but no OIDC link exists
         if user.hashed_password is None:
             # OIDC-only user (no password) - raise explicit error
-            logger.error("Username match for OIDC-only user (no password): %s", username)
-            raise ValueError(f"Username '{username}' exists as SSO-only account. Contact support to link this account.")
+            logger.error(
+                "Username match for OIDC-only user (no password): %s", username
+            )
+            raise ValueError(
+                f"Username '{username}' exists as SSO-only account. Contact support to link this account."
+            )
         elif user.oidc_subject and user.oidc_subject != sub:
             # Already linked to different OIDC account - conflict
-            logger.error("Username conflict: %s already linked to different OIDC account", username)
-            raise ValueError(f"Username '{username}' is already linked to a different account. Please contact support.")
+            logger.error(
+                "Username conflict: %s already linked to different OIDC account",
+                username,
+            )
+            raise ValueError(
+                f"Username '{username}' is already linked to a different account. Please contact support."
+            )
         else:
             # Valid candidate for username-based linking - requires password verification
             logger.info("Username match requires password verification: %s", username)
             from app.exceptions import PendingLinkRequiredException
+
             raise PendingLinkRequiredException(
-                username=username,
-                claims=claims,
-                userinfo=userinfo,
-                config=config
+                username=username, claims=claims, userinfo=userinfo, config=config
             )
 
     # Check if auto-create is enabled
@@ -624,9 +644,7 @@ async def create_or_update_user_from_oidc(
     base_username = username
     counter = 1
     while True:
-        result = await db.execute(
-            select(User).where(User.username == username)
-        )
+        result = await db.execute(select(User).where(User.username == username))
         if not result.scalar_one_or_none():
             break
         username = f"{base_username}{counter}"
@@ -693,6 +711,7 @@ async def create_pending_link_token(
 
     # Serialize claims as JSON (convert to dict for JSON storage)
     import json
+
     oidc_claims_json = json.dumps(claims)
     userinfo_claims_json = json.dumps(userinfo) if userinfo else None
 
@@ -711,7 +730,11 @@ async def create_pending_link_token(
     db.add(pending_link)
     await db.commit()
 
-    logger.info("Created pending link token for username: %s (expires in %s minutes)", username, expire_minutes)
+    logger.info(
+        "Created pending link token for username: %s (expires in %s minutes)",
+        username,
+        expire_minutes,
+    )
     return token
 
 
@@ -774,7 +797,9 @@ async def validate_and_consume_pending_link(
 
     # Check attempt count
     if pending_link.attempt_count >= max_attempts:
-        logger.warning("Max password attempts exceeded for username: %s", pending_link.username)
+        logger.warning(
+            "Max password attempts exceeded for username: %s", pending_link.username
+        )
         await db.delete(pending_link)
         await db.commit()
         return (None, "Too many failed attempts. Please log in again.")
@@ -793,14 +818,20 @@ async def validate_and_consume_pending_link(
 
     # Security check: user must have a password (not OIDC-only)
     if user.hashed_password is None:
-        logger.error("Username match for OIDC-only user (no password): %s", pending_link.username)
+        logger.error(
+            "Username match for OIDC-only user (no password): %s", pending_link.username
+        )
         await db.delete(pending_link)
         await db.commit()
         return (None, "Link expired, please log in again")
 
     # Deserialize claims
     claims = json.loads(pending_link.oidc_claims)
-    userinfo = json.loads(pending_link.userinfo_claims) if pending_link.userinfo_claims else None
+    userinfo = (
+        json.loads(pending_link.userinfo_claims)
+        if pending_link.userinfo_claims
+        else None
+    )
     sub = claims.get("sub")
 
     if not sub:
@@ -811,10 +842,16 @@ async def validate_and_consume_pending_link(
 
     # Security check: user not already linked to different OIDC account
     if user.oidc_subject and user.oidc_subject != sub:
-        logger.error("Username conflict: %s already linked to different OIDC account", pending_link.username)
+        logger.error(
+            "Username conflict: %s already linked to different OIDC account",
+            pending_link.username,
+        )
         await db.delete(pending_link)
         await db.commit()
-        return (None, "Account already linked to different provider. Please contact support.")
+        return (
+            None,
+            "Account already linked to different provider. Please contact support.",
+        )
 
     # Verify password
     if not verify_password(password, user.hashed_password):
@@ -823,7 +860,12 @@ async def validate_and_consume_pending_link(
         await db.commit()
 
         remaining = max_attempts - pending_link.attempt_count
-        logger.warning("Invalid password attempt for username: %s (%s/%s)", pending_link.username, pending_link.attempt_count, max_attempts)
+        logger.warning(
+            "Invalid password attempt for username: %s (%s/%s)",
+            pending_link.username,
+            pending_link.attempt_count,
+            max_attempts,
+        )
 
         if remaining <= 0:
             await db.delete(pending_link)
@@ -833,7 +875,9 @@ async def validate_and_consume_pending_link(
         return (None, f"Invalid password. {remaining} attempt(s) remaining.")
 
     # Password correct - link accounts
-    logger.info("Password verified, linking OIDC account to user: %s", pending_link.username)
+    logger.info(
+        "Password verified, linking OIDC account to user: %s", pending_link.username
+    )
 
     # Merge claims
     all_claims = {**claims}
@@ -898,7 +942,9 @@ async def test_oidc_connection(config: Dict[str, str]) -> Dict[str, Any]:
         missing_endpoints = [ep for ep in required_endpoints if not metadata.get(ep)]
 
         if missing_endpoints:
-            result["errors"].append(f"Missing endpoints: {', '.join(missing_endpoints)}")
+            result["errors"].append(
+                f"Missing endpoints: {', '.join(missing_endpoints)}"
+            )
             return result
 
         result["endpoints_found"] = True

@@ -31,11 +31,11 @@ def validate_vin(vin: str) -> tuple[bool, Optional[str]]:
         return False, f"VIN must be exactly 17 characters (got {len(vin)})"
 
     # Check for invalid characters (I, O, Q not allowed per ISO 3779)
-    if re.search(r'[IOQ]', vin):
+    if re.search(r"[IOQ]", vin):
         return False, "VIN cannot contain the letters I, O, or Q"
 
     # Check that it only contains valid characters (A-Z, 0-9, excluding I, O, Q)
-    if not re.match(r'^[A-HJ-NPR-Z0-9]{17}$', vin):
+    if not re.match(r"^[A-HJ-NPR-Z0-9]{17}$", vin):
         return False, "VIN contains invalid characters"
 
     # Validate check digit (9th position) for North American VINs
@@ -72,11 +72,39 @@ def calculate_check_digit(vin: str) -> Optional[str]:
 
     # VIN character to value mapping
     transliteration = {
-        'A': 1, 'B': 2, 'C': 3, 'D': 4, 'E': 5, 'F': 6, 'G': 7, 'H': 8,
-        'J': 1, 'K': 2, 'L': 3, 'M': 4, 'N': 5, 'P': 7, 'R': 9,
-        'S': 2, 'T': 3, 'U': 4, 'V': 5, 'W': 6, 'X': 7, 'Y': 8, 'Z': 9,
-        '0': 0, '1': 1, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7,
-        '8': 8, '9': 9
+        "A": 1,
+        "B": 2,
+        "C": 3,
+        "D": 4,
+        "E": 5,
+        "F": 6,
+        "G": 7,
+        "H": 8,
+        "J": 1,
+        "K": 2,
+        "L": 3,
+        "M": 4,
+        "N": 5,
+        "P": 7,
+        "R": 9,
+        "S": 2,
+        "T": 3,
+        "U": 4,
+        "V": 5,
+        "W": 6,
+        "X": 7,
+        "Y": 8,
+        "Z": 9,
+        "0": 0,
+        "1": 1,
+        "2": 2,
+        "3": 3,
+        "4": 4,
+        "5": 5,
+        "6": 6,
+        "7": 7,
+        "8": 8,
+        "9": 9,
     }
 
     # Position weights (position 9 is the check digit, so it's 0)
@@ -95,7 +123,7 @@ def calculate_check_digit(vin: str) -> Optional[str]:
 
         # If remainder is 10, check digit is 'X'
         if remainder == 10:
-            return 'X'
+            return "X"
         else:
             return str(remainder)
     except (KeyError, ValueError):
