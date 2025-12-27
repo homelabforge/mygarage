@@ -19,6 +19,7 @@ from app.services.auth import require_auth, get_vehicle_or_403
 from app.services.photo_service import PhotoService
 from app.services.file_upload_service import FileUploadService, PHOTO_UPLOAD_CONFIG
 from app.utils.path_validation import sanitize_filename, validate_path_within_base
+from app.utils.vin import validate_vin
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/vehicles", tags=["Photos"])
@@ -141,6 +142,11 @@ async def get_vehicle_photo(
     """
     vin = vin.upper().strip()
 
+    # Validate VIN before using in path (prevent path traversal)
+    is_valid, error = validate_vin(vin)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=f"Invalid VIN format: {error}")
+
     safe_filename = sanitize_filename(filename)
 
     # Check vehicle ownership (raises 403 if unauthorized)
@@ -174,6 +180,12 @@ async def get_vehicle_thumbnail(
     - Admin users can view thumbnails for all vehicles
     """
     vin = vin.upper().strip()
+
+    # Validate VIN before using in path (prevent path traversal)
+    is_valid, error = validate_vin(vin)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=f"Invalid VIN format: {error}")
+
     safe_filename = sanitize_filename(filename)
 
     # Check vehicle ownership (raises 403 if unauthorized)
@@ -331,6 +343,11 @@ async def set_main_photo(
     - Admin users can set main photo for all vehicles
     """
     vin = vin.upper().strip()
+
+    # Validate VIN before using in path (prevent path traversal)
+    is_valid, error = validate_vin(vin)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=f"Invalid VIN format: {error}")
 
     safe_filename = sanitize_filename(filename)
 

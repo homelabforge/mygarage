@@ -65,7 +65,10 @@ async def test_ntfy_connection(
             return {"success": True, "message": "Test notification sent"}
     except Exception as e:
         logger.error("ntfy test failed: %s", e)
-        return {"success": False, "message": str(e)}
+        return {
+            "success": False,
+            "message": "Failed to send test notification. Check server logs for details.",
+        }
 
 
 @router.post("/test/gotify")
@@ -103,7 +106,10 @@ async def test_gotify_connection(
             return {"success": True, "message": "Test notification sent"}
     except Exception as e:
         logger.error("Gotify test failed: %s", e)
-        return {"success": False, "message": str(e)}
+        return {
+            "success": False,
+            "message": "Failed to connect to Gotify server. Check server logs for details.",
+        }
 
 
 @router.post("/test/pushover")
@@ -154,7 +160,10 @@ async def test_pushover_connection(
             return {"success": True, "message": "Test notification sent"}
     except Exception as e:
         logger.error("Pushover test failed: %s", e)
-        return {"success": False, "message": str(e)}
+        return {
+            "success": False,
+            "message": "Failed to send Pushover test. Check server logs for details.",
+        }
 
 
 @router.post("/test/slack")
@@ -195,7 +204,10 @@ async def test_slack_connection(
             }
     except Exception as e:
         logger.error("Slack test failed: %s", e)
-        return {"success": False, "message": str(e)}
+        return {
+            "success": False,
+            "message": "Failed to send Slack test. Check server logs for details.",
+        }
 
 
 @router.post("/test/discord")
@@ -234,7 +246,10 @@ async def test_discord_connection(
             return {"success": False, "message": "Unexpected response"}
     except Exception as e:
         logger.error("Discord test failed: %s", e)
-        return {"success": False, "message": str(e)}
+        return {
+            "success": False,
+            "message": "Failed to send Discord test. Check server logs for details.",
+        }
 
 
 @router.post("/test/telegram")
@@ -283,7 +298,10 @@ async def test_telegram_connection(
             }
     except Exception as e:
         logger.error("Telegram test failed: %s", e)
-        return {"success": False, "message": str(e)}
+        return {
+            "success": False,
+            "message": "Failed to send Telegram test. Check server logs for details.",
+        }
 
 
 @router.post("/test/email")
@@ -351,4 +369,7 @@ async def test_email_connection(
         return {"success": True, "message": "Test email sent"}
     except Exception as e:
         logger.error("Email test failed: %s", e)
-        return {"success": False, "message": str(e)}
+        return {
+            "success": False,
+            "message": "Failed to send email test. Check server logs for details.",
+        }

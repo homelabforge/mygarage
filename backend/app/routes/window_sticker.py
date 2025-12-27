@@ -19,6 +19,7 @@ from app.models import Vehicle
 from app.models.user import User
 from app.services.auth import require_auth
 from app.services.window_sticker_ocr import WindowStickerOCRService
+from app.utils.vin import validate_vin
 
 logger = logging.getLogger(__name__)
 
@@ -186,6 +187,11 @@ async def upload_window_sticker(
     # Generate unique filename
     file_ext = Path(file.filename).suffix.lower()
     unique_filename = f"window_sticker_{uuid.uuid4()}{file_ext}"
+
+    # Validate VIN before using in path (prevent path traversal)
+    is_valid, error = validate_vin(vin)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=f"Invalid VIN format: {error}")
 
     # Create VIN-specific directory
     vin_dir = STICKER_STORAGE_PATH / vin
