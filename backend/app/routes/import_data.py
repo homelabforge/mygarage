@@ -1,20 +1,21 @@
 """Data import routes for MyGarage."""
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Request
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from datetime import datetime, date as date_type
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 import csv
 import io
 import json
-from typing import Optional
+import logging
+from datetime import datetime, date as date_type
 from decimal import Decimal, InvalidOperation
+from typing import Optional
 
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Request
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.config import settings
 from app.database import get_db
-from app.models.user import User
-from app.services.auth import require_auth
 from app.models import (
     Vehicle,
     ServiceRecord,
@@ -26,8 +27,11 @@ from app.models import (
     InsurancePolicy,
     TaxRecord,
 )
-from app.config import settings
+from app.models.user import User
+from app.services.auth import require_auth
 from app.utils.file_validation import validate_csv_upload
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/import", tags=["import"])
 limiter = Limiter(key_func=get_remote_address)
@@ -193,7 +197,8 @@ async def import_service_csv(
 
         except Exception as e:
             # Intentional catch-all: per-row errors should not stop the import
-            import_result.add_error(row_num, str(e))
+            logger.error("Service import row %d failed: %s", row_num, e)
+            import_result.add_error(row_num, "Invalid service record data")
 
     await db.commit()
 
@@ -271,7 +276,8 @@ async def import_fuel_csv(
             import_result.add_success()
 
         except Exception as e:
-            import_result.add_error(row_num, str(e))
+            logger.error("Fuel import row %d failed: %s", row_num, e)
+            import_result.add_error(row_num, "Invalid fuel record data")
 
     await db.commit()
 
@@ -335,7 +341,8 @@ async def import_odometer_csv(
             import_result.add_success()
 
         except Exception as e:
-            import_result.add_error(row_num, str(e))
+            logger.error("Import row %d failed: %s", row_num, e)
+            import_result.add_error(row_num, "Invalid record data")
 
     await db.commit()
 
@@ -409,7 +416,8 @@ async def import_warranties_csv(
             import_result.add_success()
 
         except Exception as e:
-            import_result.add_error(row_num, str(e))
+            logger.error("Import row %d failed: %s", row_num, e)
+            import_result.add_error(row_num, "Invalid record data")
 
     await db.commit()
 
@@ -480,7 +488,8 @@ async def import_insurance_csv(
             import_result.add_success()
 
         except Exception as e:
-            import_result.add_error(row_num, str(e))
+            logger.error("Import row %d failed: %s", row_num, e)
+            import_result.add_error(row_num, "Invalid record data")
 
     await db.commit()
 
@@ -548,7 +557,8 @@ async def import_tax_csv(
             import_result.add_success()
 
         except Exception as e:
-            import_result.add_error(row_num, str(e))
+            logger.error("Import row %d failed: %s", row_num, e)
+            import_result.add_error(row_num, "Invalid record data")
 
     await db.commit()
 
@@ -601,7 +611,8 @@ async def import_notes_csv(
             import_result.add_success()
 
         except Exception as e:
-            import_result.add_error(row_num, str(e))
+            logger.error("Import row %d failed: %s", row_num, e)
+            import_result.add_error(row_num, "Invalid record data")
 
     await db.commit()
 

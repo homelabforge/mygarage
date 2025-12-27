@@ -241,7 +241,7 @@ async def parse_insurance_pdf(
 
     except ValueError as e:
         logger.error("Document parsing error: %s", e)
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail="Invalid insurance document format")
     except (OSError, IOError) as e:
         logger.error("File system error parsing document: %s", e)
         raise HTTPException(status_code=500, detail="Error reading uploaded document")
