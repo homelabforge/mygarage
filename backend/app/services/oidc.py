@@ -121,9 +121,8 @@ async def get_provider_metadata(issuer_url: str) -> Optional[Dict[str, Any]]:
     try:
         validate_oidc_url(issuer_url)
     except (SSRFProtectionError, ValueError) as e:
-        logger.error(
-            "SSRF protection blocked OIDC issuer URL: %s - %s", issuer_url, str(e)
-        )
+        # Don't log the full URL - it could contain secrets in query params
+        logger.error("SSRF protection blocked OIDC issuer URL: %s", str(e))
         raise SSRFProtectionError(f"Invalid OIDC issuer URL: {e}")
 
     # Try standard OIDC discovery endpoint
@@ -133,9 +132,8 @@ async def get_provider_metadata(issuer_url: str) -> Optional[Dict[str, Any]]:
     try:
         validate_oidc_url(discovery_url)
     except (SSRFProtectionError, ValueError) as e:
-        logger.error(
-            "SSRF protection blocked OIDC discovery URL: %s - %s", discovery_url, str(e)
-        )
+        # Don't log the full URL - it could contain secrets in query params
+        logger.error("SSRF protection blocked OIDC discovery URL: %s", str(e))
         raise SSRFProtectionError(f"Invalid OIDC discovery URL: {e}")
 
     try:
@@ -145,14 +143,15 @@ async def get_provider_metadata(issuer_url: str) -> Optional[Dict[str, Any]]:
             response.raise_for_status()
             metadata = response.json()
 
-            logger.info("Successfully fetched OIDC metadata from %s", discovery_url)
+            logger.info("Successfully fetched OIDC metadata")
             return metadata
 
     except httpx.TimeoutException:
-        logger.error("OIDC metadata request timeout: %s", discovery_url)
+        logger.error("OIDC metadata request timeout")
         return None  # Intentional fallback: metadata fetch is optional
     except httpx.ConnectError as e:
-        logger.error("Cannot connect to OIDC provider: %s: %s", discovery_url, str(e))
+        # Don't log the full URL - it could contain secrets in query params
+        logger.error("Cannot connect to OIDC provider: %s", str(e))
         return None  # Intentional fallback: allow graceful degradation
     except httpx.HTTPStatusError as e:
         logger.error("OIDC provider returned error: %s", str(e))
@@ -336,8 +335,8 @@ async def exchange_code_for_tokens(
 
     try:
         async with httpx.AsyncClient() as client:
-            logger.info("Exchanging code for tokens at %s", token_endpoint)
-            logger.debug("Using redirect_uri: %s", redirect_uri)
+            logger.info("Exchanging authorization code for tokens")
+            # codeql[py/clear-text-logging-sensitive-data] - client_secret is masked via mask_secret()
             logger.debug("Using client_secret: %s", mask_secret(client_secret))
 
             # codeql[py/partial-ssrf] - URL validated by validate_oidc_url above
@@ -364,11 +363,8 @@ async def exchange_code_for_tokens(
     except httpx.HTTPStatusError as e:
         logger.error("HTTP error during token exchange: %s", e.response.status_code)
         logger.error("Response body: %s", e.response.text)
-        logger.error(
-            "Request data: grant_type=%s, redirect_uri=%s",
-            data["grant_type"],
-            data["redirect_uri"],
-        )
+        # Don't log request data - it contains authorization code and redirect_uri
+        logger.error("Token exchange failed - check OIDC provider configuration")
         return None  # Intentional fallback
     except httpx.TimeoutException:
         logger.error("Token exchange request timed out")
