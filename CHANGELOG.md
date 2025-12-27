@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- **CodeQL Security Improvements**
+  - Fixed 7 stack trace exposure vulnerabilities in notification test endpoints
+    - Replaced `str(e)` with generic error messages to prevent leaking implementation details
+    - Stack traces now only logged server-side, not exposed to API consumers
+    - Affected endpoints: ntfy, Gotify, Pushover, Slack, Discord, Telegram, Email tests
+  - Added VIN validation before using in file paths (prevents directory traversal)
+    - Validates VIN format (17 alphanumeric characters) before creating directories
+    - Protects window sticker uploads and photo storage endpoints
+    - Mitigates path injection attacks like `../../etc`
+  - Fixed 8 clear-text logging of sensitive data warnings in OIDC service
+    - Removed full URL logging (URLs may contain secrets/tokens in query params)
+    - Removed authorization code and redirect URI from error logs
+    - Added suppression comment for properly masked client_secret
+  - CodeQL scan results improved from 610 warnings to <170 warnings
+
 ## [2.18.0] - 2025-12-27
 
 ### Added
