@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { Fuel, Plus, Edit, Trash2, DollarSign, Calendar, Gauge, TrendingUp, Search, Download, Upload, Truck } from 'lucide-react'
 import { toast } from 'sonner'
 import type { FuelRecord } from '../types/fuel'
+import type { Vehicle } from '../types/vehicle'
 import { formatDateForDisplay } from '../utils/dateUtils'
 import api from '../services/api'
 import { useUnitPreference } from '../hooks/useUnitPreference'
@@ -24,6 +25,7 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick, onRefresh
   const [exporting, setExporting] = useState(false)
   const [importing, setImporting] = useState(false)
   const [includeHauling, setIncludeHauling] = useState(false)
+  const [vehicleFuelType, setVehicleFuelType] = useState<string>('')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { system, showBoth } = useUnitPreference()
 
@@ -37,6 +39,20 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick, onRefresh
       setError(err instanceof Error ? err.message : 'An error occurred')
     }
   }, [vin, includeHauling])
+
+  // Fetch vehicle data to determine fuel type
+  useEffect(() => {
+    const fetchVehicle = async () => {
+      try {
+        const response = await api.get(`/vehicles/${vin}`)
+        const vehicleData: Vehicle = response.data
+        setVehicleFuelType(vehicleData.fuel_type || '')
+      } catch {
+        // Silent fail - non-critical for display
+      }
+    }
+    fetchVehicle()
+  }, [vin])
 
   useEffect(() => {
     setLoading(true)
@@ -162,6 +178,10 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick, onRefresh
   const formatDate = (dateString: string) => {
     return formatDateForDisplay(dateString)
   }
+
+  // Conditional column visibility based on fuel_type
+  const isPropane = vehicleFuelType?.toLowerCase().includes('propane')
+  const showPropaneColumn = isPropane
 
   if (loading) {
     return (
@@ -310,9 +330,11 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick, onRefresh
                   <th className="px-4 py-3 text-left text-xs font-medium text-garage-text-muted uppercase tracking-wider">
                     Volume ({UnitFormatter.getVolumeUnit(system)})
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-garage-text-muted uppercase tracking-wider">
-                    Propane ({UnitFormatter.getVolumeUnit(system)})
-                  </th>
+                  {showPropaneColumn && (
+                    <th className="px-4 py-3 text-left text-xs font-medium text-garage-text-muted uppercase tracking-wider">
+                      Propane ({UnitFormatter.getVolumeUnit(system)})
+                    </th>
+                  )}
                   <th className="px-4 py-3 text-left text-xs font-medium text-garage-text-muted uppercase tracking-wider">
                     Price/{UnitFormatter.getVolumeUnit(system)}
                   </th>
@@ -336,7 +358,7 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick, onRefresh
               <tbody className="bg-garage-surface divide-y divide-garage-border">
                 {filteredRecords.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="px-4 py-8 text-center">
+                    <td colSpan={showPropaneColumn ? 10 : 9} className="px-4 py-8 text-center">
                       <Search className="w-8 h-8 text-garage-text-muted opacity-50 mx-auto mb-2" />
                       <p className="text-garage-text-muted">No matching records found</p>
                     </td>
@@ -363,9 +385,11 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick, onRefresh
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-garage-text">
                       {record.gallons ? UnitFormatter.formatVolume(parseFloat(record.gallons.toString()), system, showBoth) : '-'}
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-sm text-garage-text">
-                      {record.propane_gallons ? UnitFormatter.formatVolume(parseFloat(record.propane_gallons.toString()), system, showBoth) : '-'}
-                    </td>
+                    {showPropaneColumn && (
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-garage-text">
+                        {record.propane_gallons ? UnitFormatter.formatVolume(parseFloat(record.propane_gallons.toString()), system, showBoth) : '-'}
+                      </td>
+                    )}
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-garage-text">
                       {record.price_per_unit ? formatCurrency(parseFloat(record.price_per_unit.toString())) : '-'}
                     </td>
