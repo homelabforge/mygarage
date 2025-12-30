@@ -1277,7 +1277,7 @@ export default function Analytics() {
 
       {/* Service History Summary */}
       {service_history.length > 0 && (
-        <div className="bg-garage-surface border border-garage-border rounded-lg p-6">
+        <div className="bg-garage-surface border border-garage-border rounded-lg p-6 mb-8">
           <div className="flex items-center gap-2 mb-4">
             <Wrench className="w-5 h-5 text-garage-text-muted" />
             <h2 className="text-xl font-bold text-garage-text">Service History Summary</h2>
