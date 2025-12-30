@@ -87,6 +87,11 @@ class MaintenancePrediction(BaseModel):
     average_interval_miles: Optional[int] = None
     confidence: str = "low"  # "high", "medium", "low"
 
+    # Fields to integrate manual reminders with AI predictions
+    has_manual_reminder: bool = False
+    manual_reminder_date: Optional[date_type] = None
+    manual_reminder_mileage: Optional[int] = None
+
     model_config = {"from_attributes": True}
 
 

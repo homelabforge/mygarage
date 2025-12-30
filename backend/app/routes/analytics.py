@@ -28,6 +28,7 @@ from app.models import (
 )
 from app.models.spot_rental import SpotRental
 from app.models.user import User
+from app.models.reminder import Reminder
 from app.schemas.analytics import (
     VehicleAnalytics,
     CostAnalysis,
@@ -88,6 +89,16 @@ def calculate_trend(values: List[float]) -> str:
 async def get_cost_analysis(db: AsyncSession, vin: str) -> CostAnalysis:
     """Calculate cost analysis for a vehicle."""
 
+    # Get vehicle to check type for spot rental filtering
+    vehicle_result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
+    vehicle = vehicle_result.scalar_one_or_none()
+
+    if not vehicle:
+        raise HTTPException(status_code=404, detail="Vehicle not found")
+
+    # Determine if vehicle has spot rentals (only RVs, FifthWheels, TravelTrailers)
+    has_spot_rentals = vehicle.vehicle_type in ["FifthWheel", "RV", "TravelTrailer"]
+
     # Get all service records with costs
     service_result = await db.execute(
         select(ServiceRecord)
@@ -104,14 +115,16 @@ async def get_cost_analysis(db: AsyncSession, vin: str) -> CostAnalysis:
     )
     fuel_records = fuel_result.scalars().all()
 
-    # Get spot rental billings via spot_rentals
-    spot_rental_result = await db.execute(
-        select(SpotRentalBilling)
-        .join(SpotRental)
-        .where(SpotRental.vin == vin, SpotRentalBilling.total.isnot(None))
-        .order_by(SpotRentalBilling.billing_date)
-    )
-    spot_rental_billings = spot_rental_result.scalars().all()
+    # Get spot rental billings via spot_rentals (only if vehicle type supports it)
+    spot_rental_billings = []
+    if has_spot_rentals:
+        spot_rental_result = await db.execute(
+            select(SpotRentalBilling)
+            .join(SpotRental)
+            .where(SpotRental.vin == vin, SpotRentalBilling.total.isnot(None))
+            .order_by(SpotRentalBilling.billing_date)
+        )
+        spot_rental_billings = spot_rental_result.scalars().all()
 
     # Calculate totals
     total_service_cost = sum(
@@ -453,6 +466,12 @@ async def get_maintenance_predictions(
     )
     service_records = list(result.scalars().all())
 
+    # Get active reminders for this vehicle
+    reminder_result = await db.execute(
+        select(Reminder).where(Reminder.vin == vin, ~Reminder.is_completed)
+    )
+    reminders = list(reminder_result.scalars().all())
+
     # Get current mileage if not provided
     if not current_mileage:
         odometer_result = await db.execute(
@@ -462,6 +481,15 @@ async def get_maintenance_predictions(
             .limit(1)
         )
         current_mileage = odometer_result.scalar_one_or_none()
+
+    # Create mapping of service types to reminders (fuzzy match)
+    reminder_map: Dict[str, Reminder] = {}
+    for reminder in reminders:
+        for service_type in set(r.service_type for r in service_records):
+            # Fuzzy match: check if service type appears in reminder description
+            if service_type.lower() in reminder.description.lower():
+                reminder_map[service_type] = reminder
+                break
 
     # Group by service type and calculate intervals
     service_intervals: Dict[str, List[dict]] = defaultdict(list)
@@ -542,6 +570,13 @@ async def get_maintenance_predictions(
                 elif std_dev < avg_days * 0.4:  # Less than 40% variation
                     confidence = "medium"
 
+        # Check if there's a manual reminder for this service type
+        has_reminder = service_type in reminder_map
+        reminder_date = reminder_map[service_type].due_date if has_reminder else None
+        reminder_mileage = (
+            reminder_map[service_type].due_mileage if has_reminder else None
+        )
+
         predictions.append(
             MaintenancePrediction(
                 service_type=service_type,
@@ -552,6 +587,9 @@ async def get_maintenance_predictions(
                 average_interval_days=avg_days,
                 average_interval_miles=avg_miles,
                 confidence=confidence,
+                has_manual_reminder=has_reminder,
+                manual_reminder_date=reminder_date,
+                manual_reminder_mileage=reminder_mileage,
             )
         )
 

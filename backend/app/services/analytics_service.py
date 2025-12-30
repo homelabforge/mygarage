@@ -285,20 +285,33 @@ def calculate_fuel_economy_with_pandas(
 
     # Calculate MPG using diff
     df["miles_driven"] = df["mileage"].diff()
+
+    # Filter invalid trips (0/negative miles, unrealistic distances)
+    # This catches odometer errors, data entry mistakes, etc.
+    df = df[(df["miles_driven"] > 0) & (df["miles_driven"] <= 1000)].copy()
+
     df["mpg"] = df["miles_driven"] / df["gallons"]
 
-    # Remove first row (no previous record to compare)
+    # Filter unrealistic MPG values (< 5 or > 100)
+    # Catches remaining data quality issues
+    df = df[(df["mpg"] >= 5.0) & (df["mpg"] <= 100.0)].copy()
+
+    # Remove rows with NaN MPG
     df = df[df["mpg"].notna()].copy()
 
     if df.empty:
         return pd.DataFrame(), {}
 
-    # Calculate statistics
+    # Calculate statistics with weighted average for more accuracy
+    total_miles = df["miles_driven"].sum()
+    total_gallons = df["gallons"].sum()
+    weighted_avg_mpg = total_miles / total_gallons if total_gallons > 0 else 0
+
     stats = {
-        "average_mpg": Decimal(str(round(df["mpg"].mean(), 2))),
+        "average_mpg": Decimal(str(round(weighted_avg_mpg, 2))),
         "best_mpg": Decimal(str(round(df["mpg"].max(), 2))),
         "worst_mpg": Decimal(str(round(df["mpg"].min(), 2))),
-        "recent_mpg": Decimal(str(round(df["mpg"].tail(5).mean(), 2))),
+        "recent_mpg": Decimal(str(round(df["mpg"].iloc[-1], 2))),
         "trend": calculate_trend_direction(df["mpg"].tail(10)),
         "std_dev": Decimal(str(round(df["mpg"].std(), 2))),
     }

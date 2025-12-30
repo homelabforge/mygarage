@@ -500,7 +500,7 @@ export default function Analytics() {
       </div>
 
       {/* Summary Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <div className="bg-garage-surface border border-garage-border rounded-lg p-6">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-sm font-medium text-garage-text-muted">Total Cost</h3>
@@ -792,15 +792,36 @@ export default function Analytics() {
               >
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2">
-                    <h3 className="font-semibold text-garage-text">{prediction.service_type}</h3>
+                    <h3 className="font-semibold text-garage-text text-lg">{prediction.service_type}</h3>
                     {getConfidenceBadge(prediction.confidence)}
-                  </div>
-                  <div className="flex items-center gap-4 text-sm text-garage-text-muted">
-                    {prediction.predicted_date && (
-                      <span>Due: {formatDate(prediction.predicted_date)}</span>
+                    {prediction.has_manual_reminder && (
+                      <span className="px-2 py-1 text-xs rounded bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200 border border-purple-300 dark:border-purple-700">
+                        REMINDER SET
+                      </span>
                     )}
-                    {prediction.predicted_mileage && (
-                      <span>@ {UnitFormatter.formatDistance(prediction.predicted_mileage, system, false)}</span>
+                  </div>
+                  <div className="space-y-2">
+                    {/* AI Prediction */}
+                    <div className="flex items-center gap-4 text-sm">
+                      <span className="font-medium text-blue-600 dark:text-blue-400">AI predicts:</span>
+                      {prediction.predicted_date && (
+                        <span className="text-garage-text-muted">{formatDate(prediction.predicted_date)}</span>
+                      )}
+                      {prediction.predicted_mileage && (
+                        <span className="text-garage-text-muted">@ {UnitFormatter.formatDistance(prediction.predicted_mileage, system, false)}</span>
+                      )}
+                    </div>
+                    {/* Manual Reminder if exists */}
+                    {prediction.has_manual_reminder && (
+                      <div className="flex items-center gap-4 text-sm">
+                        <span className="font-medium text-purple-600 dark:text-purple-400">You set:</span>
+                        {prediction.manual_reminder_date && (
+                          <span className="text-garage-text-muted">{formatDate(prediction.manual_reminder_date)}</span>
+                        )}
+                        {prediction.manual_reminder_mileage && (
+                          <span className="text-garage-text-muted">@ {UnitFormatter.formatDistance(prediction.manual_reminder_mileage, system, false)}</span>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -922,7 +943,7 @@ export default function Analytics() {
                   month: `${month.month_name.slice(0, 3)} ${month.year}`,
                   Service: parseFloat(month.total_service_cost),
                   Fuel: parseFloat(month.total_fuel_cost),
-                  'Spot Rental': parseFloat(month.total_spot_rental_cost),
+                  ...(hasPropane ? { 'Spot Rental': parseFloat(month.total_spot_rental_cost) } : {})
                 }))}
                 margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
               >
@@ -973,7 +994,7 @@ export default function Analytics() {
                 />
                 <Bar dataKey="Service" fill="#3B82F6" stackId="a" />
                 <Bar dataKey="Fuel" fill="#10B981" stackId="a" />
-                <Bar dataKey="Spot Rental" fill="#F59E0B" stackId="a" />
+                {hasPropane && <Bar dataKey="Spot Rental" fill="#F59E0B" stackId="a" />}
               </RechartsBarChart>
             </ResponsiveContainer>
           </div>
@@ -1019,7 +1040,7 @@ export default function Analytics() {
               <p className="text-2xl font-bold text-red-500">{fuel_economy.worst_mpg ? UnitFormatter.formatFuelEconomy(parseFloat(fuel_economy.worst_mpg), system, showBoth) : 'N/A'}</p>
             </div>
             <div className="text-center p-4 bg-garage-bg rounded-lg">
-              <p className="text-sm text-garage-text-muted mb-1">Recent</p>
+              <p className="text-sm text-garage-text-muted mb-1">Latest Fill-Up</p>
               <p className="text-2xl font-bold text-primary">{fuel_economy.recent_mpg ? UnitFormatter.formatFuelEconomy(parseFloat(fuel_economy.recent_mpg), system, showBoth) : 'N/A'}</p>
             </div>
           </div>
