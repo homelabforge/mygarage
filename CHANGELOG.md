@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Analytics Data Quality & Calculation Accuracy**
+  - Invalid MPG filtering: Filter out 0/negative miles driven and unrealistic MPG values (<5 or >100)
+    - Prevents worst MPG showing 0.0 due to data entry errors or odometer corrections
+    - Two-stage filtering: before calculation (invalid trips) and after (unrealistic MPG)
+    - Handles edge cases: zero miles between fill-ups, negative mileage, extreme outliers
+  - Weighted average MPG calculation: Changed from simple mean to total_miles/total_gallons
+    - More accurate representation of overall fuel efficiency
+    - Accounts for varying trip lengths (long highway vs short city trips)
+    - Example: 450mi/15gal + 50mi/10gal = 20 MPG weighted vs 17.5 MPG simple mean
+  - Recent MPG label clarity: Changed from 5-record rolling average to single most recent fill-up
+    - Backend: `df["mpg"].iloc[-1]` instead of `df["mpg"].tail(5).mean()`
+    - Frontend: Label updated from "Recent" to "Latest Fill-Up" for clarity
+
+- **Analytics UI/UX Improvements**
+  - Card spacing consistency: Standardized Summary Stats grid spacing from `gap-4` to `gap-6`
+    - Matches spacing standard across all analytics sections
+    - Spacing hierarchy: major sections (`gap-8`), card grids (`gap-6`), compact rows (`gap-4`)
+  - Spot rental filtering: Only display for RV-type vehicles (FifthWheel, RV, TravelTrailer)
+    - Backend: Check vehicle_type before querying spot rental data
+    - Frontend: Conditionally render bar chart based on `hasPropane` flag
+    - Removes empty spot rental bars from car/truck analytics
+
+- **Maintenance Prediction Clarity**
+  - Enhanced prediction display to show both AI predictions AND manual reminders
+  - Schema additions: `has_manual_reminder`, `manual_reminder_date`, `manual_reminder_mileage` fields
+  - Backend integration: Query active reminders and fuzzy-match to service types
+  - Frontend enhancements:
+    - Service type displayed in larger, prominent font
+    - "REMINDER SET" purple badge when manual reminder exists
+    - "AI predicts:" label in blue for AI-generated predictions from service history
+    - "You set:" label in purple for manual user reminders
+    - Both systems displayed simultaneously with distinct styling
+  - Helps users understand difference between automated predictions and their own reminders
+  - All changes backward compatible (optional fields with defaults)
+
+### Technical Details
+- Files modified: 5 (3 backend, 2 frontend)
+- Lines changed: 103 insertions(+), 23 deletions(-)
+- Quality checks: ✅ Ruff, ✅ ESLint, ✅ TypeScript type check
+- Commit: `05c1488` - "fix: resolve 6 analytics bugs - MPG calculations, UI spacing, predictions"
+
 ## [2.18.0] - 2025-12-27
 
 ### Security
