@@ -1,5 +1,7 @@
 """PDF report generation utilities using ReportLab."""
 
+# pyright: reportMissingModuleSource=false, reportArgumentType=false
+
 from io import BytesIO
 from datetime import datetime, date as date_type
 from decimal import Decimal

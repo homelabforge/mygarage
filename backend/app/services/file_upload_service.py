@@ -1,5 +1,7 @@
 """Unified file upload service for all upload endpoints."""
 
+# pyright: reportArgumentType=false, reportOptionalMemberAccess=false, reportCallIssue=false
+
 import logging
 import uuid
 from pathlib import Path

@@ -20,63 +20,63 @@ async def test_vehicle_with_records(test_vehicle, db_session):
     from app.models.fuel import FuelRecord
     from app.models.service import ServiceRecord
 
-    vehicle_id = test_vehicle["id"]
-
     # Add fuel records
     fuel_records = [
         FuelRecord(
-            vehicle_id=vehicle_id,
+            vin=test_vehicle["vin"],
             date=(datetime.now() - timedelta(days=30)).date(),
-            odometer=14000,
+            mileage=14000,
             gallons=Decimal("12.0"),
             cost=Decimal("42.00"),
-            cost_per_gallon=Decimal("3.50"),
-            station="Shell",
-            partial_fillup=False,
-            mpg=Decimal("30.5"),
+            price_per_unit=Decimal("3.50"),
+            fuel_type="Regular",
+            is_full_tank=True,
+            missed_fillup=False,
         ),
         FuelRecord(
-            vehicle_id=vehicle_id,
+            vin=test_vehicle["vin"],
             date=(datetime.now() - timedelta(days=15)).date(),
-            odometer=14366,
+            mileage=14366,
             gallons=Decimal("11.5"),
             cost=Decimal("40.25"),
-            cost_per_gallon=Decimal("3.50"),
-            station="Mobil",
-            partial_fillup=False,
-            mpg=Decimal("31.8"),
+            price_per_unit=Decimal("3.50"),
+            fuel_type="Regular",
+            is_full_tank=True,
+            missed_fillup=False,
         ),
         FuelRecord(
-            vehicle_id=vehicle_id,
+            vin=test_vehicle["vin"],
             date=datetime.now().date(),
-            odometer=15000,
+            mileage=15000,
             gallons=Decimal("12.5"),
             cost=Decimal("45.50"),
-            cost_per_gallon=Decimal("3.64"),
-            station="BP",
-            partial_fillup=False,
-            mpg=Decimal("28.5"),
+            price_per_unit=Decimal("3.64"),
+            fuel_type="Regular",
+            is_full_tank=True,
+            missed_fillup=False,
         ),
     ]
 
     # Add service records
     service_records = [
         ServiceRecord(
-            vehicle_id=vehicle_id,
-            service_type="oil_change",
+            vin=test_vehicle["vin"],
+            service_type="Oil Change",
+            service_category="Maintenance",
             date=(datetime.now() - timedelta(days=90)).date(),
-            odometer=12000,
+            mileage=12000,
             cost=Decimal("45.99"),
-            vendor="Jiffy Lube",
+            vendor_name="Jiffy Lube",
             notes="5W-30 synthetic oil",
         ),
         ServiceRecord(
-            vehicle_id=vehicle_id,
-            service_type="tire_rotation",
+            vin=test_vehicle["vin"],
+            service_type="Tire Rotation",
+            service_category="Maintenance",
             date=(datetime.now() - timedelta(days=45)).date(),
-            odometer=13500,
+            mileage=13500,
             cost=Decimal("25.00"),
-            vendor="Discount Tire",
+            vendor_name="Discount Tire",
             notes="Rotated and balanced",
         ),
     ]
@@ -99,14 +99,13 @@ async def test_vehicle_with_records(test_vehicle, db_session):
 def sample_service_payload():
     """Sample payload for creating a service record."""
     return {
-        "service_type": "oil_change",
+        "service_type": "Oil Change",
+        "service_category": "Maintenance",
         "date": datetime.now().date().isoformat(),
-        "odometer": 15000,
+        "mileage": 15000,
         "cost": 45.99,
-        "vendor": "Test Garage",
+        "vendor_name": "Test Garage",
         "notes": "Test service record",
-        "next_due_mileage": 18000,
-        "next_due_date": (datetime.now() + timedelta(days=90)).date().isoformat(),
     }
 
 
@@ -115,13 +114,14 @@ def sample_fuel_payload():
     """Sample payload for creating a fuel record."""
     return {
         "date": datetime.now().date().isoformat(),
-        "odometer": 15000,
+        "mileage": 15000,
         "gallons": 12.5,
         "cost": 45.50,
-        "cost_per_gallon": 3.64,
-        "station": "Test Station",
-        "partial_fillup": False,
-        "hauling": False,
+        "price_per_unit": 3.64,
+        "fuel_type": "Regular",
+        "is_full_tank": True,
+        "missed_fillup": False,
+        "is_hauling": False,
     }
 
 

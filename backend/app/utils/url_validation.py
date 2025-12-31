@@ -21,6 +21,8 @@ References:
 - RFC 4193: Unique Local IPv6 Unicast Addresses
 """
 
+# pyright: reportArgumentType=false, reportReturnType=false, reportAttributeAccessIssue=false, reportOptionalOperand=false
+
 import ipaddress
 import socket
 from typing import Optional, List

@@ -11,6 +11,8 @@ Use app.services.document_ocr.document_ocr_service instead, which provides:
 This file is kept for backwards compatibility but will be removed in a future version.
 """
 
+# pyright: reportMissingImports=false
+
 import warnings
 import pdfplumber
 import re

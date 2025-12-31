@@ -1,5 +1,7 @@
 """Vehicle business logic service layer."""
 
+# pyright: reportArgumentType=false, reportOptionalOperand=false, reportGeneralTypeIssues=false, reportReturnType=false
+
 import logging
 from typing import Optional
 

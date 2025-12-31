@@ -83,8 +83,8 @@ async def export_service_records_csv(
         rows.append(
             [
                 record.date.isoformat() if record.date else "",
+                record.service_category or "",
                 record.service_type or "",
-                record.description or "",
                 record.mileage or "",
                 f"{record.cost:.2f}" if record.cost else "",
                 record.vendor_name or "",
@@ -519,8 +519,8 @@ async def export_vehicle_json(
         "service_records": [
             {
                 "date": r.date.isoformat() if r.date else None,
+                "service_category": r.service_category,
                 "service_type": r.service_type,
-                "description": r.description,
                 "mileage": r.mileage,
                 "cost": float(r.cost) if r.cost else None,
                 "vendor_name": r.vendor_name,

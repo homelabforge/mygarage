@@ -1,11 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { X, Save } from 'lucide-react'
 import { toast } from 'sonner'
-import type { ServiceRecord, ServiceRecordCreate, ServiceRecordUpdate, ServiceType } from '../types/service'
+import type { ServiceRecord, ServiceRecordCreate, ServiceRecordUpdate, ServiceCategory } from '../types/service'
 import type { AddressBookEntry } from '../types/addressBook'
-import { serviceRecordSchema, type ServiceRecordFormData, SERVICE_TYPES } from '../schemas/service'
+import { serviceRecordSchema, type ServiceRecordFormData, SERVICE_CATEGORIES, SERVICE_TYPES_BY_CATEGORY, ALL_SERVICE_TYPES } from '../schemas/service'
 import { FormError } from './FormError'
 import ServiceAttachmentUpload from './ServiceAttachmentUpload'
 import ServiceAttachmentList from './ServiceAttachmentList'
@@ -26,6 +26,7 @@ export default function ServiceRecordForm({ vin, record, onClose, onSuccess }: S
   const [error, setError] = useState<string | null>(null)
   const [attachmentRefreshTrigger, setAttachmentRefreshTrigger] = useState(0)
   const { system } = useUnitPreference()
+  const [filteredServiceTypes, setFilteredServiceTypes] = useState<readonly string[]>(ALL_SERVICE_TYPES)
 
   // Helper to format date for input[type="date"] without timezone issues
   const formatDateForInput = (dateString?: string): string => {
@@ -61,19 +62,29 @@ export default function ServiceRecordForm({ vin, record, onClose, onSuccess }: S
       mileage: system === 'metric' && record?.mileage
         ? UnitConverter.milesToKm(record.mileage) ?? undefined
         : record?.mileage ?? undefined,
-      description: record?.description || '',
+      service_type: record?.service_type || '',
       cost: record?.cost ?? undefined,
       notes: record?.notes || '',
       vendor_name: record?.vendor_name || '',
       vendor_location: record?.vendor_location || '',
-      service_type: record?.service_type ?? undefined,
+      service_category: record?.service_category ?? undefined,
       insurance_claim: record?.insurance_claim || '',
     },
   })
 
-  // Watch fields needed for controlled components
-  const description = watch('description')
+  // Watch fields needed for controlled components and filtering
+  const service_type = watch('service_type')
+  const service_category = watch('service_category')
   const vendor_name = watch('vendor_name')
+
+  // Filter service types based on selected category
+  useEffect(() => {
+    if (service_category) {
+      setFilteredServiceTypes(SERVICE_TYPES_BY_CATEGORY[service_category])
+    } else {
+      setFilteredServiceTypes(ALL_SERVICE_TYPES)
+    }
+  }, [service_category])
 
   const [createReminder, setCreateReminder] = useState(false)
   const [reminderData, setReminderData] = useState({
@@ -107,12 +118,12 @@ export default function ServiceRecordForm({ vin, record, onClose, onSuccess }: S
         mileage: system === 'metric' && data.mileage
           ? UnitConverter.kmToMiles(data.mileage) ?? data.mileage
           : data.mileage,
-        description: data.description,
+        service_type: data.service_type,
         cost: data.cost,
         notes: data.notes,
         vendor_name: data.vendor_name,
         vendor_location: data.vendor_location,
-        service_type: data.service_type as ServiceType,
+        service_category: data.service_category as ServiceCategory | undefined,
         insurance_claim: data.insurance_claim,
       }
 
@@ -143,7 +154,7 @@ export default function ServiceRecordForm({ vin, record, onClose, onSuccess }: S
           if (reminderMileage !== undefined || reminderData.due_date) {
             const reminderPayload = {
               vin: vin,
-              description: reminderData.description || `Next ${data.description}`,
+              description: reminderData.description || `Next ${data.service_type}`,
               due_date: reminderData.due_date || undefined,
               due_mileage: reminderMileage,
               is_recurring: false,
@@ -227,8 +238,29 @@ export default function ServiceRecordForm({ vin, record, onClose, onSuccess }: S
           </div>
 
           <div>
+            <label htmlFor="service_category" className="block text-sm font-medium text-garage-text mb-1">
+              Category
+            </label>
+            <select
+              id="service_category"
+              {...register('service_category')}
+              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
+                errors.service_category ? 'border-red-500' : 'border-garage-border'
+              }`}
+              disabled={isSubmitting}
+            >
+              <option value="" className="bg-garage-bg text-garage-text">All Categories</option>
+              {SERVICE_CATEGORIES.map((category) => (
+                <option key={category} value={category} className="bg-garage-bg text-garage-text">{category}</option>
+              ))}
+            </select>
+            <p className="text-xs text-garage-text-muted mt-1">Optional - filters service type options below</p>
+            <FormError error={errors.service_category} />
+          </div>
+
+          <div>
             <label htmlFor="service_type" className="block text-sm font-medium text-garage-text mb-1">
-              Service Type
+              Service Type <span className="text-danger">*</span>
             </label>
             <select
               id="service_type"
@@ -238,29 +270,17 @@ export default function ServiceRecordForm({ vin, record, onClose, onSuccess }: S
               }`}
               disabled={isSubmitting}
             >
-              <option value="" className="bg-garage-bg text-garage-text">Select type</option>
-              {SERVICE_TYPES.map((type) => (
+              <option value="" className="bg-garage-bg text-garage-text">Select a service type...</option>
+              {filteredServiceTypes.map((type) => (
                 <option key={type} value={type} className="bg-garage-bg text-garage-text">{type}</option>
               ))}
             </select>
+            {service_category && (
+              <p className="text-xs text-garage-text-muted mt-1">
+                Showing {SERVICE_TYPES_BY_CATEGORY[service_category].length} {service_category.toLowerCase()} services
+              </p>
+            )}
             <FormError error={errors.service_type} />
-          </div>
-
-          <div>
-            <label htmlFor="description" className="block text-sm font-medium text-garage-text mb-1">
-              Description <span className="text-danger">*</span>
-            </label>
-            <input
-              type="text"
-              id="description"
-              {...register('description')}
-              placeholder="Oil change and tire rotation"
-              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
-                errors.description ? 'border-red-500' : 'border-garage-border'
-              }`}
-              disabled={isSubmitting}
-            />
-            <FormError error={errors.description} />
           </div>
 
           <div>
@@ -403,7 +423,7 @@ export default function ServiceRecordForm({ vin, record, onClose, onSuccess }: S
                     id="reminder_description"
                     value={reminderData.description}
                     onChange={(e) => setReminderData({ ...reminderData, description: e.target.value })}
-                    placeholder={`Next ${description || 'service'}`}
+                    placeholder={`Next ${service_type || 'service'}`}
                     className="w-full px-3 py-2 border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text"
                   />
                 </div>

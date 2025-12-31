@@ -66,8 +66,8 @@ async def download_service_history_pdf(
         {
             "date": record.date,
             "mileage": record.mileage,
+            "service_category": record.service_category,
             "service_type": record.service_type,
-            "description": record.description,
             "cost": record.cost,
             "vendor_name": record.vendor_name,
         }
@@ -226,8 +226,8 @@ async def download_tax_deduction_pdf(
     deductible_records = [
         {
             "date": record.date,
-            "category": "Service",
-            "description": f"{record.service_type}: {record.description}",
+            "category": record.service_category or "Service",
+            "description": record.service_type,
             "cost": record.cost,
         }
         for record in service_records
@@ -302,8 +302,8 @@ async def download_service_history_csv(
             [
                 record.date.strftime("%Y-%m-%d") if record.date else "",
                 record.mileage or "",
+                record.service_category or "",
                 record.service_type or "",
-                record.description or "",
                 f"{float(record.cost):.2f}" if record.cost else "",
                 record.vendor_name or "",
                 record.vendor_phone or "",
@@ -356,8 +356,8 @@ async def download_all_records_csv(
             [
                 record.date.strftime("%Y-%m-%d") if record.date else "",
                 "Service",
+                record.service_category or "",
                 record.service_type or "",
-                record.description or "",
                 f"{float(record.cost):.2f}" if record.cost else "",
                 record.mileage or "",
                 record.vendor_name or "",
@@ -401,7 +401,7 @@ async def download_all_records_csv(
                 record.date.strftime("%Y-%m-%d") if record.date else "",
                 "Collision",
                 "Collision",
-                record.description or "",
+                record.service_type or "",
                 f"{float(record.cost):.2f}" if record.cost else "",
                 record.mileage or "",
                 record.vendor_name or "",
@@ -425,7 +425,7 @@ async def download_all_records_csv(
                 record.date.strftime("%Y-%m-%d") if record.date else "",
                 "Upgrade",
                 "Upgrades",
-                record.description or "",
+                record.service_type or "",
                 f"{float(record.cost):.2f}" if record.cost else "",
                 record.mileage or "",
                 record.vendor_name or "",

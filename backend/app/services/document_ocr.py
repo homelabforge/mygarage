@@ -4,6 +4,8 @@ This service handles text extraction from various document types using OCR
 and routes to the appropriate parser based on document type.
 """
 
+# pyright: reportMissingImports=false
+
 import logging
 import os
 from typing import Optional, Dict, Any

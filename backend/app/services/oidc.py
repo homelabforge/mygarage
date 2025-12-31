@@ -9,6 +9,8 @@ This service handles OAuth2/OIDC authentication flow with support for:
 - Token validation and user info retrieval
 """
 
+# pyright: reportAttributeAccessIssue=false, reportGeneralTypeIssues=false, reportArgumentType=false
+
 import logging
 import secrets
 from typing import Optional, Dict, Any

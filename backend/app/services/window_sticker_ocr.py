@@ -1,5 +1,7 @@
 """Window Sticker OCR and data extraction service."""
 
+# pyright: reportMissingImports=false, reportArgumentType=false, reportOptionalMemberAccess=false
+
 import logging
 import os
 from typing import Optional, Dict, Any

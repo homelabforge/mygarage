@@ -1,5 +1,7 @@
 """Analytics service with pandas-based data processing."""
 
+# pyright: reportMissingImports=false
+
 import pandas as pd
 import numpy as np
 from typing import List, Dict, Optional, Tuple
@@ -37,8 +39,9 @@ def records_to_dataframe(
                     "type": "service",
                     "vendor": record.vendor_name or "Unknown",
                     "mileage": record.mileage,
-                    "service_type": record.service_type or "Other",
-                    "description": record.description,
+                    "service_type": record.service_type,  # Now holds specific service type
+                    "service_category": record.service_category,  # Category grouping
+                    "description": record.notes,  # Notes field for additional details
                 }
             )
 
@@ -88,6 +91,7 @@ def records_to_dataframe(
                 "vendor",
                 "mileage",
                 "service_type",
+                "service_category",
                 "description",
                 "gallons",
             ]

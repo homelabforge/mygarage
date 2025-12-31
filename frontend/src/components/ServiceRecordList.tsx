@@ -56,8 +56,8 @@ export default function ServiceRecordList({ vin, onAddClick, onEditClick, onRefr
     const query = searchQuery.toLowerCase()
     return records.filter(
       (r) =>
+        (r.service_category && r.service_category.toLowerCase().includes(query)) ||
         (r.service_type && r.service_type.toLowerCase().includes(query)) ||
-        (r.description && r.description.toLowerCase().includes(query)) ||
         (r.vendor_name && r.vendor_name.toLowerCase().includes(query))
     )
   }, [records, searchQuery])
@@ -313,10 +313,10 @@ export default function ServiceRecordList({ vin, onAddClick, onEditClick, onRefr
                     Date
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-garage-text-muted uppercase tracking-wider">
-                    Type
+                    Category
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-garage-text-muted uppercase tracking-wider">
-                    Description
+                    Service Type
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-garage-text-muted uppercase tracking-wider">
                     Mileage ({UnitFormatter.getDistanceUnit(system)})
@@ -353,16 +353,16 @@ export default function ServiceRecordList({ vin, onAddClick, onEditClick, onRefr
                       </div>
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
-                      {record.service_type ? (
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getServiceTypeBadgeColor(record.service_type)}`}>
-                          {record.service_type}
+                      {record.service_category ? (
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getServiceTypeBadgeColor(record.service_category)}`}>
+                          {record.service_category}
                         </span>
                       ) : (
                         <span className="text-sm text-garage-text-muted">-</span>
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      <div className="text-sm text-garage-text">{record.description}</div>
+                      <div className="text-sm font-medium text-garage-text">{record.service_type}</div>
                       {record.notes && (
                         <div className="text-xs text-garage-text-muted mt-1">{record.notes}</div>
                       )}

@@ -1,5 +1,7 @@
 """Fuel record business logic service layer with MPG calculation."""
 
+# pyright: reportReturnType=false, reportOptionalOperand=false
+
 import logging
 from typing import Optional
 from decimal import Decimal

@@ -43,8 +43,9 @@ class TestServiceRecordRoutes:
             json={
                 "date": "2024-01-15",
                 "service_type": "Oil Change",
+                "service_category": "Maintenance",
                 "cost": 45.99,
-                "odometer": 15500,
+                "mileage": 15500,
                 "notes": "Changed oil and filter",
             },
             headers=auth_headers,
@@ -92,8 +93,9 @@ class TestServiceRecordRoutes:
             json={
                 "date": "2024-01-15",
                 "service_type": "Oil Change",
+                "service_category": "Maintenance",
                 "cost": 45.99,
-                "odometer": 15500,
+                "mileage": 15500,
             },
             headers=auth_headers,
         )
@@ -128,8 +130,9 @@ class TestServiceRecordRoutes:
             json={
                 "date": "2024-01-15",
                 "service_type": "Oil Change",
+                "service_category": "Maintenance",
                 "cost": 45.99,
-                "odometer": 15500,
+                "mileage": 15500,
             },
             headers=auth_headers,
         )
@@ -166,8 +169,9 @@ class TestServiceRecordRoutes:
         invalid_payload = {
             "date": "2024-01-15",
             "service_type": "Oil Change",
+            "service_category": "Maintenance",
             "cost": -45.99,  # Negative cost should fail
-            "odometer": 15500,
+            "mileage": 15500,
         }
 
         response = await client.post(
@@ -203,8 +207,9 @@ class TestServiceRecordRoutes:
             json={
                 "date": "2024-01-15",
                 "service_type": "Oil Change",
+                "service_category": "Maintenance",
                 "cost": 45.99,
-                "odometer": 15500,
+                "mileage": 15500,
             },
             headers=auth_headers,
         )

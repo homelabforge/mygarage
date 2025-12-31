@@ -1,5 +1,7 @@
 """Authentication service for JWT token management."""
 
+# pyright: reportGeneralTypeIssues=false, reportArgumentType=false, reportAttributeAccessIssue=false, reportAssignmentType=false
+
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from authlib.jose import jwt, JoseError

@@ -262,8 +262,8 @@ async def get_calendar_events(
                 CalendarEvent(
                     id=f"service-{service.id}",
                     type="service",
-                    title=service.description,
-                    description=f"{service.service_type or 'Service'}"
+                    title=service.service_type,  # Now holds specific service
+                    description=f"{service.service_category or 'Service'}"
                     + (f" - {service.vendor_name}" if service.vendor_name else ""),
                     date=service.date,
                     vehicle_vin=service.vin,

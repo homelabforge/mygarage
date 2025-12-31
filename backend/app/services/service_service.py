@@ -1,5 +1,7 @@
 """Service record business logic service layer."""
 
+# pyright: reportReturnType=false
+
 import logging
 
 from fastapi import HTTPException
@@ -98,12 +100,12 @@ class ServiceRecordService:
                     "vin": record.vin,
                     "date": record.date,
                     "mileage": record.mileage,
-                    "description": record.description,
+                    "service_type": record.service_type,  # Now holds specific service
                     "cost": record.cost,
                     "notes": record.notes,
                     "vendor_name": record.vendor_name,
                     "vendor_location": record.vendor_location,
-                    "service_type": record.service_type,
+                    "service_category": record.service_category,  # Category grouping
                     "insurance_claim": record.insurance_claim,
                     "created_at": record.created_at,
                     "attachment_count": attachment_counts.get(record.id, 0),

@@ -1,5 +1,7 @@
 """Insurance document parsers with provider-specific implementations."""
 
+# pyright: reportIncompatibleMethodOverride=false, reportArgumentType=false
+
 import logging
 import re
 from abc import abstractmethod

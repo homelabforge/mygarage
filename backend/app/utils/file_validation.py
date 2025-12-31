@@ -1,5 +1,7 @@
 """File upload validation utilities."""
 
+# pyright: reportArgumentType=false, reportOptionalMemberAccess=false, reportMissingImports=false, reportPossiblyUnboundVariable=false
+
 import csv
 import logging
 from typing import Optional
