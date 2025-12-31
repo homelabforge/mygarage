@@ -36,7 +36,7 @@ class CSRFToken(Base):
 
     def is_expired(self) -> bool:
         """Check if the CSRF token has expired."""
-        return datetime.now(timezone.utc) > self.expires_at
+        return datetime.now(timezone.utc) > self.expires_at  # type: ignore[return-value]
 
     @classmethod
     def get_expiry_time(cls, hours: int = 24) -> datetime:

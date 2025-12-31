@@ -50,7 +50,7 @@ class OIDCPendingLink(Base):
         expires = self.expires_at
         if expires.tzinfo is None:
             expires = expires.replace(tzinfo=timezone.utc)
-        return now > expires
+        return now > expires  # type: ignore[return-value]
 
     @classmethod
     def get_expiry_time(cls, minutes: int = 5) -> datetime:

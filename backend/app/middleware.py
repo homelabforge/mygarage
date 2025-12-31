@@ -111,12 +111,15 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
         try:
             from app.services.auth import get_auth_mode
 
-            async for db in get_db():
+            db_generator = get_db()
+            db = await anext(db_generator)
+            try:
                 auth_mode = await get_auth_mode(db)
                 if auth_mode == "none":
                     # Auth disabled, skip CSRF validation
                     return await call_next(request)
-                break
+            finally:
+                await db_generator.aclose()
         except Exception:
             # If we can't check auth mode, proceed with CSRF validation
             pass
@@ -135,7 +138,9 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
         # Validate CSRF token against database
         try:
             # Get database session
-            async for db in get_db():
+            db_generator = get_db()
+            db = await anext(db_generator)
+            try:
                 # Find valid token
                 result = await db.execute(
                     select(CSRFToken).where(
@@ -156,11 +161,11 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
                 # Token is valid, process request
                 # Store user_id in request state for use in route handlers
                 request.state.csrf_validated_user_id = token_record.user_id
+            finally:
+                await db_generator.aclose()
 
                 # Note: Cleanup of expired tokens is handled during login
                 # No need to do it on every request (performance optimization)
-
-                break  # Exit the async generator
 
         except Exception as e:
             return JSONResponse(

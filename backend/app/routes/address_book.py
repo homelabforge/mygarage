@@ -22,11 +22,11 @@ router = APIRouter(prefix="/api/address-book", tags=["address-book"])
 
 @router.get("", response_model=AddressBookListResponse)
 async def list_entries(
+    db: Annotated[AsyncSession, Depends(get_db)],
     search: Optional[str] = Query(
         None, description="Search by name, business name, or city"
     ),
     category: Optional[str] = Query(None, description="Filter by category"),
-    db: Annotated[AsyncSession, Depends(get_db)] = None,
     current_user: Optional[User] = Depends(require_auth),
 ) -> AddressBookListResponse:
     """List all address book entries with optional search and filtering."""
@@ -78,8 +78,8 @@ async def list_entries(
 
 @router.post("", response_model=AddressBookEntryResponse, status_code=201)
 async def create_entry(
+    db: Annotated[AsyncSession, Depends(get_db)],
     entry_data: AddressBookEntryCreate,
-    db: Annotated[AsyncSession, Depends(get_db)] = None,
     current_user: Optional[User] = Depends(require_auth),
 ) -> AddressBookEntryResponse:
     """Create a new address book entry."""
@@ -107,7 +107,7 @@ async def create_entry(
 @router.get("/{entry_id}", response_model=AddressBookEntryResponse)
 async def get_entry(
     entry_id: int,
-    db: Annotated[AsyncSession, Depends(get_db)] = None,
+    db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Optional[User] = Depends(require_auth),
 ) -> AddressBookEntryResponse:
     """Get a specific address book entry."""
@@ -125,7 +125,7 @@ async def get_entry(
 async def update_entry(
     entry_id: int,
     update_data: AddressBookEntryUpdate,
-    db: Annotated[AsyncSession, Depends(get_db)] = None,
+    db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Optional[User] = Depends(require_auth),
 ) -> AddressBookEntryResponse:
     """Update an address book entry."""
@@ -170,7 +170,7 @@ async def update_entry(
 @router.delete("/{entry_id}", status_code=204)
 async def delete_entry(
     entry_id: int,
-    db: Annotated[AsyncSession, Depends(get_db)] = None,
+    db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Optional[User] = Depends(require_auth),
 ) -> None:
     """Delete an address book entry."""

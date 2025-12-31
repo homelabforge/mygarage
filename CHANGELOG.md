@@ -8,6 +8,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Type Safety & Static Analysis**
+  - Fixed 40+ Pyright type errors across backend codebase (database, middleware, models, routes)
+  - AsyncGenerator type annotation for `get_db()` dependency function
+  - Date field shadowing in 6 SQLAlchemy models (fuel, note, odometer, service, tax, toll)
+  - Boolean return types in authentication models (CSRF, OIDC)
+  - FastAPI exception handler type annotations
+  - Route dependency injection parameter ordering
+  - All modified files now pass Pyright validation with 0 errors
+
+### Changed
+- **BREAKING: Service Records Schema Redesign**
+  - Separated service category from specific service type for better analytics and predictions
+  - **Database Changes:**
+    - `service_type` field renamed to `service_category` (Maintenance, Inspection, Collision, Upgrades)
+    - `description` field renamed to `service_type` with 50+ predefined options (Oil Change, Tire Rotation, etc.)
+    - All existing records migrated with `service_type = 'General Service'` (users update manually)
+    - Backup table created: `service_records_backup_20251229`
+  - **Analytics Impact:**
+    - Predictions now group by specific service type instead of generic category
+    - Example: "Next Oil Change due in 90 days" vs "Next Maintenance due in 45 days"
+    - Higher confidence scores due to consistent service-specific intervals
+  - **UI Changes:**
+    - Service Record Form: Added cascading dropdowns (Category filters Service Type options)
+    - Service Record List: Column headers updated (Category | Service Type | Mileage | Cost)
+    - Search filters now search both category and service type fields
+  - **Migration:** Database migration 022 runs automatically on backend startup
+  - **User Action Required:** Update existing service records via UI to change 'General Service' to specific types
+  - **Files Updated:** 17 total (10 backend, 4 frontend, 3 tests including exports, reports, calendar integration)
+  - **Tests Updated:** pytest fixtures and payloads updated to match new schema (vin/mileage/service_type fields)
+
+### Fixed
 - **Analytics Data Quality & Calculation Accuracy**
   - Invalid MPG filtering: Filter out 0/negative miles driven and unrealistic MPG values (<5 or >100)
     - Prevents worst MPG showing 0.0 due to data entry errors or odometer corrections

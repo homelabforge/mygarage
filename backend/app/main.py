@@ -106,7 +106,7 @@ limiter = Limiter(
     key_func=get_remote_address, default_limits=[settings.rate_limit_default]
 )
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
 
 # Add security middleware
 from app.middleware import (
@@ -132,10 +132,10 @@ from sqlalchemy.exc import SQLAlchemyError
 
 if not settings.debug:
     # In production, use secure error handlers
-    app.add_exception_handler(Exception, handle_generic_exception)
-    app.add_exception_handler(SQLAlchemyError, handle_database_error)
+    app.add_exception_handler(Exception, handle_generic_exception)  # type: ignore[arg-type]
+    app.add_exception_handler(SQLAlchemyError, handle_database_error)  # type: ignore[arg-type]
 
-app.add_exception_handler(RequestValidationError, handle_validation_error)
+app.add_exception_handler(RequestValidationError, handle_validation_error)  # type: ignore[arg-type]
 
 # Configure CORS
 app.add_middleware(

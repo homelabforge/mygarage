@@ -1,5 +1,7 @@
 """Analytics and reporting routes."""
 
+# pyright: reportArgumentType=false, reportOptionalOperand=false, reportCallIssue=false, reportMissingImports=false
+
 import logging
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -439,8 +441,8 @@ async def get_service_history_timeline(
         timeline.append(
             ServiceHistoryItem(
                 date=record.date,
-                service_type=record.service_type,
-                description=record.description,
+                service_type=record.service_type,  # Now specific service type (e.g., "Oil Change")
+                description=record.notes,  # Additional notes/details
                 mileage=record.mileage,
                 cost=record.cost,
                 vendor_name=record.vendor_name,

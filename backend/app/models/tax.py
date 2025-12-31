@@ -13,7 +13,8 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
-from datetime import date, datetime
+import datetime as dt
+from datetime import datetime
 from typing import Optional
 from decimal import Decimal
 
@@ -29,10 +30,10 @@ class TaxRecord(Base):
     vin: Mapped[str] = mapped_column(
         String(17), ForeignKey("vehicles.vin", ondelete="CASCADE"), nullable=False
     )
-    date: Mapped[date] = mapped_column(Date, nullable=False)
+    date: Mapped[dt.date] = mapped_column(Date, nullable=False)
     tax_type: Mapped[Optional[str]] = mapped_column(String(30))
     amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
-    renewal_date: Mapped[Optional[date]] = mapped_column(Date)
+    renewal_date: Mapped[Optional[dt.date]] = mapped_column(Date)
     notes: Mapped[Optional[str]] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 

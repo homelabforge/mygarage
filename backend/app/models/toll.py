@@ -1,6 +1,7 @@
 """Toll tag and transaction models for tracking toll road usage."""
 
-from datetime import date, datetime
+import datetime as dt
+from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 
@@ -57,7 +58,7 @@ class TollTransaction(Base):
     toll_tag_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("toll_tags.id", ondelete="SET NULL")
     )
-    date: Mapped[date] = mapped_column(Date, nullable=False)
+    date: Mapped[dt.date] = mapped_column(Date, nullable=False)
     amount: Mapped[Decimal] = mapped_column(Numeric(8, 2), nullable=False)
     location: Mapped[str] = mapped_column(String(200), nullable=False)
     notes: Mapped[Optional[str]] = mapped_column(Text)

@@ -22,7 +22,7 @@ def _generate_thumbnail_for_existing(file_path: Path, photo_dir: Path) -> Option
         logger.warning("Failed to open image for thumbnail generation: %s", file_path)
         return None
 
-    thumb = image.copy()
+    thumb = image.copy()  # type: ignore[union-attr]
     thumb.thumbnail(THUMBNAIL_SIZE)
     if thumb.mode in ("RGBA", "P"):
         thumb = thumb.convert("RGB")
