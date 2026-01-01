@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.18.1] - 2026-01-01
+
 ### Fixed
 - **Type Safety & Static Analysis - Complete Backend Type Coverage**
   - **Phase 1:** Fixed 40+ Pyright type errors across backend infrastructure (database, middleware, models, routes)
@@ -21,8 +23,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Optional type handling: Framework guarantees (FastAPI) ensure values exist at runtime
     - Return type mismatches: Business logic guarantees types that Pyright cannot infer
     - Method override compatibility: Intentional design pattern for extensibility
-  - **Result:** 140+ total errors fixed, 100% type safety achieved across entire backend (0 Pyright errors)
+  - **Phase 3:** Reduced Pyright warnings from 832 to 723 (13% reduction, 109 warnings fixed)
+    - Fixed code quality issues: unused variables, unused imports, deprecated Pydantic v1 APIs
+    - Migrated `@validator` to `@field_validator` (Pydantic v2 compatibility)
+    - Added proper type annotations: ValidationInfo, parameter types, return types
+    - Made `cache.generate_key()` public API (was protected `_generate_key`)
+    - Suppressed SlowAPI rate limiter decorator warnings (library without type stubs)
+  - **Result:** 140+ total errors fixed, 100% type safety achieved across entire backend (0 Pyright errors, 723 warnings)
   - All files now pass Pyright strict validation, Ruff format, and Ruff checks
+- **Runtime Error Fixes**
+  - Fixed ValidationInfo import error preventing container startup (changed from `pydantic_core` to `pydantic`)
+  - Added missing PWA icons (icon-192.png, icon-512.png) referenced in manifest.json
 
 ### Changed
 - **BREAKING: Service Records Schema Redesign**
