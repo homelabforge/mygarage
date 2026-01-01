@@ -3,8 +3,7 @@
 from typing import Optional
 from datetime import date as date_type, datetime
 from decimal import Decimal
-from pydantic import BaseModel, Field, field_validator
-from pydantic_core import ValidationInfo
+from pydantic import BaseModel, Field, field_validator, ValidationInfo
 
 
 class FuelRecordBase(BaseModel):
