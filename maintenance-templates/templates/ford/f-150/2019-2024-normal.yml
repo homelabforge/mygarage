@@ -1,0 +1,157 @@
+metadata:
+  make: FORD
+  model: "F-150"
+  year_start: 2019
+  year_end: 2024
+  duty_type: normal
+  source: "Ford F-150 Owner's Manual 2024"
+  contributor: "jamey"
+  version: "1.0.0"
+  notes: |
+    Based on normal driving conditions. Consider severe duty schedule if you:
+    - Tow a trailer regularly
+    - Drive in dusty/off-road conditions
+    - Idle extensively
+    - Drive in extreme temperatures
+    - Drive short trips (less than 10 miles) in freezing weather
+
+maintenance_items:
+  - description: "Engine Oil & Filter Change"
+    interval_months: 12
+    interval_miles: 10000
+    category: "Engine"
+    severity: "critical"
+    notes: "Use SAE 5W-30 for most engines, 5W-20 for EcoBoost. Check oil life monitor. Severe duty: 5,000 miles"
+
+  - description: "Tire Rotation"
+    interval_months: 12
+    interval_miles: 10000
+    category: "Tires"
+    severity: "normal"
+    notes: "Rotate tires and check tire pressure. Inspect for wear and damage"
+
+  - description: "Engine Air Filter Replacement"
+    interval_months: 36
+    interval_miles: 30000
+    category: "Engine"
+    severity: "normal"
+    notes: "Replace more frequently in dusty conditions. Check annually"
+
+  - description: "Cabin Air Filter Replacement"
+    interval_months: 12
+    interval_miles: 20000
+    category: "HVAC"
+    severity: "normal"
+    notes: "Replace annually or when airflow is restricted"
+
+  - description: "Brake System Inspection"
+    interval_months: 12
+    interval_miles: 10000
+    category: "Brakes"
+    severity: "critical"
+    notes: "Inspect brake pads, rotors, fluid level, and lines. Check parking brake"
+
+  - description: "Battery Inspection"
+    interval_months: 6
+    interval_miles: null
+    category: "Electrical"
+    severity: "normal"
+    notes: "Clean terminals, check charge level. Most F-150s have sealed batteries"
+
+  - description: "Coolant Flush & Replacement"
+    interval_months: 120
+    interval_miles: 100000
+    category: "Engine"
+    severity: "critical"
+    notes: "Or 10 years, whichever comes first. Use Motorcraft Orange Coolant"
+
+  - description: "Transmission Fluid Change - 10-Speed Auto"
+    interval_months: null
+    interval_miles: 150000
+    category: "Transmission"
+    severity: "normal"
+    notes: "10R80 transmission. Severe duty: 50,000 miles. Use Motorcraft MERCON ULV"
+
+  - description: "Spark Plug Replacement"
+    interval_months: 120
+    interval_miles: 100000
+    category: "Engine"
+    severity: "normal"
+    notes: "All engines. Use Motorcraft or equivalent iridium spark plugs"
+
+  - description: "Rear Differential Fluid Change"
+    interval_months: null
+    interval_miles: 150000
+    category: "Drivetrain"
+    severity: "normal"
+    notes: "Severe duty or towing: 50,000 miles. Use Motorcraft SAE 75W-140"
+
+  - description: "Transfer Case Fluid Change"
+    interval_months: null
+    interval_miles: 150000
+    category: "Drivetrain"
+    severity: "normal"
+    notes: "4WD models only. Severe duty: 50,000 miles"
+
+  - description: "PCV Valve Inspection"
+    interval_months: 36
+    interval_miles: 30000
+    category: "Engine"
+    severity: "normal"
+    notes: "Inspect and replace if necessary"
+
+  - description: "Accessory Drive Belt Inspection"
+    interval_months: 24
+    interval_miles: 20000
+    category: "Engine"
+    severity: "normal"
+    notes: "Inspect for cracks, glazing, or excessive wear. Replace as needed"
+
+  - description: "Suspension & Steering Inspection"
+    interval_months: 12
+    interval_miles: 10000
+    category: "Suspension"
+    severity: "normal"
+    notes: "Check for worn bushings, loose components, leaks in shocks"
+
+  - description: "Exhaust System Inspection"
+    interval_months: 12
+    interval_miles: 10000
+    category: "Exhaust"
+    severity: "normal"
+    notes: "Check for leaks, damage, or loose components"
+
+  - description: "Turbocharger Inspection - EcoBoost"
+    interval_months: 24
+    interval_miles: 20000
+    category: "Engine"
+    severity: "normal"
+    notes: "For turbocharged engines. Check for oil leaks, unusual noises, boost pressure"
+
+  - description: "Intercooler Inspection - EcoBoost"
+    interval_months: 24
+    interval_miles: 20000
+    category: "Engine"
+    severity: "normal"
+    notes: "For turbocharged engines. Check for damage, leaks, debris buildup"
+
+  - description: "Hybrid Battery Inspection - PowerBoost"
+    interval_months: 12
+    interval_miles: null
+    category: "Hybrid System"
+    severity: "normal"
+    notes: "For PowerBoost hybrid models. Dealer inspection recommended"
+
+  - description: "Pro Power Onboard System Test - PowerBoost"
+    interval_months: 6
+    interval_miles: null
+    category: "Hybrid System"
+    severity: "normal"
+    notes: "For PowerBoost hybrid models. Test 120V/240V outlets and generator function"
+
+  - description: "Multi-Point Vehicle Inspection"
+    interval_months: 6
+    interval_miles: null
+    category: "General"
+    severity: "normal"
+    notes: "Comprehensive vehicle inspection: fluids, lights, wipers, hoses, belts"

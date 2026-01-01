@@ -1,0 +1,150 @@
+metadata:
+  make: CHEVROLET
+  model: "Silverado 1500"
+  year_start: 2019
+  year_end: 2024
+  duty_type: normal
+  source: "Chevrolet Silverado 1500 Owner's Manual 2024"
+  contributor: "jamey"
+  version: "1.0.0"
+  notes: |
+    Based on normal driving conditions. Consider severe duty schedule if you:
+    - Tow a trailer frequently
+    - Drive in dusty areas or off-road
+    - Idle extensively
+    - Drive in extreme temperatures
+    - Drive short trips (less than 10 miles) in freezing weather
+
+maintenance_items:
+  - description: "Engine Oil & Filter Change"
+    interval_months: 12
+    interval_miles: 7500
+    category: "Engine"
+    severity: "critical"
+    notes: "Use Dexos1 Gen 2 SAE 5W-30 or 0W-20. Check oil life monitor. Severe duty: per monitor or 3,000 miles"
+
+  - description: "Tire Rotation"
+    interval_months: 12
+    interval_miles: 7500
+    category: "Tires"
+    severity: "normal"
+    notes: "Rotate tires and check tire pressure. Inspect for wear and damage"
+
+  - description: "Engine Air Filter Replacement"
+    interval_months: null
+    interval_miles: 45000
+    category: "Engine"
+    severity: "normal"
+    notes: "Replace more frequently in dusty conditions. Inspect at each oil change"
+
+  - description: "Cabin Air Filter Replacement"
+    interval_months: 24
+    interval_miles: null
+    category: "HVAC"
+    severity: "normal"
+    notes: "Replace every 2 years or when airflow is restricted"
+
+  - description: "Brake System Inspection"
+    interval_months: 12
+    interval_miles: 7500
+    category: "Brakes"
+    severity: "critical"
+    notes: "Inspect brake pads, rotors, fluid level, and lines"
+
+  - description: "Battery Inspection"
+    interval_months: 6
+    interval_miles: null
+    category: "Electrical"
+    severity: "normal"
+    notes: "Clean terminals, check charge level, inspect cables"
+
+  - description: "Coolant Flush & Replacement"
+    interval_months: 60
+    interval_miles: 150000
+    category: "Engine"
+    severity: "critical"
+    notes: "Or 5 years, whichever comes first. Use ACDelco Dex-Cool coolant"
+
+  - description: "Transmission Fluid Change - 8-Speed Auto"
+    interval_months: null
+    interval_miles: 45000
+    category: "Transmission"
+    severity: "critical"
+    notes: "8L90 transmission. Severe duty or towing: 45,000 miles. Use Dexron-VI ATF"
+
+  - description: "Transmission Fluid Change - 10-Speed Auto"
+    interval_months: null
+    interval_miles: 45000
+    category: "Transmission"
+    severity: "critical"
+    notes: "10L80/10L90 transmission. Severe duty or towing: 45,000 miles. Use Dexron-ULV"
+
+  - description: "Spark Plug Replacement"
+    interval_months: 120
+    interval_miles: 100000
+    category: "Engine"
+    severity: "normal"
+    notes: "All engines. Use ACDelco iridium spark plugs"
+
+  - description: "Rear Differential Fluid Change"
+    interval_months: null
+    interval_miles: 45000
+    category: "Drivetrain"
+    severity: "normal"
+    notes: "Severe duty or towing: 45,000 miles. Use SAE 75W-90 synthetic axle lubricant"
+
+  - description: "Transfer Case Fluid Change"
+    interval_months: null
+    interval_miles: 45000
+    category: "Drivetrain"
+    severity: "normal"
+    notes: "4WD models only. Severe duty: 45,000 miles. Use Dexron-VI ATF"
+
+  - description: "PCV Valve Inspection"
+    interval_months: 36
+    interval_miles: 30000
+    category: "Engine"
+    severity: "normal"
+    notes: "Inspect and replace if necessary"
+
+  - description: "Accessory Drive Belt Inspection"
+    interval_months: 24
+    interval_miles: 20000
+    category: "Engine"
+    severity: "normal"
+    notes: "Inspect for cracks, glazing, or excessive wear. Replace as needed"
+
+  - description: "Suspension & Steering Inspection"
+    interval_months: 12
+    interval_miles: 7500
+    category: "Suspension"
+    severity: "normal"
+    notes: "Check for worn bushings, loose components, shock leaks"
+
+  - description: "Exhaust System Inspection"
+    interval_months: 12
+    interval_miles: 7500
+    category: "Exhaust"
+    severity: "normal"
+    notes: "Check for leaks, damage, or loose components"
+
+  - description: "Fuel System Cleaning Additive"
+    interval_months: 12
+    interval_miles: 7500
+    category: "Fuel System"
+    severity: "normal"
+    notes: "Use GM-approved fuel system cleaner to prevent carbon buildup"
+
+  - description: "Active Fuel Management (AFM) System Inspection"
+    interval_months: 24
+    interval_miles: null
+    category: "Engine"
+    severity: "normal"
+    notes: "For V8 engines with cylinder deactivation. Check for unusual noises or performance issues"
+
+  - description: "Multi-Point Vehicle Inspection"
+    interval_months: 6
+    interval_miles: null
+    category: "General"
+    severity: "normal"
+    notes: "Comprehensive vehicle inspection: fluids, lights, wipers, hoses, belts"

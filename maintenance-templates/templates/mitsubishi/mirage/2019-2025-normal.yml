@@ -1,0 +1,127 @@
+metadata:
+  make: Mitsubishi
+  model: Mirage
+  year_start: 2019
+  year_end: 2025
+  fuel_type: Gasoline
+  duty_type: normal
+  source: "Mitsubishi Mirage Owner's Manual 2019-2025"
+  contributor: "jamey"
+  version: "1.0.0"
+  notes: |
+    Compact car maintenance schedule for 1.2L 3-cylinder gasoline engine under normal driving conditions.
+    Consider severe duty schedule if you frequently drive in stop-and-go traffic, extreme temperatures,
+    dusty conditions, or make frequent short trips.
+
+maintenance_items:
+  - description: "Engine Oil & Filter Change"
+    interval_months: 6
+    interval_miles: 7500
+    category: "Engine"
+    severity: "critical"
+    notes: "Use SAE 0W-20 synthetic oil. Severe duty: 3,750 miles or 3 months"
+
+  - description: "Tire Rotation"
+    interval_months: 6
+    interval_miles: 7500
+    category: "Tires"
+    severity: "normal"
+    notes: "Rotate tires and check tire pressure. Inspect for uneven wear"
+
+  - description: "Engine Air Filter Replacement"
+    interval_months: 24
+    interval_miles: 30000
+    category: "Engine"
+    severity: "normal"
+    notes: "Replace more frequently in dusty conditions. Severe duty: 15,000 miles"
+
+  - description: "Cabin Air Filter Replacement"
+    interval_months: 12
+    interval_miles: 15000
+    category: "HVAC"
+    severity: "normal"
+    notes: "Replace annually or when airflow is restricted"
+
+  - description: "Brake System Inspection"
+    interval_months: 6
+    interval_miles: 7500
+    category: "Brakes"
+    severity: "critical"
+    notes: "Inspect pads, rotors, fluid level, and lines"
+
+  - description: "Spark Plug Replacement"
+    interval_months: 60
+    interval_miles: 60000
+    category: "Engine"
+    severity: "normal"
+    notes: "Use OEM or equivalent iridium plugs"
+
+  - description: "Coolant Flush & Replacement"
+    interval_months: 120
+    interval_miles: 100000
+    category: "Engine"
+    severity: "critical"
+    notes: "Or 10 years, whichever comes first. Use Mitsubishi Genuine coolant"
+
+  - description: "Transmission Fluid Change - CVT"
+    interval_months: 48
+    interval_miles: 60000
+    category: "Transmission"
+    severity: "critical"
+    notes: "Continuously Variable Transmission. Severe duty: 30,000 miles. Use Mitsubishi Genuine CVTF"
+
+  - description: "Brake Fluid Replacement"
+    interval_months: 24
+    interval_miles: null
+    category: "Brakes"
+    severity: "critical"
+    notes: "Replace every 2 years regardless of mileage. Use DOT 3 or DOT 4 brake fluid"
+
+  - description: "Accessory Drive Belt Inspection"
+    interval_months: 12
+    interval_miles: 15000
+    category: "Engine"
+    severity: "normal"
+    notes: "Inspect for cracks, glazing, or excessive wear. Replace as needed"
+
+  - description: "Battery Inspection"
+    interval_months: 6
+    interval_miles: null
+    category: "Electrical"
+    severity: "normal"
+    notes: "Clean terminals, check charge level"
+
+  - description: "Suspension & Steering Inspection"
+    interval_months: 12
+    interval_miles: 15000
+    category: "Suspension"
+    severity: "normal"
+    notes: "Check ball joints, tie rods, shocks, bushings for wear"
+
+  - description: "Exhaust System Inspection"
+    interval_months: 12
+    interval_miles: 15000
+    category: "Exhaust"
+    severity: "normal"
+    notes: "Check for leaks, damage, and proper mounting"
+
+  - description: "Multi-Point Vehicle Inspection"
+    interval_months: 6
+    interval_miles: 7500
+    category: "General"
+    severity: "normal"
+    notes: "Comprehensive inspection: fluids, lights, wipers, hoses, belts"
+
+  - description: "Fuel Filter Replacement"
+    interval_months: 60
+    interval_miles: 60000
+    category: "Fuel System"
+    severity: "normal"
+    notes: "In-tank fuel filter. Severe duty: 30,000 miles"
+
+  - description: "Wiper Blade Replacement"
+    interval_months: 12
+    interval_miles: null
+    category: "General"
+    severity: "normal"
+    notes: "Replace annually or when streaking occurs"

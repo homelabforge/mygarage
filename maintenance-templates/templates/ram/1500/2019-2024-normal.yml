@@ -1,0 +1,135 @@
+metadata:
+  make: RAM
+  model: "1500"
+  year_start: 2019
+  year_end: 2024
+  duty_type: normal
+  source: "RAM 1500 Owner's Manual 2024"
+  contributor: "jamey"
+  version: "1.0.0"
+  notes: |
+    Based on normal driving conditions. Consider severe duty schedule if you:
+    - Tow a trailer frequently
+    - Drive in dusty areas or off-road regularly
+    - Drive in extreme temperatures (below -20°F or above 115°F)
+    - Drive short trips (less than 10 miles) in freezing weather
+
+maintenance_items:
+  - description: "Engine Oil & Filter Change"
+    interval_months: 12
+    interval_miles: 10000
+    category: "Engine"
+    severity: "critical"
+    notes: "Use SAE 5W-20 API Certified engine oil. Severe duty: 6 months/5,000 miles"
+
+  - description: "Tire Rotation"
+    interval_months: 12
+    interval_miles: 10000
+    category: "Tires"
+    severity: "normal"
+    notes: "Rotate tires and check tire pressure. Inspect for wear and damage"
+
+  - description: "Engine Air Filter Replacement"
+    interval_months: 36
+    interval_miles: 30000
+    category: "Engine"
+    severity: "normal"
+    notes: "Replace more frequently in dusty conditions"
+
+  - description: "Cabin Air Filter Replacement"
+    interval_months: 12
+    interval_miles: null
+    category: "HVAC"
+    severity: "normal"
+    notes: "Replace annually or more frequently if airflow seems restricted"
+
+  - description: "Brake System Inspection"
+    interval_months: 12
+    interval_miles: 10000
+    category: "Brakes"
+    severity: "critical"
+    notes: "Inspect brake pads, rotors, fluid level, and lines"
+
+  - description: "Battery Inspection & Cleaning"
+    interval_months: 12
+    interval_miles: null
+    category: "Electrical"
+    severity: "normal"
+    notes: "Clean terminals, check charge level, inspect cables"
+
+  - description: "Coolant Flush & Replacement"
+    interval_months: 120
+    interval_miles: 150000
+    category: "Engine"
+    severity: "critical"
+    notes: "Or 10 years, whichever comes first. Use Mopar OAT coolant"
+
+  - description: "Transmission Fluid & Filter Change"
+    interval_months: 96
+    interval_miles: 120000
+    category: "Transmission"
+    severity: "critical"
+    notes: "8-speed automatic. Severe duty: 60,000 miles. Use Mopar ATF+4"
+
+  - description: "Spark Plug Replacement"
+    interval_months: 120
+    interval_miles: 100000
+    category: "Engine"
+    severity: "normal"
+    notes: "V6 and V8 engines. Use OEM or equivalent platinum/iridium plugs"
+
+  - description: "Rear Differential Fluid Change"
+    interval_months: null
+    interval_miles: 50000
+    category: "Drivetrain"
+    severity: "normal"
+    notes: "For 4WD models. Severe duty: 30,000 miles"
+
+  - description: "Transfer Case Fluid Change"
+    interval_months: null
+    interval_miles: 60000
+    category: "Drivetrain"
+    severity: "normal"
+    notes: "For 4WD models only"
+
+  - description: "PCV Valve Inspection"
+    interval_months: 36
+    interval_miles: 30000
+    category: "Engine"
+    severity: "normal"
+    notes: "Inspect and replace if necessary"
+
+  - description: "Accessory Drive Belt Inspection"
+    interval_months: 24
+    interval_miles: 20000
+    category: "Engine"
+    severity: "normal"
+    notes: "Inspect for cracks, glazing, or excessive wear. Replace as needed"
+
+  - description: "Suspension & Steering Inspection"
+    interval_months: 12
+    interval_miles: 10000
+    category: "Suspension"
+    severity: "normal"
+    notes: "Check for worn bushings, loose components, leaks"
+
+  - description: "Exhaust System Inspection"
+    interval_months: 12
+    interval_miles: 10000
+    category: "Exhaust"
+    severity: "normal"
+    notes: "Check for leaks, damage, or loose components"
+
+  - description: "Fuel Filter Replacement"
+    interval_months: null
+    interval_miles: 60000
+    category: "Fuel System"
+    severity: "normal"
+    notes: "For diesel models. Gasoline models have lifetime filter"
+
+  - description: "Multi-Point Vehicle Inspection"
+    interval_months: 6
+    interval_miles: null
+    category: "General"
+    severity: "normal"
+    notes: "Comprehensive vehicle inspection: fluids, lights, wipers, hoses, belts"

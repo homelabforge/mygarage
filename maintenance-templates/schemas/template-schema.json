@@ -1,0 +1,126 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MyGarage Maintenance Template",
+  "description": "Schema for MyGarage vehicle maintenance schedule templates",
+  "type": "object",
+  "required": ["metadata", "maintenance_items"],
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "required": ["make", "model", "year_start", "year_end", "duty_type", "source", "contributor", "version"],
+      "properties": {
+        "make": {
+          "type": "string",
+          "description": "Vehicle manufacturer (uppercase)",
+          "pattern": "^[A-Z ]+$",
+          "examples": ["RAM", "FORD", "CHEVROLET", "GMC"]
+        },
+        "model": {
+          "type": "string",
+          "description": "Vehicle model",
+          "examples": ["1500", "F-150", "Silverado 1500"]
+        },
+        "year_start": {
+          "type": "integer",
+          "description": "First model year this template applies to",
+          "minimum": 2000,
+          "maximum": 2030
+        },
+        "year_end": {
+          "type": "integer",
+          "description": "Last model year this template applies to",
+          "minimum": 2000,
+          "maximum": 2030
+        },
+        "duty_type": {
+          "type": "string",
+          "description": "Duty classification",
+          "enum": ["normal", "severe"]
+        },
+        "source": {
+          "type": "string",
+          "description": "Source document for maintenance schedule",
+          "examples": ["RAM 1500 Owner's Manual 2024"]
+        },
+        "contributor": {
+          "type": "string",
+          "description": "GitHub username of template contributor"
+        },
+        "version": {
+          "type": "string",
+          "description": "Template version (semver)",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Additional notes about the template or maintenance schedule"
+        }
+      }
+    },
+    "maintenance_items": {
+      "type": "array",
+      "description": "List of maintenance items",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["description", "category", "severity"],
+        "properties": {
+          "description": {
+            "type": "string",
+            "description": "Description of the maintenance item",
+            "minLength": 5,
+            "maxLength": 200
+          },
+          "interval_months": {
+            "type": ["integer", "null"],
+            "description": "Interval in months (null if not applicable)",
+            "minimum": 1,
+            "maximum": 240
+          },
+          "interval_miles": {
+            "type": ["integer", "null"],
+            "description": "Interval in miles (null if not applicable)",
+            "minimum": 100,
+            "maximum": 500000
+          },
+          "category": {
+            "type": "string",
+            "description": "Category of maintenance",
+            "enum": [
+              "Engine",
+              "Transmission",
+              "Drivetrain",
+              "Brakes",
+              "Tires",
+              "Suspension",
+              "Steering",
+              "Electrical",
+              "HVAC",
+              "Fuel System",
+              "Exhaust",
+              "Emissions",
+              "Cooling System",
+              "Hybrid System",
+              "Towing",
+              "General"
+            ]
+          },
+          "severity": {
+            "type": "string",
+            "description": "Severity/importance level",
+            "enum": ["critical", "normal", "optional"]
+          },
+          "notes": {
+            "type": "string",
+            "description": "Additional notes about this maintenance item",
+            "maxLength": 500
+          }
+        },
+        "anyOf": [
+          { "required": ["interval_months"] },
+          { "required": ["interval_miles"] }
+        ]
+      }
+    }
+  }
+}

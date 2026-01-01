@@ -1,0 +1,143 @@
+metadata:
+  make: RAM
+  model: "3500"
+  year_start: 2019
+  year_end: 2025
+  fuel_type: Gasoline
+  duty_type: normal
+  source: "RAM 2500/3500 Owner's Manual 2024-2025"
+  contributor: "jamey"
+  version: "1.0.0"
+  notes: |
+    Heavy Duty truck maintenance schedule for 6.4L HEMI V8 gasoline engine under normal driving conditions.
+    Consider severe duty schedule if you regularly tow heavy loads, operate in extreme conditions,
+    or use the truck for commercial purposes.
+
+    For diesel (6.7L Cummins) engines, use the separate diesel template.
+
+maintenance_items:
+  - description: "Engine Oil & Filter Change - 6.4L HEMI Gas"
+    interval_months: 12
+    interval_miles: 8000
+    category: "Engine"
+    severity: "critical"
+    notes: "Use SAE 0W-40 Mopar engine oil or equivalent. Severe duty: 5,000 miles"
+
+  - description: "Tire Rotation"
+    interval_months: 12
+    interval_miles: 10000
+    category: "Tires"
+    severity: "normal"
+    notes: "Rotate tires and check tire pressure. Inspect for wear, especially with dual rear wheels"
+
+  - description: "Engine Air Filter Replacement"
+    interval_months: 24
+    interval_miles: 30000
+    category: "Engine"
+    severity: "normal"
+    notes: "Replace more frequently in dusty conditions"
+
+  - description: "Cabin Air Filter Replacement"
+    interval_months: 12
+    interval_miles: null
+    category: "HVAC"
+    severity: "normal"
+    notes: "Replace annually or when airflow is restricted"
+
+  - description: "Brake System Inspection"
+    interval_months: 6
+    interval_miles: 5000
+    category: "Brakes"
+    severity: "critical"
+    notes: "More frequent inspection due to heavy duty use. Check pads, rotors, fluid, and lines"
+
+  - description: "Spark Plug Replacement"
+    interval_months: 120
+    interval_miles: 100000
+    category: "Engine"
+    severity: "normal"
+    notes: "Use OEM or equivalent iridium plugs"
+
+  - description: "Coolant Flush & Replacement"
+    interval_months: 120
+    interval_miles: 150000
+    category: "Engine"
+    severity: "critical"
+    notes: "Or 10 years, whichever comes first. Use Mopar OAT coolant"
+
+  - description: "Transmission Fluid & Filter Change - 68RFE"
+    interval_months: 96
+    interval_miles: 120000
+    category: "Transmission"
+    severity: "critical"
+    notes: "6-speed automatic. Severe duty: 60,000 miles. Use Mopar ATF+4"
+
+  - description: "Front Differential Fluid Change"
+    interval_months: null
+    interval_miles: 50000
+    category: "Drivetrain"
+    severity: "normal"
+    notes: "4WD models. Severe duty: 30,000 miles. Use Mopar gear lubricant"
+
+  - description: "Rear Differential Fluid Change"
+    interval_months: null
+    interval_miles: 50000
+    category: "Drivetrain"
+    severity: "normal"
+    notes: "Severe duty or towing: 30,000 miles. Use Mopar gear lubricant (75W-90 or 75W-140)"
+
+  - description: "Transfer Case Fluid Change"
+    interval_months: null
+    interval_miles: 60000
+    category: "Drivetrain"
+    severity: "normal"
+    notes: "4WD models only. Use Mopar ATF+4"
+
+  - description: "Accessory Drive Belt Inspection"
+    interval_months: 12
+    interval_miles: 15000
+    category: "Engine"
+    severity: "normal"
+    notes: "Inspect for cracks, glazing, or excessive wear. Replace as needed"
+
+  - description: "Battery Inspection & Load Test"
+    interval_months: 6
+    interval_miles: null
+    category: "Electrical"
+    severity: "normal"
+    notes: "Clean terminals, test charge and cranking amps"
+
+  - description: "Suspension & Steering Inspection"
+    interval_months: 12
+    interval_miles: 10000
+    category: "Suspension"
+    severity: "critical"
+    notes: "Critical for heavy duty trucks. Check ball joints, tie rods, shocks, springs"
+
+  - description: "Exhaust System Inspection"
+    interval_months: 12
+    interval_miles: 15000
+    category: "Exhaust"
+    severity: "normal"
+    notes: "Check for leaks, damage, and proper mounting"
+
+  - description: "Fifth Wheel/Gooseneck Hitch Inspection"
+    interval_months: 6
+    interval_miles: null
+    category: "Towing"
+    severity: "critical"
+    notes: "If equipped. Inspect mounting, hardware, locking mechanism, and grease pivots"
+
+  - description: "Trailer Brake Controller Inspection"
+    interval_months: 12
+    interval_miles: null
+    category: "Towing"
+    severity: "normal"
+    notes: "Test functionality and adjust gain settings as needed"
+
+  - description: "Multi-Point Vehicle Inspection"
+    interval_months: 6
+    interval_miles: null
+    category: "General"
+    severity: "normal"
+    notes: "Comprehensive inspection: fluids, lights, wipers, hoses, belts, u-joints"
