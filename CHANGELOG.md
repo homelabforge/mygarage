@@ -34,6 +34,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Runtime Error Fixes**
   - Fixed ValidationInfo import error preventing container startup (changed from `pydantic_core` to `pydantic`)
   - Added missing PWA icons (icon-192.png, icon-512.png) referenced in manifest.json
+- **Seasonal Analytics Chart Rendering**
+  - Fixed seasonal spending patterns chart displaying incorrectly when data missing for some seasons
+  - Chart now always renders all 4 seasons (Winter, Spring, Summer, Fall) with zero values for seasons without data
+  - Prevents narrow bar rendering issue and ensures consistent visualization across all vehicles
 
 ### Changed
 - **BREAKING: Service Records Schema Redesign**
