@@ -376,12 +376,12 @@ class DocumentOCRService:
             return ""
 
     @staticmethod
-    def list_available_insurance_parsers() -> list[dict]:
+    def list_available_insurance_parsers() -> list[dict[str, Any]]:
         """List all available insurance parsers."""
         return DocumentParserRegistry.list_insurance_parsers()
 
     @staticmethod
-    def get_ocr_status() -> dict:
+    def get_ocr_status() -> dict[str, Any]:
         """Get OCR engine status."""
         status = {
             "pymupdf_available": False,

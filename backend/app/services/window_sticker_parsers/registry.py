@@ -1,7 +1,7 @@
 """Parser registry for manufacturer-specific window sticker parsers."""
 
 import logging
-from typing import Optional, Type
+from typing import Any, Optional, Type
 
 from .base import BaseWindowStickerParser
 
@@ -215,7 +215,7 @@ class ParserRegistry:
         return cls.get_parser("generic")
 
     @classmethod
-    def list_parsers(cls) -> list[dict]:
+    def list_parsers(cls) -> list[dict[str, Any]]:
         """List all registered parsers."""
         cls._ensure_initialized()
         return [

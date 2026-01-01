@@ -22,7 +22,7 @@ class AddressBookEntryBase(BaseModel):
 
     @field_validator("email", "website", mode="before")
     @classmethod
-    def empty_str_to_none(cls, v):
+    def empty_str_to_none(cls, v: str) -> str | None:
         """Convert empty strings to None for optional fields."""
         if v == "":
             return None
@@ -52,7 +52,7 @@ class AddressBookEntryUpdate(BaseModel):
 
     @field_validator("email", "website", mode="before")
     @classmethod
-    def empty_str_to_none(cls, v):
+    def empty_str_to_none(cls, v: str) -> str | None:
         """Convert empty strings to None for optional fields."""
         if v == "":
             return None

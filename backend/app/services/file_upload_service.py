@@ -6,7 +6,7 @@ import logging
 import uuid
 from pathlib import Path
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 from fastapi import UploadFile, HTTPException, status
 from PIL import Image, ImageOps, UnidentifiedImageError
 from io import BytesIO
@@ -24,13 +24,13 @@ class FileUploadConfig:
     def __init__(
         self,
         base_dir: Path,
-        allowed_extensions: set,
-        allowed_mimes: set,
+        allowed_extensions: set[str],
+        allowed_mimes: set[str],
         max_size_bytes: int,
         generate_unique_name: bool = True,
         verify_magic_bytes: bool = True,
         create_thumbnail: bool = False,
-        thumbnail_size: tuple = (300, 300),
+        thumbnail_size: tuple[Any, ...] = (300, 300),
     ):
         self.base_dir = base_dir
         self.allowed_extensions = allowed_extensions
@@ -155,7 +155,7 @@ class FileUploadService:
 
     @staticmethod
     def create_thumbnail(
-        image_bytes: bytes, thumbnail_path: Path, size: tuple = (300, 300)
+        image_bytes: bytes, thumbnail_path: Path, size: tuple[Any, ...] = (300, 300)
     ) -> None:
         """Create thumbnail from image bytes.
 

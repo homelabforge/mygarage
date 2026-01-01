@@ -228,7 +228,7 @@ class InsurancePDFParser:
             logger.debug("Failed to parse currency value '%s': %s", value, e)
             return None
 
-    def _extract_all_vins(self, text: str) -> list:
+    def _extract_all_vins(self, text: str) -> list[str]:
         """Extract all VINs found in the PDF."""
         vins = []
         for pattern in self.progressive_patterns["vin"]:

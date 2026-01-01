@@ -3,7 +3,7 @@
 # pyright: reportArgumentType=false
 
 import logging
-from typing import Optional
+from typing import Any, Optional
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -42,7 +42,7 @@ class NHTSAService:
 
         self.timeout = 30.0
 
-    async def decode_vin(self, vin: str) -> dict:
+    async def decode_vin(self, vin: str) -> dict[str, Any]:
         """
         Decode a VIN using the NHTSA vPIC API.
 
@@ -116,7 +116,7 @@ class NHTSAService:
                 logger.error("Error parsing NHTSA response for VIN %s: %s", vin, str(e))
                 raise ValueError(f"Invalid NHTSA response: {e}")
 
-    def _extract_vehicle_info(self, result: dict) -> dict:
+    def _extract_vehicle_info(self, result: dict) -> dict[str, Any]:
         """
         Extract relevant vehicle information from NHTSA API result.
 
@@ -185,7 +185,9 @@ class NHTSAService:
         except (ValueError, TypeError):
             return None
 
-    async def get_vehicle_recalls(self, vin: str, db: AsyncSession) -> list[dict]:
+    async def get_vehicle_recalls(
+        self, vin: str, db: AsyncSession
+    ) -> list[dict[str, Any]]:
         """
         Get recalls for a specific VIN from NHTSA.
 

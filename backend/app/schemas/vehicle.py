@@ -1,6 +1,6 @@
 """Pydantic schemas for Vehicle operations."""
 
-from typing import Optional
+from typing import Any, Optional
 from datetime import date, datetime
 from decimal import Decimal
 from pydantic import BaseModel, Field, field_validator
@@ -144,13 +144,13 @@ class VehicleResponse(VehicleBase):
     fuel_economy_city: Optional[int] = None
     fuel_economy_highway: Optional[int] = None
     fuel_economy_combined: Optional[int] = None
-    standard_equipment: Optional[dict] = None
-    optional_equipment: Optional[dict] = None
+    standard_equipment: Optional[dict[str, Any]] = None
+    optional_equipment: Optional[dict[str, Any]] = None
     assembly_location: Optional[str] = None
     # Enhanced window sticker fields
     destination_charge: Optional[Decimal] = None
-    window_sticker_options_detail: Optional[dict] = None
-    window_sticker_packages: Optional[dict] = None
+    window_sticker_options_detail: Optional[dict[str, Any]] = None
+    window_sticker_packages: Optional[dict[str, Any]] = None
     exterior_color: Optional[str] = None
     interior_color: Optional[str] = None
     sticker_engine_description: Optional[str] = None

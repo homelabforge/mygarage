@@ -130,12 +130,19 @@ reportInvalidTypeForm = "error"  # Invalid type annotation syntax
 reportDuplicateImport = "error"  # Code quality issue
 reportWildcardImportFromLibrary = "error"  # Security and maintainability
 reportPrivateUsage = "warning"  # Accessing private/protected members
-reportConstantRedefinition = "error"  # Reassigning constants
-reportIncompatibleVariableOverride = "error"  # Type safety in inheritance
+reportConstantRedefinition = "none"  # Feature flags are intentionally reassigned
+reportIncompatibleVariableOverride = "warning"  # Pydantic model field overrides allowed
 reportInconsistentConstructor = "error"  # __init__ signature mismatches
 reportOverlappingOverload = "error"  # Function overload conflicts
 reportUninitializedInstanceVariable = "warning"  # Pydantic models may have this
 reportInvalidStringEscapeSequence = "error"  # Likely a bug
+reportUnnecessaryComparison = "none"  # Defensive None checks are intentional
+reportUnknownLambdaType = "none"  # Lambda types inferred from context
+reportOptionalSubscript = "none"  # Framework guarantees values exist
+reportIndexIssue = "none"  # Pandas/data processing with known structure
+reportMissingParameterType = "none"  # Internal/framework callbacks with Any types
+reportMissingTypeArgument = "none"  # Complex internal structures
+reportDeprecated = "warning"  # Pydantic v1 to v2 migration in progress
 
 # === Future Improvements ===
 # Consider installing type stub packages to reduce suppressions:

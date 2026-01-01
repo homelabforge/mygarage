@@ -245,7 +245,7 @@ class StellantisWindowStickerParser(BaseWindowStickerParser):
 
         # Get option names from options_detail to filter out from standard equipment
         # Stellantis OCR sometimes includes option package details in what looks like standard section
-        option_keywords = set()
+        option_keywords = set[str]()
         if data.options_detail:
             for option_name in data.options_detail.keys():
                 # Extract significant words from option names for matching
@@ -288,7 +288,9 @@ class StellantisWindowStickerParser(BaseWindowStickerParser):
             if in_standard:
                 # Check if this item is actually an optional package component
                 # by seeing if it matches keywords from options_detail
-                line_words = set(re.findall(r"[A-Za-z]{4,}", line_stripped.lower()))
+                line_words = set[str](
+                    re.findall(r"[A-Za-z]{4,}", line_stripped.lower())
+                )
                 common_words = line_words & option_keywords
                 # If 2+ significant words match an option, it's probably part of optional equipment
                 if len(common_words) >= 2:

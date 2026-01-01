@@ -1,7 +1,7 @@
 """Notification API endpoints for testing notification services."""
 
 import logging
-from typing import Dict
+from typing import Any, Dict
 
 import httpx
 from fastapi import APIRouter, Depends
@@ -33,7 +33,7 @@ async def _get_setting_bool(db: AsyncSession, key: str, default: bool = False) -
 async def test_ntfy_connection(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_admin_user),
-) -> Dict:
+) -> Dict[str, Any]:
     """Test ntfy server connection."""
     try:
         ntfy_enabled = await _get_setting_bool(db, "ntfy_enabled")
@@ -75,7 +75,7 @@ async def test_ntfy_connection(
 async def test_gotify_connection(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_admin_user),
-) -> Dict:
+) -> Dict[str, Any]:
     """Test Gotify server connection."""
     try:
         gotify_enabled = await _get_setting_bool(db, "gotify_enabled")
@@ -116,7 +116,7 @@ async def test_gotify_connection(
 async def test_pushover_connection(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_admin_user),
-) -> Dict:
+) -> Dict[str, Any]:
     """Test Pushover connection."""
     try:
         pushover_enabled = await _get_setting_bool(db, "pushover_enabled")
@@ -170,7 +170,7 @@ async def test_pushover_connection(
 async def test_slack_connection(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_admin_user),
-) -> Dict:
+) -> Dict[str, Any]:
     """Test Slack webhook connection."""
     try:
         slack_enabled = await _get_setting_bool(db, "slack_enabled")
@@ -214,7 +214,7 @@ async def test_slack_connection(
 async def test_discord_connection(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_admin_user),
-) -> Dict:
+) -> Dict[str, Any]:
     """Test Discord webhook connection."""
     try:
         discord_enabled = await _get_setting_bool(db, "discord_enabled")
@@ -256,7 +256,7 @@ async def test_discord_connection(
 async def test_telegram_connection(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_admin_user),
-) -> Dict:
+) -> Dict[str, Any]:
     """Test Telegram bot connection."""
     try:
         telegram_enabled = await _get_setting_bool(db, "telegram_enabled")
@@ -308,7 +308,7 @@ async def test_telegram_connection(
 async def test_email_connection(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_admin_user),
-) -> Dict:
+) -> Dict[str, Any]:
     """Test email SMTP connection."""
     try:
         import aiosmtplib

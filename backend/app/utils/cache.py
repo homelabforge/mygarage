@@ -72,7 +72,7 @@ class InMemoryCache:
             for key in expired_keys:
                 del self._cache[key]
 
-    def get_stats(self) -> dict:
+    def get_stats(self) -> dict[str, Any]:
         """Get cache statistics."""
         now = datetime.now()
         active = sum(1 for _, expiry in self._cache.values() if expiry > now)
@@ -103,7 +103,7 @@ def cached(ttl_seconds: int = 300):
 
     def decorator(func: Callable):
         @wraps(func)
-        async def wrapper(*args, **kwargs):
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:
             # Generate cache key
             cache_key = cache._generate_key(func.__name__, args, kwargs)
 

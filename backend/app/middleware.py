@@ -2,9 +2,9 @@
 
 import uuid
 from datetime import datetime, timezone
-from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, Response
 from sqlalchemy import select
 from app.models.csrf_token import CSRFToken
 from app.database import get_db
@@ -13,7 +13,9 @@ from app.database import get_db
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """Add security headers to all responses."""
 
-    async def dispatch(self, request: Request, call_next):
+    async def dispatch(
+        self, request: Request, call_next: RequestResponseEndpoint
+    ) -> Response:
         response = await call_next(request)
 
         # Content Security Policy - Strengthened to remove 'unsafe-inline' from scripts
@@ -56,7 +58,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 class RequestIDMiddleware(BaseHTTPMiddleware):
     """Add unique request ID to each request for tracing."""
 
-    async def dispatch(self, request: Request, call_next):
+    async def dispatch(
+        self, request: Request, call_next: RequestResponseEndpoint
+    ) -> Response:
         # Generate unique request ID
         request_id = str(uuid.uuid4())
 
@@ -98,7 +102,9 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
         "/api/settings/batch",  # User preferences (protected by JWT auth, auto-save)
     ]
 
-    async def dispatch(self, request: Request, call_next):
+    async def dispatch(
+        self, request: Request, call_next: RequestResponseEndpoint
+    ) -> Response:
         # Skip CSRF check for safe methods
         if request.method in ("GET", "HEAD", "OPTIONS"):
             return await call_next(request)

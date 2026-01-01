@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from datetime import date as date_type, datetime, timedelta
 from decimal import Decimal
-from typing import Optional, List, Dict
+from typing import Any, Optional, List, Dict
 from collections import defaultdict
 import calendar
 import pandas as pd
@@ -177,7 +177,7 @@ async def get_cost_analysis(db: AsyncSession, vin: str) -> CostAnalysis:
     )
 
     # Group service costs by type
-    service_type_data: Dict[str, dict] = defaultdict(
+    service_type_data: Dict[str, dict[str, Any]] = defaultdict(
         lambda: {
             "total": Decimal("0.00"),
             "count": 0,
@@ -494,7 +494,7 @@ async def get_maintenance_predictions(
                 break
 
     # Group by service type and calculate intervals
-    service_intervals: Dict[str, List[dict]] = defaultdict(list)
+    service_intervals: Dict[str, List[dict[str, Any]]] = defaultdict(list[Any])
 
     for i in range(len(service_records) - 1):
         current = service_records[i + 1]
@@ -749,7 +749,7 @@ async def get_fleet_analytics(
     vehicle_costs = []
 
     # Track monthly trends across fleet
-    monthly_data: Dict[tuple, dict] = defaultdict(
+    monthly_data: Dict[tuple[int, int], dict[str, Any]] = defaultdict(
         lambda: {
             "maintenance": Decimal("0.00"),
             "fuel": Decimal("0.00"),
@@ -1207,7 +1207,7 @@ async def compare_periods(
 
     if not p1_df.empty or not p2_df.empty:
         # Get all unique service types
-        all_types = set(
+        all_types = set[str](
             p1_df["service_type"].unique() if not p1_df.empty else []
         ) | set(p2_df["service_type"].unique() if not p2_df.empty else [])
 

@@ -1,7 +1,7 @@
 """Registry for document parsers including insurance providers."""
 
 import logging
-from typing import Optional, Type
+from typing import Any, Optional, Type
 
 from .base import BaseDocumentParser, DocumentType
 from .insurance import (
@@ -79,7 +79,7 @@ class DocumentParserRegistry:
         return GenericInsuranceParser()
 
     @classmethod
-    def list_insurance_parsers(cls) -> list[dict]:
+    def list_insurance_parsers(cls) -> list[dict[str, Any]]:
         """List all registered insurance parsers."""
         cls._ensure_initialized()
         return [

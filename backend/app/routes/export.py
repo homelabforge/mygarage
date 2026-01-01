@@ -7,7 +7,7 @@ import csv
 import io
 import json
 
-from typing import Optional
+from typing import Any, Optional
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
@@ -33,7 +33,7 @@ router = APIRouter(prefix="/api/export", tags=["export"])
 limiter = Limiter(key_func=get_remote_address)
 
 
-def generate_csv_stream(headers: list[str], rows: list[list]) -> io.StringIO:
+def generate_csv_stream(headers: list[str], rows: list[list[Any]]) -> io.StringIO:
     """Generate CSV content as string stream"""
     output = io.StringIO()
     writer = csv.writer(output)

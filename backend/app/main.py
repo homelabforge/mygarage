@@ -2,7 +2,7 @@
 
 import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
@@ -294,7 +294,7 @@ if static_dir.exists():
 
     # Custom 404 handler to serve SPA for non-API routes
     @app.exception_handler(404)
-    async def custom_404_handler(request, exc):
+    async def custom_404_handler(request: Request, exc: HTTPException):
         # If it's an API route, return the normal 404
         if request.url.path.startswith("/api/"):
             return await http_exception_handler(request, exc)

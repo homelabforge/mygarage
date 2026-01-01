@@ -167,7 +167,9 @@ async def parse_insurance_pdf(
     # Validate file type - now supports images too
     allowed_extensions = {".pdf", ".jpg", ".jpeg", ".png"}
     file_ext = (
-        "." + file.filename.lower().split(".")[-1] if "." in file.filename else ""
+        "." + file.filename.lower().split(".")[-1]
+        if file.filename and "." in file.filename
+        else ""
     )
     if file_ext not in allowed_extensions:
         raise HTTPException(
@@ -280,7 +282,9 @@ async def test_parse_insurance_pdf(
     # Validate file
     allowed_extensions = {".pdf", ".jpg", ".jpeg", ".png"}
     file_ext = (
-        "." + file.filename.lower().split(".")[-1] if "." in file.filename else ""
+        "." + file.filename.lower().split(".")[-1]
+        if file.filename and "." in file.filename
+        else ""
     )
     if file_ext not in allowed_extensions:
         raise HTTPException(status_code=400, detail="File must be PDF or image")

@@ -53,9 +53,9 @@ class Settings(BaseSettings):
     max_document_size_mb: int = 25
 
     # Allowed file extensions
-    allowed_photo_extensions: set = {".jpg", ".jpeg", ".png", ".webp", ".heic"}
-    allowed_attachment_extensions: set = {".jpg", ".jpeg", ".png", ".gif", ".pdf"}
-    allowed_document_extensions: set = {
+    allowed_photo_extensions: set[str] = {".jpg", ".jpeg", ".png", ".webp", ".heic"}
+    allowed_attachment_extensions: set[str] = {".jpg", ".jpeg", ".png", ".gif", ".pdf"}
+    allowed_document_extensions: set[str] = {
         ".pdf",
         ".doc",
         ".docx",
@@ -69,7 +69,7 @@ class Settings(BaseSettings):
     }
 
     # MIME types for validation
-    allowed_attachment_mime_types: set = {
+    allowed_attachment_mime_types: set[str] = {
         "image/jpeg",
         "image/png",
         "image/gif",
@@ -114,7 +114,7 @@ class Settings(BaseSettings):
     allow_auth_none: bool = (
         False  # Allow auth_mode='none' in production (security risk!)
     )
-    cors_origins: list = [
+    cors_origins: list[str] = [
         "http://localhost:3000",
         "http://localhost:5173",
         "http://localhost:8000",
@@ -124,7 +124,7 @@ class Settings(BaseSettings):
     ]
 
     @property
-    def cors_origins_list(self) -> list:
+    def cors_origins_list(self) -> list[str]:
         """Parse CORS origins from environment or use defaults.
 
         Set MYGARAGE_CORS_ORIGINS as comma-separated URLs:

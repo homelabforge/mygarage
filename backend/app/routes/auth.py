@@ -3,7 +3,7 @@
 import logging
 import secrets
 from datetime import datetime, timedelta, timezone
-from typing import List, Optional
+from typing import Any, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, delete
@@ -515,7 +515,7 @@ async def delete_user(
 async def admin_reset_user_password(
     request: Request,
     user_id: int,
-    password_data: dict,
+    password_data: dict[str, Any],
     current_user: User = Depends(get_current_admin_user),
     db: AsyncSession = Depends(get_db),
 ):

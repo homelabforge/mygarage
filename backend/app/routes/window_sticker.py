@@ -3,7 +3,7 @@
 import logging
 import uuid
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated, Any, Optional
 from datetime import datetime, timezone
 from decimal import Decimal
 
@@ -43,8 +43,8 @@ class WindowStickerDataUpdate(BaseModel):
     fuel_economy_city: int | None = None
     fuel_economy_highway: int | None = None
     fuel_economy_combined: int | None = None
-    standard_equipment: dict | None = None
-    optional_equipment: dict | None = None
+    standard_equipment: dict[str, Any] | None = None
+    optional_equipment: dict[str, Any] | None = None
     assembly_location: str | None = None
     exterior_color: str | None = None
     interior_color: str | None = None
@@ -65,8 +65,8 @@ class WindowStickerResponse(BaseModel):
     fuel_economy_city: int | None
     fuel_economy_highway: int | None
     fuel_economy_combined: int | None
-    standard_equipment: dict | None
-    optional_equipment: dict | None
+    standard_equipment: dict[str, Any] | None
+    optional_equipment: dict[str, Any] | None
     assembly_location: str | None
     exterior_color: str | None
     interior_color: str | None
@@ -78,8 +78,8 @@ class WindowStickerResponse(BaseModel):
     warranty_basic: str | None
     environmental_rating_ghg: str | None
     environmental_rating_smog: str | None
-    window_sticker_options_detail: dict | None
-    window_sticker_packages: dict | None
+    window_sticker_options_detail: dict[str, Any] | None
+    window_sticker_packages: dict[str, Any] | None
     window_sticker_parser_used: str | None
     window_sticker_confidence_score: Decimal | None
 
@@ -94,7 +94,7 @@ class WindowStickerTestResponse(BaseModel):
     parser_name: str | None
     manufacturer_detected: str | None
     raw_text: str | None
-    extracted_data: dict | None
+    extracted_data: dict[str, Any] | None
     validation_warnings: list[str]
     error: str | None
 

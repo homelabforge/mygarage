@@ -1,6 +1,7 @@
 """User schemas for authentication."""
 
 from datetime import datetime
+from typing import Any
 from pydantic import BaseModel, EmailStr, Field, validator
 import re
 
@@ -13,7 +14,7 @@ class UserBase(BaseModel):
     full_name: str | None = Field(None, max_length=255)
 
     @validator("username")
-    def validate_username(cls, v):  # noqa: N805 - Pydantic v1 validators require 'cls' parameter
+    def validate_username(cls, v: Any) -> Any:  # noqa: N805 - Pydantic v1 validators require 'cls' parameter
         """Validate username format."""
         if not re.match(r"^[a-zA-Z0-9_-]+$", v):
             raise ValueError(
@@ -28,7 +29,7 @@ class UserCreate(UserBase):
     password: str = Field(..., min_length=8, max_length=100)
 
     @validator("password")
-    def validate_password(cls, v):  # noqa: N805 - Pydantic v1 validators require 'cls' parameter
+    def validate_password(cls, v: Any) -> Any:  # noqa: N805 - Pydantic v1 validators require 'cls' parameter
         """Validate password strength."""
         if len(v) < 8:
             raise ValueError("Password must be at least 8 characters long")
@@ -61,7 +62,7 @@ class UserPasswordUpdate(BaseModel):
     new_password: str = Field(..., min_length=8, max_length=100)
 
     @validator("new_password")
-    def validate_password(cls, v):  # noqa: N805 - Pydantic v1 validators require 'cls' parameter
+    def validate_password(cls, v: Any) -> Any:  # noqa: N805 - Pydantic v1 validators require 'cls' parameter
         """Validate password strength."""
         if len(v) < 8:
             raise ValueError("Password must be at least 8 characters long")

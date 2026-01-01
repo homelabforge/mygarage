@@ -434,12 +434,12 @@ class WindowStickerOCRService:
         return result
 
     @staticmethod
-    def list_available_parsers() -> list[dict]:
+    def list_available_parsers() -> list[dict[str, Any]]:
         """List all available window sticker parsers."""
         return ParserRegistry.list_parsers()
 
     @staticmethod
-    def get_ocr_status() -> dict:
+    def get_ocr_status() -> dict[str, Any]:
         """Get OCR engine status."""
         status = {
             "pymupdf_available": False,

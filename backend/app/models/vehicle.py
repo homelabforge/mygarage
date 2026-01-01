@@ -14,7 +14,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 from datetime import date, datetime
-from typing import Optional
+from typing import Optional, Any
 from decimal import Decimal
 
 from app.database import Base
@@ -58,13 +58,15 @@ class Vehicle(Base):
     fuel_economy_city: Mapped[Optional[int]] = mapped_column(Integer)
     fuel_economy_highway: Mapped[Optional[int]] = mapped_column(Integer)
     fuel_economy_combined: Mapped[Optional[int]] = mapped_column(Integer)
-    standard_equipment: Mapped[Optional[dict]] = mapped_column(JSON)
-    optional_equipment: Mapped[Optional[dict]] = mapped_column(JSON)
+    standard_equipment: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON)
+    optional_equipment: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON)
     assembly_location: Mapped[Optional[str]] = mapped_column(String(100))
     # Enhanced window sticker fields
     destination_charge: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2))
-    window_sticker_options_detail: Mapped[Optional[dict]] = mapped_column(JSON)
-    window_sticker_packages: Mapped[Optional[dict]] = mapped_column(JSON)
+    window_sticker_options_detail: Mapped[Optional[dict[str, Any]]] = mapped_column(
+        JSON
+    )
+    window_sticker_packages: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON)
     exterior_color: Mapped[Optional[str]] = mapped_column(String(100))
     interior_color: Mapped[Optional[str]] = mapped_column(String(100))
     sticker_engine_description: Mapped[Optional[str]] = mapped_column(String(150))

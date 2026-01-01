@@ -1,6 +1,6 @@
 """Pydantic schemas for Analytics and Reports."""
 
-from typing import Optional, List, Literal, Dict
+from typing import Any, Optional, List, Literal, Dict
 from datetime import date as date_type
 from decimal import Decimal
 from pydantic import BaseModel, Field
@@ -185,8 +185,12 @@ class VehicleAnalytics(BaseModel):
     days_owned: Optional[int] = None
 
     # Fifth Wheel / RV Specific (optional)
-    propane_analysis: Optional[Dict] = None  # For fifth wheels with propane tracking
-    spot_rental_analysis: Optional[Dict] = None  # For fifth wheels with spot rentals
+    propane_analysis: Optional[Dict[str, Any]] = (
+        None  # For fifth wheels with propane tracking
+    )
+    spot_rental_analysis: Optional[Dict[str, Any]] = (
+        None  # For fifth wheels with spot rentals
+    )
 
     model_config = {"from_attributes": True}
 

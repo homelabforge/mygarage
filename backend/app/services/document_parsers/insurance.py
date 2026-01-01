@@ -8,7 +8,7 @@ from abc import abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional
+from typing import Any, Optional
 
 from .base import BaseDocumentParser, DocumentData, DocumentType
 
@@ -50,7 +50,7 @@ class InsuranceData(DocumentData):
     def __post_init__(self):
         self.document_type = DocumentType.INSURANCE
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for API response."""
         base = super().to_dict()
         base.update(
@@ -294,7 +294,7 @@ class ProgressiveInsuranceParser(InsuranceDocumentParser):
 
         return data
 
-    def _extract_policy_period(self, text: str) -> Optional[dict]:
+    def _extract_policy_period(self, text: str) -> Optional[dict[str, Any]]:
         """Extract policy period dates."""
         for pattern in self.PATTERNS["policy_period"]:
             match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
@@ -309,7 +309,7 @@ class ProgressiveInsuranceParser(InsuranceDocumentParser):
                     return {"start": start_date, "end": end_date}
         return None
 
-    def _extract_vehicle_specific_data(self, text: str, vin: str) -> dict:
+    def _extract_vehicle_specific_data(self, text: str, vin: str) -> dict[str, Any]:
         """Extract vehicle-specific data for a given VIN."""
         data = {}
 

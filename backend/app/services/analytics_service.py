@@ -4,7 +4,7 @@
 
 import pandas as pd
 import numpy as np
-from typing import List, Dict, Optional, Tuple
+from typing import Any, List, Dict, Optional, Tuple
 from datetime import date as date_type
 from decimal import Decimal
 import calendar
@@ -436,7 +436,7 @@ def compare_time_periods(
     period1_end: date_type,
     period2_start: date_type,
     period2_end: date_type,
-) -> Dict:
+) -> Dict[str, Any]:
     """
     Compare costs and metrics between two time periods.
 
@@ -524,7 +524,7 @@ def detect_anomalies(values: pd.Series, std_threshold: float = 2.0) -> List[int]
     return anomalies
 
 
-def calculate_propane_costs(fuel_records: List[FuelRecord]) -> Dict:
+def calculate_propane_costs(fuel_records: List[FuelRecord]) -> Dict[str, Any]:
     """
     Calculate propane-specific costs and statistics for fifth wheels.
 
@@ -691,7 +691,7 @@ def calculate_propane_costs(fuel_records: List[FuelRecord]) -> Dict:
     }
 
 
-async def calculate_spot_rental_costs(db, vin: str) -> Dict:
+async def calculate_spot_rental_costs(db, vin: str) -> Dict[str, Any]:
     """
     Calculate spot rental costs from billing entries for fifth wheels.
 

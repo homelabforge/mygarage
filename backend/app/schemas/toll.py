@@ -1,6 +1,6 @@
 """Pydantic schemas for toll tag and transaction operations."""
 
-from typing import Optional
+from typing import Any, Optional
 import datetime as dt
 from decimal import Decimal
 from pydantic import BaseModel, Field, field_validator
@@ -255,7 +255,9 @@ class TollTransactionSummary(BaseModel):
 
     total_transactions: int
     total_amount: Decimal
-    monthly_totals: list[dict]  # [{"month": "2025-11", "count": 10, "amount": 25.00}]
+    monthly_totals: list[
+        dict[str, Any]
+    ]  # [{"month": "2025-11", "count": 10, "amount": 25.00}]
 
     model_config = {
         "json_schema_extra": {

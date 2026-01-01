@@ -5,7 +5,7 @@
 import logging
 from io import BytesIO
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from PIL import Image, ImageOps, UnidentifiedImageError
 from fastapi import HTTPException
@@ -142,7 +142,9 @@ class PhotoService:
         return str(thumb_path.relative_to(PHOTO_DIR))
 
     @staticmethod
-    def build_photo_payload(vin: str, photo, photo_dir: Path = PHOTO_DIR) -> dict:
+    def build_photo_payload(
+        vin: str, photo, photo_dir: Path = PHOTO_DIR
+    ) -> dict[str, Any]:
         """
         Build consistent photo response dict.
 

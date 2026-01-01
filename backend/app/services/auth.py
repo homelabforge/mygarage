@@ -3,7 +3,7 @@
 # pyright: reportGeneralTypeIssues=false, reportArgumentType=false, reportAttributeAccessIssue=false, reportAssignmentType=false
 
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Any, Optional
 from authlib.jose import jwt, JoseError
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError, InvalidHashError
@@ -100,7 +100,9 @@ def hash_password(password: str) -> str:
     return ph.hash(password)
 
 
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+def create_access_token(
+    data: dict[str, Any], expires_delta: Optional[timedelta] = None
+) -> str:
     """Create a JWT access token."""
     to_encode = data.copy()
     if expires_delta:
