@@ -283,7 +283,7 @@ class MaintenanceTemplateService:
                     vin=vin,
                     description=description,
                     notes=notes,
-                    completed=False,
+                    is_completed=False,
                 )
 
                 # Set due date if interval_months is specified
@@ -291,12 +291,14 @@ class MaintenanceTemplateService:
                     reminder.due_date = datetime.now().date() + timedelta(
                         days=interval_months * 30
                     )
-                    reminder.recurring_interval_days = interval_months * 30
+                    reminder.is_recurring = True
+                    reminder.recurrence_days = interval_months * 30
 
                 # Set due mileage if interval_miles and current_mileage are specified
                 if interval_miles and current_mileage:
                     reminder.due_mileage = current_mileage + interval_miles
-                    reminder.recurring_interval_miles = interval_miles
+                    reminder.is_recurring = True
+                    reminder.recurrence_miles = interval_miles
 
                 db.add(reminder)
                 reminders_created += 1
