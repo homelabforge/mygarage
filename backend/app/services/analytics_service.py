@@ -331,10 +331,19 @@ def calculate_seasonal_patterns(df: pd.DataFrame) -> pd.DataFrame:
         df: DataFrame with date and cost columns
 
     Returns:
-        DataFrame with seasonal aggregations
+        DataFrame with seasonal aggregations (always includes all 4 seasons)
     """
+    # Define all seasons
+    season_order = ["Winter", "Spring", "Summer", "Fall"]
+
     if df.empty:
-        return pd.DataFrame(columns=["season", "total_cost", "avg_cost", "count"])
+        # Return empty DataFrame with all 4 seasons and zero values
+        return pd.DataFrame({
+            "season": season_order,
+            "total_cost": [0.0, 0.0, 0.0, 0.0],
+            "avg_cost": [0.0, 0.0, 0.0, 0.0],
+            "count": [0, 0, 0, 0],
+        })
 
     # Define seasons based on month
     def get_season(month: int) -> str:
@@ -357,8 +366,18 @@ def calculate_seasonal_patterns(df: pd.DataFrame) -> pd.DataFrame:
 
     seasonal.columns = ["season", "total_cost", "avg_cost", "count"]
 
+    # Create DataFrame with all seasons to ensure missing ones have zero values
+    all_seasons = pd.DataFrame({"season": season_order})
+
+    # Merge to include missing seasons with zero values
+    seasonal = all_seasons.merge(seasonal, on="season", how="left")
+
+    # Fill missing values with zeros
+    seasonal["total_cost"] = seasonal["total_cost"].fillna(0.0)
+    seasonal["avg_cost"] = seasonal["avg_cost"].fillna(0.0)
+    seasonal["count"] = seasonal["count"].fillna(0).astype(int)
+
     # Order seasons chronologically
-    season_order = ["Winter", "Spring", "Summer", "Fall"]
     seasonal["season"] = pd.Categorical(
         seasonal["season"], categories=season_order, ordered=True
     )

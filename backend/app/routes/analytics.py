@@ -1070,8 +1070,11 @@ async def get_seasonal_analytics(
                 }[row["season"]]
             )
         ]
+        # Only get common services if there are records for this season
         common_services = (
             season_df["service_type"].value_counts().head(3).index.tolist()
+            if not season_df.empty and "service_type" in season_df.columns
+            else []
         )
 
         seasons.append(
