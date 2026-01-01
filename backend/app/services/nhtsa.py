@@ -240,7 +240,7 @@ class NHTSAService:
         recalls_api_base = (
             setting.value
             if setting
-            else "https://api.nhtsa.gov/recalls/recallsByVehicle"
+            else "https://api.nhtsa.gov/recalls"
         )
 
         # SECURITY: Validate recalls API base URL against SSRF attacks
@@ -253,7 +253,7 @@ class NHTSAService:
                 str(e),
             )
             # Use safe default if validation fails
-            recalls_api_base = "https://api.nhtsa.gov/recalls/recallsByVehicle"
+            recalls_api_base = "https://api.nhtsa.gov/recalls"
             logger.warning("Using fallback recalls API URL: %s", recalls_api_base)
 
         # Query NHTSA recalls API by make/model/year
@@ -261,7 +261,7 @@ class NHTSAService:
         from urllib.parse import urlencode
 
         params = {"make": make, "model": model, "modelYear": year}
-        recalls_url = f"{recalls_api_base}?{urlencode(params)}"
+        recalls_url = f"{recalls_api_base}/recallsByVehicle?{urlencode(params)}"
 
         logger.info("Fetching recalls for %s %s %s (VIN: %s)", year, make, model, vin)
 

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **NHTSA Recall Integration**
+  - Fixed incorrect API endpoint causing recall checks to fail
+  - Changed from `https://vpic.nhtsa.dot.gov/api/recallsByVehicle` to `https://api.nhtsa.gov/recalls/recallsByVehicle`
+  - Updated default `nhtsa_recalls_api_url` setting to use correct base URL
+  - Recall checks now successfully retrieve active recalls from NHTSA database
+
 ## [2.18.1] - 2026-01-01
 
 ### Fixed

@@ -184,9 +184,9 @@ DEFAULT_SETTINGS = {
         "encrypted": False,
     },
     "nhtsa_recalls_api_url": {
-        "value": "https://api.nhtsa.gov/recalls/recallsByVehicle",
+        "value": "https://api.nhtsa.gov/recalls",
         "category": "integrations",
-        "description": "NHTSA Recalls API URL",
+        "description": "NHTSA Recalls API base URL",
         "encrypted": False,
     },
     # Window Sticker Integration
