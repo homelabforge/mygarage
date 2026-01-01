@@ -1296,7 +1296,7 @@ async def export_analytics_pdf(
     # Fetch vendor analytics
     try:
         vendor_analytics = await get_vendor_analytics(vin, db, current_user)
-        vendor_data = vendor_analytics.dict()
+        vendor_data = vendor_analytics.model_dump()
     except Exception as e:
         logger.error("Error fetching vendor analytics for %s: %s", vin, e)
         vendor_data = None
@@ -1304,13 +1304,13 @@ async def export_analytics_pdf(
     # Fetch seasonal analytics
     try:
         seasonal_analytics = await get_seasonal_analytics(vin, db, current_user)
-        seasonal_data = seasonal_analytics.dict()
+        seasonal_data = seasonal_analytics.model_dump()
     except Exception as e:
         logger.error("Error fetching seasonal analytics for %s: %s", vin, e)
         seasonal_data = None
 
     # Convert analytics to dict for PDF generator
-    analytics_data = analytics.dict()
+    analytics_data = analytics.model_dump()
 
     # Generate PDF
     pdf_generator = PDFReportGenerator()

@@ -15,6 +15,7 @@ from sqlalchemy import select
 from app.config import settings
 from app.database import get_db
 from app.models.user import User
+from app.models.vehicle import Vehicle
 from app.schemas.user import TokenData
 
 # HTTP Bearer token
@@ -399,7 +400,7 @@ async def get_vehicle_or_403(vin: str, current_user: Optional[User], db: AsyncSe
     return vehicle
 
 
-def check_vehicle_ownership(vehicle, current_user: Optional[User]) -> None:
+def check_vehicle_ownership(vehicle: Vehicle, current_user: Optional[User]) -> None:
     """Check if user owns vehicle or is admin, else raise 403.
 
     Args:

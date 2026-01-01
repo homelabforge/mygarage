@@ -94,7 +94,7 @@ class NotificationDispatcher:
             # Unknown event type - allow by default
             return True
 
-        category_key, event_key = EVENT_SETTINGS_MAP[event_type]
+        _, event_key = EVENT_SETTINGS_MAP[event_type]
 
         # Check if notifications are enabled at all (any service)
         any_service_enabled = await self._has_any_service_enabled()

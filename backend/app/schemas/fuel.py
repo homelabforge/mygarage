@@ -4,6 +4,7 @@ from typing import Optional
 from datetime import date as date_type, datetime
 from decimal import Decimal
 from pydantic import BaseModel, Field, field_validator
+from pydantic_core import ValidationInfo
 
 
 class FuelRecordBase(BaseModel):
@@ -58,7 +59,9 @@ class FuelRecordCreate(FuelRecordBase):
 
     @field_validator("tank_quantity")
     @classmethod
-    def validate_tank_data_complete(cls, v: Optional[int], info) -> Optional[int]:
+    def validate_tank_data_complete(
+        cls, v: Optional[int], info: ValidationInfo
+    ) -> Optional[int]:
         """Ensure both tank_size_lb and tank_quantity are provided together."""
         tank_size = info.data.get("tank_size_lb")
         has_size = tank_size is not None
@@ -137,7 +140,9 @@ class FuelRecordUpdate(BaseModel):
 
     @field_validator("tank_quantity")
     @classmethod
-    def validate_tank_data_complete(cls, v: Optional[int], info) -> Optional[int]:
+    def validate_tank_data_complete(
+        cls, v: Optional[int], info: ValidationInfo
+    ) -> Optional[int]:
         """Ensure both tank_size_lb and tank_quantity are provided together."""
         tank_size = info.data.get("tank_size_lb")
         has_size = tank_size is not None

@@ -5,6 +5,7 @@
 import logging
 from typing import Optional
 from decimal import Decimal
+from datetime import date as date_type
 
 from fastapi import HTTPException
 from sqlalchemy import select, delete, func
@@ -59,7 +60,7 @@ def calculate_mpg(
 
 
 async def get_previous_full_tank(
-    db: AsyncSession, vin: str, current_date, current_mileage: Optional[int]
+    db: AsyncSession, vin: str, current_date: date_type, current_mileage: Optional[int]
 ) -> Optional[FuelRecord]:
     """
     Get the most recent previous full tank fill-up.

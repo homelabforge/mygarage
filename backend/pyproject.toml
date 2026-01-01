@@ -123,7 +123,7 @@ reportUnknownParameterType = "warning"  # Due to missing stubs
 reportUnknownVariableType = "warning"  # Due to missing stubs
 
 # === Decorator Type Safety ===
-reportUntypedFunctionDecorator = "warning"  # FastAPI @app.get(), @app.post(), etc.
+reportUntypedFunctionDecorator = "none"  # FastAPI @app.get(), @app.post(), SlowAPI @limiter.limit(), etc.
 reportUntypedClassDecorator = "warning"  # SQLAlchemy declarative base
 reportUntypedBaseClass = "warning"  # Base classes from libraries without stubs
 

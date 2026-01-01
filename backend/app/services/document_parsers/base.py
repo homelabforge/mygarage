@@ -65,7 +65,7 @@ class BaseDocumentParser(ABC):
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
 
     @abstractmethod
-    def parse(self, text: str, **kwargs) -> DocumentData:
+    def parse(self, text: str, **kwargs: Any) -> DocumentData:
         """
         Parse document text and extract structured data.
 

@@ -14,7 +14,7 @@ class InMemoryCache:
         self._cache: dict[str, tuple[Any, datetime]] = {}
         self._lock = asyncio.Lock()
 
-    def _generate_key(self, func_name: str, args: tuple, kwargs: dict) -> str:
+    def generate_key(self, func_name: str, args: tuple, kwargs: dict) -> str:
         """Generate a cache key from function name and arguments."""
         # Convert args and kwargs to a stable string representation
         key_parts = [func_name]
@@ -105,7 +105,7 @@ def cached(ttl_seconds: int = 300):
         @wraps(func)
         async def wrapper(*args: Any, **kwargs: Any) -> Any:
             # Generate cache key
-            cache_key = cache._generate_key(func.__name__, args, kwargs)
+            cache_key = cache.generate_key(func.__name__, args, kwargs)
 
             # Try to get from cache
             cached_value = await cache.get(cache_key)

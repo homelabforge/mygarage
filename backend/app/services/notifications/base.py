@@ -4,6 +4,7 @@ import asyncio
 import logging
 from abc import ABC, abstractmethod
 from typing import Optional
+from types import TracebackType
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +65,11 @@ class NotificationService(ABC):
     async def __aenter__(self):
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> bool:
         await self.close()
         return False

@@ -256,7 +256,7 @@ def calculate_trend_direction(values: pd.Series, threshold: float = 0.05) -> str
 
 def calculate_fuel_economy_with_pandas(
     fuel_records: List[FuelRecord],
-) -> Tuple[pd.DataFrame, Dict]:
+) -> Tuple[pd.DataFrame, Dict[str, Any]]:
     """
     Calculate fuel economy statistics using pandas.
 
@@ -691,7 +691,7 @@ def calculate_propane_costs(fuel_records: List[FuelRecord]) -> Dict[str, Any]:
     }
 
 
-async def calculate_spot_rental_costs(db, vin: str) -> Dict[str, Any]:
+async def calculate_spot_rental_costs(db: Any, vin: str) -> Dict[str, Any]:
     """
     Calculate spot rental costs from billing entries for fifth wheels.
 

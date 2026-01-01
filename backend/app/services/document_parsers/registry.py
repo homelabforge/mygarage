@@ -87,7 +87,7 @@ class DocumentParserRegistry:
                 "provider": parser_class.PROVIDER_NAME,
                 "parser_name": parser_class.PARSER_NAME,
             }
-            for name, parser_class in cls._insurance_parsers.items()
+            for _name, parser_class in cls._insurance_parsers.items()
         ]
 
     @classmethod

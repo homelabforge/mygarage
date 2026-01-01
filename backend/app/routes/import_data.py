@@ -41,22 +41,22 @@ class ImportResult:
     """Result of an import operation."""
 
     def __init__(self):
-        self.success_count = 0
-        self.error_count = 0
-        self.skipped_count = 0
-        self.errors = []
+        self.success_count: int = 0
+        self.error_count: int = 0
+        self.skipped_count: int = 0
+        self.errors: list[str] = []
 
-    def add_success(self):
+    def add_success(self) -> None:
         self.success_count += 1
 
-    def add_error(self, row_num: int, message: str):
+    def add_error(self, row_num: int, message: str) -> None:
         self.error_count += 1
         self.errors.append(f"Row {row_num}: {message}")
 
-    def add_skip(self):
+    def add_skip(self) -> None:
         self.skipped_count += 1
 
-    def to_dict(self):
+    def to_dict(self) -> dict[str, int | list[str]]:
         return {
             "success_count": self.success_count,
             "error_count": self.error_count,
