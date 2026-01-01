@@ -221,6 +221,7 @@ from app.routes import (
     calendar_router,
     window_sticker_router,
     notifications_router,
+    maintenance_templates_router,
 )
 from app.routes.auth import router as auth_router
 from app.routes.oidc import router as oidc_router
@@ -256,6 +257,7 @@ app.include_router(address_book_router)
 app.include_router(calendar_router)
 app.include_router(window_sticker_router)
 app.include_router(notifications_router)
+app.include_router(maintenance_templates_router)
 
 
 # Serve static files (frontend build) in production

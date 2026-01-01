@@ -28,6 +28,7 @@ from app.routes.address_book import router as address_book_router
 from app.routes.calendar import router as calendar_router
 from app.routes.window_sticker import router as window_sticker_router
 from app.routes.notifications import router as notifications_router
+from app.routes.maintenance_templates import maintenance_templates_router
 
 __all__ = [
     "vin_router",
@@ -59,4 +60,5 @@ __all__ = [
     "calendar_router",
     "window_sticker_router",
     "notifications_router",
+    "maintenance_templates_router",
 ]

@@ -237,11 +237,7 @@ class NHTSAService:
             select(Setting).where(Setting.key == "nhtsa_recalls_api_url")
         )
         setting = result.scalar_one_or_none()
-        recalls_api_base = (
-            setting.value
-            if setting
-            else "https://api.nhtsa.gov/recalls"
-        )
+        recalls_api_base = setting.value if setting else "https://api.nhtsa.gov/recalls"
 
         # SECURITY: Validate recalls API base URL against SSRF attacks
         try:

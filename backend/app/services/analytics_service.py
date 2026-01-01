@@ -338,12 +338,14 @@ def calculate_seasonal_patterns(df: pd.DataFrame) -> pd.DataFrame:
 
     if df.empty:
         # Return empty DataFrame with all 4 seasons and zero values
-        return pd.DataFrame({
-            "season": season_order,
-            "total_cost": [0.0, 0.0, 0.0, 0.0],
-            "avg_cost": [0.0, 0.0, 0.0, 0.0],
-            "count": [0, 0, 0, 0],
-        })
+        return pd.DataFrame(
+            {
+                "season": season_order,
+                "total_cost": [0.0, 0.0, 0.0, 0.0],
+                "avg_cost": [0.0, 0.0, 0.0, 0.0],
+                "count": [0, 0, 0, 0],
+            }
+        )
 
     # Define seasons based on month
     def get_season(month: int) -> str:

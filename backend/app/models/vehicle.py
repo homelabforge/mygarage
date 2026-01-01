@@ -14,10 +14,13 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 from datetime import date, datetime
-from typing import Optional, Any
+from typing import Optional, Any, TYPE_CHECKING
 from decimal import Decimal
 
 from app.database import Base
+
+if TYPE_CHECKING:
+    from app.models.maintenance_template import MaintenanceTemplate
 
 
 class Vehicle(Base):
@@ -155,6 +158,9 @@ class Vehicle(Base):
     )
     toll_transactions: Mapped[list["TollTransaction"]] = relationship(
         "TollTransaction", back_populates="vehicle", cascade="all, delete-orphan"
+    )
+    maintenance_templates: Mapped[list["MaintenanceTemplate"]] = relationship(
+        "MaintenanceTemplate", back_populates="vehicle", cascade="all, delete-orphan"
     )
 
     __table_args__ = (
