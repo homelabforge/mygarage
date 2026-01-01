@@ -237,7 +237,7 @@ class DocumentOCRService:
 
             text_content = []
             with fitz.open(file_path) as doc:
-                for page_num, page in enumerate(doc):
+                for _page_num, page in enumerate(doc):
                     pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
                     img_data = pix.tobytes("png")
                     text = await self._ocr_image_bytes(img_data)
@@ -391,14 +391,14 @@ class DocumentOCRService:
         }
 
         try:
-            import fitz  # noqa: F401
+            import fitz  # noqa: F401  # type: ignore[reportUnusedImport]
 
             status["pymupdf_available"] = True
         except ImportError:
             pass  # PyMuPDF is optional - status remains False if not installed
 
         try:
-            import pytesseract  # noqa: F401
+            import pytesseract  # noqa: F401  # type: ignore[reportUnusedImport]
 
             status["tesseract_available"] = True
         except ImportError:
@@ -406,7 +406,7 @@ class DocumentOCRService:
 
         if PADDLEOCR_ENABLED:
             try:
-                from paddleocr import PaddleOCR  # noqa: F401
+                from paddleocr import PaddleOCR  # noqa: F401  # type: ignore[reportUnusedImport]
 
                 status["paddleocr_available"] = True
             except ImportError:
