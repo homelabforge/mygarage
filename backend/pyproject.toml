@@ -53,3 +53,98 @@ include = ["app*"]
 
 [tool.ruff.lint]
 per-file-ignores = { "app/main.py" = ["E402"], "app/models/*.py" = ["E402"], "app/routes/analytics.py" = ["E402"], "app/services/window_sticker_parsers/*.py" = ["E402"] }
+
+[tool.pyright]
+# Pyright strict type checking configuration for MyGarage backend
+# Version: 1.1.407
+# Reference: https://microsoft.github.io/pyright/#/configuration
+
+# Project Structure
+include = ["app"]
+exclude = [
+    "**/__pycache__",
+    "**/.pytest_cache",
+    "**/.venv",
+    "**/venv",
+    "**/node_modules",
+]
+pythonVersion = "3.14"
+pythonPlatform = "Linux"
+
+# Type Checking Mode: Strict
+# This enables the most rigorous type checking for production code quality
+typeCheckingMode = "strict"
+
+# Strict Mode Enables These Checks by Default:
+# - reportMissingTypeStubs: warning
+# - reportUnknownArgumentType: warning
+# - reportUnknownMemberType: warning
+# - reportUnknownParameterType: warning
+# - reportUnknownVariableType: warning
+# - reportUntypedFunctionDecorator: warning
+# - reportUntypedClassDecorator: warning
+# - reportUntypedBaseClass: warning
+# - reportUntypedNamedTuple: warning
+
+# Diagnostic Overrides
+# These suppressions are documented in Phase 1 & Phase 2 type fixing sessions
+# See: /srv/raid0/docker/documents/history/mygarage/2025-12-31-*.md
+
+# === Critical Error Suppressions (Should be 'error' level) ===
+reportMissingImports = "none"  # Third-party libraries without type stubs (pandas, OCR libs, reportlab)
+reportMissingModuleSource = "none"  # ReportLab sub-modules with runtime-only imports
+
+# === High Priority Suppressions (file-level overrides in place) ===
+reportAttributeAccessIssue = "none"  # SQLAlchemy ORM descriptors (Column[T] → T at runtime)
+reportGeneralTypeIssues = "none"  # SQLAlchemy boolean conditionals and type narrowing
+reportArgumentType = "none"  # FastAPI dependency injection, optional handling, function overloads
+reportReturnType = "none"  # Business logic guarantees (control flow analysis limitations)
+reportOptionalMemberAccess = "none"  # Framework guarantees (FastAPI, validated inputs)
+reportOptionalOperand = "none"  # Arithmetic/comparison on validated non-None values
+
+# === Medium Priority Suppressions ===
+reportCallIssue = "none"  # Function overload resolution (open(), method signatures)
+reportIncompatibleMethodOverride = "none"  # Intentional design pattern (**kwargs extensibility)
+reportPossiblyUnboundVariable = "none"  # Import guard pattern for optional dependencies
+
+# === Low Priority Suppressions (code quality) ===
+reportUnusedImport = "warning"  # Ruff handles this via F401
+reportUnusedVariable = "warning"  # Ruff handles this via F841
+reportUnusedFunction = "warning"  # Helper functions, utilities
+reportUnusedClass = "warning"  # Base classes, mix-ins
+
+# === Type Stub Quality ===
+reportMissingTypeStubs = "warning"  # Known issue - many Python libraries lack stubs
+reportUnknownArgumentType = "warning"  # Due to missing stubs in third-party libraries
+reportUnknownMemberType = "warning"  # SQLAlchemy dynamic attribute access
+reportUnknownParameterType = "warning"  # Due to missing stubs
+reportUnknownVariableType = "warning"  # Due to missing stubs
+
+# === Decorator Type Safety ===
+reportUntypedFunctionDecorator = "warning"  # FastAPI @app.get(), @app.post(), etc.
+reportUntypedClassDecorator = "warning"  # SQLAlchemy declarative base
+reportUntypedBaseClass = "warning"  # Base classes from libraries without stubs
+
+# === Strict Checks to Keep Enabled ===
+reportInvalidTypeForm = "error"  # Invalid type annotation syntax
+reportDuplicateImport = "error"  # Code quality issue
+reportWildcardImportFromLibrary = "error"  # Security and maintainability
+reportPrivateUsage = "warning"  # Accessing private/protected members
+reportConstantRedefinition = "error"  # Reassigning constants
+reportIncompatibleVariableOverride = "error"  # Type safety in inheritance
+reportInconsistentConstructor = "error"  # __init__ signature mismatches
+reportOverlappingOverload = "error"  # Function overload conflicts
+reportUninitializedInstanceVariable = "warning"  # Pydantic models may have this
+reportInvalidStringEscapeSequence = "error"  # Likely a bug
+
+# === Future Improvements ===
+# Consider installing type stub packages to reduce suppressions:
+# - pandas-stubs (for pandas)
+# - types-reportlab (for reportlab)
+# - types-Pillow (for PIL)
+# - Contribute stubs for libraries without them (pytesseract, paddleocr, etc.)
+
+# Evaluation: Mypy as secondary type checker
+# - Mypy may catch different issues than Pyright
+# - SQLAlchemy plugin available for mypy: sqlalchemy.ext.mypy.plugin
+# - Run both checkers in CI/CD for maximum coverage
