@@ -26,6 +26,16 @@ export default function RemindersTab({ vin }: RemindersTabProps) {
       }
     }
     fetchVehicle()
+
+    // Listen for template-applied event to refresh reminders
+    const handleTemplateRefresh = () => {
+      setRefreshKey(prev => prev + 1)
+    }
+    window.addEventListener('reminders-refresh', handleTemplateRefresh)
+
+    return () => {
+      window.removeEventListener('reminders-refresh', handleTemplateRefresh)
+    }
   }, [vin])
 
   const handleFormSuccess = () => {
