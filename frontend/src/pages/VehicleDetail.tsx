@@ -45,7 +45,7 @@ import WarrantiesTab from '../components/tabs/WarrantiesTab'
 import InsuranceTab from '../components/tabs/InsuranceTab'
 import ReportsTab from '../components/tabs/ReportsTab'
 import TollsTab from '../components/tabs/TollsTab'
-import RecallsTab from '../components/tabs/RecallsTab'
+import SafetyTab from '../components/tabs/SafetyTab'
 import TaxRecordList from '../components/TaxRecordList'
 import SpotRentalsTab from '../components/tabs/SpotRentalsTab'
 import PropaneTab from '../components/tabs/PropaneTab'
@@ -1088,7 +1088,7 @@ export default function VehicleDetail() {
         {activePrimaryTab === 'maintenance' && activeSubTab === 'fuel' && vin && <FuelTab vin={vin} />}
         {activePrimaryTab === 'maintenance' && activeSubTab === 'propane' && vin && <PropaneTab vin={vin} />}
         {activePrimaryTab === 'maintenance' && activeSubTab === 'odometer' && vin && <OdometerTab vin={vin} />}
-        {activePrimaryTab === 'maintenance' && activeSubTab === 'recalls' && vin && <RecallsTab vin={vin} />}
+        {activePrimaryTab === 'maintenance' && activeSubTab === 'recalls' && vin && <SafetyTab vin={vin} />}
 
         {/* Tracking Sub-tabs */}
         {activePrimaryTab === 'tracking' && activeSubTab === 'reminders' && vin && <RemindersTab vin={vin} />}
