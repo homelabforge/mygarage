@@ -18,6 +18,7 @@ from app.routes.insurance import router as insurance_router
 from app.routes.reports import router as reports_router
 from app.routes.toll import toll_tags_router, toll_transactions_router
 from app.routes.recall import recalls_router
+from app.routes.tsb import tsb_router
 from app.routes.settings import router as settings_router
 from app.routes.backup import router as backup_router
 from app.routes.attachments import router as attachments_router
@@ -50,6 +51,7 @@ __all__ = [
     "toll_tags_router",
     "toll_transactions_router",
     "recalls_router",
+    "tsb_router",
     "settings_router",
     "backup_router",
     "attachments_router",

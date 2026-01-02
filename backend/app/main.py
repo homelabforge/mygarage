@@ -211,6 +211,7 @@ from app.routes import (
     toll_tags_router,
     toll_transactions_router,
     recalls_router,
+    tsb_router,
     settings_router,
     backup_router,
     attachments_router,
@@ -247,6 +248,7 @@ app.include_router(reports_router)
 app.include_router(toll_tags_router)
 app.include_router(toll_transactions_router)
 app.include_router(recalls_router)
+app.include_router(tsb_router)
 app.include_router(settings_router)
 app.include_router(backup_router)
 app.include_router(attachments_router)

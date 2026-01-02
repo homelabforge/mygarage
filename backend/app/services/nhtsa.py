@@ -300,3 +300,118 @@ class NHTSAService:
                     str(e),
                 )
                 return []  # Intentional fallback: return empty list on API error
+
+    async def get_vehicle_tsbs(
+        self, vin: str, db: AsyncSession
+    ) -> list[dict[str, Any]]:
+        """
+        Get Technical Service Bulletins (TSBs) for a specific VIN from NHTSA.
+
+        Similar to recalls, NHTSA does not provide a direct VIN-to-TSB endpoint.
+        This method decodes the VIN first, then queries TSBs by make/model/year.
+
+        Args:
+            vin: The 17-character VIN
+            db: Database session for fetching settings
+
+        Returns:
+            List of TSB dictionaries
+
+        Raises:
+            ValueError: If VIN is invalid or vehicle info cannot be decoded
+        """
+        # First, decode the VIN to get make/model/year
+        try:
+            vehicle_info = await self.decode_vin(vin)
+        except Exception as e:
+            logger.error("Failed to decode VIN %s: %s", vin, str(e))
+            raise ValueError(f"Could not decode VIN to fetch TSBs: {str(e)}")
+
+        # Extract make, model, and year
+        make = vehicle_info.get("make")
+        model = vehicle_info.get("model")
+        year = vehicle_info.get("year")
+
+        if not all([make, model, year]):
+            logger.warning(
+                "Incomplete vehicle info for VIN %s: make=%s, model=%s, year=%s",
+                vin,
+                make,
+                model,
+                year,
+            )
+            raise ValueError(
+                "Could not determine vehicle make, model, and year from VIN"
+            )
+
+        # Get TSB API URL from settings (if configured)
+        from app.models.settings import Setting
+        from sqlalchemy import select
+
+        result = await db.execute(
+            select(Setting).where(Setting.key == "nhtsa_tsb_api_url")
+        )
+        setting = result.scalar_one_or_none()
+        tsb_api_base = (
+            setting.value if setting else "https://api.nhtsa.gov/products/vehicle/tsbs"
+        )
+
+        # SECURITY: Validate TSB API base URL against SSRF attacks
+        try:
+            validate_nhtsa_url(tsb_api_base)
+        except (SSRFProtectionError, ValueError) as e:
+            logger.error(
+                "SSRF protection blocked TSB API URL: %s - %s",
+                tsb_api_base,
+                str(e),
+            )
+            # Use safe default if validation fails
+            tsb_api_base = "https://api.nhtsa.gov/products/vehicle/tsbs"
+            logger.warning("Using fallback TSB API URL: %s", tsb_api_base)
+
+        # Query NHTSA TSB API by make/model/year
+        from urllib.parse import urlencode
+
+        params = {"make": make, "model": model, "modelYear": year}
+        tsb_url = f"{tsb_api_base}?{urlencode(params)}"
+
+        logger.info("Fetching TSBs for %s %s %s (VIN: %s)", year, make, model, vin)
+
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            try:
+                # codeql[py/partial-ssrf] - tsb_api_base validated by validate_nhtsa_url above
+                response = await client.get(tsb_url)
+                response.raise_for_status()
+                data = response.json()
+
+                # Extract TSBs from the response
+                # NHTSA TSB API structure may vary - adapt as needed
+                tsbs = data.get("results", [])
+
+                logger.info(
+                    "Found %s TSB(s) for %s %s %s", len(tsbs), year, make, model
+                )
+
+                return tsbs
+
+            except httpx.TimeoutException:
+                logger.error("NHTSA TSB API timeout for %s %s %s", year, make, model)
+                return []  # Intentional fallback: don't break UI for timeout
+            except httpx.ConnectError as e:
+                logger.error(
+                    "Cannot connect to NHTSA TSB API for %s %s %s: %s",
+                    year,
+                    make,
+                    model,
+                    str(e),
+                )
+                return []  # Intentional fallback: don't break UI for connection issues
+            except httpx.HTTPStatusError as e:
+                logger.error(
+                    "NHTSA TSB API error for %s %s %s: %s",
+                    year,
+                    make,
+                    model,
+                    str(e),
+                )
+                return []  # Intentional fallback: return empty list on API error
