@@ -15,7 +15,7 @@
  */
 
 import { useState, useEffect } from 'react'
-import { MapPin, Loader2, Navigation, Star, Phone, Globe, Save, Check, X, AlertTriangle } from 'lucide-react'
+import { MapPin, Loader2, Navigation, Star, Phone, Save, Check, X, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '@/services/api'
 import type { PlaceResult, ShopRecommendation, ShopSearchResponse, ShopRecommendationsResponse } from '@/types/shopDiscovery'
