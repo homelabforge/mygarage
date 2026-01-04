@@ -211,7 +211,6 @@ from app.routes import (
     toll_tags_router,
     toll_transactions_router,
     recalls_router,
-    tsb_router,
     settings_router,
     backup_router,
     attachments_router,
@@ -223,7 +222,9 @@ from app.routes import (
     window_sticker_router,
     notifications_router,
     maintenance_templates_router,
+    shop_discovery_router,
 )
+from app.routes.poi import router as poi_router
 from app.routes.auth import router as auth_router
 from app.routes.oidc import router as oidc_router
 
@@ -248,7 +249,6 @@ app.include_router(reports_router)
 app.include_router(toll_tags_router)
 app.include_router(toll_transactions_router)
 app.include_router(recalls_router)
-app.include_router(tsb_router)
 app.include_router(settings_router)
 app.include_router(backup_router)
 app.include_router(attachments_router)
@@ -260,6 +260,8 @@ app.include_router(calendar_router)
 app.include_router(window_sticker_router)
 app.include_router(notifications_router)
 app.include_router(maintenance_templates_router)
+app.include_router(poi_router)  # New POI router
+app.include_router(shop_discovery_router)  # Backward compatibility (deprecated)
 
 
 # Serve static files (frontend build) in production

@@ -45,6 +45,12 @@ class Settings(BaseSettings):
     # NHTSA API
     nhtsa_api_base_url: str = "https://vpic.nhtsa.dot.gov/api"
 
+    # TomTom Places API (optional - falls back to OSM if not configured)
+    tomtom_api_key: str = ""  # Empty by default - graceful degradation
+    tomtom_api_base_url: str = "https://api.tomtom.com/search/2"
+    shop_search_radius_meters: int = 8000  # ~5 miles
+    shop_search_max_results: int = 20
+
     # Recall Checking
     recall_check_interval_days: int = 7
 

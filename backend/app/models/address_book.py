@@ -46,11 +46,21 @@ class AddressBookEntry(Base):
     rating: Mapped[Optional[Decimal]] = mapped_column(
         Numeric(3, 2)
     )  # Google rating (0.00 - 5.00)
-    user_rating: Mapped[Optional[int]] = mapped_column(Integer)  # User's 1-5 star rating
+    user_rating: Mapped[Optional[int]] = mapped_column(
+        Integer
+    )  # User's 1-5 star rating
 
     # Usage tracking for recommendations
     usage_count: Mapped[int] = mapped_column(Integer, default=0)
     last_used: Mapped[Optional[datetime]] = mapped_column(DateTime)
+
+    # POI (Points of Interest) categorization and metadata
+    poi_category: Mapped[Optional[str]] = mapped_column(
+        String(50)
+    )  # auto_shop, rv_shop, ev_charging, fuel_station
+    poi_metadata: Mapped[Optional[str]] = mapped_column(
+        Text
+    )  # JSON metadata for category-specific data (connector types, fuel prices, etc.)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
@@ -60,4 +70,5 @@ class AddressBookEntry(Base):
     __table_args__ = (
         Index("idx_address_book_name", "name"),
         Index("idx_address_book_category", "category"),
+        Index("idx_address_book_poi_category", "poi_category"),
     )

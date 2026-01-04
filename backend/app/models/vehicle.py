@@ -21,7 +21,6 @@ from app.database import Base
 
 if TYPE_CHECKING:
     from app.models.maintenance_template import MaintenanceTemplate
-    from app.models.tsb import TSB
 
 
 class Vehicle(Base):
@@ -162,9 +161,6 @@ class Vehicle(Base):
     )
     maintenance_templates: Mapped[list["MaintenanceTemplate"]] = relationship(
         "MaintenanceTemplate", back_populates="vehicle", cascade="all, delete-orphan"
-    )
-    tsbs: Mapped[list["TSB"]] = relationship(
-        "TSB", back_populates="vehicle", cascade="all, delete-orphan"
     )
 
     __table_args__ = (

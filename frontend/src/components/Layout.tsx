@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
-import { Car, Settings, Home, Search, Info, BookUser, BarChart3, Calendar, LogOut, User } from 'lucide-react'
+import { Car, Settings, Home, Search, Info, BookUser, BarChart3, Calendar, LogOut, User, MapPin } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useAppVersion } from '../hooks/useAppVersion'
 import { useEffect, useState } from 'react'
@@ -61,6 +61,13 @@ export default function Layout() {
               >
                 <BookUser className="w-4 h-4" />
                 <span>Address Book</span>
+              </Link>
+              <Link
+                to="/poi-finder"
+                className="flex items-center space-x-2 text-garage-text-muted hover:text-garage-text transition-colors"
+              >
+                <MapPin className="w-4 h-4" />
+                <span>Find POI</span>
               </Link>
               <Link
                 to="/calendar"
@@ -165,6 +172,18 @@ export default function Layout() {
           >
             <BookUser className="w-5 h-5" />
             <span className="text-xs mt-1">Contacts</span>
+          </Link>
+
+          <Link
+            to="/poi-finder"
+            className={`flex flex-col items-center justify-center min-w-[56px] py-3 px-3 rounded-lg transition-colors ${
+              location.pathname === '/poi-finder'
+                ? 'text-primary-500 bg-primary-500/10'
+                : 'text-garage-text-muted hover:text-garage-text'
+            }`}
+          >
+            <MapPin className="w-5 h-5" />
+            <span className="text-xs mt-1">POI</span>
           </Link>
 
           <Link

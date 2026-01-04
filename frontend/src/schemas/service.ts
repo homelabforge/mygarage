@@ -13,7 +13,7 @@ import { SERVICE_TYPES_BY_CATEGORY } from '../types/service'
  */
 
 // Valid service categories from backend validator
-export const SERVICE_CATEGORIES = ['Maintenance', 'Inspection', 'Collision', 'Upgrades'] as const
+export const SERVICE_CATEGORIES = ['Maintenance', 'Inspection', 'Collision', 'Upgrades', 'Detailing'] as const
 
 // All valid service types (flat list from SERVICE_TYPES_BY_CATEGORY)
 export const ALL_SERVICE_TYPES = Object.values(SERVICE_TYPES_BY_CATEGORY).flat()

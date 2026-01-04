@@ -7,6 +7,86 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **POI Finder - Multi-Category Points of Interest Discovery**
+  - Renamed "Shop Finder" to "POI Finder" with expanded functionality
+  - Multi-category search: Auto/RV Shops, EV Charging Stations, Fuel Stations
+  - Category toggle switches (red=off, green=on) - multiple categories can be active simultaneously
+  - 2-column grid layout for results (responsive 1-column on mobile)
+  - Icon-only save buttons (check icon when saved, save icon when not saved)
+  - Category badges on POI cards with color coding
+  - EV charging station metadata: connector types, charging speeds, network
+  - Fuel station metadata: prices by grade, fuel types available
+  - Multi-provider architecture with priority-based fallback
+  - Provider management UI in Settings → Integrations
+  - New API endpoints: `/api/poi/*` with backward compatibility for `/api/shop-discovery/*`
+  - Database: Added `poi_category` and `poi_metadata` fields to address_book table
+  - Supported providers: TomTom (priority 1), OpenStreetMap (always available fallback)
+  - Ready for future providers: Google Places, Yelp, Foursquare, Geoapify, Mapbox
+
+### Changed
+- **Navigation Updates**
+  - Desktop header: "Find Shops" → "Find POI"
+  - Mobile bottom nav: "Shops" → "POI"
+  - Primary route changed from `/shop-finder` to `/poi-finder`
+  - Old `/shop-finder` route maintained for backward compatibility
+
+### Technical
+- **Backend**
+  - New provider abstraction layer with `BasePOIProvider` interface
+  - `POIProviderRegistry` with automatic provider fallback
+  - `POIDiscoveryService` wraps registry for main service interface
+  - Result deduplication by external_id or lat/lon proximity
+  - Category-specific metadata stored as JSON in `poi_metadata` field
+  - Settings API endpoints for provider CRUD operations
+  - API key validation and testing endpoints
+  - Migration 027: Adds POI support to existing address_book entries
+
+- **Frontend**
+  - New TypeScript types: `POICategory`, `POIResult`, `EVChargingMetadata`, `FuelStationMetadata`
+  - `CategoryToggle` component with accessible toggle switches
+  - `POICard` component with category-specific metadata display
+  - `POIFinder` page replaces `ShopFinder` with enhanced UI
+  - Backward compatibility: Old types re-exported, old routes still work
+
+## [2.19.0] - 2026-01-03
+
+### Added
+- **Shop Discovery - Standalone Shop Finder Page**
+  - Moved shop discovery to dedicated `/shop-finder` page (removed from Service Record form)
+  - Navigation links in desktop header and mobile bottom nav
+  - Geolocation-based shop discovery within 5 miles of current location
+  - TomTom Places API primary source (2,500 free requests/day, high-quality commercial data)
+  - OpenStreetMap Overpass fallback (unlimited free, crowd-sourced data)
+  - Automatic fallback to OSM when TomTom unavailable or quota exceeded
+  - Usage-based shop recommendations (previously used shops displayed first)
+  - Save discovered shops directly to address book
+  - TomTom API key configuration in Settings → Integrations (optional)
+  - SSRF protection for TomTom API URLs
+  - Works without configuration using OSM (no API key required)
+  - Distance calculation and sorting (Haversine formula, shows miles from current location)
+  - Shop details: name, address, phone, rating, distance, website links
+
+- **Service Record Categories - Detailing & Upgrades Expansion**
+  - New "Detailing" category with 12 service types: Car Wash, Hand Wash, Wax, Ceramic Coating, Paint Correction, Interior/Exterior Detailing, Full Detailing, Engine Bay Cleaning, Headlight Restoration, Odor Removal, Upholstery Cleaning
+  - Added to "Upgrades" category: Accessory Upgrade (renamed from Interior Upgrade), Window Tinting, Tonneau Cover
+
+### Removed
+- **Technical Service Bulletins (TSB) Feature - Complete Removal**
+  - Removed all TSB functionality from backend and frontend
+  - Backend: Deleted `/api/tsbs` endpoints, TSB model, schemas, and routes
+  - Frontend: Removed TSB tab, TSBList, TSBForm components
+  - Removed TSB relationship from Vehicle model
+  - Database: TSB table remains (data preserved for manual migration if needed)
+  - Safety Recalls tab now shows only Safety Recalls (TSB tab removed)
+  - **Reason:** Non-functional NHTSA TSB API, feature provided no value
+
+### Changed
+- **Service Record Form - Simplified Vendor Entry**
+  - Removed "Find Nearby Shop" button from Service Record form
+  - Users now use standalone Shop Finder page to discover and save shops
+  - Address Book autocomplete remains for selecting saved vendors
+
 ### Fixed
 - **NHTSA Recall Integration**
   - Fixed incorrect API endpoint causing recall checks to fail

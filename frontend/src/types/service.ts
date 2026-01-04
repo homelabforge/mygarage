@@ -3,7 +3,7 @@
  */
 
 // Service category (high-level grouping)
-export type ServiceCategory = 'Maintenance' | 'Inspection' | 'Collision' | 'Upgrades'
+export type ServiceCategory = 'Maintenance' | 'Inspection' | 'Collision' | 'Upgrades' | 'Detailing'
 
 // Predefined service types organized by category
 export const SERVICE_TYPES_BY_CATEGORY = {
@@ -29,6 +29,8 @@ export const SERVICE_TYPES_BY_CATEGORY = {
     'Engine Tune-Up',
     'Belt Replacement',
     'Hose Replacement',
+    'AC Service',
+    'AC Recharge',
   ],
   Inspection: [
     'General Inspection',
@@ -54,6 +56,20 @@ export const SERVICE_TYPES_BY_CATEGORY = {
     'Dent Removal',
     'Scratch Repair',
   ],
+  Detailing: [
+    'Car Wash',
+    'Hand Wash',
+    'Wax',
+    'Ceramic Coating',
+    'Paint Correction',
+    'Interior Detailing',
+    'Exterior Detailing',
+    'Full Detailing',
+    'Engine Bay Cleaning',
+    'Headlight Restoration',
+    'Odor Removal',
+    'Upholstery Cleaning',
+  ],
   Upgrades: [
     'General Upgrade',
     'Performance Upgrade',
@@ -68,7 +84,9 @@ export const SERVICE_TYPES_BY_CATEGORY = {
     'Lift Kit',
     'Wheels/Rims',
     'Lighting Upgrade',
-    'Interior Upgrade',
+    'Accessory Upgrade',
+    'Window Tinting',
+    'Tonneau Cover',
   ],
 } as const
 

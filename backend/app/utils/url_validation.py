@@ -367,3 +367,34 @@ def validate_nhtsa_url(url: str) -> ParseResult:
         block_private_ips=True,
         resolve_dns=True,
     )
+
+
+def validate_tomtom_url(url: str) -> ParseResult:
+    """Validate a URL for TomTom API endpoints.
+
+    Convenience wrapper for TomTom-specific validation:
+    - Only allows https scheme
+    - Blocks private IPs and localhost
+    - Domain whitelist: api.tomtom.com and *.tomtom.com
+
+    Args:
+        url: TomTom API URL
+
+    Returns:
+        Parsed URL object if validation passes
+
+    Raises:
+        SSRFProtectionError: If URL fails SSRF validation
+        ValueError: If URL is malformed
+    """
+    return validate_url_for_ssrf(
+        url,
+        allowed_schemes=["https"],
+        allowed_domains=[
+            "api.tomtom.com",
+            "**.tomtom.com",  # Allow any TomTom subdomain
+        ],
+        require_https=True,
+        block_private_ips=True,
+        resolve_dns=True,
+    )

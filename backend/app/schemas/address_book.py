@@ -3,6 +3,7 @@
 from pydantic import BaseModel, Field, EmailStr, field_validator
 from datetime import datetime
 from typing import Optional
+from decimal import Decimal
 
 
 class AddressBookEntryBase(BaseModel):
@@ -19,6 +20,18 @@ class AddressBookEntryBase(BaseModel):
     website: Optional[str] = Field(None, max_length=200)
     category: Optional[str] = Field(None, max_length=50)
     notes: Optional[str] = None
+
+    # Geolocation fields for shop discovery
+    latitude: Optional[Decimal] = None
+    longitude: Optional[Decimal] = None
+
+    # Shop discovery metadata
+    source: Optional[str] = Field(default="manual", max_length=20)
+    external_id: Optional[str] = Field(None, max_length=100)
+
+    # Ratings
+    rating: Optional[Decimal] = None
+    user_rating: Optional[int] = None
 
     @field_validator("email", "website", mode="before")
     @classmethod
@@ -49,6 +62,18 @@ class AddressBookEntryUpdate(BaseModel):
     website: Optional[str] = Field(None, max_length=200)
     category: Optional[str] = Field(None, max_length=50)
     notes: Optional[str] = None
+
+    # Geolocation fields for shop discovery
+    latitude: Optional[Decimal] = None
+    longitude: Optional[Decimal] = None
+
+    # Shop discovery metadata
+    source: Optional[str] = Field(None, max_length=20)
+    external_id: Optional[str] = Field(None, max_length=100)
+
+    # Ratings
+    rating: Optional[Decimal] = None
+    user_rating: Optional[int] = None
 
     @field_validator("email", "website", mode="before")
     @classmethod

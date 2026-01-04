@@ -430,6 +430,26 @@ DEFAULT_SETTINGS = {
         "description": "Days before service due to notify",
         "encrypted": False,
     },
+    # CarComplaints Integration
+    "carcomplaints_enabled": {
+        "value": "true",
+        "category": "integrations",
+        "description": "Enable CarComplaints.com integration for vehicle issue research",
+        "encrypted": False,
+    },
+    # TomTom Places API (Shop Discovery)
+    "tomtom_enabled": {
+        "value": "false",
+        "category": "integrations",
+        "description": "Enable TomTom Places API for shop discovery (falls back to OpenStreetMap)",
+        "encrypted": False,
+    },
+    "tomtom_api_key": {
+        "value": "",
+        "category": "integrations",
+        "description": "TomTom API key for Places API (2,500 free requests/day)",
+        "encrypted": True,
+    },
 }
 
 

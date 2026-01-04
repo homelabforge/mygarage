@@ -17,6 +17,8 @@ import LinkAccount from './pages/LinkAccount'
 // Lazy load all other pages for performance
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const AddressBook = lazy(() => import('./pages/AddressBook'))
+const POIFinder = lazy(() => import('./pages/POIFinder'))
+const ShopFinder = lazy(() => import('./pages/ShopFinder')) // Backward compatibility
 const Calendar = lazy(() => import('./pages/Calendar'))
 const VINDemo = lazy(() => import('./pages/VINDemo'))
 const VehicleDetail = lazy(() => import('./pages/VehicleDetail'))
@@ -55,6 +57,8 @@ function App() {
                     <Route path="analytics" element={<FleetAnalytics />} />
                     <Route path="calendar" element={<Calendar />} />
                     <Route path="address-book" element={<AddressBook />} />
+                    <Route path="poi-finder" element={<POIFinder />} />
+                    <Route path="shop-finder" element={<ShopFinder />} /> {/* Backward compatibility */}
                     <Route path="vin-demo" element={<VINDemo />} />
                     <Route path="vehicles/:vin" element={<VehicleDetail />} />
                     <Route path="vehicles/:vin/edit" element={<VehicleEdit />} />

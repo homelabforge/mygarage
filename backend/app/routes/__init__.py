@@ -18,7 +18,6 @@ from app.routes.insurance import router as insurance_router
 from app.routes.reports import router as reports_router
 from app.routes.toll import toll_tags_router, toll_transactions_router
 from app.routes.recall import recalls_router
-from app.routes.tsb import tsb_router
 from app.routes.settings import router as settings_router
 from app.routes.backup import router as backup_router
 from app.routes.attachments import router as attachments_router
@@ -30,6 +29,7 @@ from app.routes.calendar import router as calendar_router
 from app.routes.window_sticker import router as window_sticker_router
 from app.routes.notifications import router as notifications_router
 from app.routes.maintenance_templates import maintenance_templates_router
+from app.routes.shop_discovery import router as shop_discovery_router
 
 __all__ = [
     "vin_router",
@@ -51,7 +51,6 @@ __all__ = [
     "toll_tags_router",
     "toll_transactions_router",
     "recalls_router",
-    "tsb_router",
     "settings_router",
     "backup_router",
     "attachments_router",
@@ -63,4 +62,5 @@ __all__ = [
     "window_sticker_router",
     "notifications_router",
     "maintenance_templates_router",
+    "shop_discovery_router",
 ]

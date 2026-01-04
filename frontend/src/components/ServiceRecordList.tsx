@@ -188,6 +188,8 @@ export default function ServiceRecordList({ vin, onAddClick, onEditClick, onRefr
         return 'bg-red-100 text-red-800'
       case 'Upgrades':
         return 'bg-purple-100 text-purple-800'
+      case 'Detailing':
+        return 'bg-green-100 text-green-800'
       default:
         return 'badge-neutral'
     }

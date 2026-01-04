@@ -19,9 +19,7 @@ def upgrade():
         print("Adding shop finder fields to address_book...")
 
         # Check if columns already exist
-        result = conn.execute(
-            text("PRAGMA table_info(address_book)")
-        )
+        result = conn.execute(text("PRAGMA table_info(address_book)"))
         existing_columns = {row[1] for row in result}
 
         # Add new columns to address_book if they don't exist
@@ -39,7 +37,9 @@ def upgrade():
 
         if "source" not in existing_columns:
             conn.execute(
-                text("ALTER TABLE address_book ADD COLUMN source VARCHAR(20) DEFAULT 'manual'")
+                text(
+                    "ALTER TABLE address_book ADD COLUMN source VARCHAR(20) DEFAULT 'manual'"
+                )
             )
             print("  ✓ Added source column")
 
@@ -63,20 +63,18 @@ def upgrade():
 
         if "usage_count" not in existing_columns:
             conn.execute(
-                text("ALTER TABLE address_book ADD COLUMN usage_count INTEGER DEFAULT 0")
+                text(
+                    "ALTER TABLE address_book ADD COLUMN usage_count INTEGER DEFAULT 0"
+                )
             )
             print("  ✓ Added usage_count column")
 
         if "last_used" not in existing_columns:
-            conn.execute(
-                text("ALTER TABLE address_book ADD COLUMN last_used DATETIME")
-            )
+            conn.execute(text("ALTER TABLE address_book ADD COLUMN last_used DATETIME"))
             print("  ✓ Added last_used column")
 
         # Check if address_book_id exists in service_records
-        result = conn.execute(
-            text("PRAGMA table_info(service_records)")
-        )
+        result = conn.execute(text("PRAGMA table_info(service_records)"))
         existing_columns = {row[1] for row in result}
 
         if "address_book_id" not in existing_columns:
@@ -91,7 +89,9 @@ def upgrade():
 
             # Create index on the new foreign key
             conn.execute(
-                text("CREATE INDEX idx_service_records_address_book_id ON service_records(address_book_id)")
+                text(
+                    "CREATE INDEX idx_service_records_address_book_id ON service_records(address_book_id)"
+                )
             )
             print("  ✓ Created index on address_book_id")
 
