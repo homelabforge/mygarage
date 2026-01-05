@@ -275,43 +275,69 @@ async def get_poi_providers(
 ):
     """Get configured POI search providers (admin only).
 
-    Returns list of all configured providers with their status, API limits,
-    and configuration. API keys are masked for security.
+    Returns ONLY providers that have been configured (have API keys).
+    OSM is always included as the default fallback.
 
     Returns:
         List of provider configurations
     """
-    # Load provider configurations from settings
+    from app.middleware.provider_usage import get_provider_usage
+
     providers = []
 
-    # Check TomTom
-    tomtom_enabled_setting = await SettingsService.get(db, "tomtom_enabled")
-    tomtom_enabled = (
-        tomtom_enabled_setting.value.lower() == "true"
-        if tomtom_enabled_setting
-        else False
-    )
-
-    tomtom_key_setting = await SettingsService.get(db, "tomtom_api_key")
-    tomtom_api_key = tomtom_key_setting.value if tomtom_key_setting else ""
-
-    providers.append(
-        {
-            "name": "tomtom",
+    # Provider metadata
+    provider_metadata = {
+        "tomtom": {
             "display_name": "TomTom Places API",
-            "enabled": tomtom_enabled and bool(tomtom_api_key),
-            "is_default": False,
-            "api_key_configured": bool(tomtom_api_key),
-            "api_key_masked": (
-                f"{tomtom_api_key[:8]}***" if len(tomtom_api_key) > 8 else "***"
-            )
-            if tomtom_api_key
-            else None,
-            "api_usage": 0,  # TODO: Implement usage tracking
-            "api_limit": 2500,  # TomTom free tier
             "priority": 1,
-        }
-    )
+            "api_limit": 2500,
+        },
+        "google_places": {
+            "display_name": "Google Places",
+            "priority": 2,
+            "api_limit": None,  # Depends on user's Google Cloud plan
+        },
+        "yelp": {
+            "display_name": "Yelp Fusion",
+            "priority": 3,
+            "api_limit": 5000,
+        },
+        "foursquare": {
+            "display_name": "Foursquare",
+            "priority": 4,
+            "api_limit": None,  # Depends on user's plan
+        },
+    }
+
+    # Check each provider - only include if API key exists
+    for provider_name, metadata in provider_metadata.items():
+        api_key_setting = await SettingsService.get(db, f"{provider_name}_api_key")
+        if not api_key_setting:
+            continue  # Skip if no API key configured
+
+        enabled_setting = await SettingsService.get(db, f"{provider_name}_enabled")
+        enabled = enabled_setting.value.lower() == "true" if enabled_setting else False
+
+        # Get usage tracking
+        usage_stats = await get_provider_usage(db, provider_name)
+
+        providers.append(
+            {
+                "name": provider_name,
+                "display_name": metadata["display_name"],
+                "enabled": enabled,
+                "is_default": False,
+                "api_key_configured": True,
+                "api_key_masked": (
+                    f"{api_key_setting.value[:8]}***"
+                    if len(api_key_setting.value) > 8
+                    else "***"
+                ),
+                "api_usage": usage_stats["usage"],
+                "api_limit": metadata["api_limit"],
+                "priority": metadata["priority"],
+            }
+        )
 
     # OSM is always available (default fallback)
     providers.append(
@@ -359,7 +385,7 @@ async def add_poi_provider(
         raise HTTPException(status_code=400, detail="Provider name is required")
 
     # Validate provider name
-    valid_providers = ["tomtom", "google", "yelp", "foursquare", "geoapify", "mapbox"]
+    valid_providers = ["tomtom", "google_places", "yelp", "foursquare"]
     if provider_name not in valid_providers:
         raise HTTPException(
             status_code=400,
@@ -369,7 +395,8 @@ async def add_poi_provider(
     # OSM cannot be configured (always available)
     if provider_name == "osm":
         raise HTTPException(
-            status_code=400, detail="OSM provider cannot be configured (always available)"
+            status_code=400,
+            detail="OSM provider cannot be configured (always available)",
         )
 
     # Validate API key (basic check - just ensure it's not empty if enabling)
@@ -381,6 +408,11 @@ async def add_poi_provider(
     # Save provider settings
     await SettingsService.set(db, f"{provider_name}_enabled", str(enabled).lower())
     await SettingsService.set(db, f"{provider_name}_api_key", api_key)
+
+    # Initialize usage tracking
+    usage_setting = await SettingsService.get(db, f"{provider_name}_api_usage")
+    if not usage_setting:
+        await SettingsService.set(db, f"{provider_name}_api_usage", "0")
 
     logger.info("Updated POI provider %s (enabled=%s)", provider_name, enabled)
 
@@ -402,7 +434,7 @@ async def update_poi_provider(
     """Update POI provider configuration (admin only).
 
     Args:
-        provider_name: Provider name (tomtom, google, etc.)
+        provider_name: Provider name (tomtom, google_places, etc.)
         provider_config: Updated configuration with api_key, enabled
 
     Returns:
@@ -412,7 +444,7 @@ async def update_poi_provider(
         HTTPException: 400 if provider name invalid
     """
     # Validate provider name
-    valid_providers = ["tomtom", "google", "yelp", "foursquare", "geoapify", "mapbox"]
+    valid_providers = ["tomtom", "google_places", "yelp", "foursquare"]
     if provider_name not in valid_providers:
         raise HTTPException(
             status_code=400,
@@ -422,7 +454,8 @@ async def update_poi_provider(
     # OSM cannot be configured
     if provider_name == "osm":
         raise HTTPException(
-            status_code=400, detail="OSM provider cannot be configured (always available)"
+            status_code=400,
+            detail="OSM provider cannot be configured (always available)",
         )
 
     # Update settings
@@ -440,7 +473,9 @@ async def update_poi_provider(
     return {
         "name": provider_name,
         "enabled": enabled if enabled is not None else True,
-        "api_key_masked": f"{api_key[:8]}***" if api_key and len(api_key) > 8 else "***",
+        "api_key_masked": f"{api_key[:8]}***"
+        if api_key and len(api_key) > 8
+        else "***",
     }
 
 
@@ -517,14 +552,59 @@ async def test_poi_provider(
 
             return {"valid": True, "message": "TomTom API key is valid"}
 
+        elif provider_name == "google_places":
+            # Test Google Places with simple search
+            url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
+            params = {
+                "location": "37.7749,-122.4194",
+                "radius": 1000,
+                "type": "car_repair",
+                "key": api_key,
+            }
+
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(url, params=params)
+                response.raise_for_status()
+                data = response.json()
+
+                status = data.get("status")
+                if status == "OK" or status == "ZERO_RESULTS":
+                    return {"valid": True, "message": "Google Places API key is valid"}
+                else:
+                    error_msg = data.get("error_message", "Unknown error")
+                    return {"valid": False, "message": f"Google API error: {error_msg}"}
+
+        elif provider_name == "yelp":
+            # Test Yelp with simple business search
+            url = "https://api.yelp.com/v3/businesses/search"
+            params = {"latitude": 37.7749, "longitude": -122.4194, "limit": 1}
+            headers = {"Authorization": f"Bearer {api_key}"}
+
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(url, params=params, headers=headers)
+                response.raise_for_status()
+
+            return {"valid": True, "message": "Yelp API key is valid"}
+
+        elif provider_name == "foursquare":
+            # Test Foursquare with simple search
+            url = "https://api.foursquare.com/v3/places/search"
+            params = {"ll": "37.7749,-122.4194", "limit": 1}
+            headers = {"Authorization": api_key}  # Foursquare doesn't use "Bearer"
+
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(url, params=params, headers=headers)
+                response.raise_for_status()
+
+            return {"valid": True, "message": "Foursquare API key is valid"}
+
         elif provider_name == "osm":
             return {"valid": True, "message": "OSM requires no API key"}
 
         else:
-            # TODO: Implement tests for other providers (Google, Yelp, etc.)
             raise HTTPException(
                 status_code=400,
-                detail=f"Testing not yet implemented for provider: {provider_name}",
+                detail=f"Testing not supported for provider: {provider_name}",
             )
 
     except httpx.HTTPStatusError as e:

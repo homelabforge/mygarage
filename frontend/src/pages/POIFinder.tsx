@@ -11,6 +11,7 @@ import { toast } from 'sonner'
 import api from '@/services/api'
 import CategoryToggle from '@/components/CategoryToggle'
 import POICard from '@/components/POICard'
+import MapDisplay from '@/components/MapDisplay'
 import type {
   POIResult,
   POIRecommendation,
@@ -28,6 +29,7 @@ export default function POIFinder() {
   const [searchSource, setSearchSource] = useState<string>('')
   const [error, setError] = useState<string>('')
   const [savedPOIs, setSavedPOIs] = useState<Set<string>>(new Set())
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
 
   // Search options - category toggles
   const [searchRadius, setSearchRadius] = useState<number>(5) // miles
@@ -124,6 +126,9 @@ export default function POIFinder() {
   }
 
   const searchNearbyPOIs = async (latitude: number, longitude: number) => {
+    // Save user location for map
+    setUserLocation({ lat: latitude, lng: longitude })
+
     try {
       const radiusMeters = Math.round(searchRadius * 1609.34)
       const activeCategories = getActiveCategories()
@@ -337,6 +342,25 @@ export default function POIFinder() {
               New Search
             </button>
           </div>
+
+          {/* Map Display */}
+          {userLocation && searchResults.length > 0 && (
+            <MapDisplay
+              pois={searchResults}
+              userLocation={userLocation}
+              searchRadius={searchRadius}
+              onMarkerClick={(poi) => {
+                const cardElement = document.getElementById(`poi-card-${poi.external_id || poi.business_name}`)
+                if (cardElement) {
+                  cardElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                  cardElement.classList.add('ring-2', 'ring-blue-500')
+                  setTimeout(() => {
+                    cardElement.classList.remove('ring-2', 'ring-blue-500')
+                  }, 2000)
+                }
+              }}
+            />
+          )}
 
           {/* Results Grid (2 columns) */}
           {searchResults.length > 0 ? (

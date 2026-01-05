@@ -7,6 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.poi.base import BasePOIProvider, POICategory
 from app.services.poi.tomtom import TomTomProvider
 from app.services.poi.osm import OSMProvider
+from app.services.poi.google_places import GooglePlacesProvider
+from app.services.poi.yelp import YelpProvider
+from app.services.poi.foursquare import FoursquareProvider
 from app.services.settings_service import SettingsService
 
 logger = logging.getLogger(__name__)
@@ -58,6 +61,80 @@ class POIProviderRegistry:
             )
             logger.info("TomTom provider configured with priority 1")
 
+        # Load Google Places configuration
+        google_enabled_setting = await SettingsService.get(
+            self.db, "google_places_enabled"
+        )
+        google_enabled = (
+            google_enabled_setting.value.lower() == "true"
+            if google_enabled_setting
+            else False
+        )
+
+        google_key_setting = await SettingsService.get(self.db, "google_places_api_key")
+        google_api_key = google_key_setting.value if google_key_setting else ""
+
+        if google_enabled and google_api_key:
+            configs.append(
+                {
+                    "name": "google_places",
+                    "enabled": True,
+                    "priority": 2,  # After TomTom, before Yelp
+                    "api_key": google_api_key,
+                }
+            )
+            logger.info("Google Places provider configured with priority 2")
+
+        # Load Yelp configuration
+        yelp_enabled_setting = await SettingsService.get(self.db, "yelp_enabled")
+        yelp_enabled = (
+            yelp_enabled_setting.value.lower() == "true"
+            if yelp_enabled_setting
+            else False
+        )
+
+        yelp_key_setting = await SettingsService.get(self.db, "yelp_api_key")
+        yelp_api_key = yelp_key_setting.value if yelp_key_setting else ""
+
+        if yelp_enabled and yelp_api_key:
+            configs.append(
+                {
+                    "name": "yelp",
+                    "enabled": True,
+                    "priority": 3,  # After Google, before Foursquare
+                    "api_key": yelp_api_key,
+                }
+            )
+            logger.info("Yelp provider configured with priority 3")
+
+        # Load Foursquare configuration
+        foursquare_enabled_setting = await SettingsService.get(
+            self.db, "foursquare_enabled"
+        )
+        foursquare_enabled = (
+            foursquare_enabled_setting.value.lower() == "true"
+            if foursquare_enabled_setting
+            else False
+        )
+
+        foursquare_key_setting = await SettingsService.get(
+            self.db, "foursquare_api_key"
+        )
+        foursquare_api_key = (
+            foursquare_key_setting.value if foursquare_key_setting else ""
+        )
+
+        if foursquare_enabled and foursquare_api_key:
+            configs.append(
+                {
+                    "name": "foursquare",
+                    "enabled": True,
+                    "priority": 4,  # After Yelp, before OSM
+                    "api_key": foursquare_api_key,
+                }
+            )
+            logger.info("Foursquare provider configured with priority 4")
+
         # OSM is always available as fallback (lowest priority)
         configs.append(
             {
@@ -68,9 +145,6 @@ class POIProviderRegistry:
             }
         )
         logger.info("OSM provider configured as fallback with priority 99")
-
-        # TODO: Add Google, Yelp, Foursquare, Geoapify providers here
-        # Will be implemented in Phase 2
 
         return configs
 
@@ -84,11 +158,22 @@ class POIProviderRegistry:
                     provider = TomTomProvider(api_key=config["api_key"])
                     self.providers["tomtom"] = provider
                     logger.info("Registered TomTom provider")
+                elif config["name"] == "google_places" and config["enabled"]:
+                    provider = GooglePlacesProvider(api_key=config["api_key"])
+                    self.providers["google_places"] = provider
+                    logger.info("Registered Google Places provider")
+                elif config["name"] == "yelp" and config["enabled"]:
+                    provider = YelpProvider(api_key=config["api_key"])
+                    self.providers["yelp"] = provider
+                    logger.info("Registered Yelp provider")
+                elif config["name"] == "foursquare" and config["enabled"]:
+                    provider = FoursquareProvider(api_key=config["api_key"])
+                    self.providers["foursquare"] = provider
+                    logger.info("Registered Foursquare provider")
                 elif config["name"] == "osm":
                     provider = OSMProvider()
                     self.providers["osm"] = provider
                     logger.info("Registered OSM provider")
-                # TODO: Register other providers here
 
             except Exception as e:
                 logger.error(
@@ -150,6 +235,21 @@ class POIProviderRegistry:
                         provider.provider_name,
                         len(results),
                     )
+
+                    # Track provider usage (import here to avoid circular dependency)
+                    try:
+                        from app.middleware.provider_usage import (
+                            increment_provider_usage,
+                        )
+
+                        await increment_provider_usage(self.db, provider.provider_name)
+                    except Exception as e:
+                        logger.warning(
+                            "Failed to track usage for %s: %s",
+                            provider.provider_name,
+                            str(e),
+                        )
+
                     return results, provider.provider_name
                 else:
                     logger.info(

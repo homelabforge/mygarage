@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
-import { CheckCircle, AlertCircle, Plug } from 'lucide-react'
+import { CheckCircle, AlertCircle, Plug, Check, X, Plus } from 'lucide-react'
 import { useSettings } from '@/contexts/SettingsContext'
 import api from '@/services/api'
+import AddProviderModal from '../modals/AddProviderModal'
+import EditProviderModal from '../modals/EditProviderModal'
 
 // Sample VIN for testing NHTSA API connection
 const TEST_VIN = '1HGCM82633A123456'
@@ -15,11 +17,26 @@ type SettingsResponse = {
   settings: SettingRecord[]
 }
 
+type POIProvider = {
+  name: string
+  display_name: string
+  enabled: boolean
+  is_default: boolean
+  api_key_masked?: string
+  api_usage: number
+  api_limit: number | null
+  priority: number
+}
+
 export default function SettingsIntegrationsTab() {
   const [loading, setLoading] = useState(true)
   const { triggerSave, registerSaveHandler, unregisterSaveHandler } = useSettings()
   const [testing, setTesting] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
+  const [providers, setProviders] = useState<POIProvider[]>([])
+  const [isAddProviderModalOpen, setIsAddProviderModalOpen] = useState(false)
+  const [selectedProvider, setSelectedProvider] = useState<POIProvider | null>(null)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
 
   const [formData, setFormData] = useState({
     nhtsa_enabled: 'true',
@@ -63,7 +80,35 @@ export default function SettingsIntegrationsTab() {
 
   useEffect(() => {
     loadSettings()
+    loadProviders()
   }, [loadSettings])
+
+  const loadProviders = async () => {
+    try {
+      const response = await api.get('/settings/poi-providers')
+      setProviders(response.data.providers || [])
+    } catch (error) {
+      console.error('Failed to load POI providers:', error)
+    }
+  }
+
+  const handleEditProvider = (provider: POIProvider) => {
+    setSelectedProvider(provider)
+    setIsEditModalOpen(true)
+  }
+
+  const handleRemoveProvider = async (providerName: string) => {
+    if (!confirm(`Remove ${providerName} provider?`)) return
+
+    try {
+      await api.delete(`/settings/poi-providers/${providerName}`)
+      await loadProviders()
+      setMessage({ type: 'success', text: 'Provider removed' })
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { detail?: string } } }
+      setMessage({ type: 'error', text: err.response?.data?.detail || 'Failed to remove provider' })
+    }
+  }
 
   const handleSave = useCallback(async () => {
     await api.post('/settings/batch', {
@@ -302,86 +347,82 @@ export default function SettingsIntegrationsTab() {
           <div className="flex-1">
             <h2 className="text-xl font-semibold text-garage-text mb-2">Shop Finder</h2>
             <p className="text-sm text-garage-text-muted">
-              Optional TomTom API key for enhanced shop discovery (automatically falls back to OpenStreetMap)
+              Optional Service API Keys for enhanced POI discovery (automatically falls back to OSM)
             </p>
           </div>
         </div>
 
-        <div className="space-y-6">
-          {/* Enable TomTom Integration */}
-          <div>
-            <label className="flex items-center">
-              <input
-                type="checkbox"
-                checked={formData.tomtom_enabled === 'true'}
-                onChange={(e) => setFormData({ ...formData, tomtom_enabled: e.target.checked ? 'true' : 'false' })}
-                className="w-4 h-4 text-primary bg-garage-bg border-garage-border rounded focus:ring-primary focus:ring-2"
-              />
-              <span className="ml-2 text-sm text-garage-text font-medium">
-                Enable TomTom API
-              </span>
-            </label>
-            <p className="mt-1 ml-6 text-sm text-garage-text-muted">
-              Use TomTom Places API for high-quality shop search results (falls back to OpenStreetMap if disabled or unavailable)
-            </p>
-          </div>
+        <div className="space-y-4">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-garage-border">
+                <th className="text-left py-2 px-3 text-garage-text">Provider</th>
+                <th className="text-left py-2 px-3 text-garage-text">Active</th>
+                <th className="text-left py-2 px-3 text-garage-text">API Limits</th>
+                <th className="text-right py-2 px-3 text-garage-text">Options</th>
+              </tr>
+            </thead>
+            <tbody>
+              {providers.map((provider) => (
+                <tr key={provider.name} className="border-b border-garage-border">
+                  <td className="py-3 px-3 text-garage-text">
+                    {provider.is_default ? `${provider.display_name} (Default)` : provider.display_name}
+                  </td>
+                  <td className="py-3 px-3">
+                    {provider.enabled ? (
+                      <Check className="w-4 h-4 text-green-500" />
+                    ) : (
+                      <X className="w-4 h-4 text-red-500" />
+                    )}
+                  </td>
+                  <td className="py-3 px-3 text-garage-text-muted">
+                    {provider.api_limit
+                      ? `${provider.api_usage}/${provider.api_limit}`
+                      : `${provider.api_usage || 0}/Unlimited`}
+                  </td>
+                  <td className="py-3 px-3 text-right space-x-2">
+                    <button
+                      onClick={() => handleEditProvider(provider)}
+                      className="text-blue-400 hover:text-blue-300"
+                    >
+                      Edit
+                    </button>
+                    {!provider.is_default && (
+                      <button
+                        onClick={() => handleRemoveProvider(provider.name)}
+                        className="text-red-400 hover:text-red-300"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
 
-          {/* TomTom API Key (only shown when enabled) */}
-          {formData.tomtom_enabled === 'true' && (
-            <>
-              <div>
-                <label htmlFor="tomtom_api_key" className="block text-sm font-medium text-garage-text mb-2">
-                  TomTom API Key
-                </label>
-                <input
-                  type="password"
-                  id="tomtom_api_key"
-                  value={formData.tomtom_api_key}
-                  onChange={(e) => setFormData({ ...formData, tomtom_api_key: e.target.value })}
-                  className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary font-mono text-sm"
-                  placeholder="Your TomTom API key"
-                  autoComplete="off"
-                />
-                <p className="mt-1 text-sm text-garage-text-muted">
-                  Enter your TomTom API key to enable enhanced shop discovery
-                </p>
-              </div>
-
-              <div className="bg-garage-bg rounded-lg p-4 border border-garage-border">
-                <h3 className="text-sm font-medium text-garage-text mb-2">About TomTom Places</h3>
-                <ul className="text-sm text-garage-text-muted space-y-1.5">
-                  <li><strong>Free Tier:</strong> 2,500 API requests per day (sufficient for most users)</li>
-                  <li><strong>Data Quality:</strong> Commercial-grade location data with accurate shop information</li>
-                  <li><strong>Auto Fallback:</strong> Automatically uses OpenStreetMap if TomTom is unavailable or quota exceeded</li>
-                </ul>
-                <p className="text-sm text-garage-text-muted mt-3">
-                  <strong>Get an API key:</strong> Visit{' '}
-                  <a
-                    href="https://developer.tomtom.com/store/maps-api"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary hover:underline"
-                  >
-                    developer.tomtom.com
-                  </a>{' '}
-                  to sign up for a free account.
-                </p>
-              </div>
-            </>
-          )}
-
-          {/* Info when TomTom is disabled */}
-          {formData.tomtom_enabled === 'false' && (
-            <div className="bg-garage-bg rounded-lg p-4 border border-garage-border">
-              <h3 className="text-sm font-medium text-garage-text mb-2">Using OpenStreetMap</h3>
-              <p className="text-sm text-garage-text-muted">
-                Shop Finder is currently using OpenStreetMap (OSM) for shop discovery. OSM provides unlimited free searches with crowd-sourced data.
-                Enable TomTom API above for enhanced commercial-grade location data (2,500 free requests/day).
-              </p>
-            </div>
-          )}
+          <button
+            onClick={() => setIsAddProviderModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded text-white"
+          >
+            <Plus className="w-4 h-4" />
+            Add Service
+          </button>
         </div>
         </div>
+
+        <AddProviderModal
+          isOpen={isAddProviderModalOpen}
+          onClose={() => setIsAddProviderModalOpen(false)}
+          onProviderAdded={loadProviders}
+        />
+
+        <EditProviderModal
+          isOpen={isEditModalOpen}
+          provider={selectedProvider}
+          onClose={() => setIsEditModalOpen(false)}
+          onSave={loadProviders}
+        />
       </div>
     </div>
   )

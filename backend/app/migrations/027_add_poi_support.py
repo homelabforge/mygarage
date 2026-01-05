@@ -31,9 +31,7 @@ def upgrade():
 
         # Add poi_metadata column
         if "poi_metadata" not in existing_columns:
-            conn.execute(
-                text("ALTER TABLE address_book ADD COLUMN poi_metadata TEXT")
-            )
+            conn.execute(text("ALTER TABLE address_book ADD COLUMN poi_metadata TEXT"))
             print("  ✓ Added poi_metadata column")
 
         # Backfill existing service entries
@@ -73,8 +71,7 @@ def upgrade():
 
         for key, value in default_settings:
             result = conn.execute(
-                text("SELECT COUNT(*) FROM settings WHERE key = :key"),
-                {"key": key}
+                text("SELECT COUNT(*) FROM settings WHERE key = :key"), {"key": key}
             )
             if result.scalar() == 0:
                 conn.execute(
@@ -82,7 +79,7 @@ def upgrade():
                         INSERT INTO settings (key, value, category, encrypted)
                         VALUES (:key, :value, 'integrations', 0)
                     """),
-                    {"key": key, "value": value}
+                    {"key": key, "value": value},
                 )
                 print(f"  ✓ Added setting: {key}")
 

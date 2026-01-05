@@ -30,7 +30,9 @@ class OSMProvider(BasePOIProvider):
             "https://overpass.openstreetmap.fr/api/interpreter",  # Fallback 2
         ]
         self.timeout = 30.0
-        self.max_results = 100  # Increased to capture more results before distance sorting
+        self.max_results = (
+            100  # Increased to capture more results before distance sorting
+        )
 
     async def search(
         self,
@@ -318,10 +320,7 @@ class OSMProvider(BasePOIProvider):
         Δλ = math.radians(lon2 - lon1)
 
         # Haversine formula
-        a = (
-            math.sin(Δφ / 2) ** 2
-            + math.cos(φ1) * math.cos(φ2) * math.sin(Δλ / 2) ** 2
-        )
+        a = math.sin(Δφ / 2) ** 2 + math.cos(φ1) * math.cos(φ2) * math.sin(Δλ / 2) ** 2
         c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
         return R * c
