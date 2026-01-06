@@ -25,7 +25,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             "default-src 'self'; "
             "script-src 'self'; "  # Removed 'unsafe-inline' - Vite bundles all scripts
             "style-src 'self' 'unsafe-inline'; "  # Keep for Tailwind/dynamic styles
-            "img-src 'self' data: blob:; "
+            "img-src 'self' data: blob: https://*.tile.openstreetmap.org https://cdnjs.cloudflare.com; "  # Allow OSM tiles and Leaflet icons
             "font-src 'self'; "
             "connect-src 'self'; "
             "frame-src 'self' blob:; "
