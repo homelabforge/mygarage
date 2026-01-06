@@ -85,10 +85,13 @@ export default function SettingsIntegrationsTab() {
 
   const loadProviders = async () => {
     try {
+      console.log('Loading POI providers...')
       const response = await api.get('/settings/poi-providers')
+      console.log('POI providers response:', response.data)
       setProviders(response.data.providers || [])
     } catch (error) {
       console.error('Failed to load POI providers:', error)
+      setMessage({ type: 'error', text: 'Failed to load POI providers' })
     }
   }
 
@@ -403,7 +406,7 @@ export default function SettingsIntegrationsTab() {
 
           <button
             onClick={() => setIsAddProviderModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded text-white"
+            className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors"
           >
             <Plus className="w-4 h-4" />
             Add Service

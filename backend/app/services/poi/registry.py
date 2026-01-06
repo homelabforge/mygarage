@@ -238,7 +238,7 @@ class POIProviderRegistry:
 
                     # Track provider usage (import here to avoid circular dependency)
                     try:
-                        from app.middleware.provider_usage import (
+                        from app.services.provider_usage import (
                             increment_provider_usage,
                         )
 
