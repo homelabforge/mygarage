@@ -11,7 +11,8 @@ class POICategory(Enum):
     AUTO_SHOP = "auto_shop"
     RV_SHOP = "rv_shop"
     EV_CHARGING = "ev_charging"
-    FUEL_STATION = "fuel_station"
+    GAS_STATION = "gas_station"
+    PROPANE = "propane"
 
 
 class BasePOIProvider(ABC):

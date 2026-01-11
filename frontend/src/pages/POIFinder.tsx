@@ -37,7 +37,8 @@ export default function POIFinder() {
     auto_shop: true,
     rv_shop: false,
     ev_charging: false,
-    fuel_station: false,
+    gas_station: false,
+    propane: false,
   })
 
   // Load recommendations on mount
@@ -228,10 +229,16 @@ export default function POIFinder() {
                 onToggle={(enabled) => handleCategoryToggle('ev_charging', enabled)}
               />
               <CategoryToggle
-                label="Fuel Prices"
-                category="fuel_station"
-                enabled={categories.fuel_station}
-                onToggle={(enabled) => handleCategoryToggle('fuel_station', enabled)}
+                label="Gas Stations"
+                category="gas_station"
+                enabled={categories.gas_station}
+                onToggle={(enabled) => handleCategoryToggle('gas_station', enabled)}
+              />
+              <CategoryToggle
+                label="Propane"
+                category="propane"
+                enabled={categories.propane}
+                onToggle={(enabled) => handleCategoryToggle('propane', enabled)}
               />
               <CategoryToggle
                 label="RV Shops"

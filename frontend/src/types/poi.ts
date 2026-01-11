@@ -2,19 +2,13 @@
  * POI (Points of Interest) discovery types.
  */
 
-export type POICategory = 'auto_shop' | 'rv_shop' | 'ev_charging' | 'fuel_station'
+export type POICategory = 'auto_shop' | 'rv_shop' | 'ev_charging' | 'gas_station' | 'propane'
 
 export interface EVChargingMetadata {
   connector_types?: string[]
   charging_speeds?: string[]
   network?: string
   availability?: string
-}
-
-export interface FuelStationMetadata {
-  prices?: Record<string, number>
-  price_updated_at?: string
-  fuel_types?: string[]
 }
 
 export interface POIResult {
@@ -32,7 +26,7 @@ export interface POIResult {
   distance_meters?: number
   website?: string
   poi_category: POICategory
-  metadata?: EVChargingMetadata | FuelStationMetadata
+  metadata?: EVChargingMetadata
 }
 
 export interface POISearchRequest {

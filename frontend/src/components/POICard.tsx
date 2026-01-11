@@ -3,8 +3,8 @@
  * Shows business info with category-specific metadata.
  */
 
-import { Check, Save, MapPin, Phone, Star, Globe, Zap, Fuel } from 'lucide-react'
-import type { POIResult, EVChargingMetadata, FuelStationMetadata } from '../types/poi'
+import { Check, Save, MapPin, Phone, Star, Globe, Zap } from 'lucide-react'
+import type { POIResult, EVChargingMetadata } from '../types/poi'
 
 interface POICardProps {
   poi: POIResult
@@ -27,7 +27,8 @@ function CategoryBadge({ category }: { category: string }) {
     auto_shop: { label: 'Auto Shop', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' },
     rv_shop: { label: 'RV Shop', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' },
     ev_charging: { label: 'EV Charging', color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' },
-    fuel_station: { label: 'Fuel Station', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200' },
+    gas_station: { label: 'Gas Station', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200' },
+    propane: { label: 'Propane', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' },
   }
 
   const badge = badges[category as keyof typeof badges] || badges.auto_shop
@@ -64,29 +65,6 @@ function EVChargingInfo({ metadata }: { metadata: EVChargingMetadata }) {
   )
 }
 
-function FuelPriceInfo({ metadata }: { metadata: FuelStationMetadata }) {
-  return (
-    <div className="mt-2 space-y-1">
-      {metadata.prices && Object.keys(metadata.prices).length > 0 && (
-        <div className="flex items-start gap-2">
-          <Fuel className="w-4 h-4 text-orange-600 dark:text-orange-400 mt-0.5 flex-shrink-0" />
-          <div className="text-sm text-gray-600 dark:text-gray-400">
-            {Object.entries(metadata.prices).map(([grade, price]) => (
-              <div key={grade}>
-                <span className="font-medium capitalize">{grade}:</span> ${price.toFixed(2)}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-      {metadata.fuel_types && metadata.fuel_types.length > 0 && (
-        <div className="text-sm text-gray-600 dark:text-gray-400 ml-6">
-          Available: {metadata.fuel_types.join(', ')}
-        </div>
-      )}
-    </div>
-  )
-}
 
 export default function POICard({ poi, onSave, isSaved }: POICardProps) {
   const fullAddress = [
@@ -117,9 +95,6 @@ export default function POICard({ poi, onSave, isSaved }: POICardProps) {
       {/* Category-specific metadata */}
       {poi.poi_category === 'ev_charging' && poi.metadata && (
         <EVChargingInfo metadata={poi.metadata as EVChargingMetadata} />
-      )}
-      {poi.poi_category === 'fuel_station' && poi.metadata && (
-        <FuelPriceInfo metadata={poi.metadata as FuelStationMetadata} />
       )}
 
       {/* Address */}

@@ -34,7 +34,8 @@ export default function LeafletMap({ pois, userLocation, searchRadius, onMarkerC
       auto_shop: '#3b82f6',     // blue
       rv_shop: '#a855f7',       // purple
       ev_charging: '#10b981',   // green
-      fuel_station: '#f59e0b',  // orange
+      gas_station: '#f59e0b',   // orange
+      propane: '#eab308',       // yellow
     }
     return colors[category] || '#6b7280'
   }

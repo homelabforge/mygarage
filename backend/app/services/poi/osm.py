@@ -17,7 +17,7 @@ class OSMProvider(BasePOIProvider):
     Features:
         - Free and unlimited
         - Crowd-sourced data (quality varies by region)
-        - Supports: Auto shops, RV shops, EV charging, Fuel stations
+        - Supports: Auto shops, RV shops, EV charging, Gas stations, Propane
         - Multiple fallback instances for reliability
     """
 
@@ -146,11 +146,20 @@ class OSMProvider(BasePOIProvider):
                         f'way["amenity"="charging_station"](around:{radius_meters},{latitude},{longitude});',
                     ]
                 )
-            elif category == POICategory.FUEL_STATION:
+            elif category == POICategory.GAS_STATION:
                 query_parts.extend(
                     [
                         f'node["amenity"="fuel"](around:{radius_meters},{latitude},{longitude});',
                         f'way["amenity"="fuel"](around:{radius_meters},{latitude},{longitude});',
+                    ]
+                )
+            elif category == POICategory.PROPANE:
+                query_parts.extend(
+                    [
+                        f'node["shop"="gas"]["gas"="lpg"](around:{radius_meters},{latitude},{longitude});',
+                        f'way["shop"="gas"]["gas"="lpg"](around:{radius_meters},{latitude},{longitude});',
+                        f'node["amenity"="fuel"]["fuel:lpg"="yes"](around:{radius_meters},{latitude},{longitude});',
+                        f'way["amenity"="fuel"]["fuel:lpg"="yes"](around:{radius_meters},{latitude},{longitude});',
                     ]
                 )
 
@@ -190,8 +199,6 @@ class OSMProvider(BasePOIProvider):
         metadata = None
         if poi_category == POICategory.EV_CHARGING.value:
             metadata = self._extract_ev_metadata(tags)
-        elif poi_category == POICategory.FUEL_STATION.value:
-            metadata = self._extract_fuel_metadata(tags)
 
         # Parse address from OSM tags
         address_parts = []
@@ -224,9 +231,15 @@ class OSMProvider(BasePOIProvider):
         if tags.get("amenity") == "charging_station":
             return POICategory.EV_CHARGING.value
 
-        # Check for fuel station
+        # Check for propane
+        if (tags.get("shop") == "gas" and tags.get("gas") == "lpg") or (
+            tags.get("amenity") == "fuel" and tags.get("fuel:lpg") == "yes"
+        ):
+            return POICategory.PROPANE.value
+
+        # Check for gas station
         if tags.get("amenity") == "fuel":
-            return POICategory.FUEL_STATION.value
+            return POICategory.GAS_STATION.value
 
         # Check for RV repair
         if tags.get("shop") == "caravan" or (
@@ -273,27 +286,6 @@ class OSMProvider(BasePOIProvider):
             "charging_speeds": charging_speeds,
             "network": tags.get("network") or tags.get("operator"),
             "availability": None,  # OSM doesn't provide real-time availability
-        }
-
-    def _extract_fuel_metadata(self, tags: dict) -> dict:
-        """Extract fuel station metadata from OSM tags."""
-        # Parse fuel types
-        fuel_types = []
-        if tags.get("fuel:diesel") == "yes":
-            fuel_types.append("diesel")
-        if tags.get("fuel:octane_91") == "yes" or tags.get("fuel:regular") == "yes":
-            fuel_types.append("regular")
-        if tags.get("fuel:octane_95") == "yes" or tags.get("fuel:midgrade") == "yes":
-            fuel_types.append("midgrade")
-        if tags.get("fuel:octane_98") == "yes" or tags.get("fuel:premium") == "yes":
-            fuel_types.append("premium")
-        if tags.get("fuel:e85") == "yes":
-            fuel_types.append("e85")
-
-        return {
-            "prices": {},  # OSM doesn't provide real-time pricing
-            "price_updated_at": None,
-            "fuel_types": fuel_types,
         }
 
     def _calculate_distance(

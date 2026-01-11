@@ -18,7 +18,7 @@ class TomTomProvider(BasePOIProvider):
     Features:
         - High-quality commercial data
         - Free tier: 2,500 requests/day
-        - Supports: Auto shops, RV shops, EV charging, Fuel stations
+        - Supports: Auto shops, RV shops, EV charging, Gas stations, Propane
     """
 
     def __init__(self, api_key: str, base_url: str = "https://api.tomtom.com/search/2"):
@@ -81,8 +81,13 @@ class TomTomProvider(BasePOIProvider):
                         latitude, longitude, radius_meters
                     )
                     all_results.extend(results)
-                elif category == POICategory.FUEL_STATION:
-                    results = await self._search_fuel_stations(
+                elif category == POICategory.GAS_STATION:
+                    results = await self._search_gas_stations(
+                        latitude, longitude, radius_meters
+                    )
+                    all_results.extend(results)
+                elif category == POICategory.PROPANE:
+                    results = await self._search_propane(
                         latitude, longitude, radius_meters
                     )
                     all_results.extend(results)
@@ -137,10 +142,10 @@ class TomTomProvider(BasePOIProvider):
         }
         return await self._execute_search(url, params, POICategory.EV_CHARGING)
 
-    async def _search_fuel_stations(
+    async def _search_gas_stations(
         self, latitude: float, longitude: float, radius_meters: int
     ) -> list[dict[str, Any]]:
-        """Search for fuel stations."""
+        """Search for gas stations."""
         url = f"{self.base_url}/categorySearch/petrol station.json"
         params = {
             "key": self.api_key,
@@ -149,7 +154,22 @@ class TomTomProvider(BasePOIProvider):
             "radius": radius_meters,
             "limit": self.max_results,
         }
-        return await self._execute_search(url, params, POICategory.FUEL_STATION)
+        return await self._execute_search(url, params, POICategory.GAS_STATION)
+
+    async def _search_propane(
+        self, latitude: float, longitude: float, radius_meters: int
+    ) -> list[dict[str, Any]]:
+        """Search for propane stations."""
+        url = f"{self.base_url}/search/propane.json"
+        params = {
+            "key": self.api_key,
+            "lat": latitude,
+            "lon": longitude,
+            "radius": radius_meters,
+            "limit": self.max_results,
+            "typeahead": False,
+        }
+        return await self._execute_search(url, params, POICategory.PROPANE)
 
     async def _execute_search(
         self, url: str, params: dict, category: POICategory
@@ -202,7 +222,9 @@ class TomTomProvider(BasePOIProvider):
             elif any(
                 "petrol" in cat.lower() or "gas" in cat.lower() for cat in categories
             ):
-                category = POICategory.FUEL_STATION
+                category = POICategory.GAS_STATION
+            elif any("propane" in cat.lower() for cat in categories):
+                category = POICategory.PROPANE
             else:
                 category = POICategory.AUTO_SHOP  # Default
 
@@ -215,13 +237,6 @@ class TomTomProvider(BasePOIProvider):
                 "charging_speeds": [],
                 "network": None,
                 "availability": None,
-            }
-        elif category == POICategory.FUEL_STATION:
-            # TomTom doesn't provide fuel prices in basic search
-            metadata = {
-                "prices": {},
-                "price_updated_at": None,
-                "fuel_types": [],
             }
 
         return {
