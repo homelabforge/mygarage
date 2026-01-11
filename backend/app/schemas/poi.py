@@ -3,7 +3,6 @@
 from pydantic import BaseModel, Field
 from typing import Optional, Literal
 from decimal import Decimal
-from datetime import datetime
 
 
 class POISearchRequest(BaseModel):
@@ -17,11 +16,11 @@ class POISearchRequest(BaseModel):
         le=161000,
         description="Search radius in meters (default: ~5 miles, max: ~100 miles)",
     )
-    categories: list[Literal["auto_shop", "rv_shop", "ev_charging", "fuel_station"]] = (
-        Field(
-            default=["auto_shop"],
-            description="POI categories to search for (can select multiple)",
-        )
+    categories: list[
+        Literal["auto_shop", "rv_shop", "ev_charging", "gas_station", "propane"]
+    ] = Field(
+        default=["auto_shop"],
+        description="POI categories to search for (can select multiple)",
     )
 
 
@@ -40,20 +39,6 @@ class EVChargingMetadata(BaseModel):
     )
     availability: Optional[str] = Field(
         default=None, description="Real-time availability status"
-    )
-
-
-class FuelStationMetadata(BaseModel):
-    """Fuel station specific metadata."""
-
-    prices: Optional[dict[str, float]] = Field(
-        default=None, description="Fuel prices by grade (regular, midgrade, premium)"
-    )
-    price_updated_at: Optional[datetime] = Field(
-        default=None, description="When prices were last updated"
-    )
-    fuel_types: Optional[list[str]] = Field(
-        default=None, description="Available fuel types (diesel, e85, etc.)"
     )
 
 
@@ -76,9 +61,9 @@ class POIResult(BaseModel):
     distance_meters: Optional[float] = None
     website: Optional[str] = None
     poi_category: str = Field(
-        description="POI category (auto_shop, rv_shop, ev_charging, fuel_station)"
+        description="POI category (auto_shop, rv_shop, ev_charging, gas_station, propane)"
     )
-    metadata: Optional[EVChargingMetadata | FuelStationMetadata] = Field(
+    metadata: Optional[EVChargingMetadata] = Field(
         default=None, description="Category-specific metadata"
     )
 
@@ -110,7 +95,7 @@ class POIRecommendation(BaseModel):
     user_rating: Optional[int] = None
     poi_category: Optional[str] = Field(
         default=None,
-        description="POI category (auto_shop, rv_shop, ev_charging, fuel_station)",
+        description="POI category (auto_shop, rv_shop, ev_charging, gas_station, propane)",
     )
 
 

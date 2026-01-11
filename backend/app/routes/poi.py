@@ -17,7 +17,6 @@ from app.schemas.poi import (
     POIRecommendationsResponse,
     POIRecommendation,
     EVChargingMetadata,
-    FuelStationMetadata,
 )
 from app.schemas.address_book import AddressBookEntryCreate, AddressBookEntryResponse
 from app.services.auth import require_auth
@@ -73,8 +72,6 @@ async def search_nearby_pois(
             if r.get("metadata"):
                 if r["poi_category"] == "ev_charging":
                     metadata = EVChargingMetadata(**r["metadata"])
-                elif r["poi_category"] == "fuel_station":
-                    metadata = FuelStationMetadata(**r["metadata"])
 
             poi_results.append(
                 POIResult(
