@@ -116,9 +116,8 @@ def create_access_token(
     to_encode.update({"exp": expire, "iat": datetime.now(timezone.utc)})
     header = {"alg": settings.algorithm}
     encoded_jwt = jwt.encode(header, to_encode, settings.secret_key)
-    return (
-        encoded_jwt.decode("utf-8") if isinstance(encoded_jwt, bytes) else encoded_jwt
-    )
+    # jwt.encode from authlib always returns bytes
+    return encoded_jwt.decode("utf-8")
 
 
 async def get_current_user(
@@ -149,8 +148,8 @@ async def get_current_user(
 
     try:
         payload = jwt.decode(token, settings.secret_key)
-        user_id_str: str = payload.get("sub")
-        username: str = payload.get("username")
+        user_id_str: Optional[str] = payload.get("sub")
+        username: Optional[str] = payload.get("username")
 
         if user_id_str is None or username is None:
             logger.error("Token missing user_id or username")
