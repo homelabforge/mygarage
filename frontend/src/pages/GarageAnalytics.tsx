@@ -16,13 +16,13 @@ import {
   Line,
 } from 'recharts'
 import type { PieLabelRenderProps } from 'recharts'
-import type { FleetAnalytics, FleetMonthlyTrend } from '../types/analytics'
-import FleetAnalyticsHelpModal from '../components/FleetAnalyticsHelpModal'
+import type { GarageAnalytics, GarageMonthlyTrend } from '../types/analytics'
+import GarageAnalyticsHelpModal from '../components/GarageAnalyticsHelpModal'
 
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899']
 
-export default function FleetAnalytics() {
-  const [analytics, setAnalytics] = useState<FleetAnalytics | null>(null)
+export default function GarageAnalytics() {
+  const [analytics, setAnalytics] = useState<GarageAnalytics | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [fromCache, setFromCache] = useState(false)
@@ -46,15 +46,15 @@ export default function FleetAnalytics() {
     const rows: string[] = []
 
     // Header
-    rows.push('MyGarage Fleet Analytics Export')
+    rows.push('MyGarage Garage Analytics Export')
     rows.push(`Generated: ${new Date().toLocaleString()}`)
     rows.push(`Total Vehicles: ${analytics.vehicle_count}`)
     rows.push('')
 
-    // Fleet Summary
-    rows.push('Fleet Cost Summary')
+    // Garage Summary
+    rows.push('Garage Cost Summary')
     rows.push('Category,Amount')
-    rows.push(`Fleet Value,${analytics.total_costs.total_fleet_value}`)
+    rows.push(`Garage Value,${analytics.total_costs.total_garage_value}`)
     rows.push(`Maintenance,${analytics.total_costs.total_maintenance}`)
     rows.push(`Fuel,${analytics.total_costs.total_fuel}`)
     rows.push(`Insurance,${analytics.total_costs.total_insurance}`)
@@ -95,7 +95,7 @@ export default function FleetAnalytics() {
     const link = document.createElement('a')
     const url = URL.createObjectURL(blob)
     link.setAttribute('href', url)
-    link.setAttribute('download', `fleet-analytics-${Date.now()}.csv`)
+    link.setAttribute('download', `garage-analytics-${Date.now()}.csv`)
     link.style.visibility = 'hidden'
     document.body.appendChild(link)
     link.click()
@@ -104,7 +104,7 @@ export default function FleetAnalytics() {
 
   const exportToPDF = async () => {
     try {
-      const response = await api.get('/analytics/fleet/export', {
+      const response = await api.get('/analytics/garage/export', {
         responseType: 'blob',
       })
 
@@ -112,7 +112,7 @@ export default function FleetAnalytics() {
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      link.setAttribute('download', `fleet-analytics-${Date.now()}.pdf`)
+      link.setAttribute('download', `garage-analytics-${Date.now()}.pdf`)
       document.body.appendChild(link)
       link.click()
       link.remove()
@@ -123,7 +123,7 @@ export default function FleetAnalytics() {
     }
   }
 
-  const calculateRollingAverage = (data: FleetMonthlyTrend[], period: number) => {
+  const calculateRollingAverage = (data: GarageMonthlyTrend[], period: number) => {
     return data.map((_, idx) => {
       if (idx < period - 1) return null
       const slice = data.slice(idx - period + 1, idx + 1)
@@ -137,15 +137,15 @@ export default function FleetAnalytics() {
 
   useEffect(() => {
     const fetchAnalytics = async () => {
-      const cacheKey = 'fleet-analytics-cache'
+      const cacheKey = 'garage-analytics-cache'
 
       try {
         setLoading(true)
         setError(null)
         setFromCache(false)
 
-        const response = await api.get('/analytics/fleet')
-        const data: FleetAnalytics = response.data
+        const response = await api.get('/analytics/garage')
+        const data: GarageAnalytics = response.data
         setAnalytics(data)
 
         // Cache the data
@@ -204,7 +204,7 @@ export default function FleetAnalytics() {
   if (!analytics || analytics.vehicle_count === 0) {
     return (
       <div className="container mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold mb-2 text-garage-text">Fleet Analytics</h1>
+        <h1 className="text-3xl font-bold mb-2 text-garage-text">Garage Analytics</h1>
         <p className="text-garage-text-muted mb-8">
           Comprehensive cost analysis across all vehicles
         </p>
@@ -213,7 +213,7 @@ export default function FleetAnalytics() {
           <Car className="w-16 h-16 text-garage-text-muted mx-auto mb-4 opacity-50" />
           <h3 className="text-xl font-semibold mb-2 text-garage-text">No Vehicles Yet</h3>
           <p className="text-garage-text-muted mb-6">
-            Add vehicles to your garage to start tracking fleet-wide analytics
+            Add vehicles to your garage to start tracking garage-wide analytics
           </p>
         </div>
       </div>
@@ -246,7 +246,7 @@ export default function FleetAnalytics() {
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-bold mb-2 text-garage-text">Fleet Analytics</h1>
+          <h1 className="text-3xl font-bold mb-2 text-garage-text">Garage Analytics</h1>
           <p className="text-garage-text-muted">
             Comprehensive cost analysis across {analytics.vehicle_count} vehicle
             {analytics.vehicle_count !== 1 ? 's' : ''}
@@ -285,11 +285,11 @@ export default function FleetAnalytics() {
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
         <div className="bg-garage-surface border border-garage-border rounded-lg p-6">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-medium text-garage-text-muted">Fleet Value</h3>
+            <h3 className="text-sm font-medium text-garage-text-muted">Garage Value</h3>
             <Car className="w-5 h-5 text-primary" />
           </div>
           <p className="text-2xl font-bold text-garage-text">
-            {formatCurrency(total_costs.total_fleet_value)}
+            {formatCurrency(total_costs.total_garage_value)}
           </p>
         </div>
 
@@ -591,7 +591,7 @@ export default function FleetAnalytics() {
       </div>
 
       {/* Help Modal */}
-      <FleetAnalyticsHelpModal isOpen={showHelpModal} onClose={() => setShowHelpModal(false)} />
+      <GarageAnalyticsHelpModal isOpen={showHelpModal} onClose={() => setShowHelpModal(false)} />
     </div>
   )
 }

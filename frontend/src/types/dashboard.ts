@@ -37,7 +37,7 @@ export interface DashboardResponse {
   total_vehicles: number
   vehicles: VehicleStatistics[]
 
-  // Fleet-wide totals
+  // Garage-wide totals
   total_service_records: number
   total_fuel_records: number
   total_reminders: number

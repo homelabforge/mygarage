@@ -191,7 +191,7 @@ async def get_dashboard(
         stats = await calculate_vehicle_stats(db, vehicle)
         vehicle_stats.append(stats)
 
-    # Calculate fleet-wide totals
+    # Calculate garage-wide totals
     total_service = sum(v.total_service_records for v in vehicle_stats)
     total_fuel = sum(v.total_fuel_records for v in vehicle_stats)
     total_reminders = sum(v.total_reminders for v in vehicle_stats)

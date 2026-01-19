@@ -23,7 +23,7 @@ A clear and concise description of any alternative solutions or features you've 
 **Who would benefit from this feature?**
 - [ ] All users
 - [ ] Multi-vehicle users
-- [ ] Fleet managers
+- [ ] Multi-vehicle owners
 - [ ] Users with specific vehicle types (e.g., motorcycles, RVs, boats)
 - [ ] Homelab enthusiasts
 - [ ] Other (please specify):

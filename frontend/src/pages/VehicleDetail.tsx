@@ -487,7 +487,7 @@ export default function VehicleDetail() {
                   className="inline-flex items-center space-x-1 text-sm text-garage-text-muted hover:text-garage-text transition-colors mb-2"
                 >
                   <ArrowLeft className="w-3 h-3" />
-                  <span>Back to Fleet</span>
+                  <span>Back to Garage</span>
                 </Link>
                 <h1 className="text-3xl font-bold text-garage-text mb-1">{vehicle.nickname}</h1>
                 <p className="text-garage-text-muted mb-2">

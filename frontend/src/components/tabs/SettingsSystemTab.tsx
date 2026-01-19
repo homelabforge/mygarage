@@ -474,7 +474,7 @@ export default function SettingsSystemTab() {
 
   return (
     <div className="space-y-6">
-      {/* Fleet-wide Statistics */}
+      {/* Garage-wide Statistics */}
       {dashboardStats && dashboardStats.total_vehicles > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
           <StatCard

@@ -42,11 +42,11 @@ from app.schemas.analytics import (
     FuelEconomyDataPoint,
     ServiceHistoryItem,
     MaintenancePrediction,
-    FleetAnalytics,
-    FleetCostTotals,
-    FleetCostByCategory,
-    FleetVehicleCost,
-    FleetMonthlyTrend,
+    GarageAnalytics,
+    GarageCostTotals,
+    GarageCostByCategory,
+    GarageVehicleCost,
+    GarageMonthlyTrend,
     VendorAnalyticsSummary,
     VendorAnalysis,
     SeasonalAnalyticsSummary,
@@ -709,13 +709,13 @@ async def get_vehicle_analytics(
     )
 
 
-@router.get("/fleet", response_model=FleetAnalytics)
-async def get_fleet_analytics(
+@router.get("/garage", response_model=GarageAnalytics)
+async def get_garage_analytics(
     db: AsyncSession = Depends(get_db),
     current_user: Optional[User] = Depends(require_auth),
 ):
     """
-    Get comprehensive analytics aggregated across all vehicles in the fleet.
+    Get comprehensive analytics aggregated across all vehicles in the garage.
     """
     # Get all vehicles with eager loading to avoid N+1 queries
     vehicles_result = await db.execute(
@@ -730,8 +730,8 @@ async def get_fleet_analytics(
 
     if not vehicles:
         # Return empty analytics if no vehicles
-        return FleetAnalytics(
-            total_costs=FleetCostTotals(),
+        return GarageAnalytics(
+            total_costs=GarageCostTotals(),
             cost_breakdown_by_category=[],
             cost_by_vehicle=[],
             monthly_trends=[],
@@ -739,7 +739,7 @@ async def get_fleet_analytics(
         )
 
     # Initialize totals
-    total_fleet_value = Decimal("0.00")
+    total_garage_value = Decimal("0.00")
     total_maintenance = Decimal("0.00")
     total_fuel = Decimal("0.00")
     total_insurance = Decimal("0.00")
@@ -748,7 +748,7 @@ async def get_fleet_analytics(
     # Track costs by vehicle
     vehicle_costs = []
 
-    # Track monthly trends across fleet
+    # Track monthly trends across garage
     monthly_data: Dict[tuple[int, int], dict[str, Any]] = defaultdict(
         lambda: {
             "maintenance": Decimal("0.00"),
@@ -761,9 +761,9 @@ async def get_fleet_analytics(
         vin = vehicle.vin
         vehicle_name = f"{vehicle.year} {vehicle.make} {vehicle.model}"
 
-        # Add purchase price to fleet value
+        # Add purchase price to garage value
         purchase_price = vehicle.purchase_price or Decimal("0.00")
-        total_fleet_value += purchase_price
+        total_garage_value += purchase_price
 
         # Use eager-loaded insurance policies (no additional query)
         for policy in vehicle.insurance_policies:
@@ -790,13 +790,13 @@ async def get_fleet_analytics(
         vehicle_fuel = sum((r.cost for r in fuel_records if r.cost), Decimal("0.00"))
         vehicle_total = purchase_price + vehicle_maintenance + vehicle_fuel
 
-        # Add to fleet totals
+        # Add to garage totals
         total_maintenance += vehicle_maintenance
         total_fuel += vehicle_fuel
 
         # Add to vehicle costs list
         vehicle_costs.append(
-            FleetVehicleCost(
+            GarageVehicleCost(
                 vin=vin,
                 name=vehicle_name,
                 purchase_price=purchase_price,
@@ -822,10 +822,10 @@ async def get_fleet_analytics(
 
     # Create cost breakdown by category
     cost_breakdown = [
-        FleetCostByCategory(category="Maintenance", amount=total_maintenance),
-        FleetCostByCategory(category="Fuel", amount=total_fuel),
-        FleetCostByCategory(category="Insurance", amount=total_insurance),
-        FleetCostByCategory(category="Taxes", amount=total_taxes),
+        GarageCostByCategory(category="Maintenance", amount=total_maintenance),
+        GarageCostByCategory(category="Fuel", amount=total_fuel),
+        GarageCostByCategory(category="Insurance", amount=total_insurance),
+        GarageCostByCategory(category="Taxes", amount=total_taxes),
     ]
 
     # Create monthly trends (last 12 months)
@@ -835,7 +835,7 @@ async def get_fleet_analytics(
     for (year, month), data in sorted_months:
         month_name = f"{calendar.month_abbr[month]} {year}"
         monthly_trends.append(
-            FleetMonthlyTrend(
+            GarageMonthlyTrend(
                 month=month_name,
                 maintenance=data["maintenance"],
                 fuel=data["fuel"],
@@ -843,9 +843,9 @@ async def get_fleet_analytics(
             )
         )
 
-    return FleetAnalytics(
-        total_costs=FleetCostTotals(
-            total_fleet_value=total_fleet_value,
+    return GarageAnalytics(
+        total_costs=GarageCostTotals(
+            total_garage_value=total_garage_value,
             total_maintenance=total_maintenance,
             total_fuel=total_fuel,
             total_insurance=total_insurance,
@@ -858,40 +858,40 @@ async def get_fleet_analytics(
     )
 
 
-@router.get("/fleet/export")
+@router.get("/garage/export")
 @limiter.limit(settings.rate_limit_exports)
-async def export_fleet_analytics_pdf(
+async def export_garage_analytics_pdf(
     request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: Optional[User] = Depends(require_auth),
 ):
     """
-    Export fleet analytics as PDF report.
+    Export garage analytics as PDF report.
     """
     from app.utils.pdf_generator import PDFReportGenerator
 
-    # Get fleet analytics first
-    fleet_data = await get_fleet_analytics(db, current_user)
+    # Get garage analytics first
+    garage_data = await get_garage_analytics(db, current_user)
 
-    if fleet_data.vehicle_count == 0:
-        raise HTTPException(status_code=404, detail="No vehicles found in fleet")
+    if garage_data.vehicle_count == 0:
+        raise HTTPException(status_code=404, detail="No vehicles found in garage")
 
     # Convert Pydantic model to dict for PDF generator
-    fleet_dict = {
-        "vehicle_count": fleet_data.vehicle_count,
+    garage_dict = {
+        "vehicle_count": garage_data.vehicle_count,
         "total_costs": {
-            "total_fleet_value": str(fleet_data.total_costs.total_fleet_value),
-            "total_maintenance": str(fleet_data.total_costs.total_maintenance),
-            "total_fuel": str(fleet_data.total_costs.total_fuel),
-            "total_insurance": str(fleet_data.total_costs.total_insurance),
-            "total_taxes": str(fleet_data.total_costs.total_taxes),
+            "total_garage_value": str(garage_data.total_costs.total_garage_value),
+            "total_maintenance": str(garage_data.total_costs.total_maintenance),
+            "total_fuel": str(garage_data.total_costs.total_fuel),
+            "total_insurance": str(garage_data.total_costs.total_insurance),
+            "total_taxes": str(garage_data.total_costs.total_taxes),
         },
         "cost_breakdown_by_category": [
             {
                 "category": cat.category,
                 "amount": str(cat.amount),
             }
-            for cat in fleet_data.cost_breakdown_by_category
+            for cat in garage_data.cost_breakdown_by_category
         ],
         "cost_by_vehicle": [
             {
@@ -901,7 +901,7 @@ async def export_fleet_analytics_pdf(
                 "total_fuel": str(v.total_fuel),
                 "total_cost": str(v.total_cost),
             }
-            for v in fleet_data.cost_by_vehicle
+            for v in garage_data.cost_by_vehicle
         ],
         "monthly_trends": [
             {
@@ -909,20 +909,20 @@ async def export_fleet_analytics_pdf(
                 "maintenance": str(t.maintenance),
                 "fuel": str(t.fuel),
             }
-            for t in fleet_data.monthly_trends
+            for t in garage_data.monthly_trends
         ],
     }
 
     # Generate PDF
     pdf_generator = PDFReportGenerator()
-    pdf_buffer = pdf_generator.generate_fleet_analytics_pdf(fleet_dict)
+    pdf_buffer = pdf_generator.generate_garage_analytics_pdf(garage_dict)
 
     # Return as file download
     return StreamingResponse(
         pdf_buffer,
         media_type="application/pdf",
         headers={
-            "Content-Disposition": f"attachment; filename=fleet-analytics-{datetime.now().strftime('%Y%m%d-%H%M%S')}.pdf"
+            "Content-Disposition": f"attachment; filename=garage-analytics-{datetime.now().strftime('%Y%m%d-%H%M%S')}.pdf"
         },
     )
 

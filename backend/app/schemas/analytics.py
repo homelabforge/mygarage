@@ -195,10 +195,10 @@ class VehicleAnalytics(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class FleetCostTotals(BaseModel):
-    """Total costs across the fleet."""
+class GarageCostTotals(BaseModel):
+    """Total costs across the garage."""
 
-    total_fleet_value: Decimal = Field(default=Decimal("0.00"))
+    total_garage_value: Decimal = Field(default=Decimal("0.00"))
     total_maintenance: Decimal = Field(default=Decimal("0.00"))
     total_fuel: Decimal = Field(default=Decimal("0.00"))
     total_insurance: Decimal = Field(default=Decimal("0.00"))
@@ -207,8 +207,8 @@ class FleetCostTotals(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class FleetCostByCategory(BaseModel):
-    """Cost breakdown by category across fleet."""
+class GarageCostByCategory(BaseModel):
+    """Cost breakdown by category across garage."""
 
     category: str
     amount: Decimal
@@ -216,8 +216,8 @@ class FleetCostByCategory(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class FleetVehicleCost(BaseModel):
-    """Cost breakdown for a single vehicle in fleet view."""
+class GarageVehicleCost(BaseModel):
+    """Cost breakdown for a single vehicle in garage view."""
 
     vin: str
     name: str
@@ -229,8 +229,8 @@ class FleetVehicleCost(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class FleetMonthlyTrend(BaseModel):
-    """Monthly spending trend across fleet."""
+class GarageMonthlyTrend(BaseModel):
+    """Monthly spending trend across garage."""
 
     month: str
     maintenance: Decimal = Field(default=Decimal("0.00"))
@@ -240,13 +240,13 @@ class FleetMonthlyTrend(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class FleetAnalytics(BaseModel):
-    """Complete fleet-wide analytics."""
+class GarageAnalytics(BaseModel):
+    """Complete garage-wide analytics."""
 
-    total_costs: FleetCostTotals
-    cost_breakdown_by_category: List[FleetCostByCategory] = []
-    cost_by_vehicle: List[FleetVehicleCost] = []
-    monthly_trends: List[FleetMonthlyTrend] = []
+    total_costs: GarageCostTotals
+    cost_breakdown_by_category: List[GarageCostByCategory] = []
+    cost_by_vehicle: List[GarageVehicleCost] = []
+    monthly_trends: List[GarageMonthlyTrend] = []
     vehicle_count: int = 0
 
     model_config = {"from_attributes": True}

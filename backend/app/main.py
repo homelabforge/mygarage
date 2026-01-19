@@ -223,6 +223,9 @@ from app.routes import (
     notifications_router,
     maintenance_templates_router,
     shop_discovery_router,
+    vendors_router,
+    service_visits_router,
+    maintenance_schedule_router,
 )
 from app.routes.poi import router as poi_router
 from app.routes.auth import router as auth_router
@@ -262,6 +265,9 @@ app.include_router(notifications_router)
 app.include_router(maintenance_templates_router)
 app.include_router(poi_router)  # New POI router
 app.include_router(shop_discovery_router)  # Backward compatibility (deprecated)
+app.include_router(vendors_router)
+app.include_router(service_visits_router)
+app.include_router(maintenance_schedule_router)
 
 
 # Serve static files (frontend build) in production

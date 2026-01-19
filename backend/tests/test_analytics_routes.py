@@ -164,11 +164,11 @@ class TestAnalyticsEndpoints:
         # Check that PDF has content
         assert len(response.content) > 0
 
-    async def test_fleet_analytics(
+    async def test_garage_analytics(
         self, client: AsyncClient, test_user: User, auth_headers: dict
     ):
-        """Test fleet-wide analytics endpoint."""
-        response = await client.get("/api/analytics/fleet", headers=auth_headers)
+        """Test garage-wide analytics endpoint."""
+        response = await client.get("/api/analytics/garage", headers=auth_headers)
 
         assert response.status_code == 200
         data = response.json()
@@ -181,7 +181,7 @@ class TestAnalyticsEndpoints:
 
         # Validate total_costs structure
         total_costs = data["total_costs"]
-        assert "total_fleet_value" in total_costs
+        assert "total_garage_value" in total_costs
         assert "total_maintenance" in total_costs
         assert "total_fuel" in total_costs
 

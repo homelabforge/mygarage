@@ -5,7 +5,7 @@ MyGarage includes a comprehensive vehicle archiving system that allows users to 
 ## Overview
 
 The archive system provides a safe alternative to deletion, allowing you to:
-- Remove sold, traded, or retired vehicles from your active fleet
+- Remove sold, traded, or retired vehicles from your active garage
 - Preserve complete maintenance history, photos, and documents
 - View archived vehicles separately when needed
 - Toggle visibility of archived vehicles on the main dashboard
@@ -78,7 +78,7 @@ To restore an archived vehicle to active status:
 2. Find the vehicle in the list
 3. Click the **"Un-archive"** button
 4. Confirm the action
-5. The vehicle immediately returns to your active fleet on the dashboard
+5. The vehicle immediately returns to your active garage on the dashboard
 
 **Effects of Un-archiving:**
 - `archived_at` timestamp is cleared
@@ -308,7 +308,7 @@ All endpoints continue to function normally for archived vehicles.
 
 When viewing analytics:
 - **Vehicle-specific analytics**: Include all data regardless of archive status
-- **Fleet-wide analytics**: Only include active vehicles by default
+- **Garage-wide analytics**: Only include active vehicles by default
 - **Future enhancement**: Filter to include/exclude archived vehicle data
 
 ## Use Cases
@@ -361,7 +361,7 @@ When viewing analytics:
 - ✅ Vehicle totaled or destroyed
 - ✅ End of lease
 - ✅ Vehicle temporarily out of service (long-term storage)
-- ✅ Fleet vehicle retired from service
+- ✅ Business vehicle retired from service
 
 ### When to Delete
 - ⚠️ Only after archiving and confirming no data needed
@@ -421,11 +421,11 @@ If you're upgrading from a version without the archive system:
 Potential improvements for future versions:
 
 - [ ] Bulk archive operations (archive multiple vehicles at once)
-- [ ] Archive templates (pre-filled reasons for fleet managers)
+- [ ] Archive templates (pre-filled reasons for multi-vehicle owners)
 - [ ] Export archived vehicle data to PDF/JSON before deletion
 - [ ] Archive history log (track who archived when)
 - [ ] Scheduled archiving (auto-archive vehicles after X days of inactivity)
-- [ ] Archive analytics (view trends in fleet turnover)
+- [ ] Archive analytics (view trends in vehicle turnover)
 - [ ] Restore with selective data (un-archive but don't restore certain records)
 
 ## API Reference

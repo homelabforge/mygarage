@@ -30,6 +30,9 @@ from app.routes.window_sticker import router as window_sticker_router
 from app.routes.notifications import router as notifications_router
 from app.routes.maintenance_templates import maintenance_templates_router
 from app.routes.shop_discovery import router as shop_discovery_router
+from app.routes.vendors import router as vendors_router
+from app.routes.service_visits import router as service_visits_router
+from app.routes.maintenance_schedule import router as maintenance_schedule_router
 
 __all__ = [
     "vin_router",
@@ -63,4 +66,7 @@ __all__ = [
     "notifications_router",
     "maintenance_templates_router",
     "shop_discovery_router",
+    "vendors_router",
+    "service_visits_router",
+    "maintenance_schedule_router",
 ]

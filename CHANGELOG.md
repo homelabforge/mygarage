@@ -8,6 +8,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Maintenance System Overhaul - Complete Service Tracking Redesign**
+  - **Vendors**: New vendor management system replacing address book for service providers
+    - Dedicated vendor table with type (shop, dealer, self, other)
+    - Vendor history tracking (service count, total spent, last visit)
+    - Search/autocomplete for existing vendors when creating service visits
+  - **Service Visits**: Replaced service records with comprehensive visit tracking
+    - Visit-level data: date, vendor, mileage, notes
+    - Multiple line items per visit (parts, labor, services)
+    - Line items: description, category, service type, cost, notes
+    - Tax & fees tracking: tax amount, shop supplies, misc fees
+    - Subtotal (line items only) and calculated total (including all fees)
+    - Attachment support migrated from old service records
+  - **Maintenance Schedule Items**: New proactive maintenance tracking
+    - Schedule items with due dates (by date or mileage)
+    - Status tracking: upcoming, due soon, overdue, completed
+    - Link service visits to schedule items when completing maintenance
+    - "Log Service" quick action from schedule items
+  - **UI Reorganization**
+    - Removed duplicate reminders from Service tab (now only in Tracking → Reminders)
+    - Moved Maintenance Templates into Maintenance Schedule modal
+    - Collapsible service visit cards with cost breakdown in expanded view
+    - Maintenance Schedule button opens modal with templates and schedule items
+
+- **Tax & Fees on Service Visits**
+  - Three new fields: Tax Amount, Shop Supplies, Misc Fees
+  - Live subtotal/total calculation in form
+  - Cost breakdown display in service visit list (expanded view)
+  - Totals now match real-world invoices with all charges included
+
+- **POI Finder - Interactive Map & Multiple Providers**
+  - Interactive Leaflet map with POI markers and clustering
+  - Map/List view toggle with persistent preference
+  - Click marker to see POI details, click card to highlight on map
+  - **New Providers**: Google Places, Yelp Fusion, Foursquare
+  - Provider priority configuration in Settings → Integrations
+  - Automatic fallback when primary provider fails or hits quota
+  - Rate limiting and caching per provider
+
 - **POI Finder - Multi-Category Points of Interest Discovery**
   - Renamed "Shop Finder" to "POI Finder" with expanded functionality
   - Multi-category search: Auto/RV Shops, EV Charging Stations, Fuel Stations
@@ -22,7 +60,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - New API endpoints: `/api/poi/*` with backward compatibility for `/api/shop-discovery/*`
   - Database: Added `poi_category` and `poi_metadata` fields to address_book table
   - Supported providers: TomTom (priority 1), OpenStreetMap (always available fallback)
-  - Ready for future providers: Google Places, Yelp, Foursquare, Geoapify, Mapbox
 
 ### Changed
 - **Navigation Updates**
@@ -31,23 +68,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Primary route changed from `/shop-finder` to `/poi-finder`
   - Old `/shop-finder` route maintained for backward compatibility
 
-### Technical
-- **Backend**
-  - New provider abstraction layer with `BasePOIProvider` interface
-  - `POIProviderRegistry` with automatic provider fallback
-  - `POIDiscoveryService` wraps registry for main service interface
-  - Result deduplication by external_id or lat/lon proximity
-  - Category-specific metadata stored as JSON in `poi_metadata` field
-  - Settings API endpoints for provider CRUD operations
-  - API key validation and testing endpoints
-  - Migration 027: Adds POI support to existing address_book entries
+- **Service Records → Service Visits Migration**
+  - Old service records automatically migrated to new service visit format
+  - Each old record becomes a visit with a single line item
+  - Attachments migrated to new service visit attachment system
+  - Vendors created from existing address book entries used in service records
 
-- **Frontend**
-  - New TypeScript types: `POICategory`, `POIResult`, `EVChargingMetadata`, `FuelStationMetadata`
-  - `CategoryToggle` component with accessible toggle switches
-  - `POICard` component with category-specific metadata display
-  - `POIFinder` page replaces `ShopFinder` with enhanced UI
-  - Backward compatibility: Old types re-exported, old routes still work
+### Fixed
+- **Service Visit Bugs**
+  - Fixed 500 error on service visits endpoint (missing subtotal in response)
+  - Fixed line items not saving on edit (schema missing line_items field)
+  - Fixed 422 validation error on create (vin incorrectly required in body)
+  - Fixed total mismatch between collapsed and expanded views
+
+### Technical
+- **Backend - Maintenance System**
+  - New models: `Vendor`, `ServiceVisit`, `ServiceLineItem`, `MaintenanceScheduleItem`
+  - New schemas with full CRUD support for all new entities
+  - Service layer with business logic for visits, line items, schedule items
+  - Migration 028: Convert reminders to maintenance schedule items
+  - Migration 029: Cleanup migrated reminders
+  - Migration 030: Create vendors, service_visits, service_line_items tables
+  - Migration 031: Add tax/fee columns to service_visits
+
+- **Backend - POI Providers**
+  - Google Places provider with Places API (New) integration
+  - Yelp Fusion provider with business search
+  - Foursquare Places provider with FSQ Places API
+  - Provider health monitoring and automatic failover
+  - Request caching with configurable TTL per provider
+
+- **Frontend - Maintenance System**
+  - New components: `VendorSearch`, `ServiceVisitForm`, `ServiceVisitList`, `ServiceLineItemForm`
+  - `MaintenanceSchedule` component with status indicators
+  - Tab reorganization in vehicle detail view
+  - Form state management for complex nested data (visits with line items)
+
+- **Frontend - POI Map**
+  - Leaflet integration with OpenStreetMap tiles
+  - Custom marker icons per POI category
+  - Marker clustering for dense areas
+  - Synchronized map/list selection state
 
 ## [2.19.0] - 2026-01-03
 
@@ -1019,21 +1080,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.8.0] - 2025-11-23
 
 ### Added
-- **Fleet Analytics Enhancements**
-  - CSV export functionality for fleet-wide data analysis
-  - PDF export with professional fleet report generation
-  - Fleet Analytics Help Modal with comprehensive feature documentation
+- **Garage Analytics Enhancements**
+  - CSV export functionality for garage-wide data analysis
+  - PDF export with professional garage report generation
+  - Garage Analytics Help Modal with comprehensive feature documentation
   - Rolling average trend lines (3-month and 6-month) on monthly spending chart
   - Visual spending trend analysis with smooth overlay indicators
 
 - **Individual Vehicle Analytics Enhancements**
   - CSV export for vehicle-specific analytics data
   - PDF export with detailed vehicle reports
-  - Export functionality mirrors fleet analytics capabilities
+  - Export functionality mirrors garage analytics capabilities
   - Consistent export button styling across both analytics pages
 
 ### Changed
-- Standardized export button UI across Fleet and Vehicle Analytics pages
+- Standardized export button UI across Garage and Vehicle Analytics pages
 - Updated button styling to use garage theme colors for consistency
 - Removed "Export" prefix from button labels (now just "CSV" and "PDF")
 

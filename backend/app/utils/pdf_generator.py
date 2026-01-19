@@ -963,8 +963,8 @@ class PDFReportGenerator:
         buffer.seek(0)
         return buffer
 
-    def generate_fleet_analytics_pdf(self, fleet_data: Dict[str, Any]) -> BytesIO:
-        """Generate fleet analytics summary PDF report."""
+    def generate_garage_analytics_pdf(self, garage_data: Dict[str, Any]) -> BytesIO:
+        """Generate garage analytics summary PDF report."""
         buffer = BytesIO()
         doc = SimpleDocTemplate(
             buffer, pagesize=letter, topMargin=0.5 * inch, bottomMargin=0.5 * inch
@@ -972,29 +972,29 @@ class PDFReportGenerator:
         story = []
 
         # Title
-        title = Paragraph("Fleet Analytics Report", self.styles["CustomTitle"])
+        title = Paragraph("Garage Analytics Report", self.styles["CustomTitle"])
         story.append(title)
         story.append(Spacer(1, 0.2 * inch))
 
-        # Fleet Info
-        fleet_text = f"""
-        <b>Total Vehicles:</b> {fleet_data.get("vehicle_count", 0)}<br/>
+        # Garage Info
+        garage_text = f"""
+        <b>Total Vehicles:</b> {garage_data.get("vehicle_count", 0)}<br/>
         <b>Report Generated:</b> {datetime.now().strftime("%m/%d/%Y %I:%M %p")}
         """
-        story.append(Paragraph(fleet_text, self.styles["InfoText"]))
+        story.append(Paragraph(garage_text, self.styles["InfoText"]))
         story.append(Spacer(1, 0.3 * inch))
 
-        # Fleet Cost Summary
-        total_costs = fleet_data.get("total_costs", {})
-        story.append(Paragraph("Fleet Cost Summary", self.styles["CustomSubtitle"]))
+        # Garage Cost Summary
+        total_costs = garage_data.get("total_costs", {})
+        story.append(Paragraph("Garage Cost Summary", self.styles["CustomSubtitle"]))
         story.append(Spacer(1, 0.1 * inch))
 
-        fleet_summary_data = [
+        garage_summary_data = [
             ["Category", "Amount"],
             [
-                "Fleet Value",
+                "Garage Value",
                 self._format_currency(
-                    Decimal(str(total_costs.get("total_fleet_value", 0)))
+                    Decimal(str(total_costs.get("total_garage_value", 0)))
                 ),
             ],
             [
@@ -1028,12 +1028,14 @@ class PDFReportGenerator:
                 Decimal(str(total_costs.get("total_taxes", 0))),
             ]
         )
-        fleet_summary_data.append(
+        garage_summary_data.append(
             ["Total Operating Cost", self._format_currency(grand_total)]
         )
 
-        fleet_summary_table = Table(fleet_summary_data, colWidths=[3 * inch, 3 * inch])
-        fleet_summary_table.setStyle(
+        garage_summary_table = Table(
+            garage_summary_data, colWidths=[3 * inch, 3 * inch]
+        )
+        garage_summary_table.setStyle(
             TableStyle(
                 [
                     ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#3b82f6")),
@@ -1059,11 +1061,11 @@ class PDFReportGenerator:
                 ]
             )
         )
-        story.append(fleet_summary_table)
+        story.append(garage_summary_table)
         story.append(Spacer(1, 0.3 * inch))
 
         # Cost Breakdown by Category
-        cost_breakdown = fleet_data.get("cost_breakdown_by_category", [])
+        cost_breakdown = garage_data.get("cost_breakdown_by_category", [])
         if cost_breakdown:
             story.append(
                 Paragraph("Cost Breakdown by Category", self.styles["CustomSubtitle"])
@@ -1104,7 +1106,7 @@ class PDFReportGenerator:
             story.append(PageBreak())
 
         # Cost by Vehicle
-        cost_by_vehicle = fleet_data.get("cost_by_vehicle", [])
+        cost_by_vehicle = garage_data.get("cost_by_vehicle", [])
         if cost_by_vehicle:
             story.append(Paragraph("Cost by Vehicle", self.styles["CustomSubtitle"]))
             story.append(Spacer(1, 0.1 * inch))
@@ -1167,7 +1169,7 @@ class PDFReportGenerator:
             story.append(Spacer(1, 0.3 * inch))
 
         # Monthly Trends
-        monthly_trends = fleet_data.get("monthly_trends", [])
+        monthly_trends = garage_data.get("monthly_trends", [])
         if monthly_trends:
             story.append(
                 Paragraph(

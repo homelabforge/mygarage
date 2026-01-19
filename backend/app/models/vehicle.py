@@ -162,6 +162,14 @@ class Vehicle(Base):
     maintenance_templates: Mapped[list["MaintenanceTemplate"]] = relationship(
         "MaintenanceTemplate", back_populates="vehicle", cascade="all, delete-orphan"
     )
+    service_visits: Mapped[list["ServiceVisit"]] = relationship(
+        "ServiceVisit", back_populates="vehicle", cascade="all, delete-orphan"
+    )
+    schedule_items: Mapped[list["MaintenanceScheduleItem"]] = relationship(
+        "MaintenanceScheduleItem",
+        back_populates="vehicle",
+        cascade="all, delete-orphan",
+    )
 
     __table_args__ = (
         CheckConstraint(
@@ -223,3 +231,5 @@ from app.models.warranty import WarrantyRecord
 from app.models.insurance import InsurancePolicy
 from app.models.toll import TollTag, TollTransaction
 from app.models.document import Document
+from app.models.service_visit import ServiceVisit
+from app.models.maintenance_schedule_item import MaintenanceScheduleItem

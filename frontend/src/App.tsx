@@ -25,7 +25,7 @@ const VehicleDetail = lazy(() => import('./pages/VehicleDetail'))
 const VehicleEdit = lazy(() => import('./pages/VehicleEdit'))
 const WindowStickerTest = lazy(() => import('./pages/WindowStickerTest'))
 const Analytics = lazy(() => import('./pages/Analytics'))
-const FleetAnalytics = lazy(() => import('./pages/FleetAnalytics'))
+const GarageAnalytics = lazy(() => import('./pages/GarageAnalytics'))
 const Settings = lazy(() => import('./pages/Settings'))
 const About = lazy(() => import('./pages/About'))
 
@@ -54,7 +54,7 @@ function App() {
                 <Route element={<ProtectedRoute />}>
                   <Route path="/" element={<Layout />}>
                     <Route index element={<Dashboard />} />
-                    <Route path="analytics" element={<FleetAnalytics />} />
+                    <Route path="analytics" element={<GarageAnalytics />} />
                     <Route path="calendar" element={<Calendar />} />
                     <Route path="address-book" element={<AddressBook />} />
                     <Route path="poi-finder" element={<POIFinder />} />

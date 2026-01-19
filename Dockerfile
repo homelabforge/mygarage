@@ -1,11 +1,11 @@
 # ==============================================================================
 # Multi-stage Dockerfile for MyGarage
-# Frontend: Bun 1.3.4 (migrated from Node.js 25 on 2025-12-09)
-# Backend: Python 3.14
+# Frontend: Bun 1.3.6 (migrated from Node.js 25 on 2025-12-09)
+# Backend: Python 3.14-slim
 # ==============================================================================
 
 # Stage 1: Build frontend with Bun
-FROM oven/bun:1.3.5-alpine AS frontend-builder
+FROM oven/bun:1.3.6-alpine AS frontend-builder
 
 # Set working directory
 WORKDIR /app/frontend
@@ -47,7 +47,7 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1
 
 # Upgrade pip to latest version and clean up old metadata
-RUN pip install --no-cache-dir --upgrade pip && \
+RUN pip install --no-cache-dir --upgrade pip==25.3 && \
     rm -rf /usr/local/lib/python3.14/site-packages/pip-25.2.dist-info 2>/dev/null || true
 
 # Copy backend code and install with dependencies (including dev/test dependencies)
@@ -65,11 +65,11 @@ LABEL org.opencontainers.image.authors="HomeLabForge"
 LABEL org.opencontainers.image.title="MyGarage"
 LABEL org.opencontainers.image.url="https://www.homelabforge.io"
 LABEL org.opencontainers.image.description="Vehicle and garage management platform with maintenance tracking"
-LABEL org.opencontainers.image.frontend.builder="bun-1.3.4"
+LABEL org.opencontainers.image.frontend.builder="bun-1.3.6"
 
 # HTTP server metadata
 LABEL http.server.name="granian"
-LABEL http.server.version="2.6.0"
+LABEL http.server.version="2.6.1"
 LABEL http.server.type="asgi"
 
 WORKDIR /app

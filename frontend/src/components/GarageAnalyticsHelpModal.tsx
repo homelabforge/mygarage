@@ -1,15 +1,15 @@
 /**
- * Fleet Analytics Help Modal - Documentation for fleet-wide analytics features
+ * Garage Analytics Help Modal - Documentation for garage-wide analytics features
  */
 
 import { X, Info } from 'lucide-react'
 
-interface FleetAnalyticsHelpModalProps {
+interface GarageAnalyticsHelpModalProps {
   isOpen: boolean
   onClose: () => void
 }
 
-export default function FleetAnalyticsHelpModal({ isOpen, onClose }: FleetAnalyticsHelpModalProps) {
+export default function GarageAnalyticsHelpModal({ isOpen, onClose }: GarageAnalyticsHelpModalProps) {
   if (!isOpen) return null
 
   return (
@@ -19,7 +19,7 @@ export default function FleetAnalyticsHelpModal({ isOpen, onClose }: FleetAnalyt
         <div className="sticky top-0 bg-garage-surface border-b border-garage-border p-6 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Info className="w-6 h-6 text-garage-primary" />
-            <h2 className="text-2xl font-bold text-garage-text">Fleet Analytics Help</h2>
+            <h2 className="text-2xl font-bold text-garage-text">Garage Analytics Help</h2>
           </div>
           <button
             onClick={onClose}
@@ -36,19 +36,19 @@ export default function FleetAnalyticsHelpModal({ isOpen, onClose }: FleetAnalyt
           <section>
             <h3 className="text-xl font-semibold text-garage-text mb-3">Overview</h3>
             <p className="text-garage-text-muted leading-relaxed">
-              The Fleet Analytics page provides a comprehensive view of all vehicles in your garage, allowing you to
+              The Garage Analytics page provides a comprehensive view of all vehicles in your garage, allowing you to
               analyze total costs, compare vehicle expenses, identify spending patterns, and make informed decisions
-              about your fleet management strategy.
+              about your garage management strategy.
             </p>
           </section>
 
-          {/* Fleet Cost Summary */}
+          {/* Garage Cost Summary */}
           <section>
-            <h3 className="text-xl font-semibold text-garage-text mb-3">Fleet Cost Summary</h3>
+            <h3 className="text-xl font-semibold text-garage-text mb-3">Garage Cost Summary</h3>
             <div className="space-y-2 text-garage-text-muted">
-              <p><strong className="text-garage-text">Fleet Value:</strong> Total purchase price of all vehicles.</p>
+              <p><strong className="text-garage-text">Garage Value:</strong> Total purchase price of all vehicles.</p>
               <p><strong className="text-garage-text">Maintenance:</strong> Total service and repair costs across all vehicles.</p>
-              <p><strong className="text-garage-text">Fuel:</strong> Total fuel expenses for the entire fleet.</p>
+              <p><strong className="text-garage-text">Fuel:</strong> Total fuel expenses for the entire garage.</p>
               <p><strong className="text-garage-text">Insurance:</strong> Combined insurance costs for all vehicles.</p>
               <p><strong className="text-garage-text">Taxes:</strong> Total registration and tax expenses.</p>
             </div>
@@ -58,9 +58,9 @@ export default function FleetAnalyticsHelpModal({ isOpen, onClose }: FleetAnalyt
           <section>
             <h3 className="text-xl font-semibold text-garage-text mb-3">Cost Breakdown by Category</h3>
             <p className="text-garage-text-muted">
-              The pie chart shows how fleet spending is distributed across different categories. Use this to identify
+              The pie chart shows how garage spending is distributed across different categories. Use this to identify
               which expense types consume the largest portion of your budget. Each category displays its percentage
-              of total fleet costs.
+              of total garage costs.
             </p>
           </section>
 
@@ -73,7 +73,7 @@ export default function FleetAnalyticsHelpModal({ isOpen, onClose }: FleetAnalyt
               </p>
               <ul className="list-disc list-inside ml-4 space-y-1">
                 <li>Identify which vehicles are most expensive to maintain</li>
-                <li>Compare fuel efficiency across your fleet</li>
+                <li>Compare fuel efficiency across your garage</li>
                 <li>Make data-driven decisions about vehicle replacement</li>
                 <li>Spot vehicles with unusually high maintenance costs</li>
                 <li>Budget for individual vehicle operating costs</li>
@@ -86,7 +86,7 @@ export default function FleetAnalyticsHelpModal({ isOpen, onClose }: FleetAnalyt
             <h3 className="text-xl font-semibold text-garage-text mb-3">Monthly Spending Trend</h3>
             <div className="space-y-2 text-garage-text-muted">
               <p>
-                The stacked bar chart shows fleet-wide spending over time, separated into maintenance and fuel costs.
+                The stacked bar chart shows garage-wide spending over time, separated into maintenance and fuel costs.
                 Trend lines overlay the bars to show rolling averages:
               </p>
               <p><strong className="text-garage-text">3-Month Rolling Average:</strong> Smooths short-term fluctuations (green dashed line).</p>
@@ -95,9 +95,9 @@ export default function FleetAnalyticsHelpModal({ isOpen, onClose }: FleetAnalyt
                 Use these trends to:
               </p>
               <ul className="list-disc list-inside ml-4 space-y-1">
-                <li>Identify seasonal spending patterns across your fleet</li>
+                <li>Identify seasonal spending patterns across your garage</li>
                 <li>Spot months with unusually high or low expenses</li>
-                <li>Track whether fleet costs are trending up or down over time</li>
+                <li>Track whether garage costs are trending up or down over time</li>
                 <li>Plan for predictable expense spikes</li>
               </ul>
             </div>
@@ -130,13 +130,13 @@ export default function FleetAnalyticsHelpModal({ isOpen, onClose }: FleetAnalyt
           <section>
             <h3 className="text-xl font-semibold text-garage-text mb-3">Export Options</h3>
             <div className="space-y-2 text-garage-text-muted">
-              <p><strong className="text-garage-text">CSV Export:</strong> Download fleet data in spreadsheet format for further analysis, budgeting, or reporting.</p>
-              <p><strong className="text-garage-text">PDF Export:</strong> Generate a professional fleet report with summary tables and totals for stakeholders or records.</p>
+              <p><strong className="text-garage-text">CSV Export:</strong> Download garage data in spreadsheet format for further analysis, budgeting, or reporting.</p>
+              <p><strong className="text-garage-text">PDF Export:</strong> Generate a professional garage report with summary tables and totals for stakeholders or records.</p>
               <p className="mt-2">
                 Exported data includes:
               </p>
               <ul className="list-disc list-inside ml-4 space-y-1">
-                <li>Fleet cost summary</li>
+                <li>Garage cost summary</li>
                 <li>Category breakdowns</li>
                 <li>Per-vehicle cost details</li>
                 <li>Monthly spending trends</li>
@@ -144,17 +144,17 @@ export default function FleetAnalyticsHelpModal({ isOpen, onClose }: FleetAnalyt
             </div>
           </section>
 
-          {/* Fleet Management Insights */}
+          {/* Garage Management Insights */}
           <section>
-            <h3 className="text-xl font-semibold text-garage-text mb-3">Fleet Management Insights</h3>
+            <h3 className="text-xl font-semibold text-garage-text mb-3">Garage Management Insights</h3>
             <div className="space-y-2 text-garage-text-muted">
-              <p>Use Fleet Analytics to answer key questions:</p>
+              <p>Use Garage Analytics to answer key questions:</p>
               <ul className="list-disc list-inside ml-4 space-y-1">
-                <li><strong className="text-garage-text">Budget Planning:</strong> What should I budget for fleet expenses next quarter/year?</li>
+                <li><strong className="text-garage-text">Budget Planning:</strong> What should I budget for garage expenses next quarter/year?</li>
                 <li><strong className="text-garage-text">Vehicle Replacement:</strong> Which vehicles should I consider replacing due to high operating costs?</li>
-                <li><strong className="text-garage-text">Cost Allocation:</strong> How much does each vehicle contribute to total fleet costs?</li>
+                <li><strong className="text-garage-text">Cost Allocation:</strong> How much does each vehicle contribute to total garage costs?</li>
                 <li><strong className="text-garage-text">Efficiency:</strong> Which vehicles have the best fuel economy or lowest maintenance costs?</li>
-                <li><strong className="text-garage-text">Trend Analysis:</strong> Are fleet costs increasing, decreasing, or stable over time?</li>
+                <li><strong className="text-garage-text">Trend Analysis:</strong> Are garage costs increasing, decreasing, or stable over time?</li>
                 <li><strong className="text-garage-text">Category Focus:</strong> Where should I focus cost reduction efforts (fuel, maintenance, insurance)?</li>
               </ul>
             </div>
@@ -162,12 +162,12 @@ export default function FleetAnalyticsHelpModal({ isOpen, onClose }: FleetAnalyt
 
           {/* Tips */}
           <section className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <h3 className="text-xl font-semibold text-blue-900 mb-3">Tips for Effective Fleet Management</h3>
+            <h3 className="text-xl font-semibold text-blue-900 mb-3">Tips for Effective Garage Management</h3>
             <ul className="list-disc list-inside space-y-1 text-blue-800">
               <li>Regularly review the monthly trend to catch cost increases early</li>
               <li>Compare similar vehicles to identify maintenance outliers</li>
               <li>Track fuel costs to identify opportunities for fuel economy improvements</li>
-              <li>Use exports for quarterly or annual fleet reporting</li>
+              <li>Use exports for quarterly or annual garage reporting</li>
               <li>Monitor the cost breakdown chart to ensure balanced spending across categories</li>
               <li>Consider total cost of ownership (not just purchase price) when evaluating vehicles</li>
               <li>Look for seasonal patterns that can help with budget planning</li>
@@ -179,7 +179,7 @@ export default function FleetAnalyticsHelpModal({ isOpen, onClose }: FleetAnalyt
           <section>
             <h3 className="text-xl font-semibold text-garage-text mb-3">Data Requirements</h3>
             <div className="space-y-2 text-garage-text-muted">
-              <p>For accurate fleet analytics:</p>
+              <p>For accurate garage analytics:</p>
               <ul className="list-disc list-inside ml-4 space-y-1">
                 <li>Add all vehicles to your garage with purchase prices</li>
                 <li>Enter service records for all vehicles</li>

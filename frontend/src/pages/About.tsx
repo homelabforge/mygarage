@@ -84,7 +84,7 @@ const featureGroups = [
     icon: BarChart3,
     points: [
       'Individual vehicle analytics with cost breakdowns, spending trends, and rolling averages.',
-      'Fleet-wide analytics comparing costs across all vehicles in your garage.',
+      'Garage-wide analytics comparing costs across all vehicles in your garage.',
       'Fuel efficiency tracking with MPG calculations and towing/hauling impact analysis.',
       'Anomaly detection automatically identifies unusual spending patterns.',
       'Seasonal spending analysis to identify patterns and plan budgets.',
@@ -197,14 +197,14 @@ export default function About() {
           <h2 className="text-2xl font-bold text-garage-text mb-4">What is MyGarage?</h2>
           <p className="text-garage-text-muted leading-relaxed mb-4">
             MyGarage is a comprehensive, self-hosted vehicle maintenance tracking application designed
-            for car enthusiasts, fleet managers, and anyone who wants to keep detailed records of their
+            for car enthusiasts, hobbyists, and anyone who wants to keep detailed records of their
             vehicles. Track service history, fuel consumption, maintenance schedules, and more—all in
             one centralized location.
           </p>
           <p className="text-garage-text-muted leading-relaxed">
             Built with privacy and control in mind, MyGarage runs entirely on your own infrastructure.
             Your data stays with you, with no cloud dependencies or subscription fees. Whether you're
-            managing a single vehicle or an entire fleet, MyGarage provides the tools you need to stay
+            managing a single vehicle or an entire garage, MyGarage provides the tools you need to stay
             organized and maintain your vehicles properly.
           </p>
         </div>

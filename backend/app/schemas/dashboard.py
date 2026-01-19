@@ -49,7 +49,7 @@ class DashboardResponse(BaseModel):
     total_vehicles: int
     vehicles: list[VehicleStatistics]
 
-    # Fleet-wide totals
+    # Garage-wide totals
     total_service_records: int
     total_fuel_records: int
     total_reminders: int

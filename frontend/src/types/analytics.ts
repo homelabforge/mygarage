@@ -151,20 +151,20 @@ export interface VehicleAnalytics {
   }
 }
 
-export interface FleetCostTotals {
-  total_fleet_value: string
+export interface GarageCostTotals {
+  total_garage_value: string
   total_maintenance: string
   total_fuel: string
   total_insurance: string
   total_taxes: string
 }
 
-export interface FleetCostByCategory {
+export interface GarageCostByCategory {
   category: string
   amount: string
 }
 
-export interface FleetVehicleCost {
+export interface GarageVehicleCost {
   vin: string
   name: string
   purchase_price: string
@@ -173,18 +173,18 @@ export interface FleetVehicleCost {
   total_cost: string
 }
 
-export interface FleetMonthlyTrend {
+export interface GarageMonthlyTrend {
   month: string
   maintenance: string
   fuel: string
   total: string
 }
 
-export interface FleetAnalytics {
-  total_costs: FleetCostTotals
-  cost_breakdown_by_category: FleetCostByCategory[]
-  cost_by_vehicle: FleetVehicleCost[]
-  monthly_trends: FleetMonthlyTrend[]
+export interface GarageAnalytics {
+  total_costs: GarageCostTotals
+  cost_breakdown_by_category: GarageCostByCategory[]
+  cost_by_vehicle: GarageVehicleCost[]
+  monthly_trends: GarageMonthlyTrend[]
   vehicle_count: number
 }
 
