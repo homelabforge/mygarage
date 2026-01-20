@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import Optional
 from fastapi import HTTPException, status
 
+from app.utils.logging_utils import sanitize_for_log
+
 logger = logging.getLogger(__name__)
 
 
@@ -81,7 +83,9 @@ def validate_path_within_base(
 
     except (ValueError, RuntimeError):
         logger.warning(
-            "Path traversal attempt detected: %s outside %s", file_path, base_path
+            "Path traversal attempt detected: %s outside %s",
+            sanitize_for_log(file_path),
+            sanitize_for_log(base_path),
         )
 
         if raise_error:

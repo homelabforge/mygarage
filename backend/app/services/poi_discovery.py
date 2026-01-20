@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.poi.base import POICategory
 from app.services.poi.registry import POIProviderRegistry
+from app.utils.logging_utils import sanitize_for_log, mask_coordinates
 
 logger = logging.getLogger(__name__)
 
@@ -62,11 +63,10 @@ class POIDiscoveryService:
             - provider_used: Name of the provider that returned results
         """
         logger.info(
-            "Searching for POIs near (%s, %s) within %dm, categories: %s",
-            latitude,
-            longitude,
+            "Searching for POIs near (%s) within %dm, categories: %s",
+            mask_coordinates(latitude, longitude),
             radius_meters,
-            [c.value for c in categories],
+            [sanitize_for_log(c.value) for c in categories],
         )
 
         # Search using provider registry with automatic fallback
@@ -78,7 +78,11 @@ class POIDiscoveryService:
         # Some providers return distance_meters, others don't
         results.sort(key=lambda x: x.get("distance_meters", float("inf")))
 
-        logger.info("Found %d POIs using provider: %s", len(results), provider_used)
+        logger.info(
+            "Found %d POIs using provider: %s",
+            len(results),
+            sanitize_for_log(provider_used),
+        )
 
         return results, provider_used
 

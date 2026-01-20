@@ -279,7 +279,8 @@ class OSMProvider(BasePOIProvider):
                 else:
                     charging_speeds.append("Level 1")
             except ValueError:
-                pass
+                # Ignore invalid capacity values - they're optional
+                charging_speeds.append("Unknown")
 
         return {
             "connector_types": connector_types,

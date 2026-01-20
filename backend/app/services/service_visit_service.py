@@ -27,6 +27,7 @@ from app.schemas.service_visit import (
     VendorSummary,
 )
 from app.utils.cache import invalidate_cache_for_vehicle
+from app.utils.logging_utils import sanitize_for_log
 from app.utils.odometer_sync import sync_odometer_from_record
 
 logger = logging.getLogger(__name__)
@@ -92,7 +93,9 @@ class ServiceVisitService:
             raise
         except OperationalError as e:
             logger.error(
-                "Database connection error listing service visits for %s: %s", vin, e
+                "Database connection error listing service visits for %s: %s",
+                sanitize_for_log(vin),
+                sanitize_for_log(e),
             )
             raise HTTPException(
                 status_code=503, detail="Database temporarily unavailable"
@@ -219,7 +222,9 @@ class ServiceVisitService:
             await self.db.commit()
             await self.db.refresh(visit)
 
-            logger.info("Created service visit %s for %s", visit.id, vin)
+            logger.info(
+                "Created service visit %s for %s", visit.id, sanitize_for_log(vin)
+            )
 
             # Auto-sync odometer
             if visit.date and visit.mileage:
@@ -234,7 +239,9 @@ class ServiceVisitService:
                     )
                 except Exception as e:
                     logger.warning(
-                        "Failed to auto-sync odometer for visit %s: %s", visit.id, e
+                        "Failed to auto-sync odometer for visit %s: %s",
+                        visit.id,
+                        sanitize_for_log(e),
                     )
 
             await invalidate_cache_for_vehicle(vin)
@@ -248,14 +255,16 @@ class ServiceVisitService:
             await self.db.rollback()
             logger.error(
                 "Database constraint violation creating service visit for %s: %s",
-                vin,
-                e,
+                sanitize_for_log(vin),
+                sanitize_for_log(e),
             )
             raise HTTPException(status_code=409, detail="Invalid service visit data")
         except OperationalError as e:
             await self.db.rollback()
             logger.error(
-                "Database connection error creating service visit for %s: %s", vin, e
+                "Database connection error creating service visit for %s: %s",
+                sanitize_for_log(vin),
+                sanitize_for_log(e),
             )
             raise HTTPException(
                 status_code=503, detail="Database temporarily unavailable"
@@ -325,7 +334,9 @@ class ServiceVisitService:
             await self.db.commit()
             await self.db.refresh(visit)
 
-            logger.info("Updated service visit %s for %s", visit_id, vin)
+            logger.info(
+                "Updated service visit %s for %s", visit_id, sanitize_for_log(vin)
+            )
 
             # Auto-sync odometer
             if visit.date and visit.mileage:
@@ -340,7 +351,9 @@ class ServiceVisitService:
                     )
                 except Exception as e:
                     logger.warning(
-                        "Failed to auto-sync odometer for visit %s: %s", visit_id, e
+                        "Failed to auto-sync odometer for visit %s: %s",
+                        visit_id,
+                        sanitize_for_log(e),
                     )
 
             await invalidate_cache_for_vehicle(vin)
@@ -353,8 +366,8 @@ class ServiceVisitService:
             logger.error(
                 "Database constraint violation updating visit %s for %s: %s",
                 visit_id,
-                vin,
-                e,
+                sanitize_for_log(vin),
+                sanitize_for_log(e),
             )
             raise HTTPException(status_code=409, detail="Database constraint violation")
         except OperationalError as e:
@@ -362,8 +375,8 @@ class ServiceVisitService:
             logger.error(
                 "Database connection error updating visit %s for %s: %s",
                 visit_id,
-                vin,
-                e,
+                sanitize_for_log(vin),
+                sanitize_for_log(e),
             )
             raise HTTPException(
                 status_code=503, detail="Database temporarily unavailable"
@@ -394,7 +407,9 @@ class ServiceVisitService:
             await self.db.delete(visit)
             await self.db.commit()
 
-            logger.info("Deleted service visit %s for %s", visit_id, vin)
+            logger.info(
+                "Deleted service visit %s for %s", visit_id, sanitize_for_log(vin)
+            )
             await invalidate_cache_for_vehicle(vin)
 
         except HTTPException:
@@ -404,8 +419,8 @@ class ServiceVisitService:
             logger.error(
                 "Database constraint violation deleting visit %s for %s: %s",
                 visit_id,
-                vin,
-                e,
+                sanitize_for_log(vin),
+                sanitize_for_log(e),
             )
             raise HTTPException(
                 status_code=409, detail="Cannot delete visit with dependent data"
@@ -415,8 +430,8 @@ class ServiceVisitService:
             logger.error(
                 "Database connection error deleting visit %s for %s: %s",
                 visit_id,
-                vin,
-                e,
+                sanitize_for_log(vin),
+                sanitize_for_log(e),
             )
             raise HTTPException(
                 status_code=503, detail="Database temporarily unavailable"
@@ -486,7 +501,10 @@ class ServiceVisitService:
             await self.db.refresh(line_item)
 
             logger.info(
-                "Added line item %s to visit %s for %s", line_item.id, visit_id, vin
+                "Added line item %s to visit %s for %s",
+                line_item.id,
+                visit_id,
+                sanitize_for_log(vin),
             )
             await invalidate_cache_for_vehicle(vin)
 
@@ -499,7 +517,7 @@ class ServiceVisitService:
             logger.error(
                 "Database constraint violation adding line item to visit %s: %s",
                 visit_id,
-                e,
+                sanitize_for_log(e),
             )
             raise HTTPException(status_code=409, detail="Invalid line item data")
         except OperationalError as e:
@@ -507,7 +525,7 @@ class ServiceVisitService:
             logger.error(
                 "Database connection error adding line item to visit %s: %s",
                 visit_id,
-                e,
+                sanitize_for_log(e),
             )
             raise HTTPException(
                 status_code=503, detail="Database temporarily unavailable"
@@ -549,7 +567,10 @@ class ServiceVisitService:
             await self.db.commit()
 
             logger.info(
-                "Deleted line item %s from visit %s for %s", line_item_id, visit_id, vin
+                "Deleted line item %s from visit %s for %s",
+                line_item_id,
+                visit_id,
+                sanitize_for_log(vin),
             )
             await invalidate_cache_for_vehicle(vin)
 
@@ -558,7 +579,9 @@ class ServiceVisitService:
         except OperationalError as e:
             await self.db.rollback()
             logger.error(
-                "Database connection error deleting line item %s: %s", line_item_id, e
+                "Database connection error deleting line item %s: %s",
+                line_item_id,
+                sanitize_for_log(e),
             )
             raise HTTPException(
                 status_code=503, detail="Database temporarily unavailable"

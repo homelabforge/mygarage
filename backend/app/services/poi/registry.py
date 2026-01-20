@@ -11,6 +11,7 @@ from app.services.poi.google_places import GooglePlacesProvider
 from app.services.poi.yelp import YelpProvider
 from app.services.poi.foursquare import FoursquareProvider
 from app.services.settings_service import SettingsService
+from app.utils.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
 
@@ -177,7 +178,9 @@ class POIProviderRegistry:
 
             except Exception as e:
                 logger.error(
-                    "Failed to register provider %s: %s", config["name"], str(e)
+                    "Failed to register provider %s: %s",
+                    sanitize_for_log(config["name"]),
+                    sanitize_for_log(e),
                 )
                 continue
 
@@ -246,8 +249,8 @@ class POIProviderRegistry:
                     except Exception as e:
                         logger.warning(
                             "Failed to track usage for %s: %s",
-                            provider.provider_name,
-                            str(e),
+                            sanitize_for_log(provider.provider_name),
+                            sanitize_for_log(e),
                         )
 
                     return results, provider.provider_name
@@ -260,8 +263,8 @@ class POIProviderRegistry:
             except Exception as e:
                 logger.warning(
                     "Provider %s failed: %s, trying next provider",
-                    provider.provider_name,
-                    str(e),
+                    sanitize_for_log(provider.provider_name),
+                    sanitize_for_log(e),
                 )
                 continue
 

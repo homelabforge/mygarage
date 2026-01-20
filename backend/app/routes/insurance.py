@@ -16,6 +16,7 @@ from app.schemas.insurance import (
 )
 from app.services.auth import require_auth
 from app.services.document_ocr import document_ocr_service
+from app.utils.logging_utils import sanitize_for_log
 
 router = APIRouter(prefix="/api", tags=["Insurance"])
 logger = logging.getLogger(__name__)
@@ -192,7 +193,9 @@ async def parse_insurance_pdf(
     try:
         # Parse using unified document OCR service
         logger.info(
-            "Parsing insurance document for VIN %s (provider hint: %s)", vin, provider
+            "Parsing insurance document for VIN %s (provider hint: %s)",
+            sanitize_for_log(vin),
+            sanitize_for_log(str(provider)),
         )
 
         parsed_data = await document_ocr_service.extract_insurance_data(
@@ -235,17 +238,18 @@ async def parse_insurance_pdf(
             )
 
         logger.info(
-            f"Successfully parsed document using {parsed_data.get('parser_name')} - "
-            f"found {len(parsed_data.get('vehicles_found', []))} vehicles, "
-            f"confidence: {parsed_data.get('confidence_score', 0):.0f}%"
+            "Successfully parsed document using %s - found %d vehicles, confidence: %.0f%%",
+            sanitize_for_log(str(parsed_data.get("parser_name"))),
+            len(parsed_data.get("vehicles_found", [])),
+            parsed_data.get("confidence_score", 0),
         )
         return response
 
     except ValueError as e:
-        logger.error("Document parsing error: %s", e)
+        logger.error("Document parsing error: %s", sanitize_for_log(str(e)))
         raise HTTPException(status_code=400, detail="Invalid insurance document format")
     except (OSError, IOError) as e:
-        logger.error("File system error parsing document: %s", e)
+        logger.error("File system error parsing document: %s", sanitize_for_log(str(e)))
         raise HTTPException(status_code=500, detail="Error reading uploaded document")
 
 

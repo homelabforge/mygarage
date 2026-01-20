@@ -18,6 +18,7 @@ from app.schemas.odometer import (
     OdometerRecordListResponse,
 )
 from app.services.auth import require_auth
+from app.utils.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +95,9 @@ async def list_odometer_records(
         raise
     except OperationalError as e:
         logger.error(
-            "Database connection error listing odometer records for %s: %s", vin, str(e)
+            "Database connection error listing odometer records for %s: %s",
+            sanitize_for_log(vin),
+            sanitize_for_log(str(e)),
         )
         raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
@@ -180,7 +183,9 @@ async def create_odometer_record(
         await db.commit()
         await db.refresh(record)
 
-        logger.info("Created odometer record %s for %s", record.id, vin)
+        logger.info(
+            "Created odometer record %s for %s", record.id, sanitize_for_log(vin)
+        )
 
         return OdometerRecordResponse.model_validate(record)
 
@@ -190,8 +195,8 @@ async def create_odometer_record(
         await db.rollback()
         logger.error(
             "Database constraint violation creating odometer record for %s: %s",
-            vin,
-            str(e),
+            sanitize_for_log(vin),
+            sanitize_for_log(str(e)),
         )
         raise HTTPException(
             status_code=409, detail="Duplicate or invalid odometer record"
@@ -199,7 +204,9 @@ async def create_odometer_record(
     except OperationalError as e:
         await db.rollback()
         logger.error(
-            "Database connection error creating odometer record for %s: %s", vin, str(e)
+            "Database connection error creating odometer record for %s: %s",
+            sanitize_for_log(vin),
+            sanitize_for_log(str(e)),
         )
         raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
@@ -253,7 +260,9 @@ async def update_odometer_record(
         await db.commit()
         await db.refresh(record)
 
-        logger.info("Updated odometer record %s for %s", record_id, vin)
+        logger.info(
+            "Updated odometer record %s for %s", record_id, sanitize_for_log(vin)
+        )
 
         return OdometerRecordResponse.model_validate(record)
 
@@ -264,8 +273,8 @@ async def update_odometer_record(
         logger.error(
             "Database constraint violation updating odometer record %s for %s: %s",
             record_id,
-            vin,
-            str(e),
+            sanitize_for_log(vin),
+            sanitize_for_log(str(e)),
         )
         raise HTTPException(status_code=409, detail="Database constraint violation")
     except OperationalError as e:
@@ -273,8 +282,8 @@ async def update_odometer_record(
         logger.error(
             "Database connection error updating odometer record %s for %s: %s",
             record_id,
-            vin,
-            str(e),
+            sanitize_for_log(vin),
+            sanitize_for_log(str(e)),
         )
         raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
@@ -321,7 +330,9 @@ async def delete_odometer_record(
         )
         await db.commit()
 
-        logger.info("Deleted odometer record %s for %s", record_id, vin)
+        logger.info(
+            "Deleted odometer record %s for %s", record_id, sanitize_for_log(vin)
+        )
 
         return None
 
@@ -332,8 +343,8 @@ async def delete_odometer_record(
         logger.error(
             "Database constraint violation deleting odometer record %s for %s: %s",
             record_id,
-            vin,
-            str(e),
+            sanitize_for_log(vin),
+            sanitize_for_log(str(e)),
         )
         raise HTTPException(
             status_code=409, detail="Cannot delete record with dependent data"
@@ -343,7 +354,7 @@ async def delete_odometer_record(
         logger.error(
             "Database connection error deleting odometer record %s for %s: %s",
             record_id,
-            vin,
-            str(e),
+            sanitize_for_log(vin),
+            sanitize_for_log(str(e)),
         )
         raise HTTPException(status_code=503, detail="Database temporarily unavailable")

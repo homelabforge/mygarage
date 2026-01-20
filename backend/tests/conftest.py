@@ -5,7 +5,7 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy import select
-from typing import AsyncGenerator
+from typing import AsyncGenerator, NoReturn
 import os
 
 from app.main import app
@@ -14,6 +14,12 @@ from app.models.user import User
 from app.models.vehicle import Vehicle
 from app.models.service import ServiceRecord
 from app.models.fuel import FuelRecord
+
+
+def skip_test(reason: str) -> NoReturn:
+    """Skip test with given reason - typed to indicate it never returns."""
+    pytest.skip(reason)
+    raise AssertionError("pytest.skip should have raised")
 
 
 # Test database URL - defaults to SQLite for isolated testing
@@ -145,8 +151,8 @@ async def vehicle_with_service_records(
         if service_result.scalar_one_or_none():
             return vehicle
 
-    # pytest.skip() raises Skipped exception - never returns None
-    pytest.skip(
+    # skip_test() never returns - it raises Skipped exception
+    skip_test(
         "No vehicles with service records found. Please add service records first."
     )
 
@@ -169,8 +175,8 @@ async def vehicle_with_fuel_records(
         if fuel_result.scalar_one_or_none():
             return vehicle
 
-    # pytest.skip() raises Skipped exception - never returns None
-    pytest.skip("No vehicles with fuel records found. Please add fuel records first.")
+    # skip_test() never returns - it raises Skipped exception
+    skip_test("No vehicles with fuel records found. Please add fuel records first.")
 
 
 @pytest_asyncio.fixture
@@ -195,8 +201,8 @@ async def vehicle_with_analytics_data(
         if service_result.scalar_one_or_none() and fuel_result.scalar_one_or_none():
             return vehicle
 
-    # pytest.skip() raises Skipped exception - never returns None
-    pytest.skip(
+    # skip_test() never returns - it raises Skipped exception
+    skip_test(
         "No vehicles with both service and fuel records found. Please add more data first."
     )
 

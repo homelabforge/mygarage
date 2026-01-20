@@ -21,6 +21,7 @@ from app.schemas.recall import (
 )
 from app.services.auth import require_auth
 from app.services.nhtsa import NHTSAService
+from app.utils.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
 
@@ -118,7 +119,9 @@ async def check_nhtsa_recalls(
         await db.commit()
 
         logger.info(
-            "Added %s new recalls for vehicle %s from NHTSA", new_recalls_added, vin
+            "Added %s new recalls for vehicle %s from NHTSA",
+            new_recalls_added,
+            sanitize_for_log(vin),
         )
 
         # Return updated list
@@ -140,18 +143,28 @@ async def check_nhtsa_recalls(
         )
 
     except httpx.TimeoutException:
-        logger.error("NHTSA API timeout fetching recalls for VIN %s", vin)
+        logger.error(
+            "NHTSA API timeout fetching recalls for VIN %s", sanitize_for_log(vin)
+        )
         raise HTTPException(status_code=504, detail="NHTSA API request timed out")
     except httpx.ConnectError:
-        logger.error("Cannot connect to NHTSA API for VIN %s", vin)
+        logger.error("Cannot connect to NHTSA API for VIN %s", sanitize_for_log(vin))
         raise HTTPException(status_code=503, detail="Cannot connect to NHTSA API")
     except httpx.HTTPStatusError as e:
-        logger.error("NHTSA API error fetching recalls for VIN %s: %s", vin, e)
+        logger.error(
+            "NHTSA API error fetching recalls for VIN %s: %s",
+            sanitize_for_log(vin),
+            sanitize_for_log(str(e)),
+        )
         raise HTTPException(
             status_code=e.response.status_code, detail="NHTSA API error"
         )
     except OperationalError as e:
-        logger.error("Database error fetching recalls for VIN %s: %s", vin, e)
+        logger.error(
+            "Database error fetching recalls for VIN %s: %s",
+            sanitize_for_log(vin),
+            sanitize_for_log(str(e)),
+        )
         raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
 
@@ -189,7 +202,7 @@ async def create_recall(
     await db.commit()
     await db.refresh(db_recall)
 
-    logger.info("Created recall %s for vehicle %s", db_recall.id, vin)
+    logger.info("Created recall %s for vehicle %s", db_recall.id, sanitize_for_log(vin))
     return RecallResponse.model_validate(db_recall)
 
 
@@ -248,7 +261,7 @@ async def update_recall(
     await db.commit()
     await db.refresh(recall)
 
-    logger.info("Updated recall %s for vehicle %s", recall_id, vin)
+    logger.info("Updated recall %s for vehicle %s", recall_id, sanitize_for_log(vin))
     return RecallResponse.model_validate(recall)
 
 
@@ -270,5 +283,5 @@ async def delete_recall(
     await db.execute(delete(Recall).where(Recall.id == recall_id))
     await db.commit()
 
-    logger.info("Deleted recall %s for vehicle %s", recall_id, vin)
+    logger.info("Deleted recall %s for vehicle %s", recall_id, sanitize_for_log(vin))
     return Response(status_code=204)

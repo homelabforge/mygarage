@@ -20,6 +20,7 @@ from app.services.photo_service import PhotoService
 from app.services.file_upload_service import FileUploadService, PHOTO_UPLOAD_CONFIG
 from app.utils.path_validation import sanitize_filename, validate_path_within_base
 from app.utils.vin import validate_vin
+from app.utils.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/vehicles", tags=["Photos"])
@@ -102,7 +103,11 @@ async def upload_vehicle_photo(
         await db.commit()
         await db.refresh(photo_record)
 
-        logger.info("Uploaded photo for %s: %s", vin, photo_record.file_path)
+        logger.info(
+            "Uploaded photo for %s: %s",
+            sanitize_for_log(vin),
+            sanitize_for_log(str(photo_record.file_path)),
+        )
 
         return PhotoService.build_photo_payload(vin, photo_record)
 
@@ -111,18 +116,26 @@ async def upload_vehicle_photo(
     except IntegrityError as e:
         await db.rollback()
         logger.error(
-            "Database constraint violation uploading photo for %s: %s", vin, str(e)
+            "Database constraint violation uploading photo for %s: %s",
+            sanitize_for_log(vin),
+            sanitize_for_log(str(e)),
         )
         raise HTTPException(status_code=409, detail="Photo record already exists")
     except OperationalError as e:
         await db.rollback()
         logger.error(
-            "Database connection error uploading photo for %s: %s", vin, str(e)
+            "Database connection error uploading photo for %s: %s",
+            sanitize_for_log(vin),
+            sanitize_for_log(str(e)),
         )
         raise HTTPException(status_code=503, detail="Database temporarily unavailable")
     except (OSError, IOError) as e:
         await db.rollback()
-        logger.error("File system error uploading photo for %s: %s", vin, str(e))
+        logger.error(
+            "File system error uploading photo for %s: %s",
+            sanitize_for_log(vin),
+            sanitize_for_log(str(e)),
+        )
         raise HTTPException(status_code=500, detail="Failed to save photo file")
 
 
@@ -273,7 +286,10 @@ async def delete_vehicle_photo(
                 file_path, PHOTO_DIR, raise_error=True
             )
         except ValueError as e:
-            logger.warning("Path validation failed for photo deletion: %s", str(e))
+            logger.warning(
+                "Path validation failed for photo deletion: %s",
+                sanitize_for_log(str(e)),
+            )
             raise HTTPException(status_code=400, detail="Invalid file path")
 
         # codeql[py/path-injection] - Path validated by validate_path_within_base above
@@ -304,7 +320,7 @@ async def delete_vehicle_photo(
                 except ValueError as e:
                     logger.warning(
                         "Thumbnail path validation failed, skipping deletion: %s",
-                        str(e),
+                        sanitize_for_log(str(e)),
                     )
 
             await db.execute(
@@ -312,7 +328,11 @@ async def delete_vehicle_photo(
             )
         await db.commit()
 
-        logger.info("Deleted photo for %s: %s", vin, filename)
+        logger.info(
+            "Deleted photo for %s: %s",
+            sanitize_for_log(vin),
+            sanitize_for_log(filename),
+        )
 
         return None
 
@@ -320,11 +340,19 @@ async def delete_vehicle_photo(
         raise
     except OperationalError as e:
         await db.rollback()
-        logger.error("Database connection error deleting photo for %s: %s", vin, str(e))
+        logger.error(
+            "Database connection error deleting photo for %s: %s",
+            sanitize_for_log(vin),
+            sanitize_for_log(str(e)),
+        )
         raise HTTPException(status_code=503, detail="Database temporarily unavailable")
     except (OSError, IOError) as e:
         await db.rollback()
-        logger.error("File system error deleting photo for %s: %s", vin, str(e))
+        logger.error(
+            "File system error deleting photo for %s: %s",
+            sanitize_for_log(vin),
+            sanitize_for_log(str(e)),
+        )
         raise HTTPException(status_code=500, detail="Failed to delete photo file")
 
 
@@ -394,7 +422,11 @@ async def set_main_photo(
         await db.commit()
         await db.refresh(vehicle)
 
-        logger.info("Set main photo for %s: %s", vin, safe_filename)
+        logger.info(
+            "Set main photo for %s: %s",
+            sanitize_for_log(vin),
+            sanitize_for_log(safe_filename),
+        )
 
         # Import VehicleResponse here to avoid circular dependency
         from app.schemas.vehicle import VehicleResponse
@@ -406,13 +438,17 @@ async def set_main_photo(
     except IntegrityError as e:
         await db.rollback()
         logger.error(
-            "Database constraint violation setting main photo for %s: %s", vin, str(e)
+            "Database constraint violation setting main photo for %s: %s",
+            sanitize_for_log(vin),
+            sanitize_for_log(str(e)),
         )
         raise HTTPException(status_code=409, detail="Database constraint violation")
     except OperationalError as e:
         await db.rollback()
         logger.error(
-            "Database connection error setting main photo for %s: %s", vin, str(e)
+            "Database connection error setting main photo for %s: %s",
+            sanitize_for_log(vin),
+            sanitize_for_log(str(e)),
         )
         raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
@@ -470,13 +506,15 @@ async def update_vehicle_photo_metadata(
         await db.rollback()
         logger.error(
             "Database constraint violation updating photo metadata for %s: %s",
-            vin,
-            str(e),
+            sanitize_for_log(vin),
+            sanitize_for_log(str(e)),
         )
         raise HTTPException(status_code=409, detail="Database constraint violation")
     except OperationalError as e:
         await db.rollback()
         logger.error(
-            "Database connection error updating photo metadata for %s: %s", vin, str(e)
+            "Database connection error updating photo metadata for %s: %s",
+            sanitize_for_log(vin),
+            sanitize_for_log(str(e)),
         )
         raise HTTPException(status_code=503, detail="Database temporarily unavailable")

@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.20.0] - 2026-01-19
+
+### Security
+- **CodeQL Security Remediation - 173 Issues Fixed**
+  - **Log Injection Prevention (138 fixes)** - CWE-117
+    - Created `sanitize_for_log()` utility function that escapes control characters (newlines, tabs, ANSI escapes)
+    - Applied to all user-controlled values in logger calls across 44+ files
+    - Prevents log forging and log injection attacks
+  - **Clear-Text Logging of Sensitive Data (10 fixes)** - CWE-532
+    - Created `mask_coordinates()` function to reduce GPS precision for privacy (~1.1km)
+    - Created `mask_api_key()` function to show only first 4 characters
+    - Applied to shop discovery, POI providers, and integration services
+  - **Unsafe Cyclic Imports (13 fixes)** - Python best practices
+    - Moved runtime imports to `TYPE_CHECKING` blocks in SQLAlchemy models
+    - Fixed `Vehicle` model (16 forward reference imports)
+    - Fixed `MaintenanceTemplate` model (1 forward reference import)
+  - **Partial SSRF Protection (1 fix)** - CWE-918
+    - Added URL validation in `MaintenanceTemplateService` for GitHub template URLs
+    - Allowlisted hosts: `raw.githubusercontent.com`, `github.com`, `raw.github.com`
+    - Path component sanitization prevents directory traversal
+  - **Stack Trace Exposure (1 fix)** - CWE-209
+    - Fixed provider test endpoint in settings routes
+    - Exception details now logged server-side only, generic message returned to client
+  - **Code Quality Fixes (5 fixes)**
+    - Fixed empty-except in OSM provider with meaningful error handling
+    - Fixed unused-import in maintenance template validator
+    - Fixed mixed-returns in pytest conftest with proper `NoReturn` typing
+
 ### Added
 - **Maintenance System Overhaul - Complete Service Tracking Redesign**
   - **Vendors**: New vendor management system replacing address book for service providers

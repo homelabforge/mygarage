@@ -1,6 +1,72 @@
-"""Logging utilities with sensitive data masking."""
+"""Logging utilities with sensitive data masking and log injection prevention."""
 
 import re
+from typing import Any
+
+
+def sanitize_for_log(value: Any) -> str:
+    """Sanitize a value for safe logging by removing control characters.
+
+    This prevents log injection attacks where attackers could inject newlines,
+    ANSI escape codes, or other control characters to forge log entries or
+    manipulate log parsing systems.
+
+    Args:
+        value: Any value to sanitize for logging
+
+    Returns:
+        A string safe for logging with control characters removed/escaped
+    """
+    if value is None:
+        return "<none>"
+
+    # Convert to string
+    text = str(value)
+
+    # Remove or escape control characters (ASCII 0-31 and 127)
+    # Keep common whitespace like space (32) but escape tabs, newlines, etc.
+    sanitized = []
+    for char in text:
+        code = ord(char)
+        if code == 9:  # Tab
+            sanitized.append("\\t")
+        elif code == 10:  # Newline
+            sanitized.append("\\n")
+        elif code == 13:  # Carriage return
+            sanitized.append("\\r")
+        elif code < 32 or code == 127:
+            # Other control characters - show as hex escape
+            sanitized.append(f"\\x{code:02x}")
+        elif code == 27:  # ESC - ANSI escape sequences
+            sanitized.append("\\x1b")
+        else:
+            sanitized.append(char)
+
+    return "".join(sanitized)
+
+
+def sanitize_path_for_log(path: Any) -> str:
+    """Sanitize a file path for safe logging.
+
+    Args:
+        path: A path value (str or Path object)
+
+    Returns:
+        A sanitized string representation of the path
+    """
+    return sanitize_for_log(path)
+
+
+def sanitize_url_for_log(url: Any) -> str:
+    """Sanitize a URL for safe logging.
+
+    Args:
+        url: A URL string
+
+    Returns:
+        A sanitized string representation of the URL
+    """
+    return sanitize_for_log(url)
 
 
 def mask_vin(vin: str) -> str:
@@ -127,3 +193,40 @@ def sanitize_log_message(message: str) -> str:
     )
 
     return message
+
+
+def mask_coordinates(latitude: float, longitude: float) -> str:
+    """Mask GPS coordinates to reduce precision for privacy.
+
+    Rounds to 2 decimal places (~1.1km precision) which is enough
+    for debugging without revealing exact location.
+
+    Args:
+        latitude: The latitude coordinate
+        longitude: The longitude coordinate
+
+    Returns:
+        Masked coordinate string (e.g., "~37.77, ~-122.42")
+    """
+    try:
+        lat_masked = round(float(latitude), 2)
+        lon_masked = round(float(longitude), 2)
+        return f"~{lat_masked}, ~{lon_masked}"
+    except (TypeError, ValueError):
+        return "~?.??, ~?.??"
+
+
+def mask_api_key(key: str) -> str:
+    """Mask API key to show only first 4 characters.
+
+    Args:
+        key: The API key to mask
+
+    Returns:
+        Masked key string (e.g., "abc1****")
+    """
+    if not key:
+        return "****"
+    if len(key) <= 4:
+        return "****"
+    return f"{key[:4]}****"

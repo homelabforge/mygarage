@@ -25,6 +25,7 @@ from app.schemas.settings import (
     SettingsBatchUpdate,
     SystemInfoResponse,
 )
+from app.utils.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
 
@@ -233,7 +234,9 @@ async def add_poi_provider(
     if not usage_setting:
         await SettingsService.set(db, f"{provider_name}_api_usage", "0")
 
-    logger.info("Updated POI provider %s (enabled=%s)", provider_name, enabled)
+    logger.info(
+        "Updated POI provider %s (enabled=%s)", sanitize_for_log(provider_name), enabled
+    )
 
     # Return updated configuration (with masked key)
     return {
@@ -287,7 +290,7 @@ async def update_poi_provider(
     if api_key is not None:
         await SettingsService.set(db, f"{provider_name}_api_key", api_key)
 
-    logger.info("Updated POI provider %s", provider_name)
+    logger.info("Updated POI provider %s", sanitize_for_log(provider_name))
 
     return {
         "name": provider_name,
@@ -324,7 +327,7 @@ async def delete_poi_provider(
     await SettingsService.delete(db, f"{provider_name}_enabled")
     await SettingsService.delete(db, f"{provider_name}_api_key")
 
-    logger.info("Deleted POI provider %s", provider_name)
+    logger.info("Deleted POI provider %s", sanitize_for_log(provider_name))
 
     return Response(status_code=204)
 
@@ -430,9 +433,35 @@ async def test_poi_provider(
         if e.response.status_code == 401 or e.response.status_code == 403:
             return {"valid": False, "message": "API key is invalid or unauthorized"}
         return {"valid": False, "message": f"API error: {e.response.status_code}"}
+    except httpx.TimeoutException:
+        logger.error(
+            "Provider test timed out for %s",
+            sanitize_for_log(provider_name),
+        )
+        return {
+            "valid": False,
+            "message": "Test timed out - provider may be slow or unavailable",
+        }
+    except httpx.ConnectError:
+        logger.error(
+            "Provider test connection failed for %s",
+            sanitize_for_log(provider_name),
+        )
+        return {
+            "valid": False,
+            "message": "Connection failed - unable to reach provider",
+        }
     except Exception as e:
-        logger.error("Provider test failed for %s: %s", provider_name, str(e))
-        return {"valid": False, "message": f"Test failed: {str(e)}"}
+        # Log the full error for debugging but return generic message to client
+        logger.error(
+            "Provider test failed for %s: %s",
+            sanitize_for_log(provider_name),
+            sanitize_for_log(str(e)),
+        )
+        return {
+            "valid": False,
+            "message": "Test failed - check server logs for details",
+        }
 
 
 @router.get("/{key}", response_model=SettingResponse)
@@ -479,7 +508,7 @@ async def create_setting(
     await db.commit()
     await db.refresh(db_setting)
 
-    logger.info("Created setting: %s", setting.key)
+    logger.info("Created setting: %s", sanitize_for_log(setting.key))
     return SettingResponse.model_validate(db_setting)
 
 
@@ -517,7 +546,7 @@ async def update_setting(
     await db.commit()
     await db.refresh(setting)
 
-    logger.info("Updated setting: %s", key)
+    logger.info("Updated setting: %s", sanitize_for_log(key))
     return SettingResponse.model_validate(setting)
 
 
@@ -582,7 +611,7 @@ async def delete_setting(
     await db.delete(setting)
     await db.commit()
 
-    logger.info("Deleted setting: %s", key)
+    logger.info("Deleted setting: %s", sanitize_for_log(key))
     return Response(status_code=204)
 
 

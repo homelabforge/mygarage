@@ -4,6 +4,7 @@ import logging
 from typing import Any, Optional, Type
 
 from .base import BaseWindowStickerParser
+from app.utils.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
 
@@ -206,12 +207,15 @@ class ParserRegistry:
                 logger.info(
                     "Selected %s for VIN %s (WMI: %s)",
                     parser.__class__.__name__,
-                    vin,
-                    wmi,
+                    sanitize_for_log(vin),
+                    sanitize_for_log(wmi),
                 )
                 return parser
 
-        logger.info("Unknown manufacturer for WMI %s, using generic parser", wmi)
+        logger.info(
+            "Unknown manufacturer for WMI %s, using generic parser",
+            sanitize_for_log(wmi),
+        )
         return cls.get_parser("generic")
 
     @classmethod

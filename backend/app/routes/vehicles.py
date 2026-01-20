@@ -24,26 +24,10 @@ from app.schemas.vehicle import (
 )
 from app.services.auth import require_auth, optional_auth
 from app.services.vehicle_service import VehicleService
+from app.utils.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/vehicles", tags=["Vehicles"])
-
-
-def sanitize_for_log(value: str) -> str:
-    """
-    Sanitize a string for safe logging by removing characters that could be used for log injection.
-
-    Removes newline characters (\n, \r) that could allow a malicious user to forge log entries.
-
-    Args:
-        value: The string to sanitize
-
-    Returns:
-        Sanitized string safe for logging
-    """
-    if not value:
-        return value
-    return value.replace("\r\n", "").replace("\r", "").replace("\n", "")
 
 
 @router.get("", response_model=VehicleListResponse)
@@ -264,7 +248,7 @@ async def create_trailer_details(
         await db.commit()
         await db.refresh(trailer)
 
-        logger.info("Created trailer details for: %s", vin)
+        logger.info("Created trailer details for: %s", sanitize_for_log(vin))
 
         return TrailerDetailsResponse.model_validate(trailer)
 
@@ -273,7 +257,9 @@ async def create_trailer_details(
     except IntegrityError as e:
         await db.rollback()
         logger.error(
-            "Database constraint violation creating trailer details for %s: %s", vin, e
+            "Database constraint violation creating trailer details for %s: %s",
+            sanitize_for_log(vin),
+            sanitize_for_log(str(e)),
         )
         raise HTTPException(
             status_code=409, detail=f"Trailer details already exist for VIN {vin}"
@@ -281,7 +267,9 @@ async def create_trailer_details(
     except OperationalError as e:
         await db.rollback()
         logger.error(
-            "Database connection error creating trailer details for %s: %s", vin, e
+            "Database connection error creating trailer details for %s: %s",
+            sanitize_for_log(vin),
+            sanitize_for_log(str(e)),
         )
         raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
@@ -326,7 +314,7 @@ async def update_trailer_details(
         await db.commit()
         await db.refresh(trailer)
 
-        logger.info("Updated trailer details for: %s", vin)
+        logger.info("Updated trailer details for: %s", sanitize_for_log(vin))
 
         return TrailerDetailsResponse.model_validate(trailer)
 
@@ -335,13 +323,17 @@ async def update_trailer_details(
     except IntegrityError as e:
         await db.rollback()
         logger.error(
-            "Database constraint violation updating trailer details for %s: %s", vin, e
+            "Database constraint violation updating trailer details for %s: %s",
+            sanitize_for_log(vin),
+            sanitize_for_log(str(e)),
         )
         raise HTTPException(status_code=409, detail="Database constraint violation")
     except OperationalError as e:
         await db.rollback()
         logger.error(
-            "Database connection error updating trailer details for %s: %s", vin, e
+            "Database connection error updating trailer details for %s: %s",
+            sanitize_for_log(vin),
+            sanitize_for_log(str(e)),
         )
         raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 

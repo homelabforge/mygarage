@@ -20,6 +20,7 @@ from app.schemas.maintenance_schedule import (
     ApplyTemplateRequest,
     ApplyTemplateResponse,
 )
+from app.utils.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
 
@@ -140,7 +141,9 @@ class MaintenanceScheduleService:
             raise
         except OperationalError as e:
             logger.error(
-                "Database connection error listing schedule items for %s: %s", vin, e
+                "Database connection error listing schedule items for %s: %s",
+                sanitize_for_log(vin),
+                sanitize_for_log(e),
             )
             raise HTTPException(
                 status_code=503, detail="Database temporarily unavailable"
@@ -218,7 +221,12 @@ class MaintenanceScheduleService:
             await self.db.commit()
             await self.db.refresh(item)
 
-            logger.info("Created schedule item %s for %s: %s", item.id, vin, item.name)
+            logger.info(
+                "Created schedule item %s for %s: %s",
+                item.id,
+                sanitize_for_log(vin),
+                sanitize_for_log(item.name),
+            )
             return item
 
         except HTTPException:
@@ -227,14 +235,16 @@ class MaintenanceScheduleService:
             await self.db.rollback()
             logger.error(
                 "Database constraint violation creating schedule item for %s: %s",
-                vin,
-                e,
+                sanitize_for_log(vin),
+                sanitize_for_log(e),
             )
             raise HTTPException(status_code=409, detail="Invalid schedule item data")
         except OperationalError as e:
             await self.db.rollback()
             logger.error(
-                "Database connection error creating schedule item for %s: %s", vin, e
+                "Database connection error creating schedule item for %s: %s",
+                sanitize_for_log(vin),
+                sanitize_for_log(e),
             )
             raise HTTPException(
                 status_code=503, detail="Database temporarily unavailable"
@@ -274,7 +284,9 @@ class MaintenanceScheduleService:
             await self.db.commit()
             await self.db.refresh(item)
 
-            logger.info("Updated schedule item %s for %s", item_id, vin)
+            logger.info(
+                "Updated schedule item %s for %s", item_id, sanitize_for_log(vin)
+            )
             return item
 
         except HTTPException:
@@ -284,13 +296,15 @@ class MaintenanceScheduleService:
             logger.error(
                 "Database constraint violation updating schedule item %s: %s",
                 item_id,
-                e,
+                sanitize_for_log(e),
             )
             raise HTTPException(status_code=409, detail="Invalid schedule item data")
         except OperationalError as e:
             await self.db.rollback()
             logger.error(
-                "Database connection error updating schedule item %s: %s", item_id, e
+                "Database connection error updating schedule item %s: %s",
+                item_id,
+                sanitize_for_log(e),
             )
             raise HTTPException(
                 status_code=503, detail="Database temporarily unavailable"
@@ -318,7 +332,9 @@ class MaintenanceScheduleService:
             await self.db.delete(item)
             await self.db.commit()
 
-            logger.info("Deleted schedule item %s for %s", item_id, vin)
+            logger.info(
+                "Deleted schedule item %s for %s", item_id, sanitize_for_log(vin)
+            )
 
         except HTTPException:
             raise
@@ -327,7 +343,7 @@ class MaintenanceScheduleService:
             logger.error(
                 "Database constraint violation deleting schedule item %s: %s",
                 item_id,
-                e,
+                sanitize_for_log(e),
             )
             raise HTTPException(
                 status_code=409, detail="Cannot delete item with dependent data"
@@ -335,7 +351,9 @@ class MaintenanceScheduleService:
         except OperationalError as e:
             await self.db.rollback()
             logger.error(
-                "Database connection error deleting schedule item %s: %s", item_id, e
+                "Database connection error deleting schedule item %s: %s",
+                item_id,
+                sanitize_for_log(e),
             )
             raise HTTPException(
                 status_code=503, detail="Database temporarily unavailable"
@@ -408,8 +426,8 @@ class MaintenanceScheduleService:
 
             logger.info(
                 "Applied template %s to %s: %d created, %d skipped",
-                request.template_source,
-                vin,
+                sanitize_for_log(request.template_source),
+                sanitize_for_log(vin),
                 items_created,
                 items_skipped,
             )
@@ -425,13 +443,17 @@ class MaintenanceScheduleService:
         except IntegrityError as e:
             await self.db.rollback()
             logger.error(
-                "Database constraint violation applying template for %s: %s", vin, e
+                "Database constraint violation applying template for %s: %s",
+                sanitize_for_log(vin),
+                sanitize_for_log(e),
             )
             raise HTTPException(status_code=409, detail="Failed to apply template")
         except OperationalError as e:
             await self.db.rollback()
             logger.error(
-                "Database connection error applying template for %s: %s", vin, e
+                "Database connection error applying template for %s: %s",
+                sanitize_for_log(vin),
+                sanitize_for_log(e),
             )
             raise HTTPException(
                 status_code=503, detail="Database temporarily unavailable"

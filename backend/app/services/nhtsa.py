@@ -8,6 +8,7 @@ import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.utils.logging_utils import sanitize_for_log
 from app.utils.vin import validate_vin
 from app.utils.url_validation import validate_nhtsa_url
 from app.exceptions import SSRFProtectionError
@@ -34,7 +35,9 @@ class NHTSAService:
             self.base_url = base_url
         except (SSRFProtectionError, ValueError) as e:
             logger.error(
-                "SSRF protection blocked NHTSA base URL: %s - %s", base_url, str(e)
+                "SSRF protection blocked NHTSA base URL: %s - %s",
+                sanitize_for_log(base_url),
+                sanitize_for_log(e),
             )
             # Fallback to official NHTSA URL if validation fails
             self.base_url = "https://vpic.nhtsa.dot.gov/api"
@@ -65,7 +68,7 @@ class NHTSAService:
         # Using DecodeVinValues endpoint which returns formatted data
         url = f"{self.base_url}/vehicles/DecodeVinValues/{vin}?format=json"
 
-        logger.info("Decoding VIN: %s", vin)
+        logger.info("Decoding VIN: %s", sanitize_for_log(vin))
 
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             try:
@@ -87,7 +90,9 @@ class NHTSAService:
 
                 if error_code and error_code != "0":
                     logger.warning(
-                        "NHTSA API returned error for VIN %s: %s", vin, error_text
+                        "NHTSA API returned error for VIN %s: %s",
+                        sanitize_for_log(vin),
+                        sanitize_for_log(error_text),
                     )
                     # Some error codes are just warnings, continue processing
 
@@ -96,24 +101,36 @@ class NHTSAService:
 
                 logger.info(
                     "Successfully decoded VIN %s: %s %s",
-                    vin,
-                    vehicle_info.get("Make"),
-                    vehicle_info.get("Model"),
+                    sanitize_for_log(vin),
+                    sanitize_for_log(vehicle_info.get("Make")),
+                    sanitize_for_log(vehicle_info.get("Model")),
                 )
 
                 return vehicle_info
 
             except httpx.TimeoutException:
-                logger.error("NHTSA API timeout decoding VIN %s", vin)
+                logger.error("NHTSA API timeout decoding VIN %s", sanitize_for_log(vin))
                 raise
             except httpx.ConnectError as e:
-                logger.error("Cannot connect to NHTSA API for VIN %s: %s", vin, str(e))
+                logger.error(
+                    "Cannot connect to NHTSA API for VIN %s: %s",
+                    sanitize_for_log(vin),
+                    sanitize_for_log(e),
+                )
                 raise
             except httpx.HTTPStatusError as e:
-                logger.error("NHTSA API error decoding VIN %s: %s", vin, str(e))
+                logger.error(
+                    "NHTSA API error decoding VIN %s: %s",
+                    sanitize_for_log(vin),
+                    sanitize_for_log(e),
+                )
                 raise
             except (ValueError, KeyError) as e:
-                logger.error("Error parsing NHTSA response for VIN %s: %s", vin, str(e))
+                logger.error(
+                    "Error parsing NHTSA response for VIN %s: %s",
+                    sanitize_for_log(vin),
+                    sanitize_for_log(e),
+                )
                 raise ValueError(f"Invalid NHTSA response: {e}")
 
     def _extract_vehicle_info(self, result: dict) -> dict[str, Any]:
@@ -209,7 +226,11 @@ class NHTSAService:
         try:
             vehicle_info = await self.decode_vin(vin)
         except Exception as e:
-            logger.error("Failed to decode VIN %s: %s", vin, str(e))
+            logger.error(
+                "Failed to decode VIN %s: %s",
+                sanitize_for_log(vin),
+                sanitize_for_log(e),
+            )
             raise ValueError(f"Could not decode VIN to fetch recalls: {str(e)}")
 
         # Extract make, model, and year
@@ -220,9 +241,9 @@ class NHTSAService:
         if not all([make, model, year]):
             logger.warning(
                 "Incomplete vehicle info for VIN %s: make=%s, model=%s, year=%s",
-                vin,
-                make,
-                model,
+                sanitize_for_log(vin),
+                sanitize_for_log(make),
+                sanitize_for_log(model),
                 year,
             )
             raise ValueError(
@@ -245,8 +266,8 @@ class NHTSAService:
         except (SSRFProtectionError, ValueError) as e:
             logger.error(
                 "SSRF protection blocked recalls API URL: %s - %s",
-                recalls_api_base,
-                str(e),
+                sanitize_for_log(recalls_api_base),
+                sanitize_for_log(e),
             )
             # Use safe default if validation fails
             recalls_api_base = "https://api.nhtsa.gov/recalls"
@@ -259,7 +280,13 @@ class NHTSAService:
         params = {"make": make, "model": model, "modelYear": year}
         recalls_url = f"{recalls_api_base}/recallsByVehicle?{urlencode(params)}"
 
-        logger.info("Fetching recalls for %s %s %s (VIN: %s)", year, make, model, vin)
+        logger.info(
+            "Fetching recalls for %s %s %s (VIN: %s)",
+            year,
+            sanitize_for_log(make),
+            sanitize_for_log(model),
+            sanitize_for_log(vin),
+        )
 
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             try:
@@ -272,32 +299,39 @@ class NHTSAService:
                 recalls = data.get("results", [])
 
                 logger.info(
-                    "Found %s recall(s) for %s %s %s", len(recalls), year, make, model
+                    "Found %s recall(s) for %s %s %s",
+                    len(recalls),
+                    year,
+                    sanitize_for_log(make),
+                    sanitize_for_log(model),
                 )
 
                 return recalls
 
             except httpx.TimeoutException:
                 logger.error(
-                    "NHTSA recalls API timeout for %s %s %s", year, make, model
+                    "NHTSA recalls API timeout for %s %s %s",
+                    year,
+                    sanitize_for_log(make),
+                    sanitize_for_log(model),
                 )
                 return []  # Intentional fallback: don't break UI for timeout
             except httpx.ConnectError as e:
                 logger.error(
                     "Cannot connect to NHTSA recalls API for %s %s %s: %s",
                     year,
-                    make,
-                    model,
-                    str(e),
+                    sanitize_for_log(make),
+                    sanitize_for_log(model),
+                    sanitize_for_log(e),
                 )
                 return []  # Intentional fallback: don't break UI for connection issues
             except httpx.HTTPStatusError as e:
                 logger.error(
                     "NHTSA recalls API error for %s %s %s: %s",
                     year,
-                    make,
-                    model,
-                    str(e),
+                    sanitize_for_log(make),
+                    sanitize_for_log(model),
+                    sanitize_for_log(e),
                 )
                 return []  # Intentional fallback: return empty list on API error
 
@@ -324,7 +358,11 @@ class NHTSAService:
         try:
             vehicle_info = await self.decode_vin(vin)
         except Exception as e:
-            logger.error("Failed to decode VIN %s: %s", vin, str(e))
+            logger.error(
+                "Failed to decode VIN %s: %s",
+                sanitize_for_log(vin),
+                sanitize_for_log(e),
+            )
             raise ValueError(f"Could not decode VIN to fetch TSBs: {str(e)}")
 
         # Extract make, model, and year
@@ -335,9 +373,9 @@ class NHTSAService:
         if not all([make, model, year]):
             logger.warning(
                 "Incomplete vehicle info for VIN %s: make=%s, model=%s, year=%s",
-                vin,
-                make,
-                model,
+                sanitize_for_log(vin),
+                sanitize_for_log(make),
+                sanitize_for_log(model),
                 year,
             )
             raise ValueError(
@@ -362,8 +400,8 @@ class NHTSAService:
         except (SSRFProtectionError, ValueError) as e:
             logger.error(
                 "SSRF protection blocked TSB API URL: %s - %s",
-                tsb_api_base,
-                str(e),
+                sanitize_for_log(tsb_api_base),
+                sanitize_for_log(e),
             )
             # Use safe default if validation fails
             tsb_api_base = "https://api.nhtsa.gov/products/vehicle/tsbs"
@@ -375,7 +413,13 @@ class NHTSAService:
         params = {"make": make, "model": model, "modelYear": year}
         tsb_url = f"{tsb_api_base}?{urlencode(params)}"
 
-        logger.info("Fetching TSBs for %s %s %s (VIN: %s)", year, make, model, vin)
+        logger.info(
+            "Fetching TSBs for %s %s %s (VIN: %s)",
+            year,
+            sanitize_for_log(make),
+            sanitize_for_log(model),
+            sanitize_for_log(vin),
+        )
 
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             try:
@@ -389,29 +433,38 @@ class NHTSAService:
                 tsbs = data.get("results", [])
 
                 logger.info(
-                    "Found %s TSB(s) for %s %s %s", len(tsbs), year, make, model
+                    "Found %s TSB(s) for %s %s %s",
+                    len(tsbs),
+                    year,
+                    sanitize_for_log(make),
+                    sanitize_for_log(model),
                 )
 
                 return tsbs
 
             except httpx.TimeoutException:
-                logger.error("NHTSA TSB API timeout for %s %s %s", year, make, model)
+                logger.error(
+                    "NHTSA TSB API timeout for %s %s %s",
+                    year,
+                    sanitize_for_log(make),
+                    sanitize_for_log(model),
+                )
                 return []  # Intentional fallback: don't break UI for timeout
             except httpx.ConnectError as e:
                 logger.error(
                     "Cannot connect to NHTSA TSB API for %s %s %s: %s",
                     year,
-                    make,
-                    model,
-                    str(e),
+                    sanitize_for_log(make),
+                    sanitize_for_log(model),
+                    sanitize_for_log(e),
                 )
                 return []  # Intentional fallback: don't break UI for connection issues
             except httpx.HTTPStatusError as e:
                 logger.error(
                     "NHTSA TSB API error for %s %s %s: %s",
                     year,
-                    make,
-                    model,
-                    str(e),
+                    sanitize_for_log(make),
+                    sanitize_for_log(model),
+                    sanitize_for_log(e),
                 )
                 return []  # Intentional fallback: return empty list on API error

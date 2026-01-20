@@ -4,9 +4,12 @@ from sqlalchemy import String, Integer, DateTime, ForeignKey, Index, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 from datetime import datetime
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 from app.database import Base
+
+if TYPE_CHECKING:
+    from app.models.vehicle import Vehicle
 
 
 class MaintenanceTemplate(Base):
@@ -62,7 +65,3 @@ class MaintenanceTemplate(Base):
         Index("idx_maintenance_templates_vin", "vin"),
         Index("idx_maintenance_templates_source", "template_source"),
     )
-
-
-# Import at the end to avoid circular imports
-from app.models.vehicle import Vehicle  # noqa: E402

@@ -20,7 +20,23 @@ from decimal import Decimal
 from app.database import Base
 
 if TYPE_CHECKING:
+    from app.models.document import Document
+    from app.models.fuel import FuelRecord
+    from app.models.insurance import InsurancePolicy
+    from app.models.maintenance_schedule_item import MaintenanceScheduleItem
     from app.models.maintenance_template import MaintenanceTemplate
+    from app.models.note import Note
+    from app.models.odometer import OdometerRecord
+    from app.models.photo import VehiclePhoto
+    from app.models.recall import Recall
+    from app.models.reminder import Reminder
+    from app.models.service import ServiceRecord
+    from app.models.service_visit import ServiceVisit
+    from app.models.spot_rental import SpotRental
+    from app.models.tax import TaxRecord
+    from app.models.toll import TollTag, TollTransaction
+    from app.models.user import User
+    from app.models.warranty import WarrantyRecord
 
 
 class Vehicle(Base):
@@ -214,22 +230,3 @@ class TrailerDetails(Base):
             "brake_type IN ('None', 'Electric', 'Hydraulic')", name="check_brake_type"
         ),
     )
-
-
-# Forward references for type hints
-from app.models.user import User
-from app.models.spot_rental import SpotRental
-from app.models.service import ServiceRecord
-from app.models.fuel import FuelRecord
-from app.models.odometer import OdometerRecord
-from app.models.reminder import Reminder
-from app.models.tax import TaxRecord
-from app.models.note import Note
-from app.models.recall import Recall
-from app.models.photo import VehiclePhoto
-from app.models.warranty import WarrantyRecord
-from app.models.insurance import InsurancePolicy
-from app.models.toll import TollTag, TollTransaction
-from app.models.document import Document
-from app.models.service_visit import ServiceVisit
-from app.models.maintenance_schedule_item import MaintenanceScheduleItem

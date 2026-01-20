@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings as app_settings
 from app.services.settings_service import SettingsService
 from app.utils.url_validation import validate_tomtom_url
+from app.utils.logging_utils import sanitize_for_log, mask_api_key, mask_coordinates
 from app.exceptions import SSRFProtectionError
 
 logger = logging.getLogger(__name__)
@@ -73,17 +74,20 @@ class ShopDiscoveryService:
 
         if self.tomtom_enabled:
             logger.info(
-                "TomTom API enabled with key: %s***",
-                self.tomtom_api_key[:8] if len(self.tomtom_api_key) > 8 else "",
+                "TomTom API enabled with key: %s",
+                mask_api_key(self.tomtom_api_key),
             )
             try:
                 validate_tomtom_url(self.tomtom_base_url)
-                logger.info("TomTom base URL validated: %s", self.tomtom_base_url)
+                logger.info(
+                    "TomTom base URL validated: %s",
+                    sanitize_for_log(self.tomtom_base_url),
+                )
             except (SSRFProtectionError, ValueError) as e:
                 logger.error(
                     "SSRF protection blocked TomTom base URL: %s - %s",
-                    self.tomtom_base_url,
-                    str(e),
+                    sanitize_for_log(self.tomtom_base_url),
+                    sanitize_for_log(e),
                 )
                 # Disable TomTom if URL validation fails
                 self.tomtom_enabled = False
@@ -122,10 +126,9 @@ class ShopDiscoveryService:
         if self.tomtom_enabled:
             try:
                 logger.info(
-                    "Searching TomTom for %s shops near (%s, %s) within %sm",
-                    shop_type,
-                    latitude,
-                    longitude,
+                    "Searching TomTom for %s shops near (%s) within %sm",
+                    sanitize_for_log(shop_type),
+                    mask_coordinates(latitude, longitude),
                     radius,
                 )
                 results = await self._search_tomtom(
@@ -134,14 +137,15 @@ class ShopDiscoveryService:
                 logger.info("TomTom returned %d results", len(results))
                 return results
             except Exception as e:
-                logger.warning("TomTom search failed: %s, falling back to OSM", str(e))
+                logger.warning(
+                    "TomTom search failed: %s, falling back to OSM", sanitize_for_log(e)
+                )
 
         # Fallback to OSM Overpass
         logger.info(
-            "Searching OSM Overpass for %s shops near (%s, %s) within %sm",
-            shop_type,
-            latitude,
-            longitude,
+            "Searching OSM Overpass for %s shops near (%s) within %sm",
+            sanitize_for_log(shop_type),
+            mask_coordinates(latitude, longitude),
             radius,
         )
         results = await self._search_osm_overpass(
@@ -216,7 +220,7 @@ class ShopDiscoveryService:
                 logger.error("TomTom API timeout")
                 raise
             except httpx.HTTPStatusError as e:
-                logger.error("TomTom API error: %s", str(e))
+                logger.error("TomTom API error: %s", sanitize_for_log(e))
                 raise
 
     async def _search_osm_overpass(
@@ -279,7 +283,9 @@ class ShopDiscoveryService:
         last_error = None
         for instance_url in self.osm_overpass_urls:
             try:
-                logger.info("Trying Overpass instance: %s", instance_url)
+                logger.info(
+                    "Trying Overpass instance: %s", sanitize_for_log(instance_url)
+                )
                 async with httpx.AsyncClient(timeout=self.timeout) as client:
                     response = await client.post(instance_url, data={"data": query})
                     response.raise_for_status()
@@ -299,12 +305,16 @@ class ShopDiscoveryService:
                     logger.info(
                         "Successfully got %d results from %s",
                         len(results),
-                        instance_url,
+                        sanitize_for_log(instance_url),
                     )
                     return results
 
             except (httpx.TimeoutException, httpx.HTTPStatusError) as e:
-                logger.warning("Overpass instance %s failed: %s", instance_url, str(e))
+                logger.warning(
+                    "Overpass instance %s failed: %s",
+                    sanitize_for_log(instance_url),
+                    sanitize_for_log(e),
+                )
                 last_error = e
                 # Continue to next instance
 

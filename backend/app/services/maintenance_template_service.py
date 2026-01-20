@@ -6,18 +6,29 @@ from the GitHub repository.
 """
 
 import logging
+import re
 import httpx
 import yaml
 from typing import Optional
 from datetime import datetime, timedelta
+from urllib.parse import urlparse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.models.maintenance_template import MaintenanceTemplate
 from app.models.reminder import Reminder
 from app.models.vehicle import Vehicle
+from app.utils.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
+
+# Allowed GitHub hosts for template fetching (SSRF protection)
+ALLOWED_GITHUB_HOSTS = frozenset(
+    ["raw.githubusercontent.com", "github.com", "raw.github.com"]
+)
+
+# Regex for valid path components (alphanumeric, hyphens, underscores)
+SAFE_PATH_COMPONENT_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 
 
 class MaintenanceTemplateService:
@@ -27,6 +38,74 @@ class MaintenanceTemplateService:
         self.timeout = 10.0  # 10-second timeout for GitHub requests
         # GitHub raw content base URL
         self.github_base_url = "https://raw.githubusercontent.com/homelabforge/mygarage/main/maintenance-templates/templates"
+
+    def _validate_template_url(self, url: str) -> bool:
+        """Validate that a URL is safe to fetch (SSRF protection).
+
+        Args:
+            url: The URL to validate
+
+        Returns:
+            True if URL is safe, False otherwise
+        """
+        try:
+            parsed = urlparse(url)
+
+            # Must be HTTPS
+            if parsed.scheme != "https":
+                logger.warning("Blocked non-HTTPS URL: %s", sanitize_for_log(url))
+                return False
+
+            # Must be an allowed GitHub host
+            if parsed.hostname not in ALLOWED_GITHUB_HOSTS:
+                logger.warning(
+                    "Blocked URL with disallowed host: %s", sanitize_for_log(url)
+                )
+                return False
+
+            # Path must not contain traversal sequences
+            if ".." in parsed.path or "//" in parsed.path:
+                logger.warning(
+                    "Blocked URL with path traversal: %s", sanitize_for_log(url)
+                )
+                return False
+
+            return True
+        except Exception as e:
+            logger.error("URL validation error: %s", sanitize_for_log(e))
+            return False
+
+    def _sanitize_path_component(self, component: str) -> Optional[str]:
+        """Sanitize a path component for safe URL construction.
+
+        Args:
+            component: A path component (make, model, etc.)
+
+        Returns:
+            Sanitized component or None if invalid
+        """
+        if not component:
+            return None
+
+        # Normalize: lowercase, strip whitespace
+        clean = component.lower().strip()
+
+        # Replace spaces with hyphens
+        clean = clean.replace(" ", "-")
+
+        # Remove any characters that aren't alphanumeric, hyphen, or underscore
+        clean = re.sub(r"[^a-z0-9_-]", "", clean)
+
+        # Validate against safe pattern
+        if not SAFE_PATH_COMPONENT_RE.match(clean):
+            logger.warning(
+                "Invalid path component after sanitization: %s -> %s",
+                sanitize_for_log(component),
+                sanitize_for_log(clean),
+            )
+            return None
+
+        return clean
 
     def _normalize_make(self, make: str) -> str:
         """
@@ -200,7 +279,16 @@ class MaintenanceTemplateService:
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             for template_path in paths_to_try:
                 template_url = f"{self.github_base_url}/{template_path}"
-                logger.info(f"Trying template: {template_url}")
+
+                # SSRF protection: validate URL before making request
+                if not self._validate_template_url(template_url):
+                    logger.warning(
+                        "Skipping invalid template URL: %s",
+                        sanitize_for_log(template_url),
+                    )
+                    continue
+
+                logger.info("Trying template: %s", sanitize_for_log(template_url))
 
                 try:
                     response = await client.get(template_url)
@@ -209,25 +297,45 @@ class MaintenanceTemplateService:
                     # Parse YAML
                     template_data = yaml.safe_load(response.text)
 
-                    logger.info(f"Successfully fetched template: {template_path}")
+                    logger.info(
+                        "Successfully fetched template: %s",
+                        sanitize_for_log(template_path),
+                    )
                     return (template_path, template_data)
 
                 except httpx.HTTPStatusError as e:
                     if e.response.status_code == 404:
-                        logger.info(f"Template not found: {template_path}")
+                        logger.info(
+                            "Template not found: %s", sanitize_for_log(template_path)
+                        )
                         continue  # Try next path
-                    logger.error(f"HTTP error fetching template: {e}")
+                    logger.error(
+                        "HTTP error fetching template: %s", sanitize_for_log(e)
+                    )
                     continue
                 except yaml.YAMLError as e:
-                    logger.error(f"YAML parse error for {template_path}: {e}")
+                    logger.error(
+                        "YAML parse error for %s: %s",
+                        sanitize_for_log(template_path),
+                        sanitize_for_log(e),
+                    )
                     continue
                 except Exception as e:
-                    logger.error(f"Error fetching template {template_path}: {e}")
+                    logger.error(
+                        "Error fetching template %s: %s",
+                        sanitize_for_log(template_path),
+                        sanitize_for_log(e),
+                    )
                     continue
 
         # No templates found after trying all paths
         logger.warning(
-            f"No template found for {year} {make} {model} ({duty_type} duty, fuel: {fuel_type})"
+            "No template found for %s %s %s (%s duty, fuel: %s)",
+            year,
+            sanitize_for_log(make),
+            sanitize_for_log(model),
+            sanitize_for_log(duty_type),
+            sanitize_for_log(fuel_type),
         )
         return None
 
@@ -263,7 +371,9 @@ class MaintenanceTemplateService:
         # Extract maintenance items
         maintenance_items = template_data.get("maintenance_items", [])
         if not maintenance_items:
-            logger.warning(f"No maintenance items in template {template_path}")
+            logger.warning(
+                "No maintenance items in template %s", sanitize_for_log(template_path)
+            )
             return 0
 
         reminders_created = 0
@@ -304,7 +414,11 @@ class MaintenanceTemplateService:
                 reminders_created += 1
 
             except Exception as e:
-                logger.error(f"Error creating reminder for item {item}: {e}")
+                logger.error(
+                    "Error creating reminder for item %s: %s",
+                    sanitize_for_log(item),
+                    sanitize_for_log(e),
+                )
                 continue
 
         # Save template application record
@@ -321,7 +435,10 @@ class MaintenanceTemplateService:
         await db.commit()
 
         logger.info(
-            f"Applied template {template_path} to {vin}, created {reminders_created} reminders"
+            "Applied template %s to %s, created %s reminders",
+            sanitize_for_log(template_path),
+            sanitize_for_log(vin),
+            reminders_created,
         )
 
         return reminders_created

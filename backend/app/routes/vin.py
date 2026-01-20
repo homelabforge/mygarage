@@ -10,6 +10,7 @@ from app.models.user import User
 from app.schemas.vin import VINDecodeRequest, VINDecodeResponse
 from app.services.auth import require_auth
 from app.services.nhtsa import NHTSAService
+from app.utils.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
 
@@ -36,17 +37,21 @@ async def _decode_vin_helper(vin: str) -> VINDecodeResponse:
 
     except ValueError as e:
         # Invalid VIN format
-        logger.warning("Invalid VIN format: %s", e)
+        logger.warning("Invalid VIN format: %s", sanitize_for_log(str(e)))
         raise HTTPException(status_code=400, detail=str(e))
 
     except httpx.TimeoutException:
-        logger.error("NHTSA API timeout for VIN %s", vin)
+        logger.error("NHTSA API timeout for VIN %s", sanitize_for_log(vin))
         raise HTTPException(status_code=504, detail="NHTSA API request timed out")
     except httpx.ConnectError:
-        logger.error("Cannot connect to NHTSA API for VIN %s", vin)
+        logger.error("Cannot connect to NHTSA API for VIN %s", sanitize_for_log(vin))
         raise HTTPException(status_code=503, detail="Cannot connect to NHTSA API")
     except httpx.HTTPStatusError as e:
-        logger.error("NHTSA API error for VIN %s: %s", vin, e)
+        logger.error(
+            "NHTSA API error for VIN %s: %s",
+            sanitize_for_log(vin),
+            sanitize_for_log(str(e)),
+        )
         raise HTTPException(
             status_code=e.response.status_code, detail="NHTSA API error"
         )

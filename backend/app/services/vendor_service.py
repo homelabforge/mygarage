@@ -19,6 +19,7 @@ from app.schemas.vendor import (
     VendorPriceHistoryEntry,
     VendorPriceHistoryResponse,
 )
+from app.utils.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +88,9 @@ class VendorService:
             return vendor_responses, total
 
         except OperationalError as e:
-            logger.error("Database connection error listing vendors: %s", e)
+            logger.error(
+                "Database connection error listing vendors: %s", sanitize_for_log(e)
+            )
             raise HTTPException(
                 status_code=503, detail="Database temporarily unavailable"
             )
@@ -138,18 +141,24 @@ class VendorService:
             await self.db.commit()
             await self.db.refresh(vendor)
 
-            logger.info("Created vendor %s: %s", vendor.id, vendor.name)
+            logger.info(
+                "Created vendor %s: %s", vendor.id, sanitize_for_log(vendor.name)
+            )
             return vendor
 
         except IntegrityError as e:
             await self.db.rollback()
-            logger.error("Database constraint violation creating vendor: %s", e)
+            logger.error(
+                "Database constraint violation creating vendor: %s", sanitize_for_log(e)
+            )
             raise HTTPException(
                 status_code=409, detail="Vendor with this name already exists"
             )
         except OperationalError as e:
             await self.db.rollback()
-            logger.error("Database connection error creating vendor: %s", e)
+            logger.error(
+                "Database connection error creating vendor: %s", sanitize_for_log(e)
+            )
             raise HTTPException(
                 status_code=503, detail="Database temporarily unavailable"
             )
@@ -181,7 +190,9 @@ class VendorService:
             await self.db.commit()
             await self.db.refresh(vendor)
 
-            logger.info("Updated vendor %s: %s", vendor_id, vendor.name)
+            logger.info(
+                "Updated vendor %s: %s", vendor_id, sanitize_for_log(vendor.name)
+            )
             return vendor
 
         except HTTPException:
@@ -189,7 +200,9 @@ class VendorService:
         except IntegrityError as e:
             await self.db.rollback()
             logger.error(
-                "Database constraint violation updating vendor %s: %s", vendor_id, e
+                "Database constraint violation updating vendor %s: %s",
+                vendor_id,
+                sanitize_for_log(e),
             )
             raise HTTPException(
                 status_code=409, detail="Vendor with this name already exists"
@@ -197,7 +210,9 @@ class VendorService:
         except OperationalError as e:
             await self.db.rollback()
             logger.error(
-                "Database connection error updating vendor %s: %s", vendor_id, e
+                "Database connection error updating vendor %s: %s",
+                vendor_id,
+                sanitize_for_log(e),
             )
             raise HTTPException(
                 status_code=503, detail="Database temporarily unavailable"
@@ -227,7 +242,9 @@ class VendorService:
         except IntegrityError as e:
             await self.db.rollback()
             logger.error(
-                "Database constraint violation deleting vendor %s: %s", vendor_id, e
+                "Database constraint violation deleting vendor %s: %s",
+                vendor_id,
+                sanitize_for_log(e),
             )
             raise HTTPException(
                 status_code=409,
@@ -236,7 +253,9 @@ class VendorService:
         except OperationalError as e:
             await self.db.rollback()
             logger.error(
-                "Database connection error deleting vendor %s: %s", vendor_id, e
+                "Database connection error deleting vendor %s: %s",
+                vendor_id,
+                sanitize_for_log(e),
             )
             raise HTTPException(
                 status_code=503, detail="Database temporarily unavailable"

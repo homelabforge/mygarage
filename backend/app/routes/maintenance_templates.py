@@ -19,6 +19,7 @@ from app.schemas.maintenance_template import (
 )
 from app.services.auth import require_auth
 from app.services.maintenance_template_service import MaintenanceTemplateService
+from app.utils.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +73,7 @@ async def search_template(
         )
 
     except Exception as e:
-        logger.error(f"Error searching for template: {e}")
+        logger.error("Error searching for template: %s", sanitize_for_log(str(e)))
         raise HTTPException(
             status_code=500, detail=f"Failed to search for template: {str(e)}"
         )
@@ -111,7 +112,8 @@ async def apply_template(
 
     if existing_templates:
         logger.warning(
-            f"Template already applied to {request.vin}, applying additional template"
+            "Template already applied to %s, applying additional template",
+            sanitize_for_log(request.vin),
         )
 
     # Find template
@@ -154,7 +156,11 @@ async def apply_template(
         )
 
     except Exception as e:
-        logger.error(f"Error applying template to {request.vin}: {e}")
+        logger.error(
+            "Error applying template to %s: %s",
+            sanitize_for_log(request.vin),
+            sanitize_for_log(str(e)),
+        )
         raise HTTPException(
             status_code=500, detail=f"Failed to apply template: {str(e)}"
         )
@@ -212,5 +218,7 @@ async def delete_template_record(
     )
     await db.commit()
 
-    logger.info(f"Deleted template record {template_id} for vehicle {vin}")
+    logger.info(
+        "Deleted template record %s for vehicle %s", template_id, sanitize_for_log(vin)
+    )
     return None
