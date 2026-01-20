@@ -122,16 +122,16 @@ const featureGroups = [
 ]
 
 const backendStack = [
-  'Python 3.14+ with FastAPI 0.121.3 and Granian 2.6.0 ASGI server',
+  'Python 3.14+ with FastAPI 0.121.1 and Granian 2.6.1 ASGI server',
   'SQLAlchemy 2.0.44 + SQLite (WAL mode) via aiosqlite 0.21.0',
-  'Pydantic 2.12.4 for data validation and settings management',
+  'Pydantic 2.12.3 for data validation and settings management',
   'JWT authentication with Argon2id password hashing (argon2-cffi 25.1.0)',
   'OIDC/OAuth2 authentication via authlib 1.6.5 for SSO integration',
   'Auto-generated secret keys with secure persistence',
   'NHTSA API integration for VIN decoding and recall checking',
-  'httpx 0.28.1 async HTTP client for external API integration',
-  'ReportLab 4.4.5 for PDF generation and analytics export',
-  'PyMuPDF 1.26.6 and Tesseract OCR for document scanning',
+  'httpx 0.27.2 async HTTP client for external API integration',
+  'ReportLab 4.0.0 for PDF generation and analytics export',
+  'PyMuPDF 1.25.0 and Tesseract OCR for document scanning',
   'Database-backed settings with encrypted value support',
   'Multi-service notifications: ntfy, Gotify, Pushover, Slack, Discord, Telegram, Email',
   'aiosmtplib 3.0+ for async SMTP email delivery',
@@ -139,22 +139,22 @@ const backendStack = [
 ]
 
 const frontendStack = [
-  'React 19.2.0 + TypeScript 5.9.3 with Bun 1.3.4 runtime and Vite 7.2.4 bundler',
-  'Tailwind CSS 4.1.17 with custom garage theme and light/dark mode',
-  'React Router 7.9.6 for client-side navigation',
-  'Recharts 3.5.0 for interactive analytics charts and visualizations',
+  'React 19.2.3 + TypeScript 5.9.3 with Bun 1.3.6 runtime and Vite 7.3.1 bundler',
+  'Tailwind CSS 4.1.18 with custom garage theme and light/dark mode',
+  'React Router 7.12.0 for client-side navigation',
+  'Recharts 3.6.0 for interactive analytics charts and visualizations',
   'react-big-calendar 1.19.4 for comprehensive calendar UI',
   'date-fns 4.1.0 for date manipulation and formatting',
-  'Zod 4.1.12 + React Hook Form 7.66.1 for declarative form validation',
-  'Lucide React 0.554.0 iconography throughout the UI',
+  'Zod 4.3.5 + React Hook Form 7.71.1 for declarative form validation',
+  'Lucide React 0.562.0 iconography throughout the UI',
   'Sonner 2.0.7 for toast notifications',
 ]
 
 const projectStats = [
-  { label: 'Total Lines of Code', value: '~55,000', icon: Code },
-  { label: 'Python Backend', value: '~27,300', icon: Database },
-  { label: 'TypeScript Frontend', value: '~27,700', icon: Layers },
-  { label: 'Interactive Pages', value: '14', icon: BarChart3 },
+  { label: 'Total Lines of Code', value: '~81,300', icon: Code },
+  { label: 'Python Backend', value: '~42,900', icon: Database },
+  { label: 'TypeScript Frontend', value: '~38,400', icon: Layers },
+  { label: 'Interactive Pages', value: '19', icon: BarChart3 },
 ]
 
 export default function About() {
@@ -350,22 +350,22 @@ export default function About() {
           </h2>
           <p className="text-garage-text-muted leading-relaxed mb-4">
             MyGarage is built through collaboration between human expertise and cutting-edge AI capabilities.
-            Claude (Sonnet 4.5) handles architecture design and full-stack development, Codex (GPT-5.1)
-            assists with bug fixing and security auditing, while Oaniach guides product vision, requirements,
+            Claude (Opus 4.5) handles architecture design and full-stack development, Codex (GPT-5.1)
+            assists with bug fixing and security auditing, while the Operator guides product vision, requirements,
             and deployment strategy.
           </p>
           <ul className="space-y-2 text-garage-text-muted text-sm">
             <li className="flex items-start gap-2">
               <CheckCircle className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
               <span>
-                <strong className="text-garage-text">Claude (Sonnet 4.5)</strong> – Full-stack
+                <strong className="text-garage-text">Claude (Opus 4.5)</strong> – Full-stack
                 architecture, feature development, and production-ready code delivery.
               </span>
             </li>
             <li className="flex items-start gap-2">
               <CheckCircle className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
               <span>
-                <strong className="text-garage-text">Oaniach</strong> – Product vision,
+                <strong className="text-garage-text">Operator</strong> – Product vision,
                 requirements definition, NHTSA integration guidance, and homelab deployment expertise.
               </span>
             </li>
@@ -403,7 +403,7 @@ export default function About() {
             Made with <Heart className="w-4 h-4 text-danger" /> for the homelab community
           </p>
           <p className="text-garage-text-muted text-xs mt-2">
-            MyGarage v{version} • Built with AI collaboration • November 2025
+            MyGarage v{version} • Built with AI collaboration • January 2026
           </p>
         </div>
       </div>
