@@ -5,13 +5,24 @@ extensions:
       pack: codeql/python-all
       extensible: barrierModel
     data:
-      # Format: type, path, input
-      # These functions sanitize user input for safe logging
+      # Log injection barriers
       - ["app.utils.logging_utils", "Member[sanitize_for_log].ReturnValue", "log-injection"]
       - ["app.utils.logging_utils", "Member[sanitize_path_for_log].ReturnValue", "log-injection"]
       - ["app.utils.logging_utils", "Member[sanitize_url_for_log].ReturnValue", "log-injection"]
       - ["app.utils.logging_utils", "Member[sanitize_log_message].ReturnValue", "log-injection"]
+      # Masking functions for sensitive data (clear-text logging)
       - ["app.utils.logging_utils", "Member[mask_vin].ReturnValue", "log-injection"]
       - ["app.utils.logging_utils", "Member[mask_email].ReturnValue", "log-injection"]
       - ["app.utils.logging_utils", "Member[mask_coordinates].ReturnValue", "log-injection"]
       - ["app.utils.logging_utils", "Member[mask_api_key].ReturnValue", "log-injection"]
+      - ["app.utils.logging_utils", "Member[mask_credit_card].ReturnValue", "log-injection"]
+      - ["app.utils.logging_utils", "Member[mask_phone].ReturnValue", "log-injection"]
+      - ["app.utils.logging_utils", "Member[mask_license_plate].ReturnValue", "log-injection"]
+      # Also mark these as barriers for clear-text logging of sensitive data
+      - ["app.utils.logging_utils", "Member[mask_api_key].ReturnValue", "py/clear-text-logging-sensitive-data"]
+      - ["app.utils.logging_utils", "Member[mask_vin].ReturnValue", "py/clear-text-logging-sensitive-data"]
+      - ["app.utils.logging_utils", "Member[mask_email].ReturnValue", "py/clear-text-logging-sensitive-data"]
+      - ["app.utils.logging_utils", "Member[mask_coordinates].ReturnValue", "py/clear-text-logging-sensitive-data"]
+      - ["app.utils.logging_utils", "Member[mask_credit_card].ReturnValue", "py/clear-text-logging-sensitive-data"]
+      - ["app.utils.logging_utils", "Member[mask_phone].ReturnValue", "py/clear-text-logging-sensitive-data"]
+      - ["app.utils.logging_utils", "Member[mask_license_plate].ReturnValue", "py/clear-text-logging-sensitive-data"]
