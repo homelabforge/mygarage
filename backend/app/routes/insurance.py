@@ -207,6 +207,19 @@ async def parse_insurance_pdf(
         if not parsed_data.get("success"):
             raise ValueError(parsed_data.get("error", "Failed to extract data"))
 
+        # Sanitize validation warnings to prevent stack trace exposure
+        # Only include safe, user-friendly warning messages
+        raw_warnings = parsed_data.get("validation_warnings", [])
+        safe_warnings = []
+        for warning in raw_warnings:
+            # Filter out any warnings that look like stack traces or internal errors
+            warning_str = str(warning)
+            if not any(
+                indicator in warning_str.lower()
+                for indicator in ["traceback", "exception", "error:", "line ", "file "]
+            ):
+                safe_warnings.append(warning_str)
+
         # Format response (maintaining backward compatibility)
         response = {
             "success": True,
@@ -226,7 +239,7 @@ async def parse_insurance_pdf(
             "confidence_score": parsed_data.get("confidence_score", 0),
             "parser_used": parsed_data.get("parser_name"),
             "vehicles_found": parsed_data.get("vehicles_found", []),
-            "warnings": parsed_data.get("validation_warnings", []),
+            "warnings": safe_warnings,
         }
 
         # Add warning if target VIN not found
