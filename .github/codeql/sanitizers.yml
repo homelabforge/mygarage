@@ -1,0 +1,17 @@
+extensions:
+  # Mark our sanitizer functions as barriers (sanitizers) for taint tracking
+  # This tells CodeQL that data passing through these functions is sanitized
+  - addsTo:
+      pack: codeql/python-all
+      extensible: barrierModel
+    data:
+      # Format: type, path, input
+      # These functions sanitize user input for safe logging
+      - ["app.utils.logging_utils", "Member[sanitize_for_log].ReturnValue", "log-injection"]
+      - ["app.utils.logging_utils", "Member[sanitize_path_for_log].ReturnValue", "log-injection"]
+      - ["app.utils.logging_utils", "Member[sanitize_url_for_log].ReturnValue", "log-injection"]
+      - ["app.utils.logging_utils", "Member[sanitize_log_message].ReturnValue", "log-injection"]
+      - ["app.utils.logging_utils", "Member[mask_vin].ReturnValue", "log-injection"]
+      - ["app.utils.logging_utils", "Member[mask_email].ReturnValue", "log-injection"]
+      - ["app.utils.logging_utils", "Member[mask_coordinates].ReturnValue", "log-injection"]
+      - ["app.utils.logging_utils", "Member[mask_api_key].ReturnValue", "log-injection"]

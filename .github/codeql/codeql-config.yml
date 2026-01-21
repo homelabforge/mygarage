@@ -1,0 +1,10 @@
+name: "MyGarage CodeQL Config"
+
+# Use security-extended queries
+query-filters:
+  - include:
+      tags contain: security
+
+# Register model extensions to recognize our sanitizer functions
+model-extensions:
+  - .github/codeql/sanitizers.yml
