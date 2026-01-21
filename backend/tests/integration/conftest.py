@@ -88,8 +88,10 @@ async def test_vehicle_with_records(test_vehicle, db_session):
 
     await db_session.commit()
 
+    # Return vehicle data directly accessible plus the records
+    # Spread test_vehicle dict so vin, year, etc. are directly accessible
     return {
-        "vehicle": test_vehicle,
+        **test_vehicle,
         "fuel_records": fuel_records,
         "service_records": service_records,
     }
@@ -130,10 +132,11 @@ def sample_vehicle_payload():
     """Sample payload for creating a vehicle."""
     return {
         "vin": "1HGCM82633A123456",
+        "nickname": "Test Accord",  # Required field
+        "vehicle_type": "Car",  # Required field
         "year": 2023,
         "make": "Honda",
         "model": "Accord",
         "trim": "EX-L",
         "license_plate": "TEST-123",
-        "current_odometer": 15000,
     }

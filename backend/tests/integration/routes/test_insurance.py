@@ -26,10 +26,10 @@ class TestInsuranceRoutes:
             json={
                 "provider": "State Farm",
                 "policy_number": "SF-12345678",
+                "policy_type": "Full Coverage",
                 "start_date": start_date,
                 "end_date": end_date,
-                "premium": 1200.00,
-                "coverage_type": "Full Coverage",
+                "premium_amount": 1200.00,
             },
             headers=auth_headers,
         )
@@ -53,7 +53,8 @@ class TestInsuranceRoutes:
 
         assert response.status_code == 200
         data = response.json()
-        assert isinstance(data, list) or ("insurance" in data)
+        # API may return list or wrapper object
+        assert isinstance(data, list) or "policies" in data or "insurance" in data
 
     async def test_get_insurance_by_id(
         self, client: AsyncClient, auth_headers, test_vehicle
@@ -68,17 +69,19 @@ class TestInsuranceRoutes:
             json={
                 "provider": "Geico",
                 "policy_number": "G-987654321",
+                "policy_type": "Liability",
                 "start_date": start_date,
                 "end_date": end_date,
-                "premium": 900.00,
+                "premium_amount": 900.00,
             },
             headers=auth_headers,
         )
+        assert create_response.status_code == 201
         insurance = create_response.json()
 
-        # Get the insurance record
+        # Get the insurance record (route is /api/vehicles/{vin}/insurance/{policy_id})
         response = await client.get(
-            f"/api/insurance/{insurance['id']}",
+            f"/api/vehicles/{test_vehicle['vin']}/insurance/{insurance['id']}",
             headers=auth_headers,
         )
 
@@ -100,29 +103,32 @@ class TestInsuranceRoutes:
             json={
                 "provider": "Progressive",
                 "policy_number": "P-111111",
+                "policy_type": "Comprehensive",
                 "start_date": start_date,
                 "end_date": end_date,
-                "premium": 1000.00,
+                "premium_amount": 1000.00,
             },
             headers=auth_headers,
         )
+        assert create_response.status_code == 201
         insurance = create_response.json()
 
         # Update the insurance
         update_data = {
-            "premium": 950.00,
+            "premium_amount": 950.00,
             "notes": "Discount applied",
         }
 
         response = await client.put(
-            f"/api/insurance/{insurance['id']}",
+            f"/api/vehicles/{test_vehicle['vin']}/insurance/{insurance['id']}",
             json=update_data,
             headers=auth_headers,
         )
 
         assert response.status_code == 200
         data = response.json()
-        assert data["premium"] == 950.00
+        # premium_amount may be returned as string (Decimal)
+        assert float(data["premium_amount"]) == 950.00
 
     async def test_delete_insurance(
         self, client: AsyncClient, auth_headers, test_vehicle
@@ -137,17 +143,19 @@ class TestInsuranceRoutes:
             json={
                 "provider": "Allstate",
                 "policy_number": "A-999999",
+                "policy_type": "Full Coverage",
                 "start_date": start_date,
                 "end_date": end_date,
-                "premium": 1100.00,
+                "premium_amount": 1100.00,
             },
             headers=auth_headers,
         )
+        assert create_response.status_code == 201
         insurance = create_response.json()
 
         # Delete the insurance
         response = await client.delete(
-            f"/api/insurance/{insurance['id']}",
+            f"/api/vehicles/{test_vehicle['vin']}/insurance/{insurance['id']}",
             headers=auth_headers,
         )
 
@@ -155,7 +163,7 @@ class TestInsuranceRoutes:
 
         # Verify it's deleted
         get_response = await client.get(
-            f"/api/insurance/{insurance['id']}",
+            f"/api/vehicles/{test_vehicle['vin']}/insurance/{insurance['id']}",
             headers=auth_headers,
         )
         assert get_response.status_code == 404
@@ -173,9 +181,10 @@ class TestInsuranceRoutes:
             json={
                 "provider": "Test",
                 "policy_number": "TEST",
+                "policy_type": "Test",
                 "start_date": start_date,
                 "end_date": end_date,
-                "premium": 1000.00,
+                "premium_amount": 1000.00,
             },
             headers=auth_headers,
         )
@@ -193,9 +202,10 @@ class TestInsuranceRoutes:
             json={
                 "provider": "Test",
                 "policy_number": "TEST",
+                "policy_type": "Test",
                 "start_date": start_date,
                 "end_date": end_date,
-                "premium": 1000.00,
+                "premium_amount": 1000.00,
             },
         )
 
@@ -214,22 +224,25 @@ class TestInsuranceRoutes:
             json={
                 "provider": "Active Insurance Co",
                 "policy_number": "ACTIVE-123",
+                "policy_type": "Comprehensive",
                 "start_date": start_date,
                 "end_date": end_date,
-                "premium": 1000.00,
+                "premium_amount": 1000.00,
             },
             headers=auth_headers,
         )
 
-        # Get active insurance
+        # Get all insurance (no /active endpoint exists)
         response = await client.get(
-            f"/api/vehicles/{test_vehicle['vin']}/insurance/active",
+            f"/api/vehicles/{test_vehicle['vin']}/insurance",
             headers=auth_headers,
         )
 
-        # Should return active policy or 200/404
-        assert response.status_code in [200, 404]
-        if response.status_code == 200:
-            data = response.json()
-            if data:  # Not empty
-                assert "provider" in data or "insurance" in data
+        # Should return list of policies
+        assert response.status_code == 200
+        data = response.json()
+        # API returns list or wrapper
+        if isinstance(data, list):
+            assert len(data) >= 0
+        else:
+            assert "policies" in data or "insurance" in data

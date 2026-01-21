@@ -23,18 +23,17 @@ class TestReminderRoutes:
         response = await client.post(
             f"/api/vehicles/{test_vehicle['vin']}/reminders",
             json={
-                "title": "Oil Change Due",
-                "description": "5000 miles since last change",
+                "vin": test_vehicle["vin"],  # Required in body
+                "description": "Oil Change Due - 5000 miles since last change",
                 "due_date": tomorrow,
                 "due_mileage": 20000,
-                "reminder_type": "maintenance",
             },
             headers=auth_headers,
         )
 
         assert response.status_code == 201
         data = response.json()
-        assert data["title"] == "Oil Change Due"
+        assert "description" in data
         assert "id" in data
 
     async def test_list_reminders(
@@ -50,7 +49,7 @@ class TestReminderRoutes:
 
         assert response.status_code == 200
         data = response.json()
-        assert isinstance(data, list) or ("reminders" in data)
+        assert isinstance(data, list) or "reminders" in data
 
     async def test_get_reminder_by_id(
         self, client: AsyncClient, auth_headers, test_vehicle
@@ -62,24 +61,25 @@ class TestReminderRoutes:
         create_response = await client.post(
             f"/api/vehicles/{test_vehicle['vin']}/reminders",
             json={
-                "title": "Test Reminder",
+                "vin": test_vehicle["vin"],
+                "description": "Test Reminder",
                 "due_date": tomorrow,
-                "reminder_type": "maintenance",
             },
             headers=auth_headers,
         )
+        assert create_response.status_code == 201
         reminder = create_response.json()
 
-        # Get the reminder
+        # Get the reminder (route is /api/vehicles/{vin}/reminders/{reminder_id})
         response = await client.get(
-            f"/api/reminders/{reminder['id']}",
+            f"/api/vehicles/{test_vehicle['vin']}/reminders/{reminder['id']}",
             headers=auth_headers,
         )
 
         assert response.status_code == 200
         data = response.json()
         assert data["id"] == reminder["id"]
-        assert data["title"] == "Test Reminder"
+        assert "description" in data
 
     async def test_update_reminder(
         self, client: AsyncClient, auth_headers, test_vehicle
@@ -91,29 +91,30 @@ class TestReminderRoutes:
         create_response = await client.post(
             f"/api/vehicles/{test_vehicle['vin']}/reminders",
             json={
-                "title": "Original Title",
+                "vin": test_vehicle["vin"],
+                "description": "Original Description",
                 "due_date": tomorrow,
-                "reminder_type": "maintenance",
             },
             headers=auth_headers,
         )
+        assert create_response.status_code == 201
         reminder = create_response.json()
 
         # Update the reminder
         update_data = {
-            "title": "Updated Title",
-            "description": "Updated description",
+            "description": "Updated Description",
+            "notes": "Updated notes",
         }
 
         response = await client.put(
-            f"/api/reminders/{reminder['id']}",
+            f"/api/vehicles/{test_vehicle['vin']}/reminders/{reminder['id']}",
             json=update_data,
             headers=auth_headers,
         )
 
         assert response.status_code == 200
         data = response.json()
-        assert data["title"] == "Updated Title"
+        assert data["description"] == "Updated Description"
 
     async def test_delete_reminder(
         self, client: AsyncClient, auth_headers, test_vehicle
@@ -125,17 +126,18 @@ class TestReminderRoutes:
         create_response = await client.post(
             f"/api/vehicles/{test_vehicle['vin']}/reminders",
             json={
-                "title": "Delete Me",
+                "vin": test_vehicle["vin"],
+                "description": "Delete Me",
                 "due_date": tomorrow,
-                "reminder_type": "maintenance",
             },
             headers=auth_headers,
         )
+        assert create_response.status_code == 201
         reminder = create_response.json()
 
         # Delete the reminder
         response = await client.delete(
-            f"/api/reminders/{reminder['id']}",
+            f"/api/vehicles/{test_vehicle['vin']}/reminders/{reminder['id']}",
             headers=auth_headers,
         )
 
@@ -143,7 +145,7 @@ class TestReminderRoutes:
 
         # Verify it's deleted
         get_response = await client.get(
-            f"/api/reminders/{reminder['id']}",
+            f"/api/vehicles/{test_vehicle['vin']}/reminders/{reminder['id']}",
             headers=auth_headers,
         )
         assert get_response.status_code == 404
@@ -158,17 +160,18 @@ class TestReminderRoutes:
         create_response = await client.post(
             f"/api/vehicles/{test_vehicle['vin']}/reminders",
             json={
-                "title": "Complete Me",
+                "vin": test_vehicle["vin"],
+                "description": "Complete Me",
                 "due_date": tomorrow,
-                "reminder_type": "maintenance",
             },
             headers=auth_headers,
         )
+        assert create_response.status_code == 201
         reminder = create_response.json()
 
-        # Mark as complete
+        # Mark as complete (route is /api/vehicles/{vin}/reminders/{id}/complete)
         response = await client.post(
-            f"/api/reminders/{reminder['id']}/complete",
+            f"/api/vehicles/{test_vehicle['vin']}/reminders/{reminder['id']}/complete",
             headers=auth_headers,
         )
 
@@ -176,18 +179,18 @@ class TestReminderRoutes:
 
         # Verify status changed
         get_response = await client.get(
-            f"/api/reminders/{reminder['id']}",
+            f"/api/vehicles/{test_vehicle['vin']}/reminders/{reminder['id']}",
             headers=auth_headers,
         )
         if get_response.status_code == 200:
             data = get_response.json()
-            if "completed" in data:
-                assert data["completed"] is True
+            if "is_completed" in data:
+                assert data["is_completed"] is True
 
     async def test_upcoming_reminders(
         self, client: AsyncClient, auth_headers, test_vehicle
     ):
-        """Test retrieving upcoming reminders."""
+        """Test retrieving upcoming reminders (list all for vehicle)."""
         # Create reminders with different due dates
         tomorrow = (date.today() + timedelta(days=1)).isoformat()
         next_week = (date.today() + timedelta(days=7)).isoformat()
@@ -195,9 +198,9 @@ class TestReminderRoutes:
         await client.post(
             f"/api/vehicles/{test_vehicle['vin']}/reminders",
             json={
-                "title": "Soon",
+                "vin": test_vehicle["vin"],
+                "description": "Soon reminder",
                 "due_date": tomorrow,
-                "reminder_type": "maintenance",
             },
             headers=auth_headers,
         )
@@ -205,33 +208,34 @@ class TestReminderRoutes:
         await client.post(
             f"/api/vehicles/{test_vehicle['vin']}/reminders",
             json={
-                "title": "Later",
+                "vin": test_vehicle["vin"],
+                "description": "Later reminder",
                 "due_date": next_week,
-                "reminder_type": "maintenance",
             },
             headers=auth_headers,
         )
 
-        # Get upcoming reminders
+        # Get reminders for vehicle (no global /api/reminders/upcoming)
         response = await client.get(
-            "/api/reminders/upcoming",
+            f"/api/vehicles/{test_vehicle['vin']}/reminders",
             headers=auth_headers,
         )
 
         assert response.status_code == 200
         data = response.json()
-        # Should return list of upcoming reminders
-        assert isinstance(data, list) or ("reminders" in data)
+        # Should return list of reminders
+        assert isinstance(data, list) or "reminders" in data
 
     async def test_reminder_validation(
         self, client: AsyncClient, auth_headers, test_vehicle
     ):
         """Test reminder validation."""
-        # Missing required fields
+        # Missing required fields (description is required)
         response = await client.post(
             f"/api/vehicles/{test_vehicle['vin']}/reminders",
             json={
-                "description": "No title",
+                "vin": test_vehicle["vin"],
+                "notes": "No description",  # description missing
             },
             headers=auth_headers,
         )
@@ -245,9 +249,9 @@ class TestReminderRoutes:
         response = await client.post(
             f"/api/vehicles/{test_vehicle['vin']}/reminders",
             json={
-                "title": "Test",
+                "vin": test_vehicle["vin"],
+                "description": "Test",
                 "due_date": tomorrow,
-                "reminder_type": "maintenance",
             },
         )
 

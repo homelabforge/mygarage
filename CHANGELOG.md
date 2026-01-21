@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Integration Test Suite Alignment** - Fixed 59 integration tests to match actual API implementation
+  - Updated route paths to match current API structure (`/api/export/vehicles/{vin}/...` format)
+  - Added required `title` field to document upload tests
+  - Fixed photo delete tests to use filename instead of numeric ID
+  - Fixed VIN inclusion in document download/delete route paths
+  - Updated expected HTTP status codes (422 for Pydantic validation, not 400)
+  - Added rate limit tolerance (429) to CSV format validation tests
+- **Export Route Bug** - Fixed `FuelRecord.mpg` attribute error in CSV/JSON export
+  - `mpg` field doesn't exist on FuelRecord model; replaced with `is_hauling` and `fuel_type` fields
+  - Updated CSV headers and JSON export to use actual model attributes
+
+### Changed
+- **Test Infrastructure** - Improved pytest-asyncio configuration
+  - Added `loop_scope="session"` to async fixtures for proper event loop reuse
+  - Updated pytest.ini with asyncio_default_fixture_loop_scope setting
+
 ## [2.20.0] - 2026-01-19
 
 ### Security

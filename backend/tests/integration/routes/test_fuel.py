@@ -37,16 +37,17 @@ class TestFuelRecordRoutes:
         """Test retrieving a specific fuel record."""
         vehicle = test_vehicle_with_records
 
-        # First create a fuel record
+        # First create a fuel record (vin required in body)
         create_response = await client.post(
             f"/api/vehicles/{vehicle['vin']}/fuel",
             json={
+                "vin": vehicle["vin"],
                 "date": "2024-01-15",
                 "gallons": 12.5,
                 "cost": 45.00,
-                "odometer": 15500,
+                "mileage": 15500,
                 "is_full_tank": True,
-                "price_per_gallon": 3.60,
+                "price_per_unit": 3.60,
             },
             headers=auth_headers,
         )
@@ -62,23 +63,27 @@ class TestFuelRecordRoutes:
         assert response.status_code == 200
         data = response.json()
         assert data["id"] == record["id"]
-        assert data["gallons"] == 12.5
-        assert data["cost"] == 45.00
+        # Decimal fields are serialized as strings
+        assert float(data["gallons"]) == 12.5
+        assert float(data["cost"]) == 45.00
 
     async def test_create_fuel_record(
         self, client: AsyncClient, auth_headers, test_vehicle, sample_fuel_payload
     ):
         """Test creating a new fuel record."""
+        # Add vin to payload (required by API)
+        payload = {**sample_fuel_payload, "vin": test_vehicle["vin"]}
         response = await client.post(
             f"/api/vehicles/{test_vehicle['vin']}/fuel",
-            json=sample_fuel_payload,
+            json=payload,
             headers=auth_headers,
         )
 
         assert response.status_code == 201
         data = response.json()
-        assert data["gallons"] == sample_fuel_payload["gallons"]
-        assert data["cost"] == sample_fuel_payload["cost"]
+        # Decimal fields are serialized as strings
+        assert float(data["gallons"]) == payload["gallons"]
+        assert float(data["cost"]) == payload["cost"]
         assert "id" in data
         # MPG might be null for first record
         assert "mpg" in data
@@ -93,12 +98,13 @@ class TestFuelRecordRoutes:
         create_response = await client.post(
             f"/api/vehicles/{vehicle['vin']}/fuel",
             json={
+                "vin": vehicle["vin"],
                 "date": "2024-01-15",
                 "gallons": 12.5,
                 "cost": 45.00,
-                "odometer": 15500,
+                "mileage": 15500,
                 "is_full_tank": True,
-                "price_per_gallon": 3.60,
+                "price_per_unit": 3.60,
             },
             headers=auth_headers,
         )
@@ -118,7 +124,7 @@ class TestFuelRecordRoutes:
 
         assert response.status_code == 200
         data = response.json()
-        assert data["cost"] == 50.00
+        assert float(data["cost"]) == 50.00
         assert data["notes"] == "Updated cost"
 
     async def test_delete_fuel_record(
@@ -131,12 +137,13 @@ class TestFuelRecordRoutes:
         create_response = await client.post(
             f"/api/vehicles/{vehicle['vin']}/fuel",
             json={
+                "vin": vehicle["vin"],
                 "date": "2024-01-15",
                 "gallons": 12.5,
                 "cost": 45.00,
-                "odometer": 15500,
+                "mileage": 15500,
                 "is_full_tank": True,
-                "price_per_gallon": 3.60,
+                "price_per_unit": 3.60,
             },
             headers=auth_headers,
         )
@@ -167,12 +174,13 @@ class TestFuelRecordRoutes:
         first_response = await client.post(
             f"/api/vehicles/{vehicle['vin']}/fuel",
             json={
+                "vin": vehicle["vin"],
                 "date": "2024-01-01",
                 "gallons": 12.0,
                 "cost": 43.20,
-                "odometer": 10000,
+                "mileage": 10000,
                 "is_full_tank": True,
-                "price_per_gallon": 3.60,
+                "price_per_unit": 3.60,
             },
             headers=auth_headers,
         )
@@ -185,12 +193,13 @@ class TestFuelRecordRoutes:
         second_response = await client.post(
             f"/api/vehicles/{vehicle['vin']}/fuel",
             json={
+                "vin": vehicle["vin"],
                 "date": "2024-01-15",
                 "gallons": 12.0,
                 "cost": 43.20,
-                "odometer": 10300,  # 300 miles driven
+                "mileage": 10300,  # 300 miles driven
                 "is_full_tank": True,
-                "price_per_gallon": 3.60,
+                "price_per_unit": 3.60,
             },
             headers=auth_headers,
         )
@@ -210,12 +219,13 @@ class TestFuelRecordRoutes:
         await client.post(
             f"/api/vehicles/{vehicle['vin']}/fuel",
             json={
+                "vin": vehicle["vin"],
                 "date": "2024-01-01",
                 "gallons": 12.0,
                 "cost": 43.20,
-                "odometer": 10000,
+                "mileage": 10000,
                 "is_full_tank": True,
-                "price_per_gallon": 3.60,
+                "price_per_unit": 3.60,
             },
             headers=auth_headers,
         )
@@ -224,12 +234,13 @@ class TestFuelRecordRoutes:
         partial_response = await client.post(
             f"/api/vehicles/{vehicle['vin']}/fuel",
             json={
+                "vin": vehicle["vin"],
                 "date": "2024-01-15",
                 "gallons": 8.0,
                 "cost": 28.80,
-                "odometer": 10300,
+                "mileage": 10300,
                 "is_full_tank": False,  # Partial
-                "price_per_gallon": 3.60,
+                "price_per_unit": 3.60,
             },
             headers=auth_headers,
         )
@@ -252,10 +263,11 @@ class TestFuelRecordRoutes:
     ):
         """Test that invalid fuel records are rejected."""
         invalid_payload = {
+            "vin": test_vehicle["vin"],
             "date": "2024-01-15",
             "gallons": -12.5,  # Negative gallons should fail
             "cost": 45.00,
-            "odometer": 15500,
+            "mileage": 15500,
             "is_full_tank": True,
         }
 
@@ -293,12 +305,13 @@ class TestFuelRecordRoutes:
         await client.post(
             f"/api/vehicles/{vehicle['vin']}/fuel",
             json={
+                "vin": vehicle["vin"],
                 "date": "2024-01-01",
                 "gallons": 12.0,
                 "cost": 43.20,
-                "odometer": 10000,
+                "mileage": 10000,
                 "is_full_tank": True,
-                "hauling": False,
+                "is_hauling": False,
             },
             headers=auth_headers,
         )
@@ -307,12 +320,13 @@ class TestFuelRecordRoutes:
         await client.post(
             f"/api/vehicles/{vehicle['vin']}/fuel",
             json={
+                "vin": vehicle["vin"],
                 "date": "2024-01-15",
                 "gallons": 15.0,
                 "cost": 54.00,
-                "odometer": 10250,
+                "mileage": 10250,
                 "is_full_tank": True,
-                "hauling": True,
+                "is_hauling": True,
             },
             headers=auth_headers,
         )

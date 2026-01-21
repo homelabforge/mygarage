@@ -133,9 +133,10 @@ async def export_fuel_records_csv(
         "Gallons",
         "Price Per Gallon",
         "Total Cost",
-        "MPG",
         "Full Tank",
         "Missed Fill-up",
+        "Is Hauling",
+        "Fuel Type",
         "Notes",
     ]
 
@@ -148,9 +149,10 @@ async def export_fuel_records_csv(
                 f"{record.gallons:.3f}" if record.gallons else "",
                 f"{record.price_per_unit:.3f}" if record.price_per_unit else "",
                 f"{record.cost:.2f}" if record.cost else "",
-                f"{record.mpg:.2f}" if record.mpg else "",
                 "Yes" if record.is_full_tank else "No",
                 "Yes" if record.missed_fillup else "No",
+                "Yes" if record.is_hauling else "No",
+                record.fuel_type or "",
                 record.notes or "",
             ]
         )
@@ -536,9 +538,10 @@ async def export_vehicle_json(
                 "gallons": float(r.gallons) if r.gallons else None,
                 "price_per_unit": float(r.price_per_unit) if r.price_per_unit else None,
                 "cost": float(r.cost) if r.cost else None,
-                "mpg": float(r.mpg) if r.mpg else None,
                 "is_full_tank": r.is_full_tank,
                 "missed_fillup": r.missed_fillup,
+                "is_hauling": r.is_hauling,
+                "fuel_type": r.fuel_type,
                 "notes": r.notes,
             }
             for r in fuel_records

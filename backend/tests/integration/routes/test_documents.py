@@ -24,13 +24,18 @@ class TestDocumentRoutes:
         response = await client.post(
             f"/api/vehicles/{test_vehicle['vin']}/documents",
             files={"file": ("test_document.pdf", BytesIO(fake_pdf), "application/pdf")},
-            data={"document_type": "Service Record", "description": "Test document"},
+            data={
+                "title": "Test Document",  # Required field
+                "document_type": "Service Record",
+                "description": "Test document",
+            },
             headers=auth_headers,
         )
 
         assert response.status_code == 201
         data = response.json()
-        assert "filename" in data or "id" in data
+        assert "id" in data
+        assert "title" in data
 
     async def test_list_documents(
         self, client: AsyncClient, auth_headers, test_vehicle_with_records
@@ -45,7 +50,8 @@ class TestDocumentRoutes:
 
         assert response.status_code == 200
         data = response.json()
-        assert isinstance(data, list) or ("documents" in data)
+        assert "documents" in data
+        assert "total" in data
 
     async def test_download_document(
         self, client: AsyncClient, auth_headers, test_vehicle
@@ -57,17 +63,18 @@ class TestDocumentRoutes:
         upload_response = await client.post(
             f"/api/vehicles/{test_vehicle['vin']}/documents",
             files={"file": ("download_test.pdf", BytesIO(fake_pdf), "application/pdf")},
+            data={"title": "Download Test Doc"},
             headers=auth_headers,
         )
 
         if upload_response.status_code == 201:
             doc_data = upload_response.json()
-            doc_id = doc_data.get("id") or doc_data.get("filename")
+            doc_id = doc_data.get("id")
 
             if doc_id:
-                # Download the document
+                # Download the document - route includes VIN
                 download_response = await client.get(
-                    f"/api/documents/{doc_id}/download",
+                    f"/api/vehicles/{test_vehicle['vin']}/documents/{doc_id}/download",
                     headers=auth_headers,
                 )
 
@@ -84,6 +91,7 @@ class TestDocumentRoutes:
         upload_response = await client.post(
             f"/api/vehicles/{test_vehicle['vin']}/documents",
             files={"file": ("delete_test.pdf", BytesIO(fake_pdf), "application/pdf")},
+            data={"title": "Delete Test Doc"},
             headers=auth_headers,
         )
 
@@ -92,9 +100,9 @@ class TestDocumentRoutes:
             doc_id = doc_data.get("id")
 
             if doc_id:
-                # Delete the document
+                # Delete the document - route includes VIN
                 delete_response = await client.delete(
-                    f"/api/documents/{doc_id}",
+                    f"/api/vehicles/{test_vehicle['vin']}/documents/{doc_id}",
                     headers=auth_headers,
                 )
 
@@ -110,6 +118,7 @@ class TestDocumentRoutes:
         response = await client.post(
             f"/api/vehicles/{test_vehicle['vin']}/documents",
             files={"file": ("bad.exe", BytesIO(fake_exe), "application/x-msdownload")},
+            data={"title": "Bad File"},
             headers=auth_headers,
         )
 
@@ -124,6 +133,7 @@ class TestDocumentRoutes:
         response = await client.post(
             f"/api/vehicles/{test_vehicle['vin']}/documents",
             files={"file": ("test.pdf", BytesIO(fake_pdf), "application/pdf")},
+            data={"title": "Unauthorized Doc"},
         )
 
         assert response.status_code == 401
@@ -138,17 +148,17 @@ class TestDocumentRoutes:
             f"/api/vehicles/{test_vehicle['vin']}/documents",
             files={"file": ("metadata_test.pdf", BytesIO(fake_pdf), "application/pdf")},
             data={
+                "title": "Insurance Policy",
                 "document_type": "Insurance",
                 "description": "Insurance policy document",
-                "date": "2024-01-15",
             },
             headers=auth_headers,
         )
 
         assert response.status_code == 201
         data = response.json()
-        if "document_type" in data:
-            assert data["document_type"] == "Insurance"
+        assert data["document_type"] == "Insurance"
+        assert data["title"] == "Insurance Policy"
 
     async def test_list_documents_empty(
         self, client: AsyncClient, auth_headers, test_vehicle
@@ -161,8 +171,6 @@ class TestDocumentRoutes:
 
         assert response.status_code == 200
         data = response.json()
-        # Should return empty list or structure
-        if isinstance(data, list):
-            assert len(data) >= 0
-        else:
-            assert "documents" in data
+        assert "documents" in data
+        assert "total" in data
+        assert data["total"] >= 0

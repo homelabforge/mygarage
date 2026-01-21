@@ -49,7 +49,8 @@ class TestPhotoRoutes:
 
         assert response.status_code == 200
         data = response.json()
-        assert isinstance(data, list) or ("photos" in data)
+        assert "photos" in data
+        assert "total" in data
 
     async def test_delete_photo(self, client: AsyncClient, auth_headers, test_vehicle):
         """Test deleting a photo."""
@@ -63,18 +64,20 @@ class TestPhotoRoutes:
 
         upload_response = await client.post(
             f"/api/vehicles/{test_vehicle['vin']}/photos",
-            files={"file": ("test_photo.png", BytesIO(fake_png), "image/png")},
+            files={"file": ("delete_test.png", BytesIO(fake_png), "image/png")},
             headers=auth_headers,
         )
 
         if upload_response.status_code == 201:
             photo_data = upload_response.json()
-            photo_id = photo_data.get("id") or photo_data.get("filename")
+            # Get filename from file_path (format: "VIN/filename.ext")
+            file_path = photo_data.get("file_path", "")
+            filename = file_path.split("/")[-1] if "/" in file_path else file_path
 
-            # Delete the photo
-            if photo_id:
+            # Delete the photo - route is /api/vehicles/{vin}/photos/{filename}
+            if filename:
                 delete_response = await client.delete(
-                    f"/api/photos/{photo_id}",
+                    f"/api/vehicles/{test_vehicle['vin']}/photos/{filename}",
                     headers=auth_headers,
                 )
 
