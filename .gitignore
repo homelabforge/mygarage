@@ -135,3 +135,7 @@ cython_debug/
 tmp/
 temp/
 *.tmp
+
+# Root-level npm artifacts (frontend uses Bun)
+/package.json
+/package-lock.json
