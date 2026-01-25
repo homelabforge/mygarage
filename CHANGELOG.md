@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Uses existing `isMotorized` check to conditionally render appropriate sections
 
 ### Fixed
+- **PostgreSQL Support** - Added missing `asyncpg` dependency required for PostgreSQL database connections ([#21](https://github.com/homelabforge/mygarage/issues/21))
 - **Vehicle Edit Form - Non-Motorized Vehicle Support** - Fixed form validation blocking saves for trailers, fifth wheels, and travel trailers
   - Hidden "VIN Decoded Information" and "Engine & Transmission" sections for non-motorized vehicles
   - Added separate "Fuel Information" section for non-motorized vehicles with propane
