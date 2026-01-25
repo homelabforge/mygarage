@@ -5,9 +5,32 @@ All notable changes to MyGarage will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.20.1] - 2026-01-25
+
+### Changed
+- **Garage Analytics Overhaul** - Improved cost tracking and categorization
+  - **Service Category Breakdown**: Cost by Category pie chart now shows all 5 service categories separately (Maintenance, Upgrades, Inspection, Collision, Detailing) instead of lumping all services into "Maintenance"
+  - **Running Costs by Vehicle Redesign**: Consolidated bar chart and vehicle cost breakdown into a single card
+    - Converted to horizontal bar chart layout for better readability
+    - Added inline cost breakdown table (Maint. | Upgrades | Insp. | Collision | Detail. | Fuel | Total)
+    - Removed standalone "Vehicle Cost Comparison" section (data now in combined card)
+    - Removed purchase price from breakdown (already shown in Garage Value summary card)
+  - **Vehicle Nickname Display**: Bar chart and breakdown table now show vehicle nicknames instead of full year/make/model
+  - **Running Costs vs Total Cost**: "Total Cost" renamed to "Running Costs" and now excludes purchase price (shows only operational costs: all service categories + fuel)
+  - **CSV Export**: Updated to include all service category columns (still uses full vehicle name for data export)
+  - Backend now groups service records by `service_category` field for accurate analytics
+
+- **Vehicle Detail Page - Non-Motorized Vehicle Handling**
+  - **Powertrain Section Hidden**: Trailers, Fifth Wheels, and Travel Trailers no longer show the "Powertrain" section (they don't have engines)
+  - **Fuel Type in Vehicle Details**: For non-motorized vehicles with propane (fifth wheels, travel trailers), fuel type now displays in the "Vehicle Details" card instead of Powertrain
+  - Uses existing `isMotorized` check to conditionally render appropriate sections
 
 ### Fixed
+- **Vehicle Edit Form - Non-Motorized Vehicle Support** - Fixed form validation blocking saves for trailers, fifth wheels, and travel trailers
+  - Hidden "VIN Decoded Information" and "Engine & Transmission" sections for non-motorized vehicles
+  - Added separate "Fuel Information" section for non-motorized vehicles with propane
+  - Fixed form validation schemas to handle null values from database (was causing "Invalid input" errors on optional fields)
+  - Form now only loads relevant fields based on vehicle type, preventing hidden field validation failures
 - **Integration Test Suite Alignment** - Fixed 59 integration tests to match actual API implementation
   - Updated route paths to match current API structure (`/api/export/vehicles/{vin}/...` format)
   - Added required `title` field to document upload tests

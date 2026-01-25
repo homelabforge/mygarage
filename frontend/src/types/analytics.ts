@@ -153,7 +153,13 @@ export interface VehicleAnalytics {
 
 export interface GarageCostTotals {
   total_garage_value: string
+  // Service category breakdowns
   total_maintenance: string
+  total_upgrades: string
+  total_inspection: string
+  total_collision: string
+  total_detailing: string
+  // Other costs
   total_fuel: string
   total_insurance: string
   total_taxes: string
@@ -167,9 +173,17 @@ export interface GarageCostByCategory {
 export interface GarageVehicleCost {
   vin: string
   name: string
+  nickname: string
   purchase_price: string
+  // Service category breakdowns
   total_maintenance: string
+  total_upgrades: string
+  total_inspection: string
+  total_collision: string
+  total_detailing: string
+  // Other costs
   total_fuel: string
+  // Running costs = all service categories + fuel (excludes purchase price)
   total_cost: string
 }
 

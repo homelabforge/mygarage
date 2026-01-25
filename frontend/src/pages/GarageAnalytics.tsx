@@ -19,7 +19,8 @@ import type { PieLabelRenderProps } from 'recharts'
 import type { GarageAnalytics, GarageMonthlyTrend } from '../types/analytics'
 import GarageAnalyticsHelpModal from '../components/GarageAnalyticsHelpModal'
 
-const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899']
+// Colors for pie chart categories (8 categories: Maintenance, Upgrades, Inspection, Collision, Detailing, Fuel, Insurance, Taxes)
+const COLORS = ['#3B82F6', '#8B5CF6', '#F59E0B', '#EF4444', '#10B981', '#06B6D4', '#EC4899', '#6B7280']
 
 export default function GarageAnalytics() {
   const [analytics, setAnalytics] = useState<GarageAnalytics | null>(null)
@@ -56,6 +57,10 @@ export default function GarageAnalytics() {
     rows.push('Category,Amount')
     rows.push(`Garage Value,${analytics.total_costs.total_garage_value}`)
     rows.push(`Maintenance,${analytics.total_costs.total_maintenance}`)
+    rows.push(`Upgrades,${analytics.total_costs.total_upgrades}`)
+    rows.push(`Inspection,${analytics.total_costs.total_inspection}`)
+    rows.push(`Collision,${analytics.total_costs.total_collision}`)
+    rows.push(`Detailing,${analytics.total_costs.total_detailing}`)
     rows.push(`Fuel,${analytics.total_costs.total_fuel}`)
     rows.push(`Insurance,${analytics.total_costs.total_insurance}`)
     rows.push(`Taxes,${analytics.total_costs.total_taxes}`)
@@ -71,10 +76,10 @@ export default function GarageAnalytics() {
 
     // Cost by Vehicle
     rows.push('Cost by Vehicle')
-    rows.push('Vehicle,Purchase Price,Maintenance,Fuel,Total Cost')
+    rows.push('Vehicle,Purchase Price,Maintenance,Upgrades,Inspection,Collision,Detailing,Fuel,Running Costs')
     analytics.cost_by_vehicle.forEach((vehicle) => {
       rows.push(
-        `"${vehicle.name}",${vehicle.purchase_price},${vehicle.total_maintenance},${vehicle.total_fuel},${vehicle.total_cost}`
+        `"${vehicle.name}",${vehicle.purchase_price},${vehicle.total_maintenance},${vehicle.total_upgrades},${vehicle.total_inspection},${vehicle.total_collision},${vehicle.total_detailing},${vehicle.total_fuel},${vehicle.total_cost}`
       )
     })
     rows.push('')
@@ -231,7 +236,7 @@ export default function GarageAnalytics() {
     .filter((item) => item.value > 0)
 
   const barData = cost_by_vehicle.slice(0, 10).map((vehicle) => ({
-    name: vehicle.name.length > 20 ? vehicle.name.substring(0, 20) + '...' : vehicle.name,
+    name: vehicle.nickname,
     totalCost: parseFloat(vehicle.total_cost),
   }))
 
@@ -406,49 +411,117 @@ export default function GarageAnalytics() {
           )}
         </div>
 
-        {/* Bar Chart - Cost by Vehicle */}
+        {/* Bar Chart - Running Costs by Vehicle */}
         <div className="bg-garage-surface border border-garage-border rounded-lg p-6">
-          <h2 className="text-xl font-bold mb-4 text-garage-text">Cost by Vehicle</h2>
+          <h2 className="text-xl font-bold mb-4 text-garage-text">Running Costs by Vehicle</h2>
           {barData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={300}>
-              <RechartsBarChart data={barData} margin={{ top: 5, right: 20, left: 10, bottom: 60 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                <XAxis
-                  dataKey="name"
-                  stroke="#9E9E9E"
-                  style={{ fontSize: '12px' }}
-                  angle={-45}
-                  textAnchor="end"
-                  height={100}
-                />
-                <YAxis
-                  stroke="#9E9E9E"
-                  style={{ fontSize: '12px' }}
-                  label={{ value: 'Cost ($)', angle: -90, position: 'insideLeft', fill: '#9E9E9E' }}
-                />
-                <Tooltip
-                  cursor={false}
-                  wrapperStyle={{ outline: 'none' }}
-                  content={({ active, payload }) => {
-                    if (active && payload && payload.length) {
-                      const data = payload[0]
-                      return (
-                        <div style={customTooltipStyle}>
-                          <p style={{ fontWeight: '600', marginBottom: '4px' }}>
-                            {data.payload.name}
-                          </p>
-                          <p style={{ fontSize: '14px', color: '#9ca3af' }}>
-                            Total: {formatCurrency(data.value)}
-                          </p>
-                        </div>
-                      )
-                    }
-                    return null
-                  }}
-                />
-                <Bar dataKey="totalCost" fill="#3B82F6" />
-              </RechartsBarChart>
-            </ResponsiveContainer>
+            <>
+              <ResponsiveContainer width="100%" height={Math.max(150, barData.length * 50)}>
+                <RechartsBarChart
+                  data={barData}
+                  layout="vertical"
+                  margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#333" horizontal={false} />
+                  <XAxis
+                    type="number"
+                    stroke="#9E9E9E"
+                    style={{ fontSize: '12px' }}
+                    tickFormatter={(value) => `$${value.toLocaleString()}`}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    stroke="#9E9E9E"
+                    style={{ fontSize: '12px' }}
+                    width={150}
+                  />
+                  <Tooltip
+                    cursor={false}
+                    wrapperStyle={{ outline: 'none' }}
+                    content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        const data = payload[0]
+                        return (
+                          <div style={customTooltipStyle}>
+                            <p style={{ fontWeight: '600', marginBottom: '4px' }}>
+                              {data.payload.name}
+                            </p>
+                            <p style={{ fontSize: '14px', color: '#9ca3af' }}>
+                              Running Costs: {formatCurrency(data.value)}
+                            </p>
+                          </div>
+                        )
+                      }
+                      return null
+                    }}
+                  />
+                  <Bar dataKey="totalCost" fill="#3B82F6" />
+                </RechartsBarChart>
+              </ResponsiveContainer>
+
+              {/* Vehicle Cost Breakdown Table */}
+              <div className="mt-6 overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-garage-border">
+                      <th className="text-left py-2 px-3 text-sm font-medium text-garage-text-muted">
+                        Vehicle
+                      </th>
+                      <th className="text-right py-2 px-3 text-sm font-medium text-garage-text-muted">
+                        Maint.
+                      </th>
+                      <th className="text-right py-2 px-3 text-sm font-medium text-garage-text-muted">
+                        Upgrades
+                      </th>
+                      <th className="text-right py-2 px-3 text-sm font-medium text-garage-text-muted">
+                        Insp.
+                      </th>
+                      <th className="text-right py-2 px-3 text-sm font-medium text-garage-text-muted">
+                        Collision
+                      </th>
+                      <th className="text-right py-2 px-3 text-sm font-medium text-garage-text-muted">
+                        Detail.
+                      </th>
+                      <th className="text-right py-2 px-3 text-sm font-medium text-garage-text-muted">
+                        Fuel
+                      </th>
+                      <th className="text-right py-2 px-3 text-sm font-medium text-garage-text-muted">
+                        Total
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cost_by_vehicle.map((vehicle, index) => (
+                      <tr key={index} className="border-b border-garage-border/50 hover:bg-garage-surface-light transition-colors">
+                        <td className="py-2 px-3 text-sm text-garage-text">{vehicle.nickname}</td>
+                        <td className="py-2 px-3 text-sm text-garage-text text-right">
+                          {formatCurrency(vehicle.total_maintenance)}
+                        </td>
+                        <td className="py-2 px-3 text-sm text-garage-text text-right">
+                          {formatCurrency(vehicle.total_upgrades)}
+                        </td>
+                        <td className="py-2 px-3 text-sm text-garage-text text-right">
+                          {formatCurrency(vehicle.total_inspection)}
+                        </td>
+                        <td className="py-2 px-3 text-sm text-garage-text text-right">
+                          {formatCurrency(vehicle.total_collision)}
+                        </td>
+                        <td className="py-2 px-3 text-sm text-garage-text text-right">
+                          {formatCurrency(vehicle.total_detailing)}
+                        </td>
+                        <td className="py-2 px-3 text-sm text-garage-text text-right">
+                          {formatCurrency(vehicle.total_fuel)}
+                        </td>
+                        <td className="py-2 px-3 text-sm text-garage-text text-right font-semibold">
+                          {formatCurrency(vehicle.total_cost)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           ) : (
             <p className="text-garage-text-muted text-center py-8">No vehicle data available</p>
           )}
@@ -542,53 +615,6 @@ export default function GarageAnalytics() {
           </ResponsiveContainer>
         </div>
       )}
-
-      {/* Vehicle Cost Comparison Table */}
-      <div className="bg-garage-surface border border-garage-border rounded-lg p-6">
-        <h2 className="text-xl font-bold mb-4 text-garage-text">Vehicle Cost Comparison</h2>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-garage-border">
-                <th className="text-left py-2 px-4 text-sm font-medium text-garage-text-muted">
-                  Vehicle
-                </th>
-                <th className="text-right py-2 px-4 text-sm font-medium text-garage-text-muted">
-                  Purchase Price
-                </th>
-                <th className="text-right py-2 px-4 text-sm font-medium text-garage-text-muted">
-                  Maintenance
-                </th>
-                <th className="text-right py-2 px-4 text-sm font-medium text-garage-text-muted">
-                  Fuel
-                </th>
-                <th className="text-right py-2 px-4 text-sm font-medium text-garage-text-muted">
-                  Total Cost
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {cost_by_vehicle.map((vehicle, index) => (
-                <tr key={index} className="border-b border-garage-border/50 hover:bg-garage-surface-light transition-colors">
-                  <td className="py-3 px-4 text-sm text-garage-text">{vehicle.name}</td>
-                  <td className="py-3 px-4 text-sm text-garage-text text-right">
-                    {formatCurrency(vehicle.purchase_price)}
-                  </td>
-                  <td className="py-3 px-4 text-sm text-garage-text text-right">
-                    {formatCurrency(vehicle.total_maintenance)}
-                  </td>
-                  <td className="py-3 px-4 text-sm text-garage-text text-right">
-                    {formatCurrency(vehicle.total_fuel)}
-                  </td>
-                  <td className="py-3 px-4 text-sm text-garage-text text-right font-semibold">
-                    {formatCurrency(vehicle.total_cost)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
 
       {/* Help Modal */}
       <GarageAnalyticsHelpModal isOpen={showHelpModal} onClose={() => setShowHelpModal(false)} />

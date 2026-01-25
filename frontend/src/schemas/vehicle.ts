@@ -47,47 +47,63 @@ const cylindersSchema = z
 const purchasePriceSchema = z
   .number()
   .or(z.nan())
-  .transform(val => isNaN(val) ? undefined : val)
+  .nullable()
   .optional()
+  .transform(val => (val === null || (typeof val === 'number' && isNaN(val))) ? undefined : val)
 
 const soldPriceSchema = z
   .number()
   .or(z.nan())
-  .transform(val => isNaN(val) ? undefined : val)
+  .nullable()
   .optional()
+  .transform(val => (val === null || (typeof val === 'number' && isNaN(val))) ? undefined : val)
+
+// Handle date fields that may be null, undefined, or empty string from the database
+const optionalDateSchema = z
+  .string()
+  .nullable()
+  .optional()
+  .transform(val => (val === null || val === '') ? undefined : val)
+
+// Handle optional string fields that may be null from the database
+const optionalStringSchema = z
+  .string()
+  .nullable()
+  .optional()
+  .transform(val => (val === null || val === '') ? undefined : val)
 
 export const vehicleEditSchema = z.object({
   // Basic Information
-  nickname: z.string().optional(),
-  license_plate: z.string().optional(),
-  vehicle_type: z.string().optional(),
-  color: z.string().optional(),
+  nickname: optionalStringSchema,
+  license_plate: optionalStringSchema,
+  vehicle_type: optionalStringSchema,
+  color: optionalStringSchema,
 
   // Vehicle Details
   year: yearSchema,
-  make: z.string().optional(),
-  model: z.string().optional(),
+  make: optionalStringSchema,
+  model: optionalStringSchema,
 
   // VIN Decoded Information
-  trim: z.string().optional(),
-  body_class: z.string().optional(),
-  drive_type: z.string().optional(),
+  trim: optionalStringSchema,
+  body_class: optionalStringSchema,
+  drive_type: optionalStringSchema,
   doors: doorsSchema,
-  gvwr_class: z.string().optional(),
+  gvwr_class: optionalStringSchema,
 
   // Engine & Transmission
-  displacement_l: z.string().optional(), // Backend expects string
+  displacement_l: optionalStringSchema, // Backend expects string
   cylinders: cylindersSchema,
-  fuel_type: z.string().optional(),
-  transmission_type: z.string().optional(),
-  transmission_speeds: z.string().optional(),
+  fuel_type: optionalStringSchema,
+  transmission_type: optionalStringSchema,
+  transmission_speeds: optionalStringSchema,
 
   // Purchase Information
-  purchase_date: z.string().optional(),
+  purchase_date: optionalDateSchema,
   purchase_price: purchasePriceSchema,
 
   // Sale Information
-  sold_date: z.string().optional(),
+  sold_date: optionalDateSchema,
   sold_price: soldPriceSchema,
 })
 

@@ -78,9 +78,7 @@ class TestVehicleRoutes:
         data = response.json()
         assert data["license_plate"] == "UPDATED-123"
 
-    async def test_delete_vehicle(
-        self, client: AsyncClient, auth_headers, db_session
-    ):
+    async def test_delete_vehicle(self, client: AsyncClient, auth_headers, db_session):
         """Test deleting a vehicle."""
         from app.models.vehicle import Vehicle
 

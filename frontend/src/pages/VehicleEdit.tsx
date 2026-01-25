@@ -31,7 +31,12 @@ export default function VehicleEdit() {
       const response = await api.get(`/vehicles/${vin}`)
       const data: Vehicle = response.data
       setVehicle(data)
-      reset({
+
+      // Check if vehicle is motorized - non-motorized don't have engine/VIN decoded fields
+      const vehicleIsMotorized = !['Trailer', 'FifthWheel', 'TravelTrailer'].includes(data.vehicle_type)
+
+      // Base fields for all vehicles
+      const formData: Record<string, unknown> = {
         nickname: data.nickname,
         license_plate: data.license_plate,
         vehicle_type: data.vehicle_type,
@@ -43,18 +48,24 @@ export default function VehicleEdit() {
         purchase_price: data.purchase_price,
         sold_date: data.sold_date,
         sold_price: data.sold_price,
-        // VIN decoded fields
-        trim: data.trim,
-        body_class: data.body_class,
-        drive_type: data.drive_type,
-        doors: data.doors,
-        gvwr_class: data.gvwr_class,
-        displacement_l: data.displacement_l,
-        cylinders: data.cylinders,
+        // Always include fuel_type (for propane on fifth wheels)
         fuel_type: data.fuel_type,
-        transmission_type: data.transmission_type,
-        transmission_speeds: data.transmission_speeds,
-      })
+      }
+
+      // Only include VIN decoded and engine fields for motorized vehicles
+      if (vehicleIsMotorized) {
+        formData.trim = data.trim
+        formData.body_class = data.body_class
+        formData.drive_type = data.drive_type
+        formData.doors = data.doors
+        formData.gvwr_class = data.gvwr_class
+        formData.displacement_l = data.displacement_l
+        formData.cylinders = data.cylinders
+        formData.transmission_type = data.transmission_type
+        formData.transmission_speeds = data.transmission_speeds
+      }
+
+      reset(formData as VehicleEditFormData)
     } catch (error) {
       setError(error instanceof Error ? error.message : 'An error occurred')
     } finally {
@@ -110,6 +121,9 @@ export default function VehicleEdit() {
       </div>
     )
   }
+
+  // Non-motorized vehicles don't have engine/transmission/VIN decoded details
+  const isMotorized = !['Trailer', 'FifthWheel', 'TravelTrailer'].includes(vehicle.vehicle_type)
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -255,159 +269,185 @@ export default function VehicleEdit() {
           </div>
         </div>
 
-        {/* VIN Decoded Information Section */}
-        <div>
-          <h3 className="text-lg font-semibold text-garage-text mb-4">VIN Decoded Information</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="trim" className="block text-sm font-medium text-garage-text mb-1">
-                Trim
-              </label>
-              <input
-                type="text"
-                id="trim"
-                {...register('trim')}
-                className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-garage-text"
-                placeholder="EX, Limited, etc."
-              />
-              <FormError error={errors.trim} />
-            </div>
+        {/* VIN Decoded Information Section - only for motorized vehicles */}
+        {isMotorized && (
+          <div>
+            <h3 className="text-lg font-semibold text-garage-text mb-4">VIN Decoded Information</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="trim" className="block text-sm font-medium text-garage-text mb-1">
+                  Trim
+                </label>
+                <input
+                  type="text"
+                  id="trim"
+                  {...register('trim')}
+                  className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-garage-text"
+                  placeholder="EX, Limited, etc."
+                />
+                <FormError error={errors.trim} />
+              </div>
 
-            <div>
-              <label htmlFor="body_class" className="block text-sm font-medium text-garage-text mb-1">
-                Body Class
-              </label>
-              <input
-                type="text"
-                id="body_class"
-                {...register('body_class')}
-                className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-garage-text"
-                placeholder="Sedan, Coupe, etc."
-              />
-              <FormError error={errors.body_class} />
-            </div>
+              <div>
+                <label htmlFor="body_class" className="block text-sm font-medium text-garage-text mb-1">
+                  Body Class
+                </label>
+                <input
+                  type="text"
+                  id="body_class"
+                  {...register('body_class')}
+                  className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-garage-text"
+                  placeholder="Sedan, Coupe, etc."
+                />
+                <FormError error={errors.body_class} />
+              </div>
 
-            <div>
-              <label htmlFor="drive_type" className="block text-sm font-medium text-garage-text mb-1">
-                Drive Type
-              </label>
-              <input
-                type="text"
-                id="drive_type"
-                {...register('drive_type')}
-                className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-garage-text"
-                placeholder="FWD, RWD, AWD, 4WD"
-              />
-              <FormError error={errors.drive_type} />
-            </div>
+              <div>
+                <label htmlFor="drive_type" className="block text-sm font-medium text-garage-text mb-1">
+                  Drive Type
+                </label>
+                <input
+                  type="text"
+                  id="drive_type"
+                  {...register('drive_type')}
+                  className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-garage-text"
+                  placeholder="FWD, RWD, AWD, 4WD"
+                />
+                <FormError error={errors.drive_type} />
+              </div>
 
-            <div>
-              <label htmlFor="doors" className="block text-sm font-medium text-garage-text mb-1">
-                Doors
-              </label>
-              <input
-                type="number"
-                id="doors"
-                {...register('doors', { valueAsNumber: true })}
-                className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-garage-text"
-                placeholder="4"
-              />
-              <FormError error={errors.doors} />
-            </div>
+              <div>
+                <label htmlFor="doors" className="block text-sm font-medium text-garage-text mb-1">
+                  Doors
+                </label>
+                <input
+                  type="number"
+                  id="doors"
+                  {...register('doors', { valueAsNumber: true })}
+                  className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-garage-text"
+                  placeholder="4"
+                />
+                <FormError error={errors.doors} />
+              </div>
 
-            <div>
-              <label htmlFor="gvwr_class" className="block text-sm font-medium text-garage-text mb-1">
-                GVWR Class
-              </label>
-              <input
-                type="text"
-                id="gvwr_class"
-                {...register('gvwr_class')}
-                className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-garage-text"
-                placeholder="Class 1, 2, etc."
-              />
-              <FormError error={errors.gvwr_class} />
+              <div>
+                <label htmlFor="gvwr_class" className="block text-sm font-medium text-garage-text mb-1">
+                  GVWR Class
+                </label>
+                <input
+                  type="text"
+                  id="gvwr_class"
+                  {...register('gvwr_class')}
+                  className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-garage-text"
+                  placeholder="Class 1, 2, etc."
+                />
+                <FormError error={errors.gvwr_class} />
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
-        {/* Engine & Transmission Section */}
-        <div>
-          <h3 className="text-lg font-semibold text-garage-text mb-4">Engine & Transmission</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label htmlFor="displacement_l" className="block text-sm font-medium text-garage-text mb-1">
-                Displacement (L)
-              </label>
-              <input
-                type="text"
-                id="displacement_l"
-                {...register('displacement_l')}
-                className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-garage-text"
-                placeholder="2.0"
-              />
-              <FormError error={errors.displacement_l} />
+        {/* Engine & Transmission Section - only for motorized vehicles */}
+        {isMotorized && (
+          <div>
+            <h3 className="text-lg font-semibold text-garage-text mb-4">Engine & Transmission</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label htmlFor="displacement_l" className="block text-sm font-medium text-garage-text mb-1">
+                  Displacement (L)
+                </label>
+                <input
+                  type="text"
+                  id="displacement_l"
+                  {...register('displacement_l')}
+                  className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-garage-text"
+                  placeholder="2.0"
+                />
+                <FormError error={errors.displacement_l} />
+              </div>
+
+              <div>
+                <label htmlFor="cylinders" className="block text-sm font-medium text-garage-text mb-1">
+                  Cylinders
+                </label>
+                <input
+                  type="number"
+                  id="cylinders"
+                  {...register('cylinders', { valueAsNumber: true })}
+                  className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-garage-text"
+                  placeholder="4"
+                />
+                <FormError error={errors.cylinders} />
+              </div>
+
+              <div>
+                <label htmlFor="fuel_type" className="block text-sm font-medium text-garage-text mb-1">
+                  Fuel Type
+                </label>
+                <input
+                  type="text"
+                  id="fuel_type"
+                  {...register('fuel_type')}
+                  className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-garage-text"
+                  placeholder="Gasoline, Diesel, etc."
+                />
+                <FormError error={errors.fuel_type} />
+              </div>
             </div>
 
-            <div>
-              <label htmlFor="cylinders" className="block text-sm font-medium text-garage-text mb-1">
-                Cylinders
-              </label>
-              <input
-                type="number"
-                id="cylinders"
-                {...register('cylinders', { valueAsNumber: true })}
-                className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-garage-text"
-                placeholder="4"
-              />
-              <FormError error={errors.cylinders} />
-            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+              <div>
+                <label htmlFor="transmission_type" className="block text-sm font-medium text-garage-text mb-1">
+                  Transmission Type
+                </label>
+                <input
+                  type="text"
+                  id="transmission_type"
+                  {...register('transmission_type')}
+                  className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-garage-text"
+                  placeholder="Automatic, Manual, CVT"
+                />
+                <FormError error={errors.transmission_type} />
+              </div>
 
-            <div>
-              <label htmlFor="fuel_type" className="block text-sm font-medium text-garage-text mb-1">
-                Fuel Type
-              </label>
-              <input
-                type="text"
-                id="fuel_type"
-                {...register('fuel_type')}
-                className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-garage-text"
-                placeholder="Gasoline, Diesel, etc."
-              />
-              <FormError error={errors.fuel_type} />
+              <div>
+                <label htmlFor="transmission_speeds" className="block text-sm font-medium text-garage-text mb-1">
+                  Transmission Speeds
+                </label>
+                <input
+                  type="text"
+                  id="transmission_speeds"
+                  {...register('transmission_speeds')}
+                  className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-garage-text"
+                  placeholder="6-Speed, 8-Speed, etc."
+                />
+                <FormError error={errors.transmission_speeds} />
+              </div>
             </div>
           </div>
+        )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-            <div>
-              <label htmlFor="transmission_type" className="block text-sm font-medium text-garage-text mb-1">
-                Transmission Type
-              </label>
-              <input
-                type="text"
-                id="transmission_type"
-                {...register('transmission_type')}
-                className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-garage-text"
-                placeholder="Automatic, Manual, CVT"
-              />
-              <FormError error={errors.transmission_type} />
-            </div>
-
-            <div>
-              <label htmlFor="transmission_speeds" className="block text-sm font-medium text-garage-text mb-1">
-                Transmission Speeds
-              </label>
-              <input
-                type="text"
-                id="transmission_speeds"
-                {...register('transmission_speeds')}
-                className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-garage-text"
-                placeholder="6-Speed, 8-Speed, etc."
-              />
-              <FormError error={errors.transmission_speeds} />
+        {/* Fuel Type for non-motorized vehicles (e.g., propane for fifth wheels) */}
+        {!isMotorized && vehicle.fuel_type && (
+          <div>
+            <h3 className="text-lg font-semibold text-garage-text mb-4">Fuel Information</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="fuel_type" className="block text-sm font-medium text-garage-text mb-1">
+                  Fuel Type
+                </label>
+                <input
+                  type="text"
+                  id="fuel_type"
+                  {...register('fuel_type')}
+                  className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-garage-text"
+                  placeholder="Propane"
+                />
+                <FormError error={errors.fuel_type} />
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Purchase Information Section */}
         <div>

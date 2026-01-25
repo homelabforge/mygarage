@@ -60,7 +60,9 @@ async def init_test_db(test_engine):
 
 
 @pytest_asyncio.fixture
-async def db_session(test_sessionmaker, init_test_db) -> AsyncGenerator[AsyncSession, None]:
+async def db_session(
+    test_sessionmaker, init_test_db
+) -> AsyncGenerator[AsyncSession, None]:
     """Provide a database session for tests. Depends on init_test_db to ensure tables exist."""
     async with test_sessionmaker() as session:
         yield session
@@ -101,10 +103,7 @@ async def test_user(db_session: AsyncSession) -> dict[str, object]:
     # Try to get existing test user (check both username and email for conflicts)
     result = await db_session.execute(
         select(User).where(
-            or_(
-                User.username == "testuser",
-                User.email == "testuser@example.com"
-            )
+            or_(User.username == "testuser", User.email == "testuser@example.com")
         )
     )
     user = result.scalar_one_or_none()
@@ -142,15 +141,15 @@ async def test_user(db_session: AsyncSession) -> dict[str, object]:
 
 
 @pytest_asyncio.fixture
-async def test_vehicle(db_session: AsyncSession, test_user: dict[str, object]) -> dict[str, object]:
+async def test_vehicle(
+    db_session: AsyncSession, test_user: dict[str, object]
+) -> dict[str, object]:
     """Create or get a test vehicle. Returns dict for easy test access."""
     user_id = test_user["id"]
     test_vin = "1HGBH41JXMN109186"
 
     # Try to get the specific test vehicle by VIN
-    result = await db_session.execute(
-        select(Vehicle).where(Vehicle.vin == test_vin)
-    )
+    result = await db_session.execute(select(Vehicle).where(Vehicle.vin == test_vin))
     vehicle = result.scalar_one_or_none()
 
     if not vehicle:

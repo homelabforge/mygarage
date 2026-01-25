@@ -740,7 +740,13 @@ async def get_garage_analytics(
 
     # Initialize totals
     total_garage_value = Decimal("0.00")
+    # Service category totals
     total_maintenance = Decimal("0.00")
+    total_upgrades = Decimal("0.00")
+    total_inspection = Decimal("0.00")
+    total_collision = Decimal("0.00")
+    total_detailing = Decimal("0.00")
+    # Other totals
     total_fuel = Decimal("0.00")
     total_insurance = Decimal("0.00")
     total_taxes = Decimal("0.00")
@@ -783,15 +789,48 @@ async def get_garage_analytics(
         fuel_records = [r for r in vehicle.fuel_records if r.cost is not None]
         fuel_records.sort(key=lambda r: r.date)
 
-        # Calculate vehicle totals
-        vehicle_maintenance = sum(
-            (r.cost for r in service_records if r.cost), Decimal("0.00")
-        )
+        # Calculate vehicle totals by service category
+        vehicle_maintenance = Decimal("0.00")
+        vehicle_upgrades = Decimal("0.00")
+        vehicle_inspection = Decimal("0.00")
+        vehicle_collision = Decimal("0.00")
+        vehicle_detailing = Decimal("0.00")
+
+        for record in service_records:
+            if record.cost:
+                category = record.service_category or "Maintenance"
+                if category == "Maintenance":
+                    vehicle_maintenance += record.cost
+                elif category == "Upgrades":
+                    vehicle_upgrades += record.cost
+                elif category == "Inspection":
+                    vehicle_inspection += record.cost
+                elif category == "Collision":
+                    vehicle_collision += record.cost
+                elif category == "Detailing":
+                    vehicle_detailing += record.cost
+                else:
+                    # Default to maintenance for unknown categories
+                    vehicle_maintenance += record.cost
+
         vehicle_fuel = sum((r.cost for r in fuel_records if r.cost), Decimal("0.00"))
-        vehicle_total = purchase_price + vehicle_maintenance + vehicle_fuel
+
+        # Running costs = all service categories + fuel (excludes purchase price)
+        vehicle_total = (
+            vehicle_maintenance
+            + vehicle_upgrades
+            + vehicle_inspection
+            + vehicle_collision
+            + vehicle_detailing
+            + vehicle_fuel
+        )
 
         # Add to garage totals
         total_maintenance += vehicle_maintenance
+        total_upgrades += vehicle_upgrades
+        total_inspection += vehicle_inspection
+        total_collision += vehicle_collision
+        total_detailing += vehicle_detailing
         total_fuel += vehicle_fuel
 
         # Add to vehicle costs list
@@ -799,8 +838,13 @@ async def get_garage_analytics(
             GarageVehicleCost(
                 vin=vin,
                 name=vehicle_name,
+                nickname=vehicle.nickname,
                 purchase_price=purchase_price,
                 total_maintenance=vehicle_maintenance,
+                total_upgrades=vehicle_upgrades,
+                total_inspection=vehicle_inspection,
+                total_collision=vehicle_collision,
+                total_detailing=vehicle_detailing,
                 total_fuel=vehicle_fuel,
                 total_cost=vehicle_total,
             )
@@ -820,13 +864,38 @@ async def get_garage_analytics(
     # Sort vehicle costs by total cost (descending)
     vehicle_costs.sort(key=lambda x: x.total_cost, reverse=True)
 
-    # Create cost breakdown by category
-    cost_breakdown = [
-        GarageCostByCategory(category="Maintenance", amount=total_maintenance),
-        GarageCostByCategory(category="Fuel", amount=total_fuel),
-        GarageCostByCategory(category="Insurance", amount=total_insurance),
-        GarageCostByCategory(category="Taxes", amount=total_taxes),
-    ]
+    # Create cost breakdown by category (only include categories with amounts > 0)
+    cost_breakdown = []
+    if total_maintenance > 0:
+        cost_breakdown.append(
+            GarageCostByCategory(category="Maintenance", amount=total_maintenance)
+        )
+    if total_upgrades > 0:
+        cost_breakdown.append(
+            GarageCostByCategory(category="Upgrades", amount=total_upgrades)
+        )
+    if total_inspection > 0:
+        cost_breakdown.append(
+            GarageCostByCategory(category="Inspection", amount=total_inspection)
+        )
+    if total_collision > 0:
+        cost_breakdown.append(
+            GarageCostByCategory(category="Collision", amount=total_collision)
+        )
+    if total_detailing > 0:
+        cost_breakdown.append(
+            GarageCostByCategory(category="Detailing", amount=total_detailing)
+        )
+    if total_fuel > 0:
+        cost_breakdown.append(GarageCostByCategory(category="Fuel", amount=total_fuel))
+    if total_insurance > 0:
+        cost_breakdown.append(
+            GarageCostByCategory(category="Insurance", amount=total_insurance)
+        )
+    if total_taxes > 0:
+        cost_breakdown.append(
+            GarageCostByCategory(category="Taxes", amount=total_taxes)
+        )
 
     # Create monthly trends (last 12 months)
     monthly_trends = []
@@ -847,6 +916,10 @@ async def get_garage_analytics(
         total_costs=GarageCostTotals(
             total_garage_value=total_garage_value,
             total_maintenance=total_maintenance,
+            total_upgrades=total_upgrades,
+            total_inspection=total_inspection,
+            total_collision=total_collision,
+            total_detailing=total_detailing,
             total_fuel=total_fuel,
             total_insurance=total_insurance,
             total_taxes=total_taxes,

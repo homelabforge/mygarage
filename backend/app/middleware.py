@@ -10,6 +10,7 @@ from sqlalchemy import select
 from app.models.csrf_token import CSRFToken
 from app.database import get_db
 
+
 def is_test_mode() -> bool:
     """Check if running in test mode (disables CSRF validation)."""
     return os.getenv("MYGARAGE_TEST_MODE", "").lower() == "true"

@@ -151,9 +151,9 @@ const frontendStack = [
 ]
 
 const projectStats = [
-  { label: 'Total Lines of Code', value: '~81,300', icon: Code },
-  { label: 'Python Backend', value: '~42,900', icon: Database },
-  { label: 'TypeScript Frontend', value: '~38,400', icon: Layers },
+  { label: 'Total Lines of Code', value: '~86,200', icon: Code },
+  { label: 'Python Backend', value: '~47,700', icon: Database },
+  { label: 'TypeScript Frontend', value: '~38,500', icon: Layers },
   { label: 'Interactive Pages', value: '19', icon: BarChart3 },
 ]
 

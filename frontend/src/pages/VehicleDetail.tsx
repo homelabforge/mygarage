@@ -701,7 +701,7 @@ export default function VehicleDetail() {
             )}
 
             {/* VIN Decoded Information */}
-            {(vehicle.trim || vehicle.body_class || vehicle.drive_type || vehicle.doors || vehicle.gvwr_class || vehicle.wheel_specs || vehicle.tire_specs) && (
+            {(vehicle.trim || vehicle.body_class || vehicle.drive_type || vehicle.doors || vehicle.gvwr_class || vehicle.wheel_specs || vehicle.tire_specs || (!isMotorized && vehicle.fuel_type)) && (
               <div className="bg-garage-surface rounded-lg border border-garage-border p-6 break-inside-avoid">
                 <h2 className="text-xl font-semibold text-garage-text mb-4">Vehicle Details</h2>
                 <div className="space-y-3">
@@ -748,13 +748,20 @@ export default function VehicleDetail() {
                         <p className="text-garage-text font-medium">{vehicle.tire_specs}</p>
                       </div>
                     )}
+                    {/* Show fuel type in Vehicle Details for non-motorized vehicles (e.g., propane for fifth wheels) */}
+                    {!isMotorized && vehicle.fuel_type && (
+                      <div>
+                        <p className="text-sm text-garage-text-muted">Fuel Type</p>
+                        <p className="text-garage-text font-medium">{vehicle.fuel_type}</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
             )}
 
-            {/* Powertrain (Engine & Transmission) */}
-            {(vehicle.displacement_l || vehicle.cylinders || vehicle.fuel_type || vehicle.sticker_engine_description || vehicle.transmission_type || vehicle.transmission_speeds || vehicle.sticker_transmission_description || vehicle.sticker_drivetrain) && (
+            {/* Powertrain (Engine & Transmission) - Only show for motorized vehicles */}
+            {isMotorized && (vehicle.displacement_l || vehicle.cylinders || vehicle.fuel_type || vehicle.sticker_engine_description || vehicle.transmission_type || vehicle.transmission_speeds || vehicle.sticker_transmission_description || vehicle.sticker_drivetrain) && (
               <div className="bg-garage-surface rounded-lg border border-garage-border p-6 break-inside-avoid">
                 <h2 className="text-xl font-semibold text-garage-text mb-4">Powertrain</h2>
                 <div className="space-y-3">

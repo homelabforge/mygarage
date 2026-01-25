@@ -199,7 +199,13 @@ class GarageCostTotals(BaseModel):
     """Total costs across the garage."""
 
     total_garage_value: Decimal = Field(default=Decimal("0.00"))
+    # Service category breakdowns
     total_maintenance: Decimal = Field(default=Decimal("0.00"))
+    total_upgrades: Decimal = Field(default=Decimal("0.00"))
+    total_inspection: Decimal = Field(default=Decimal("0.00"))
+    total_collision: Decimal = Field(default=Decimal("0.00"))
+    total_detailing: Decimal = Field(default=Decimal("0.00"))
+    # Other costs
     total_fuel: Decimal = Field(default=Decimal("0.00"))
     total_insurance: Decimal = Field(default=Decimal("0.00"))
     total_taxes: Decimal = Field(default=Decimal("0.00"))
@@ -221,9 +227,17 @@ class GarageVehicleCost(BaseModel):
 
     vin: str
     name: str
+    nickname: str
     purchase_price: Decimal = Field(default=Decimal("0.00"))
+    # Service category breakdowns
     total_maintenance: Decimal = Field(default=Decimal("0.00"))
+    total_upgrades: Decimal = Field(default=Decimal("0.00"))
+    total_inspection: Decimal = Field(default=Decimal("0.00"))
+    total_collision: Decimal = Field(default=Decimal("0.00"))
+    total_detailing: Decimal = Field(default=Decimal("0.00"))
+    # Other costs
     total_fuel: Decimal = Field(default=Decimal("0.00"))
+    # Running costs = all service categories + fuel (excludes purchase price)
     total_cost: Decimal = Field(default=Decimal("0.00"))
 
     model_config = {"from_attributes": True}
