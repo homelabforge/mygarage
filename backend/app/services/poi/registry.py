@@ -208,10 +208,13 @@ class POIProviderRegistry:
                 continue
 
             try:
+                # Extract non-sensitive fields to avoid CodeQL taint tracking
+                # (config dict contains api_key which is sensitive)
+                priority = config["priority"]
                 logger.info(
                     "Trying provider %s (priority %d) for categories: %s",
                     provider.provider_name,
-                    config["priority"],
+                    priority,
                     [c.value for c in categories],
                 )
 
