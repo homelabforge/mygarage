@@ -175,7 +175,11 @@ export default function SettingsBackupTab() {
     formData.append('file', file)
 
     try {
-      const response = await api.post('/backup/upload', formData)
+      const response = await api.post('/backup/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      })
       setMessage({ type: 'success', text: response.data.message || 'Backup uploaded successfully!' })
       await loadData()
     } catch (err: unknown) {

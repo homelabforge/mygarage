@@ -82,7 +82,11 @@ export default function PhotoUpload({ vin, onSuccess, onClose }: PhotoUploadProp
       if (caption) formData.append('caption', caption)
       formData.append('set_as_main', setAsMain.toString())
 
-      await api.post(`/vehicles/${vin}/photos`, formData)
+      await api.post(`/vehicles/${vin}/photos`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      })
 
       onSuccess()
       onClose()

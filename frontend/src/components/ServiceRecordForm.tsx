@@ -112,12 +112,14 @@ export default function ServiceRecordForm({ vin, record, onClose, onSuccess }: S
 
     try {
       // Convert from user's unit system to imperial (canonical storage format)
+      // Mileage must be rounded to integer - backend stores as INT
+      const convertedMileage = system === 'metric' && data.mileage
+        ? UnitConverter.kmToMiles(data.mileage)
+        : data.mileage
       const payload: ServiceRecordCreate | ServiceRecordUpdate = {
         vin,
         date: data.date,
-        mileage: system === 'metric' && data.mileage
-          ? UnitConverter.kmToMiles(data.mileage) ?? data.mileage
-          : data.mileage,
+        mileage: convertedMileage != null ? Math.round(convertedMileage) : undefined,
         service_type: data.service_type,
         cost: data.cost,
         notes: data.notes,

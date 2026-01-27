@@ -136,12 +136,14 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
 
     try {
       // Convert from user's unit system to imperial (canonical storage format)
+      // Mileage must be rounded to integer - backend stores as INT
+      const convertedMileage = system === 'metric' && data.mileage
+        ? UnitConverter.kmToMiles(data.mileage)
+        : data.mileage
       const payload: FuelRecordCreate | FuelRecordUpdate = {
         vin,
         date: data.date,
-        mileage: system === 'metric' && data.mileage
-          ? UnitConverter.kmToMiles(data.mileage) ?? data.mileage
-          : data.mileage,
+        mileage: convertedMileage != null ? Math.round(convertedMileage) : undefined,
         gallons: system === 'metric' && data.gallons
           ? UnitConverter.litersToGallons(data.gallons) ?? data.gallons
           : data.gallons,

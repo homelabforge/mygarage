@@ -191,10 +191,11 @@ export default function ServiceVisitForm({
     setSubmitting(true)
     try {
       // Convert mileage from user's unit system to imperial
-      const mileage =
-        system === 'metric' && formData.mileage
-          ? UnitConverter.kmToMiles(formData.mileage) ?? formData.mileage
-          : formData.mileage
+      // Mileage must be rounded to integer - backend stores as INT
+      const convertedMileage = system === 'metric' && formData.mileage
+        ? UnitConverter.kmToMiles(formData.mileage)
+        : formData.mileage
+      const mileage = convertedMileage != null ? Math.round(convertedMileage) : undefined
 
       const payload: ServiceVisitCreate = {
         vendor_id: formData.vendor_id,

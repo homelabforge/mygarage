@@ -60,12 +60,14 @@ export default function OdometerRecordForm({ vin, record, onClose, onSuccess }: 
 
     try {
       // Convert from user's unit system to imperial (canonical storage format)
+      // Mileage must be rounded to integer - backend stores as INT
+      const convertedMileage = system === 'metric' && data.mileage
+        ? UnitConverter.kmToMiles(data.mileage)
+        : data.mileage
       const payload: OdometerRecordCreate | OdometerRecordUpdate = {
         vin,
         date: data.date,
-        mileage: system === 'metric' && data.mileage
-          ? UnitConverter.kmToMiles(data.mileage) ?? data.mileage
-          : data.mileage,
+        mileage: convertedMileage != null ? Math.round(convertedMileage) : undefined,
         notes: data.notes,
       }
 

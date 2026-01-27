@@ -224,7 +224,11 @@ export default function VehicleDetail() {
       const formData = new FormData()
       formData.append('file', file)
 
-      const response = await api.post(`/import/vehicles/${vin}/json`, formData)
+      const response = await api.post(`/import/vehicles/${vin}/json`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      })
       const result = response.data
 
       // Show results

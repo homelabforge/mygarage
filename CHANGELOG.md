@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Metric Unit Mileage** - Odometer/fuel/service records failing with 422 error when using metric units ([#25](https://github.com/homelabforge/mygarage/issues/25))
+  - km→miles conversion produced floats, but backend expects integers
+  - Added `Math.round()` to all mileage conversions in OdometerRecordForm, FuelRecordForm, ServiceRecordForm, and ServiceVisitForm
+- **Photo Upload** - Vehicle photo upload failing with 422 "file field required" error ([#24](https://github.com/homelabforge/mygarage/issues/24))
+  - Fixed missing `Content-Type: multipart/form-data` header in PhotoUpload, VehicleDetail JSON import, and SettingsBackupTab upload
+
+### Changed
+- **globals**: 17.0.0 → 17.2.0
+- **pandas-stubs**: 2.3.3 → 2.3.3.260113
+- **ruff**: 0.14.13 → 0.14.14
+- **types-Pillow**: 10.2.0 → 10.2.0.20240822
+- **oven/bun**: 1.3.6-alpine → 1.3.7-alpine
+- **@types/react**: 19.2.8 → 19.2.10
+- **@typescript-eslint/eslint-plugin**: 8.53.1 → 8.54.0
+- **@typescript-eslint/parser**: 8.53.1 → 8.54.0
+- **@vitest/ui**: 4.0.17 → 4.0.18
+- **typescript-eslint**: 8.53.1 → 8.54.0
+- **vitest**: 4.0.17 → 4.0.18
+- **react**: 19.2.3 → 19.2.4
+- **react-dom**: 19.2.3 → 19.2.4
+- **react-is**: 19.2.3 → 19.2.4
+- **react-router-dom**: 7.12.0 → 7.13.0
+- **recharts**: 3.6.0 → 3.7.0
+
 ## [2.20.2] - 2026-01-27
 
 ### Fixed
