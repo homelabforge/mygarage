@@ -22,7 +22,7 @@
     "axios": "^1.13.2",
     "date-fns": "^4.1.0",
     "leaflet": "^1.9.4",
-    "lucide-react": "^0.562.0",
+    "lucide-react": "^0.563.0",
     "react": "^19.2.3",
     "react-big-calendar": "^1.19.4",
     "react-dom": "^19.2.3",
