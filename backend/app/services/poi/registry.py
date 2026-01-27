@@ -44,9 +44,7 @@ class POIProviderRegistry:
         # Load TomTom configuration
         tomtom_enabled_setting = await SettingsService.get(self.db, "tomtom_enabled")
         tomtom_enabled = (
-            tomtom_enabled_setting.value.lower() == "true"
-            if tomtom_enabled_setting
-            else False
+            tomtom_enabled_setting.value.lower() == "true" if tomtom_enabled_setting else False
         )
 
         tomtom_key_setting = await SettingsService.get(self.db, "tomtom_api_key")
@@ -64,13 +62,9 @@ class POIProviderRegistry:
             logger.info("TomTom provider configured with priority 1")
 
         # Load Google Places configuration
-        google_enabled_setting = await SettingsService.get(
-            self.db, "google_places_enabled"
-        )
+        google_enabled_setting = await SettingsService.get(self.db, "google_places_enabled")
         google_enabled = (
-            google_enabled_setting.value.lower() == "true"
-            if google_enabled_setting
-            else False
+            google_enabled_setting.value.lower() == "true" if google_enabled_setting else False
         )
 
         google_key_setting = await SettingsService.get(self.db, "google_places_api_key")
@@ -90,9 +84,7 @@ class POIProviderRegistry:
         # Load Yelp configuration
         yelp_enabled_setting = await SettingsService.get(self.db, "yelp_enabled")
         yelp_enabled = (
-            yelp_enabled_setting.value.lower() == "true"
-            if yelp_enabled_setting
-            else False
+            yelp_enabled_setting.value.lower() == "true" if yelp_enabled_setting else False
         )
 
         yelp_key_setting = await SettingsService.get(self.db, "yelp_api_key")
@@ -110,21 +102,15 @@ class POIProviderRegistry:
             logger.info("Yelp provider configured with priority 3")
 
         # Load Foursquare configuration
-        foursquare_enabled_setting = await SettingsService.get(
-            self.db, "foursquare_enabled"
-        )
+        foursquare_enabled_setting = await SettingsService.get(self.db, "foursquare_enabled")
         foursquare_enabled = (
             foursquare_enabled_setting.value.lower() == "true"
             if foursquare_enabled_setting
             else False
         )
 
-        foursquare_key_setting = await SettingsService.get(
-            self.db, "foursquare_api_key"
-        )
-        foursquare_api_key = (
-            foursquare_key_setting.value if foursquare_key_setting else ""
-        )
+        foursquare_key_setting = await SettingsService.get(self.db, "foursquare_api_key")
+        foursquare_api_key = foursquare_key_setting.value if foursquare_key_setting else ""
 
         if foursquare_enabled and foursquare_api_key:
             configs.append(
@@ -229,9 +215,7 @@ class POIProviderRegistry:
                     [c.value for c in categories],
                 )
 
-                results = await provider.search(
-                    latitude, longitude, radius_meters, categories
-                )
+                results = await provider.search(latitude, longitude, radius_meters, categories)
 
                 if results:
                     logger.info(

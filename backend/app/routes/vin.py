@@ -52,15 +52,11 @@ async def _decode_vin_helper(vin: str) -> VINDecodeResponse:
             sanitize_for_log(vin),
             sanitize_for_log(str(e)),
         )
-        raise HTTPException(
-            status_code=e.response.status_code, detail="NHTSA API error"
-        )
+        raise HTTPException(status_code=e.response.status_code, detail="NHTSA API error")
 
 
 @router.post("/decode", response_model=VINDecodeResponse)
-async def decode_vin(
-    request: VINDecodeRequest, current_user: User | None = Depends(require_auth)
-):
+async def decode_vin(request: VINDecodeRequest, current_user: User | None = Depends(require_auth)):
     """
     Decode a VIN using the NHTSA vPIC API.
 
@@ -82,9 +78,7 @@ async def decode_vin(
 
 
 @router.get("/decode/{vin}", response_model=VINDecodeResponse)
-async def decode_vin_get(
-    vin: str, current_user: User | None = Depends(require_auth)
-):
+async def decode_vin_get(vin: str, current_user: User | None = Depends(require_auth)):
     """
     Decode a VIN using the NHTSA vPIC API (GET endpoint).
 
@@ -105,9 +99,7 @@ async def decode_vin_get(
 
 
 @router.get("/validate/{vin}")
-async def validate_vin_endpoint(
-    vin: str, current_user: User | None = Depends(require_auth)
-):
+async def validate_vin_endpoint(vin: str, current_user: User | None = Depends(require_auth)):
     """
     Validate a VIN format without calling NHTSA API.
 

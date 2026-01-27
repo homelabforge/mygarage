@@ -251,14 +251,10 @@ class TestMagicBytesConstants:
         """Test that Office format magic bytes are defined."""
         # DOCX
         assert (
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            in MAGIC_BYTES
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document" in MAGIC_BYTES
         )
         # XLSX
-        assert (
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            in MAGIC_BYTES
-        )
+        assert "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" in MAGIC_BYTES
         # DOC
         assert "application/msword" in MAGIC_BYTES
         # XLS
@@ -269,13 +265,9 @@ class TestMagicBytesConstants:
         for mime_type, signature in MAGIC_BYTES.items():
             if isinstance(signature, list):
                 for sig in signature:
-                    assert isinstance(sig, bytes), (
-                        f"{mime_type} signature must be bytes"
-                    )
+                    assert isinstance(sig, bytes), f"{mime_type} signature must be bytes"
             else:
-                assert isinstance(signature, bytes), (
-                    f"{mime_type} signature must be bytes"
-                )
+                assert isinstance(signature, bytes), f"{mime_type} signature must be bytes"
 
 
 @pytest.mark.unit

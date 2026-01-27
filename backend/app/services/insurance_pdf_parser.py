@@ -136,9 +136,7 @@ class InsurancePDFParser:
 
                 # If target VIN specified, extract vehicle-specific data
                 if target_vin and target_vin in vins:
-                    vehicle_data = self._extract_vehicle_specific_data(
-                        full_text, target_vin
-                    )
+                    vehicle_data = self._extract_vehicle_specific_data(full_text, target_vin)
                     if vehicle_data:
                         result.update(vehicle_data)
 
@@ -261,9 +259,7 @@ class InsurancePDFParser:
                 data["confidence"]["premium_amount"] = "high"
 
             # Extract deductible from this section
-            deductible = self._extract_pattern(
-                section, self.progressive_patterns["deductible"]
-            )
+            deductible = self._extract_pattern(section, self.progressive_patterns["deductible"])
             if deductible:
                 data["deductible"] = self._parse_currency(deductible)
                 data["confidence"] = data.get("confidence", {})
@@ -300,10 +296,7 @@ class InsurancePDFParser:
         text_lower = text.lower()
 
         # Check for Full Coverage indicators
-        if all(
-            coverage in text_lower
-            for coverage in ["comprehensive", "collision", "liability"]
-        ):
+        if all(coverage in text_lower for coverage in ["comprehensive", "collision", "liability"]):
             return "Full Coverage"
         elif "comprehensive" in text_lower and "collision" in text_lower:
             return "Full Coverage"
@@ -324,9 +317,7 @@ class InsurancePDFParser:
 
         if match:
             bodily_injury_per_person = match.group(1).replace("$", "").replace(",", "")
-            bodily_injury_per_accident = (
-                match.group(2).replace("$", "").replace(",", "")
-            )
+            bodily_injury_per_accident = match.group(2).replace("$", "").replace(",", "")
             property_damage = match.group(3).replace("$", "").replace(",", "")
 
             return f"Bodily Injury: {bodily_injury_per_person}/{bodily_injury_per_accident}, Property Damage: {property_damage}"

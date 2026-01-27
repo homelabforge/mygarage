@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Odometer record database model."""
 
 import datetime as dt
@@ -25,9 +27,7 @@ class OdometerRecord(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     # Relationships
-    vehicle: Mapped["Vehicle"] = relationship(
-        "Vehicle", back_populates="odometer_records"
-    )
+    vehicle: Mapped[Vehicle] = relationship("Vehicle", back_populates="odometer_records")
 
     __table_args__ = (
         Index("idx_odometer_records_vin", "vin"),

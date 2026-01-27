@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Address book database model."""
 
 from datetime import datetime
@@ -25,9 +27,7 @@ class AddressBookEntry(Base):
     phone: Mapped[str | None] = mapped_column(String(20))
     email: Mapped[str | None] = mapped_column(String(100))
     website: Mapped[str | None] = mapped_column(String(200))
-    category: Mapped[str | None] = mapped_column(
-        String(50)
-    )  # service, insurance, parts, etc.
+    category: Mapped[str | None] = mapped_column(String(50))  # service, insurance, parts, etc.
     notes: Mapped[str | None] = mapped_column(Text)
 
     # Geolocation fields for shop discovery
@@ -35,20 +35,14 @@ class AddressBookEntry(Base):
     longitude: Mapped[Decimal | None] = mapped_column(Numeric(11, 8))
 
     # Shop discovery metadata
-    source: Mapped[str] = mapped_column(
-        String(20), default="manual"
-    )  # 'manual' or 'google_places'
+    source: Mapped[str] = mapped_column(String(20), default="manual")  # 'manual' or 'google_places'
     external_id: Mapped[str | None] = mapped_column(
         String(100)
     )  # Google Place ID or other external ID
 
     # Ratings
-    rating: Mapped[Decimal | None] = mapped_column(
-        Numeric(3, 2)
-    )  # Google rating (0.00 - 5.00)
-    user_rating: Mapped[int | None] = mapped_column(
-        Integer
-    )  # User's 1-5 star rating
+    rating: Mapped[Decimal | None] = mapped_column(Numeric(3, 2))  # Google rating (0.00 - 5.00)
+    user_rating: Mapped[int | None] = mapped_column(Integer)  # User's 1-5 star rating
 
     # Usage tracking for recommendations
     usage_count: Mapped[int] = mapped_column(Integer, default=0)

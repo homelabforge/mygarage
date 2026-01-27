@@ -107,9 +107,7 @@ class PDFReportGenerator:
         if start_date and end_date:
             vehicle_text += f"<b>Period:</b> {self._format_date(start_date)} - {self._format_date(end_date)}<br/>"
 
-        vehicle_text += (
-            f"<b>Report Generated:</b> {datetime.now().strftime('%m/%d/%Y %I:%M %p')}"
-        )
+        vehicle_text += f"<b>Report Generated:</b> {datetime.now().strftime('%m/%d/%Y %I:%M %p')}"
 
         story.append(Paragraph(vehicle_text, self.styles["InfoText"]))
         story.append(Spacer(1, 0.3 * inch))
@@ -132,13 +130,9 @@ class PDFReportGenerator:
                 table_data.append(
                     [
                         self._format_date(record.get("date")),
-                        f"{record.get('mileage', 'N/A'):,}"
-                        if record.get("mileage")
-                        else "N/A",
+                        f"{record.get('mileage', 'N/A'):,}" if record.get("mileage") else "N/A",
                         record.get("service_type", "N/A"),
-                        Paragraph(
-                            record.get("description", "N/A")[:50], self.styles["Normal"]
-                        ),
+                        Paragraph(record.get("description", "N/A")[:50], self.styles["Normal"]),
                         self._format_currency(cost),
                         record.get("vendor_name", "N/A")[:20]
                         if record.get("vendor_name")
@@ -202,9 +196,7 @@ class PDFReportGenerator:
             story.append(table)
         else:
             story.append(
-                Paragraph(
-                    "No service records found for this period.", self.styles["Normal"]
-                )
+                Paragraph("No service records found for this period.", self.styles["Normal"])
             )
 
         # Build PDF
@@ -306,9 +298,7 @@ class PDFReportGenerator:
             ]
         )
 
-        table = Table(
-            table_data, colWidths=[3 * inch, 1 * inch, 1.5 * inch, 1.5 * inch]
-        )
+        table = Table(table_data, colWidths=[3 * inch, 1 * inch, 1.5 * inch, 1.5 * inch])
         table.setStyle(
             TableStyle(
                 [
@@ -398,9 +388,7 @@ class PDFReportGenerator:
         story.append(Spacer(1, 0.3 * inch))
 
         # Deductible expenses
-        story.append(
-            Paragraph("Potentially Deductible Expenses", self.styles["CustomSubtitle"])
-        )
+        story.append(Paragraph("Potentially Deductible Expenses", self.styles["CustomSubtitle"]))
         story.append(Spacer(1, 0.1 * inch))
 
         if deductible_records:
@@ -415,9 +403,7 @@ class PDFReportGenerator:
                     [
                         self._format_date(record.get("date")),
                         record.get("category", "Service"),
-                        Paragraph(
-                            record.get("description", "")[:60], self.styles["Normal"]
-                        ),
+                        Paragraph(record.get("description", "")[:60], self.styles["Normal"]),
                         self._format_currency(amount),
                     ]
                 )
@@ -434,9 +420,7 @@ class PDFReportGenerator:
                 ]
             )
 
-            table = Table(
-                table_data, colWidths=[1 * inch, 1.5 * inch, 3 * inch, 1.5 * inch]
-            )
+            table = Table(table_data, colWidths=[1 * inch, 1.5 * inch, 3 * inch, 1.5 * inch])
             table.setStyle(
                 TableStyle(
                     [
@@ -507,9 +491,7 @@ class PDFReportGenerator:
             ],
             [
                 "Average Monthly Cost",
-                self._format_currency(
-                    Decimal(str(cost_analysis.get("average_monthly_cost", 0)))
-                ),
+                self._format_currency(Decimal(str(cost_analysis.get("average_monthly_cost", 0)))),
             ],
             ["Months Tracked", str(cost_analysis.get("months_tracked", 0))],
             ["Total Services", str(cost_analysis.get("service_count", 0))],
@@ -565,33 +547,25 @@ class PDFReportGenerator:
                 rolling_data.append(
                     [
                         "3-Month",
-                        self._format_currency(
-                            Decimal(str(cost_analysis["rolling_avg_3m"]))
-                        ),
+                        self._format_currency(Decimal(str(cost_analysis["rolling_avg_3m"]))),
                     ]
                 )
             if cost_analysis.get("rolling_avg_6m"):
                 rolling_data.append(
                     [
                         "6-Month",
-                        self._format_currency(
-                            Decimal(str(cost_analysis["rolling_avg_6m"]))
-                        ),
+                        self._format_currency(Decimal(str(cost_analysis["rolling_avg_6m"]))),
                     ]
                 )
             if cost_analysis.get("rolling_avg_12m"):
                 rolling_data.append(
                     [
                         "12-Month",
-                        self._format_currency(
-                            Decimal(str(cost_analysis["rolling_avg_12m"]))
-                        ),
+                        self._format_currency(Decimal(str(cost_analysis["rolling_avg_12m"]))),
                     ]
                 )
 
-            trend_direction = cost_analysis.get(
-                "trend_direction", "stable"
-            ).capitalize()
+            trend_direction = cost_analysis.get("trend_direction", "stable").capitalize()
             rolling_data.append(["Trend Direction", trend_direction])
 
             rolling_table = Table(rolling_data, colWidths=[3 * inch, 3 * inch])
@@ -628,9 +602,7 @@ class PDFReportGenerator:
                 ["Projection Period", "Estimated Cost"],
                 [
                     "Monthly Average",
-                    self._format_currency(
-                        Decimal(str(cost_projection.get("monthly_average", 0)))
-                    ),
+                    self._format_currency(Decimal(str(cost_projection.get("monthly_average", 0)))),
                 ],
                 [
                     "Next 6 Months",
@@ -674,9 +646,7 @@ class PDFReportGenerator:
             if assumptions:
                 story.append(Spacer(1, 0.1 * inch))
                 story.append(
-                    Paragraph(
-                        f"<i>Assumptions: {assumptions}</i>", self.styles["InfoText"]
-                    )
+                    Paragraph(f"<i>Assumptions: {assumptions}</i>", self.styles["InfoText"])
                 )
 
             story.append(PageBreak())
@@ -684,9 +654,7 @@ class PDFReportGenerator:
         # Monthly Breakdown (last 12 months)
         monthly_breakdown = cost_analysis.get("monthly_breakdown", [])
         if monthly_breakdown:
-            story.append(
-                Paragraph("Monthly Cost Breakdown", self.styles["CustomSubtitle"])
-            )
+            story.append(Paragraph("Monthly Cost Breakdown", self.styles["CustomSubtitle"]))
             story.append(Spacer(1, 0.1 * inch))
 
             monthly_data = [["Month", "Year", "Service", "Fuel", "Total"]]
@@ -695,12 +663,8 @@ class PDFReportGenerator:
                     [
                         month.get("month_name", "N/A")[:3],
                         str(month.get("year", "")),
-                        self._format_currency(
-                            Decimal(str(month.get("total_service_cost", 0)))
-                        ),
-                        self._format_currency(
-                            Decimal(str(month.get("total_fuel_cost", 0)))
-                        ),
+                        self._format_currency(Decimal(str(month.get("total_service_cost", 0)))),
+                        self._format_currency(Decimal(str(month.get("total_fuel_cost", 0)))),
                         self._format_currency(Decimal(str(month.get("total_cost", 0)))),
                     ]
                 )
@@ -735,9 +699,7 @@ class PDFReportGenerator:
         # Service Type Breakdown
         service_breakdown = cost_analysis.get("service_type_breakdown", [])
         if service_breakdown:
-            story.append(
-                Paragraph("Service Type Breakdown", self.styles["CustomSubtitle"])
-            )
+            story.append(Paragraph("Service Type Breakdown", self.styles["CustomSubtitle"]))
             story.append(Spacer(1, 0.1 * inch))
 
             service_data = [["Service Type", "Total Cost", "Count", "Avg Cost"]]
@@ -745,13 +707,9 @@ class PDFReportGenerator:
                 service_data.append(
                     [
                         service.get("service_type", "N/A"),
-                        self._format_currency(
-                            Decimal(str(service.get("total_cost", 0)))
-                        ),
+                        self._format_currency(Decimal(str(service.get("total_cost", 0)))),
                         str(service.get("count", 0)),
-                        self._format_currency(
-                            Decimal(str(service.get("average_cost", 0)))
-                        ),
+                        self._format_currency(Decimal(str(service.get("average_cost", 0)))),
                     ]
                 )
 
@@ -792,17 +750,13 @@ class PDFReportGenerator:
                 ["Total Vendors", str(vendor_data.get("total_vendors", 0))],
             ]
             if vendor_data.get("most_used_vendor"):
-                vendor_summary.append(
-                    ["Most Used Vendor", vendor_data["most_used_vendor"]]
-                )
+                vendor_summary.append(["Most Used Vendor", vendor_data["most_used_vendor"]])
             if vendor_data.get("highest_spending_vendor"):
                 vendor_summary.append(
                     ["Highest Spending Vendor", vendor_data["highest_spending_vendor"]]
                 )
 
-            vendor_summary_table = Table(
-                vendor_summary, colWidths=[2.5 * inch, 3.5 * inch]
-            )
+            vendor_summary_table = Table(vendor_summary, colWidths=[2.5 * inch, 3.5 * inch])
             vendor_summary_table.setStyle(
                 TableStyle(
                     [
@@ -822,13 +776,9 @@ class PDFReportGenerator:
                 vendor_table_data.append(
                     [
                         vendor.get("vendor_name", "N/A"),
-                        self._format_currency(
-                            Decimal(str(vendor.get("total_spent", 0)))
-                        ),
+                        self._format_currency(Decimal(str(vendor.get("total_spent", 0)))),
                         str(vendor.get("service_count", 0)),
-                        self._format_currency(
-                            Decimal(str(vendor.get("average_cost", 0)))
-                        ),
+                        self._format_currency(Decimal(str(vendor.get("average_cost", 0)))),
                     ]
                 )
 
@@ -862,18 +812,14 @@ class PDFReportGenerator:
 
         # Seasonal Analysis
         if seasonal_data and seasonal_data.get("seasons"):
-            story.append(
-                Paragraph("Seasonal Spending Patterns", self.styles["CustomSubtitle"])
-            )
+            story.append(Paragraph("Seasonal Spending Patterns", self.styles["CustomSubtitle"]))
             story.append(Spacer(1, 0.1 * inch))
 
             # Summary
             seasonal_summary = [
                 [
                     "Annual Average",
-                    self._format_currency(
-                        Decimal(str(seasonal_data.get("annual_average", 0)))
-                    ),
+                    self._format_currency(Decimal(str(seasonal_data.get("annual_average", 0)))),
                 ],
             ]
             if seasonal_data.get("highest_cost_season"):
@@ -881,13 +827,9 @@ class PDFReportGenerator:
                     ["Highest Cost Season", seasonal_data["highest_cost_season"]]
                 )
             if seasonal_data.get("lowest_cost_season"):
-                seasonal_summary.append(
-                    ["Lowest Cost Season", seasonal_data["lowest_cost_season"]]
-                )
+                seasonal_summary.append(["Lowest Cost Season", seasonal_data["lowest_cost_season"]])
 
-            seasonal_summary_table = Table(
-                seasonal_summary, colWidths=[2.5 * inch, 3.5 * inch]
-            )
+            seasonal_summary_table = Table(seasonal_summary, colWidths=[2.5 * inch, 3.5 * inch])
             seasonal_summary_table.setStyle(
                 TableStyle(
                     [
@@ -902,19 +844,13 @@ class PDFReportGenerator:
             story.append(Spacer(1, 0.2 * inch))
 
             # Seasonal Details
-            seasonal_table_data = [
-                ["Season", "Total Cost", "Avg Cost", "Services", "Variance"]
-            ]
+            seasonal_table_data = [["Season", "Total Cost", "Avg Cost", "Services", "Variance"]]
             for season in seasonal_data["seasons"]:
                 seasonal_table_data.append(
                     [
                         season.get("season", "N/A"),
-                        self._format_currency(
-                            Decimal(str(season.get("total_cost", 0)))
-                        ),
-                        self._format_currency(
-                            Decimal(str(season.get("average_cost", 0)))
-                        ),
+                        self._format_currency(Decimal(str(season.get("total_cost", 0)))),
+                        self._format_currency(Decimal(str(season.get("average_cost", 0)))),
                         str(season.get("service_count", 0)),
                         f"{season.get('variance_from_annual', '0')}%",
                     ]
@@ -994,15 +930,11 @@ class PDFReportGenerator:
             ["Category", "Amount"],
             [
                 "Garage Value",
-                self._format_currency(
-                    Decimal(str(total_costs.get("total_garage_value", 0)))
-                ),
+                self._format_currency(Decimal(str(total_costs.get("total_garage_value", 0)))),
             ],
             [
                 "Total Maintenance",
-                self._format_currency(
-                    Decimal(str(total_costs.get("total_maintenance", 0)))
-                ),
+                self._format_currency(Decimal(str(total_costs.get("total_maintenance", 0)))),
             ],
             [
                 "Total Fuel",
@@ -1010,9 +942,7 @@ class PDFReportGenerator:
             ],
             [
                 "Total Insurance",
-                self._format_currency(
-                    Decimal(str(total_costs.get("total_insurance", 0)))
-                ),
+                self._format_currency(Decimal(str(total_costs.get("total_insurance", 0)))),
             ],
             [
                 "Total Taxes",
@@ -1029,13 +959,9 @@ class PDFReportGenerator:
                 Decimal(str(total_costs.get("total_taxes", 0))),
             ]
         )
-        garage_summary_data.append(
-            ["Total Operating Cost", self._format_currency(grand_total)]
-        )
+        garage_summary_data.append(["Total Operating Cost", self._format_currency(grand_total)])
 
-        garage_summary_table = Table(
-            garage_summary_data, colWidths=[3 * inch, 3 * inch]
-        )
+        garage_summary_table = Table(garage_summary_data, colWidths=[3 * inch, 3 * inch])
         garage_summary_table.setStyle(
             TableStyle(
                 [
@@ -1068,9 +994,7 @@ class PDFReportGenerator:
         # Cost Breakdown by Category
         cost_breakdown = garage_data.get("cost_breakdown_by_category", [])
         if cost_breakdown:
-            story.append(
-                Paragraph("Cost Breakdown by Category", self.styles["CustomSubtitle"])
-            )
+            story.append(Paragraph("Cost Breakdown by Category", self.styles["CustomSubtitle"]))
             story.append(Spacer(1, 0.1 * inch))
 
             category_data = [["Category", "Amount"]]
@@ -1120,18 +1044,10 @@ class PDFReportGenerator:
                 vehicle_data.append(
                     [
                         vehicle_name,
-                        self._format_currency(
-                            Decimal(str(vehicle.get("purchase_price", 0)))
-                        ),
-                        self._format_currency(
-                            Decimal(str(vehicle.get("total_maintenance", 0)))
-                        ),
-                        self._format_currency(
-                            Decimal(str(vehicle.get("total_fuel", 0)))
-                        ),
-                        self._format_currency(
-                            Decimal(str(vehicle.get("total_cost", 0)))
-                        ),
+                        self._format_currency(Decimal(str(vehicle.get("purchase_price", 0)))),
+                        self._format_currency(Decimal(str(vehicle.get("total_maintenance", 0)))),
+                        self._format_currency(Decimal(str(vehicle.get("total_fuel", 0)))),
+                        self._format_currency(Decimal(str(vehicle.get("total_cost", 0)))),
                     ]
                 )
 

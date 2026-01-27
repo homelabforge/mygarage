@@ -1,12 +1,18 @@
+from __future__ import annotations
+
 """Vehicle document database model."""
 
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
 from app.database import Base
+
+if TYPE_CHECKING:
+    from app.models.vehicle import Vehicle
 
 
 class Document(Base):
@@ -28,12 +34,9 @@ class Document(Base):
     uploaded_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     # Relationships
-    vehicle: Mapped["Vehicle"] = relationship("Vehicle", back_populates="documents")
+    vehicle: Mapped[Vehicle] = relationship("Vehicle", back_populates="documents")
 
     __table_args__ = (
         Index("idx_documents_vin", "vin"),
         Index("idx_documents_type", "document_type"),
     )
-
-
-from app.models.vehicle import Vehicle

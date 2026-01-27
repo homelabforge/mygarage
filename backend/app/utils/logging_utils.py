@@ -188,9 +188,7 @@ def sanitize_log_message(message: str) -> str:
     message = re.sub(r"\b\d{13,19}\b", lambda m: mask_credit_card(m.group(0)), message)
 
     # Mask potential VINs (17 character alphanumeric)
-    message = re.sub(
-        r"\b[A-HJ-NPR-Z0-9]{17}\b", lambda m: mask_vin(m.group(0)), message
-    )
+    message = re.sub(r"\b[A-HJ-NPR-Z0-9]{17}\b", lambda m: mask_vin(m.group(0)), message)
 
     return message
 

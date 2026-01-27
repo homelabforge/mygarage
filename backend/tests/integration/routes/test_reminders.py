@@ -15,9 +15,7 @@ from httpx import AsyncClient
 class TestReminderRoutes:
     """Test reminder API endpoints."""
 
-    async def test_create_reminder(
-        self, client: AsyncClient, auth_headers, test_vehicle
-    ):
+    async def test_create_reminder(self, client: AsyncClient, auth_headers, test_vehicle):
         """Test creating a reminder for a vehicle."""
         tomorrow = (date.today() + timedelta(days=1)).isoformat()
 
@@ -52,9 +50,7 @@ class TestReminderRoutes:
         data = response.json()
         assert isinstance(data, list) or "reminders" in data
 
-    async def test_get_reminder_by_id(
-        self, client: AsyncClient, auth_headers, test_vehicle
-    ):
+    async def test_get_reminder_by_id(self, client: AsyncClient, auth_headers, test_vehicle):
         """Test retrieving a specific reminder."""
         tomorrow = (date.today() + timedelta(days=1)).isoformat()
 
@@ -82,9 +78,7 @@ class TestReminderRoutes:
         assert data["id"] == reminder["id"]
         assert "description" in data
 
-    async def test_update_reminder(
-        self, client: AsyncClient, auth_headers, test_vehicle
-    ):
+    async def test_update_reminder(self, client: AsyncClient, auth_headers, test_vehicle):
         """Test updating a reminder."""
         tomorrow = (date.today() + timedelta(days=1)).isoformat()
 
@@ -117,9 +111,7 @@ class TestReminderRoutes:
         data = response.json()
         assert data["description"] == "Updated Description"
 
-    async def test_delete_reminder(
-        self, client: AsyncClient, auth_headers, test_vehicle
-    ):
+    async def test_delete_reminder(self, client: AsyncClient, auth_headers, test_vehicle):
         """Test deleting a reminder."""
         tomorrow = (date.today() + timedelta(days=1)).isoformat()
 
@@ -151,9 +143,7 @@ class TestReminderRoutes:
         )
         assert get_response.status_code == 404
 
-    async def test_mark_reminder_complete(
-        self, client: AsyncClient, auth_headers, test_vehicle
-    ):
+    async def test_mark_reminder_complete(self, client: AsyncClient, auth_headers, test_vehicle):
         """Test marking a reminder as completed."""
         tomorrow = (date.today() + timedelta(days=1)).isoformat()
 
@@ -188,9 +178,7 @@ class TestReminderRoutes:
             if "is_completed" in data:
                 assert data["is_completed"] is True
 
-    async def test_upcoming_reminders(
-        self, client: AsyncClient, auth_headers, test_vehicle
-    ):
+    async def test_upcoming_reminders(self, client: AsyncClient, auth_headers, test_vehicle):
         """Test retrieving upcoming reminders (list all for vehicle)."""
         # Create reminders with different due dates
         tomorrow = (date.today() + timedelta(days=1)).isoformat()
@@ -227,9 +215,7 @@ class TestReminderRoutes:
         # Should return list of reminders
         assert isinstance(data, list) or "reminders" in data
 
-    async def test_reminder_validation(
-        self, client: AsyncClient, auth_headers, test_vehicle
-    ):
+    async def test_reminder_validation(self, client: AsyncClient, auth_headers, test_vehicle):
         """Test reminder validation."""
         # Missing required fields (description is required)
         response = await client.post(

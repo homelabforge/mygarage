@@ -25,49 +25,33 @@ def upgrade():
 
         # Add new columns to address_book if they don't exist
         if "latitude" not in existing_columns:
-            conn.execute(
-                text("ALTER TABLE address_book ADD COLUMN latitude NUMERIC(10,8)")
-            )
+            conn.execute(text("ALTER TABLE address_book ADD COLUMN latitude NUMERIC(10,8)"))
             print("  ✓ Added latitude column")
 
         if "longitude" not in existing_columns:
-            conn.execute(
-                text("ALTER TABLE address_book ADD COLUMN longitude NUMERIC(11,8)")
-            )
+            conn.execute(text("ALTER TABLE address_book ADD COLUMN longitude NUMERIC(11,8)"))
             print("  ✓ Added longitude column")
 
         if "source" not in existing_columns:
             conn.execute(
-                text(
-                    "ALTER TABLE address_book ADD COLUMN source VARCHAR(20) DEFAULT 'manual'"
-                )
+                text("ALTER TABLE address_book ADD COLUMN source VARCHAR(20) DEFAULT 'manual'")
             )
             print("  ✓ Added source column")
 
         if "external_id" not in existing_columns:
-            conn.execute(
-                text("ALTER TABLE address_book ADD COLUMN external_id VARCHAR(100)")
-            )
+            conn.execute(text("ALTER TABLE address_book ADD COLUMN external_id VARCHAR(100)"))
             print("  ✓ Added external_id column")
 
         if "rating" not in existing_columns:
-            conn.execute(
-                text("ALTER TABLE address_book ADD COLUMN rating NUMERIC(3,2)")
-            )
+            conn.execute(text("ALTER TABLE address_book ADD COLUMN rating NUMERIC(3,2)"))
             print("  ✓ Added rating column (Google rating)")
 
         if "user_rating" not in existing_columns:
-            conn.execute(
-                text("ALTER TABLE address_book ADD COLUMN user_rating INTEGER")
-            )
+            conn.execute(text("ALTER TABLE address_book ADD COLUMN user_rating INTEGER"))
             print("  ✓ Added user_rating column")
 
         if "usage_count" not in existing_columns:
-            conn.execute(
-                text(
-                    "ALTER TABLE address_book ADD COLUMN usage_count INTEGER DEFAULT 0"
-                )
-            )
+            conn.execute(text("ALTER TABLE address_book ADD COLUMN usage_count INTEGER DEFAULT 0"))
             print("  ✓ Added usage_count column")
 
         if "last_used" not in existing_columns:

@@ -133,9 +133,7 @@ class TestJWTTokens:
         exp_timestamp = payload["exp"]
 
         # Should use default from settings
-        expected_exp = datetime.now(UTC) + timedelta(
-            minutes=settings.access_token_expire_minutes
-        )
+        expected_exp = datetime.now(UTC) + timedelta(minutes=settings.access_token_expire_minutes)
         actual_exp = datetime.fromtimestamp(exp_timestamp, tz=UTC)
 
         # Allow 5 second tolerance
@@ -180,9 +178,7 @@ class TestJWTTokens:
         assert "exp" in payload
         assert "iat" in payload
 
-    @pytest.mark.skip(
-        reason="authlib jwt.decode() does not validate expiration by default"
-    )
+    @pytest.mark.skip(reason="authlib jwt.decode() does not validate expiration by default")
     def test_decode_token_expired(self):
         """Test that expired tokens raise an error."""
         data = {"sub": "123", "username": "testuser"}

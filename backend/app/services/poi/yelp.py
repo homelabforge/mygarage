@@ -86,29 +86,19 @@ class YelpProvider(BasePOIProvider):
         for category in categories:
             try:
                 if category == POICategory.AUTO_SHOP:
-                    results = await self._search_auto_shops(
-                        latitude, longitude, radius_meters
-                    )
+                    results = await self._search_auto_shops(latitude, longitude, radius_meters)
                     all_results.extend(results)
                 elif category == POICategory.RV_SHOP:
-                    results = await self._search_rv_shops(
-                        latitude, longitude, radius_meters
-                    )
+                    results = await self._search_rv_shops(latitude, longitude, radius_meters)
                     all_results.extend(results)
                 elif category == POICategory.EV_CHARGING:
-                    results = await self._search_ev_charging(
-                        latitude, longitude, radius_meters
-                    )
+                    results = await self._search_ev_charging(latitude, longitude, radius_meters)
                     all_results.extend(results)
                 elif category == POICategory.FUEL_STATION:
-                    results = await self._search_fuel_stations(
-                        latitude, longitude, radius_meters
-                    )
+                    results = await self._search_fuel_stations(latitude, longitude, radius_meters)
                     all_results.extend(results)
             except Exception as e:
-                logger.warning(
-                    "Yelp search failed for category %s: %s", category.value, str(e)
-                )
+                logger.warning("Yelp search failed for category %s: %s", category.value, str(e))
                 continue
 
         return all_results
@@ -165,18 +155,14 @@ class YelpProvider(BasePOIProvider):
         }
         return await self._execute_search(params, POICategory.FUEL_STATION)
 
-    async def _execute_search(
-        self, params: dict, category: POICategory
-    ) -> list[dict[str, Any]]:
+    async def _execute_search(self, params: dict, category: POICategory) -> list[dict[str, Any]]:
         """Execute search request to Yelp Fusion API."""
         headers = {"Authorization": f"Bearer {self.api_key}"}
 
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             try:
                 # codeql[py/partial-ssrf] - self.base_url validated in __init__
-                response = await client.get(
-                    self.base_url, params=params, headers=headers
-                )
+                response = await client.get(self.base_url, params=params, headers=headers)
                 response.raise_for_status()
                 data = response.json()
 
@@ -187,14 +173,10 @@ class YelpProvider(BasePOIProvider):
                 logger.error("Yelp API timeout for category %s", category.value)
                 raise
             except httpx.HTTPStatusError as e:
-                logger.error(
-                    "Yelp API error for category %s: %s", category.value, str(e)
-                )
+                logger.error("Yelp API error for category %s: %s", category.value, str(e))
                 raise
 
-    def normalize_result(
-        self, raw_result: dict, category: POICategory = None
-    ) -> dict[str, Any]:
+    def normalize_result(self, raw_result: dict, category: POICategory = None) -> dict[str, Any]:
         """Normalize Yelp result to common format.
 
         Args:
@@ -225,9 +207,7 @@ class YelpProvider(BasePOIProvider):
             else None,
             "source": "yelp",
             "external_id": raw_result.get("id"),
-            "rating": Decimal(str(raw_result.get("rating")))
-            if raw_result.get("rating")
-            else None,
+            "rating": Decimal(str(raw_result.get("rating"))) if raw_result.get("rating") else None,
             "distance_meters": raw_result.get("distance"),  # Yelp provides this
             "website": raw_result.get("url"),  # Yelp business page URL
             "poi_category": category.value if category else None,

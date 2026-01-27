@@ -1,6 +1,5 @@
 """Warranty record API routes."""
 
-
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -42,9 +41,7 @@ async def get_warranties(
     return warranties
 
 
-@router.post(
-    "/vehicles/{vin}/warranties", response_model=WarrantyRecord, status_code=201
-)
+@router.post("/vehicles/{vin}/warranties", response_model=WarrantyRecord, status_code=201)
 async def create_warranty(
     vin: str,
     warranty: WarrantyRecordCreate,

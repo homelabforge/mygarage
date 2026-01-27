@@ -24,9 +24,7 @@ class InsuranceData(DocumentData):
 
     # Policy details
     policy_number: str | None = None
-    policy_type: str | None = (
-        None  # Liability/Comprehensive/Collision/Full Coverage/Other
-    )
+    policy_type: str | None = None  # Liability/Comprehensive/Collision/Full Coverage/Other
 
     # Dates
     start_date: str | None = None  # YYYY-MM-DD format
@@ -60,9 +58,7 @@ class InsuranceData(DocumentData):
                 "policy_type": self.policy_type,
                 "start_date": self.start_date,
                 "end_date": self.end_date,
-                "premium_amount": str(self.premium_amount)
-                if self.premium_amount
-                else None,
+                "premium_amount": str(self.premium_amount) if self.premium_amount else None,
                 "premium_frequency": self.premium_frequency,
                 "deductible": str(self.deductible) if self.deductible else None,
                 "coverage_limits": self.coverage_limits,
@@ -245,9 +241,7 @@ class ProgressiveInsuranceParser(InsuranceDocumentParser):
             data.field_confidence["dates"] = "high"
 
             # Determine frequency
-            data.premium_frequency = self._determine_frequency(
-                data.start_date, data.end_date
-            )
+            data.premium_frequency = self._determine_frequency(data.start_date, data.end_date)
 
         # Extract total premium
         premium = self._extract_pattern(text, self.PATTERNS["total_premium"])
@@ -259,9 +253,7 @@ class ProgressiveInsuranceParser(InsuranceDocumentParser):
         data.vehicles_found = self._extract_all_vins(text)
 
         # If target VIN specified, extract vehicle-specific data
-        if target_vin and target_vin.upper() in [
-            v.upper() for v in data.vehicles_found
-        ]:
+        if target_vin and target_vin.upper() in [v.upper() for v in data.vehicles_found]:
             vehicle_data = self._extract_vehicle_specific_data(text, target_vin)
             if vehicle_data.get("premium_amount"):
                 data.premium_amount = vehicle_data["premium_amount"]
@@ -321,9 +313,7 @@ class ProgressiveInsuranceParser(InsuranceDocumentParser):
             section = match.group(0)
 
             # Extract vehicle premium
-            vehicle_premium = self._extract_pattern(
-                section, self.PATTERNS["vehicle_premium"]
-            )
+            vehicle_premium = self._extract_pattern(section, self.PATTERNS["vehicle_premium"])
             if vehicle_premium:
                 data["premium_amount"] = self._parse_currency(vehicle_premium)
 
@@ -404,9 +394,7 @@ class StateFarmInsuranceParser(InsuranceDocumentParser):
                     data.start_date = start_date
                     data.end_date = end_date
                     data.field_confidence["dates"] = "high"
-                    data.premium_frequency = self._determine_frequency(
-                        start_date, end_date
-                    )
+                    data.premium_frequency = self._determine_frequency(start_date, end_date)
                     break
 
         # Extract premium
@@ -493,9 +481,7 @@ class GeicoInsuranceParser(InsuranceDocumentParser):
                     data.start_date = start_date
                     data.end_date = end_date
                     data.field_confidence["dates"] = "high"
-                    data.premium_frequency = self._determine_frequency(
-                        start_date, end_date
-                    )
+                    data.premium_frequency = self._determine_frequency(start_date, end_date)
                     break
 
         # Extract premium
@@ -521,9 +507,7 @@ class GeicoInsuranceParser(InsuranceDocumentParser):
         # Calculate confidence
         data.confidence_score = self._calculate_confidence(data)
 
-        data.notes = (
-            f"Auto-imported from GEICO PDF on {datetime.now().strftime('%Y-%m-%d')}"
-        )
+        data.notes = f"Auto-imported from GEICO PDF on {datetime.now().strftime('%Y-%m-%d')}"
 
         return data
 
@@ -581,9 +565,7 @@ class AllstateInsuranceParser(InsuranceDocumentParser):
                     data.start_date = start_date
                     data.end_date = end_date
                     data.field_confidence["dates"] = "high"
-                    data.premium_frequency = self._determine_frequency(
-                        start_date, end_date
-                    )
+                    data.premium_frequency = self._determine_frequency(start_date, end_date)
                     break
 
         # Extract premium
@@ -609,9 +591,7 @@ class AllstateInsuranceParser(InsuranceDocumentParser):
         # Calculate confidence
         data.confidence_score = self._calculate_confidence(data)
 
-        data.notes = (
-            f"Auto-imported from Allstate PDF on {datetime.now().strftime('%Y-%m-%d')}"
-        )
+        data.notes = f"Auto-imported from Allstate PDF on {datetime.now().strftime('%Y-%m-%d')}"
 
         return data
 
@@ -679,9 +659,7 @@ class GenericInsuranceParser(InsuranceDocumentParser):
                     data.start_date = start_date
                     data.end_date = end_date
                     data.field_confidence["dates"] = "medium"
-                    data.premium_frequency = self._determine_frequency(
-                        start_date, end_date
-                    )
+                    data.premium_frequency = self._determine_frequency(start_date, end_date)
                     break
 
         # Extract premium
@@ -707,6 +685,8 @@ class GenericInsuranceParser(InsuranceDocumentParser):
         # Calculate confidence with penalty for generic
         data.confidence_score = self._calculate_confidence(data) * 0.7
 
-        data.notes = f"Auto-imported from PDF on {datetime.now().strftime('%Y-%m-%d')} (generic parser)"
+        data.notes = (
+            f"Auto-imported from PDF on {datetime.now().strftime('%Y-%m-%d')} (generic parser)"
+        )
 
         return data

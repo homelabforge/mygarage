@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 """Vehicle database models."""
 
 from datetime import date, datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import (
     JSON,
@@ -117,63 +119,63 @@ class Vehicle(Base):
     updated_at: Mapped[datetime | None] = mapped_column(DateTime, onupdate=func.now())
 
     # Relationships
-    user: Mapped[Optional["User"]] = relationship("User", foreign_keys="[Vehicle.user_id]")
-    trailer_details: Mapped[Optional["TrailerDetails"]] = relationship(
+    user: Mapped[User | None] = relationship("User", foreign_keys="[Vehicle.user_id]")
+    trailer_details: Mapped[TrailerDetails | None] = relationship(
         "TrailerDetails",
         back_populates="vehicle",
         cascade="all, delete-orphan",
         uselist=False,
         foreign_keys="[TrailerDetails.vin]",
     )
-    spot_rentals: Mapped[list["SpotRental"]] = relationship(
+    spot_rentals: Mapped[list[SpotRental]] = relationship(
         "SpotRental", back_populates="vehicle", cascade="all, delete-orphan"
     )
-    service_records: Mapped[list["ServiceRecord"]] = relationship(
+    service_records: Mapped[list[ServiceRecord]] = relationship(
         "ServiceRecord", back_populates="vehicle", cascade="all, delete-orphan"
     )
-    fuel_records: Mapped[list["FuelRecord"]] = relationship(
+    fuel_records: Mapped[list[FuelRecord]] = relationship(
         "FuelRecord", back_populates="vehicle", cascade="all, delete-orphan"
     )
-    odometer_records: Mapped[list["OdometerRecord"]] = relationship(
+    odometer_records: Mapped[list[OdometerRecord]] = relationship(
         "OdometerRecord", back_populates="vehicle", cascade="all, delete-orphan"
     )
-    reminders: Mapped[list["Reminder"]] = relationship(
+    reminders: Mapped[list[Reminder]] = relationship(
         "Reminder", back_populates="vehicle", cascade="all, delete-orphan"
     )
-    tax_records: Mapped[list["TaxRecord"]] = relationship(
+    tax_records: Mapped[list[TaxRecord]] = relationship(
         "TaxRecord", back_populates="vehicle", cascade="all, delete-orphan"
     )
-    notes: Mapped[list["Note"]] = relationship(
+    notes: Mapped[list[Note]] = relationship(
         "Note", back_populates="vehicle", cascade="all, delete-orphan"
     )
-    recalls: Mapped[list["Recall"]] = relationship(
+    recalls: Mapped[list[Recall]] = relationship(
         "Recall", back_populates="vehicle", cascade="all, delete-orphan"
     )
-    photos: Mapped[list["VehiclePhoto"]] = relationship(
+    photos: Mapped[list[VehiclePhoto]] = relationship(
         "VehiclePhoto", back_populates="vehicle", cascade="all, delete-orphan"
     )
-    documents: Mapped[list["Document"]] = relationship(
+    documents: Mapped[list[Document]] = relationship(
         "Document", back_populates="vehicle", cascade="all, delete-orphan"
     )
-    warranty_records: Mapped[list["WarrantyRecord"]] = relationship(
+    warranty_records: Mapped[list[WarrantyRecord]] = relationship(
         "WarrantyRecord", back_populates="vehicle", cascade="all, delete-orphan"
     )
-    insurance_policies: Mapped[list["InsurancePolicy"]] = relationship(
+    insurance_policies: Mapped[list[InsurancePolicy]] = relationship(
         "InsurancePolicy", back_populates="vehicle", cascade="all, delete-orphan"
     )
-    toll_tags: Mapped[list["TollTag"]] = relationship(
+    toll_tags: Mapped[list[TollTag]] = relationship(
         "TollTag", back_populates="vehicle", cascade="all, delete-orphan"
     )
-    toll_transactions: Mapped[list["TollTransaction"]] = relationship(
+    toll_transactions: Mapped[list[TollTransaction]] = relationship(
         "TollTransaction", back_populates="vehicle", cascade="all, delete-orphan"
     )
-    maintenance_templates: Mapped[list["MaintenanceTemplate"]] = relationship(
+    maintenance_templates: Mapped[list[MaintenanceTemplate]] = relationship(
         "MaintenanceTemplate", back_populates="vehicle", cascade="all, delete-orphan"
     )
-    service_visits: Mapped[list["ServiceVisit"]] = relationship(
+    service_visits: Mapped[list[ServiceVisit]] = relationship(
         "ServiceVisit", back_populates="vehicle", cascade="all, delete-orphan"
     )
-    schedule_items: Mapped[list["MaintenanceScheduleItem"]] = relationship(
+    schedule_items: Mapped[list[MaintenanceScheduleItem]] = relationship(
         "MaintenanceScheduleItem",
         back_populates="vehicle",
         cascade="all, delete-orphan",
@@ -209,7 +211,7 @@ class TrailerDetails(Base):
     )
 
     # Relationships
-    vehicle: Mapped["Vehicle"] = relationship(
+    vehicle: Mapped[Vehicle] = relationship(
         "Vehicle", back_populates="trailer_details", foreign_keys="[TrailerDetails.vin]"
     )
 

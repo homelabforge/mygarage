@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """CSRF token model for cross-site request forgery protection."""
 
 from datetime import UTC, datetime, timedelta
@@ -19,12 +21,8 @@ class CSRFToken(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     token = Column(String(64), unique=True, index=True, nullable=False)
-    user_id = Column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-    )
-    created_at = Column(
-        DateTime, default=lambda: datetime.now(UTC), nullable=False
-    )
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
     expires_at = Column(DateTime, nullable=False)
 
     # Relationship to user

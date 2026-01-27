@@ -10,12 +10,8 @@ from pydantic import BaseModel, Field, field_validator
 class TollTagBase(BaseModel):
     """Base toll tag schema with common fields."""
 
-    toll_system: str = Field(
-        ..., description="Toll system name", min_length=1, max_length=50
-    )
-    tag_number: str = Field(
-        ..., description="Transponder/tag number", min_length=1, max_length=50
-    )
+    toll_system: str = Field(..., description="Toll system name", min_length=1, max_length=50)
+    tag_number: str = Field(..., description="Transponder/tag number", min_length=1, max_length=50)
     status: str = Field("active", description="Tag status")
     notes: str | None = Field(None, description="Additional notes")
 
@@ -50,9 +46,7 @@ class TollTagBase(BaseModel):
 class TollTagCreate(TollTagBase):
     """Schema for creating a new toll tag."""
 
-    vin: str = Field(
-        ..., description="VIN of the vehicle", min_length=17, max_length=17
-    )
+    vin: str = Field(..., description="VIN of the vehicle", min_length=17, max_length=17)
 
     model_config = {
         "json_schema_extra": {
@@ -154,9 +148,7 @@ class TollTransactionBase(BaseModel):
 
     transaction_date: dt.date = Field(..., description="Transaction date")
     amount: Decimal = Field(..., description="Toll amount", ge=0)
-    location: str = Field(
-        ..., description="Toll location/plaza", min_length=1, max_length=200
-    )
+    location: str = Field(..., description="Toll location/plaza", min_length=1, max_length=200)
     toll_tag_id: int | None = Field(None, description="Associated toll tag ID")
     notes: str | None = Field(None, description="Additional notes")
 
@@ -164,9 +156,7 @@ class TollTransactionBase(BaseModel):
 class TollTransactionCreate(TollTransactionBase):
     """Schema for creating a new toll transaction."""
 
-    vin: str = Field(
-        ..., description="VIN of the vehicle", min_length=17, max_length=17
-    )
+    vin: str = Field(..., description="VIN of the vehicle", min_length=17, max_length=17)
 
     model_config = {
         "json_schema_extra": {
@@ -256,9 +246,7 @@ class TollTransactionSummary(BaseModel):
 
     total_transactions: int
     total_amount: Decimal
-    monthly_totals: list[
-        dict[str, Any]
-    ]  # [{"month": "2025-11", "count": 10, "amount": 25.00}]
+    monthly_totals: list[dict[str, Any]]  # [{"month": "2025-11", "count": 10, "amount": 25.00}]
 
     model_config = {
         "json_schema_extra": {

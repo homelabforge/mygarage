@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Vendor database model."""
 
 from datetime import datetime
@@ -27,15 +29,13 @@ class Vendor(Base):
     zip_code: Mapped[str | None] = mapped_column(String(20))
     phone: Mapped[str | None] = mapped_column(String(20))
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime | None] = mapped_column(
-        DateTime, onupdate=func.now()
-    )
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, onupdate=func.now())
 
     # Relationships
-    service_visits: Mapped[list["ServiceVisit"]] = relationship(
+    service_visits: Mapped[list[ServiceVisit]] = relationship(
         "ServiceVisit", back_populates="vendor"
     )
-    price_history: Mapped[list["VendorPriceHistory"]] = relationship(
+    price_history: Mapped[list[VendorPriceHistory]] = relationship(
         "VendorPriceHistory", back_populates="vendor"
     )
 

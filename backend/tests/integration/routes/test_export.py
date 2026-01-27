@@ -69,15 +69,11 @@ class TestExportRoutes:
         assert "service_records" in data
         assert "fuel_records" in data
 
-    async def test_export_unauthorized(
-        self, client: AsyncClient, test_vehicle_with_records
-    ):
+    async def test_export_unauthorized(self, client: AsyncClient, test_vehicle_with_records):
         """Test that unauthenticated users cannot export data."""
         vehicle = test_vehicle_with_records
 
-        response = await client.get(
-            f"/api/export/vehicles/{vehicle['vin']}/service/csv"
-        )
+        response = await client.get(f"/api/export/vehicles/{vehicle['vin']}/service/csv")
 
         assert response.status_code == 401
 
@@ -90,9 +86,7 @@ class TestExportRoutes:
 
         assert response.status_code == 404
 
-    async def test_export_empty_vehicle(
-        self, client: AsyncClient, auth_headers, test_vehicle
-    ):
+    async def test_export_empty_vehicle(self, client: AsyncClient, auth_headers, test_vehicle):
         """Test exporting data for vehicle with no records."""
         response = await client.get(
             f"/api/export/vehicles/{test_vehicle['vin']}/service/csv",

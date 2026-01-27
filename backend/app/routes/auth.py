@@ -42,9 +42,7 @@ router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 limiter = Limiter(key_func=get_remote_address)
 
 
-@router.post(
-    "/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED
-)
+@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 @limiter.limit(settings.rate_limit_auth)
 async def register(
     request: Request,
@@ -268,9 +266,7 @@ async def update_current_user(
     if user_update.email is not None:
         # Check if email is already taken by another user
         result = await db.execute(
-            select(User).where(
-                User.email == user_update.email, User.id != current_user.id
-            )
+            select(User).where(User.email == user_update.email, User.id != current_user.id)
         )
         if result.scalar_one_or_none():
             raise HTTPException(
@@ -303,9 +299,7 @@ async def update_password(
 ):
     """Update current user password."""
     # Verify current password
-    if not verify_password(
-        password_update.current_password, current_user.hashed_password
-    ):
+    if not verify_password(password_update.current_password, current_user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Current password is incorrect",
@@ -350,9 +344,7 @@ async def create_user(
     Requires multi_user_enabled setting to be true.
     """
     # Check if multi-user mode is enabled
-    result = await db.execute(
-        select(Setting).where(Setting.key == "multi_user_enabled")
-    )
+    result = await db.execute(select(Setting).where(Setting.key == "multi_user_enabled"))
     multi_user_setting = result.scalar_one_or_none()
 
     if multi_user_setting and multi_user_setting.value != "true":
@@ -392,9 +384,7 @@ async def create_user(
     await db.commit()
     await db.refresh(new_user)
 
-    logger.info(
-        "Admin %s created new user: %s", current_user.username, new_user.username
-    )
+    logger.info("Admin %s created new user: %s", current_user.username, new_user.username)
 
     return new_user
 
@@ -494,9 +484,7 @@ async def delete_user(
 
     # Check if this is the last admin
     if user.is_admin:
-        result = await db.execute(
-            select(func.count(User.id)).where(User.is_admin.is_(True))
-        )
+        result = await db.execute(select(func.count(User.id)).where(User.is_admin.is_(True)))
         admin_count = result.scalar_one()
 
         if admin_count <= 1:
@@ -560,6 +548,4 @@ async def admin_reset_user_password(
 
     await db.commit()
 
-    logger.info(
-        "Admin %s reset password for user: %s", current_user.username, user.username
-    )
+    logger.info("Admin %s reset password for user: %s", current_user.username, user.username)

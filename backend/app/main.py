@@ -82,9 +82,7 @@ async def lifespan(app: FastAPI):
         auth_mode = await get_auth_mode(db)
         if auth_mode == "none":
             logger.warning("=" * 80)
-            logger.warning(
-                "⚠️  SECURITY WARNING: Authentication is disabled (auth_mode='none')"
-            )
+            logger.warning("⚠️  SECURITY WARNING: Authentication is disabled (auth_mode='none')")
             logger.warning("⚠️  All endpoints are accessible without authentication!")
             logger.warning("⚠️  This should NEVER be used in production environments!")
             logger.warning("=" * 80)
@@ -103,9 +101,7 @@ app = FastAPI(
 )
 
 # Configure rate limiting
-limiter = Limiter(
-    key_func=get_remote_address, default_limits=[settings.rate_limit_default]
-)
+limiter = Limiter(key_func=get_remote_address, default_limits=[settings.rate_limit_default])
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
 
@@ -181,8 +177,7 @@ async def api_health_check(request: Request):
     ]
 
     authenticator_detected = any(
-        header.lower() in [h.lower() for h in request.headers.keys()]
-        for header in auth_headers
+        header.lower() in [h.lower() for h in request.headers.keys()] for header in auth_headers
     )
 
     return {
@@ -303,9 +298,7 @@ if static_dir.exists():
         return FileResponse(static_dir / "index.html", media_type="text/html")
 
     # Mount static assets (CSS, JS, images) - must be after route definitions
-    app.mount(
-        "/assets", StaticFiles(directory=str(static_dir / "assets")), name="assets"
-    )
+    app.mount("/assets", StaticFiles(directory=str(static_dir / "assets")), name="assets")
 
     # Custom 404 handler to serve SPA for non-API routes
     @app.exception_handler(404)

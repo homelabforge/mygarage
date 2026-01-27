@@ -25,9 +25,7 @@ def upgrade():
     with engine.begin() as conn:
         # Check if attachments table exists
         result = conn.execute(
-            text(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name='attachments'"
-            )
+            text("SELECT name FROM sqlite_master WHERE type='table' AND name='attachments'")
         )
         if not result.fetchone():
             print("  attachments table does not exist, skipping")
@@ -35,9 +33,7 @@ def upgrade():
 
         # Check if service_visits table exists
         result = conn.execute(
-            text(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name='service_visits'"
-            )
+            text("SELECT name FROM sqlite_master WHERE type='table' AND name='service_visits'")
         )
         if not result.fetchone():
             print("  service_visits table does not exist, skipping")
@@ -45,9 +41,7 @@ def upgrade():
 
         # Check if service_records table exists
         result = conn.execute(
-            text(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name='service_records'"
-            )
+            text("SELECT name FROM sqlite_master WHERE type='table' AND name='service_records'")
         )
         if not result.fetchone():
             print("  service_records table does not exist, skipping")

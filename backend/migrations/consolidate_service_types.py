@@ -29,9 +29,7 @@ def migrate():
         existing_columns = [row[1] for row in cursor.fetchall()]
 
         if "insurance_claim" not in existing_columns:
-            cursor.execute(
-                "ALTER TABLE service_records ADD COLUMN insurance_claim VARCHAR(50)"
-            )
+            cursor.execute("ALTER TABLE service_records ADD COLUMN insurance_claim VARCHAR(50)")
             print("✓ Added insurance_claim column")
         else:
             print("✓ insurance_claim column already exists")
@@ -90,9 +88,7 @@ def migrate():
                 )
                 cursor.execute("DROP TABLE collision_records")
         else:
-            print(
-                "✓ collision_records table does not exist (already migrated or never created)"
-            )
+            print("✓ collision_records table does not exist (already migrated or never created)")
 
         conn.commit()
 
@@ -147,17 +143,13 @@ def migrate():
                 )
                 cursor.execute("DROP TABLE upgrade_records")
         else:
-            print(
-                "✓ upgrade_records table does not exist (already migrated or never created)"
-            )
+            print("✓ upgrade_records table does not exist (already migrated or never created)")
 
         conn.commit()
 
         # Step 4: Verify migration
         print("\n=== Step 4: Verifying migration ===")
-        cursor.execute(
-            "SELECT service_type, COUNT(*) FROM service_records GROUP BY service_type"
-        )
+        cursor.execute("SELECT service_type, COUNT(*) FROM service_records GROUP BY service_type")
         type_counts = cursor.fetchall()
 
         print("\nService records by type:")

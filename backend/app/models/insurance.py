@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Insurance policy database model."""
 
 from datetime import date, datetime
@@ -42,9 +44,7 @@ class InsurancePolicy(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     # Relationships
-    vehicle: Mapped["Vehicle"] = relationship(
-        "Vehicle", back_populates="insurance_policies"
-    )
+    vehicle: Mapped[Vehicle] = relationship("Vehicle", back_populates="insurance_policies")
 
     __table_args__ = (
         CheckConstraint(

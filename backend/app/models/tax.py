@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Tax record database model."""
 
 import datetime as dt
@@ -38,7 +40,7 @@ class TaxRecord(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     # Relationships
-    vehicle: Mapped["Vehicle"] = relationship("Vehicle", back_populates="tax_records")
+    vehicle: Mapped[Vehicle] = relationship("Vehicle", back_populates="tax_records")
 
     __table_args__ = (
         CheckConstraint(

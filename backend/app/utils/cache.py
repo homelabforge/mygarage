@@ -67,9 +67,7 @@ class InMemoryCache:
         """Remove all expired entries."""
         now = datetime.now()
         async with self._lock:
-            expired_keys = [
-                key for key, (_, expiry) in self._cache.items() if expiry <= now
-            ]
+            expired_keys = [key for key, (_, expiry) in self._cache.items() if expiry <= now]
             for key in expired_keys:
                 del self._cache[key]
 

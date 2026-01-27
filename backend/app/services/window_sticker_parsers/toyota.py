@@ -30,8 +30,8 @@ class ToyotaWindowStickerParser(BaseWindowStickerParser):
         data.exterior_color, data.interior_color = self._extract_toyota_colors(text)
 
         # Extract engine and transmission
-        data.engine_description, data.transmission_description = (
-            self._extract_engine_transmission(text_upper)
+        data.engine_description, data.transmission_description = self._extract_engine_transmission(
+            text_upper
         )
 
         # Extract equipment
@@ -44,9 +44,7 @@ class ToyotaWindowStickerParser(BaseWindowStickerParser):
         data.assembly_location = self._extract_assembly_location(text_upper)
 
         # Extract warranty
-        data.warranty_powertrain, data.warranty_basic = self._extract_toyota_warranty(
-            text
-        )
+        data.warranty_powertrain, data.warranty_basic = self._extract_toyota_warranty(text)
 
         # Extract fuel economy
         city, highway, combined = self._extract_fuel_economy(text_upper)
@@ -170,9 +168,7 @@ class ToyotaWindowStickerParser(BaseWindowStickerParser):
             items = [
                 line.strip()
                 for line in std_match.group(1).split("\n")
-                if line.strip()
-                and len(line.strip()) > 5
-                and not re.match(r"^\$", line.strip())
+                if line.strip() and len(line.strip()) > 5 and not re.match(r"^\$", line.strip())
             ]
             data.standard_equipment = items[:100]
 
@@ -190,9 +186,7 @@ class ToyotaWindowStickerParser(BaseWindowStickerParser):
                     items.append(line)
             data.optional_equipment = items[:100]
 
-    def _extract_toyota_warranty(
-        self, text: str
-    ) -> tuple[str | None, str | None]:
+    def _extract_toyota_warranty(self, text: str) -> tuple[str | None, str | None]:
         """Extract warranty from Toyota sticker."""
         powertrain = None
         basic = None

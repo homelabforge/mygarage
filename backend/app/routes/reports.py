@@ -80,9 +80,7 @@ async def download_service_history_pdf(
 
     # Generate PDF
     pdf_gen = PDFReportGenerator()
-    pdf_buffer = pdf_gen.generate_service_history_pdf(
-        vehicle_info, records_data, start_dt, end_dt
-    )
+    pdf_buffer = pdf_gen.generate_service_history_pdf(vehicle_info, records_data, start_dt, end_dt)
 
     # Return as downloadable file
     filename = f"service_history_{vin}_{datetime.now().strftime('%Y%m%d')}.pdf"
@@ -239,9 +237,7 @@ async def download_tax_deduction_pdf(
 
     # Generate PDF
     pdf_gen = PDFReportGenerator()
-    pdf_buffer = pdf_gen.generate_tax_deduction_pdf(
-        vehicle_info, deductible_records, year
-    )
+    pdf_buffer = pdf_gen.generate_tax_deduction_pdf(vehicle_info, deductible_records, year)
 
     # Return as downloadable file
     filename = f"tax_deduction_{vin}_{year}.pdf"
@@ -344,16 +340,12 @@ async def download_all_records_csv(
     writer = csv.writer(output)
 
     # Write header
-    writer.writerow(
-        ["Date", "Type", "Category", "Description", "Cost", "Mileage", "Vendor"]
-    )
+    writer.writerow(["Date", "Type", "Category", "Description", "Cost", "Mileage", "Vendor"])
 
     # Query and write service records
     service_query = select(ServiceRecordModel).where(ServiceRecordModel.vin == vin)
     if year:
-        service_query = service_query.where(
-            extract("year", ServiceRecordModel.date) == year
-        )
+        service_query = service_query.where(extract("year", ServiceRecordModel.date) == year)
     service_result = await db.execute(service_query.order_by(ServiceRecordModel.date))
     for record in service_result.scalars():
         writer.writerow(
@@ -393,12 +385,8 @@ async def download_all_records_csv(
         .where(ServiceRecordModel.service_type == "Collision")
     )
     if year:
-        collision_query = collision_query.where(
-            extract("year", ServiceRecordModel.date) == year
-        )
-    collision_result = await db.execute(
-        collision_query.order_by(ServiceRecordModel.date)
-    )
+        collision_query = collision_query.where(extract("year", ServiceRecordModel.date) == year)
+    collision_result = await db.execute(collision_query.order_by(ServiceRecordModel.date))
     for record in collision_result.scalars():
         writer.writerow(
             [
@@ -419,9 +407,7 @@ async def download_all_records_csv(
         .where(ServiceRecordModel.service_type == "Upgrades")
     )
     if year:
-        upgrade_query = upgrade_query.where(
-            extract("year", ServiceRecordModel.date) == year
-        )
+        upgrade_query = upgrade_query.where(extract("year", ServiceRecordModel.date) == year)
     upgrade_result = await db.execute(upgrade_query.order_by(ServiceRecordModel.date))
     for record in upgrade_result.scalars():
         writer.writerow(

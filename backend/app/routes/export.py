@@ -60,9 +60,7 @@ async def export_service_records_csv(
 
     # Get all service records
     result = await db.execute(
-        select(ServiceRecord)
-        .where(ServiceRecord.vin == vin)
-        .order_by(ServiceRecord.date.desc())
+        select(ServiceRecord).where(ServiceRecord.vin == vin).order_by(ServiceRecord.date.desc())
     )
     records = result.scalars().all()
 
@@ -186,9 +184,7 @@ async def export_odometer_records_csv(
 
     # Get all odometer records
     result = await db.execute(
-        select(OdometerRecord)
-        .where(OdometerRecord.vin == vin)
-        .order_by(OdometerRecord.date.desc())
+        select(OdometerRecord).where(OdometerRecord.vin == vin).order_by(OdometerRecord.date.desc())
     )
     records = result.scalars().all()
 
@@ -421,9 +417,7 @@ async def export_notes_csv(
         raise HTTPException(status_code=404, detail="Vehicle not found")
 
     # Get all notes
-    result = await db.execute(
-        select(Note).where(Note.vin == vin).order_by(Note.date.desc())
-    )
+    result = await db.execute(select(Note).where(Note.vin == vin).order_by(Note.date.desc()))
     records = result.scalars().all()
 
     # Generate CSV
@@ -472,9 +466,7 @@ async def export_vehicle_json(
 
     # Get all related records
     service_result = await db.execute(
-        select(ServiceRecord)
-        .where(ServiceRecord.vin == vin)
-        .order_by(ServiceRecord.date.desc())
+        select(ServiceRecord).where(ServiceRecord.vin == vin).order_by(ServiceRecord.date.desc())
     )
     service_records = service_result.scalars().all()
 
@@ -484,9 +476,7 @@ async def export_vehicle_json(
     fuel_records = fuel_result.scalars().all()
 
     odometer_result = await db.execute(
-        select(OdometerRecord)
-        .where(OdometerRecord.vin == vin)
-        .order_by(OdometerRecord.date.desc())
+        select(OdometerRecord).where(OdometerRecord.vin == vin).order_by(OdometerRecord.date.desc())
     )
     odometer_records = odometer_result.scalars().all()
 
@@ -495,9 +485,7 @@ async def export_vehicle_json(
     )
     reminders = reminder_result.scalars().all()
 
-    note_result = await db.execute(
-        select(Note).where(Note.vin == vin).order_by(Note.date.desc())
-    )
+    note_result = await db.execute(select(Note).where(Note.vin == vin).order_by(Note.date.desc()))
     notes = note_result.scalars().all()
 
     # Build export data
@@ -511,12 +499,8 @@ async def export_vehicle_json(
             "trim": vehicle.trim,
             "color": vehicle.color,
             "license_plate": vehicle.license_plate,
-            "purchase_date": vehicle.purchase_date.isoformat()
-            if vehicle.purchase_date
-            else None,
-            "purchase_price": float(vehicle.purchase_price)
-            if vehicle.purchase_price
-            else None,
+            "purchase_date": vehicle.purchase_date.isoformat() if vehicle.purchase_date else None,
+            "purchase_price": float(vehicle.purchase_price) if vehicle.purchase_price else None,
         },
         "service_records": [
             {

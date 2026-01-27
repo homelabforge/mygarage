@@ -119,9 +119,7 @@ class Settings(BaseSettings):
 
     # Security Settings
     auth_enabled: bool = True
-    allow_auth_none: bool = (
-        False  # Allow auth_mode='none' in production (security risk!)
-    )
+    allow_auth_none: bool = False  # Allow auth_mode='none' in production (security risk!)
     cors_origins: list[str] = [
         "http://localhost:3000",
         "http://localhost:5173",
@@ -145,12 +143,8 @@ class Settings(BaseSettings):
 
     rate_limit_default: str = "200/minute"
     rate_limit_uploads: str = "20/minute"
-    rate_limit_auth: str = (
-        "5/minute"  # Strict limit for auth endpoints to prevent brute force
-    )
-    rate_limit_exports: str = (
-        "5/minute"  # Strict limit for expensive export operations (PDF/CSV)
-    )
+    rate_limit_auth: str = "5/minute"  # Strict limit for auth endpoints to prevent brute force
+    rate_limit_exports: str = "5/minute"  # Strict limit for expensive export operations (PDF/CSV)
 
     # CSV Import Settings
     max_csv_size_mb: int = 10

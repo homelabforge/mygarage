@@ -25,9 +25,7 @@ def upgrade():
 
         # Add poi_category column
         if "poi_category" not in existing_columns:
-            conn.execute(
-                text("ALTER TABLE address_book ADD COLUMN poi_category VARCHAR(50)")
-            )
+            conn.execute(text("ALTER TABLE address_book ADD COLUMN poi_category VARCHAR(50)"))
             print("  ✓ Added poi_category column")
 
         # Add poi_metadata column

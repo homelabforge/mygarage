@@ -45,9 +45,7 @@ class StellantisWindowStickerParser(BaseWindowStickerParser):
         data.assembly_location = self._extract_assembly_location(text_upper)
 
         # Extract warranty - use Stellantis-specific patterns
-        data.warranty_powertrain, data.warranty_basic = (
-            self._extract_stellantis_warranty(text)
-        )
+        data.warranty_powertrain, data.warranty_basic = self._extract_stellantis_warranty(text)
 
         # Extract environmental ratings (CARB for diesel/California)
         self._extract_environmental_ratings(text_upper, data)
@@ -63,9 +61,7 @@ class StellantisWindowStickerParser(BaseWindowStickerParser):
 
         return data
 
-    def _extract_pricing(
-        self, text: str, text_upper: str, data: WindowStickerData
-    ) -> None:
+    def _extract_pricing(self, text: str, text_upper: str, data: WindowStickerData) -> None:
         """Extract all pricing information from Stellantis sticker."""
 
         # Base Price - Stellantis uses "Base Price:" format
@@ -116,9 +112,7 @@ class StellantisWindowStickerParser(BaseWindowStickerParser):
             # Pattern for "Item Name $X,XXX" on same line or nearby
             # Handle multi-line items like package groups
             # Allow items starting with digits (e.g., "6.7L I6 Cummins...")
-            price_pattern = (
-                r"([A-Za-z0-9][A-Za-z0-9\s\.\-–/®™&]+?)\s+\$\s*([\d,]+\.?\d*)"
-            )
+            price_pattern = r"([A-Za-z0-9][A-Za-z0-9\s\.\-–/®™&]+?)\s+\$\s*([\d,]+\.?\d*)"
 
             for match in re.finditer(price_pattern, section_text):
                 item_name = match.group(1).strip()
@@ -152,9 +146,7 @@ class StellantisWindowStickerParser(BaseWindowStickerParser):
         # Skip complex regex matching - parse line by line instead for reliability
         pass  # Package content extraction disabled for performance
 
-    def _extract_stellantis_colors(
-        self, text: str
-    ) -> tuple[str | None, str | None]:
+    def _extract_stellantis_colors(self, text: str) -> tuple[str | None, str | None]:
         """Extract colors from Stellantis sticker format."""
         exterior = None
         interior = None
@@ -198,9 +190,7 @@ class StellantisWindowStickerParser(BaseWindowStickerParser):
 
         return exterior, interior
 
-    def _extract_stellantis_powertrain(
-        self, text: str
-    ) -> tuple[str | None, str | None]:
+    def _extract_stellantis_powertrain(self, text: str) -> tuple[str | None, str | None]:
         """Extract engine and transmission from Stellantis sticker."""
         engine = None
         transmission = None
@@ -226,9 +216,7 @@ class StellantisWindowStickerParser(BaseWindowStickerParser):
         if trans_match:
             transmission = trans_match.group(1).strip()
             # Clean up trailing "Transmission" word if duplicated
-            transmission = re.sub(
-                r"\s+Transmission$", "", transmission, flags=re.IGNORECASE
-            )
+            transmission = re.sub(r"\s+Transmission$", "", transmission, flags=re.IGNORECASE)
             transmission = transmission.strip()[:150] if transmission else None
 
         return engine, transmission
@@ -265,9 +253,7 @@ class StellantisWindowStickerParser(BaseWindowStickerParser):
                 in_standard = False
                 in_optional = True
                 continue
-            elif any(
-                x in line_upper for x in ["DESTINATION", "WARRANTY", "TOTAL PRICE"]
-            ):
+            elif any(x in line_upper for x in ["DESTINATION", "WARRANTY", "TOTAL PRICE"]):
                 in_standard = False
                 in_optional = False
                 continue
@@ -287,9 +273,7 @@ class StellantisWindowStickerParser(BaseWindowStickerParser):
             if in_standard:
                 # Check if this item is actually an optional package component
                 # by seeing if it matches keywords from options_detail
-                line_words = set[str](
-                    re.findall(r"[A-Za-z]{4,}", line_stripped.lower())
-                )
+                line_words = set[str](re.findall(r"[A-Za-z]{4,}", line_stripped.lower()))
                 common_words = line_words & option_keywords
                 # If 2+ significant words match an option, it's probably part of optional equipment
                 if len(common_words) >= 2:
@@ -305,9 +289,7 @@ class StellantisWindowStickerParser(BaseWindowStickerParser):
         data.standard_equipment = standard_items[:100]
         data.optional_equipment = optional_items[:100]
 
-    def _extract_environmental_ratings(
-        self, text: str, data: WindowStickerData
-    ) -> None:
+    def _extract_environmental_ratings(self, text: str, data: WindowStickerData) -> None:
         """Extract CARB environmental ratings (California vehicles)."""
         # CARB label OCR output format (from actual Stellantis window stickers):
         #
@@ -354,9 +336,7 @@ class StellantisWindowStickerParser(BaseWindowStickerParser):
             # Skip first 4-5 entries (scale markers), look for middle values
 
             # Filter: Find ratings that are B, B+, C, or C+ (actual ratings, not scale endpoints)
-            middle_ratings = [
-                r.upper() for r in all_ratings if r.upper() in ("B", "B+", "C", "C+")
-            ]
+            middle_ratings = [r.upper() for r in all_ratings if r.upper() in ("B", "B+", "C", "C+")]
 
             # Key insight from OCR analysis:
             # - Plain 'B' often appears as a scale marker BEFORE the actual ratings
@@ -378,17 +358,13 @@ class StellantisWindowStickerParser(BaseWindowStickerParser):
                 # One '+' rating and one plain - the '+' rating comes from actual vehicle
                 # Check position: if plain appears before '+', skip the plain one
                 plus_idx = middle_ratings.index(plus_ratings[0])
-                plain_before_plus = [
-                    r for r in plain_ratings if middle_ratings.index(r) < plus_idx
-                ]
+                plain_before_plus = [r for r in plain_ratings if middle_ratings.index(r) < plus_idx]
 
                 if plain_before_plus:
                     # Plain rating before '+' is likely a scale marker - use '+' ratings only
                     # Or look for second '+' rating after
                     remaining = [
-                        r
-                        for r in middle_ratings[plus_idx + 1 :]
-                        if r in ("B", "B+", "C", "C+")
+                        r for r in middle_ratings[plus_idx + 1 :] if r in ("B", "B+", "C", "C+")
                     ]
                     if remaining:
                         data.environmental_rating_ghg = plus_ratings[0]
@@ -409,15 +385,10 @@ class StellantisWindowStickerParser(BaseWindowStickerParser):
                 data.environmental_rating_ghg = middle_ratings[0]
 
         # Fallback if above didn't work
-        if (
-            data.environmental_rating_ghg is None
-            or data.environmental_rating_smog is None
-        ):
+        if data.environmental_rating_ghg is None or data.environmental_rating_smog is None:
             # Try simple pattern matching for B/B+/C/C+ near rating keywords
             if data.environmental_rating_ghg is None:
-                ghg_match = re.search(
-                    r"Greenhouse.*?([BC]\+?)", text, re.IGNORECASE | re.DOTALL
-                )
+                ghg_match = re.search(r"Greenhouse.*?([BC]\+?)", text, re.IGNORECASE | re.DOTALL)
                 if ghg_match:
                     data.environmental_rating_ghg = ghg_match.group(1).upper()
 
@@ -433,9 +404,7 @@ class StellantisWindowStickerParser(BaseWindowStickerParser):
                     if smog_match:
                         data.environmental_rating_smog = smog_match.group(1).upper()
 
-    def _extract_stellantis_warranty(
-        self, text: str
-    ) -> tuple[str | None, str | None]:
+    def _extract_stellantis_warranty(self, text: str) -> tuple[str | None, str | None]:
         """Extract warranty from Stellantis sticker - handles their specific format."""
         powertrain = None
         basic = None

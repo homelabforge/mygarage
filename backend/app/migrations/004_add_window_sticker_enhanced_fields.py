@@ -51,9 +51,7 @@ def upgrade():
             if column_name in existing_columns:
                 print(f"✓ vehicles.{column_name} already exists")
             else:
-                conn.execute(
-                    text(f"ALTER TABLE vehicles ADD COLUMN {column_name} {column_type}")
-                )
+                conn.execute(text(f"ALTER TABLE vehicles ADD COLUMN {column_name} {column_type}"))
                 print(f"✓ Added {column_name} column to vehicles")
 
 

@@ -92,9 +92,7 @@ def upgrade():
         # Recreate indexes
         print("→ Recreating indexes...")
         cursor.execute("CREATE INDEX idx_service_records_vin ON service_records (vin)")
-        cursor.execute(
-            "CREATE INDEX idx_service_records_date ON service_records (date)"
-        )
+        cursor.execute("CREATE INDEX idx_service_records_date ON service_records (date)")
 
         # Verify the new constraint
         cursor.execute(
@@ -105,9 +103,7 @@ def upgrade():
         if "Detailing" in table_sql and "check_service_category" in table_sql:
             print("✓ CHECK constraint verified: includes 'Detailing'")
         else:
-            raise Exception(
-                "CHECK constraint verification failed - 'Detailing' not found"
-            )
+            raise Exception("CHECK constraint verification failed - 'Detailing' not found")
 
         # Verify no TSB column exists
         cursor.execute("PRAGMA table_info(service_records)")
@@ -190,9 +186,7 @@ def rollback():
 
         # Recreate indexes
         cursor.execute("CREATE INDEX idx_service_records_vin ON service_records (vin)")
-        cursor.execute(
-            "CREATE INDEX idx_service_records_date ON service_records (date)"
-        )
+        cursor.execute("CREATE INDEX idx_service_records_date ON service_records (date)")
 
         conn.commit()
         print("\n✅ Migration 026 rolled back successfully\n")

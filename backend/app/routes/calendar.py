@@ -42,15 +42,9 @@ def calculate_urgency(event_date: date, is_overdue: bool) -> str:
 
 @router.get("/calendar", response_model=CalendarResponse)
 async def get_calendar_events(
-    start_date: date | None = Query(
-        None, description="Start date filter (default: 1 month ago)"
-    ),
-    end_date: date | None = Query(
-        None, description="End date filter (default: 1 year ahead)"
-    ),
-    vehicle_vins: str | None = Query(
-        None, description="Comma-separated VINs to filter by"
-    ),
+    start_date: date | None = Query(None, description="Start date filter (default: 1 month ago)"),
+    end_date: date | None = Query(None, description="End date filter (default: 1 year ahead)"),
+    vehicle_vins: str | None = Query(None, description="Comma-separated VINs to filter by"),
     event_types: str | None = Query(
         None, description="Comma-separated event types (reminder,insurance,warranty)"
     ),
@@ -68,9 +62,7 @@ async def get_calendar_events(
     # Parse filters
     vin_list = vehicle_vins.split(",") if vehicle_vins else None
     type_list = (
-        event_types.split(",")
-        if event_types
-        else ["reminder", "insurance", "warranty", "service"]
+        event_types.split(",") if event_types else ["reminder", "insurance", "warranty", "service"]
     )
 
     # Get all vehicles for nickname lookup
@@ -126,9 +118,7 @@ async def get_calendar_events(
         )
 
         if vin_list:
-            mileage_reminder_query = mileage_reminder_query.where(
-                Reminder.vin.in_(vin_list)
-            )
+            mileage_reminder_query = mileage_reminder_query.where(Reminder.vin.in_(vin_list))
 
         mileage_reminders_result = await db.execute(mileage_reminder_query)
         mileage_reminders = mileage_reminders_result.scalars().all()
@@ -225,9 +215,7 @@ async def get_calendar_events(
                     type="warranty",
                     title=f"{warranty.warranty_type} Warranty Expiration",
                     description=f"{warranty.provider or 'N/A'}"
-                    + (
-                        f" - {warranty.policy_number}" if warranty.policy_number else ""
-                    ),
+                    + (f" - {warranty.policy_number}" if warranty.policy_number else ""),
                     date=warranty.end_date,
                     vehicle_vin=warranty.vin,
                     vehicle_nickname=vehicle.nickname if vehicle else None,
@@ -287,16 +275,12 @@ async def get_calendar_events(
     upcoming_7_count = sum(
         1
         for e in events
-        if not e.is_completed
-        and e.date >= today
-        and e.date <= today + timedelta(days=7)
+        if not e.is_completed and e.date >= today and e.date <= today + timedelta(days=7)
     )
     upcoming_30_count = sum(
         1
         for e in events
-        if not e.is_completed
-        and e.date >= today
-        and e.date <= today + timedelta(days=30)
+        if not e.is_completed and e.date >= today and e.date <= today + timedelta(days=30)
     )
 
     summary = CalendarSummary(
@@ -309,9 +293,7 @@ async def get_calendar_events(
     return CalendarResponse(events=events, summary=summary)
 
 
-async def calculate_average_miles_per_day(
-    vin: str, db: AsyncSession
-) -> float | None:
+async def calculate_average_miles_per_day(vin: str, db: AsyncSession) -> float | None:
     """Calculate average miles per day for a vehicle based on odometer history."""
     # Get last 30 days of odometer readings (or all if less than 30 days of data)
     odometer_query = (
@@ -341,9 +323,7 @@ async def calculate_average_miles_per_day(
     return miles_diff / days_diff
 
 
-async def estimate_date_from_mileage(
-    vin: str, due_mileage: int, db: AsyncSession
-) -> date | None:
+async def estimate_date_from_mileage(vin: str, due_mileage: int, db: AsyncSession) -> date | None:
     """Estimate due date for a mileage-based reminder."""
     # Get current mileage
     odometer_query = (

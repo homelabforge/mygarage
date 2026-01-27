@@ -105,9 +105,7 @@ class ShopDiscoveryService:
         Args:
             db: Database session
         """
-        logger.warning(
-            "ShopDiscoveryService is deprecated, use POIDiscoveryService instead"
-        )
+        logger.warning("ShopDiscoveryService is deprecated, use POIDiscoveryService instead")
         self.db = db
         self._poi_service = POIDiscoveryService(db)
 

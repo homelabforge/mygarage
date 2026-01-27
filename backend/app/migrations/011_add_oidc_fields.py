@@ -87,9 +87,7 @@ def upgrade():
         )
         rows_updated = result.rowcount
         if rows_updated > 0:
-            print(
-                f"  ✓ Backfilled auth_method='local' for {rows_updated} existing user(s)"
-            )
+            print(f"  ✓ Backfilled auth_method='local' for {rows_updated} existing user(s)")
 
         # Create unique index on oidc_subject (only where not null)
         try:
@@ -167,9 +165,7 @@ def upgrade():
 
         print("\n✓ OIDC authentication migration completed successfully")
         print("\nNext steps:")
-        print(
-            "  1. Configure OIDC settings in Settings > System > Authentication Mode > OIDC"
-        )
+        print("  1. Configure OIDC settings in Settings > System > Authentication Mode > OIDC")
         print("  2. Set auth_mode='oidc' in settings to enable OIDC")
         print("  3. Users can link OIDC accounts via email matching on first login")
 

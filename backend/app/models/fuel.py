@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Fuel record database model."""
 
 import datetime as dt
@@ -51,7 +53,7 @@ class FuelRecord(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     # Relationships
-    vehicle: Mapped["Vehicle"] = relationship("Vehicle", back_populates="fuel_records")
+    vehicle: Mapped[Vehicle] = relationship("Vehicle", back_populates="fuel_records")
 
     __table_args__ = (
         Index("idx_fuel_records_vin", "vin"),
@@ -61,9 +63,7 @@ class FuelRecord(Base):
         Index("idx_fuel_is_full_tank", "is_full_tank"),  # For MPG calculations
         Index("idx_fuel_full_tank_vin", "vin", "is_full_tank"),  # Optimized MPG queries
         Index("idx_fuel_hauling", "is_hauling"),  # For filtering hauling records
-        Index(
-            "idx_fuel_normal_mpg", "vin", "is_full_tank", "is_hauling"
-        ),  # Optimized filtered MPG
+        Index("idx_fuel_normal_mpg", "vin", "is_full_tank", "is_hauling"),  # Optimized filtered MPG
     )
 
 

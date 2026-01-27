@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """User model for authentication."""
 
 from datetime import UTC, datetime
@@ -37,9 +39,7 @@ class User(Base):
     )  # 'imperial' or 'metric'
     show_both_units = Column(Boolean, default=False, nullable=False)
 
-    created_at = Column(
-        DateTime, default=lambda: datetime.now(UTC), nullable=False
-    )
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
     updated_at = Column(
         DateTime,
         default=lambda: datetime.now(UTC),

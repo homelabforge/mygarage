@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Vendor price history database model."""
 
 from datetime import date as date_type
@@ -21,9 +23,7 @@ class VendorPriceHistory(Base):
     __tablename__ = "vendor_price_history"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    vendor_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("vendors.id"), nullable=False
-    )
+    vendor_id: Mapped[int] = mapped_column(Integer, ForeignKey("vendors.id"), nullable=False)
     schedule_item_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("maintenance_schedule_items.id"), nullable=False
     )
@@ -34,11 +34,9 @@ class VendorPriceHistory(Base):
     cost: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
 
     # Relationships
-    vendor: Mapped["Vendor"] = relationship("Vendor", back_populates="price_history")
-    schedule_item: Mapped["MaintenanceScheduleItem"] = relationship(
-        "MaintenanceScheduleItem"
-    )
-    service_line_item: Mapped["ServiceLineItem"] = relationship("ServiceLineItem")
+    vendor: Mapped[Vendor] = relationship("Vendor", back_populates="price_history")
+    schedule_item: Mapped[MaintenanceScheduleItem] = relationship("MaintenanceScheduleItem")
+    service_line_item: Mapped[ServiceLineItem] = relationship("ServiceLineItem")
 
     __table_args__ = (
         Index("idx_vendor_price_vendor", "vendor_id"),

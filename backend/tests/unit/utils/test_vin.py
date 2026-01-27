@@ -303,9 +303,7 @@ class TestVINValidationIntegration:
             ("", "17 characters"),  # Empty
         ],
     )
-    def test_validate_invalid_vins_with_errors(
-        self, invalid_vin, expected_error_substring
-    ):
+    def test_validate_invalid_vins_with_errors(self, invalid_vin, expected_error_substring):
         """Test validation rejects invalid VINs with appropriate error messages."""
         is_valid, error = validate_vin(invalid_vin)
 

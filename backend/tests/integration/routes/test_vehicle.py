@@ -29,9 +29,7 @@ class TestVehicleRoutes:
         vehicle_vins = [v["vin"] for v in data["vehicles"]]
         assert test_vehicle["vin"] in vehicle_vins
 
-    async def test_get_vehicle_by_vin(
-        self, client: AsyncClient, auth_headers, test_vehicle
-    ):
+    async def test_get_vehicle_by_vin(self, client: AsyncClient, auth_headers, test_vehicle):
         """Test retrieving a specific vehicle by VIN."""
         response = await client.get(
             f"/api/vehicles/{test_vehicle['vin']}",
@@ -44,9 +42,7 @@ class TestVehicleRoutes:
         assert data["year"] == test_vehicle["year"]
         assert data["make"] == test_vehicle["make"]
 
-    async def test_create_vehicle(
-        self, client: AsyncClient, auth_headers, sample_vehicle_payload
-    ):
+    async def test_create_vehicle(self, client: AsyncClient, auth_headers, sample_vehicle_payload):
         """Test creating a new vehicle."""
         response = await client.post(
             "/api/vehicles",
@@ -60,9 +56,7 @@ class TestVehicleRoutes:
         assert data["year"] == sample_vehicle_payload["year"]
         assert data["nickname"] == sample_vehicle_payload["nickname"]
 
-    async def test_update_vehicle(
-        self, client: AsyncClient, auth_headers, test_vehicle
-    ):
+    async def test_update_vehicle(self, client: AsyncClient, auth_headers, test_vehicle):
         """Test updating a vehicle."""
         update_data = {
             "license_plate": "UPDATED-123",

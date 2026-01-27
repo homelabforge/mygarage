@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 """Service visit database model."""
 
 import datetime as dt
 from datetime import datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     CheckConstraint,
@@ -47,18 +49,12 @@ class ServiceVisit(Base):
     service_category: Mapped[str | None] = mapped_column(String(30))
     insurance_claim_number: Mapped[str | None] = mapped_column(String(50))
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime | None] = mapped_column(
-        DateTime, onupdate=func.now()
-    )
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, onupdate=func.now())
 
     # Relationships
-    vehicle: Mapped["Vehicle"] = relationship(
-        "Vehicle", back_populates="service_visits"
-    )
-    vendor: Mapped[Optional["Vendor"]] = relationship(
-        "Vendor", back_populates="service_visits"
-    )
-    line_items: Mapped[list["ServiceLineItem"]] = relationship(
+    vehicle: Mapped[Vehicle] = relationship("Vehicle", back_populates="service_visits")
+    vendor: Mapped[Vendor | None] = relationship("Vendor", back_populates="service_visits")
+    line_items: Mapped[list[ServiceLineItem]] = relationship(
         "ServiceLineItem",
         back_populates="visit",
         cascade="all, delete-orphan",
@@ -106,6 +102,5 @@ class ServiceVisit(Base):
     def has_failed_inspections(self) -> bool:
         """Check if any inspection line items failed."""
         return any(
-            item.is_inspection and item.inspection_result == "failed"
-            for item in self.line_items
+            item.is_inspection and item.inspection_result == "failed" for item in self.line_items
         )

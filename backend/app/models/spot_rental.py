@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Spot rental database model."""
 
 from datetime import date, datetime
@@ -49,8 +51,8 @@ class SpotRental(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     # Relationships
-    vehicle: Mapped["Vehicle"] = relationship("Vehicle", back_populates="spot_rentals")
-    billings: Mapped[list["SpotRentalBilling"]] = relationship(
+    vehicle: Mapped[Vehicle] = relationship("Vehicle", back_populates="spot_rentals")
+    billings: Mapped[list[SpotRentalBilling]] = relationship(
         "SpotRentalBilling",
         back_populates="spot_rental",
         cascade="all, delete-orphan",
@@ -65,12 +67,8 @@ class SpotRental(Base):
             "electric IS NULL OR electric >= 0",
             name="ck_spot_rentals_electric_positive",
         ),
-        CheckConstraint(
-            "water IS NULL OR water >= 0", name="ck_spot_rentals_water_positive"
-        ),
-        CheckConstraint(
-            "waste IS NULL OR waste >= 0", name="ck_spot_rentals_waste_positive"
-        ),
+        CheckConstraint("water IS NULL OR water >= 0", name="ck_spot_rentals_water_positive"),
+        CheckConstraint("waste IS NULL OR waste >= 0", name="ck_spot_rentals_waste_positive"),
         CheckConstraint(
             "nightly_rate IS NULL OR nightly_rate >= 0",
             name="ck_spot_rentals_nightly_rate_positive",

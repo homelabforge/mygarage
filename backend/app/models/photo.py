@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Vehicle photo database model."""
 
 from datetime import datetime
@@ -25,7 +27,7 @@ class VehiclePhoto(Base):
     uploaded_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     # Relationships
-    vehicle: Mapped["Vehicle"] = relationship("Vehicle", back_populates="photos")
+    vehicle: Mapped[Vehicle] = relationship("Vehicle", back_populates="photos")
 
     __table_args__ = (
         Index("idx_vehicle_photos_vin", "vin"),

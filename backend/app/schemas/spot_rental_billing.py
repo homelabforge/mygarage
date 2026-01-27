@@ -11,9 +11,7 @@ class SpotRentalBillingBase(BaseModel):
     """Base schema for billing entry."""
 
     billing_date: date_type = Field(..., description="Date of this billing entry")
-    monthly_rate: Decimal | None = Field(
-        None, ge=0, description="Monthly rate for this period"
-    )
+    monthly_rate: Decimal | None = Field(None, ge=0, description="Monthly rate for this period")
     electric: Decimal | None = Field(None, ge=0, description="Electric charge")
     water: Decimal | None = Field(None, ge=0, description="Water charge")
     waste: Decimal | None = Field(None, ge=0, description="Waste charge")

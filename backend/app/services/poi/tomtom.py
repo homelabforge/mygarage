@@ -68,34 +68,22 @@ class TomTomProvider(BasePOIProvider):
         for category in categories:
             try:
                 if category == POICategory.AUTO_SHOP:
-                    results = await self._search_auto_shops(
-                        latitude, longitude, radius_meters
-                    )
+                    results = await self._search_auto_shops(latitude, longitude, radius_meters)
                     all_results.extend(results)
                 elif category == POICategory.RV_SHOP:
-                    results = await self._search_rv_shops(
-                        latitude, longitude, radius_meters
-                    )
+                    results = await self._search_rv_shops(latitude, longitude, radius_meters)
                     all_results.extend(results)
                 elif category == POICategory.EV_CHARGING:
-                    results = await self._search_ev_charging(
-                        latitude, longitude, radius_meters
-                    )
+                    results = await self._search_ev_charging(latitude, longitude, radius_meters)
                     all_results.extend(results)
                 elif category == POICategory.GAS_STATION:
-                    results = await self._search_gas_stations(
-                        latitude, longitude, radius_meters
-                    )
+                    results = await self._search_gas_stations(latitude, longitude, radius_meters)
                     all_results.extend(results)
                 elif category == POICategory.PROPANE:
-                    results = await self._search_propane(
-                        latitude, longitude, radius_meters
-                    )
+                    results = await self._search_propane(latitude, longitude, radius_meters)
                     all_results.extend(results)
             except Exception as e:
-                logger.warning(
-                    "TomTom search failed for category %s: %s", category.value, str(e)
-                )
+                logger.warning("TomTom search failed for category %s: %s", category.value, str(e))
                 continue
 
         return all_results
@@ -190,14 +178,10 @@ class TomTomProvider(BasePOIProvider):
                 logger.error("TomTom API timeout for category %s", category.value)
                 raise
             except httpx.HTTPStatusError as e:
-                logger.error(
-                    "TomTom API error for category %s: %s", category.value, str(e)
-                )
+                logger.error("TomTom API error for category %s: %s", category.value, str(e))
                 raise
 
-    def normalize_result(
-        self, raw_result: dict, category: POICategory = None
-    ) -> dict[str, Any]:
+    def normalize_result(self, raw_result: dict, category: POICategory = None) -> dict[str, Any]:
         """Normalize TomTom result to common format."""
         poi = raw_result.get("poi", {})
         address = raw_result.get("address", {})
@@ -214,15 +198,11 @@ class TomTomProvider(BasePOIProvider):
         if category is None:
             # Try to infer from TomTom categories
             categories = poi.get("categories", [])
-            if any(
-                "repair" in cat.lower() or "garage" in cat.lower() for cat in categories
-            ):
+            if any("repair" in cat.lower() or "garage" in cat.lower() for cat in categories):
                 category = POICategory.AUTO_SHOP
             elif any("charging" in cat.lower() for cat in categories):
                 category = POICategory.EV_CHARGING
-            elif any(
-                "petrol" in cat.lower() or "gas" in cat.lower() for cat in categories
-            ):
+            elif any("petrol" in cat.lower() or "gas" in cat.lower() for cat in categories):
                 category = POICategory.GAS_STATION
             elif any("propane" in cat.lower() for cat in categories):
                 category = POICategory.PROPANE
@@ -243,17 +223,12 @@ class TomTomProvider(BasePOIProvider):
         return {
             "business_name": poi.get("name") or "Unknown",
             "address": address_parts[0] if address_parts else None,
-            "city": address.get("municipality")
-            or address.get("municipalitySubdivision"),
+            "city": address.get("municipality") or address.get("municipalitySubdivision"),
             "state": address.get("countrySubdivision"),
             "zip_code": address.get("postalCode"),
             "phone": poi.get("phone"),
-            "latitude": Decimal(str(position.get("lat")))
-            if position.get("lat")
-            else None,
-            "longitude": Decimal(str(position.get("lon")))
-            if position.get("lon")
-            else None,
+            "latitude": Decimal(str(position.get("lat"))) if position.get("lat") else None,
+            "longitude": Decimal(str(position.get("lon"))) if position.get("lon") else None,
             "source": "tomtom",
             "external_id": raw_result.get("id"),
             "rating": None,  # TomTom doesn't provide ratings in free tier

@@ -97,9 +97,7 @@ async def get_toll_tag(
     current_user: User | None = Depends(require_auth),
 ):
     """Get a specific toll tag."""
-    result = await db.execute(
-        select(TollTag).where(TollTag.id == tag_id, TollTag.vin == vin)
-    )
+    result = await db.execute(select(TollTag).where(TollTag.id == tag_id, TollTag.vin == vin))
     toll_tag = result.scalar_one_or_none()
     if not toll_tag:
         raise HTTPException(status_code=404, detail="Toll tag not found")
@@ -116,9 +114,7 @@ async def update_toll_tag(
     current_user: User | None = Depends(require_auth),
 ):
     """Update a toll tag."""
-    result = await db.execute(
-        select(TollTag).where(TollTag.id == tag_id, TollTag.vin == vin)
-    )
+    result = await db.execute(select(TollTag).where(TollTag.id == tag_id, TollTag.vin == vin))
     toll_tag = result.scalar_one_or_none()
     if not toll_tag:
         raise HTTPException(status_code=404, detail="Toll tag not found")
@@ -143,9 +139,7 @@ async def delete_toll_tag(
     current_user: User | None = Depends(require_auth),
 ):
     """Delete a toll tag."""
-    result = await db.execute(
-        select(TollTag).where(TollTag.id == tag_id, TollTag.vin == vin)
-    )
+    result = await db.execute(select(TollTag).where(TollTag.id == tag_id, TollTag.vin == vin))
     toll_tag = result.scalar_one_or_none()
     if not toll_tag:
         raise HTTPException(status_code=404, detail="Toll tag not found")
@@ -196,16 +190,12 @@ async def list_toll_transactions(
     transactions = result.scalars().all()
 
     return TollTransactionListResponse(
-        transactions=[
-            TollTransactionResponse.model_validate(txn) for txn in transactions
-        ],
+        transactions=[TollTransactionResponse.model_validate(txn) for txn in transactions],
         total=len(transactions),
     )
 
 
-@toll_transactions_router.post(
-    "", response_model=TollTransactionResponse, status_code=201
-)
+@toll_transactions_router.post("", response_model=TollTransactionResponse, status_code=201)
 async def create_toll_transaction(
     vin: str,
     transaction: TollTransactionCreate,
@@ -222,9 +212,7 @@ async def create_toll_transaction(
     # Verify toll tag exists if provided
     if transaction.toll_tag_id:
         result = await db.execute(
-            select(TollTag).where(
-                TollTag.id == transaction.toll_tag_id, TollTag.vin == vin
-            )
+            select(TollTag).where(TollTag.id == transaction.toll_tag_id, TollTag.vin == vin)
         )
         toll_tag = result.scalar_one_or_none()
         if not toll_tag:
@@ -247,9 +235,7 @@ async def create_toll_transaction(
     return TollTransactionResponse.model_validate(db_transaction)
 
 
-@toll_transactions_router.get(
-    "/{transaction_id}", response_model=TollTransactionResponse
-)
+@toll_transactions_router.get("/{transaction_id}", response_model=TollTransactionResponse)
 async def get_toll_transaction(
     vin: str,
     transaction_id: int,
@@ -269,9 +255,7 @@ async def get_toll_transaction(
     return TollTransactionResponse.model_validate(transaction)
 
 
-@toll_transactions_router.put(
-    "/{transaction_id}", response_model=TollTransactionResponse
-)
+@toll_transactions_router.put("/{transaction_id}", response_model=TollTransactionResponse)
 async def update_toll_transaction(
     vin: str,
     transaction_id: int,
@@ -292,9 +276,7 @@ async def update_toll_transaction(
     # Verify toll tag exists if provided
     if transaction_update.toll_tag_id:
         result = await db.execute(
-            select(TollTag).where(
-                TollTag.id == transaction_update.toll_tag_id, TollTag.vin == vin
-            )
+            select(TollTag).where(TollTag.id == transaction_update.toll_tag_id, TollTag.vin == vin)
         )
         toll_tag = result.scalar_one_or_none()
         if not toll_tag:
@@ -329,18 +311,14 @@ async def delete_toll_transaction(
     if not transaction:
         raise HTTPException(status_code=404, detail="Toll transaction not found")
 
-    await db.execute(
-        delete(TollTransaction).where(TollTransaction.id == transaction_id)
-    )
+    await db.execute(delete(TollTransaction).where(TollTransaction.id == transaction_id))
     await db.commit()
 
     logger.info("Deleted toll transaction %s for vehicle %s", transaction_id, vin)
     return Response(status_code=204)
 
 
-@toll_transactions_router.get(
-    "/summary/statistics", response_model=TollTransactionSummary
-)
+@toll_transactions_router.get("/summary/statistics", response_model=TollTransactionSummary)
 async def get_toll_transaction_summary(
     vin: str,
     db: AsyncSession = Depends(get_db),

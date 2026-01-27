@@ -16,9 +16,7 @@ class TestVINRoutes:
     """Test VIN API endpoints."""
 
     @patch("app.routes.vin.NHTSAService")
-    async def test_decode_vin_post_valid(
-        self, mock_nhtsa_class, client: AsyncClient, auth_headers
-    ):
+    async def test_decode_vin_post_valid(self, mock_nhtsa_class, client: AsyncClient, auth_headers):
         """Test VIN decoding via POST endpoint with valid VIN."""
         # Mock NHTSA service instance
         mock_instance = mock_nhtsa_class.return_value
@@ -46,9 +44,7 @@ class TestVINRoutes:
         assert data["year"] == 2018
 
     @patch("app.routes.vin.NHTSAService")
-    async def test_decode_vin_get_valid(
-        self, mock_nhtsa_class, client: AsyncClient, auth_headers
-    ):
+    async def test_decode_vin_get_valid(self, mock_nhtsa_class, client: AsyncClient, auth_headers):
         """Test VIN decoding via GET endpoint with valid VIN."""
         # Mock NHTSA service instance
         mock_instance = mock_nhtsa_class.return_value
@@ -86,9 +82,7 @@ class TestVINRoutes:
         # Response may have 'detail' or 'details' depending on error handler
         assert "detail" in data or "details" in data or "message" in data
 
-    async def test_decode_vin_invalid_characters(
-        self, client: AsyncClient, auth_headers
-    ):
+    async def test_decode_vin_invalid_characters(self, client: AsyncClient, auth_headers):
         """Test that VINs with invalid characters are rejected."""
         # VIN with letter 'I' (not allowed)
         response = await client.post(
@@ -135,9 +129,7 @@ class TestVINRoutes:
 
         # Mock NHTSA service to raise connection error
         mock_instance = mock_nhtsa_class.return_value
-        mock_instance.decode_vin = AsyncMock(
-            side_effect=httpx.ConnectError("Cannot connect")
-        )
+        mock_instance.decode_vin = AsyncMock(side_effect=httpx.ConnectError("Cannot connect"))
 
         response = await client.post(
             "/api/vin/decode",
@@ -176,9 +168,7 @@ class TestVINRoutes:
         assert data["valid"] is False
         assert "error" in data
 
-    async def test_validate_vin_invalid_characters(
-        self, client: AsyncClient, auth_headers
-    ):
+    async def test_validate_vin_invalid_characters(self, client: AsyncClient, auth_headers):
         """Test VIN validation with invalid characters."""
         # VIN with letter 'I' (not allowed)
         response = await client.get(
@@ -191,9 +181,7 @@ class TestVINRoutes:
         assert data["valid"] is False
         assert "error" in data
 
-    async def test_validate_vin_case_insensitive(
-        self, client: AsyncClient, auth_headers
-    ):
+    async def test_validate_vin_case_insensitive(self, client: AsyncClient, auth_headers):
         """Test that VIN validation handles lowercase input."""
         response = await client.get(
             "/api/vin/validate/1hgbh41jxmn109186",  # lowercase

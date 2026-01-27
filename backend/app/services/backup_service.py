@@ -92,9 +92,7 @@ class BackupService:
                             "type": "settings",
                             "size_mb": round(stat.st_size / 1024 / 1024, 4),
                             "size_bytes": stat.st_size,
-                            "created": datetime.fromtimestamp(
-                                stat.st_mtime
-                            ).isoformat(),
+                            "created": datetime.fromtimestamp(stat.st_mtime).isoformat(),
                             "is_safety": "safety" in backup_file.name.lower(),
                         }
                     )
@@ -109,9 +107,7 @@ class BackupService:
                             "type": "full",
                             "size_mb": round(stat.st_size / 1024 / 1024, 2),
                             "size_bytes": stat.st_size,
-                            "created": datetime.fromtimestamp(
-                                stat.st_mtime
-                            ).isoformat(),
+                            "created": datetime.fromtimestamp(stat.st_mtime).isoformat(),
                             "is_safety": "safety" in backup_file.name.lower(),
                         }
                     )
@@ -322,9 +318,7 @@ class BackupService:
                 restored_count += 1
 
             except Exception as e:
-                logger.error(
-                    "Error restoring setting %s: %s", setting_data.get("key"), e
-                )
+                logger.error("Error restoring setting %s: %s", setting_data.get("key"), e)
                 # Continue with other settings
 
         await db.commit()

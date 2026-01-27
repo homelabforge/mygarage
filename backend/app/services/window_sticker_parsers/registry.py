@@ -167,14 +167,10 @@ class ParserRegistry:
     _initialized: bool = False
 
     @classmethod
-    def register(
-        cls, manufacturer: str, parser_class: type[BaseWindowStickerParser]
-    ) -> None:
+    def register(cls, manufacturer: str, parser_class: type[BaseWindowStickerParser]) -> None:
         """Register a parser for a manufacturer."""
         cls._parsers[manufacturer.lower()] = parser_class
-        logger.debug(
-            "Registered parser for %s: %s", manufacturer, parser_class.__name__
-        )
+        logger.debug("Registered parser for %s: %s", manufacturer, parser_class.__name__)
 
     @classmethod
     def get_parser(cls, manufacturer: str) -> BaseWindowStickerParser | None:
@@ -286,9 +282,7 @@ class ParserRegistry:
         logger.info("Parser registry initialized with %s parsers", len(cls._parsers))
 
 
-def get_parser_for_vehicle(
-    vin: str, make: str | None = None
-) -> BaseWindowStickerParser:
+def get_parser_for_vehicle(vin: str, make: str | None = None) -> BaseWindowStickerParser:
     """
     Get the appropriate parser for a vehicle.
 

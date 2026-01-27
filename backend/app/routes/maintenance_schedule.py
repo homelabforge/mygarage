@@ -21,9 +21,7 @@ from app.services.maintenance_schedule_service import MaintenanceScheduleService
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(
-    prefix="/api/vehicles/{vin}/maintenance-schedule", tags=["Maintenance Schedule"]
-)
+router = APIRouter(prefix="/api/vehicles/{vin}/maintenance-schedule", tags=["Maintenance Schedule"])
 
 
 @router.get("", response_model=MaintenanceScheduleListResponse)
@@ -105,9 +103,7 @@ async def get_schedule_item(
 
     days_until = (next_due_date - current_date).days if next_due_date else None
     miles_until = (
-        (next_due_mileage - current_mileage)
-        if next_due_mileage and current_mileage
-        else None
+        (next_due_mileage - current_mileage) if next_due_mileage and current_mileage else None
     )
 
     return MaintenanceScheduleItemResponse(

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Service record database model."""
 
 import datetime as dt
@@ -39,16 +41,12 @@ class ServiceRecord(Base):
     notes: Mapped[str | None] = mapped_column(Text)
     vendor_name: Mapped[str | None] = mapped_column(String(100))
     vendor_location: Mapped[str | None] = mapped_column(String(100))
-    service_category: Mapped[str | None] = mapped_column(
-        String(30)
-    )  # CHANGED: was service_type
+    service_category: Mapped[str | None] = mapped_column(String(30))  # CHANGED: was service_type
     insurance_claim: Mapped[str | None] = mapped_column(String(50))
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     # Relationships
-    vehicle: Mapped["Vehicle"] = relationship(
-        "Vehicle", back_populates="service_records"
-    )
+    vehicle: Mapped[Vehicle] = relationship("Vehicle", back_populates="service_records")
 
     __table_args__ = (
         CheckConstraint(
@@ -57,14 +55,10 @@ class ServiceRecord(Base):
         ),
         Index("idx_service_records_vin", "vin"),
         Index("idx_service_records_date", "date"),
-        Index(
-            "idx_service_vin_date", "vin", "date"
-        ),  # Composite index for common queries
+        Index("idx_service_vin_date", "vin", "date"),  # Composite index for common queries
         Index("idx_service_mileage", "mileage"),  # For mileage-based queries
         Index("idx_service_category", "service_category"),  # For category filtering
-        Index(
-            "idx_service_type", "service_type"
-        ),  # For specific service type filtering
+        Index("idx_service_type", "service_type"),  # For specific service type filtering
         Index("idx_service_vendor", "vendor_name"),  # For vendor analytics
         Index(
             "idx_service_vin_category", "vin", "service_category"

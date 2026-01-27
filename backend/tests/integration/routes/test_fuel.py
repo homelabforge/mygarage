@@ -164,9 +164,7 @@ class TestFuelRecordRoutes:
         )
         assert get_response.status_code == 404
 
-    async def test_fuel_mpg_calculation(
-        self, client: AsyncClient, auth_headers, test_vehicle
-    ):
+    async def test_fuel_mpg_calculation(self, client: AsyncClient, auth_headers, test_vehicle):
         """Test that MPG is calculated correctly for consecutive full tanks."""
         vehicle = test_vehicle
 
@@ -209,9 +207,7 @@ class TestFuelRecordRoutes:
         assert second_record["mpg"] is not None
         assert float(second_record["mpg"]) == pytest.approx(25.0, rel=0.1)
 
-    async def test_partial_fillup_no_mpg(
-        self, client: AsyncClient, auth_headers, test_vehicle
-    ):
+    async def test_partial_fillup_no_mpg(self, client: AsyncClient, auth_headers, test_vehicle):
         """Test that partial fill-ups don't calculate MPG."""
         vehicle = test_vehicle
 
@@ -249,9 +245,7 @@ class TestFuelRecordRoutes:
         # Partial fill-ups should not have MPG
         assert partial_record["mpg"] is None
 
-    async def test_fuel_record_unauthorized(
-        self, client: AsyncClient, test_vehicle_with_records
-    ):
+    async def test_fuel_record_unauthorized(self, client: AsyncClient, test_vehicle_with_records):
         """Test that unauthenticated users cannot access fuel records."""
         vehicle = test_vehicle_with_records
         response = await client.get(f"/api/vehicles/{vehicle['vin']}/fuel")

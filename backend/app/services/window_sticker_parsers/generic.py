@@ -30,8 +30,8 @@ class GenericWindowStickerParser(BaseWindowStickerParser):
         data.exterior_color, data.interior_color = self._extract_colors(text_upper)
 
         # Extract engine and transmission
-        data.engine_description, data.transmission_description = (
-            self._extract_engine_transmission(text_upper)
+        data.engine_description, data.transmission_description = self._extract_engine_transmission(
+            text_upper
         )
 
         # Extract equipment
@@ -53,9 +53,7 @@ class GenericWindowStickerParser(BaseWindowStickerParser):
         data.fuel_economy_combined = combined
 
         # Calculate confidence (generic parser gets lower base confidence)
-        data.confidence_score = (
-            self._calculate_confidence(data) * 0.85
-        )  # 15% penalty for generic
+        data.confidence_score = self._calculate_confidence(data) * 0.85  # 15% penalty for generic
 
         return data
 

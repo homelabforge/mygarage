@@ -34,9 +34,7 @@ async def list_tax_records(
         raise HTTPException(status_code=404, detail="Vehicle not found")
 
     # Get tax records ordered by date descending
-    query = (
-        select(TaxRecord).where(TaxRecord.vin == vin).order_by(TaxRecord.date.desc())
-    )
+    query = select(TaxRecord).where(TaxRecord.vin == vin).order_by(TaxRecord.date.desc())
     result = await db.execute(query)
     records = result.scalars().all()
 

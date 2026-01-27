@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """OIDC pending link model for username-based account linking with password verification."""
 
 from datetime import UTC, datetime, timedelta
@@ -28,12 +30,8 @@ class OIDCPendingLink(Base):
     oidc_claims = Column(JSON, nullable=False)  # Full ID token claims
     userinfo_claims = Column(JSON, nullable=True)  # Optional userinfo endpoint claims
     provider_name = Column(String(100), nullable=False)  # Provider display name
-    attempt_count = Column(
-        Integer, default=0, nullable=False
-    )  # Failed password attempts
-    created_at = Column(
-        DateTime, default=lambda: datetime.now(UTC), nullable=False
-    )
+    attempt_count = Column(Integer, default=0, nullable=False)  # Failed password attempts
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
     expires_at = Column(DateTime, nullable=False)
 
     # Indexes for efficient queries and cleanup

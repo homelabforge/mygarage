@@ -69,9 +69,7 @@ class ShopDiscoveryService:
         self.tomtom_api_key = key_setting.value if key_setting else ""
 
         # Enable TomTom only if both settings are set correctly
-        self.tomtom_enabled = tomtom_enabled_str.lower() == "true" and bool(
-            self.tomtom_api_key
-        )
+        self.tomtom_enabled = tomtom_enabled_str.lower() == "true" and bool(self.tomtom_api_key)
 
         if self.tomtom_enabled:
             logger.info(
@@ -132,15 +130,11 @@ class ShopDiscoveryService:
                     mask_coordinates(latitude, longitude),
                     radius,
                 )
-                results = await self._search_tomtom(
-                    latitude, longitude, radius, shop_type
-                )
+                results = await self._search_tomtom(latitude, longitude, radius, shop_type)
                 logger.info("TomTom returned %d results", len(results))
                 return results
             except Exception as e:
-                logger.warning(
-                    "TomTom search failed: %s, falling back to OSM", sanitize_for_log(e)
-                )
+                logger.warning("TomTom search failed: %s, falling back to OSM", sanitize_for_log(e))
 
         # Fallback to OSM Overpass
         logger.info(
@@ -149,9 +143,7 @@ class ShopDiscoveryService:
             mask_coordinates(latitude, longitude),
             radius,
         )
-        results = await self._search_osm_overpass(
-            latitude, longitude, radius, shop_type
-        )
+        results = await self._search_osm_overpass(latitude, longitude, radius, shop_type)
         logger.info("OSM Overpass returned %d results", len(results))
         return results
 
@@ -284,9 +276,7 @@ class ShopDiscoveryService:
         last_error = None
         for instance_url in self.osm_overpass_urls:
             try:
-                logger.info(
-                    "Trying Overpass instance: %s", sanitize_for_log(instance_url)
-                )
+                logger.info("Trying Overpass instance: %s", sanitize_for_log(instance_url))
                 async with httpx.AsyncClient(timeout=self.timeout) as client:
                     response = await client.post(instance_url, data={"data": query})
                     response.raise_for_status()
@@ -348,8 +338,7 @@ class ShopDiscoveryService:
         return {
             "business_name": poi.get("name") or "Unknown Shop",
             "address": address_parts[0] if address_parts else None,
-            "city": address.get("municipality")
-            or address.get("municipalitySubdivision"),
+            "city": address.get("municipality") or address.get("municipalitySubdivision"),
             "state": address.get("countrySubdivision"),
             "zip_code": address.get("postalCode"),
             "phone": poi.get("phone"),

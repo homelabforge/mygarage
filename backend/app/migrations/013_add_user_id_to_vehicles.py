@@ -73,9 +73,7 @@ def upgrade():
         )
 
         vehicles_updated = result.rowcount
-        print(
-            f"  ✓ Assigned {vehicles_updated} existing vehicle(s) to user {first_user_id}"
-        )
+        print(f"  ✓ Assigned {vehicles_updated} existing vehicle(s) to user {first_user_id}")
 
         # Create index for faster lookups
         conn.execute(

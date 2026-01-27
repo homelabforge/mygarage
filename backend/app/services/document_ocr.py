@@ -169,9 +169,7 @@ class DocumentOCRService:
         else:
             return await self._extract_text_from_image(file_path)
 
-    async def _extract_text_from_bytes(
-        self, file_bytes: bytes, is_pdf: bool = True
-    ) -> str:
+    async def _extract_text_from_bytes(self, file_bytes: bytes, is_pdf: bool = True) -> str:
         """Extract text from raw bytes."""
         if is_pdf:
             return await self._extract_text_from_pdf_bytes(file_bytes)
@@ -320,9 +318,7 @@ class DocumentOCRService:
             if self._paddleocr is None:
                 from paddleocr import PaddleOCR
 
-                self._paddleocr = PaddleOCR(
-                    use_angle_cls=True, lang="en", show_log=False
-                )
+                self._paddleocr = PaddleOCR(use_angle_cls=True, lang="en", show_log=False)
 
             result = self._paddleocr.ocr(file_path, cls=True)
 
@@ -354,9 +350,7 @@ class DocumentOCRService:
             if self._paddleocr is None:
                 from paddleocr import PaddleOCR
 
-                self._paddleocr = PaddleOCR(
-                    use_angle_cls=True, lang="en", show_log=False
-                )
+                self._paddleocr = PaddleOCR(use_angle_cls=True, lang="en", show_log=False)
 
             image = Image.open(io.BytesIO(img_bytes))
             img_array = np.array(image)

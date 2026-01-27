@@ -143,9 +143,7 @@ async def check_nhtsa_recalls(
         )
 
     except httpx.TimeoutException:
-        logger.error(
-            "NHTSA API timeout fetching recalls for VIN %s", sanitize_for_log(vin)
-        )
+        logger.error("NHTSA API timeout fetching recalls for VIN %s", sanitize_for_log(vin))
         raise HTTPException(status_code=504, detail="NHTSA API request timed out")
     except httpx.ConnectError:
         logger.error("Cannot connect to NHTSA API for VIN %s", sanitize_for_log(vin))
@@ -156,9 +154,7 @@ async def check_nhtsa_recalls(
             sanitize_for_log(vin),
             sanitize_for_log(str(e)),
         )
-        raise HTTPException(
-            status_code=e.response.status_code, detail="NHTSA API error"
-        )
+        raise HTTPException(status_code=e.response.status_code, detail="NHTSA API error")
     except OperationalError as e:
         logger.error(
             "Database error fetching recalls for VIN %s: %s",
@@ -214,9 +210,7 @@ async def get_recall(
     current_user: User | None = Depends(require_auth),
 ):
     """Get a specific recall."""
-    result = await db.execute(
-        select(Recall).where(Recall.id == recall_id, Recall.vin == vin)
-    )
+    result = await db.execute(select(Recall).where(Recall.id == recall_id, Recall.vin == vin))
     recall = result.scalar_one_or_none()
     if not recall:
         raise HTTPException(status_code=404, detail="Recall not found")
@@ -233,9 +227,7 @@ async def update_recall(
     current_user: User | None = Depends(require_auth),
 ):
     """Update a recall."""
-    result = await db.execute(
-        select(Recall).where(Recall.id == recall_id, Recall.vin == vin)
-    )
+    result = await db.execute(select(Recall).where(Recall.id == recall_id, Recall.vin == vin))
     recall = result.scalar_one_or_none()
     if not recall:
         raise HTTPException(status_code=404, detail="Recall not found")
@@ -273,9 +265,7 @@ async def delete_recall(
     current_user: User | None = Depends(require_auth),
 ):
     """Delete a recall."""
-    result = await db.execute(
-        select(Recall).where(Recall.id == recall_id, Recall.vin == vin)
-    )
+    result = await db.execute(select(Recall).where(Recall.id == recall_id, Recall.vin == vin))
     recall = result.scalar_one_or_none()
     if not recall:
         raise HTTPException(status_code=404, detail="Recall not found")

@@ -8,9 +8,7 @@ from typing import Literal
 from pydantic import BaseModel, Field, field_validator
 
 # Service category type (same as existing)
-ServiceCategory = Literal[
-    "Maintenance", "Inspection", "Collision", "Upgrades", "Detailing"
-]
+ServiceCategory = Literal["Maintenance", "Inspection", "Collision", "Upgrades", "Detailing"]
 
 # Inspection result types
 InspectionResult = Literal["passed", "failed", "needs_attention"]
@@ -20,9 +18,7 @@ InspectionSeverity = Literal["green", "yellow", "red"]
 class ServiceLineItemBase(BaseModel):
     """Base service line item schema."""
 
-    description: str = Field(
-        ..., description="Service description", min_length=1, max_length=200
-    )
+    description: str = Field(..., description="Service description", min_length=1, max_length=200)
     cost: Decimal | None = Field(None, description="Cost for this line item", ge=0)
     notes: str | None = Field(None, description="Additional notes", max_length=5000)
     is_inspection: bool = Field(default=False, description="Is this an inspection item")
@@ -32,9 +28,7 @@ class ServiceLineItemBase(BaseModel):
     inspection_severity: InspectionSeverity | None = Field(
         None, description="Inspection severity (if inspection)"
     )
-    schedule_item_id: int | None = Field(
-        None, description="Link to maintenance schedule item"
-    )
+    schedule_item_id: int | None = Field(None, description="Link to maintenance schedule item")
     triggered_by_inspection_id: int | None = Field(
         None, description="ID of inspection that triggered this repair"
     )
@@ -47,9 +41,7 @@ class ServiceLineItemBase(BaseModel):
             return v
         valid_values = ["passed", "failed", "needs_attention"]
         if v not in valid_values:
-            raise ValueError(
-                f"inspection_result must be one of: {', '.join(valid_values)}"
-            )
+            raise ValueError(f"inspection_result must be one of: {', '.join(valid_values)}")
         return v
 
     @field_validator("inspection_severity")
@@ -60,9 +52,7 @@ class ServiceLineItemBase(BaseModel):
             return v
         valid_values = ["green", "yellow", "red"]
         if v not in valid_values:
-            raise ValueError(
-                f"inspection_severity must be one of: {', '.join(valid_values)}"
-            )
+            raise ValueError(f"inspection_severity must be one of: {', '.join(valid_values)}")
         return v
 
 
@@ -92,18 +82,14 @@ class ServiceLineItemUpdate(BaseModel):
     )
     cost: Decimal | None = Field(None, description="Cost for this line item", ge=0)
     notes: str | None = Field(None, description="Additional notes", max_length=5000)
-    is_inspection: bool | None = Field(
-        None, description="Is this an inspection item"
-    )
+    is_inspection: bool | None = Field(None, description="Is this an inspection item")
     inspection_result: InspectionResult | None = Field(
         None, description="Inspection result (if inspection)"
     )
     inspection_severity: InspectionSeverity | None = Field(
         None, description="Inspection severity (if inspection)"
     )
-    schedule_item_id: int | None = Field(
-        None, description="Link to maintenance schedule item"
-    )
+    schedule_item_id: int | None = Field(None, description="Link to maintenance schedule item")
 
 
 class ServiceLineItemResponse(ServiceLineItemBase):
@@ -149,20 +135,14 @@ class ServiceVisitBase(BaseModel):
     date: date_type = Field(..., description="Visit date")
     mileage: int | None = Field(None, description="Odometer reading", ge=0)
     notes: str | None = Field(None, description="Visit notes", max_length=5000)
-    service_category: ServiceCategory | None = Field(
-        None, description="Primary service category"
-    )
+    service_category: ServiceCategory | None = Field(None, description="Primary service category")
     insurance_claim_number: str | None = Field(
         None, description="Insurance claim number", max_length=50
     )
     vendor_id: int | None = Field(None, description="Vendor ID")
     tax_amount: Decimal | None = Field(None, description="Sales tax", ge=0)
-    shop_supplies: Decimal | None = Field(
-        None, description="Shop supplies/environmental fee", ge=0
-    )
-    misc_fees: Decimal | None = Field(
-        None, description="Miscellaneous fees (disposal, etc.)", ge=0
-    )
+    shop_supplies: Decimal | None = Field(None, description="Shop supplies/environmental fee", ge=0)
+    misc_fees: Decimal | None = Field(None, description="Miscellaneous fees (disposal, etc.)", ge=0)
 
     @field_validator("service_category")
     @classmethod
@@ -178,9 +158,7 @@ class ServiceVisitBase(BaseModel):
             "Detailing",
         ]
         if v not in valid_types:
-            raise ValueError(
-                f"Service category must be one of: {', '.join(valid_types)}"
-            )
+            raise ValueError(f"Service category must be one of: {', '.join(valid_types)}")
         return v
 
 
@@ -228,21 +206,15 @@ class ServiceVisitUpdate(BaseModel):
     date: date_type | None = Field(None, description="Visit date")
     mileage: int | None = Field(None, description="Odometer reading", ge=0)
     notes: str | None = Field(None, description="Visit notes", max_length=5000)
-    service_category: ServiceCategory | None = Field(
-        None, description="Primary service category"
-    )
+    service_category: ServiceCategory | None = Field(None, description="Primary service category")
     insurance_claim_number: str | None = Field(
         None, description="Insurance claim number", max_length=50
     )
     vendor_id: int | None = Field(None, description="Vendor ID")
     total_cost: Decimal | None = Field(None, description="Override total cost")
     tax_amount: Decimal | None = Field(None, description="Sales tax", ge=0)
-    shop_supplies: Decimal | None = Field(
-        None, description="Shop supplies/environmental fee", ge=0
-    )
-    misc_fees: Decimal | None = Field(
-        None, description="Miscellaneous fees (disposal, etc.)", ge=0
-    )
+    shop_supplies: Decimal | None = Field(None, description="Shop supplies/environmental fee", ge=0)
+    misc_fees: Decimal | None = Field(None, description="Miscellaneous fees (disposal, etc.)", ge=0)
     line_items: list[ServiceLineItemCreate] | None = Field(
         None, description="Replace all line items (if provided)"
     )
@@ -277,9 +249,7 @@ class ServiceVisitResponse(ServiceVisitBase):
     vin: str
     total_cost: Decimal | None = None
     subtotal: Decimal = Field(description="Sum of line item costs (before tax/fees)")
-    calculated_total_cost: Decimal = Field(
-        description="Total including line items + tax + fees"
-    )
+    calculated_total_cost: Decimal = Field(description="Total including line items + tax + fees")
     line_item_count: int = Field(description="Number of line items")
     has_failed_inspections: bool = Field(description="Whether any inspections failed")
     created_at: datetime

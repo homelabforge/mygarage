@@ -152,9 +152,7 @@ async def create_full_backup(
 
 
 @router.get("/download/{filename}")
-async def download_backup(
-    filename: str, current_user: User | None = Depends(require_auth)
-):
+async def download_backup(filename: str, current_user: User | None = Depends(require_auth)):
     """Download a specific backup file.
 
     Args:
@@ -190,9 +188,7 @@ async def download_backup(
         raise HTTPException(status_code=404, detail="Backup file not found")
     except PermissionError as e:
         logger.error("Permission denied downloading backup: %s", e)
-        raise HTTPException(
-            status_code=403, detail="Permission denied: cannot read backup file"
-        )
+        raise HTTPException(status_code=403, detail="Permission denied: cannot read backup file")
     except OSError as e:
         logger.error("File system error downloading backup: %s", e)
         raise HTTPException(status_code=500, detail="Error reading backup file")
@@ -282,15 +278,15 @@ async def upload_backup(
             )
 
         # Check file size BEFORE reading into memory to prevent DoS
-        MAX_BACKUP_SIZE = 100 * 1024 * 1024  # 100MB max for backups
+        max_backup_size = 100 * 1024 * 1024  # 100MB max for backups
         file.file.seek(0, 2)  # Seek to end
         file_size = file.file.tell()
         file.file.seek(0)  # Seek back to beginning
 
-        if file_size > MAX_BACKUP_SIZE:
+        if file_size > max_backup_size:
             raise HTTPException(
                 status_code=413,
-                detail=f"File size exceeds maximum of {MAX_BACKUP_SIZE // (1024 * 1024)}MB",
+                detail=f"File size exceeds maximum of {max_backup_size // (1024 * 1024)}MB",
             )
 
         # Sanitize filename
@@ -320,12 +316,8 @@ async def upload_backup(
 
             try:
                 backup_data = json.loads(content)
-                if "settings" not in backup_data or not isinstance(
-                    backup_data["settings"], list
-                ):
-                    raise HTTPException(
-                        status_code=400, detail="Invalid backup file structure"
-                    )
+                if "settings" not in backup_data or not isinstance(backup_data["settings"], list):
+                    raise HTTPException(status_code=400, detail="Invalid backup file structure")
             except json.JSONDecodeError:
                 raise HTTPException(status_code=400, detail="Invalid JSON file")
 
@@ -345,9 +337,7 @@ async def upload_backup(
             "backup": {
                 "filename": safe_filename,
                 "type": backup_type,
-                "size_mb": round(
-                    stat.st_size / 1024 / 1024, 4 if backup_type == "settings" else 2
-                ),
+                "size_mb": round(stat.st_size / 1024 / 1024, 4 if backup_type == "settings" else 2),
                 "created": datetime.fromtimestamp(stat.st_mtime).isoformat(),
             },
         }
@@ -389,9 +379,7 @@ async def delete_backup(
         raise HTTPException(status_code=404, detail=str(e))
     except PermissionError as e:
         logger.error("Permission denied deleting backup: %s", e)
-        raise HTTPException(
-            status_code=403, detail="Permission denied: cannot delete backup file"
-        )
+        raise HTTPException(status_code=403, detail="Permission denied: cannot delete backup file")
     except OSError as e:
         logger.error("File system error deleting backup: %s", e)
         raise HTTPException(status_code=500, detail="Error deleting backup file")

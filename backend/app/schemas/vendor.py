@@ -38,9 +38,7 @@ class VendorCreate(VendorBase):
 class VendorUpdate(BaseModel):
     """Schema for updating an existing vendor."""
 
-    name: str | None = Field(
-        None, description="Vendor/shop name", min_length=1, max_length=100
-    )
+    name: str | None = Field(None, description="Vendor/shop name", min_length=1, max_length=100)
     address: str | None = Field(None, description="Street address", max_length=500)
     city: str | None = Field(None, description="City", max_length=100)
     state: str | None = Field(None, description="State/province", max_length=50)

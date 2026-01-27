@@ -50,7 +50,5 @@ class CalendarSummary(BaseModel):
 class CalendarResponse(BaseModel):
     """Schema for calendar response."""
 
-    events: list[CalendarEvent] = Field(
-        default_factory=list, description="List of calendar events"
-    )
+    events: list[CalendarEvent] = Field(default_factory=list, description="List of calendar events")
     summary: CalendarSummary = Field(..., description="Summary statistics")

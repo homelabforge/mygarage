@@ -36,9 +36,7 @@ StatusType = Literal["never_performed", "overdue", "due_soon", "on_track"]
 class MaintenanceScheduleItemBase(BaseModel):
     """Base maintenance schedule item schema."""
 
-    name: str = Field(
-        ..., description="Maintenance item name", min_length=1, max_length=100
-    )
+    name: str = Field(..., description="Maintenance item name", min_length=1, max_length=100)
     component_category: ComponentCategory = Field(..., description="Component category")
     item_type: ItemType = Field(..., description="Item type (service or inspection)")
     interval_months: int | None = Field(None, description="Interval in months", ge=1)
@@ -64,9 +62,7 @@ class MaintenanceScheduleItemBase(BaseModel):
             "Other",
         ]
         if v not in valid_categories:
-            raise ValueError(
-                f"Component category must be one of: {', '.join(valid_categories)}"
-            )
+            raise ValueError(f"Component category must be one of: {', '.join(valid_categories)}")
         return v
 
     @field_validator("item_type")
@@ -84,9 +80,7 @@ class MaintenanceScheduleItemCreate(MaintenanceScheduleItemBase):
 
     vin: str = Field(..., description="Vehicle VIN", min_length=17, max_length=17)
     source: SourceType = Field(default="custom", description="Source of item")
-    template_item_id: str | None = Field(
-        None, description="Template item ID if from template"
-    )
+    template_item_id: str | None = Field(None, description="Template item ID if from template")
 
     model_config = {
         "json_schema_extra": {
@@ -111,12 +105,8 @@ class MaintenanceScheduleItemUpdate(BaseModel):
     name: str | None = Field(
         None, description="Maintenance item name", min_length=1, max_length=100
     )
-    component_category: ComponentCategory | None = Field(
-        None, description="Component category"
-    )
-    item_type: ItemType | None = Field(
-        None, description="Item type (service or inspection)"
-    )
+    component_category: ComponentCategory | None = Field(None, description="Component category")
+    item_type: ItemType | None = Field(None, description="Item type (service or inspection)")
     interval_months: int | None = Field(None, description="Interval in months", ge=1)
     interval_miles: int | None = Field(None, description="Interval in miles", ge=100)
 
@@ -142,12 +132,8 @@ class MaintenanceScheduleItemResponse(MaintenanceScheduleItemBase):
     last_performed_date: date_type | None = None
     last_performed_mileage: int | None = None
     last_service_line_item_id: int | None = None
-    next_due_date: date_type | None = Field(
-        None, description="Calculated next due date"
-    )
-    next_due_mileage: int | None = Field(
-        None, description="Calculated next due mileage"
-    )
+    next_due_date: date_type | None = Field(None, description="Calculated next due date")
+    next_due_mileage: int | None = Field(None, description="Calculated next due mileage")
     status: StatusType = Field(description="Current status")
     days_until_due: int | None = Field(None, description="Days until due")
     miles_until_due: int | None = Field(None, description="Miles until due")

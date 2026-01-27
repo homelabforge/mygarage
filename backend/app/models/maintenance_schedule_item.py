@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Maintenance schedule item database model."""
 
 from datetime import date, datetime, timedelta
@@ -25,9 +27,7 @@ class MaintenanceScheduleItem(Base):
     )
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     component_category: Mapped[str] = mapped_column(String(50), nullable=False)
-    item_type: Mapped[str] = mapped_column(
-        String(20), nullable=False
-    )  # 'service' or 'inspection'
+    item_type: Mapped[str] = mapped_column(String(20), nullable=False)  # 'service' or 'inspection'
     interval_months: Mapped[int | None] = mapped_column(Integer)
     interval_miles: Mapped[int | None] = mapped_column(Integer)
     source: Mapped[str] = mapped_column(
@@ -38,15 +38,11 @@ class MaintenanceScheduleItem(Base):
     last_performed_mileage: Mapped[int | None] = mapped_column(Integer)
     last_service_line_item_id: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime | None] = mapped_column(
-        DateTime, onupdate=func.now()
-    )
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, onupdate=func.now())
 
     # Relationships
-    vehicle: Mapped["Vehicle"] = relationship(
-        "Vehicle", back_populates="schedule_items"
-    )
-    service_line_items: Mapped[list["ServiceLineItem"]] = relationship(
+    vehicle: Mapped[Vehicle] = relationship("Vehicle", back_populates="schedule_items")
+    service_line_items: Mapped[list[ServiceLineItem]] = relationship(
         "ServiceLineItem", back_populates="schedule_item"
     )
 
@@ -70,9 +66,7 @@ class MaintenanceScheduleItem(Base):
             return None
         return self.last_performed_mileage + self.interval_miles
 
-    def calculate_status(
-        self, current_date: date, current_mileage: int | None = None
-    ) -> str:
+    def calculate_status(self, current_date: date, current_mileage: int | None = None) -> str:
         """
         Calculate maintenance status.
 

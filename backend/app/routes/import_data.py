@@ -62,9 +62,7 @@ class ImportResult:
             "error_count": self.error_count,
             "skipped_count": self.skipped_count,
             "errors": self.errors,
-            "total_processed": self.success_count
-            + self.error_count
-            + self.skipped_count,
+            "total_processed": self.success_count + self.error_count + self.skipped_count,
         }
 
 
@@ -597,9 +595,7 @@ async def import_notes_csv(
             # Check for duplicates if requested
             if skip_duplicates and date and title:
                 existing = await db.execute(
-                    select(Note).where(
-                        Note.vin == vin, Note.date == date, Note.title == title
-                    )
+                    select(Note).where(Note.vin == vin, Note.date == date, Note.title == title)
                 )
                 if existing.scalar_one_or_none():
                     import_result.add_skip()
@@ -635,15 +631,15 @@ async def import_vehicle_json(
         raise HTTPException(status_code=404, detail="Vehicle not found")
 
     # Check file size BEFORE reading into memory to prevent DoS
-    MAX_IMPORT_SIZE = 50 * 1024 * 1024  # 50MB max for import files
+    max_import_size = 50 * 1024 * 1024  # 50MB max for import files
     file.file.seek(0, 2)  # Seek to end
     file_size = file.file.tell()
     file.file.seek(0)  # Seek back to beginning
 
-    if file_size > MAX_IMPORT_SIZE:
+    if file_size > max_import_size:
         raise HTTPException(
             status_code=413,
-            detail=f"File size exceeds maximum of {MAX_IMPORT_SIZE // (1024 * 1024)}MB",
+            detail=f"File size exceeds maximum of {max_import_size // (1024 * 1024)}MB",
         )
 
     # Now read and parse JSON
@@ -686,9 +682,7 @@ async def import_vehicle_json(
                 service_type=record_data.get("service_type"),
                 description=record_data.get("description"),
                 mileage=record_data.get("mileage"),
-                cost=Decimal(str(record_data["cost"]))
-                if record_data.get("cost")
-                else None,
+                cost=Decimal(str(record_data["cost"])) if record_data.get("cost") else None,
                 vendor_name=record_data.get("vendor_name"),
                 vendor_location=record_data.get("vendor_location"),
                 notes=record_data.get("notes"),
@@ -726,9 +720,7 @@ async def import_vehicle_json(
                 price_per_unit=Decimal(str(record_data["price_per_unit"]))
                 if record_data.get("price_per_unit")
                 else None,
-                cost=Decimal(str(record_data["cost"]))
-                if record_data.get("cost")
-                else None,
+                cost=Decimal(str(record_data["cost"])) if record_data.get("cost") else None,
                 is_full_tank=record_data.get("is_full_tank", True),
                 missed_fillup=record_data.get("missed_fillup", False),
                 notes=record_data.get("notes"),

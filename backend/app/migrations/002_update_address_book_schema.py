@@ -71,9 +71,7 @@ def upgrade():
 
         # 5. Recreate indexes
         conn.execute(text("CREATE INDEX idx_address_book_name ON address_book(name)"))
-        conn.execute(
-            text("CREATE INDEX idx_address_book_category ON address_book(category)")
-        )
+        conn.execute(text("CREATE INDEX idx_address_book_category ON address_book(category)"))
 
         print("✓ Successfully updated address_book table schema")
 
@@ -130,9 +128,7 @@ def downgrade():
         conn.execute(text("DROP TABLE address_book"))
         conn.execute(text("ALTER TABLE address_book_new RENAME TO address_book"))
         conn.execute(text("CREATE INDEX idx_address_book_name ON address_book(name)"))
-        conn.execute(
-            text("CREATE INDEX idx_address_book_category ON address_book(category)")
-        )
+        conn.execute(text("CREATE INDEX idx_address_book_category ON address_book(category)"))
 
         print("✓ Successfully reverted address_book table schema")
 

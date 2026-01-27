@@ -78,9 +78,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
             # bcrypt v5.0+ has 72-byte limitation
             if len(password_bytes) > 72:
-                logger.debug(
-                    "Password verification failed: exceeds 72 bytes (bcrypt legacy)"
-                )
+                logger.debug("Password verification failed: exceeds 72 bytes (bcrypt legacy)")
                 return False
 
             return bcrypt.checkpw(password_bytes, hashed_password.encode("utf-8"))
@@ -102,17 +100,13 @@ def hash_password(password: str) -> str:
     return ph.hash(password)
 
 
-def create_access_token(
-    data: dict[str, Any], expires_delta: timedelta | None = None
-) -> str:
+def create_access_token(data: dict[str, Any], expires_delta: timedelta | None = None) -> str:
     """Create a JWT access token."""
     to_encode = data.copy()
     if expires_delta:
         expire = datetime.now(UTC) + expires_delta
     else:
-        expire = datetime.now(UTC) + timedelta(
-            minutes=settings.access_token_expire_minutes
-        )
+        expire = datetime.now(UTC) + timedelta(minutes=settings.access_token_expire_minutes)
 
     to_encode.update({"exp": expire, "iat": datetime.now(UTC)})
     header = {"alg": settings.algorithm}
@@ -139,9 +133,7 @@ async def get_current_user(
 
     if not token:
         # Enhanced logging to help diagnose authentication issues
-        logger.error(
-            "No credentials provided - %s %s", request.method, request.url.path
-        )
+        logger.error("No credentials provided - %s %s", request.method, request.url.path)
         raise credentials_exception
 
     # Security: Do not log token data
@@ -247,9 +239,7 @@ async def get_current_admin_user(
     return current_user
 
 
-async def authenticate_user(
-    db: AsyncSession, username: str, password: str
-) -> User | None:
+async def authenticate_user(db: AsyncSession, username: str, password: str) -> User | None:
     """Authenticate a user by username and password.
 
     Auto-rehashes legacy bcrypt passwords to Argon2 on successful login.
@@ -393,9 +383,7 @@ async def get_vehicle_or_403(vin: str, current_user: User | None, db: AsyncSessi
 
     # Check if vehicle belongs to user
     if not hasattr(vehicle, "user_id") or vehicle.user_id != current_user.id:
-        raise HTTPException(
-            status_code=403, detail="Not authorized to access this vehicle"
-        )
+        raise HTTPException(status_code=403, detail="Not authorized to access this vehicle")
 
     return vehicle
 
@@ -420,6 +408,4 @@ def check_vehicle_ownership(vehicle: Vehicle, current_user: User | None) -> None
 
     # Check if vehicle belongs to user
     if not hasattr(vehicle, "user_id") or vehicle.user_id != current_user.id:
-        raise HTTPException(
-            status_code=403, detail="Not authorized to access this vehicle"
-        )
+        raise HTTPException(status_code=403, detail="Not authorized to access this vehicle")

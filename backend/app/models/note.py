@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Note database model."""
 
 import datetime as dt
@@ -23,12 +25,10 @@ class Note(Base):
     title: Mapped[str | None] = mapped_column(String(100))
     content: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime | None] = mapped_column(
-        DateTime, onupdate=func.now()
-    )
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, onupdate=func.now())
 
     # Relationships
-    vehicle: Mapped["Vehicle"] = relationship("Vehicle", back_populates="notes")
+    vehicle: Mapped[Vehicle] = relationship("Vehicle", back_populates="notes")
 
     __table_args__ = (
         Index("idx_notes_vin", "vin"),

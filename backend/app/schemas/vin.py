@@ -1,6 +1,5 @@
 """Pydantic schemas for VIN-related operations."""
 
-
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -33,9 +32,7 @@ class VINDecodeRequest(BaseModel):
 class EngineInfo(BaseModel):
     """Engine information from VIN decode."""
 
-    displacement_l: str | None = Field(
-        None, description="Engine displacement in liters"
-    )
+    displacement_l: str | None = Field(None, description="Engine displacement in liters")
     cylinders: int | None = Field(None, description="Number of cylinders")
     hp: int | None = Field(None, description="Horsepower")
     kw: int | None = Field(None, description="Kilowatts")
@@ -60,26 +57,16 @@ class VINDecodeResponse(BaseModel):
     vehicle_type: str | None = Field(None, description="Type of vehicle")
     body_class: str | None = Field(None, description="Body class/style")
     engine: EngineInfo | None = Field(None, description="Engine information")
-    transmission: TransmissionInfo | None = Field(
-        None, description="Transmission information"
-    )
-    drive_type: str | None = Field(
-        None, description="Drive type (FWD, RWD, AWD, 4WD)"
-    )
+    transmission: TransmissionInfo | None = Field(None, description="Transmission information")
+    drive_type: str | None = Field(None, description="Drive type (FWD, RWD, AWD, 4WD)")
     manufacturer: str | None = Field(None, description="Manufacturer name")
     plant_city: str | None = Field(None, description="Manufacturing plant city")
-    plant_country: str | None = Field(
-        None, description="Manufacturing plant country"
-    )
+    plant_country: str | None = Field(None, description="Manufacturing plant country")
     doors: int | None = Field(None, description="Number of doors")
     gvwr: str | None = Field(None, description="Gross Vehicle Weight Rating")
     series: str | None = Field(None, description="Vehicle series")
-    steering_location: str | None = Field(
-        None, description="Steering wheel location"
-    )
-    entertainment_system: str | None = Field(
-        None, description="Entertainment system"
-    )
+    steering_location: str | None = Field(None, description="Steering wheel location")
+    entertainment_system: str | None = Field(None, description="Entertainment system")
     error_code: str | None = Field(None, description="NHTSA error code (if any)")
     error_text: str | None = Field(None, description="NHTSA error text (if any)")
 

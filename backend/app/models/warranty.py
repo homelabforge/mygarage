@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Warranty record database model."""
 
 from datetime import date, datetime
@@ -38,9 +40,7 @@ class WarrantyRecord(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     # Relationships
-    vehicle: Mapped["Vehicle"] = relationship(
-        "Vehicle", back_populates="warranty_records"
-    )
+    vehicle: Mapped[Vehicle] = relationship("Vehicle", back_populates="warranty_records")
 
     __table_args__ = (
         CheckConstraint(

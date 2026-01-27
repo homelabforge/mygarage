@@ -516,6 +516,5 @@ async def initialize_default_settings(db: AsyncSession) -> None:
     await db.commit()
 
     logger.info(
-        f"Settings initialization complete. "
-        f"Added: {settings_added}, Updated: {settings_updated}"
+        f"Settings initialization complete. Added: {settings_added}, Updated: {settings_updated}"
     )

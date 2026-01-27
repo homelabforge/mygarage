@@ -61,9 +61,7 @@ class ServiceRecordService:
             result = await self.db.execute(
                 select(
                     ServiceRecord,
-                    func.coalesce(func.count(Attachment.id), 0).label(
-                        "attachment_count"
-                    ),
+                    func.coalesce(func.count(Attachment.id), 0).label("attachment_count"),
                 )
                 .select_from(
                     outerjoin(
@@ -87,9 +85,7 @@ class ServiceRecordService:
 
             # Get total count
             count_result = await self.db.execute(
-                select(func.count())
-                .select_from(ServiceRecord)
-                .where(ServiceRecord.vin == vin)
+                select(func.count()).select_from(ServiceRecord).where(ServiceRecord.vin == vin)
             )
             total = count_result.scalar()
 
@@ -123,9 +119,7 @@ class ServiceRecordService:
                 sanitize_for_log(vin),
                 sanitize_for_log(e),
             )
-            raise HTTPException(
-                status_code=503, detail="Database temporarily unavailable"
-            )
+            raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
     async def get_service_record(
         self, vin: str, record_id: int, current_user: User
@@ -159,9 +153,7 @@ class ServiceRecordService:
         record = result.scalar_one_or_none()
 
         if not record:
-            raise HTTPException(
-                status_code=404, detail=f"Service record {record_id} not found"
-            )
+            raise HTTPException(status_code=404, detail=f"Service record {record_id} not found")
 
         return record
 
@@ -199,9 +191,7 @@ class ServiceRecordService:
             await self.db.commit()
             await self.db.refresh(record)
 
-            logger.info(
-                "Created service record %s for %s", record.id, sanitize_for_log(vin)
-            )
+            logger.info("Created service record %s for %s", record.id, sanitize_for_log(vin))
 
             # Auto-sync odometer if mileage provided
             if record.date and record.mileage:
@@ -236,9 +226,7 @@ class ServiceRecordService:
                 sanitize_for_log(vin),
                 sanitize_for_log(e),
             )
-            raise HTTPException(
-                status_code=409, detail="Duplicate or invalid service record"
-            )
+            raise HTTPException(status_code=409, detail="Duplicate or invalid service record")
         except OperationalError as e:
             await self.db.rollback()
             logger.error(
@@ -246,9 +234,7 @@ class ServiceRecordService:
                 sanitize_for_log(vin),
                 sanitize_for_log(e),
             )
-            raise HTTPException(
-                status_code=503, detail="Database temporarily unavailable"
-            )
+            raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
     async def update_service_record(
         self,
@@ -289,9 +275,7 @@ class ServiceRecordService:
             record = result.scalar_one_or_none()
 
             if not record:
-                raise HTTPException(
-                    status_code=404, detail=f"Service record {record_id} not found"
-                )
+                raise HTTPException(status_code=404, detail=f"Service record {record_id} not found")
 
             # Update fields
             update_data = record_data.model_dump(exclude_unset=True)
@@ -301,9 +285,7 @@ class ServiceRecordService:
             await self.db.commit()
             await self.db.refresh(record)
 
-            logger.info(
-                "Updated service record %s for %s", record_id, sanitize_for_log(vin)
-            )
+            logger.info("Updated service record %s for %s", record_id, sanitize_for_log(vin))
 
             # Auto-sync odometer if mileage and date are present
             if record.date and record.mileage:
@@ -348,13 +330,9 @@ class ServiceRecordService:
                 sanitize_for_log(vin),
                 sanitize_for_log(e),
             )
-            raise HTTPException(
-                status_code=503, detail="Database temporarily unavailable"
-            )
+            raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
-    async def delete_service_record(
-        self, vin: str, record_id: int, current_user: User
-    ) -> None:
+    async def delete_service_record(self, vin: str, record_id: int, current_user: User) -> None:
         """
         Delete a service record.
 
@@ -383,9 +361,7 @@ class ServiceRecordService:
             record = result.scalar_one_or_none()
 
             if not record:
-                raise HTTPException(
-                    status_code=404, detail=f"Service record {record_id} not found"
-                )
+                raise HTTPException(status_code=404, detail=f"Service record {record_id} not found")
 
             # Delete record
             await self.db.execute(
@@ -395,9 +371,7 @@ class ServiceRecordService:
             )
             await self.db.commit()
 
-            logger.info(
-                "Deleted service record %s for %s", record_id, sanitize_for_log(vin)
-            )
+            logger.info("Deleted service record %s for %s", record_id, sanitize_for_log(vin))
 
             # Invalidate analytics cache for this vehicle
             await invalidate_cache_for_vehicle(vin)
@@ -412,9 +386,7 @@ class ServiceRecordService:
                 sanitize_for_log(vin),
                 sanitize_for_log(e),
             )
-            raise HTTPException(
-                status_code=409, detail="Cannot delete record with dependent data"
-            )
+            raise HTTPException(status_code=409, detail="Cannot delete record with dependent data")
         except OperationalError as e:
             await self.db.rollback()
             logger.error(
@@ -423,6 +395,4 @@ class ServiceRecordService:
                 sanitize_for_log(vin),
                 sanitize_for_log(e),
             )
-            raise HTTPException(
-                status_code=503, detail="Database temporarily unavailable"
-            )
+            raise HTTPException(status_code=503, detail="Database temporarily unavailable")

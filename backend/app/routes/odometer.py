@@ -54,9 +54,7 @@ async def list_odometer_records(
         vehicle = result.scalar_one_or_none()
 
         if not vehicle:
-            raise HTTPException(
-                status_code=404, detail=f"Vehicle with VIN {vin} not found"
-            )
+            raise HTTPException(status_code=404, detail=f"Vehicle with VIN {vin} not found")
 
         # Get odometer records
         result = await db.execute(
@@ -70,9 +68,7 @@ async def list_odometer_records(
 
         # Get total count
         count_result = await db.execute(
-            select(func.count())
-            .select_from(OdometerRecord)
-            .where(OdometerRecord.vin == vin)
+            select(func.count()).select_from(OdometerRecord).where(OdometerRecord.vin == vin)
         )
         total = count_result.scalar()
 
@@ -132,9 +128,7 @@ async def get_odometer_record(
     record = result.scalar_one_or_none()
 
     if not record:
-        raise HTTPException(
-            status_code=404, detail=f"Odometer record {record_id} not found"
-        )
+        raise HTTPException(status_code=404, detail=f"Odometer record {record_id} not found")
 
     return OdometerRecordResponse.model_validate(record)
 
@@ -170,9 +164,7 @@ async def create_odometer_record(
         vehicle = result.scalar_one_or_none()
 
         if not vehicle:
-            raise HTTPException(
-                status_code=404, detail=f"Vehicle with VIN {vin} not found"
-            )
+            raise HTTPException(status_code=404, detail=f"Vehicle with VIN {vin} not found")
 
         # Create odometer record
         record_dict = record_data.model_dump()
@@ -183,9 +175,7 @@ async def create_odometer_record(
         await db.commit()
         await db.refresh(record)
 
-        logger.info(
-            "Created odometer record %s for %s", record.id, sanitize_for_log(vin)
-        )
+        logger.info("Created odometer record %s for %s", record.id, sanitize_for_log(vin))
 
         return OdometerRecordResponse.model_validate(record)
 
@@ -198,9 +188,7 @@ async def create_odometer_record(
             sanitize_for_log(vin),
             sanitize_for_log(str(e)),
         )
-        raise HTTPException(
-            status_code=409, detail="Duplicate or invalid odometer record"
-        )
+        raise HTTPException(status_code=409, detail="Duplicate or invalid odometer record")
     except OperationalError as e:
         await db.rollback()
         logger.error(
@@ -248,9 +236,7 @@ async def update_odometer_record(
         record = result.scalar_one_or_none()
 
         if not record:
-            raise HTTPException(
-                status_code=404, detail=f"Odometer record {record_id} not found"
-            )
+            raise HTTPException(status_code=404, detail=f"Odometer record {record_id} not found")
 
         # Update fields
         update_data = record_data.model_dump(exclude_unset=True)
@@ -260,9 +246,7 @@ async def update_odometer_record(
         await db.commit()
         await db.refresh(record)
 
-        logger.info(
-            "Updated odometer record %s for %s", record_id, sanitize_for_log(vin)
-        )
+        logger.info("Updated odometer record %s for %s", record_id, sanitize_for_log(vin))
 
         return OdometerRecordResponse.model_validate(record)
 
@@ -318,9 +302,7 @@ async def delete_odometer_record(
         record = result.scalar_one_or_none()
 
         if not record:
-            raise HTTPException(
-                status_code=404, detail=f"Odometer record {record_id} not found"
-            )
+            raise HTTPException(status_code=404, detail=f"Odometer record {record_id} not found")
 
         # Delete record
         await db.execute(
@@ -330,9 +312,7 @@ async def delete_odometer_record(
         )
         await db.commit()
 
-        logger.info(
-            "Deleted odometer record %s for %s", record_id, sanitize_for_log(vin)
-        )
+        logger.info("Deleted odometer record %s for %s", record_id, sanitize_for_log(vin))
 
         return None
 
@@ -346,9 +326,7 @@ async def delete_odometer_record(
             sanitize_for_log(vin),
             sanitize_for_log(str(e)),
         )
-        raise HTTPException(
-            status_code=409, detail="Cannot delete record with dependent data"
-        )
+        raise HTTPException(status_code=409, detail="Cannot delete record with dependent data")
     except OperationalError as e:
         await db.rollback()
         logger.error(

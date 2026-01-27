@@ -50,9 +50,7 @@ def upgrade():
         # Create indexes
         print("Creating indexes on maintenance_templates...")
         conn.execute(
-            text(
-                "CREATE INDEX idx_maintenance_templates_vin ON maintenance_templates(vin)"
-            )
+            text("CREATE INDEX idx_maintenance_templates_vin ON maintenance_templates(vin)")
         )
         conn.execute(
             text(

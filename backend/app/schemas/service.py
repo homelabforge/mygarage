@@ -8,9 +8,7 @@ from typing import Literal
 from pydantic import BaseModel, Field, field_validator
 
 # Service category type
-ServiceCategory = Literal[
-    "Maintenance", "Inspection", "Collision", "Upgrades", "Detailing"
-]
+ServiceCategory = Literal["Maintenance", "Inspection", "Collision", "Upgrades", "Detailing"]
 
 # Predefined service types grouped by category
 SERVICE_TYPES_BY_CATEGORY = {
@@ -115,18 +113,10 @@ class ServiceRecordBase(BaseModel):
     )
     cost: Decimal | None = Field(None, description="Service cost", ge=0)
     notes: str | None = Field(None, description="Additional notes", max_length=5000)
-    vendor_name: str | None = Field(
-        None, description="Shop/vendor name", max_length=100
-    )
-    vendor_location: str | None = Field(
-        None, description="Shop location", max_length=100
-    )
-    service_category: ServiceCategory | None = Field(
-        None, description="Service category"
-    )
-    insurance_claim: str | None = Field(
-        None, description="Insurance claim number", max_length=50
-    )
+    vendor_name: str | None = Field(None, description="Shop/vendor name", max_length=100)
+    vendor_location: str | None = Field(None, description="Shop location", max_length=100)
+    service_category: ServiceCategory | None = Field(None, description="Service category")
+    insurance_claim: str | None = Field(None, description="Insurance claim number", max_length=50)
 
     @field_validator("service_category")
     @classmethod
@@ -142,9 +132,7 @@ class ServiceRecordBase(BaseModel):
             "Detailing",
         ]
         if v not in valid_types:
-            raise ValueError(
-                f"Service category must be one of: {', '.join(valid_types)}"
-            )
+            raise ValueError(f"Service category must be one of: {', '.join(valid_types)}")
         return v
 
     @field_validator("service_type")
@@ -190,18 +178,10 @@ class ServiceRecordUpdate(BaseModel):
     )
     cost: Decimal | None = Field(None, description="Service cost", ge=0)
     notes: str | None = Field(None, description="Additional notes", max_length=5000)
-    vendor_name: str | None = Field(
-        None, description="Shop/vendor name", max_length=100
-    )
-    vendor_location: str | None = Field(
-        None, description="Shop location", max_length=100
-    )
-    service_category: ServiceCategory | None = Field(
-        None, description="Service category"
-    )
-    insurance_claim: str | None = Field(
-        None, description="Insurance claim number", max_length=50
-    )
+    vendor_name: str | None = Field(None, description="Shop/vendor name", max_length=100)
+    vendor_location: str | None = Field(None, description="Shop location", max_length=100)
+    service_category: ServiceCategory | None = Field(None, description="Service category")
+    insurance_claim: str | None = Field(None, description="Insurance claim number", max_length=50)
 
     @field_validator("service_category")
     @classmethod
@@ -217,9 +197,7 @@ class ServiceRecordUpdate(BaseModel):
             "Detailing",
         ]
         if v not in valid_types:
-            raise ValueError(
-                f"Service category must be one of: {', '.join(valid_types)}"
-            )
+            raise ValueError(f"Service category must be one of: {', '.join(valid_types)}")
         return v
 
     @field_validator("service_type")

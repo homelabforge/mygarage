@@ -47,9 +47,7 @@ async def get_insurance_policies(
     return policies
 
 
-@router.post(
-    "/vehicles/{vin}/insurance", response_model=InsurancePolicy, status_code=201
-)
+@router.post("/vehicles/{vin}/insurance", response_model=InsurancePolicy, status_code=201)
 async def create_insurance_policy(
     vin: str,
     policy: InsurancePolicyCreate,
@@ -170,9 +168,7 @@ async def parse_insurance_pdf(
     # Validate file type - now supports images too
     allowed_extensions = {".pdf", ".jpg", ".jpeg", ".png"}
     file_ext = (
-        "." + file.filename.lower().split(".")[-1]
-        if file.filename and "." in file.filename
-        else ""
+        "." + file.filename.lower().split(".")[-1] if file.filename and "." in file.filename else ""
     )
     if file_ext not in allowed_extensions:
         raise HTTPException(
@@ -181,12 +177,12 @@ async def parse_insurance_pdf(
         )
 
     # Check file size BEFORE reading into memory to prevent DoS
-    MAX_SIZE = 25 * 1024 * 1024
+    max_size = 25 * 1024 * 1024
     file.file.seek(0, 2)  # Seek to end
     file_size = file.file.tell()
     file.file.seek(0)  # Seek back to beginning
 
-    if file_size > MAX_SIZE:
+    if file_size > max_size:
         raise HTTPException(status_code=400, detail="File size exceeds 25MB limit")
 
     # Read file content
@@ -245,12 +241,8 @@ async def parse_insurance_pdf(
         }
 
         # Add warning if target VIN not found
-        if vin.upper() not in [
-            v.upper() for v in parsed_data.get("vehicles_found", [])
-        ]:
-            response["warnings"].append(
-                f"VIN {vin} not found in PDF - using policy-level data"
-            )
+        if vin.upper() not in [v.upper() for v in parsed_data.get("vehicles_found", [])]:
+            response["warnings"].append(f"VIN {vin} not found in PDF - using policy-level data")
 
         logger.info(
             "Successfully parsed document using %s - found %d vehicles, confidence: %.0f%%",
@@ -301,19 +293,17 @@ async def test_parse_insurance_pdf(
     # Validate file
     allowed_extensions = {".pdf", ".jpg", ".jpeg", ".png"}
     file_ext = (
-        "." + file.filename.lower().split(".")[-1]
-        if file.filename and "." in file.filename
-        else ""
+        "." + file.filename.lower().split(".")[-1] if file.filename and "." in file.filename else ""
     )
     if file_ext not in allowed_extensions:
         raise HTTPException(status_code=400, detail="File must be PDF or image")
 
-    MAX_SIZE = 25 * 1024 * 1024
+    max_size = 25 * 1024 * 1024
     file.file.seek(0, 2)
     file_size = file.file.tell()
     file.file.seek(0)
 
-    if file_size > MAX_SIZE:
+    if file_size > max_size:
         raise HTTPException(status_code=400, detail="File size exceeds 25MB limit")
 
     contents = await file.read()

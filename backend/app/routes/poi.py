@@ -104,9 +104,7 @@ async def search_nearby_pois(
 
     except Exception as e:
         logger.error("POI search failed: %s", str(e), exc_info=True)
-        raise HTTPException(
-            status_code=500, detail=f"Failed to search for POIs: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to search for POIs: {str(e)}")
 
 
 @router.post("/save", response_model=AddressBookEntryResponse, status_code=201)
@@ -262,9 +260,7 @@ async def increment_poi_usage(
     Raises:
         HTTPException: 404 if POI not found
     """
-    result = await db.execute(
-        select(AddressBookEntry).where(AddressBookEntry.id == poi_id)
-    )
+    result = await db.execute(select(AddressBookEntry).where(AddressBookEntry.id == poi_id))
     poi = result.scalar_one_or_none()
 
     if not poi:
@@ -275,8 +271,6 @@ async def increment_poi_usage(
 
     await db.commit()
 
-    logger.info(
-        "Incremented usage for POI %s (now %d)", poi.business_name, poi.usage_count
-    )
+    logger.info("Incremented usage for POI %s (now %d)", poi.business_name, poi.usage_count)
 
     return None

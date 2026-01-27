@@ -17,9 +17,7 @@ class RecallBase(BaseModel):
     summary: str = Field(..., description="Summary of the recall issue", min_length=1)
     consequence: str | None = Field(None, description="Potential consequences")
     remedy: str | None = Field(None, description="Remedy for the recall")
-    date_announced: dt.date | None = Field(
-        None, description="Date recall was announced"
-    )
+    date_announced: dt.date | None = Field(None, description="Date recall was announced")
     notes: str | None = Field(None, description="User notes about the recall")
 
 
@@ -27,9 +25,7 @@ class RecallCreate(RecallBase):
     """Schema for creating a new recall."""
 
     vin: str = Field(..., description="Vehicle VIN", min_length=17, max_length=17)
-    is_resolved: bool = Field(
-        default=False, description="Whether recall has been resolved"
-    )
+    is_resolved: bool = Field(default=False, description="Whether recall has been resolved")
 
 
 class RecallUpdate(BaseModel):
@@ -41,18 +37,12 @@ class RecallUpdate(BaseModel):
     component: str | None = Field(
         None, description="Component affected by recall", min_length=1, max_length=200
     )
-    summary: str | None = Field(
-        None, description="Summary of the recall issue", min_length=1
-    )
+    summary: str | None = Field(None, description="Summary of the recall issue", min_length=1)
     consequence: str | None = Field(None, description="Potential consequences")
     remedy: str | None = Field(None, description="Remedy for the recall")
-    date_announced: dt.date | None = Field(
-        None, description="Date recall was announced"
-    )
+    date_announced: dt.date | None = Field(None, description="Date recall was announced")
     notes: str | None = Field(None, description="User notes about the recall")
-    is_resolved: bool | None = Field(
-        None, description="Whether recall has been resolved"
-    )
+    is_resolved: bool | None = Field(None, description="Whether recall has been resolved")
 
 
 class RecallResponse(RecallBase):

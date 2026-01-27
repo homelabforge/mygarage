@@ -113,9 +113,7 @@ def upgrade():
     with engine.begin() as conn:
         # Check if vehicle_photos table exists
         result = conn.execute(
-            text(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name='vehicle_photos'"
-            )
+            text("SELECT name FROM sqlite_master WHERE type='table' AND name='vehicle_photos'")
         )
         if not result.fetchone():
             print("ℹ vehicle_photos table does not exist, skipping photo hydration")
@@ -133,9 +131,7 @@ def upgrade():
         for vin in vins:
             try:
                 session = Session(bind=conn)
-                count = _hydrate_legacy_photos_for_vin(
-                    vin, photo_dir, session, allowed_extensions
-                )
+                count = _hydrate_legacy_photos_for_vin(vin, photo_dir, session, allowed_extensions)
                 total_photos += count
                 if count > 0:
                     print(f"✓ Hydrated {count} photo(s) for vehicle {vin}")
@@ -144,9 +140,7 @@ def upgrade():
                 print(f"✗ Error hydrating photos for VIN {vin}: {e}")
 
         if total_photos > 0:
-            print(
-                f"✓ Total: Hydrated {total_photos} legacy photos across {len(vins)} vehicles"
-            )
+            print(f"✓ Total: Hydrated {total_photos} legacy photos across {len(vins)} vehicles")
         else:
             print("ℹ No legacy photos found to hydrate")
 

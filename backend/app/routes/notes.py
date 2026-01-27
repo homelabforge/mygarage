@@ -34,9 +34,7 @@ async def list_notes(
         raise HTTPException(status_code=404, detail="Vehicle not found")
 
     # Get notes sorted by date descending (newest first)
-    result = await db.execute(
-        select(Note).where(Note.vin == vin).order_by(Note.date.desc())
-    )
+    result = await db.execute(select(Note).where(Note.vin == vin).order_by(Note.date.desc()))
     notes = result.scalars().all()
 
     return NoteListResponse(

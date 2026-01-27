@@ -47,9 +47,7 @@ async def list_service_records(
     - Admin users can access all service records
     """
     service = ServiceRecordService(db)
-    record_responses, total = await service.list_service_records(
-        vin, current_user, skip, limit
-    )
+    record_responses, total = await service.list_service_records(vin, current_user, skip, limit)
 
     return ServiceRecordListResponse(records=record_responses, total=total)
 
@@ -150,9 +148,7 @@ async def update_service_record(
     - Admin users can update all service records
     """
     service = ServiceRecordService(db)
-    record = await service.update_service_record(
-        vin, record_id, record_data, current_user
-    )
+    record = await service.update_service_record(vin, record_id, record_data, current_user)
 
     return ServiceRecordResponse.model_validate(record)
 

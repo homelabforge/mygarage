@@ -17,9 +17,7 @@ class VehicleBase(BaseModel):
     year: int | None = Field(None, description="Model year", ge=1900, le=2100)
     make: str | None = Field(None, description="Manufacturer brand", max_length=50)
     model: str | None = Field(None, description="Model name", max_length=50)
-    license_plate: str | None = Field(
-        None, description="License plate number", max_length=20
-    )
+    license_plate: str | None = Field(None, description="License plate number", max_length=20)
     color: str | None = Field(None, description="Vehicle color", max_length=30)
     purchase_date: date | None = Field(None, description="Date purchased")
     purchase_price: Decimal | None = Field(None, description="Purchase price")
@@ -38,12 +36,8 @@ class VehicleBase(BaseModel):
     )
     cylinders: int | None = Field(None, description="Number of cylinders")
     fuel_type: str | None = Field(None, description="Fuel type", max_length=50)
-    transmission_type: str | None = Field(
-        None, description="Transmission type", max_length=50
-    )
-    transmission_speeds: str | None = Field(
-        None, description="Transmission speeds", max_length=20
-    )
+    transmission_type: str | None = Field(None, description="Transmission type", max_length=50)
+    transmission_speeds: str | None = Field(None, description="Transmission speeds", max_length=20)
 
     @field_validator("vehicle_type")
     @classmethod
@@ -267,9 +261,7 @@ class TrailerDetailsBase(BaseModel):
 class TrailerDetailsCreate(TrailerDetailsBase):
     """Schema for creating trailer details."""
 
-    vin: str = Field(
-        ..., description="VIN of the trailer", min_length=17, max_length=17
-    )
+    vin: str = Field(..., description="VIN of the trailer", min_length=17, max_length=17)
 
 
 class TrailerDetailsUpdate(TrailerDetailsBase):
@@ -294,16 +286,12 @@ class VehicleArchiveRequest(BaseModel):
         description="Reason for archiving (Sold, Totaled, Gifted, Trade-in, Other)",
         max_length=50,
     )
-    sale_price: Decimal | None = Field(
-        None, description="Sale price (if applicable)"
-    )
+    sale_price: Decimal | None = Field(None, description="Sale price (if applicable)")
     sale_date: date | None = Field(None, description="Sale/disposal date")
     notes: str | None = Field(
         None, description="Additional notes about the archive", max_length=1000
     )
-    visible: bool = Field(
-        True, description="Whether to show vehicle in main list with watermark"
-    )
+    visible: bool = Field(True, description="Whether to show vehicle in main list with watermark")
 
     @field_validator("reason")
     @classmethod
@@ -311,9 +299,7 @@ class VehicleArchiveRequest(BaseModel):
         """Validate archive reason."""
         valid_reasons = ["Sold", "Totaled", "Gifted", "Trade-in", "Other"]
         if v not in valid_reasons:
-            raise ValueError(
-                f"Archive reason must be one of: {', '.join(valid_reasons)}"
-            )
+            raise ValueError(f"Archive reason must be one of: {', '.join(valid_reasons)}")
         return v
 
     model_config = {

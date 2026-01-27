@@ -89,9 +89,7 @@ class WindowStickerOCRService:
             return result
 
         except Exception as e:
-            logger.error(
-                "Error extracting data from window sticker %s: %s", file_path, e
-            )
+            logger.error("Error extracting data from window sticker %s: %s", file_path, e)
             # Return empty dict on error - user can manually enter data
             return {}
 
@@ -211,9 +209,7 @@ class WindowStickerOCRService:
             with fitz.open(file_path) as doc:
                 for _page_num, page in enumerate(doc):
                     # Render page to image
-                    pix = page.get_pixmap(
-                        matrix=fitz.Matrix(2, 2)
-                    )  # 2x scale for better OCR
+                    pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))  # 2x scale for better OCR
                     img_data = pix.tobytes("png")
 
                     # OCR the image
@@ -290,9 +286,7 @@ class WindowStickerOCRService:
             if self._paddleocr is None:
                 from paddleocr import PaddleOCR
 
-                self._paddleocr = PaddleOCR(
-                    use_angle_cls=True, lang="en", show_log=False
-                )
+                self._paddleocr = PaddleOCR(use_angle_cls=True, lang="en", show_log=False)
 
             result = self._paddleocr.ocr(file_path, cls=True)
 
@@ -325,9 +319,7 @@ class WindowStickerOCRService:
             if self._paddleocr is None:
                 from paddleocr import PaddleOCR
 
-                self._paddleocr = PaddleOCR(
-                    use_angle_cls=True, lang="en", show_log=False
-                )
+                self._paddleocr = PaddleOCR(use_angle_cls=True, lang="en", show_log=False)
 
             # Convert bytes to numpy array
             image = Image.open(io.BytesIO(img_bytes))
@@ -427,9 +419,7 @@ class WindowStickerOCRService:
         if data.parser_name:
             result["window_sticker_parser_used"] = data.parser_name
         if data.confidence_score:
-            result["window_sticker_confidence_score"] = Decimal(
-                str(data.confidence_score)
-            )
+            result["window_sticker_confidence_score"] = Decimal(str(data.confidence_score))
         if data.extracted_vin:
             result["window_sticker_extracted_vin"] = data.extracted_vin
 

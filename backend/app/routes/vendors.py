@@ -177,9 +177,7 @@ async def delete_vendor(
 @router.get("/{vendor_id}/price-history", response_model=VendorPriceHistoryResponse)
 async def get_vendor_price_history(
     vendor_id: int,
-    schedule_item_id: int | None = Query(
-        None, description="Filter by schedule item ID"
-    ),
+    schedule_item_id: int | None = Query(None, description="Filter by schedule item ID"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_auth),
 ):

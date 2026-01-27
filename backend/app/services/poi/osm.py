@@ -31,9 +31,7 @@ class OSMProvider(BasePOIProvider):
             "https://overpass.openstreetmap.fr/api/interpreter",  # Fallback 2
         ]
         self.timeout = 30.0
-        self.max_results = (
-            100  # Increased to capture more results before distance sorting
-        )
+        self.max_results = 100  # Increased to capture more results before distance sorting
 
     async def search(
         self,
@@ -244,8 +242,7 @@ class OSMProvider(BasePOIProvider):
 
         # Check for RV repair
         if tags.get("shop") == "caravan" or (
-            tags.get("amenity") == "vehicle_inspection"
-            and tags.get("vehicle:type") == "rv"
+            tags.get("amenity") == "vehicle_inspection" and tags.get("vehicle:type") == "rv"
         ):
             return POICategory.RV_SHOP.value
 
@@ -290,9 +287,7 @@ class OSMProvider(BasePOIProvider):
             "availability": None,  # OSM doesn't provide real-time availability
         }
 
-    def _calculate_distance(
-        self, lat1: float, lon1: float, lat2: float, lon2: float
-    ) -> float:
+    def _calculate_distance(self, lat1: float, lon1: float, lat2: float, lon2: float) -> float:
         """Calculate distance between two coordinates using Haversine formula.
 
         Args:

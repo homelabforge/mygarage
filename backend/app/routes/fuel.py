@@ -131,9 +131,7 @@ async def update_fuel_record(
     - Admin users can update all fuel records
     """
     service = FuelRecordService(db)
-    record, mpg = await service.update_fuel_record(
-        vin, record_id, record_data, current_user
-    )
+    record, mpg = await service.update_fuel_record(vin, record_id, record_data, current_user)
 
     # Build response with MPG
     record_dict = record.__dict__.copy()

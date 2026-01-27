@@ -43,9 +43,7 @@ async def sync_odometer_from_record(
 
     # Check for existing odometer record on same date
     result = await db.execute(
-        select(OdometerRecord)
-        .where(OdometerRecord.vin == vin)
-        .where(OdometerRecord.date == date)
+        select(OdometerRecord).where(OdometerRecord.vin == vin).where(OdometerRecord.date == date)
     )
     existing = result.scalar_one_or_none()
 

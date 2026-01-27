@@ -77,9 +77,7 @@ def calculate_trend(values: list[float]) -> str:
     first_half = sum(values[:mid]) / mid
     second_half = sum(values[mid:]) / (len(values) - mid)
 
-    diff_percent = (
-        ((second_half - first_half) / first_half) * 100 if first_half > 0 else 0
-    )
+    diff_percent = ((second_half - first_half) / first_half) * 100 if first_half > 0 else 0
 
     if diff_percent > 5:
         return "improving"
@@ -131,9 +129,7 @@ async def get_cost_analysis(db: AsyncSession, vin: str) -> CostAnalysis:
         spot_rental_billings = spot_rental_result.scalars().all()
 
     # Calculate totals
-    total_service_cost = sum(
-        (r.cost for r in service_records if r.cost), Decimal("0.00")
-    )
+    total_service_cost = sum((r.cost for r in service_records if r.cost), Decimal("0.00"))
     total_fuel_cost = sum((r.cost for r in fuel_records if r.cost), Decimal("0.00"))
     total_spot_rental_cost = sum(
         (r.total for r in spot_rental_billings if r.total), Decimal("0.00")
@@ -141,9 +137,7 @@ async def get_cost_analysis(db: AsyncSession, vin: str) -> CostAnalysis:
     total_cost = total_service_cost + total_fuel_cost + total_spot_rental_cost
 
     # Use pandas for monthly aggregation
-    df = analytics_service.records_to_dataframe(
-        service_records, fuel_records, spot_rental_billings
-    )
+    df = analytics_service.records_to_dataframe(service_records, fuel_records, spot_rental_billings)
     monthly_df = analytics_service.calculate_monthly_aggregation(df)
 
     # Convert monthly DataFrame to Pydantic models
@@ -166,9 +160,7 @@ async def get_cost_analysis(db: AsyncSession, vin: str) -> CostAnalysis:
 
     # Calculate average monthly cost
     months_tracked = len(monthly_df)
-    average_monthly_cost = (
-        total_cost / months_tracked if months_tracked > 0 else Decimal("0.00")
-    )
+    average_monthly_cost = total_cost / months_tracked if months_tracked > 0 else Decimal("0.00")
 
     # Calculate rolling averages and trend
     rolling_avgs = analytics_service.calculate_rolling_averages(monthly_df)
@@ -248,9 +240,7 @@ async def get_cost_analysis(db: AsyncSession, vin: str) -> CostAnalysis:
     anomalies = []
     if not monthly_df.empty and len(monthly_df) >= 3:
         monthly_costs = monthly_df["total_cost"]
-        anomaly_indices = analytics_service.detect_anomalies(
-            monthly_costs, std_threshold=2.0
-        )
+        anomaly_indices = analytics_service.detect_anomalies(monthly_costs, std_threshold=2.0)
 
         if anomaly_indices:
             mean_cost = monthly_costs.mean()
@@ -259,9 +249,7 @@ async def get_cost_analysis(db: AsyncSession, vin: str) -> CostAnalysis:
                 amount = Decimal(str(row["total_cost"]))
                 baseline = Decimal(str(mean_cost))
                 deviation_percent = (
-                    ((amount - baseline) / baseline * 100)
-                    if baseline > 0
-                    else Decimal("0.00")
+                    ((amount - baseline) / baseline * 100) if baseline > 0 else Decimal("0.00")
                 )
 
                 # Determine severity
@@ -413,15 +401,11 @@ def build_fuel_alerts(fuel_economy: FuelEconomyTrend) -> list[FuelEfficiencyAler
 
 
 @cached(ttl_seconds=600)  # Cache for 10 minutes
-async def get_service_history_timeline(
-    db: AsyncSession, vin: str
-) -> list[ServiceHistoryItem]:
+async def get_service_history_timeline(db: AsyncSession, vin: str) -> list[ServiceHistoryItem]:
     """Get service history with timeline context."""
 
     result = await db.execute(
-        select(ServiceRecord)
-        .where(ServiceRecord.vin == vin)
-        .order_by(ServiceRecord.date.desc())
+        select(ServiceRecord).where(ServiceRecord.vin == vin).order_by(ServiceRecord.date.desc())
     )
     service_records = list(result.scalars().all())
 
@@ -464,9 +448,7 @@ async def get_maintenance_predictions(
 
     # Get service history
     result = await db.execute(
-        select(ServiceRecord)
-        .where(ServiceRecord.vin == vin)
-        .order_by(ServiceRecord.date)
+        select(ServiceRecord).where(ServiceRecord.vin == vin).order_by(ServiceRecord.date)
     )
     service_records = list(result.scalars().all())
 
@@ -531,12 +513,8 @@ async def get_maintenance_predictions(
         if not day_intervals and not mile_intervals:
             continue
 
-        avg_days = (
-            int(sum(day_intervals) / len(day_intervals)) if day_intervals else None
-        )
-        avg_miles = (
-            int(sum(mile_intervals) / len(mile_intervals)) if mile_intervals else None
-        )
+        avg_days = int(sum(day_intervals) / len(day_intervals)) if day_intervals else None
+        avg_miles = int(sum(mile_intervals) / len(mile_intervals)) if mile_intervals else None
 
         # Find most recent service of this type
         most_recent = None
@@ -565,9 +543,7 @@ async def get_maintenance_predictions(
         confidence = "low"
         if len(intervals) >= 3:
             if day_intervals:
-                variance = sum((x - avg_days) ** 2 for x in day_intervals) / len(
-                    day_intervals
-                )
+                variance = sum((x - avg_days) ** 2 for x in day_intervals) / len(day_intervals)
                 std_dev = variance**0.5
                 if std_dev < avg_days * 0.2:  # Less than 20% variation
                     confidence = "high"
@@ -577,9 +553,7 @@ async def get_maintenance_predictions(
         # Check if there's a manual reminder for this service type
         has_reminder = service_type in reminder_map
         reminder_date = reminder_map[service_type].due_date if has_reminder else None
-        reminder_mileage = (
-            reminder_map[service_type].due_mileage if has_reminder else None
-        )
+        reminder_mileage = reminder_map[service_type].due_mileage if has_reminder else None
 
         predictions.append(
             MaintenancePrediction(
@@ -598,9 +572,7 @@ async def get_maintenance_predictions(
         )
 
     # Sort by urgency (sooner first)
-    predictions.sort(
-        key=lambda p: p.days_until_due if p.days_until_due is not None else 999999
-    )
+    predictions.sort(key=lambda p: p.days_until_due if p.days_until_due is not None else 999999)
 
     return predictions
 
@@ -689,9 +661,7 @@ async def get_vehicle_analytics(
         propane_analysis = analytics_service.calculate_propane_costs(all_fuel_records)
 
         # Get spot rental costs
-        spot_rental_analysis = await analytics_service.calculate_spot_rental_costs(
-            db, vin
-        )
+        spot_rental_analysis = await analytics_service.calculate_spot_rental_costs(db, vin)
 
     return VehicleAnalytics(
         vin=vin,
@@ -873,31 +843,19 @@ async def get_garage_analytics(
             GarageCostByCategory(category="Maintenance", amount=total_maintenance)
         )
     if total_upgrades > 0:
-        cost_breakdown.append(
-            GarageCostByCategory(category="Upgrades", amount=total_upgrades)
-        )
+        cost_breakdown.append(GarageCostByCategory(category="Upgrades", amount=total_upgrades))
     if total_inspection > 0:
-        cost_breakdown.append(
-            GarageCostByCategory(category="Inspection", amount=total_inspection)
-        )
+        cost_breakdown.append(GarageCostByCategory(category="Inspection", amount=total_inspection))
     if total_collision > 0:
-        cost_breakdown.append(
-            GarageCostByCategory(category="Collision", amount=total_collision)
-        )
+        cost_breakdown.append(GarageCostByCategory(category="Collision", amount=total_collision))
     if total_detailing > 0:
-        cost_breakdown.append(
-            GarageCostByCategory(category="Detailing", amount=total_detailing)
-        )
+        cost_breakdown.append(GarageCostByCategory(category="Detailing", amount=total_detailing))
     if total_fuel > 0:
         cost_breakdown.append(GarageCostByCategory(category="Fuel", amount=total_fuel))
     if total_insurance > 0:
-        cost_breakdown.append(
-            GarageCostByCategory(category="Insurance", amount=total_insurance)
-        )
+        cost_breakdown.append(GarageCostByCategory(category="Insurance", amount=total_insurance))
     if total_taxes > 0:
-        cost_breakdown.append(
-            GarageCostByCategory(category="Taxes", amount=total_taxes)
-        )
+        cost_breakdown.append(GarageCostByCategory(category="Taxes", amount=total_taxes))
 
     # Create monthly trends (last 12 months)
     monthly_trends = []
@@ -1014,9 +972,7 @@ async def get_vendor_analytics(
     """Get vendor analysis for a specific vehicle."""
 
     # Verify ownership
-    result = await db.execute(
-        select(Vehicle).where(Vehicle.vin == vin, Vehicle.user_id == user.id)
-    )
+    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin, Vehicle.user_id == user.id))
     vehicle = result.scalar_one_or_none()
     if not vehicle:
         raise HTTPException(status_code=404, detail="Vehicle not found")
@@ -1063,9 +1019,7 @@ async def get_vendor_analytics(
         vendors=vendors,
         total_vendors=len(vendors),
         most_used_vendor=most_used.vendor_name if most_used else None,
-        highest_spending_vendor=highest_spending.vendor_name
-        if highest_spending
-        else None,
+        highest_spending_vendor=highest_spending.vendor_name if highest_spending else None,
     )
 
 
@@ -1078,9 +1032,7 @@ async def get_seasonal_analytics(
     """Get seasonal spending analysis for a specific vehicle."""
 
     # Verify ownership
-    result = await db.execute(
-        select(Vehicle).where(Vehicle.vin == vin, Vehicle.user_id == user.id)
-    )
+    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin, Vehicle.user_id == user.id))
     vehicle = result.scalar_one_or_none()
     if not vehicle:
         raise HTTPException(status_code=404, detail="Vehicle not found")
@@ -1113,9 +1065,7 @@ async def get_seasonal_analytics(
         return SeasonalAnalyticsSummary()
 
     # Use pandas for seasonal analysis
-    df = analytics_service.records_to_dataframe(
-        service_records, fuel_records, spot_rental_billings
-    )
+    df = analytics_service.records_to_dataframe(service_records, fuel_records, spot_rental_billings)
     seasonal_df = analytics_service.calculate_seasonal_patterns(df)
 
     if seasonal_df.empty:
@@ -1190,9 +1140,7 @@ async def compare_periods(
     """Compare costs and metrics between two time periods."""
 
     # Verify ownership
-    result = await db.execute(
-        select(Vehicle).where(Vehicle.vin == vin, Vehicle.user_id == user.id)
-    )
+    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin, Vehicle.user_id == user.id))
     vehicle = result.scalar_one_or_none()
     if not vehicle:
         raise HTTPException(status_code=404, detail="Vehicle not found")
@@ -1222,9 +1170,7 @@ async def compare_periods(
     spot_rental_billings = spot_rental_result.scalars().all()
 
     # Use pandas for comparison
-    df = analytics_service.records_to_dataframe(
-        service_records, fuel_records, spot_rental_billings
-    )
+    df = analytics_service.records_to_dataframe(service_records, fuel_records, spot_rental_billings)
     comparison = analytics_service.compare_time_periods(
         df, period1_start, period1_end, period2_start, period2_end
     )
@@ -1236,24 +1182,16 @@ async def compare_periods(
 
     if fuel_records:
         # Filter fuel records by period
-        period1_fuel = [
-            r for r in fuel_records if period1_start <= r.date <= period1_end
-        ]
-        period2_fuel = [
-            r for r in fuel_records if period2_start <= r.date <= period2_end
-        ]
+        period1_fuel = [r for r in fuel_records if period1_start <= r.date <= period1_end]
+        period2_fuel = [r for r in fuel_records if period2_start <= r.date <= period2_end]
 
         if period1_fuel:
-            p1_df, p1_stats = analytics_service.calculate_fuel_economy_with_pandas(
-                period1_fuel
-            )
+            p1_df, p1_stats = analytics_service.calculate_fuel_economy_with_pandas(period1_fuel)
             if p1_stats:
                 period1_mpg = p1_stats.get("average_mpg")
 
         if period2_fuel:
-            p2_df, p2_stats = analytics_service.calculate_fuel_economy_with_pandas(
-                period2_fuel
-            )
+            p2_df, p2_stats = analytics_service.calculate_fuel_economy_with_pandas(period2_fuel)
             if p2_stats:
                 period2_mpg = p2_stats.get("average_mpg")
 
@@ -1262,43 +1200,33 @@ async def compare_periods(
 
     # Generate labels if not provided
     if not period1_label:
-        period1_label = (
-            f"{period1_start.strftime('%b %Y')} - {period1_end.strftime('%b %Y')}"
-        )
+        period1_label = f"{period1_start.strftime('%b %Y')} - {period1_end.strftime('%b %Y')}"
     if not period2_label:
-        period2_label = (
-            f"{period2_start.strftime('%b %Y')} - {period2_end.strftime('%b %Y')}"
-        )
+        period2_label = f"{period2_start.strftime('%b %Y')} - {period2_end.strftime('%b %Y')}"
 
     # Category breakdown (service type)
     category_changes = []
 
     # Get period-specific DataFrames
     p1_df = df[
-        (df["date"] >= pd.Timestamp(period1_start))
-        & (df["date"] <= pd.Timestamp(period1_end))
+        (df["date"] >= pd.Timestamp(period1_start)) & (df["date"] <= pd.Timestamp(period1_end))
     ]
     p2_df = df[
-        (df["date"] >= pd.Timestamp(period2_start))
-        & (df["date"] <= pd.Timestamp(period2_end))
+        (df["date"] >= pd.Timestamp(period2_start)) & (df["date"] <= pd.Timestamp(period2_end))
     ]
 
     if not p1_df.empty or not p2_df.empty:
         # Get all unique service types
-        all_types = set[str](
-            p1_df["service_type"].unique() if not p1_df.empty else []
-        ) | set(p2_df["service_type"].unique() if not p2_df.empty else [])
+        all_types = set[str](p1_df["service_type"].unique() if not p1_df.empty else []) | set(
+            p2_df["service_type"].unique() if not p2_df.empty else []
+        )
 
         for service_type in all_types:
             p1_cost = (
-                p1_df[p1_df["service_type"] == service_type]["cost"].sum()
-                if not p1_df.empty
-                else 0
+                p1_df[p1_df["service_type"] == service_type]["cost"].sum() if not p1_df.empty else 0
             )
             p2_cost = (
-                p2_df[p2_df["service_type"] == service_type]["cost"].sum()
-                if not p2_df.empty
-                else 0
+                p2_df[p2_df["service_type"] == service_type]["cost"].sum() if not p2_df.empty else 0
             )
 
             change_amount = p2_cost - p1_cost

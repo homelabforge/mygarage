@@ -46,13 +46,9 @@ class TestAnalyticsEndpoints:
         assert "anomalies" in cost_analysis
         assert isinstance(cost_analysis["anomalies"], list)
 
-    async def test_get_vehicle_analytics_invalid_vin(
-        self, client: AsyncClient, auth_headers: dict
-    ):
+    async def test_get_vehicle_analytics_invalid_vin(self, client: AsyncClient, auth_headers: dict):
         """Test getting analytics for non-existent vehicle."""
-        response = await client.get(
-            "/api/analytics/vehicles/INVALIDVIN123", headers=auth_headers
-        )
+        response = await client.get("/api/analytics/vehicles/INVALIDVIN123", headers=auth_headers)
 
         assert response.status_code == 404
 
@@ -130,11 +126,11 @@ class TestAnalyticsEndpoints:
             assert "category_changes" in data
 
     async def test_compare_periods_missing_params(
-        self, client: AsyncClient, test_vehicle: Vehicle, auth_headers: dict
+        self, client: AsyncClient, test_vehicle: dict, auth_headers: dict
     ):
         """Test period comparison with missing parameters."""
         response = await client.get(
-            f"/api/analytics/vehicles/{test_vehicle.vin}/compare",
+            f"/api/analytics/vehicles/{test_vehicle['vin']}/compare",
             params={
                 "period1_start": "2024-01-01",
                 # Missing other required params
@@ -164,9 +160,7 @@ class TestAnalyticsEndpoints:
         # Check that PDF has content
         assert len(response.content) > 0
 
-    async def test_garage_analytics(
-        self, client: AsyncClient, test_user: User, auth_headers: dict
-    ):
+    async def test_garage_analytics(self, client: AsyncClient, test_user: User, auth_headers: dict):
         """Test garage-wide analytics endpoint."""
         response = await client.get("/api/analytics/garage", headers=auth_headers)
 

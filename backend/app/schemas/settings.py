@@ -26,9 +26,7 @@ class SettingUpdate(BaseModel):
     value: str | None = Field(None, description="Setting value")
     category: str | None = Field(None, description="Setting category")
     description: str | None = Field(None, description="Setting description")
-    encrypted: bool | None = Field(
-        None, description="Whether the value is encrypted"
-    )
+    encrypted: bool | None = Field(None, description="Whether the value is encrypted")
 
 
 class SettingResponse(SettingBase):
@@ -52,9 +50,7 @@ class SettingsListResponse(BaseModel):
 class SettingsBatchUpdate(BaseModel):
     """Schema for batch updating settings."""
 
-    settings: dict[str, str] = Field(
-        ..., description="Dictionary of key-value pairs to update"
-    )
+    settings: dict[str, str] = Field(..., description="Dictionary of key-value pairs to update")
 
 
 class SystemInfoResponse(BaseModel):

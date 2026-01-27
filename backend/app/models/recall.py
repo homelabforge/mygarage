@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Recall database model."""
 
 from datetime import date, datetime
@@ -30,7 +32,7 @@ class Recall(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     # Relationships
-    vehicle: Mapped["Vehicle"] = relationship("Vehicle", back_populates="recalls")
+    vehicle: Mapped[Vehicle] = relationship("Vehicle", back_populates="recalls")
 
     __table_args__ = (
         Index("idx_recalls_vin", "vin"),

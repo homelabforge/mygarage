@@ -1,6 +1,9 @@
 """Pytest configuration and fixtures for MyGarage backend tests."""
 
 import os
+import shutil
+import tempfile
+from pathlib import Path
 
 # Enable test mode BEFORE importing app (disables CSRF validation in middleware)
 os.environ["MYGARAGE_TEST_MODE"] = "true"
@@ -14,6 +17,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from app.config import settings
 from app.database import Base, get_db
 from app.main import app
 from app.models.fuel import FuelRecord
@@ -30,9 +34,7 @@ def skip_test(reason: str) -> NoReturn:
 
 # Test database URL - defaults to SQLite for isolated testing
 # Override with TEST_DATABASE_URL environment variable if needed
-TEST_DATABASE_URL = os.getenv(
-    "TEST_DATABASE_URL", "sqlite+aiosqlite:///./test_mygarage.db"
-)
+TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "sqlite+aiosqlite:///./test_mygarage.db")
 
 
 @pytest_asyncio.fixture(scope="session", loop_scope="session")
@@ -62,17 +64,40 @@ async def init_test_db(test_engine):
 
 
 @pytest_asyncio.fixture
-async def db_session(
-    test_sessionmaker, init_test_db
-) -> AsyncGenerator[AsyncSession]:
+async def db_session(test_sessionmaker, init_test_db) -> AsyncGenerator[AsyncSession]:
     """Provide a database session for tests. Depends on init_test_db to ensure tables exist."""
     async with test_sessionmaker() as session:
         yield session
 
 
+@pytest.fixture(scope="session")
+def test_data_dir():
+    """Create a temporary data directory for file upload tests.
+
+    This fixture is session-scoped to avoid recreating directories for every test.
+    """
+    # Create temp directory structure
+    tmp_dir = Path(tempfile.mkdtemp(prefix="mygarage_test_"))
+    photos_dir = tmp_dir / "photos"
+    documents_dir = tmp_dir / "documents"
+    attachments_dir = tmp_dir / "attachments"
+
+    photos_dir.mkdir(exist_ok=True)
+    documents_dir.mkdir(exist_ok=True)
+    attachments_dir.mkdir(exist_ok=True)
+
+    yield tmp_dir
+
+    # Cleanup after all tests
+    shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
 @pytest_asyncio.fixture
-async def client(db_session) -> AsyncGenerator[AsyncClient]:
+async def client(db_session, test_data_dir: Path) -> AsyncGenerator[AsyncClient]:
     """Provide an async HTTP client for testing API endpoints."""
+    from app.routes import documents as documents_route
+    from app.routes import photos as photos_route
+    from app.services import file_upload_service
 
     # Override the get_db dependency to use our test session
     async def override_get_db():
@@ -80,10 +105,45 @@ async def client(db_session) -> AsyncGenerator[AsyncClient]:
 
     app.dependency_overrides[get_db] = override_get_db
 
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as ac:
+    # Patch settings to use temp directories for file uploads
+    original_data_dir = settings.data_dir
+    original_photos_dir = settings.photos_dir
+    original_documents_dir = settings.documents_dir
+    original_attachments_dir = settings.attachments_dir
+
+    settings.data_dir = test_data_dir
+    settings.photos_dir = test_data_dir / "photos"
+    settings.documents_dir = test_data_dir / "documents"
+    settings.attachments_dir = test_data_dir / "attachments"
+
+    # Also patch the module-level upload configs (they cache settings at import time)
+    original_photo_base_dir = file_upload_service.PHOTO_UPLOAD_CONFIG.base_dir
+    original_document_base_dir = file_upload_service.DOCUMENT_UPLOAD_CONFIG.base_dir
+    original_attachment_base_dir = file_upload_service.ATTACHMENT_UPLOAD_CONFIG.base_dir
+    original_doc_storage_path = documents_route.DOCUMENT_STORAGE_PATH
+    original_photo_dir = photos_route.PHOTO_DIR
+
+    file_upload_service.PHOTO_UPLOAD_CONFIG.base_dir = test_data_dir / "photos"
+    file_upload_service.DOCUMENT_UPLOAD_CONFIG.base_dir = test_data_dir / "documents"
+    file_upload_service.ATTACHMENT_UPLOAD_CONFIG.base_dir = test_data_dir / "attachments"
+    documents_route.DOCUMENT_STORAGE_PATH = test_data_dir / "documents"
+    photos_route.PHOTO_DIR = test_data_dir / "photos"
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         yield ac
+
+    # Restore original settings
+    settings.data_dir = original_data_dir
+    settings.photos_dir = original_photos_dir
+    settings.documents_dir = original_documents_dir
+    settings.attachments_dir = original_attachments_dir
+
+    # Restore module-level configs
+    file_upload_service.PHOTO_UPLOAD_CONFIG.base_dir = original_photo_base_dir
+    file_upload_service.DOCUMENT_UPLOAD_CONFIG.base_dir = original_document_base_dir
+    file_upload_service.ATTACHMENT_UPLOAD_CONFIG.base_dir = original_attachment_base_dir
+    documents_route.DOCUMENT_STORAGE_PATH = original_doc_storage_path
+    photos_route.PHOTO_DIR = original_photo_dir
 
     # Clean up overrides
     app.dependency_overrides.clear()
@@ -100,13 +160,11 @@ async def test_user(db_session: AsyncSession) -> dict[str, object]:
 
     # Pre-computed hash for "testpassword123" using argon2id with same settings as auth.py
     # This avoids calling hash_password() which requires threads (fails in PID-limited containers)
-    TEST_PASSWORD_HASH = "$argon2id$v=19$m=102400,t=2,p=8$NNbLa8SMLODWY2Es68EvLw$hiGLA+DtO213EMAMi8D8gXvvyjP8EVMFIHWp7SlUVnI"
+    test_password_hash = "$argon2id$v=19$m=102400,t=2,p=8$NNbLa8SMLODWY2Es68EvLw$hiGLA+DtO213EMAMi8D8gXvvyjP8EVMFIHWp7SlUVnI"
 
     # Try to get existing test user (check both username and email for conflicts)
     result = await db_session.execute(
-        select(User).where(
-            or_(User.username == "testuser", User.email == "testuser@example.com")
-        )
+        select(User).where(or_(User.username == "testuser", User.email == "testuser@example.com"))
     )
     user = result.scalar_one_or_none()
 
@@ -115,7 +173,7 @@ async def test_user(db_session: AsyncSession) -> dict[str, object]:
         user = User(
             username="testuser",
             email="testuser@example.com",
-            hashed_password=TEST_PASSWORD_HASH,
+            hashed_password=test_password_hash,
             is_active=True,
             is_admin=True,
         )
@@ -143,9 +201,7 @@ async def test_user(db_session: AsyncSession) -> dict[str, object]:
 
 
 @pytest_asyncio.fixture
-async def test_vehicle(
-    db_session: AsyncSession, test_user: dict[str, object]
-) -> dict[str, object]:
+async def test_vehicle(db_session: AsyncSession, test_user: dict[str, object]) -> dict[str, object]:
     """Create or get a test vehicle. Returns dict for easy test access."""
     user_id = test_user["id"]
     test_vin = "1HGBH41JXMN109186"
@@ -188,9 +244,7 @@ async def vehicle_with_service_records(
     """Get a vehicle that has service records."""
     user_id = test_user["id"]
     # Find a vehicle with service records
-    result = await db_session.execute(
-        select(Vehicle).where(Vehicle.user_id == user_id).limit(10)
-    )
+    result = await db_session.execute(select(Vehicle).where(Vehicle.user_id == user_id).limit(10))
     vehicles = result.scalars().all()
 
     for vehicle in vehicles:
@@ -201,9 +255,7 @@ async def vehicle_with_service_records(
             return vehicle
 
     # skip_test() never returns - it raises Skipped exception
-    skip_test(
-        "No vehicles with service records found. Please add service records first."
-    )
+    skip_test("No vehicles with service records found. Please add service records first.")
 
 
 @pytest_asyncio.fixture
@@ -213,9 +265,7 @@ async def vehicle_with_fuel_records(
     """Get a vehicle that has fuel records."""
     user_id = test_user["id"]
     # Find a vehicle with fuel records
-    result = await db_session.execute(
-        select(Vehicle).where(Vehicle.user_id == user_id).limit(10)
-    )
+    result = await db_session.execute(select(Vehicle).where(Vehicle.user_id == user_id).limit(10))
     vehicles = result.scalars().all()
 
     for vehicle in vehicles:
@@ -236,9 +286,7 @@ async def vehicle_with_analytics_data(
     """Get a vehicle that has sufficient data for analytics (service + fuel records)."""
     user_id = test_user["id"]
     # Find a vehicle with both service and fuel records
-    result = await db_session.execute(
-        select(Vehicle).where(Vehicle.user_id == user_id).limit(10)
-    )
+    result = await db_session.execute(select(Vehicle).where(Vehicle.user_id == user_id).limit(10))
     vehicles = result.scalars().all()
 
     for vehicle in vehicles:
@@ -253,9 +301,7 @@ async def vehicle_with_analytics_data(
             return vehicle
 
     # skip_test() never returns - it raises Skipped exception
-    skip_test(
-        "No vehicles with both service and fuel records found. Please add more data first."
-    )
+    skip_test("No vehicles with both service and fuel records found. Please add more data first.")
 
 
 @pytest.fixture

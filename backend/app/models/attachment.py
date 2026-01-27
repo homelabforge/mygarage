@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Attachment database model."""
 
 from datetime import datetime

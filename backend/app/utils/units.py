@@ -18,10 +18,9 @@ Supported conversions:
 """
 
 from decimal import Decimal
-from typing import Union
 
 # Type alias for numeric values
-Numeric = Union[int, float, Decimal, None]
+Numeric = int | float | Decimal | None
 
 
 class UnitConverter:

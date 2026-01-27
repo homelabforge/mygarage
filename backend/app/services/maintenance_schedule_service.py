@@ -144,9 +144,7 @@ class MaintenanceScheduleService:
                 sanitize_for_log(vin),
                 sanitize_for_log(e),
             )
-            raise HTTPException(
-                status_code=503, detail="Database temporarily unavailable"
-            )
+            raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
     async def get_schedule_item(
         self, vin: str, item_id: int, current_user: User
@@ -178,9 +176,7 @@ class MaintenanceScheduleService:
         item = result.scalar_one_or_none()
 
         if not item:
-            raise HTTPException(
-                status_code=404, detail=f"Schedule item {item_id} not found"
-            )
+            raise HTTPException(status_code=404, detail=f"Schedule item {item_id} not found")
 
         return item
 
@@ -245,9 +241,7 @@ class MaintenanceScheduleService:
                 sanitize_for_log(vin),
                 sanitize_for_log(e),
             )
-            raise HTTPException(
-                status_code=503, detail="Database temporarily unavailable"
-            )
+            raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
     async def update_schedule_item(
         self,
@@ -283,9 +277,7 @@ class MaintenanceScheduleService:
             await self.db.commit()
             await self.db.refresh(item)
 
-            logger.info(
-                "Updated schedule item %s for %s", item_id, sanitize_for_log(vin)
-            )
+            logger.info("Updated schedule item %s for %s", item_id, sanitize_for_log(vin))
             return item
 
         except HTTPException:
@@ -305,13 +297,9 @@ class MaintenanceScheduleService:
                 item_id,
                 sanitize_for_log(e),
             )
-            raise HTTPException(
-                status_code=503, detail="Database temporarily unavailable"
-            )
+            raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
-    async def delete_schedule_item(
-        self, vin: str, item_id: int, current_user: User
-    ) -> None:
+    async def delete_schedule_item(self, vin: str, item_id: int, current_user: User) -> None:
         """
         Delete a schedule item.
 
@@ -331,9 +319,7 @@ class MaintenanceScheduleService:
             await self.db.delete(item)
             await self.db.commit()
 
-            logger.info(
-                "Deleted schedule item %s for %s", item_id, sanitize_for_log(vin)
-            )
+            logger.info("Deleted schedule item %s for %s", item_id, sanitize_for_log(vin))
 
         except HTTPException:
             raise
@@ -344,9 +330,7 @@ class MaintenanceScheduleService:
                 item_id,
                 sanitize_for_log(e),
             )
-            raise HTTPException(
-                status_code=409, detail="Cannot delete item with dependent data"
-            )
+            raise HTTPException(status_code=409, detail="Cannot delete item with dependent data")
         except OperationalError as e:
             await self.db.rollback()
             logger.error(
@@ -354,9 +338,7 @@ class MaintenanceScheduleService:
                 item_id,
                 sanitize_for_log(e),
             )
-            raise HTTPException(
-                status_code=503, detail="Database temporarily unavailable"
-            )
+            raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
     async def apply_template(
         self, vin: str, request: ApplyTemplateRequest, current_user: User
@@ -454,9 +436,7 @@ class MaintenanceScheduleService:
                 sanitize_for_log(vin),
                 sanitize_for_log(e),
             )
-            raise HTTPException(
-                status_code=503, detail="Database temporarily unavailable"
-            )
+            raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
     async def _get_current_mileage(self, vin: str) -> int | None:
         """Get the most recent mileage reading for a vehicle."""

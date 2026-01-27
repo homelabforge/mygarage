@@ -71,9 +71,7 @@ async def search_nearby_shops(
 
     except Exception as e:
         logger.error("Shop search failed: %s", str(e))
-        raise HTTPException(
-            status_code=500, detail=f"Failed to search for shops: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to search for shops: {str(e)}")
 
 
 @router.post("/save", response_model=AddressBookEntryResponse, status_code=201)
@@ -187,9 +185,7 @@ async def increment_shop_usage(
     Raises:
         HTTPException: 404 if shop not found
     """
-    result = await db.execute(
-        select(AddressBookEntry).where(AddressBookEntry.id == shop_id)
-    )
+    result = await db.execute(select(AddressBookEntry).where(AddressBookEntry.id == shop_id))
     shop = result.scalar_one_or_none()
 
     if not shop:
@@ -200,8 +196,6 @@ async def increment_shop_usage(
 
     await db.commit()
 
-    logger.info(
-        "Incremented usage for shop %s (now %d)", shop.business_name, shop.usage_count
-    )
+    logger.info("Incremented usage for shop %s (now %d)", shop.business_name, shop.usage_count)
 
     return None

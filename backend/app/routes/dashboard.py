@@ -27,9 +27,7 @@ PHOTO_DIR = Path("/data/photos")
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
 
 
-async def calculate_vehicle_stats(
-    db: AsyncSession, vehicle: Vehicle
-) -> VehicleStatistics:
+async def calculate_vehicle_stats(db: AsyncSession, vehicle: Vehicle) -> VehicleStatistics:
     """Calculate statistics for a single vehicle"""
 
     # Count records
@@ -48,9 +46,7 @@ async def calculate_vehicle_stats(
     document_count = await db.scalar(
         select(func.count(Document.id)).where(Document.vin == vehicle.vin)
     )
-    note_count = await db.scalar(
-        select(func.count(Note.id)).where(Note.vin == vehicle.vin)
-    )
+    note_count = await db.scalar(select(func.count(Note.id)).where(Note.vin == vehicle.vin))
 
     # Count photos from filesystem
     photo_count = 0
@@ -111,9 +107,7 @@ async def calculate_vehicle_stats(
 
     # Calculate average MPG from fuel records
     fuel_records_result = await db.execute(
-        select(FuelRecord)
-        .where(FuelRecord.vin == vehicle.vin)
-        .order_by(FuelRecord.date.desc())
+        select(FuelRecord).where(FuelRecord.vin == vehicle.vin).order_by(FuelRecord.date.desc())
     )
     fuel_records_list = list(fuel_records_result.scalars().all())
 

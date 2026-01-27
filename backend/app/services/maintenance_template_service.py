@@ -23,9 +23,7 @@ from app.utils.logging_utils import sanitize_for_log
 logger = logging.getLogger(__name__)
 
 # Allowed GitHub hosts for template fetching (SSRF protection)
-ALLOWED_GITHUB_HOSTS = frozenset(
-    ["raw.githubusercontent.com", "github.com", "raw.github.com"]
-)
+ALLOWED_GITHUB_HOSTS = frozenset(["raw.githubusercontent.com", "github.com", "raw.github.com"])
 
 # Regex for valid path components (alphanumeric, hyphens, underscores)
 SAFE_PATH_COMPONENT_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
@@ -58,16 +56,12 @@ class MaintenanceTemplateService:
 
             # Must be an allowed GitHub host
             if parsed.hostname not in ALLOWED_GITHUB_HOSTS:
-                logger.warning(
-                    "Blocked URL with disallowed host: %s", sanitize_for_log(url)
-                )
+                logger.warning("Blocked URL with disallowed host: %s", sanitize_for_log(url))
                 return False
 
             # Path must not contain traversal sequences
             if ".." in parsed.path or "//" in parsed.path:
-                logger.warning(
-                    "Blocked URL with path traversal: %s", sanitize_for_log(url)
-                )
+                logger.warning("Blocked URL with path traversal: %s", sanitize_for_log(url))
                 return False
 
             return True
@@ -171,10 +165,7 @@ class MaintenanceTemplateService:
             return "diesel"
 
         # Gasoline variants
-        if any(
-            keyword in fuel_lower
-            for keyword in ["gas", "gasoline", "petrol", "flex", "e85"]
-        ):
+        if any(keyword in fuel_lower for keyword in ["gas", "gasoline", "petrol", "flex", "e85"]):
             return "gas"
 
         # Electric/Hybrid - no fuel-specific templates yet
@@ -256,9 +247,7 @@ class MaintenanceTemplateService:
 
         # 1. Try with fuel type if provided
         if fuel_type:
-            paths_to_try.append(
-                self._build_template_path(make, model, year, duty_type, fuel_type)
-            )
+            paths_to_try.append(self._build_template_path(make, model, year, duty_type, fuel_type))
 
         # 2. Try without fuel type (fallback for older templates)
         paths_to_try.append(self._build_template_path(make, model, year, duty_type))
@@ -305,13 +294,9 @@ class MaintenanceTemplateService:
 
                 except httpx.HTTPStatusError as e:
                     if e.response.status_code == 404:
-                        logger.info(
-                            "Template not found: %s", sanitize_for_log(template_path)
-                        )
+                        logger.info("Template not found: %s", sanitize_for_log(template_path))
                         continue  # Try next path
-                    logger.error(
-                        "HTTP error fetching template: %s", sanitize_for_log(e)
-                    )
+                    logger.error("HTTP error fetching template: %s", sanitize_for_log(e))
                     continue
                 except yaml.YAMLError as e:
                     logger.error(
@@ -371,9 +356,7 @@ class MaintenanceTemplateService:
         # Extract maintenance items
         maintenance_items = template_data.get("maintenance_items", [])
         if not maintenance_items:
-            logger.warning(
-                "No maintenance items in template %s", sanitize_for_log(template_path)
-            )
+            logger.warning("No maintenance items in template %s", sanitize_for_log(template_path))
             return 0
 
         reminders_created = 0
@@ -398,9 +381,7 @@ class MaintenanceTemplateService:
 
                 # Set due date if interval_months is specified
                 if interval_months:
-                    reminder.due_date = datetime.now().date() + timedelta(
-                        days=interval_months * 30
-                    )
+                    reminder.due_date = datetime.now().date() + timedelta(days=interval_months * 30)
                     reminder.is_recurring = True
                     reminder.recurrence_days = interval_months * 30
 
@@ -443,9 +424,7 @@ class MaintenanceTemplateService:
 
         return reminders_created
 
-    async def get_applied_templates(
-        self, db: AsyncSession, vin: str
-    ) -> list[MaintenanceTemplate]:
+    async def get_applied_templates(self, db: AsyncSession, vin: str) -> list[MaintenanceTemplate]:
         """
         Get all templates that have been applied to a vehicle.
 

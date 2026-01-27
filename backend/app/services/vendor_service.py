@@ -87,12 +87,8 @@ class VendorService:
             return vendor_responses, total
 
         except OperationalError as e:
-            logger.error(
-                "Database connection error listing vendors: %s", sanitize_for_log(e)
-            )
-            raise HTTPException(
-                status_code=503, detail="Database temporarily unavailable"
-            )
+            logger.error("Database connection error listing vendors: %s", sanitize_for_log(e))
+            raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
     async def get_vendor(self, vendor_id: int, current_user: User) -> Vendor:
         """
@@ -116,9 +112,7 @@ class VendorService:
 
         return vendor
 
-    async def create_vendor(
-        self, vendor_data: VendorCreate, current_user: User
-    ) -> Vendor:
+    async def create_vendor(self, vendor_data: VendorCreate, current_user: User) -> Vendor:
         """
         Create a new vendor.
 
@@ -140,27 +134,17 @@ class VendorService:
             await self.db.commit()
             await self.db.refresh(vendor)
 
-            logger.info(
-                "Created vendor %s: %s", vendor.id, sanitize_for_log(vendor.name)
-            )
+            logger.info("Created vendor %s: %s", vendor.id, sanitize_for_log(vendor.name))
             return vendor
 
         except IntegrityError as e:
             await self.db.rollback()
-            logger.error(
-                "Database constraint violation creating vendor: %s", sanitize_for_log(e)
-            )
-            raise HTTPException(
-                status_code=409, detail="Vendor with this name already exists"
-            )
+            logger.error("Database constraint violation creating vendor: %s", sanitize_for_log(e))
+            raise HTTPException(status_code=409, detail="Vendor with this name already exists")
         except OperationalError as e:
             await self.db.rollback()
-            logger.error(
-                "Database connection error creating vendor: %s", sanitize_for_log(e)
-            )
-            raise HTTPException(
-                status_code=503, detail="Database temporarily unavailable"
-            )
+            logger.error("Database connection error creating vendor: %s", sanitize_for_log(e))
+            raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
     async def update_vendor(
         self, vendor_id: int, vendor_data: VendorUpdate, current_user: User
@@ -189,9 +173,7 @@ class VendorService:
             await self.db.commit()
             await self.db.refresh(vendor)
 
-            logger.info(
-                "Updated vendor %s: %s", vendor_id, sanitize_for_log(vendor.name)
-            )
+            logger.info("Updated vendor %s: %s", vendor_id, sanitize_for_log(vendor.name))
             return vendor
 
         except HTTPException:
@@ -203,9 +185,7 @@ class VendorService:
                 vendor_id,
                 sanitize_for_log(e),
             )
-            raise HTTPException(
-                status_code=409, detail="Vendor with this name already exists"
-            )
+            raise HTTPException(status_code=409, detail="Vendor with this name already exists")
         except OperationalError as e:
             await self.db.rollback()
             logger.error(
@@ -213,9 +193,7 @@ class VendorService:
                 vendor_id,
                 sanitize_for_log(e),
             )
-            raise HTTPException(
-                status_code=503, detail="Database temporarily unavailable"
-            )
+            raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
     async def delete_vendor(self, vendor_id: int, current_user: User) -> None:
         """
@@ -256,9 +234,7 @@ class VendorService:
                 vendor_id,
                 sanitize_for_log(e),
             )
-            raise HTTPException(
-                status_code=503, detail="Database temporarily unavailable"
-            )
+            raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
     async def get_price_history(
         self,

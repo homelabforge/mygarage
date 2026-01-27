@@ -161,9 +161,7 @@ async def delete_service_visit(
     return None
 
 
-@router.post(
-    "/{visit_id}/line-items", response_model=ServiceLineItemResponse, status_code=201
-)
+@router.post("/{visit_id}/line-items", response_model=ServiceLineItemResponse, status_code=201)
 async def add_line_item(
     vin: str,
     visit_id: int,

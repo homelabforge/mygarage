@@ -63,9 +63,7 @@ async def list_documents(
 
     # Get documents
     result = await db.execute(
-        select(Document)
-        .where(Document.vin == vin)
-        .order_by(Document.uploaded_at.desc())
+        select(Document).where(Document.vin == vin).order_by(Document.uploaded_at.desc())
     )
     documents = result.scalars().all()
 

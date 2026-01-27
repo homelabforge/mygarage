@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mygarage"
-version = "2.20.2"
+version = "2.20.3"
 description = "Self-hosted vehicle maintenance tracking application"
 requires-python = ">=3.13"
 dependencies = [
@@ -40,9 +40,9 @@ dev = [
     "pytest>=9.0.2",
     "pytest-asyncio>=1.3.0",
     "pytest-cov>=7.0.0",
-    "ruff>=0.14.13",
-    "pandas-stubs>=2.3.3",
-    "types-Pillow>=10.2.0",
+    "ruff>=0.14.14",
+    "pandas-stubs>=2.3.3.260113",
+    "types-Pillow>=10.2.0.20240822",
 ]
 
 [tool.setuptools.packages.find]
@@ -51,7 +51,7 @@ include = ["app*"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py313"
+target-version = "py314"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP"]
@@ -62,6 +62,7 @@ ignore = ["E501"]
 "app/models/*.py" = ["E402"]
 "app/routes/analytics.py" = ["E402"]
 "app/services/window_sticker_parsers/*.py" = ["E402"]
+"app/services/poi/osm.py" = ["N806"]  # Haversine formula uses math notation (R, Δφ, Δλ)
 "tests/*" = ["S101"]
 
 [tool.pyright]
@@ -76,9 +77,8 @@ exclude = [
     "**/.pytest_cache",
     "**/.venv",
     "**/venv",
-    "**/node_modules",
 ]
-pythonVersion = "3.13"
+pythonVersion = "3.14"
 pythonPlatform = "Linux"
 
 # Type Checking Mode: Strict

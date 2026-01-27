@@ -149,9 +149,7 @@ async def get_poi_providers(
                 "is_default": False,
                 "api_key_configured": True,
                 "api_key_masked": (
-                    f"{api_key_setting.value[:8]}***"
-                    if len(api_key_setting.value) > 8
-                    else "***"
+                    f"{api_key_setting.value[:8]}***" if len(api_key_setting.value) > 8 else "***"
                 ),
                 "api_usage": usage_stats["usage"],
                 "api_limit": metadata["api_limit"],
@@ -221,9 +219,7 @@ async def add_poi_provider(
 
     # Validate API key (basic check - just ensure it's not empty if enabling)
     if enabled and not api_key:
-        raise HTTPException(
-            status_code=400, detail="API key is required when enabling provider"
-        )
+        raise HTTPException(status_code=400, detail="API key is required when enabling provider")
 
     # Save provider settings
     await SettingsService.set(db, f"{provider_name}_enabled", str(enabled).lower())
@@ -234,9 +230,7 @@ async def add_poi_provider(
     if not usage_setting:
         await SettingsService.set(db, f"{provider_name}_api_usage", "0")
 
-    logger.info(
-        "Updated POI provider %s (enabled=%s)", sanitize_for_log(provider_name), enabled
-    )
+    logger.info("Updated POI provider %s (enabled=%s)", sanitize_for_log(provider_name), enabled)
 
     # Return updated configuration (with masked key)
     return {
@@ -295,9 +289,7 @@ async def update_poi_provider(
     return {
         "name": provider_name,
         "enabled": enabled if enabled is not None else True,
-        "api_key_masked": f"{api_key[:8]}***"
-        if api_key and len(api_key) > 8
-        else "***",
+        "api_key_masked": f"{api_key[:8]}***" if api_key and len(api_key) > 8 else "***",
     }
 
 
@@ -493,9 +485,7 @@ async def create_setting(
     existing = result.scalar_one_or_none()
 
     if existing:
-        raise HTTPException(
-            status_code=400, detail=f"Setting '{setting.key}' already exists"
-        )
+        raise HTTPException(status_code=400, detail=f"Setting '{setting.key}' already exists")
 
     # Create new setting
     db_setting = Setting(

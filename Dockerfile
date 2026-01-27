@@ -1,11 +1,11 @@
 # ==============================================================================
 # Multi-stage Dockerfile for MyGarage
-# Frontend: Bun 1.3.6 (migrated from Node.js 25 on 2025-12-09)
+# Frontend: Bun 1.3.6
 # Backend: Python 3.14-slim
 # ==============================================================================
 
 # Stage 1: Build frontend with Bun
-FROM oven/bun:1.3.6-alpine AS frontend-builder
+FROM oven/bun:1.3.7-alpine AS frontend-builder
 
 # Set working directory
 WORKDIR /app/frontend
@@ -26,17 +26,6 @@ RUN bun run build
 
 # Verify build output exists (fail fast if build failed)
 RUN test -d dist && test -f dist/index.html
-
-# ==============================================================================
-# ROLLBACK OPTION: Uncomment below to revert to Node.js 25
-# ==============================================================================
-# FROM node:25-alpine AS frontend-builder
-# WORKDIR /app/frontend
-# COPY frontend/package*.json ./
-# RUN npm ci
-# COPY frontend/ ./
-# RUN npm run build
-# ==============================================================================
 
 # Stage 2: Build backend
 FROM python:3.14-slim AS backend-builder

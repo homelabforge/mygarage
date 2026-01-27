@@ -28,9 +28,7 @@ class DocumentParserRegistry:
     ) -> None:
         """Register an insurance parser for a provider."""
         cls._insurance_parsers[provider.lower()] = parser_class
-        logger.debug(
-            "Registered insurance parser for %s: %s", provider, parser_class.__name__
-        )
+        logger.debug("Registered insurance parser for %s: %s", provider, parser_class.__name__)
 
     @classmethod
     def get_insurance_parser(cls, provider: str) -> InsuranceDocumentParser | None:
@@ -69,9 +67,7 @@ class DocumentParserRegistry:
 
             parser = parser_class()
             if parser.can_parse(text):
-                logger.info(
-                    "Auto-detected insurance provider: %s", parser.PROVIDER_NAME
-                )
+                logger.info("Auto-detected insurance provider: %s", parser.PROVIDER_NAME)
                 return parser
 
         # Fall back to generic

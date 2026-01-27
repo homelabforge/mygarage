@@ -17,7 +17,7 @@ class SSRFProtectionError(Exception):
     pass
 
 
-class PendingLinkRequiredException(Exception):
+class PendingLinkRequiredError(Exception):
     """Raised when username-based OIDC linking requires password verification.
 
     This exception is raised during OIDC authentication when:
@@ -49,6 +49,4 @@ class PendingLinkRequiredException(Exception):
         self.claims = claims
         self.userinfo = userinfo
         self.config = config
-        super().__init__(
-            f"Username '{username}' requires password verification for OIDC linking"
-        )
+        super().__init__(f"Username '{username}' requires password verification for OIDC linking")

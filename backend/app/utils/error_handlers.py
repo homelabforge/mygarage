@@ -36,9 +36,7 @@ class SecureErrorResponse:
 
         if request_id:
             content["request_id"] = request_id
-            content["support_message"] = (
-                f"Please contact support with request ID: {request_id}"
-            )
+            content["support_message"] = f"Please contact support with request ID: {request_id}"
 
         return JSONResponse(
             status_code=status_code,
@@ -102,9 +100,7 @@ async def handle_generic_exception(request: Request, exc: Exception) -> JSONResp
     )
 
 
-async def handle_validation_error(
-    request: Request, exc: RequestValidationError
-) -> JSONResponse:
+async def handle_validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
     """Handle validation errors.
 
     Args:

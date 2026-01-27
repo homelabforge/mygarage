@@ -186,12 +186,8 @@ class VehicleAnalytics(BaseModel):
     days_owned: int | None = None
 
     # Fifth Wheel / RV Specific (optional)
-    propane_analysis: dict[str, Any] | None = (
-        None  # For fifth wheels with propane tracking
-    )
-    spot_rental_analysis: dict[str, Any] | None = (
-        None  # For fifth wheels with spot rentals
-    )
+    propane_analysis: dict[str, Any] | None = None  # For fifth wheels with propane tracking
+    spot_rental_analysis: dict[str, Any] | None = None  # For fifth wheels with spot rentals
 
     model_config = {"from_attributes": True}
 

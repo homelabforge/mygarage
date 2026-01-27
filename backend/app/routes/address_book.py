@@ -23,9 +23,7 @@ router = APIRouter(prefix="/api/address-book", tags=["address-book"])
 @router.get("", response_model=AddressBookListResponse)
 async def list_entries(
     db: Annotated[AsyncSession, Depends(get_db)],
-    search: str | None = Query(
-        None, description="Search by name, business name, or city"
-    ),
+    search: str | None = Query(None, description="Search by name, business name, or city"),
     category: str | None = Query(None, description="Filter by category"),
     current_user: User | None = Depends(require_auth),
 ) -> AddressBookListResponse:
@@ -111,9 +109,7 @@ async def get_entry(
     current_user: User | None = Depends(require_auth),
 ) -> AddressBookEntryResponse:
     """Get a specific address book entry."""
-    result = await db.execute(
-        select(AddressBookEntry).where(AddressBookEntry.id == entry_id)
-    )
+    result = await db.execute(select(AddressBookEntry).where(AddressBookEntry.id == entry_id))
     entry = result.scalar_one_or_none()
     if not entry:
         raise HTTPException(status_code=404, detail="Address book entry not found")
@@ -130,9 +126,7 @@ async def update_entry(
 ) -> AddressBookEntryResponse:
     """Update an address book entry."""
     # Get entry
-    result = await db.execute(
-        select(AddressBookEntry).where(AddressBookEntry.id == entry_id)
-    )
+    result = await db.execute(select(AddressBookEntry).where(AddressBookEntry.id == entry_id))
     entry = result.scalar_one_or_none()
     if not entry:
         raise HTTPException(status_code=404, detail="Address book entry not found")
@@ -175,9 +169,7 @@ async def delete_entry(
 ) -> None:
     """Delete an address book entry."""
     # Verify entry exists
-    result = await db.execute(
-        select(AddressBookEntry).where(AddressBookEntry.id == entry_id)
-    )
+    result = await db.execute(select(AddressBookEntry).where(AddressBookEntry.id == entry_id))
     entry = result.scalar_one_or_none()
     if not entry:
         raise HTTPException(status_code=404, detail="Address book entry not found")

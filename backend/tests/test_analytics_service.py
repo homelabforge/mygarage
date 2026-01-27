@@ -40,8 +40,11 @@ class TestAnalyticsService:
 
     def test_calculate_rolling_averages(self):
         """Test rolling average calculations."""
+        # Create DataFrame with year/month columns (required by calculate_rolling_averages)
         df = pd.DataFrame(
             {
+                "year": [2024] * 12 + [2025],
+                "month": list(range(1, 13)) + [1],
                 "total_cost": [
                     100,
                     200,
@@ -56,7 +59,7 @@ class TestAnalyticsService:
                     1100,
                     1200,
                     1300,
-                ]
+                ],
             }
         )
 
@@ -75,7 +78,7 @@ class TestAnalyticsService:
 
     def test_calculate_rolling_averages_insufficient_data(self):
         """Test rolling averages with insufficient data."""
-        df = pd.DataFrame({"total_cost": [100, 200]})
+        df = pd.DataFrame({"year": [2024, 2024], "month": [1, 2], "total_cost": [100, 200]})
 
         rolling_avgs = analytics_service.calculate_rolling_averages(df)
 
@@ -115,12 +118,15 @@ class TestAnalyticsService:
 
     def test_calculate_monthly_aggregation(self):
         """Test monthly cost aggregation."""
-        # Create sample data
+        # Create sample data with proper alignment:
+        # - January 2024: 31 days (service)
+        # - February 2024: 29 days (fuel) - leap year
+        # - March 2024: 31 days (service)
         dates = pd.date_range(start="2024-01-01", end="2024-03-31", freq="D")
         df = pd.DataFrame(
             {
                 "date": dates,
-                "type": ["service"] * 30 + ["fuel"] * 30 + ["service"] * 31,
+                "type": ["service"] * 31 + ["fuel"] * 29 + ["service"] * 31,
                 "cost": [100.0] * len(dates),
             }
         )
@@ -140,9 +146,9 @@ class TestAnalyticsService:
         assert "service_count" in monthly_df.columns
         assert "fuel_count" in monthly_df.columns
 
-        # January should have 30 service records
+        # January should have 31 service records and no fuel
         jan_row = monthly_df[monthly_df["month"] == 1].iloc[0]
-        assert jan_row["service_count"] == 30
+        assert jan_row["service_count"] == 31
         assert jan_row["fuel_count"] == 0
 
     def test_records_to_dataframe_empty(self):

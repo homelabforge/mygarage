@@ -137,9 +137,7 @@ def upgrade():
         print(f"  Created tables: {', '.join(tables)}")
         print("\nSecurity improvements:")
         print("  • CSRF protection: State-changing operations now require CSRF tokens")
-        print(
-            "  • OIDC reliability: Authentication state persists across workers/restarts"
-        )
+        print("  • OIDC reliability: Authentication state persists across workers/restarts")
         print("\nNext steps:")
         print("  1. Frontend will automatically receive CSRF tokens on login")
         print("  2. OIDC flows will work reliably in multi-worker deployments")

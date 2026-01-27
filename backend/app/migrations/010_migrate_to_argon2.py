@@ -63,14 +63,10 @@ def upgrade():
             if total == 0:
                 print("\n  ✓ No users found - migration tracking complete")
             elif bcrypt > 0:
-                print(
-                    f"\n  → {bcrypt} user(s) will auto-migrate to Argon2 on next login"
-                )
+                print(f"\n  → {bcrypt} user(s) will auto-migrate to Argon2 on next login")
             else:
                 print("\n  ✓ All passwords migrated to Argon2")
-                print(
-                    "  Note: You can remove 'bcrypt' from pyproject.toml dependencies"
-                )
+                print("  Note: You can remove 'bcrypt' from pyproject.toml dependencies")
         else:
             print("✓ No users found - migration tracking complete")
 

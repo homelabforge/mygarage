@@ -79,9 +79,7 @@ class ServiceVisitService:
 
             # Get total count
             count_result = await self.db.execute(
-                select(func.count())
-                .select_from(ServiceVisit)
-                .where(ServiceVisit.vin == vin)
+                select(func.count()).select_from(ServiceVisit).where(ServiceVisit.vin == vin)
             )
             total = count_result.scalar() or 0
 
@@ -96,13 +94,9 @@ class ServiceVisitService:
                 sanitize_for_log(vin),
                 sanitize_for_log(e),
             )
-            raise HTTPException(
-                status_code=503, detail="Database temporarily unavailable"
-            )
+            raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
-    async def get_service_visit(
-        self, vin: str, visit_id: int, current_user: User
-    ) -> ServiceVisit:
+    async def get_service_visit(self, vin: str, visit_id: int, current_user: User) -> ServiceVisit:
         """
         Get a specific service visit by ID.
 
@@ -132,9 +126,7 @@ class ServiceVisitService:
         visit = result.scalar_one_or_none()
 
         if not visit:
-            raise HTTPException(
-                status_code=404, detail=f"Service visit {visit_id} not found"
-            )
+            raise HTTPException(status_code=404, detail=f"Service visit {visit_id} not found")
 
         return visit
 
@@ -205,11 +197,7 @@ class ServiceVisitService:
                     )
 
                 # Record price history if vendor and schedule item
-                if (
-                    visit_data.vendor_id
-                    and item_data.schedule_item_id
-                    and item_data.cost
-                ):
+                if visit_data.vendor_id and item_data.schedule_item_id and item_data.cost:
                     await self._record_price_history(
                         visit_data.vendor_id,
                         item_data.schedule_item_id,
@@ -221,9 +209,7 @@ class ServiceVisitService:
             await self.db.commit()
             await self.db.refresh(visit)
 
-            logger.info(
-                "Created service visit %s for %s", visit.id, sanitize_for_log(vin)
-            )
+            logger.info("Created service visit %s for %s", visit.id, sanitize_for_log(vin))
 
             # Auto-sync odometer
             if visit.date and visit.mileage:
@@ -265,9 +251,7 @@ class ServiceVisitService:
                 sanitize_for_log(vin),
                 sanitize_for_log(e),
             )
-            raise HTTPException(
-                status_code=503, detail="Database temporarily unavailable"
-            )
+            raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
     async def update_service_visit(
         self,
@@ -324,18 +308,14 @@ class ServiceVisitService:
                         inspection_result=item_data.get("inspection_result"),
                         inspection_severity=item_data.get("inspection_severity"),
                         schedule_item_id=item_data.get("schedule_item_id"),
-                        triggered_by_inspection_id=item_data.get(
-                            "triggered_by_inspection_id"
-                        ),
+                        triggered_by_inspection_id=item_data.get("triggered_by_inspection_id"),
                     )
                     self.db.add(line_item)
 
             await self.db.commit()
             await self.db.refresh(visit)
 
-            logger.info(
-                "Updated service visit %s for %s", visit_id, sanitize_for_log(vin)
-            )
+            logger.info("Updated service visit %s for %s", visit_id, sanitize_for_log(vin))
 
             # Auto-sync odometer
             if visit.date and visit.mileage:
@@ -377,13 +357,9 @@ class ServiceVisitService:
                 sanitize_for_log(vin),
                 sanitize_for_log(e),
             )
-            raise HTTPException(
-                status_code=503, detail="Database temporarily unavailable"
-            )
+            raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
-    async def delete_service_visit(
-        self, vin: str, visit_id: int, current_user: User
-    ) -> None:
+    async def delete_service_visit(self, vin: str, visit_id: int, current_user: User) -> None:
         """
         Delete a service visit.
 
@@ -406,9 +382,7 @@ class ServiceVisitService:
             await self.db.delete(visit)
             await self.db.commit()
 
-            logger.info(
-                "Deleted service visit %s for %s", visit_id, sanitize_for_log(vin)
-            )
+            logger.info("Deleted service visit %s for %s", visit_id, sanitize_for_log(vin))
             await invalidate_cache_for_vehicle(vin)
 
         except HTTPException:
@@ -421,9 +395,7 @@ class ServiceVisitService:
                 sanitize_for_log(vin),
                 sanitize_for_log(e),
             )
-            raise HTTPException(
-                status_code=409, detail="Cannot delete visit with dependent data"
-            )
+            raise HTTPException(status_code=409, detail="Cannot delete visit with dependent data")
         except OperationalError as e:
             await self.db.rollback()
             logger.error(
@@ -432,9 +404,7 @@ class ServiceVisitService:
                 sanitize_for_log(vin),
                 sanitize_for_log(e),
             )
-            raise HTTPException(
-                status_code=503, detail="Database temporarily unavailable"
-            )
+            raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
     async def add_line_item(
         self,
@@ -526,9 +496,7 @@ class ServiceVisitService:
                 visit_id,
                 sanitize_for_log(e),
             )
-            raise HTTPException(
-                status_code=503, detail="Database temporarily unavailable"
-            )
+            raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
     async def delete_line_item(
         self, vin: str, visit_id: int, line_item_id: int, current_user: User
@@ -558,9 +526,7 @@ class ServiceVisitService:
             line_item = result.scalar_one_or_none()
 
             if not line_item:
-                raise HTTPException(
-                    status_code=404, detail=f"Line item {line_item_id} not found"
-                )
+                raise HTTPException(status_code=404, detail=f"Line item {line_item_id} not found")
 
             await self.db.delete(line_item)
             await self.db.commit()
@@ -582,9 +548,7 @@ class ServiceVisitService:
                 line_item_id,
                 sanitize_for_log(e),
             )
-            raise HTTPException(
-                status_code=503, detail="Database temporarily unavailable"
-            )
+            raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
     async def _update_schedule_item(
         self,
@@ -595,9 +559,7 @@ class ServiceVisitService:
     ) -> None:
         """Update a maintenance schedule item with service completion."""
         result = await self.db.execute(
-            select(MaintenanceScheduleItem).where(
-                MaintenanceScheduleItem.id == schedule_item_id
-            )
+            select(MaintenanceScheduleItem).where(MaintenanceScheduleItem.id == schedule_item_id)
         )
         schedule_item = result.scalar_one_or_none()
 

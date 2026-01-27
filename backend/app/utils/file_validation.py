@@ -41,9 +41,7 @@ MAGIC_BYTES = {
 }
 
 
-def verify_file_content_type(
-    file_content: bytes, declared_mime: str, max_read: int = 16
-) -> bool:
+def verify_file_content_type(file_content: bytes, declared_mime: str, max_read: int = 16) -> bool:
     """Verify file content matches declared MIME type using magic bytes.
 
     Args:
@@ -118,9 +116,7 @@ def validate_file_magic_bytes(
             logger.error("Magic byte validation failed for %s: %s", filename, error_msg)
             return False, error_msg
         else:
-            logger.warning(
-                "Magic byte validation warning for %s: %s", filename, error_msg
-            )
+            logger.warning("Magic byte validation warning for %s: %s", filename, error_msg)
             # In non-strict mode, just warn but allow
             return True, None
 
@@ -163,9 +159,7 @@ async def validate_csv_upload(file: UploadFile, max_size: int = None) -> str:
     try:
         csv_data = contents.decode("utf-8")
     except UnicodeDecodeError:
-        raise HTTPException(
-            status_code=400, detail="Invalid file encoding. Expected UTF-8."
-        )
+        raise HTTPException(status_code=400, detail="Invalid file encoding. Expected UTF-8.")
 
     # Validate it's actually CSV format
     try:
@@ -294,9 +288,7 @@ async def validate_document_upload(
             strict=False,  # Non-strict: warn but allow
         )
         if not is_valid:
-            logger.warning(
-                "Document upload magic byte validation failed: %s", error_msg
-            )
+            logger.warning("Document upload magic byte validation failed: %s", error_msg)
 
     return contents
 
@@ -349,8 +341,6 @@ async def validate_attachment_upload(
             strict=False,  # Non-strict: warn but allow
         )
         if not is_valid:
-            logger.warning(
-                "Attachment upload magic byte validation failed: %s", error_msg
-            )
+            logger.warning("Attachment upload magic byte validation failed: %s", error_msg)
 
     return contents

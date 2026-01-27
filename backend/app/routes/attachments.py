@@ -51,14 +51,10 @@ async def upload_service_attachment(
     """
     try:
         # Verify service record exists
-        result = await db.execute(
-            select(ServiceRecord).where(ServiceRecord.id == record_id)
-        )
+        result = await db.execute(select(ServiceRecord).where(ServiceRecord.id == record_id))
         service_record = result.scalar_one_or_none()
         if not service_record:
-            raise HTTPException(
-                status_code=404, detail=f"Service record {record_id} not found"
-            )
+            raise HTTPException(status_code=404, detail=f"Service record {record_id} not found")
 
         # Upload using shared service
         upload_result = await FileUploadService.upload_file(
@@ -78,9 +74,7 @@ async def upload_service_attachment(
         await db.commit()
         await db.refresh(attachment)
 
-        logger.info(
-            "Uploaded attachment %s for service record %s", attachment.id, record_id
-        )
+        logger.info("Uploaded attachment %s for service record %s", attachment.id, record_id)
 
         return AttachmentResponse(
             id=attachment.id,
@@ -112,9 +106,7 @@ async def upload_service_attachment(
         raise HTTPException(status_code=503, detail="Database temporarily unavailable")
     except OSError as e:
         await db.rollback()
-        logger.error(
-            "File system error uploading attachment: %s", sanitize_for_log(str(e))
-        )
+        logger.error("File system error uploading attachment: %s", sanitize_for_log(str(e)))
         raise HTTPException(status_code=500, detail="Failed to save attachment file")
 
 
@@ -127,14 +119,10 @@ async def list_service_attachments(
     """Get all attachments for a service record."""
     try:
         # Verify service record exists
-        result = await db.execute(
-            select(ServiceRecord).where(ServiceRecord.id == record_id)
-        )
+        result = await db.execute(select(ServiceRecord).where(ServiceRecord.id == record_id))
         service_record = result.scalar_one_or_none()
         if not service_record:
-            raise HTTPException(
-                status_code=404, detail=f"Service record {record_id} not found"
-            )
+            raise HTTPException(status_code=404, detail=f"Service record {record_id} not found")
 
         # Get attachments
         result = await db.execute(
@@ -179,9 +167,7 @@ async def list_service_attachments(
                 )
             )
 
-        return AttachmentListResponse(
-            attachments=attachment_responses, total=total or 0
-        )
+        return AttachmentListResponse(attachments=attachment_responses, total=total or 0)
 
     except HTTPException:
         raise
@@ -202,9 +188,7 @@ async def view_attachment(
     """View an attachment file inline (for preview)."""
     try:
         # Get attachment
-        result = await db.execute(
-            select(Attachment).where(Attachment.id == attachment_id)
-        )
+        result = await db.execute(select(Attachment).where(Attachment.id == attachment_id))
         attachment = result.scalar_one_or_none()
         if not attachment:
             raise HTTPException(status_code=404, detail="Attachment not found")
@@ -216,9 +200,7 @@ async def view_attachment(
                 "Attachment file not found: %s",
                 sanitize_for_log(str(attachment.file_path)),
             )
-            raise HTTPException(
-                status_code=404, detail="Attachment file not found on disk"
-            )
+            raise HTTPException(status_code=404, detail="Attachment file not found on disk")
 
         # Return file for inline viewing (no Content-Disposition header)
         return FileResponse(
@@ -231,14 +213,10 @@ async def view_attachment(
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Attachment file not found")
     except PermissionError as e:
-        logger.error(
-            "Permission denied viewing attachment: %s", sanitize_for_log(str(e))
-        )
+        logger.error("Permission denied viewing attachment: %s", sanitize_for_log(str(e)))
         raise HTTPException(status_code=403, detail="Permission denied")
     except OSError as e:
-        logger.error(
-            "File system error viewing attachment: %s", sanitize_for_log(str(e))
-        )
+        logger.error("File system error viewing attachment: %s", sanitize_for_log(str(e)))
         raise HTTPException(status_code=500, detail="Error reading attachment file")
 
 
@@ -251,9 +229,7 @@ async def download_attachment(
     """Download an attachment file."""
     try:
         # Get attachment
-        result = await db.execute(
-            select(Attachment).where(Attachment.id == attachment_id)
-        )
+        result = await db.execute(select(Attachment).where(Attachment.id == attachment_id))
         attachment = result.scalar_one_or_none()
         if not attachment:
             raise HTTPException(status_code=404, detail="Attachment not found")
@@ -265,9 +241,7 @@ async def download_attachment(
                 "Attachment file not found: %s",
                 sanitize_for_log(str(attachment.file_path)),
             )
-            raise HTTPException(
-                status_code=404, detail="Attachment file not found on disk"
-            )
+            raise HTTPException(status_code=404, detail="Attachment file not found on disk")
 
         # Extract original filename
         filename = file_path.name
@@ -288,14 +262,10 @@ async def download_attachment(
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Attachment file not found")
     except PermissionError as e:
-        logger.error(
-            "Permission denied downloading attachment: %s", sanitize_for_log(str(e))
-        )
+        logger.error("Permission denied downloading attachment: %s", sanitize_for_log(str(e)))
         raise HTTPException(status_code=403, detail="Permission denied")
     except OSError as e:
-        logger.error(
-            "File system error downloading attachment: %s", sanitize_for_log(str(e))
-        )
+        logger.error("File system error downloading attachment: %s", sanitize_for_log(str(e)))
         raise HTTPException(status_code=500, detail="Error reading attachment file")
 
 
@@ -308,9 +278,7 @@ async def delete_attachment(
     """Delete an attachment."""
     try:
         # Get attachment
-        result = await db.execute(
-            select(Attachment).where(Attachment.id == attachment_id)
-        )
+        result = await db.execute(select(Attachment).where(Attachment.id == attachment_id))
         attachment = result.scalar_one_or_none()
         if not attachment:
             raise HTTPException(status_code=404, detail="Attachment not found")
@@ -339,9 +307,7 @@ async def delete_attachment(
         raise HTTPException(status_code=503, detail="Database temporarily unavailable")
     except OSError as e:
         await db.rollback()
-        logger.error(
-            "File system error deleting attachment: %s", sanitize_for_log(str(e))
-        )
+        logger.error("File system error deleting attachment: %s", sanitize_for_log(str(e)))
         raise HTTPException(status_code=500, detail="Error deleting attachment file")
 
 
@@ -369,14 +335,10 @@ async def upload_service_visit_attachment(
     """
     try:
         # Verify service visit exists
-        result = await db.execute(
-            select(ServiceVisit).where(ServiceVisit.id == visit_id)
-        )
+        result = await db.execute(select(ServiceVisit).where(ServiceVisit.id == visit_id))
         service_visit = result.scalar_one_or_none()
         if not service_visit:
-            raise HTTPException(
-                status_code=404, detail=f"Service visit {visit_id} not found"
-            )
+            raise HTTPException(status_code=404, detail=f"Service visit {visit_id} not found")
 
         # Upload using shared service
         upload_result = await FileUploadService.upload_file(
@@ -396,9 +358,7 @@ async def upload_service_visit_attachment(
         await db.commit()
         await db.refresh(attachment)
 
-        logger.info(
-            "Uploaded attachment %s for service visit %s", attachment.id, visit_id
-        )
+        logger.info("Uploaded attachment %s for service visit %s", attachment.id, visit_id)
 
         return AttachmentResponse(
             id=attachment.id,
@@ -430,15 +390,11 @@ async def upload_service_visit_attachment(
         raise HTTPException(status_code=503, detail="Database temporarily unavailable")
     except OSError as e:
         await db.rollback()
-        logger.error(
-            "File system error uploading attachment: %s", sanitize_for_log(str(e))
-        )
+        logger.error("File system error uploading attachment: %s", sanitize_for_log(str(e)))
         raise HTTPException(status_code=500, detail="Failed to save attachment file")
 
 
-@router.get(
-    "/service-visits/{visit_id}/attachments", response_model=AttachmentListResponse
-)
+@router.get("/service-visits/{visit_id}/attachments", response_model=AttachmentListResponse)
 async def list_service_visit_attachments(
     visit_id: int,
     db: AsyncSession = Depends(get_db),
@@ -447,14 +403,10 @@ async def list_service_visit_attachments(
     """Get all attachments for a service visit."""
     try:
         # Verify service visit exists
-        result = await db.execute(
-            select(ServiceVisit).where(ServiceVisit.id == visit_id)
-        )
+        result = await db.execute(select(ServiceVisit).where(ServiceVisit.id == visit_id))
         service_visit = result.scalar_one_or_none()
         if not service_visit:
-            raise HTTPException(
-                status_code=404, detail=f"Service visit {visit_id} not found"
-            )
+            raise HTTPException(status_code=404, detail=f"Service visit {visit_id} not found")
 
         # Get attachments
         result = await db.execute(
@@ -499,9 +451,7 @@ async def list_service_visit_attachments(
                 )
             )
 
-        return AttachmentListResponse(
-            attachments=attachment_responses, total=total or 0
-        )
+        return AttachmentListResponse(attachments=attachment_responses, total=total or 0)
 
     except HTTPException:
         raise

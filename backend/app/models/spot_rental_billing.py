@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Spot rental billing database model."""
 
 from datetime import date, datetime
@@ -38,9 +40,7 @@ class SpotRentalBilling(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     # Relationships
-    spot_rental: Mapped["SpotRental"] = relationship(
-        "SpotRental", back_populates="billings"
-    )
+    spot_rental: Mapped[SpotRental] = relationship("SpotRental", back_populates="billings")
 
     __table_args__ = (
         Index("idx_spot_rental_billings_rental_id", "spot_rental_id"),

@@ -77,14 +77,10 @@ async def create_billing(
 
     # Validate billing date is within rental period
     if billing_data.billing_date < rental.check_in_date:
-        raise HTTPException(
-            status_code=400, detail="Billing date cannot be before check-in date"
-        )
+        raise HTTPException(status_code=400, detail="Billing date cannot be before check-in date")
 
     if rental.check_out_date and billing_data.billing_date > rental.check_out_date:
-        raise HTTPException(
-            status_code=400, detail="Billing date cannot be after check-out date"
-        )
+        raise HTTPException(status_code=400, detail="Billing date cannot be after check-out date")
 
     # Create billing entry
     billing = SpotRentalBilling(

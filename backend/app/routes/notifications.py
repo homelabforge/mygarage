@@ -342,9 +342,7 @@ async def test_email_connection(
         msg["From"] = from_address
         msg["To"] = to_address
 
-        text_content = (
-            "MyGarage Test Notification\n\nThis is a test notification from MyGarage."
-        )
+        text_content = "MyGarage Test Notification\n\nThis is a test notification from MyGarage."
         html_content = """
         <html>
         <body style="font-family: Arial, sans-serif;">

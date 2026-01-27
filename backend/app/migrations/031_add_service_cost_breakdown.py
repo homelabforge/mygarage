@@ -28,9 +28,7 @@ def upgrade():
     with engine.begin() as conn:
         # Check if service_visits table exists
         result = conn.execute(
-            text(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name='service_visits'"
-            )
+            text("SELECT name FROM sqlite_master WHERE type='table' AND name='service_visits'")
         )
         if not result.fetchone():
             print("  service_visits table does not exist, skipping")
@@ -50,9 +48,7 @@ def upgrade():
             if col_name in existing_columns:
                 print(f"  Column {col_name} already exists, skipping")
             else:
-                conn.execute(
-                    text(f"ALTER TABLE service_visits ADD COLUMN {col_name} {col_type}")
-                )
+                conn.execute(text(f"ALTER TABLE service_visits ADD COLUMN {col_name} {col_type}"))
                 print(f"  Added column {col_name}")
 
         print("  Migration complete")

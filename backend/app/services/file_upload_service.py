@@ -65,9 +65,7 @@ class FileUploadService:
     """Centralized service for handling file uploads."""
 
     @staticmethod
-    def generate_unique_filename(
-        original_filename: str, include_timestamp: bool = True
-    ) -> str:
+    def generate_unique_filename(original_filename: str, include_timestamp: bool = True) -> str:
         """Generate a unique filename with optional timestamp.
 
         Args:
@@ -137,9 +135,7 @@ class FileUploadService:
         contents = await file.read()
 
         if not contents:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail="File is empty"
-            )
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File is empty")
 
         # Verify magic bytes if configured
         if config.verify_magic_bytes:
@@ -228,9 +224,7 @@ class FileUploadService:
             file_path = destination_dir / filename
 
             # Validate path is within base directory
-            validated_path = validate_path_within_base(
-                file_path, config.base_dir, raise_error=True
-            )
+            validated_path = validate_path_within_base(file_path, config.base_dir, raise_error=True)
 
             # Save file
             with open(validated_path, "wb") as f:
@@ -245,14 +239,10 @@ class FileUploadService:
                 thumbnail_filename = f"{Path(filename).stem}_thumb.jpg"
                 thumbnail_path = thumbnail_dir / thumbnail_filename
 
-                FileUploadService.create_thumbnail(
-                    contents, thumbnail_path, config.thumbnail_size
-                )
+                FileUploadService.create_thumbnail(contents, thumbnail_path, config.thumbnail_size)
 
                 # Validate thumbnail path
-                validate_path_within_base(
-                    thumbnail_path, config.base_dir, raise_error=True
-                )
+                validate_path_within_base(thumbnail_path, config.base_dir, raise_error=True)
 
                 logger.info("Created thumbnail: %s", thumbnail_path)
 

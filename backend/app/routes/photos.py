@@ -70,14 +70,10 @@ async def upload_vehicle_photo(
         )
 
         # Create database record
-        relative_photo_path = str(
-            upload_result.file_path.relative_to(settings.photos_dir)
-        )
+        relative_photo_path = str(upload_result.file_path.relative_to(settings.photos_dir))
         relative_thumb_path = None
         if upload_result.thumbnail_path:
-            relative_thumb_path = str(
-                upload_result.thumbnail_path.relative_to(settings.photos_dir)
-            )
+            relative_thumb_path = str(upload_result.thumbnail_path.relative_to(settings.photos_dir))
 
         photo_record = VehiclePhoto(
             vin=vin,
@@ -273,17 +269,13 @@ async def delete_vehicle_photo(
         )
         photo_record = result.scalar_one_or_none()
 
-        photo_relative = (
-            Path(photo_record.file_path) if photo_record else Path(vin) / safe_filename
-        )
+        photo_relative = Path(photo_record.file_path) if photo_record else Path(vin) / safe_filename
         file_path = PHOTO_DIR / photo_relative
 
         # SECURITY: Validate resolved path is within PHOTO_DIR to prevent path traversal (CWE-22)
         # Defense in depth - filename already sanitized by sanitize_filename()
         try:
-            validated_path = validate_path_within_base(
-                file_path, PHOTO_DIR, raise_error=True
-            )
+            validated_path = validate_path_within_base(file_path, PHOTO_DIR, raise_error=True)
         except ValueError as e:
             logger.warning(
                 "Path validation failed for photo deletion: %s",
@@ -297,9 +289,7 @@ async def delete_vehicle_photo(
 
         # If this is the main photo, clear it (metadata may be missing for legacy uploads)
         relative_string = str(photo_relative)
-        if vehicle.main_photo == relative_string or (
-            photo_record and photo_record.is_main
-        ):
+        if vehicle.main_photo == relative_string or (photo_record and photo_record.is_main):
             vehicle.main_photo = None
 
         # Delete file
@@ -322,9 +312,7 @@ async def delete_vehicle_photo(
                         sanitize_for_log(str(e)),
                     )
 
-            await db.execute(
-                delete(VehiclePhoto).where(VehiclePhoto.id == photo_record.id)
-            )
+            await db.execute(delete(VehiclePhoto).where(VehiclePhoto.id == photo_record.id))
         await db.commit()
 
         logger.info(
@@ -474,9 +462,7 @@ async def update_vehicle_photo_metadata(
         vehicle = await get_vehicle_or_403(vin, current_user, db)
 
         result = await db.execute(
-            select(VehiclePhoto).where(
-                VehiclePhoto.id == photo_id, VehiclePhoto.vin == vin
-            )
+            select(VehiclePhoto).where(VehiclePhoto.id == photo_id, VehiclePhoto.vin == vin)
         )
         photo = result.scalar_one_or_none()
         if not photo:

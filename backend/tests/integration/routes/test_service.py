@@ -67,9 +67,7 @@ class TestServiceRecordRoutes:
         # Cost is serialized as string (Decimal precision)
         assert float(data["cost"]) == 45.99
 
-    async def test_create_service_record(
-        self, client: AsyncClient, auth_headers, test_vehicle
-    ):
+    async def test_create_service_record(self, client: AsyncClient, auth_headers, test_vehicle):
         """Test creating a new service record."""
         # Include VIN in payload as required by API
         payload = {
@@ -214,9 +212,7 @@ class TestServiceRecordRoutes:
         data = response.json()
         assert len(data["records"]) <= 5
 
-    async def test_service_record_with_vehicle_not_found(
-        self, client: AsyncClient, auth_headers
-    ):
+    async def test_service_record_with_vehicle_not_found(self, client: AsyncClient, auth_headers):
         """Test creating service record for non-existent vehicle returns 404."""
         response = await client.post(
             "/api/vehicles/INVALIDVIN1234567/service",

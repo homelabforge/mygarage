@@ -61,12 +61,8 @@ class VehicleService:
             return vehicles, total
 
         except OperationalError as e:
-            logger.error(
-                "Database connection error listing vehicles: %s", sanitize_for_log(e)
-            )
-            raise HTTPException(
-                status_code=503, detail="Database temporarily unavailable"
-            )
+            logger.error("Database connection error listing vehicles: %s", sanitize_for_log(e))
+            raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
     async def get_vehicle(self, vin: str, current_user: User | None) -> Vehicle:
         """
@@ -106,9 +102,7 @@ class VehicleService:
         """
         try:
             # Check if VIN already exists
-            result = await self.db.execute(
-                select(Vehicle).where(Vehicle.vin == vehicle_data.vin)
-            )
+            result = await self.db.execute(select(Vehicle).where(Vehicle.vin == vehicle_data.vin))
             existing = result.scalar_one_or_none()
 
             if existing:
@@ -153,12 +147,8 @@ class VehicleService:
             )
         except OperationalError as e:
             await self.db.rollback()
-            logger.error(
-                "Database connection error creating vehicle: %s", sanitize_for_log(e)
-            )
-            raise HTTPException(
-                status_code=503, detail="Database temporarily unavailable"
-            )
+            logger.error("Database connection error creating vehicle: %s", sanitize_for_log(e))
+            raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
     async def update_vehicle(
         self, vin: str, vehicle_data: VehicleUpdate, current_user: User
@@ -214,9 +204,7 @@ class VehicleService:
                 sanitize_for_log(vin),
                 sanitize_for_log(e),
             )
-            raise HTTPException(
-                status_code=503, detail="Database temporarily unavailable"
-            )
+            raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
     async def delete_vehicle(self, vin: str, current_user: User) -> None:
         """
@@ -262,6 +250,4 @@ class VehicleService:
                 sanitize_for_log(vin),
                 sanitize_for_log(e),
             )
-            raise HTTPException(
-                status_code=503, detail="Database temporarily unavailable"
-            )
+            raise HTTPException(status_code=503, detail="Database temporarily unavailable")

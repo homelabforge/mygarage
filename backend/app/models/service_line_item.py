@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 """Service line item database model."""
 
 from datetime import datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     Boolean,
@@ -44,22 +46,18 @@ class ServiceLineItem(Base):
     inspection_result: Mapped[str | None] = mapped_column(
         String(20)
     )  # passed, failed, needs_attention
-    inspection_severity: Mapped[str | None] = mapped_column(
-        String(10)
-    )  # green, yellow, red
+    inspection_severity: Mapped[str | None] = mapped_column(String(10))  # green, yellow, red
     triggered_by_inspection_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("service_line_items.id")
     )
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     # Relationships
-    visit: Mapped["ServiceVisit"] = relationship(
-        "ServiceVisit", back_populates="line_items"
-    )
-    schedule_item: Mapped[Optional["MaintenanceScheduleItem"]] = relationship(
+    visit: Mapped[ServiceVisit] = relationship("ServiceVisit", back_populates="line_items")
+    schedule_item: Mapped[MaintenanceScheduleItem | None] = relationship(
         "MaintenanceScheduleItem", back_populates="service_line_items"
     )
-    triggered_repairs: Mapped[list["ServiceLineItem"]] = relationship(
+    triggered_repairs: Mapped[list[ServiceLineItem]] = relationship(
         "ServiceLineItem",
         foreign_keys=[triggered_by_inspection_id],
         remote_side=[id],

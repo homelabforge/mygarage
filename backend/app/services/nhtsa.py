@@ -180,11 +180,7 @@ class NHTSAService:
         }
 
         # Clean up None values and empty strings
-        return {
-            k: v
-            for k, v in info.items()
-            if v not in (None, "", "Not Applicable", "N/A")
-        }
+        return {k: v for k, v in info.items() if v not in (None, "", "Not Applicable", "N/A")}
 
     def _parse_int(self, value: str | None) -> int | None:
         """
@@ -203,9 +199,7 @@ class NHTSAService:
         except (ValueError, TypeError):
             return None
 
-    async def get_vehicle_recalls(
-        self, vin: str, db: AsyncSession
-    ) -> list[dict[str, Any]]:
+    async def get_vehicle_recalls(self, vin: str, db: AsyncSession) -> list[dict[str, Any]]:
         """
         Get recalls for a specific VIN from NHTSA.
 
@@ -247,18 +241,14 @@ class NHTSAService:
                 sanitize_for_log(model),
                 year,
             )
-            raise ValueError(
-                "Could not determine vehicle make, model, and year from VIN"
-            )
+            raise ValueError("Could not determine vehicle make, model, and year from VIN")
 
         # Get recalls API URL from settings
         from sqlalchemy import select
 
         from app.models.settings import Setting
 
-        result = await db.execute(
-            select(Setting).where(Setting.key == "nhtsa_recalls_api_url")
-        )
+        result = await db.execute(select(Setting).where(Setting.key == "nhtsa_recalls_api_url"))
         setting = result.scalar_one_or_none()
         recalls_api_base = setting.value if setting else "https://api.nhtsa.gov/recalls"
 
@@ -337,9 +327,7 @@ class NHTSAService:
                 )
                 return []  # Intentional fallback: return empty list on API error
 
-    async def get_vehicle_tsbs(
-        self, vin: str, db: AsyncSession
-    ) -> list[dict[str, Any]]:
+    async def get_vehicle_tsbs(self, vin: str, db: AsyncSession) -> list[dict[str, Any]]:
         """
         Get Technical Service Bulletins (TSBs) for a specific VIN from NHTSA.
 
@@ -380,22 +368,16 @@ class NHTSAService:
                 sanitize_for_log(model),
                 year,
             )
-            raise ValueError(
-                "Could not determine vehicle make, model, and year from VIN"
-            )
+            raise ValueError("Could not determine vehicle make, model, and year from VIN")
 
         # Get TSB API URL from settings (if configured)
         from sqlalchemy import select
 
         from app.models.settings import Setting
 
-        result = await db.execute(
-            select(Setting).where(Setting.key == "nhtsa_tsb_api_url")
-        )
+        result = await db.execute(select(Setting).where(Setting.key == "nhtsa_tsb_api_url"))
         setting = result.scalar_one_or_none()
-        tsb_api_base = (
-            setting.value if setting else "https://api.nhtsa.gov/products/vehicle/tsbs"
-        )
+        tsb_api_base = setting.value if setting else "https://api.nhtsa.gov/products/vehicle/tsbs"
 
         # SECURITY: Validate TSB API base URL against SSRF attacks
         try:

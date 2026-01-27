@@ -41,9 +41,7 @@ class OdometerRecordUpdate(BaseModel):
     notes: str | None = Field(None, description="Additional notes")
 
     model_config = {
-        "json_schema_extra": {
-            "examples": [{"mileage": 45100, "notes": "Corrected reading"}]
-        }
+        "json_schema_extra": {"examples": [{"mileage": 45100, "notes": "Corrected reading"}]}
     }
 
 
@@ -76,9 +74,7 @@ class OdometerRecordListResponse(BaseModel):
 
     records: list[OdometerRecordResponse]
     total: int
-    latest_mileage: int | None = Field(
-        None, description="Most recent odometer reading"
-    )
+    latest_mileage: int | None = Field(None, description="Most recent odometer reading")
 
     model_config = {
         "json_schema_extra": {

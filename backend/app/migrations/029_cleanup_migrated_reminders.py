@@ -23,9 +23,7 @@ def upgrade():
     with engine.begin() as conn:
         # Check if both tables exist
         result = conn.execute(
-            text(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name='reminders'"
-            )
+            text("SELECT name FROM sqlite_master WHERE type='table' AND name='reminders'")
         )
         if not result.fetchone():
             print("  reminders table does not exist, skipping")
@@ -41,9 +39,7 @@ def upgrade():
             return
 
         # Count reminders to be deleted
-        result = conn.execute(
-            text("SELECT COUNT(*) FROM reminders WHERE is_completed = 0")
-        )
+        result = conn.execute(text("SELECT COUNT(*) FROM reminders WHERE is_completed = 0"))
         reminder_count = result.scalar() or 0
 
         if reminder_count == 0:
@@ -55,17 +51,13 @@ def upgrade():
         schedule_count = result.scalar() or 0
 
         if schedule_count == 0:
-            print(
-                "  No schedule items exist - reminders not yet converted, skipping cleanup"
-            )
+            print("  No schedule items exist - reminders not yet converted, skipping cleanup")
             return
 
         print(
             f"  Found {reminder_count} non-completed reminders and {schedule_count} schedule items"
         )
-        print(
-            "  Deleting non-completed reminders that were converted to schedule items..."
-        )
+        print("  Deleting non-completed reminders that were converted to schedule items...")
 
         # Delete non-completed reminders (these were converted in migration 028)
         conn.execute(text("DELETE FROM reminders WHERE is_completed = 0"))

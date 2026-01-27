@@ -57,9 +57,7 @@ class GooglePlacesProvider(BasePOIProvider):
         try:
             validate_google_url(self.base_url)
         except ValueError as e:
-            logger.error(
-                "Invalid Google Places base URL: %s - %s", self.base_url, str(e)
-            )
+            logger.error("Invalid Google Places base URL: %s - %s", self.base_url, str(e))
             raise
 
     async def search(
@@ -85,24 +83,16 @@ class GooglePlacesProvider(BasePOIProvider):
         for category in categories:
             try:
                 if category == POICategory.AUTO_SHOP:
-                    results = await self._search_auto_shops(
-                        latitude, longitude, radius_meters
-                    )
+                    results = await self._search_auto_shops(latitude, longitude, radius_meters)
                     all_results.extend(results)
                 elif category == POICategory.RV_SHOP:
-                    results = await self._search_rv_shops(
-                        latitude, longitude, radius_meters
-                    )
+                    results = await self._search_rv_shops(latitude, longitude, radius_meters)
                     all_results.extend(results)
                 elif category == POICategory.EV_CHARGING:
-                    results = await self._search_ev_charging(
-                        latitude, longitude, radius_meters
-                    )
+                    results = await self._search_ev_charging(latitude, longitude, radius_meters)
                     all_results.extend(results)
                 elif category == POICategory.FUEL_STATION:
-                    results = await self._search_fuel_stations(
-                        latitude, longitude, radius_meters
-                    )
+                    results = await self._search_fuel_stations(latitude, longitude, radius_meters)
                     all_results.extend(results)
             except Exception as e:
                 logger.warning(
@@ -162,9 +152,7 @@ class GooglePlacesProvider(BasePOIProvider):
         }
         return await self._execute_search(params, POICategory.FUEL_STATION)
 
-    async def _execute_search(
-        self, params: dict, category: POICategory
-    ) -> list[dict[str, Any]]:
+    async def _execute_search(self, params: dict, category: POICategory) -> list[dict[str, Any]]:
         """Execute search request to Google Places API."""
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             try:
@@ -180,15 +168,10 @@ class GooglePlacesProvider(BasePOIProvider):
                     return []
 
                 results = data.get("results", [])
-                return [
-                    self.normalize_result(r, category)
-                    for r in results[: self.max_results]
-                ]
+                return [self.normalize_result(r, category) for r in results[: self.max_results]]
 
             except httpx.TimeoutException:
-                logger.error(
-                    "Google Places API timeout for category %s", category.value
-                )
+                logger.error("Google Places API timeout for category %s", category.value)
                 raise
             except httpx.HTTPStatusError as e:
                 logger.error(
@@ -198,9 +181,7 @@ class GooglePlacesProvider(BasePOIProvider):
                 )
                 raise
 
-    def normalize_result(
-        self, raw_result: dict, category: POICategory = None
-    ) -> dict[str, Any]:
+    def normalize_result(self, raw_result: dict, category: POICategory = None) -> dict[str, Any]:
         """Normalize Google Places result to common format.
 
         Args:
@@ -238,17 +219,11 @@ class GooglePlacesProvider(BasePOIProvider):
             "state": None,  # Not provided in basic search
             "zip_code": None,  # Not provided in basic search
             "phone": None,  # Requires Place Details API (separate call)
-            "latitude": Decimal(str(location.get("lat")))
-            if location.get("lat")
-            else None,
-            "longitude": Decimal(str(location.get("lng")))
-            if location.get("lng")
-            else None,
+            "latitude": Decimal(str(location.get("lat"))) if location.get("lat") else None,
+            "longitude": Decimal(str(location.get("lng"))) if location.get("lng") else None,
             "source": "google_places",
             "external_id": raw_result.get("place_id"),
-            "rating": Decimal(str(raw_result.get("rating")))
-            if raw_result.get("rating")
-            else None,
+            "rating": Decimal(str(raw_result.get("rating"))) if raw_result.get("rating") else None,
             "distance_meters": None,  # Not included in response, could calculate
             "website": None,  # Requires Place Details API
             "poi_category": category.value if category else None,

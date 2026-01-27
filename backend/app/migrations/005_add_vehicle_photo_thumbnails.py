@@ -22,9 +22,7 @@ def upgrade():
             print("✓ vehicle_photos.thumbnail_path already exists")
             return
 
-        conn.execute(
-            text("ALTER TABLE vehicle_photos ADD COLUMN thumbnail_path VARCHAR(255)")
-        )
+        conn.execute(text("ALTER TABLE vehicle_photos ADD COLUMN thumbnail_path VARCHAR(255)"))
         print("✓ Added thumbnail_path column to vehicle_photos")
 
 

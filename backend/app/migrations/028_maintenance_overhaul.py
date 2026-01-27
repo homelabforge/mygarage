@@ -77,9 +77,7 @@ def upgrade():
             """)
             )
             conn.execute(
-                text(
-                    "CREATE INDEX idx_maintenance_schedule_vin ON maintenance_schedule_items(vin)"
-                )
+                text("CREATE INDEX idx_maintenance_schedule_vin ON maintenance_schedule_items(vin)")
             )
             conn.execute(
                 text(
@@ -97,9 +95,7 @@ def upgrade():
 
         # 3. Create service_visits table
         result = conn.execute(
-            text(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name='service_visits'"
-            )
+            text("SELECT name FROM sqlite_master WHERE type='table' AND name='service_visits'")
         )
         if not result.fetchone():
             print("Creating service_visits table...")
@@ -122,21 +118,13 @@ def upgrade():
                 )
             """)
             )
+            conn.execute(text("CREATE INDEX idx_service_visits_vin ON service_visits(vin)"))
+            conn.execute(text("CREATE INDEX idx_service_visits_date ON service_visits(date)"))
             conn.execute(
-                text("CREATE INDEX idx_service_visits_vin ON service_visits(vin)")
+                text("CREATE INDEX idx_service_visits_vendor ON service_visits(vendor_id)")
             )
             conn.execute(
-                text("CREATE INDEX idx_service_visits_date ON service_visits(date)")
-            )
-            conn.execute(
-                text(
-                    "CREATE INDEX idx_service_visits_vendor ON service_visits(vendor_id)"
-                )
-            )
-            conn.execute(
-                text(
-                    "CREATE INDEX idx_service_visits_vin_date ON service_visits(vin, date)"
-                )
+                text("CREATE INDEX idx_service_visits_vin_date ON service_visits(vin, date)")
             )
             print("  Created service_visits table")
         else:
@@ -144,9 +132,7 @@ def upgrade():
 
         # 4. Create service_line_items table
         result = conn.execute(
-            text(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name='service_line_items'"
-            )
+            text("SELECT name FROM sqlite_master WHERE type='table' AND name='service_line_items'")
         )
         if not result.fetchone():
             print("Creating service_line_items table...")
@@ -171,9 +157,7 @@ def upgrade():
             """)
             )
             conn.execute(
-                text(
-                    "CREATE INDEX idx_service_line_items_visit ON service_line_items(visit_id)"
-                )
+                text("CREATE INDEX idx_service_line_items_visit ON service_line_items(visit_id)")
             )
             conn.execute(
                 text(
@@ -208,9 +192,7 @@ def upgrade():
             """)
             )
             conn.execute(
-                text(
-                    "CREATE INDEX idx_vendor_price_vendor ON vendor_price_history(vendor_id)"
-                )
+                text("CREATE INDEX idx_vendor_price_vendor ON vendor_price_history(vendor_id)")
             )
             conn.execute(
                 text(
@@ -232,9 +214,7 @@ def upgrade():
 
         # Check if service_records table exists and has data
         result = conn.execute(
-            text(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name='service_records'"
-            )
+            text("SELECT name FROM sqlite_master WHERE type='table' AND name='service_records'")
         )
         if result.fetchone():
             # Check if migration already ran (look for migrated visits)
@@ -371,21 +351,15 @@ def upgrade():
 
                 print(f"    Migrated {migrated} service record(s)")
             else:
-                print(
-                    f"\n  Service records already migrated ({existing_visits} visits exist)"
-                )
+                print(f"\n  Service records already migrated ({existing_visits} visits exist)")
 
         # 2c. Convert reminders to maintenance_schedule_items
         result = conn.execute(
-            text(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name='reminders'"
-            )
+            text("SELECT name FROM sqlite_master WHERE type='table' AND name='reminders'")
         )
         if result.fetchone():
             # Check if schedule items already exist for this vehicle
-            result = conn.execute(
-                text("SELECT COUNT(*) FROM maintenance_schedule_items")
-            )
+            result = conn.execute(text("SELECT COUNT(*) FROM maintenance_schedule_items"))
             existing_items = result.scalar()
 
             if existing_items == 0:
@@ -423,11 +397,7 @@ def upgrade():
                     component_category = categorize_service(description)
 
                     # Determine if inspection
-                    item_type = (
-                        "inspection"
-                        if "inspection" in description.lower()
-                        else "service"
-                    )
+                    item_type = "inspection" if "inspection" in description.lower() else "service"
 
                     conn.execute(
                         text("""
@@ -475,9 +445,7 @@ def categorize_service(description: str) -> str:
         return "Tires"
     if any(w in desc_lower for w in ["battery", "alternator", "electrical", "light"]):
         return "Electrical"
-    if any(
-        w in desc_lower for w in ["ac", "a/c", "heater", "hvac", "climate", "cabin"]
-    ):
+    if any(w in desc_lower for w in ["ac", "a/c", "heater", "hvac", "climate", "cabin"]):
         return "HVAC"
     if any(w in desc_lower for w in ["fluid", "coolant", "antifreeze"]):
         return "Fluids"

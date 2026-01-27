@@ -155,9 +155,7 @@ class TestUserLogin:
         assert response.status_code == 401
         assert "incorrect" in response.json()["detail"].lower()
 
-    async def test_login_inactive_user(
-        self, client: AsyncClient, test_user, db_session
-    ):
+    async def test_login_inactive_user(self, client: AsyncClient, test_user, db_session):
         """Test that inactive users cannot log in."""
         # Deactivate user
         user = await db_session.get(User, test_user["id"])
@@ -175,9 +173,7 @@ class TestUserLogin:
         assert response.status_code == 403
         assert "inactive" in response.json()["detail"].lower()
 
-    async def test_login_updates_last_login(
-        self, client: AsyncClient, test_user, db_session
-    ):
+    async def test_login_updates_last_login(self, client: AsyncClient, test_user, db_session):
         """Test that last_login timestamp is updated on successful login."""
         # Get user before login
         user_before = await db_session.get(User, test_user["id"])
@@ -281,9 +277,7 @@ class TestLogout:
         cookie_header = response.headers.get("set-cookie", "")
         assert settings.jwt_cookie_name in cookie_header
         # Cookie should be cleared (max-age=0 or expires in past)
-        assert (
-            "max-age=0" in cookie_header.lower() or "expires=" in cookie_header.lower()
-        )
+        assert "max-age=0" in cookie_header.lower() or "expires=" in cookie_header.lower()
 
     async def test_logout_without_auth(self, client: AsyncClient):
         """Test logout without authentication returns 401."""

@@ -39,9 +39,7 @@ class TeslaWindowStickerParser(BaseWindowStickerParser):
         data.assembly_location = self._extract_tesla_assembly(text_upper)
 
         # Extract warranty
-        data.warranty_powertrain, data.warranty_basic = self._extract_tesla_warranty(
-            text
-        )
+        data.warranty_powertrain, data.warranty_basic = self._extract_tesla_warranty(text)
 
         # Tesla EVs have range instead of MPG - store combined as MPGe if available
         self._extract_tesla_efficiency(text_upper, data)
@@ -219,17 +217,9 @@ class TeslaWindowStickerParser(BaseWindowStickerParser):
                 data.engine_description = f"{battery_match.group(1)} kWh Battery"
 
         # Drivetrain
-        if (
-            "AWD" in text.upper()
-            or "ALL-WHEEL" in text.upper()
-            or "ALL WHEEL" in text.upper()
-        ):
+        if "AWD" in text.upper() or "ALL-WHEEL" in text.upper() or "ALL WHEEL" in text.upper():
             data.drivetrain = "All-Wheel Drive"
-        elif (
-            "RWD" in text.upper()
-            or "REAR-WHEEL" in text.upper()
-            or "REAR WHEEL" in text.upper()
-        ):
+        elif "RWD" in text.upper() or "REAR-WHEEL" in text.upper() or "REAR WHEEL" in text.upper():
             data.drivetrain = "Rear-Wheel Drive"
 
         # Tesla doesn't have traditional transmission
@@ -342,16 +332,12 @@ class TeslaWindowStickerParser(BaseWindowStickerParser):
     def _extract_tesla_efficiency(self, text: str, data: WindowStickerData) -> None:
         """Extract Tesla efficiency ratings (MPGe, range)."""
         # MPGe (miles per gallon equivalent)
-        mpge_match = re.search(
-            r"(\d+)\s*MPGE?\s*(?:COMBINED|CITY|HIGHWAY)?", text, re.IGNORECASE
-        )
+        mpge_match = re.search(r"(\d+)\s*MPGE?\s*(?:COMBINED|CITY|HIGHWAY)?", text, re.IGNORECASE)
         if mpge_match:
             data.fuel_economy_combined = int(mpge_match.group(1))
 
         # EPA estimated range
-        range_match = re.search(
-            r"(\d+)\s*(?:MI(?:LE)?S?)\s*(?:RANGE|EPA)", text, re.IGNORECASE
-        )
+        range_match = re.search(r"(\d+)\s*(?:MI(?:LE)?S?)\s*(?:RANGE|EPA)", text, re.IGNORECASE)
         if range_match:
             # Store range in packages as metadata
             data.packages["EPA Range"] = [f"{range_match.group(1)} miles"]

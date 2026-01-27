@@ -46,9 +46,7 @@ def upgrade(db_path: str = "/data/mygarage.db"):
         cursor.execute(
             "CREATE TABLE service_records_backup_20251229 AS SELECT * FROM service_records"
         )
-        print(
-            f"  ✓ Backed up {record_count} records to service_records_backup_20251229"
-        )
+        print(f"  ✓ Backed up {record_count} records to service_records_backup_20251229")
 
         # Step 4: Create new table with updated schema
         print("\n[4/8] Creating new table with updated schema...")
@@ -110,9 +108,7 @@ def upgrade(db_path: str = "/data/mygarage.db"):
         print("  ✓ idx_service_records_date")
 
         # Composite index for common queries
-        cursor.execute(
-            "CREATE INDEX idx_service_vin_date ON service_records(vin, date)"
-        )
+        cursor.execute("CREATE INDEX idx_service_vin_date ON service_records(vin, date)")
         print("  ✓ idx_service_vin_date")
 
         # Mileage index
@@ -120,9 +116,7 @@ def upgrade(db_path: str = "/data/mygarage.db"):
         print("  ✓ idx_service_mileage")
 
         # Category index (renamed from old service_type index)
-        cursor.execute(
-            "CREATE INDEX idx_service_category ON service_records(service_category)"
-        )
+        cursor.execute("CREATE INDEX idx_service_category ON service_records(service_category)")
         print("  ✓ idx_service_category (renamed from idx_service_type)")
 
         # NEW: Specific service type index
@@ -130,9 +124,7 @@ def upgrade(db_path: str = "/data/mygarage.db"):
         print("  ✓ idx_service_type (NEW: for specific service filtering)")
 
         # Vendor index
-        cursor.execute(
-            "CREATE INDEX idx_service_vendor ON service_records(vendor_name)"
-        )
+        cursor.execute("CREATE INDEX idx_service_vendor ON service_records(vendor_name)")
         print("  ✓ idx_service_vendor")
 
         # Composite index for vehicle + category queries (renamed)
@@ -151,9 +143,7 @@ def upgrade(db_path: str = "/data/mygarage.db"):
         print(f"\n✓ Record count: {new_count} (expected: {record_count})")
 
         if new_count != record_count:
-            raise RuntimeError(
-                f"Record count mismatch! Expected {record_count}, got {new_count}"
-            )
+            raise RuntimeError(f"Record count mismatch! Expected {record_count}, got {new_count}")
 
         # Verify all service_type values
         cursor.execute("SELECT COUNT(DISTINCT service_type) FROM service_records")
@@ -216,10 +206,7 @@ def upgrade(db_path: str = "/data/mygarage.db"):
             "SELECT sql FROM sqlite_master WHERE type='table' AND name='service_records'"
         )
         table_sql = cursor.fetchone()[0]
-        if (
-            "check_service_category" in table_sql
-            and "CHECK (service_category IN" in table_sql
-        ):
+        if "check_service_category" in table_sql and "CHECK (service_category IN" in table_sql:
             print("\n✓ CHECK constraint verified: check_service_category")
         else:
             raise RuntimeError(
@@ -248,9 +235,7 @@ def upgrade(db_path: str = "/data/mygarage.db"):
         print("\nROLLBACK: To restore from backup, run:")
         print("  sqlite3 /data/mygarage.db")
         print("  DROP TABLE IF EXISTS service_records;")
-        print(
-            "  ALTER TABLE service_records_backup_20251229 RENAME TO service_records;"
-        )
+        print("  ALTER TABLE service_records_backup_20251229 RENAME TO service_records;")
         raise
     finally:
         conn.close()

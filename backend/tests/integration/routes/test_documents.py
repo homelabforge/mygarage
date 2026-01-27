@@ -15,9 +15,7 @@ from httpx import AsyncClient
 class TestDocumentRoutes:
     """Test document API endpoints."""
 
-    async def test_upload_document(
-        self, client: AsyncClient, auth_headers, test_vehicle
-    ):
+    async def test_upload_document(self, client: AsyncClient, auth_headers, test_vehicle):
         """Test uploading a document to a vehicle."""
         # Create a fake PDF
         fake_pdf = b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\nTest PDF content"
@@ -54,9 +52,7 @@ class TestDocumentRoutes:
         assert "documents" in data
         assert "total" in data
 
-    async def test_download_document(
-        self, client: AsyncClient, auth_headers, test_vehicle
-    ):
+    async def test_download_document(self, client: AsyncClient, auth_headers, test_vehicle):
         """Test downloading a document."""
         # First upload a document
         fake_pdf = b"%PDF-1.4\nTest content"
@@ -82,9 +78,7 @@ class TestDocumentRoutes:
                 # Should return file or success
                 assert download_response.status_code in [200, 302]
 
-    async def test_delete_document(
-        self, client: AsyncClient, auth_headers, test_vehicle
-    ):
+    async def test_delete_document(self, client: AsyncClient, auth_headers, test_vehicle):
         """Test deleting a document."""
         # Upload a document
         fake_pdf = b"%PDF-1.4\nTest"
@@ -125,9 +119,7 @@ class TestDocumentRoutes:
 
         assert response.status_code in [400, 415, 422]
 
-    async def test_upload_document_unauthorized(
-        self, client: AsyncClient, test_vehicle
-    ):
+    async def test_upload_document_unauthorized(self, client: AsyncClient, test_vehicle):
         """Test that unauthenticated users cannot upload documents."""
         fake_pdf = b"%PDF-1.4\n"
 
@@ -161,9 +153,7 @@ class TestDocumentRoutes:
         assert data["document_type"] == "Insurance"
         assert data["title"] == "Insurance Policy"
 
-    async def test_list_documents_empty(
-        self, client: AsyncClient, auth_headers, test_vehicle
-    ):
+    async def test_list_documents_empty(self, client: AsyncClient, auth_headers, test_vehicle):
         """Test listing documents when vehicle has none."""
         response = await client.get(
             f"/api/vehicles/{test_vehicle['vin']}/documents",

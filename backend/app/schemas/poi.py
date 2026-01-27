@@ -17,11 +17,11 @@ class POISearchRequest(BaseModel):
         le=161000,
         description="Search radius in meters (default: ~5 miles, max: ~100 miles)",
     )
-    categories: list[
-        Literal["auto_shop", "rv_shop", "ev_charging", "gas_station", "propane"]
-    ] = Field(
-        default=["auto_shop"],
-        description="POI categories to search for (can select multiple)",
+    categories: list[Literal["auto_shop", "rv_shop", "ev_charging", "gas_station", "propane"]] = (
+        Field(
+            default=["auto_shop"],
+            description="POI categories to search for (can select multiple)",
+        )
     )
 
 
@@ -38,9 +38,7 @@ class EVChargingMetadata(BaseModel):
     network: str | None = Field(
         default=None, description="Charging network (ChargePoint, Tesla, etc.)"
     )
-    availability: str | None = Field(
-        default=None, description="Real-time availability status"
-    )
+    availability: str | None = Field(default=None, description="Real-time availability status")
 
 
 class POIResult(BaseModel):
@@ -74,9 +72,7 @@ class POISearchResponse(BaseModel):
 
     results: list[POIResult]
     count: int
-    source: str = Field(
-        description="Which provider was used (tomtom, osm, google, etc.)"
-    )
+    source: str = Field(description="Which provider was used (tomtom, osm, google, etc.)")
     latitude: float
     longitude: float
     radius_meters: int

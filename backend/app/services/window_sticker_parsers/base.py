@@ -75,9 +75,7 @@ class WindowStickerData:
             "msrp_base": str(self.msrp_base) if self.msrp_base else None,
             "msrp_total": str(self.msrp_total) if self.msrp_total else None,
             "msrp_options": str(self.msrp_options) if self.msrp_options else None,
-            "destination_charge": str(self.destination_charge)
-            if self.destination_charge
-            else None,
+            "destination_charge": str(self.destination_charge) if self.destination_charge else None,
             "options_detail": {k: str(v) for k, v in self.options_detail.items()},
             "packages": self.packages,
             "exterior_color": self.exterior_color,
@@ -129,13 +127,9 @@ class WindowStickerData:
         # Check fuel economy reasonableness
         if self.fuel_economy_combined:
             if self.fuel_economy_combined < 5:
-                warnings.append(
-                    f"Combined MPG seems unusually low: {self.fuel_economy_combined}"
-                )
+                warnings.append(f"Combined MPG seems unusually low: {self.fuel_economy_combined}")
             elif self.fuel_economy_combined > 150:
-                warnings.append(
-                    f"Combined MPG seems unusually high: {self.fuel_economy_combined}"
-                )
+                warnings.append(f"Combined MPG seems unusually high: {self.fuel_economy_combined}")
 
         return warnings
 
@@ -204,9 +198,7 @@ class BaseWindowStickerParser(ABC):
 
         return None
 
-    def _extract_fuel_economy(
-        self, text: str
-    ) -> tuple[int | None, int | None, int | None]:
+    def _extract_fuel_economy(self, text: str) -> tuple[int | None, int | None, int | None]:
         """Extract city, highway, and combined MPG."""
         city = None
         highway = None
@@ -347,9 +339,7 @@ class BaseWindowStickerParser(ABC):
 
         return exterior, interior
 
-    def _extract_engine_transmission(
-        self, text: str
-    ) -> tuple[str | None, str | None]:
+    def _extract_engine_transmission(self, text: str) -> tuple[str | None, str | None]:
         """Extract engine and transmission descriptions."""
         engine = None
         transmission = None
@@ -377,11 +367,7 @@ class BaseWindowStickerParser(ABC):
         for pattern in trans_patterns:
             match = re.search(pattern, text, re.IGNORECASE)
             if match:
-                trans = (
-                    match.group(1).strip()
-                    if match.lastindex
-                    else match.group(0).strip()
-                )
+                trans = match.group(1).strip() if match.lastindex else match.group(0).strip()
                 trans = re.sub(r"[,;\.]$", "", trans).strip()
                 if trans and len(trans) > 3:
                     transmission = trans[:150]
@@ -389,9 +375,7 @@ class BaseWindowStickerParser(ABC):
 
         return engine, transmission
 
-    def _extract_wheel_tire_specs(
-        self, text: str
-    ) -> tuple[str | None, str | None]:
+    def _extract_wheel_tire_specs(self, text: str) -> tuple[str | None, str | None]:
         """Extract wheel and tire specifications."""
         wheels = None
         tires = None

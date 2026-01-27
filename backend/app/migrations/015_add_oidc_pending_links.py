@@ -124,9 +124,7 @@ def upgrade():
         print("\n✓ OIDC pending links migration completed successfully")
         print("\nFeature enabled:")
         print("  - Username-based account linking with password verification")
-        print(
-            "  - Users prompted for password when username matches but no OIDC link exists"
-        )
+        print("  - Users prompted for password when username matches but no OIDC link exists")
         print("  - Tokens expire after 5 minutes (configurable via settings)")
         print("  - Maximum 3 password attempts per token (configurable via settings)")
         print("\nNew settings available:")

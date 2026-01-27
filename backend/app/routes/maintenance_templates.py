@@ -74,9 +74,7 @@ async def search_template(
 
     except Exception as e:
         logger.error("Error searching for template: %s", sanitize_for_log(str(e)))
-        raise HTTPException(
-            status_code=500, detail=f"Failed to search for template: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to search for template: {str(e)}")
 
 
 @maintenance_templates_router.post("/apply", response_model=TemplateApplyResponse)
@@ -161,14 +159,10 @@ async def apply_template(
             sanitize_for_log(request.vin),
             sanitize_for_log(str(e)),
         )
-        raise HTTPException(
-            status_code=500, detail=f"Failed to apply template: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to apply template: {str(e)}")
 
 
-@maintenance_templates_router.get(
-    "/vehicles/{vin}", response_model=MaintenanceTemplateListResponse
-)
+@maintenance_templates_router.get("/vehicles/{vin}", response_model=MaintenanceTemplateListResponse)
 async def get_vehicle_templates(
     vin: str,
     db: AsyncSession = Depends(get_db),
@@ -213,12 +207,8 @@ async def delete_template_record(
     if not template:
         raise HTTPException(status_code=404, detail="Template record not found")
 
-    await db.execute(
-        delete(MaintenanceTemplate).where(MaintenanceTemplate.id == template_id)
-    )
+    await db.execute(delete(MaintenanceTemplate).where(MaintenanceTemplate.id == template_id))
     await db.commit()
 
-    logger.info(
-        "Deleted template record %s for vehicle %s", template_id, sanitize_for_log(vin)
-    )
+    logger.info("Deleted template record %s for vehicle %s", template_id, sanitize_for_log(vin))
     return None

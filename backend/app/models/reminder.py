@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Reminder database model."""
 
 from datetime import date, datetime
@@ -30,7 +32,7 @@ class Reminder(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     # Relationships
-    vehicle: Mapped["Vehicle"] = relationship("Vehicle", back_populates="reminders")
+    vehicle: Mapped[Vehicle] = relationship("Vehicle", back_populates="reminders")
 
     __table_args__ = (
         Index("idx_reminders_vin", "vin"),

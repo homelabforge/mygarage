@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Settings database model."""
 
 from datetime import datetime

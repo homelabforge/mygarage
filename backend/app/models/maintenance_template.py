@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Maintenance Template database model."""
 
 from datetime import datetime
@@ -44,23 +46,17 @@ class MaintenanceTemplate(Base):
 
     # Application tracking
     applied_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    created_by: Mapped[str] = mapped_column(
-        String(20), default="auto"
-    )  # "auto" or "manual"
+    created_by: Mapped[str] = mapped_column(String(20), default="auto")  # "auto" or "manual"
     reminders_created: Mapped[int] = mapped_column(
         Integer, default=0
     )  # Count of reminders generated
 
     # Metadata
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime | None] = mapped_column(
-        DateTime, onupdate=func.now()
-    )
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, onupdate=func.now())
 
     # Relationships
-    vehicle: Mapped["Vehicle"] = relationship(
-        "Vehicle", back_populates="maintenance_templates"
-    )
+    vehicle: Mapped[Vehicle] = relationship("Vehicle", back_populates="maintenance_templates")
 
     __table_args__ = (
         Index("idx_maintenance_templates_vin", "vin"),

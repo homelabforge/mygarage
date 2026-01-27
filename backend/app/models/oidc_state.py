@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """OIDC state model for secure OAuth2/OIDC flow tracking."""
 
 from datetime import UTC, datetime, timedelta
@@ -20,9 +22,7 @@ class OIDCState(Base):
     state = Column(String(128), primary_key=True, index=True, nullable=False)
     nonce = Column(String(128), nullable=False)
     redirect_uri = Column(String(512), nullable=False)
-    created_at = Column(
-        DateTime, default=lambda: datetime.now(UTC), nullable=False
-    )
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
     expires_at = Column(DateTime, nullable=False)
 
     # Index for efficient cleanup of expired states

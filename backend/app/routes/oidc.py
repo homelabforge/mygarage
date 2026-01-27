@@ -194,9 +194,7 @@ async def oidc_callback(
 
     # Exchange code for tokens
     redirect_uri = state_data["redirect_uri"]
-    tokens = await oidc_service.exchange_code_for_tokens(
-        code, config, metadata, redirect_uri
-    )
+    tokens = await oidc_service.exchange_code_for_tokens(code, config, metadata, redirect_uri)
     if not tokens:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -227,14 +225,12 @@ async def oidc_callback(
 
     # Create or update user from OIDC claims
     try:
-        user = await oidc_service.create_or_update_user_from_oidc(
-            db, claims, userinfo, config
-        )
+        user = await oidc_service.create_or_update_user_from_oidc(db, claims, userinfo, config)
     except Exception as e:
-        # Import PendingLinkRequiredException here to avoid circular import
-        from app.exceptions import PendingLinkRequiredException
+        # Import PendingLinkRequiredError here to avoid circular import
+        from app.exceptions import PendingLinkRequiredError
 
-        if isinstance(e, PendingLinkRequiredException):
+        if isinstance(e, PendingLinkRequiredError):
             # Username match requires password verification
             logger.info("Pending link required for username: %s", e.username)
 
@@ -307,9 +303,7 @@ async def oidc_callback(
     frontend_url = f"{scheme}://{host}"
     redirect_url = f"{frontend_url}/auth/oidc/success?csrf_token={csrf_token_value}"
 
-    redirect_response = RedirectResponse(
-        url=redirect_url, status_code=status.HTTP_302_FOUND
-    )
+    redirect_response = RedirectResponse(url=redirect_url, status_code=status.HTTP_302_FOUND)
     redirect_response.set_cookie(
         key=settings.jwt_cookie_name,
         value=jwt_token,

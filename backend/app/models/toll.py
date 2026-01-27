@@ -1,9 +1,10 @@
+from __future__ import annotations
+
 """Toll tag and transaction models for tracking toll road usage."""
 
 import datetime as dt
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional
 
 from sqlalchemy import Date, DateTime, ForeignKey, Index, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -25,18 +26,14 @@ class TollTag(Base):
         String(50), nullable=False
     )  # 'EZ TAG', 'TxTag', 'E-ZPass', etc.
     tag_number: Mapped[str] = mapped_column(String(50), nullable=False)
-    status: Mapped[str] = mapped_column(
-        String(20), default="active"
-    )  # 'active', 'inactive'
+    status: Mapped[str] = mapped_column(String(20), default="active")  # 'active', 'inactive'
     notes: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime | None] = mapped_column(
-        DateTime, onupdate=func.now()
-    )
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, onupdate=func.now())
 
     # Relationships
-    vehicle: Mapped["Vehicle"] = relationship("Vehicle", back_populates="toll_tags")
-    transactions: Mapped[list["TollTransaction"]] = relationship(
+    vehicle: Mapped[Vehicle] = relationship("Vehicle", back_populates="toll_tags")
+    transactions: Mapped[list[TollTransaction]] = relationship(
         "TollTransaction", back_populates="toll_tag", cascade="all, delete-orphan"
     )
 
@@ -65,12 +62,8 @@ class TollTransaction(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     # Relationships
-    vehicle: Mapped["Vehicle"] = relationship(
-        "Vehicle", back_populates="toll_transactions"
-    )
-    toll_tag: Mapped[Optional["TollTag"]] = relationship(
-        "TollTag", back_populates="transactions"
-    )
+    vehicle: Mapped[Vehicle] = relationship("Vehicle", back_populates="toll_transactions")
+    toll_tag: Mapped[TollTag | None] = relationship("TollTag", back_populates="transactions")
 
     __table_args__ = (
         Index("idx_toll_transactions_vin", "vin"),

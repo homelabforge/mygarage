@@ -174,13 +174,7 @@ class NotificationDispatcher:
             from_address = await self._get_setting("email_from")
             to_address = await self._get_setting("email_to")
             use_tls = await self._get_setting_bool("email_smtp_tls", default=True)
-            if (
-                smtp_host
-                and smtp_user
-                and smtp_password
-                and from_address
-                and to_address
-            ):
+            if smtp_host and smtp_user and smtp_password and from_address and to_address:
                 services.append(
                     EmailNotificationService(
                         smtp_host,
@@ -236,20 +230,14 @@ class NotificationDispatcher:
         final_tags = tags or EVENT_TAGS_MAP.get(event_type, [])
 
         # Load global retry settings once
-        max_attempts = await self._get_setting_int(
-            "notification_retry_attempts", default=3
-        )
-        base_delay = float(
-            await self._get_setting("notification_retry_delay", default="2.0")
-        )
+        max_attempts = await self._get_setting_int("notification_retry_attempts", default=3)
+        base_delay = float(await self._get_setting("notification_retry_delay", default="2.0"))
 
         # Send to all enabled services
         for service in services:
             try:
                 # Adapt delay per service
-                multiplier = self.SERVICE_RETRY_MULTIPLIERS.get(
-                    service.service_name, 1.0
-                )
+                multiplier = self.SERVICE_RETRY_MULTIPLIERS.get(service.service_name, 1.0)
                 service_delay = base_delay * multiplier
 
                 # Use retry for high-priority events, direct send for low-priority

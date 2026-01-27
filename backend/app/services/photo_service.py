@@ -79,9 +79,7 @@ class PhotoService:
         file_path = destination_dir / filename
 
         # Validate path is within allowed directory
-        validated_path = validate_path_within_base(
-            file_path, PHOTO_DIR, raise_error=True
-        )
+        validated_path = validate_path_within_base(file_path, PHOTO_DIR, raise_error=True)
 
         image_to_save = image.copy()
         if image_format in ("JPEG", "WEBP") and image_to_save.mode in ("RGBA", "P"):
@@ -125,9 +123,7 @@ class PhotoService:
             image = Image.open(file_path)
             image = ImageOps.exif_transpose(image)
         except UnidentifiedImageError:
-            logger.warning(
-                "Failed to open image for thumbnail generation: %s", file_path
-            )
+            logger.warning("Failed to open image for thumbnail generation: %s", file_path)
             return None
 
         thumb = image.copy()
@@ -142,9 +138,7 @@ class PhotoService:
         return str(thumb_path.relative_to(PHOTO_DIR))
 
     @staticmethod
-    def build_photo_payload(
-        vin: str, photo, photo_dir: Path = PHOTO_DIR
-    ) -> dict[str, Any]:
+    def build_photo_payload(vin: str, photo, photo_dir: Path = PHOTO_DIR) -> dict[str, Any]:
         """
         Build consistent photo response dict.
 
