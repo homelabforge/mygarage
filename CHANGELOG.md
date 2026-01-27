@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- **CodeQL Alert #905** - Fixed clear-text logging false positive in POI registry
+  - Extracted `priority` value from config dict before logging to break taint chain
+  - Config dict contains `api_key` which tainted the entire object
+
 ## [2.20.3] - 2026-01-27
 
 ### Fixed
