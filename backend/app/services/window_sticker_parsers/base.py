@@ -5,7 +5,7 @@ import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -15,10 +15,10 @@ class WindowStickerData:
     """Structured data extracted from a window sticker."""
 
     # Pricing
-    msrp_base: Optional[Decimal] = None
-    msrp_total: Optional[Decimal] = None
-    msrp_options: Optional[Decimal] = None
-    destination_charge: Optional[Decimal] = None
+    msrp_base: Decimal | None = None
+    msrp_total: Decimal | None = None
+    msrp_options: Decimal | None = None
+    destination_charge: Decimal | None = None
 
     # Individual options with pricing
     options_detail: dict[str, Decimal] = field(default_factory=dict)
@@ -27,46 +27,46 @@ class WindowStickerData:
     packages: dict[str, list[str]] = field(default_factory=dict)
 
     # Colors
-    exterior_color: Optional[str] = None
-    interior_color: Optional[str] = None
+    exterior_color: str | None = None
+    interior_color: str | None = None
 
     # Equipment lists
     standard_equipment: list[str] = field(default_factory=list)
     optional_equipment: list[str] = field(default_factory=list)
 
     # Fuel economy
-    fuel_economy_city: Optional[int] = None
-    fuel_economy_highway: Optional[int] = None
-    fuel_economy_combined: Optional[int] = None
+    fuel_economy_city: int | None = None
+    fuel_economy_highway: int | None = None
+    fuel_economy_combined: int | None = None
 
     # Vehicle specs
-    engine_description: Optional[str] = None
-    transmission_description: Optional[str] = None
-    drivetrain: Optional[str] = None
+    engine_description: str | None = None
+    transmission_description: str | None = None
+    drivetrain: str | None = None
 
     # Wheel/tire specs
-    wheel_specs: Optional[str] = None
-    tire_specs: Optional[str] = None
+    wheel_specs: str | None = None
+    tire_specs: str | None = None
 
     # Warranty
-    warranty_powertrain: Optional[str] = None
-    warranty_basic: Optional[str] = None
+    warranty_powertrain: str | None = None
+    warranty_basic: str | None = None
 
     # Environmental ratings
-    environmental_rating_ghg: Optional[str] = None
-    environmental_rating_smog: Optional[str] = None
+    environmental_rating_ghg: str | None = None
+    environmental_rating_smog: str | None = None
 
     # Location
-    assembly_location: Optional[str] = None
+    assembly_location: str | None = None
 
     # VIN extracted from sticker (for validation)
-    extracted_vin: Optional[str] = None
+    extracted_vin: str | None = None
 
     # Raw text for debugging
-    raw_text: Optional[str] = None
+    raw_text: str | None = None
 
     # Parser metadata
-    parser_name: Optional[str] = None
+    parser_name: str | None = None
     confidence_score: float = 0.0
 
     def to_dict(self) -> dict[str, Any]:
@@ -167,7 +167,7 @@ class BaseWindowStickerParser(ABC):
         """
         pass
 
-    def _extract_price(self, text: str, patterns: list[str]) -> Optional[Decimal]:
+    def _extract_price(self, text: str, patterns: list[str]) -> Decimal | None:
         """Extract a price value using multiple patterns."""
         for pattern in patterns:
             match = re.search(pattern, text, re.IGNORECASE)
@@ -179,7 +179,7 @@ class BaseWindowStickerParser(ABC):
                     continue
         return None
 
-    def _extract_vin(self, text: str) -> Optional[str]:
+    def _extract_vin(self, text: str) -> str | None:
         """Extract VIN from text."""
         # Look for VIN label first - handle VINs with dashes/spaces
         vin_patterns = [
@@ -206,7 +206,7 @@ class BaseWindowStickerParser(ABC):
 
     def _extract_fuel_economy(
         self, text: str
-    ) -> tuple[Optional[int], Optional[int], Optional[int]]:
+    ) -> tuple[int | None, int | None, int | None]:
         """Extract city, highway, and combined MPG."""
         city = None
         highway = None
@@ -250,7 +250,7 @@ class BaseWindowStickerParser(ABC):
 
         return city, highway, combined
 
-    def _extract_assembly_location(self, text: str) -> Optional[str]:
+    def _extract_assembly_location(self, text: str) -> str | None:
         """Extract assembly/manufacturing location."""
         patterns = [
             r"ASSEMBLY\s*POINT[/\s]*PORT\s*OF\s*ENTRY[:\s]*([^\n]+)",
@@ -277,7 +277,7 @@ class BaseWindowStickerParser(ABC):
 
         return None
 
-    def _extract_warranty(self, text: str) -> tuple[Optional[str], Optional[str]]:
+    def _extract_warranty(self, text: str) -> tuple[str | None, str | None]:
         """Extract powertrain and basic warranty terms."""
         powertrain = None
         basic = None
@@ -310,7 +310,7 @@ class BaseWindowStickerParser(ABC):
 
         return powertrain, basic
 
-    def _extract_colors(self, text: str) -> tuple[Optional[str], Optional[str]]:
+    def _extract_colors(self, text: str) -> tuple[str | None, str | None]:
         """Extract exterior and interior colors."""
         exterior = None
         interior = None
@@ -349,7 +349,7 @@ class BaseWindowStickerParser(ABC):
 
     def _extract_engine_transmission(
         self, text: str
-    ) -> tuple[Optional[str], Optional[str]]:
+    ) -> tuple[str | None, str | None]:
         """Extract engine and transmission descriptions."""
         engine = None
         transmission = None
@@ -391,7 +391,7 @@ class BaseWindowStickerParser(ABC):
 
     def _extract_wheel_tire_specs(
         self, text: str
-    ) -> tuple[Optional[str], Optional[str]]:
+    ) -> tuple[str | None, str | None]:
         """Extract wheel and tire specifications."""
         wheels = None
         tires = None

@@ -1,9 +1,10 @@
 """User schemas for authentication."""
 
+import re
 from datetime import datetime
 from typing import Any
+
 from pydantic import BaseModel, EmailStr, Field, field_validator
-import re
 
 
 class UserBase(BaseModel):

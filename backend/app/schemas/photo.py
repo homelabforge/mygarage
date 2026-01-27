@@ -3,7 +3,7 @@ Photo schemas for Pydantic validation
 """
 
 from datetime import datetime as datetime_type
-from typing import Optional
+
 from pydantic import BaseModel, Field
 
 
@@ -13,10 +13,10 @@ class PhotoResponse(BaseModel):
     id: int
     vin: str
     file_path: str
-    thumbnail_path: Optional[str] = None
-    thumbnail_url: Optional[str] = None
+    thumbnail_path: str | None = None
+    thumbnail_url: str | None = None
     is_main: bool
-    caption: Optional[str] = None
+    caption: str | None = None
     uploaded_at: datetime_type
 
     class Config:
@@ -28,11 +28,11 @@ class PhotoListResponse(BaseModel):
 
     photos: list[PhotoResponse]
     total: int
-    main_photo: Optional[PhotoResponse] = None
+    main_photo: PhotoResponse | None = None
 
 
 class PhotoUpdate(BaseModel):
     """Schema for updating photo"""
 
-    caption: Optional[str] = Field(None, max_length=200)
-    is_main: Optional[bool] = None
+    caption: str | None = Field(None, max_length=200)
+    is_main: bool | None = None

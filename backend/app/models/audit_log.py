@@ -1,7 +1,9 @@
 """Audit log model for tracking sensitive operations."""
 
-from datetime import datetime, timezone
-from sqlalchemy import Column, String, Integer, DateTime, Text, JSON
+from datetime import UTC, datetime
+
+from sqlalchemy import JSON, Column, DateTime, Integer, String, Text
+
 from app.database import Base
 
 
@@ -12,7 +14,7 @@ class AuditLog(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     timestamp = Column(
-        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False, index=True
+        DateTime, default=lambda: datetime.now(UTC), nullable=False, index=True
     )
     user_id = Column(Integer, nullable=True, index=True)  # Null for system operations
     username = Column(String(100), nullable=True)

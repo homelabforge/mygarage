@@ -16,7 +16,8 @@ Archived vehicles always appear in analytics/statistics regardless of visibility
 
 import os
 from pathlib import Path
-from sqlalchemy import text, create_engine
+
+from sqlalchemy import create_engine, text
 
 
 def upgrade():

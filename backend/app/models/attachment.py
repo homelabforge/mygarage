@@ -1,10 +1,10 @@
 """Attachment database model."""
 
-from sqlalchemy import String, Integer, DateTime, CheckConstraint, Index
+from datetime import datetime
+
+from sqlalchemy import CheckConstraint, DateTime, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
-from datetime import datetime
-from typing import Optional
 
 from app.database import Base
 
@@ -18,8 +18,8 @@ class Attachment(Base):
     record_type: Mapped[str] = mapped_column(String(30), nullable=False)
     record_id: Mapped[int] = mapped_column(Integer, nullable=False)
     file_path: Mapped[str] = mapped_column(String(255), nullable=False)
-    file_type: Mapped[Optional[str]] = mapped_column(String(10))
-    file_size: Mapped[Optional[int]] = mapped_column(Integer)
+    file_type: Mapped[str | None] = mapped_column(String(10))
+    file_size: Mapped[int | None] = mapped_column(Integer)
     uploaded_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     __table_args__ = (

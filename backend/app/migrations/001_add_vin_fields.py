@@ -6,8 +6,8 @@ Adds fields from NHTSA VIN decode:
 - cylinders, fuel_type, transmission_type, transmission_speeds
 """
 
-import sqlite3
 import os
+import sqlite3
 
 
 def upgrade():

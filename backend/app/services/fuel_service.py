@@ -3,19 +3,18 @@
 # pyright: reportReturnType=false, reportOptionalOperand=false
 
 import logging
-from typing import Optional
-from decimal import Decimal
 from datetime import date as date_type
+from decimal import Decimal
 
 from fastapi import HTTPException
-from sqlalchemy import select, delete, func
+from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.fuel import FuelRecord
 from app.models.user import User
-from app.schemas.fuel import FuelRecordCreate, FuelRecordUpdate, FuelRecordResponse
-from app.utils.cache import invalidate_cache_for_vehicle, cached
+from app.schemas.fuel import FuelRecordCreate, FuelRecordResponse, FuelRecordUpdate
+from app.utils.cache import cached, invalidate_cache_for_vehicle
 from app.utils.logging_utils import sanitize_for_log
 from app.utils.odometer_sync import sync_odometer_from_record
 
@@ -23,8 +22,8 @@ logger = logging.getLogger(__name__)
 
 
 def calculate_mpg(
-    current_record: FuelRecord, previous_record: Optional[FuelRecord]
-) -> Optional[Decimal]:
+    current_record: FuelRecord, previous_record: FuelRecord | None
+) -> Decimal | None:
     """
     Calculate MPG for a fuel record.
 
@@ -61,8 +60,8 @@ def calculate_mpg(
 
 
 async def get_previous_full_tank(
-    db: AsyncSession, vin: str, current_date: date_type, current_mileage: Optional[int]
-) -> Optional[FuelRecord]:
+    db: AsyncSession, vin: str, current_date: date_type, current_mileage: int | None
+) -> FuelRecord | None:
     """
     Get the most recent previous full tank fill-up.
 
@@ -87,7 +86,7 @@ async def get_previous_full_tank(
 @cached(ttl_seconds=300)  # Cache for 5 minutes
 async def calculate_average_mpg(
     db: AsyncSession, vin: str, exclude_hauling: bool = True
-) -> Optional[Decimal]:
+) -> Decimal | None:
     """
     Calculate average MPG across all fuel records with MPG data.
 
@@ -144,7 +143,7 @@ class FuelRecordService:
         skip: int = 0,
         limit: int = 100,
         include_hauling: bool = False,
-    ) -> tuple[list[FuelRecordResponse], int, Optional[Decimal]]:
+    ) -> tuple[list[FuelRecordResponse], int, Decimal | None]:
         """
         Get all fuel records for a vehicle with MPG calculations.
 
@@ -240,7 +239,7 @@ class FuelRecordService:
 
     async def get_fuel_record(
         self, vin: str, record_id: int, current_user: User
-    ) -> tuple[FuelRecord, Optional[Decimal]]:
+    ) -> tuple[FuelRecord, Decimal | None]:
         """
         Get a specific fuel record by ID with MPG calculation.
 
@@ -286,7 +285,7 @@ class FuelRecordService:
 
     async def create_fuel_record(
         self, vin: str, record_data: FuelRecordCreate, current_user: User
-    ) -> tuple[FuelRecord, Optional[Decimal]]:
+    ) -> tuple[FuelRecord, Decimal | None]:
         """
         Create a new fuel record with MPG calculation.
 
@@ -400,7 +399,7 @@ class FuelRecordService:
         record_id: int,
         record_data: FuelRecordUpdate,
         current_user: User,
-    ) -> tuple[FuelRecord, Optional[Decimal]]:
+    ) -> tuple[FuelRecord, Decimal | None]:
         """
         Update an existing fuel record.
 

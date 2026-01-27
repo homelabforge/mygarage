@@ -1,7 +1,6 @@
 """Telegram notification service."""
 
 import logging
-from typing import Optional
 
 import httpx
 
@@ -43,8 +42,8 @@ class TelegramNotificationService(NotificationService):
         title: str,
         message: str,
         priority: str = "default",
-        tags: Optional[list[str]] = None,
-        url: Optional[str] = None,
+        tags: list[str] | None = None,
+        url: str | None = None,
     ) -> bool:
         try:
             endpoint = f"{self.base_url}/sendMessage"

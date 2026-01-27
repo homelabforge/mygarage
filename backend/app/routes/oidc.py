@@ -9,24 +9,25 @@ Provides endpoints for OIDC/OpenID Connect authentication flow:
 
 import logging
 import secrets
+from datetime import UTC, datetime, timedelta
+
 import httpx
-from datetime import datetime, timezone, timedelta
+from authlib.jose import JoseError
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import RedirectResponse
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import delete
-from authlib.jose import JoseError
 from pydantic import BaseModel
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+from sqlalchemy import delete
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
 from app.config import settings
+from app.database import get_db
+from app.models.audit_log import AuditLog
+from app.models.csrf_token import CSRFToken
+from app.models.user import User
 from app.services import oidc as oidc_service
 from app.services.auth import create_access_token, get_current_user
-from app.models.user import User
-from app.models.csrf_token import CSRFToken
-from app.models.audit_log import AuditLog
 
 logger = logging.getLogger(__name__)
 
@@ -275,7 +276,7 @@ async def oidc_callback(
     await db.execute(
         delete(CSRFToken).where(
             CSRFToken.user_id == user.id,
-            CSRFToken.expires_at <= datetime.now(timezone.utc),
+            CSRFToken.expires_at <= datetime.now(UTC),
         )
     )
 
@@ -404,7 +405,7 @@ async def link_oidc_account(
             details=error_message,
             ip_address=request.client.host if request.client else None,
             user_agent=request.headers.get("user-agent", ""),
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
         )
         db.add(audit_log)
         await db.commit()
@@ -430,7 +431,7 @@ async def link_oidc_account(
         details=f"Linked OIDC account to username: {user.username}, provider: {user.oidc_provider}, oidc_subject: {user.oidc_subject}",
         ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent", ""),
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
     )
     db.add(audit_log)
 
@@ -438,7 +439,7 @@ async def link_oidc_account(
     await db.execute(
         delete(CSRFToken).where(
             CSRFToken.user_id == user.id,
-            CSRFToken.expires_at <= datetime.now(timezone.utc),
+            CSRFToken.expires_at <= datetime.now(UTC),
         )
     )
 

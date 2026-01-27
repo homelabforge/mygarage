@@ -1,7 +1,7 @@
 """Utility for auto-syncing odometer records from service and fuel records."""
 
 from datetime import date as date_type
-from typing import Optional
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,10 +12,10 @@ async def sync_odometer_from_record(
     db: AsyncSession,
     vin: str,
     date: date_type,
-    mileage: Optional[int],
+    mileage: int | None,
     source_type: str,
     source_id: int,
-) -> Optional[OdometerRecord]:
+) -> OdometerRecord | None:
     """
     Create or update odometer record from service/fuel record.
 

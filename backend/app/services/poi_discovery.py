@@ -13,11 +13,12 @@ Uses multi-provider architecture with automatic fallback:
 
 import logging
 from typing import Any
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.poi.base import POICategory
 from app.services.poi.registry import POIProviderRegistry
-from app.utils.logging_utils import sanitize_for_log, mask_coordinates
+from app.utils.logging_utils import mask_coordinates, sanitize_for_log
 
 logger = logging.getLogger(__name__)
 

@@ -4,12 +4,13 @@ Unit tests for fuel service MPG calculations.
 Tests fuel economy calculations, partial fill-up handling, and hauling adjustments.
 """
 
-import pytest
-from decimal import Decimal
 from datetime import date
+from decimal import Decimal
 
-from app.services.fuel_service import calculate_mpg
+import pytest
+
 from app.models.fuel import FuelRecord
+from app.services.fuel_service import calculate_mpg
 
 
 @pytest.mark.unit

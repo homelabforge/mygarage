@@ -8,7 +8,7 @@ from abc import abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Optional
+from typing import Any
 
 from .base import BaseDocumentParser, DocumentData, DocumentType
 
@@ -20,29 +20,29 @@ class InsuranceData(DocumentData):
     """Structured data extracted from insurance documents."""
 
     # Provider info
-    provider: Optional[str] = None
+    provider: str | None = None
 
     # Policy details
-    policy_number: Optional[str] = None
-    policy_type: Optional[str] = (
+    policy_number: str | None = None
+    policy_type: str | None = (
         None  # Liability/Comprehensive/Collision/Full Coverage/Other
     )
 
     # Dates
-    start_date: Optional[str] = None  # YYYY-MM-DD format
-    end_date: Optional[str] = None
+    start_date: str | None = None  # YYYY-MM-DD format
+    end_date: str | None = None
 
     # Financial
-    premium_amount: Optional[Decimal] = None
-    premium_frequency: Optional[str] = None  # Monthly/Quarterly/Semi-Annual/Annual
-    deductible: Optional[Decimal] = None
-    coverage_limits: Optional[str] = None
+    premium_amount: Decimal | None = None
+    premium_frequency: str | None = None  # Monthly/Quarterly/Semi-Annual/Annual
+    deductible: Decimal | None = None
+    coverage_limits: str | None = None
 
     # Vehicle info
     vehicles_found: list[str] = field(default_factory=list)
 
     # Notes
-    notes: Optional[str] = None
+    notes: str | None = None
 
     # Per-field confidence
     field_confidence: dict[str, str] = field(default_factory=dict)
@@ -96,11 +96,11 @@ class InsuranceDocumentParser(BaseDocumentParser):
     PROVIDER_NAME: str = "Unknown"
 
     @abstractmethod
-    def parse(self, text: str, target_vin: Optional[str] = None) -> InsuranceData:
+    def parse(self, text: str, target_vin: str | None = None) -> InsuranceData:
         """Parse insurance document text."""
         pass
 
-    def _parse_date(self, date_str: str) -> Optional[str]:
+    def _parse_date(self, date_str: str) -> str | None:
         """Parse various date formats to YYYY-MM-DD."""
         date_formats = [
             "%B %d, %Y",  # August 26, 2025
@@ -223,7 +223,7 @@ class ProgressiveInsuranceParser(InsuranceDocumentParser):
         text_lower = text.lower()
         return any(indicator in text_lower for indicator in indicators)
 
-    def parse(self, text: str, target_vin: Optional[str] = None) -> InsuranceData:
+    def parse(self, text: str, target_vin: str | None = None) -> InsuranceData:
         """Parse Progressive insurance document."""
         data = InsuranceData(
             provider=self.PROVIDER_NAME,
@@ -294,7 +294,7 @@ class ProgressiveInsuranceParser(InsuranceDocumentParser):
 
         return data
 
-    def _extract_policy_period(self, text: str) -> Optional[dict[str, Any]]:
+    def _extract_policy_period(self, text: str) -> dict[str, Any] | None:
         """Extract policy period dates."""
         for pattern in self.PATTERNS["policy_period"]:
             match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
@@ -334,7 +334,7 @@ class ProgressiveInsuranceParser(InsuranceDocumentParser):
 
         return data
 
-    def _extract_coverage_limits(self, text: str) -> Optional[str]:
+    def _extract_coverage_limits(self, text: str) -> str | None:
         """Extract coverage limit information."""
         pattern = r"(\$?\d{2,3},?\d{3})\s+each\s+person.*?(\$?\d{2,3},?\d{3})\s+each\s+accident.*?(\$?\d{2,3},?\d{3})\s+each\s+accident"
         match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
@@ -380,7 +380,7 @@ class StateFarmInsuranceParser(InsuranceDocumentParser):
         text_lower = text.lower()
         return any(indicator in text_lower for indicator in indicators)
 
-    def parse(self, text: str, target_vin: Optional[str] = None) -> InsuranceData:
+    def parse(self, text: str, target_vin: str | None = None) -> InsuranceData:
         """Parse State Farm insurance document."""
         data = InsuranceData(
             provider=self.PROVIDER_NAME,
@@ -469,7 +469,7 @@ class GeicoInsuranceParser(InsuranceDocumentParser):
         text_lower = text.lower()
         return any(indicator in text_lower for indicator in indicators)
 
-    def parse(self, text: str, target_vin: Optional[str] = None) -> InsuranceData:
+    def parse(self, text: str, target_vin: str | None = None) -> InsuranceData:
         """Parse GEICO insurance document."""
         data = InsuranceData(
             provider=self.PROVIDER_NAME,
@@ -557,7 +557,7 @@ class AllstateInsuranceParser(InsuranceDocumentParser):
         text_lower = text.lower()
         return any(indicator in text_lower for indicator in indicators)
 
-    def parse(self, text: str, target_vin: Optional[str] = None) -> InsuranceData:
+    def parse(self, text: str, target_vin: str | None = None) -> InsuranceData:
         """Parse Allstate insurance document."""
         data = InsuranceData(
             provider=self.PROVIDER_NAME,
@@ -648,7 +648,7 @@ class GenericInsuranceParser(InsuranceDocumentParser):
         """Generic parser can always parse - used as fallback."""
         return True
 
-    def parse(self, text: str, target_vin: Optional[str] = None) -> InsuranceData:
+    def parse(self, text: str, target_vin: str | None = None) -> InsuranceData:
         """Parse insurance document with generic patterns."""
         data = InsuranceData(
             parser_name=self.PARSER_NAME,

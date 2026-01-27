@@ -1,8 +1,9 @@
 """Pydantic schemas for Analytics and Reports."""
 
-from typing import Any, Optional, List, Literal, Dict
 from datetime import date as date_type
 from decimal import Decimal
+from typing import Any, Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -30,7 +31,7 @@ class ServiceTypeCostBreakdown(BaseModel):
     total_cost: Decimal
     count: int
     average_cost: Decimal
-    last_service_date: Optional[date_type] = None
+    last_service_date: date_type | None = None
 
     model_config = {"from_attributes": True}
 
@@ -50,12 +51,12 @@ class FuelEconomyDataPoint(BaseModel):
 class FuelEconomyTrend(BaseModel):
     """Fuel economy trend analysis."""
 
-    average_mpg: Optional[Decimal] = None
-    best_mpg: Optional[Decimal] = None
-    worst_mpg: Optional[Decimal] = None
-    recent_mpg: Optional[Decimal] = None  # Last 5 fill-ups
+    average_mpg: Decimal | None = None
+    best_mpg: Decimal | None = None
+    worst_mpg: Decimal | None = None
+    recent_mpg: Decimal | None = None  # Last 5 fill-ups
     trend: str = "stable"  # "improving", "declining", "stable"
-    data_points: List[FuelEconomyDataPoint] = []
+    data_points: list[FuelEconomyDataPoint] = []
 
     model_config = {"from_attributes": True}
 
@@ -65,12 +66,12 @@ class ServiceHistoryItem(BaseModel):
 
     date: date_type
     service_type: str
-    description: Optional[str] = None
-    mileage: Optional[int] = None
-    cost: Optional[Decimal] = None
-    vendor_name: Optional[str] = None
-    days_since_last: Optional[int] = None
-    miles_since_last: Optional[int] = None
+    description: str | None = None
+    mileage: int | None = None
+    cost: Decimal | None = None
+    vendor_name: str | None = None
+    days_since_last: int | None = None
+    miles_since_last: int | None = None
 
     model_config = {"from_attributes": True}
 
@@ -79,18 +80,18 @@ class MaintenancePrediction(BaseModel):
     """Predicted maintenance item."""
 
     service_type: str
-    predicted_date: Optional[date_type] = None
-    predicted_mileage: Optional[int] = None
-    days_until_due: Optional[int] = None
-    miles_until_due: Optional[int] = None
-    average_interval_days: Optional[int] = None
-    average_interval_miles: Optional[int] = None
+    predicted_date: date_type | None = None
+    predicted_mileage: int | None = None
+    days_until_due: int | None = None
+    miles_until_due: int | None = None
+    average_interval_days: int | None = None
+    average_interval_miles: int | None = None
     confidence: str = "low"  # "high", "medium", "low"
 
     # Fields to integrate manual reminders with AI predictions
     has_manual_reminder: bool = False
-    manual_reminder_date: Optional[date_type] = None
-    manual_reminder_mileage: Optional[int] = None
+    manual_reminder_date: date_type | None = None
+    manual_reminder_mileage: int | None = None
 
     model_config = {"from_attributes": True}
 
@@ -118,19 +119,19 @@ class CostAnalysis(BaseModel):
     service_count: int = 0
     fuel_count: int = 0
     months_tracked: int = 0
-    cost_per_mile: Optional[Decimal] = None
+    cost_per_mile: Decimal | None = None
 
     # Rolling averages
-    rolling_avg_3m: Optional[Decimal] = None
-    rolling_avg_6m: Optional[Decimal] = None
-    rolling_avg_12m: Optional[Decimal] = None
+    rolling_avg_3m: Decimal | None = None
+    rolling_avg_6m: Decimal | None = None
+    rolling_avg_12m: Decimal | None = None
     trend_direction: str = "stable"  # "increasing", "decreasing", "stable"
 
-    monthly_breakdown: List[MonthlyCostSummary] = []
-    service_type_breakdown: List[ServiceTypeCostBreakdown] = []
+    monthly_breakdown: list[MonthlyCostSummary] = []
+    service_type_breakdown: list[ServiceTypeCostBreakdown] = []
 
     # Anomaly detection
-    anomalies: List[AnomalyAlert] = []
+    anomalies: list[AnomalyAlert] = []
 
     model_config = {"from_attributes": True}
 
@@ -152,8 +153,8 @@ class FuelEfficiencyAlert(BaseModel):
     title: str
     severity: Literal["info", "warning", "critical"] = "info"
     message: str
-    recent_mpg: Optional[Decimal] = None
-    baseline_mpg: Optional[Decimal] = None
+    recent_mpg: Decimal | None = None
+    baseline_mpg: Decimal | None = None
 
     model_config = {"from_attributes": True}
 
@@ -171,24 +172,24 @@ class VehicleAnalytics(BaseModel):
 
     # Fuel Economy
     fuel_economy: FuelEconomyTrend
-    fuel_alerts: List[FuelEfficiencyAlert] = []
+    fuel_alerts: list[FuelEfficiencyAlert] = []
 
     # Service History
-    service_history: List[ServiceHistoryItem] = []
+    service_history: list[ServiceHistoryItem] = []
 
     # Maintenance Predictions
-    predictions: List[MaintenancePrediction] = []
+    predictions: list[MaintenancePrediction] = []
 
     # Summary Stats
-    total_miles_driven: Optional[int] = None
-    average_miles_per_month: Optional[int] = None
-    days_owned: Optional[int] = None
+    total_miles_driven: int | None = None
+    average_miles_per_month: int | None = None
+    days_owned: int | None = None
 
     # Fifth Wheel / RV Specific (optional)
-    propane_analysis: Optional[Dict[str, Any]] = (
+    propane_analysis: dict[str, Any] | None = (
         None  # For fifth wheels with propane tracking
     )
-    spot_rental_analysis: Optional[Dict[str, Any]] = (
+    spot_rental_analysis: dict[str, Any] | None = (
         None  # For fifth wheels with spot rentals
     )
 
@@ -258,9 +259,9 @@ class GarageAnalytics(BaseModel):
     """Complete garage-wide analytics."""
 
     total_costs: GarageCostTotals
-    cost_breakdown_by_category: List[GarageCostByCategory] = []
-    cost_by_vehicle: List[GarageVehicleCost] = []
-    monthly_trends: List[GarageMonthlyTrend] = []
+    cost_breakdown_by_category: list[GarageCostByCategory] = []
+    cost_by_vehicle: list[GarageVehicleCost] = []
+    monthly_trends: list[GarageMonthlyTrend] = []
     vehicle_count: int = 0
 
     model_config = {"from_attributes": True}
@@ -276,8 +277,8 @@ class VendorAnalysis(BaseModel):
     total_spent: Decimal = Field(default=Decimal("0.00"))
     service_count: int = 0
     average_cost: Decimal = Field(default=Decimal("0.00"))
-    service_types: List[str] = []
-    last_service_date: Optional[date_type] = None
+    service_types: list[str] = []
+    last_service_date: date_type | None = None
 
     model_config = {"from_attributes": True}
 
@@ -285,10 +286,10 @@ class VendorAnalysis(BaseModel):
 class VendorAnalyticsSummary(BaseModel):
     """Summary of all vendor analytics for a vehicle."""
 
-    vendors: List[VendorAnalysis] = []
+    vendors: list[VendorAnalysis] = []
     total_vendors: int = 0
-    most_used_vendor: Optional[str] = None
-    highest_spending_vendor: Optional[str] = None
+    most_used_vendor: str | None = None
+    highest_spending_vendor: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -301,7 +302,7 @@ class SeasonalAnalysis(BaseModel):
     average_cost: Decimal = Field(default=Decimal("0.00"))
     service_count: int = 0
     variance_from_annual: Decimal = Field(default=Decimal("0.00"))  # Percentage
-    common_services: List[str] = []
+    common_services: list[str] = []
 
     model_config = {"from_attributes": True}
 
@@ -309,9 +310,9 @@ class SeasonalAnalysis(BaseModel):
 class SeasonalAnalyticsSummary(BaseModel):
     """Summary of seasonal analytics for a vehicle."""
 
-    seasons: List[SeasonalAnalysis] = []
-    highest_cost_season: Optional[str] = None
-    lowest_cost_season: Optional[str] = None
+    seasons: list[SeasonalAnalysis] = []
+    highest_cost_season: str | None = None
+    lowest_cost_season: str | None = None
     annual_average: Decimal = Field(default=Decimal("0.00"))
 
     model_config = {"from_attributes": True}
@@ -351,11 +352,11 @@ class PeriodComparison(BaseModel):
     service_count_change: int = 0
 
     # Category breakdowns
-    category_changes: List[CategoryChange] = []
+    category_changes: list[CategoryChange] = []
 
     # Fuel economy (if applicable)
-    period1_avg_mpg: Optional[Decimal] = None
-    period2_avg_mpg: Optional[Decimal] = None
-    mpg_change_percent: Optional[Decimal] = None
+    period1_avg_mpg: Decimal | None = None
+    period2_avg_mpg: Decimal | None = None
+    mpg_change_percent: Decimal | None = None
 
     model_config = {"from_attributes": True}

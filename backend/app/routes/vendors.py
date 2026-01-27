@@ -1,7 +1,6 @@
 """Vendor CRUD API endpoints."""
 
 import logging
-from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,10 +9,10 @@ from app.database import get_db
 from app.models.user import User
 from app.schemas.vendor import (
     VendorCreate,
-    VendorUpdate,
-    VendorResponse,
     VendorListResponse,
     VendorPriceHistoryResponse,
+    VendorResponse,
+    VendorUpdate,
 )
 from app.services.auth import require_auth
 from app.services.vendor_service import VendorService
@@ -25,7 +24,7 @@ router = APIRouter(prefix="/api/vendors", tags=["Vendors"])
 
 @router.get("", response_model=VendorListResponse)
 async def list_vendors(
-    search: Optional[str] = Query(None, description="Search vendors by name"),
+    search: str | None = Query(None, description="Search vendors by name"),
     skip: int = Query(0, ge=0, description="Number of records to skip"),
     limit: int = Query(100, ge=1, le=500, description="Maximum records to return"),
     db: AsyncSession = Depends(get_db),
@@ -178,7 +177,7 @@ async def delete_vendor(
 @router.get("/{vendor_id}/price-history", response_model=VendorPriceHistoryResponse)
 async def get_vendor_price_history(
     vendor_id: int,
-    schedule_item_id: Optional[int] = Query(
+    schedule_item_id: int | None = Query(
         None, description="Filter by schedule item ID"
     ),
     db: AsyncSession = Depends(get_db),

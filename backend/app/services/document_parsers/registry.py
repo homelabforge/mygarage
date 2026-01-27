@@ -1,16 +1,16 @@
 """Registry for document parsers including insurance providers."""
 
 import logging
-from typing import Any, Optional, Type
+from typing import Any
 
 from .base import BaseDocumentParser, DocumentType
 from .insurance import (
+    AllstateInsuranceParser,
+    GeicoInsuranceParser,
+    GenericInsuranceParser,
     InsuranceDocumentParser,
     ProgressiveInsuranceParser,
     StateFarmInsuranceParser,
-    GeicoInsuranceParser,
-    AllstateInsuranceParser,
-    GenericInsuranceParser,
 )
 
 logger = logging.getLogger(__name__)
@@ -19,12 +19,12 @@ logger = logging.getLogger(__name__)
 class DocumentParserRegistry:
     """Registry for document parsers organized by type and provider."""
 
-    _insurance_parsers: dict[str, Type[InsuranceDocumentParser]] = {}
+    _insurance_parsers: dict[str, type[InsuranceDocumentParser]] = {}
     _initialized: bool = False
 
     @classmethod
     def register_insurance_parser(
-        cls, provider: str, parser_class: Type[InsuranceDocumentParser]
+        cls, provider: str, parser_class: type[InsuranceDocumentParser]
     ) -> None:
         """Register an insurance parser for a provider."""
         cls._insurance_parsers[provider.lower()] = parser_class
@@ -33,7 +33,7 @@ class DocumentParserRegistry:
         )
 
     @classmethod
-    def get_insurance_parser(cls, provider: str) -> Optional[InsuranceDocumentParser]:
+    def get_insurance_parser(cls, provider: str) -> InsuranceDocumentParser | None:
         """Get a specific insurance parser by provider name."""
         cls._ensure_initialized()
 
@@ -114,7 +114,7 @@ class DocumentParserRegistry:
 def get_parser_for_document(
     document_type: DocumentType,
     text: str,
-    provider_hint: Optional[str] = None,
+    provider_hint: str | None = None,
 ) -> BaseDocumentParser:
     """
     Get the appropriate parser for a document.

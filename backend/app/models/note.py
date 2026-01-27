@@ -1,11 +1,11 @@
 """Note database model."""
 
-from sqlalchemy import String, Integer, Date, DateTime, Text, ForeignKey, Index
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy.sql import func
 import datetime as dt
 from datetime import datetime
-from typing import Optional
+
+from sqlalchemy import Date, DateTime, ForeignKey, Index, Integer, String, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.sql import func
 
 from app.database import Base
 
@@ -20,10 +20,10 @@ class Note(Base):
         String(17), ForeignKey("vehicles.vin", ondelete="CASCADE"), nullable=False
     )
     date: Mapped[dt.date] = mapped_column(Date, nullable=False)
-    title: Mapped[Optional[str]] = mapped_column(String(100))
+    title: Mapped[str | None] = mapped_column(String(100))
     content: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[Optional[datetime]] = mapped_column(
+    updated_at: Mapped[datetime | None] = mapped_column(
         DateTime, onupdate=func.now()
     )
 

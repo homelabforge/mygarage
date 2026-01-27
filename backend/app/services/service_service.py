@@ -5,17 +5,17 @@
 import logging
 
 from fastapi import HTTPException
-from sqlalchemy import select, delete, func, outerjoin
+from sqlalchemy import delete, func, outerjoin, select
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.service import ServiceRecord
 from app.models.attachment import Attachment
+from app.models.service import ServiceRecord
 from app.models.user import User
 from app.schemas.service import (
     ServiceRecordCreate,
-    ServiceRecordUpdate,
     ServiceRecordResponse,
+    ServiceRecordUpdate,
 )
 from app.utils.cache import invalidate_cache_for_vehicle
 from app.utils.logging_utils import sanitize_for_log

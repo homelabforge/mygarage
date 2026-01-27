@@ -1,12 +1,13 @@
 """Warranty record API routes."""
 
+
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from typing import List, Optional
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models import WarrantyRecord as WarrantyRecordModel, Vehicle
+from app.models import Vehicle
+from app.models import WarrantyRecord as WarrantyRecordModel
 from app.models.user import User
 from app.schemas.warranty import (
     WarrantyRecord,
@@ -18,11 +19,11 @@ from app.services.auth import require_auth
 router = APIRouter(prefix="/api", tags=["Warranties"])
 
 
-@router.get("/vehicles/{vin}/warranties", response_model=List[WarrantyRecord])
+@router.get("/vehicles/{vin}/warranties", response_model=list[WarrantyRecord])
 async def get_warranties(
     vin: str,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Get all warranty records for a vehicle."""
     # Verify vehicle exists
@@ -48,7 +49,7 @@ async def create_warranty(
     vin: str,
     warranty: WarrantyRecordCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Create a new warranty record."""
     # Verify vehicle exists
@@ -70,7 +71,7 @@ async def get_warranty(
     vin: str,
     warranty_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Get a specific warranty record."""
     result = await db.execute(
@@ -90,7 +91,7 @@ async def update_warranty(
     warranty_id: int,
     warranty_update: WarrantyRecordUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Update a warranty record."""
     result = await db.execute(
@@ -117,7 +118,7 @@ async def delete_warranty(
     vin: str,
     warranty_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Delete a warranty record."""
     result = await db.execute(

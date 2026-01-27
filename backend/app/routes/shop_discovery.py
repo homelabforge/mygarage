@@ -1,23 +1,23 @@
 """Shop discovery API endpoints."""
 
 import logging
-from typing import Optional
-from fastapi import APIRouter, HTTPException, Depends
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
 from datetime import datetime
 
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import and_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.database import get_db
-from app.models.user import User
 from app.models.address_book import AddressBookEntry
+from app.models.user import User
+from app.schemas.address_book import AddressBookEntryCreate, AddressBookEntryResponse
 from app.schemas.shop_discovery import (
+    PlaceResult,
+    ShopRecommendation,
+    ShopRecommendationsResponse,
     ShopSearchRequest,
     ShopSearchResponse,
-    PlaceResult,
-    ShopRecommendationsResponse,
-    ShopRecommendation,
 )
-from app.schemas.address_book import AddressBookEntryCreate, AddressBookEntryResponse
 from app.services.auth import require_auth
 from app.services.shop_discovery import ShopDiscoveryService
 
@@ -30,7 +30,7 @@ router = APIRouter(prefix="/api/shop-discovery", tags=["Shop Discovery"])
 async def search_nearby_shops(
     search_request: ShopSearchRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Search for nearby auto repair shops using TomTom or OSM.
 
@@ -80,7 +80,7 @@ async def search_nearby_shops(
 async def save_discovered_shop(
     entry_data: AddressBookEntryCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Save a discovered shop to the address book.
 
@@ -112,7 +112,7 @@ async def save_discovered_shop(
 async def get_shop_recommendations(
     limit: int = 5,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Get recommended shops based on usage history.
 
@@ -170,7 +170,7 @@ async def get_shop_recommendations(
 async def increment_shop_usage(
     shop_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Increment usage count for a shop.
 

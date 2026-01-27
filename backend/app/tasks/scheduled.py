@@ -1,10 +1,11 @@
 """Scheduled tasks for MyGarage application."""
 
 import logging
+
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-from app.services.settings_service import SettingsService
 from app.database import AsyncSessionLocal
+from app.services.settings_service import SettingsService
 
 logger = logging.getLogger(__name__)
 

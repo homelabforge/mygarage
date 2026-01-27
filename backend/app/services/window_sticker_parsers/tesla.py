@@ -2,7 +2,6 @@
 
 import re
 from decimal import Decimal
-from typing import Optional
 
 from .base import BaseWindowStickerParser, WindowStickerData
 
@@ -139,7 +138,7 @@ class TeslaWindowStickerParser(BaseWindowStickerParser):
                     except (ValueError, Exception):
                         pass  # Skip malformed price data - OCR extraction is best-effort
 
-    def _extract_tesla_colors(self, text: str) -> tuple[Optional[str], Optional[str]]:
+    def _extract_tesla_colors(self, text: str) -> tuple[str | None, str | None]:
         """Extract Tesla color options."""
         exterior = None
         interior = None
@@ -264,7 +263,7 @@ class TeslaWindowStickerParser(BaseWindowStickerParser):
         data.standard_equipment = std_items
         data.optional_equipment = opt_items
 
-    def _extract_tesla_wheels(self, text: str) -> tuple[Optional[str], Optional[str]]:
+    def _extract_tesla_wheels(self, text: str) -> tuple[str | None, str | None]:
         """Extract Tesla wheel configuration."""
         wheels = None
         tires = None
@@ -288,7 +287,7 @@ class TeslaWindowStickerParser(BaseWindowStickerParser):
 
         return wheels, tires
 
-    def _extract_tesla_assembly(self, text: str) -> Optional[str]:
+    def _extract_tesla_assembly(self, text: str) -> str | None:
         """Extract Tesla assembly location."""
         # Tesla factories
         if "FREMONT" in text:
@@ -303,7 +302,7 @@ class TeslaWindowStickerParser(BaseWindowStickerParser):
         # Fallback to generic extraction
         return self._extract_assembly_location(text)
 
-    def _extract_tesla_warranty(self, text: str) -> tuple[Optional[str], Optional[str]]:
+    def _extract_tesla_warranty(self, text: str) -> tuple[str | None, str | None]:
         """Extract Tesla warranty information."""
         powertrain = None
         basic = None

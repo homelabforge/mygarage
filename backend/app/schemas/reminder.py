@@ -1,7 +1,7 @@
 """Reminder schemas for MyGarage API."""
 
-from datetime import date as date_type, datetime as datetime_type
-from typing import Optional
+from datetime import date as date_type
+from datetime import datetime as datetime_type
 
 from pydantic import BaseModel, Field
 
@@ -10,12 +10,12 @@ class ReminderBase(BaseModel):
     """Base reminder schema."""
 
     description: str = Field(..., max_length=200)
-    due_date: Optional[date_type] = None
-    due_mileage: Optional[int] = Field(None, ge=0)
+    due_date: date_type | None = None
+    due_mileage: int | None = Field(None, ge=0)
     is_recurring: bool = False
-    recurrence_days: Optional[int] = Field(None, ge=1)
-    recurrence_miles: Optional[int] = Field(None, ge=1)
-    notes: Optional[str] = None
+    recurrence_days: int | None = Field(None, ge=1)
+    recurrence_miles: int | None = Field(None, ge=1)
+    notes: str | None = None
 
 
 class ReminderCreate(ReminderBase):
@@ -27,14 +27,14 @@ class ReminderCreate(ReminderBase):
 class ReminderUpdate(BaseModel):
     """Schema for updating a reminder."""
 
-    description: Optional[str] = Field(None, max_length=200)
-    due_date: Optional[date_type] = None
-    due_mileage: Optional[int] = Field(None, ge=0)
-    is_recurring: Optional[bool] = None
-    recurrence_days: Optional[int] = Field(None, ge=1)
-    recurrence_miles: Optional[int] = Field(None, ge=1)
-    is_completed: Optional[bool] = None
-    notes: Optional[str] = None
+    description: str | None = Field(None, max_length=200)
+    due_date: date_type | None = None
+    due_mileage: int | None = Field(None, ge=0)
+    is_recurring: bool | None = None
+    recurrence_days: int | None = Field(None, ge=1)
+    recurrence_miles: int | None = Field(None, ge=1)
+    is_completed: bool | None = None
+    notes: str | None = None
 
 
 class ReminderResponse(ReminderBase):
@@ -43,7 +43,7 @@ class ReminderResponse(ReminderBase):
     id: int
     vin: str
     is_completed: bool
-    completed_at: Optional[datetime_type] = None
+    completed_at: datetime_type | None = None
     created_at: datetime_type
 
     class Config:

@@ -5,19 +5,21 @@ import os
 # Enable test mode BEFORE importing app (disables CSRF validation in middleware)
 os.environ["MYGARAGE_TEST_MODE"] = "true"
 
+from collections.abc import AsyncGenerator
+from typing import NoReturn
+
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy import select
-from typing import AsyncGenerator, NoReturn
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from app.database import Base, get_db
 from app.main import app
-from app.database import get_db, Base
+from app.models.fuel import FuelRecord
+from app.models.service import ServiceRecord
 from app.models.user import User
 from app.models.vehicle import Vehicle
-from app.models.service import ServiceRecord
-from app.models.fuel import FuelRecord
 
 
 def skip_test(reason: str) -> NoReturn:
@@ -62,14 +64,14 @@ async def init_test_db(test_engine):
 @pytest_asyncio.fixture
 async def db_session(
     test_sessionmaker, init_test_db
-) -> AsyncGenerator[AsyncSession, None]:
+) -> AsyncGenerator[AsyncSession]:
     """Provide a database session for tests. Depends on init_test_db to ensure tables exist."""
     async with test_sessionmaker() as session:
         yield session
 
 
 @pytest_asyncio.fixture
-async def client(db_session) -> AsyncGenerator[AsyncClient, None]:
+async def client(db_session) -> AsyncGenerator[AsyncClient]:
     """Provide an async HTTP client for testing API endpoints."""
 
     # Override the get_db dependency to use our test session

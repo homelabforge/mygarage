@@ -1,8 +1,9 @@
 """Schemas for shop discovery feature."""
 
-from pydantic import BaseModel, Field
-from typing import Optional, Literal
 from decimal import Decimal
+from typing import Literal
+
+from pydantic import BaseModel, Field
 
 
 class ShopSearchRequest(BaseModel):
@@ -10,13 +11,13 @@ class ShopSearchRequest(BaseModel):
 
     latitude: float = Field(..., ge=-90, le=90, description="Latitude coordinate")
     longitude: float = Field(..., ge=-180, le=180, description="Longitude coordinate")
-    radius_meters: Optional[int] = Field(
+    radius_meters: int | None = Field(
         default=8000,
         ge=100,
         le=161000,
         description="Search radius in meters (default: ~5 miles, max: ~100 miles)",
     )
-    shop_type: Optional[Literal["auto", "rv"]] = Field(
+    shop_type: Literal["auto", "rv"] | None = Field(
         default="auto",
         description="Type of repair shop to search for",
     )
@@ -26,19 +27,19 @@ class PlaceResult(BaseModel):
     """Normalized place result from any provider (TomTom or OSM)."""
 
     business_name: str
-    address: Optional[str] = None
-    city: Optional[str] = None
-    state: Optional[str] = None
-    zip_code: Optional[str] = None
-    phone: Optional[str] = None
+    address: str | None = None
+    city: str | None = None
+    state: str | None = None
+    zip_code: str | None = None
+    phone: str | None = None
     latitude: Decimal
     longitude: Decimal
     source: str  # 'tomtom' or 'osm'
-    external_id: Optional[str] = None
-    rating: Optional[Decimal] = None
-    distance_meters: Optional[float] = None
+    external_id: str | None = None
+    rating: Decimal | None = None
+    distance_meters: float | None = None
     category: str = "service"
-    website: Optional[str] = None
+    website: str | None = None
 
 
 class ShopSearchResponse(BaseModel):
@@ -57,13 +58,13 @@ class ShopRecommendation(BaseModel):
 
     id: int
     business_name: str
-    address: Optional[str] = None
-    city: Optional[str] = None
-    state: Optional[str] = None
-    phone: Optional[str] = None
+    address: str | None = None
+    city: str | None = None
+    state: str | None = None
+    phone: str | None = None
     usage_count: int
-    rating: Optional[Decimal] = None
-    user_rating: Optional[int] = None
+    rating: Decimal | None = None
+    user_rating: int | None = None
 
 
 class ShopRecommendationsResponse(BaseModel):

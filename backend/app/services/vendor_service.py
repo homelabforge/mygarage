@@ -1,23 +1,22 @@
 """Vendor business logic service layer."""
 
 import logging
-from typing import Optional
 
 from fastapi import HTTPException
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.vendor import Vendor
-from app.models.vendor_price_history import VendorPriceHistory
 from app.models.maintenance_schedule_item import MaintenanceScheduleItem
 from app.models.user import User
+from app.models.vendor import Vendor
+from app.models.vendor_price_history import VendorPriceHistory
 from app.schemas.vendor import (
     VendorCreate,
-    VendorUpdate,
-    VendorResponse,
     VendorPriceHistoryEntry,
     VendorPriceHistoryResponse,
+    VendorResponse,
+    VendorUpdate,
 )
 from app.utils.logging_utils import sanitize_for_log
 
@@ -36,7 +35,7 @@ class VendorService:
         current_user: User,
         skip: int = 0,
         limit: int = 100,
-        search: Optional[str] = None,
+        search: str | None = None,
     ) -> tuple[list[VendorResponse], int]:
         """
         Get all vendors with optional search.
@@ -265,7 +264,7 @@ class VendorService:
         self,
         vendor_id: int,
         current_user: User,
-        schedule_item_id: Optional[int] = None,
+        schedule_item_id: int | None = None,
     ) -> VendorPriceHistoryResponse:
         """
         Get price history for a vendor.

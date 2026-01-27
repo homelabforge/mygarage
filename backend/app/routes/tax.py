@@ -1,21 +1,21 @@
 """Tax/registration record routes for MyGarage API."""
 
-from typing import Annotated, Optional
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models import TaxRecord, Vehicle
 from app.models.user import User
-from app.services.auth import require_auth
 from app.schemas.tax import (
     TaxRecordCreate,
     TaxRecordListResponse,
     TaxRecordResponse,
     TaxRecordUpdate,
 )
+from app.services.auth import require_auth
 
 router = APIRouter(prefix="/api/vehicles", tags=["tax-records"])
 
@@ -24,7 +24,7 @@ router = APIRouter(prefix="/api/vehicles", tags=["tax-records"])
 async def list_tax_records(
     vin: str,
     db: Annotated[AsyncSession, Depends(get_db)] = None,
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> TaxRecordListResponse:
     """List all tax/registration records for a vehicle."""
     # Verify vehicle exists
@@ -57,7 +57,7 @@ async def create_tax_record(
     vin: str,
     record_data: TaxRecordCreate,
     db: Annotated[AsyncSession, Depends(get_db)] = None,
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> TaxRecordResponse:
     """Create a new tax/registration record."""
     # Verify vehicle exists
@@ -92,7 +92,7 @@ async def get_tax_record(
     vin: str,
     record_id: int,
     db: Annotated[AsyncSession, Depends(get_db)] = None,
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> TaxRecordResponse:
     """Get a specific tax/registration record."""
     result = await db.execute(
@@ -111,7 +111,7 @@ async def update_tax_record(
     record_id: int,
     update_data: TaxRecordUpdate,
     db: Annotated[AsyncSession, Depends(get_db)] = None,
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> TaxRecordResponse:
     """Update a tax/registration record."""
     # Get record
@@ -145,7 +145,7 @@ async def delete_tax_record(
     vin: str,
     record_id: int,
     db: Annotated[AsyncSession, Depends(get_db)] = None,
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> None:
     """Delete a tax/registration record."""
     # Verify record exists

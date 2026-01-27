@@ -1,10 +1,10 @@
 """Database migration runner with automatic discovery and tracking."""
 
-import logging
 import importlib.util
+import logging
 from pathlib import Path
-from typing import Set, List, Tuple
-from sqlalchemy import text, create_engine
+
+from sqlalchemy import create_engine, text
 
 logger = logging.getLogger(__name__)
 
@@ -26,19 +26,32 @@ class MigrationRunner:
 
     def _ensure_migration_tracking_table(self) -> None:
         """Create schema_migrations table if it doesn't exist."""
-        with self.engine.begin() as conn:
-            conn.execute(
-                text("""
+        # Use database-agnostic syntax
+        is_postgres = "postgresql" in self.database_url.lower()
+
+        if is_postgres:
+            create_sql = """
+                CREATE TABLE IF NOT EXISTS schema_migrations (
+                    id SERIAL PRIMARY KEY,
+                    migration_name VARCHAR(255) NOT NULL UNIQUE,
+                    applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+                )
+            """
+        else:
+            # SQLite syntax
+            create_sql = """
                 CREATE TABLE IF NOT EXISTS schema_migrations (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     migration_name VARCHAR(255) NOT NULL UNIQUE,
                     applied_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
                 )
-            """)
-            )
+            """
+
+        with self.engine.begin() as conn:
+            conn.execute(text(create_sql))
             logger.debug("Migration tracking table verified")
 
-    def _get_applied_migrations(self) -> Set[str]:
+    def _get_applied_migrations(self) -> set[str]:
         """
         Get set of already-applied migration names.
 
@@ -46,9 +59,7 @@ class MigrationRunner:
             Set of migration names (without .py extension)
         """
         with self.engine.begin() as conn:
-            result = conn.execute(
-                text("SELECT migration_name FROM schema_migrations ORDER BY id")
-            )
+            result = conn.execute(text("SELECT migration_name FROM schema_migrations ORDER BY id"))
             applied = {row[0] for row in result}
             logger.debug("Found %s applied migration(s)", len(applied))
             return applied
@@ -67,7 +78,7 @@ class MigrationRunner:
             )
             logger.debug("Marked migration '%s' as applied", name)
 
-    def _discover_migrations(self) -> List[Tuple[str, Path]]:
+    def _discover_migrations(self) -> list[tuple[str, Path]]:
         """
         Find all migration files and return sorted list.
 

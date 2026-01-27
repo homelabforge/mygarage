@@ -1,7 +1,8 @@
 """Pydantic schemas for Odometer Record operations."""
 
-from typing import Optional
-from datetime import date as date_type, datetime
+from datetime import date as date_type
+from datetime import datetime
+
 from pydantic import BaseModel, Field
 
 
@@ -10,7 +11,7 @@ class OdometerRecordBase(BaseModel):
 
     date: date_type = Field(..., description="Reading date")
     mileage: int = Field(..., description="Odometer reading", ge=0)
-    notes: Optional[str] = Field(None, description="Additional notes")
+    notes: str | None = Field(None, description="Additional notes")
 
 
 class OdometerRecordCreate(OdometerRecordBase):
@@ -35,9 +36,9 @@ class OdometerRecordCreate(OdometerRecordBase):
 class OdometerRecordUpdate(BaseModel):
     """Schema for updating an existing odometer record."""
 
-    date: Optional[date_type] = Field(None, description="Reading date")
-    mileage: Optional[int] = Field(None, description="Odometer reading", ge=0)
-    notes: Optional[str] = Field(None, description="Additional notes")
+    date: date_type | None = Field(None, description="Reading date")
+    mileage: int | None = Field(None, description="Odometer reading", ge=0)
+    notes: str | None = Field(None, description="Additional notes")
 
     model_config = {
         "json_schema_extra": {
@@ -75,7 +76,7 @@ class OdometerRecordListResponse(BaseModel):
 
     records: list[OdometerRecordResponse]
     total: int
-    latest_mileage: Optional[int] = Field(
+    latest_mileage: int | None = Field(
         None, description="Most recent odometer reading"
     )
 

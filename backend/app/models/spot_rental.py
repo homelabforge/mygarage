@@ -1,21 +1,22 @@
 """Spot rental database model."""
 
+from datetime import date, datetime
+from decimal import Decimal
+from typing import TYPE_CHECKING
+
 from sqlalchemy import (
-    String,
-    Integer,
-    Numeric,
+    CheckConstraint,
     Date,
     DateTime,
-    Text,
     ForeignKey,
     Index,
-    CheckConstraint,
+    Integer,
+    Numeric,
+    String,
+    Text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
-from datetime import date, datetime
-from typing import Optional, TYPE_CHECKING
-from decimal import Decimal
 
 from app.database import Base
 
@@ -32,19 +33,19 @@ class SpotRental(Base):
     vin: Mapped[str] = mapped_column(
         String(17), ForeignKey("vehicles.vin", ondelete="CASCADE"), nullable=False
     )
-    location_name: Mapped[Optional[str]] = mapped_column(String(100))
-    location_address: Mapped[Optional[str]] = mapped_column(Text)
+    location_name: Mapped[str | None] = mapped_column(String(100))
+    location_address: Mapped[str | None] = mapped_column(Text)
     check_in_date: Mapped[date] = mapped_column(Date, nullable=False)
-    check_out_date: Mapped[Optional[date]] = mapped_column(Date)
-    nightly_rate: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 2))
-    weekly_rate: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 2))
-    monthly_rate: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 2))
-    electric: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 2))
-    water: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 2))
-    waste: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 2))
-    total_cost: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2))
-    amenities: Mapped[Optional[str]] = mapped_column(Text)
-    notes: Mapped[Optional[str]] = mapped_column(Text)
+    check_out_date: Mapped[date | None] = mapped_column(Date)
+    nightly_rate: Mapped[Decimal | None] = mapped_column(Numeric(8, 2))
+    weekly_rate: Mapped[Decimal | None] = mapped_column(Numeric(8, 2))
+    monthly_rate: Mapped[Decimal | None] = mapped_column(Numeric(8, 2))
+    electric: Mapped[Decimal | None] = mapped_column(Numeric(8, 2))
+    water: Mapped[Decimal | None] = mapped_column(Numeric(8, 2))
+    waste: Mapped[Decimal | None] = mapped_column(Numeric(8, 2))
+    total_cost: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    amenities: Mapped[str | None] = mapped_column(Text)
+    notes: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     # Relationships

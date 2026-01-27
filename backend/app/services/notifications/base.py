@@ -3,7 +3,6 @@
 import asyncio
 import logging
 from abc import ABC, abstractmethod
-from typing import Optional
 from types import TracebackType
 
 logger = logging.getLogger(__name__)
@@ -20,8 +19,8 @@ class NotificationService(ABC):
         title: str,
         message: str,
         priority: str = "default",
-        tags: Optional[list[str]] = None,
-        url: Optional[str] = None,
+        tags: list[str] | None = None,
+        url: str | None = None,
     ) -> bool:
         """Send a notification. Returns True on success."""
         pass
@@ -31,8 +30,8 @@ class NotificationService(ABC):
         title: str,
         message: str,
         priority: str = "default",
-        tags: Optional[list[str]] = None,
-        url: Optional[str] = None,
+        tags: list[str] | None = None,
+        url: str | None = None,
         max_attempts: int = 3,
         retry_delay: float = 2.0,
     ) -> bool:

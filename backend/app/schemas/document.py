@@ -1,7 +1,6 @@
 """Document schemas for MyGarage API."""
 
 from datetime import datetime as datetime_type
-from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -9,9 +8,9 @@ from pydantic import BaseModel, Field
 class DocumentBase(BaseModel):
     """Base document schema."""
 
-    document_type: Optional[str] = Field(None, max_length=50)
+    document_type: str | None = Field(None, max_length=50)
     title: str = Field(..., max_length=200)
-    description: Optional[str] = None
+    description: str | None = None
 
 
 class DocumentCreate(DocumentBase):
@@ -23,9 +22,9 @@ class DocumentCreate(DocumentBase):
 class DocumentUpdate(BaseModel):
     """Schema for updating a document."""
 
-    document_type: Optional[str] = Field(None, max_length=50)
-    title: Optional[str] = Field(None, max_length=200)
-    description: Optional[str] = None
+    document_type: str | None = Field(None, max_length=50)
+    title: str | None = Field(None, max_length=200)
+    description: str | None = None
 
 
 class DocumentResponse(DocumentBase):

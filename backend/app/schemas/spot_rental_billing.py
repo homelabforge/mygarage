@@ -1,23 +1,24 @@
 """Spot rental billing schemas for request/response validation."""
 
-from pydantic import BaseModel, Field
-from datetime import date as date_type, datetime
+from datetime import date as date_type
+from datetime import datetime
 from decimal import Decimal
-from typing import Optional
+
+from pydantic import BaseModel, Field
 
 
 class SpotRentalBillingBase(BaseModel):
     """Base schema for billing entry."""
 
     billing_date: date_type = Field(..., description="Date of this billing entry")
-    monthly_rate: Optional[Decimal] = Field(
+    monthly_rate: Decimal | None = Field(
         None, ge=0, description="Monthly rate for this period"
     )
-    electric: Optional[Decimal] = Field(None, ge=0, description="Electric charge")
-    water: Optional[Decimal] = Field(None, ge=0, description="Water charge")
-    waste: Optional[Decimal] = Field(None, ge=0, description="Waste charge")
-    total: Optional[Decimal] = Field(None, description="Total for this billing entry")
-    notes: Optional[str] = Field(None, max_length=1000, description="Billing notes")
+    electric: Decimal | None = Field(None, ge=0, description="Electric charge")
+    water: Decimal | None = Field(None, ge=0, description="Water charge")
+    waste: Decimal | None = Field(None, ge=0, description="Waste charge")
+    total: Decimal | None = Field(None, description="Total for this billing entry")
+    notes: str | None = Field(None, max_length=1000, description="Billing notes")
 
 
 class SpotRentalBillingCreate(SpotRentalBillingBase):
@@ -29,13 +30,13 @@ class SpotRentalBillingCreate(SpotRentalBillingBase):
 class SpotRentalBillingUpdate(BaseModel):
     """Schema for updating a billing entry (all fields optional)."""
 
-    billing_date: Optional[date_type] = None
-    monthly_rate: Optional[Decimal] = Field(None, ge=0)
-    electric: Optional[Decimal] = Field(None, ge=0)
-    water: Optional[Decimal] = Field(None, ge=0)
-    waste: Optional[Decimal] = Field(None, ge=0)
-    total: Optional[Decimal] = None
-    notes: Optional[str] = Field(None, max_length=1000)
+    billing_date: date_type | None = None
+    monthly_rate: Decimal | None = Field(None, ge=0)
+    electric: Decimal | None = Field(None, ge=0)
+    water: Decimal | None = Field(None, ge=0)
+    waste: Decimal | None = Field(None, ge=0)
+    total: Decimal | None = None
+    notes: str | None = Field(None, max_length=1000)
 
     class Config:
         extra = "forbid"

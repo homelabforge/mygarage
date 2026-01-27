@@ -1,13 +1,12 @@
 """VIN (Vehicle Identification Number) validation utilities."""
 
-import re
 import logging
-from typing import Optional
+import re
 
 logger = logging.getLogger(__name__)
 
 
-def validate_vin(vin: str) -> tuple[bool, Optional[str]]:
+def validate_vin(vin: str) -> tuple[bool, str | None]:
     """
     Validate a Vehicle Identification Number (VIN).
 
@@ -54,7 +53,7 @@ def validate_vin(vin: str) -> tuple[bool, Optional[str]]:
     return True, None
 
 
-def calculate_check_digit(vin: str) -> Optional[str]:
+def calculate_check_digit(vin: str) -> str | None:
     """
     Calculate the check digit for a VIN (9th position).
 

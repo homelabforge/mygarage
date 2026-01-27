@@ -2,22 +2,22 @@
 
 import logging
 from pathlib import Path
-from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
-from fastapi.responses import FileResponse
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete, func
-from sqlalchemy.exc import IntegrityError, OperationalError
 
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi.responses import FileResponse
+from sqlalchemy import delete, func, select
+from sqlalchemy.exc import IntegrityError, OperationalError
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.config import settings
 from app.database import get_db
 from app.models.attachment import Attachment
 from app.models.service import ServiceRecord
 from app.models.service_visit import ServiceVisit
 from app.models.user import User
-from app.schemas.attachment import AttachmentResponse, AttachmentListResponse
+from app.schemas.attachment import AttachmentListResponse, AttachmentResponse
 from app.services.auth import require_auth
-from app.config import settings
-from app.services.file_upload_service import FileUploadService, ATTACHMENT_UPLOAD_CONFIG
+from app.services.file_upload_service import ATTACHMENT_UPLOAD_CONFIG, FileUploadService
 from app.utils.logging_utils import sanitize_for_log
 
 router = APIRouter(prefix="/api", tags=["Attachments"])
@@ -41,7 +41,7 @@ async def upload_service_attachment(
     record_id: int,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Upload a file attachment to a service record.
@@ -110,7 +110,7 @@ async def upload_service_attachment(
             sanitize_for_log(str(e)),
         )
         raise HTTPException(status_code=503, detail="Database temporarily unavailable")
-    except (OSError, IOError) as e:
+    except OSError as e:
         await db.rollback()
         logger.error(
             "File system error uploading attachment: %s", sanitize_for_log(str(e))
@@ -122,7 +122,7 @@ async def upload_service_attachment(
 async def list_service_attachments(
     record_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Get all attachments for a service record."""
     try:
@@ -197,7 +197,7 @@ async def list_service_attachments(
 async def view_attachment(
     attachment_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """View an attachment file inline (for preview)."""
     try:
@@ -235,7 +235,7 @@ async def view_attachment(
             "Permission denied viewing attachment: %s", sanitize_for_log(str(e))
         )
         raise HTTPException(status_code=403, detail="Permission denied")
-    except (OSError, IOError) as e:
+    except OSError as e:
         logger.error(
             "File system error viewing attachment: %s", sanitize_for_log(str(e))
         )
@@ -246,7 +246,7 @@ async def view_attachment(
 async def download_attachment(
     attachment_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Download an attachment file."""
     try:
@@ -292,7 +292,7 @@ async def download_attachment(
             "Permission denied downloading attachment: %s", sanitize_for_log(str(e))
         )
         raise HTTPException(status_code=403, detail="Permission denied")
-    except (OSError, IOError) as e:
+    except OSError as e:
         logger.error(
             "File system error downloading attachment: %s", sanitize_for_log(str(e))
         )
@@ -303,7 +303,7 @@ async def download_attachment(
 async def delete_attachment(
     attachment_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Delete an attachment."""
     try:
@@ -337,7 +337,7 @@ async def delete_attachment(
             sanitize_for_log(str(e)),
         )
         raise HTTPException(status_code=503, detail="Database temporarily unavailable")
-    except (OSError, IOError) as e:
+    except OSError as e:
         await db.rollback()
         logger.error(
             "File system error deleting attachment: %s", sanitize_for_log(str(e))
@@ -359,7 +359,7 @@ async def upload_service_visit_attachment(
     visit_id: int,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
-    _current_user: Optional[User] = Depends(require_auth),
+    _current_user: User | None = Depends(require_auth),
 ):
     """
     Upload a file attachment to a service visit.
@@ -428,7 +428,7 @@ async def upload_service_visit_attachment(
             sanitize_for_log(str(e)),
         )
         raise HTTPException(status_code=503, detail="Database temporarily unavailable")
-    except (OSError, IOError) as e:
+    except OSError as e:
         await db.rollback()
         logger.error(
             "File system error uploading attachment: %s", sanitize_for_log(str(e))
@@ -442,7 +442,7 @@ async def upload_service_visit_attachment(
 async def list_service_visit_attachments(
     visit_id: int,
     db: AsyncSession = Depends(get_db),
-    _current_user: Optional[User] = Depends(require_auth),
+    _current_user: User | None = Depends(require_auth),
 ):
     """Get all attachments for a service visit."""
     try:

@@ -1,7 +1,6 @@
 """Maintenance Schedule API endpoints."""
 
 import logging
-from typing import Optional
 from datetime import date
 
 from fastapi import APIRouter, Depends, Query
@@ -10,12 +9,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.user import User
 from app.schemas.maintenance_schedule import (
-    MaintenanceScheduleItemCreate,
-    MaintenanceScheduleItemUpdate,
-    MaintenanceScheduleItemResponse,
-    MaintenanceScheduleListResponse,
     ApplyTemplateRequest,
     ApplyTemplateResponse,
+    MaintenanceScheduleItemCreate,
+    MaintenanceScheduleItemResponse,
+    MaintenanceScheduleItemUpdate,
+    MaintenanceScheduleListResponse,
 )
 from app.services.auth import require_auth
 from app.services.maintenance_schedule_service import MaintenanceScheduleService
@@ -30,7 +29,7 @@ router = APIRouter(
 @router.get("", response_model=MaintenanceScheduleListResponse)
 async def list_schedule_items(
     vin: str,
-    status: Optional[str] = Query(
+    status: str | None = Query(
         None,
         description="Filter by status (never_performed, overdue, due_soon, on_track)",
     ),
@@ -87,8 +86,9 @@ async def get_schedule_item(
 
     # Calculate status
     current_date = date.today()
-    from app.models.odometer import OdometerRecord
     from sqlalchemy import select
+
+    from app.models.odometer import OdometerRecord
 
     result = await db.execute(
         select(OdometerRecord.mileage)

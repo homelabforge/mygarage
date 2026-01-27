@@ -1,37 +1,37 @@
 """Address book schemas for validation."""
 
-from pydantic import BaseModel, Field, EmailStr, field_validator
 from datetime import datetime
-from typing import Optional
 from decimal import Decimal
+
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 class AddressBookEntryBase(BaseModel):
     """Base address book entry schema."""
 
     business_name: str = Field(..., max_length=150)
-    name: Optional[str] = Field(None, max_length=100)
-    address: Optional[str] = None
-    city: Optional[str] = Field(None, max_length=100)
-    state: Optional[str] = Field(None, max_length=50)
-    zip_code: Optional[str] = Field(None, max_length=20)
-    phone: Optional[str] = Field(None, max_length=20)
-    email: Optional[EmailStr] = None
-    website: Optional[str] = Field(None, max_length=200)
-    category: Optional[str] = Field(None, max_length=50)
-    notes: Optional[str] = None
+    name: str | None = Field(None, max_length=100)
+    address: str | None = None
+    city: str | None = Field(None, max_length=100)
+    state: str | None = Field(None, max_length=50)
+    zip_code: str | None = Field(None, max_length=20)
+    phone: str | None = Field(None, max_length=20)
+    email: EmailStr | None = None
+    website: str | None = Field(None, max_length=200)
+    category: str | None = Field(None, max_length=50)
+    notes: str | None = None
 
     # Geolocation fields for shop discovery
-    latitude: Optional[Decimal] = None
-    longitude: Optional[Decimal] = None
+    latitude: Decimal | None = None
+    longitude: Decimal | None = None
 
     # Shop discovery metadata
-    source: Optional[str] = Field(default="manual", max_length=20)
-    external_id: Optional[str] = Field(None, max_length=100)
+    source: str | None = Field(default="manual", max_length=20)
+    external_id: str | None = Field(None, max_length=100)
 
     # Ratings
-    rating: Optional[Decimal] = None
-    user_rating: Optional[int] = None
+    rating: Decimal | None = None
+    user_rating: int | None = None
 
     @field_validator("email", "website", mode="before")
     @classmethod
@@ -51,29 +51,29 @@ class AddressBookEntryCreate(AddressBookEntryBase):
 class AddressBookEntryUpdate(BaseModel):
     """Schema for updating an address book entry."""
 
-    business_name: Optional[str] = Field(None, max_length=150)
-    name: Optional[str] = Field(None, max_length=100)
-    address: Optional[str] = None
-    city: Optional[str] = Field(None, max_length=100)
-    state: Optional[str] = Field(None, max_length=50)
-    zip_code: Optional[str] = Field(None, max_length=20)
-    phone: Optional[str] = Field(None, max_length=20)
-    email: Optional[EmailStr] = None
-    website: Optional[str] = Field(None, max_length=200)
-    category: Optional[str] = Field(None, max_length=50)
-    notes: Optional[str] = None
+    business_name: str | None = Field(None, max_length=150)
+    name: str | None = Field(None, max_length=100)
+    address: str | None = None
+    city: str | None = Field(None, max_length=100)
+    state: str | None = Field(None, max_length=50)
+    zip_code: str | None = Field(None, max_length=20)
+    phone: str | None = Field(None, max_length=20)
+    email: EmailStr | None = None
+    website: str | None = Field(None, max_length=200)
+    category: str | None = Field(None, max_length=50)
+    notes: str | None = None
 
     # Geolocation fields for shop discovery
-    latitude: Optional[Decimal] = None
-    longitude: Optional[Decimal] = None
+    latitude: Decimal | None = None
+    longitude: Decimal | None = None
 
     # Shop discovery metadata
-    source: Optional[str] = Field(None, max_length=20)
-    external_id: Optional[str] = Field(None, max_length=100)
+    source: str | None = Field(None, max_length=20)
+    external_id: str | None = Field(None, max_length=100)
 
     # Ratings
-    rating: Optional[Decimal] = None
-    user_rating: Optional[int] = None
+    rating: Decimal | None = None
+    user_rating: int | None = None
 
     @field_validator("email", "website", mode="before")
     @classmethod

@@ -2,14 +2,14 @@
 
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
 from app.config import settings
+from app.database import get_db
 from app.models.user import User
 from app.services.auth import require_auth
 from app.services.backup_service import BackupService
@@ -31,8 +31,8 @@ def get_backup_service() -> BackupService:
 
 @router.get("/stats")
 async def get_stats(
-    current_user: Optional[User] = Depends(require_auth),
-) -> Dict[str, Any]:
+    current_user: User | None = Depends(require_auth),
+) -> dict[str, Any]:
     """Get database and backup statistics.
 
     Returns:
@@ -61,15 +61,15 @@ async def get_stats(
             "backup_directory": str(BACKUP_DIR),
             "wal_mode_enabled": Path(f"{DATABASE_PATH}-wal").exists(),
         }
-    except (OSError, IOError) as e:
+    except OSError as e:
         logger.error("File system error getting stats: %s", e)
         raise HTTPException(status_code=500, detail="Error accessing backup files")
 
 
 @router.get("/list")
 async def list_backups(
-    backup_type: str = "all", current_user: Optional[User] = Depends(require_auth)
-) -> Dict[str, Any]:
+    backup_type: str = "all", current_user: User | None = Depends(require_auth)
+) -> dict[str, Any]:
     """List all available backup files.
 
     Args:
@@ -82,7 +82,7 @@ async def list_backups(
         backup_service = get_backup_service()
         backups = backup_service.get_backup_files(backup_type)
         return {"backups": backups}
-    except (OSError, IOError) as e:
+    except OSError as e:
         logger.error("File system error listing backups: %s", e)
         raise HTTPException(status_code=500, detail="Error accessing backup directory")
 
@@ -90,8 +90,8 @@ async def list_backups(
 @router.post("/create")
 async def create_settings_backup(
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
-) -> Dict[str, Any]:
+    current_user: User | None = Depends(require_auth),
+) -> dict[str, Any]:
     """Create a new backup of all settings.
 
     Args:
@@ -115,15 +115,15 @@ async def create_settings_backup(
             status_code=403,
             detail="Permission denied: cannot write to backup directory",
         )
-    except (OSError, IOError) as e:
+    except OSError as e:
         logger.error("File system error creating settings backup: %s", e)
         raise HTTPException(status_code=500, detail="Error writing backup file")
 
 
 @router.post("/create-full")
 async def create_full_backup(
-    current_user: Optional[User] = Depends(require_auth),
-) -> Dict[str, Any]:
+    current_user: User | None = Depends(require_auth),
+) -> dict[str, Any]:
     """Create a full backup including database and all uploaded files.
 
     This may take several minutes depending on the size of your data.
@@ -146,14 +146,14 @@ async def create_full_backup(
             status_code=403,
             detail="Permission denied: cannot write to backup directory",
         )
-    except (OSError, IOError) as e:
+    except OSError as e:
         logger.error("File system error creating full backup: %s", e)
         raise HTTPException(status_code=500, detail="Error creating backup archive")
 
 
 @router.get("/download/{filename}")
 async def download_backup(
-    filename: str, current_user: Optional[User] = Depends(require_auth)
+    filename: str, current_user: User | None = Depends(require_auth)
 ):
     """Download a specific backup file.
 
@@ -193,7 +193,7 @@ async def download_backup(
         raise HTTPException(
             status_code=403, detail="Permission denied: cannot read backup file"
         )
-    except (OSError, IOError) as e:
+    except OSError as e:
         logger.error("File system error downloading backup: %s", e)
         raise HTTPException(status_code=500, detail="Error reading backup file")
 
@@ -202,8 +202,8 @@ async def download_backup(
 async def restore_backup(
     filename: str,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
-) -> Dict[str, Any]:
+    current_user: User | None = Depends(require_auth),
+) -> dict[str, Any]:
     """Restore settings from a backup file.
 
     This creates a safety backup before restoring.
@@ -250,7 +250,7 @@ async def restore_backup(
         raise HTTPException(
             status_code=403, detail="Permission denied: cannot write to data directory"
         )
-    except (OSError, IOError) as e:
+    except OSError as e:
         logger.error("File system error restoring backup: %s", e)
         raise HTTPException(status_code=500, detail="Error restoring backup files")
 
@@ -259,8 +259,8 @@ async def restore_backup(
 async def upload_backup(
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
-) -> Dict[str, Any]:
+    current_user: User | None = Depends(require_auth),
+) -> dict[str, Any]:
     """Upload and save a backup file.
 
     Args:
@@ -359,15 +359,15 @@ async def upload_backup(
             status_code=403,
             detail="Permission denied: cannot write to backup directory",
         )
-    except (OSError, IOError) as e:
+    except OSError as e:
         logger.error("File system error uploading backup: %s", e)
         raise HTTPException(status_code=500, detail="Error saving backup file")
 
 
 @router.delete("/{filename}")
 async def delete_backup(
-    filename: str, current_user: Optional[User] = Depends(require_auth)
-) -> Dict[str, Any]:
+    filename: str, current_user: User | None = Depends(require_auth)
+) -> dict[str, Any]:
     """Delete a backup file.
 
     Safety backups cannot be deleted to prevent accidental data loss.
@@ -392,6 +392,6 @@ async def delete_backup(
         raise HTTPException(
             status_code=403, detail="Permission denied: cannot delete backup file"
         )
-    except (OSError, IOError) as e:
+    except OSError as e:
         logger.error("File system error deleting backup: %s", e)
         raise HTTPException(status_code=500, detail="Error deleting backup file")

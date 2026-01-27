@@ -6,7 +6,7 @@ Tests VIN format validation, check digit calculation, and formatting.
 
 import pytest
 
-from app.utils.vin import validate_vin, calculate_check_digit, format_vin
+from app.utils.vin import calculate_check_digit, format_vin, validate_vin
 
 
 @pytest.mark.unit

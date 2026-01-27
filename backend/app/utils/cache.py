@@ -1,10 +1,11 @@
 """Simple in-memory TTL cache for analytics results."""
 
-from typing import Any, Callable, Optional
-from functools import wraps
-from datetime import datetime, timedelta
-import hashlib
 import asyncio
+import hashlib
+from collections.abc import Callable
+from datetime import datetime, timedelta
+from functools import wraps
+from typing import Any
 
 
 class InMemoryCache:
@@ -33,7 +34,7 @@ class InMemoryCache:
         key_string = "|".join(key_parts)
         return hashlib.md5(key_string.encode()).hexdigest()
 
-    async def get(self, key: str) -> Optional[Any]:
+    async def get(self, key: str) -> Any | None:
         """Get value from cache if not expired."""
         async with self._lock:
             if key in self._cache:

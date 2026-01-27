@@ -1,29 +1,30 @@
 """Service visit database model."""
 
+import datetime as dt
+from datetime import datetime
+from decimal import Decimal
+from typing import TYPE_CHECKING, Optional
+
 from sqlalchemy import (
-    String,
-    Integer,
-    Numeric,
+    CheckConstraint,
     Date,
     DateTime,
-    Text,
     ForeignKey,
     Index,
-    CheckConstraint,
+    Integer,
+    Numeric,
+    String,
+    Text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
-import datetime as dt
-from datetime import datetime
-from typing import Optional, TYPE_CHECKING
-from decimal import Decimal
 
 from app.database import Base
 
 if TYPE_CHECKING:
+    from app.models.service_line_item import ServiceLineItem
     from app.models.vehicle import Vehicle
     from app.models.vendor import Vendor
-    from app.models.service_line_item import ServiceLineItem
 
 
 class ServiceVisit(Base):
@@ -35,18 +36,18 @@ class ServiceVisit(Base):
     vin: Mapped[str] = mapped_column(
         String(17), ForeignKey("vehicles.vin", ondelete="CASCADE"), nullable=False
     )
-    vendor_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("vendors.id"))
+    vendor_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("vendors.id"))
     date: Mapped[dt.date] = mapped_column(Date, nullable=False)
-    mileage: Mapped[Optional[int]] = mapped_column(Integer)
-    total_cost: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2))
-    tax_amount: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2))
-    shop_supplies: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2))
-    misc_fees: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2))
-    notes: Mapped[Optional[str]] = mapped_column(Text)
-    service_category: Mapped[Optional[str]] = mapped_column(String(30))
-    insurance_claim_number: Mapped[Optional[str]] = mapped_column(String(50))
+    mileage: Mapped[int | None] = mapped_column(Integer)
+    total_cost: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    tax_amount: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    shop_supplies: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    misc_fees: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    notes: Mapped[str | None] = mapped_column(Text)
+    service_category: Mapped[str | None] = mapped_column(String(30))
+    insurance_claim_number: Mapped[str | None] = mapped_column(String(50))
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[Optional[datetime]] = mapped_column(
+    updated_at: Mapped[datetime | None] = mapped_column(
         DateTime, onupdate=func.now()
     )
 

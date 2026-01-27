@@ -18,7 +18,7 @@ Supported conversions:
 """
 
 from decimal import Decimal
-from typing import Optional, Union
+from typing import Union
 
 # Type alias for numeric values
 Numeric = Union[int, float, Decimal, None]
@@ -36,7 +36,7 @@ class UnitConverter:
     LBFT_TO_NM = Decimal("1.35582")
 
     @staticmethod
-    def to_decimal(value: Numeric) -> Optional[Decimal]:
+    def to_decimal(value: Numeric) -> Decimal | None:
         """Convert numeric value to Decimal for precision."""
         if value is None:
             return None
@@ -45,7 +45,7 @@ class UnitConverter:
         return Decimal(str(value))
 
     @staticmethod
-    def round_result(value: Optional[Decimal], decimals: int = 2) -> Optional[float]:
+    def round_result(value: Decimal | None, decimals: int = 2) -> float | None:
         """Round and convert Decimal to float for JSON serialization."""
         if value is None:
             return None
@@ -54,7 +54,7 @@ class UnitConverter:
     # ========== VOLUME CONVERSIONS ==========
 
     @classmethod
-    def gallons_to_liters(cls, gallons: Numeric) -> Optional[float]:
+    def gallons_to_liters(cls, gallons: Numeric) -> float | None:
         """Convert gallons to liters."""
         val = cls.to_decimal(gallons)
         if val is None:
@@ -62,7 +62,7 @@ class UnitConverter:
         return cls.round_result(val * cls.GALLONS_TO_LITERS)
 
     @classmethod
-    def liters_to_gallons(cls, liters: Numeric) -> Optional[float]:
+    def liters_to_gallons(cls, liters: Numeric) -> float | None:
         """Convert liters to gallons."""
         val = cls.to_decimal(liters)
         if val is None:
@@ -72,7 +72,7 @@ class UnitConverter:
     # ========== DISTANCE CONVERSIONS ==========
 
     @classmethod
-    def miles_to_km(cls, miles: Numeric) -> Optional[float]:
+    def miles_to_km(cls, miles: Numeric) -> float | None:
         """Convert miles to kilometers."""
         val = cls.to_decimal(miles)
         if val is None:
@@ -80,7 +80,7 @@ class UnitConverter:
         return cls.round_result(val * cls.MILES_TO_KM)
 
     @classmethod
-    def km_to_miles(cls, km: Numeric) -> Optional[float]:
+    def km_to_miles(cls, km: Numeric) -> float | None:
         """Convert kilometers to miles."""
         val = cls.to_decimal(km)
         if val is None:
@@ -90,7 +90,7 @@ class UnitConverter:
     # ========== FUEL ECONOMY CONVERSIONS ==========
 
     @classmethod
-    def mpg_to_l100km(cls, mpg: Numeric) -> Optional[float]:
+    def mpg_to_l100km(cls, mpg: Numeric) -> float | None:
         """Convert MPG to L/100km.
 
         Formula: L/100km = 235.214 / MPG
@@ -103,7 +103,7 @@ class UnitConverter:
         return cls.round_result(conversion_factor / val, 1)
 
     @classmethod
-    def l100km_to_mpg(cls, l100km: Numeric) -> Optional[float]:
+    def l100km_to_mpg(cls, l100km: Numeric) -> float | None:
         """Convert L/100km to MPG.
 
         Formula: MPG = 235.214 / (L/100km)
@@ -117,7 +117,7 @@ class UnitConverter:
     # ========== DIMENSION CONVERSIONS ==========
 
     @classmethod
-    def feet_to_meters(cls, feet: Numeric) -> Optional[float]:
+    def feet_to_meters(cls, feet: Numeric) -> float | None:
         """Convert feet to meters."""
         val = cls.to_decimal(feet)
         if val is None:
@@ -125,7 +125,7 @@ class UnitConverter:
         return cls.round_result(val * cls.FEET_TO_METERS)
 
     @classmethod
-    def meters_to_feet(cls, meters: Numeric) -> Optional[float]:
+    def meters_to_feet(cls, meters: Numeric) -> float | None:
         """Convert meters to feet."""
         val = cls.to_decimal(meters)
         if val is None:
@@ -135,7 +135,7 @@ class UnitConverter:
     # ========== TEMPERATURE CONVERSIONS ==========
 
     @classmethod
-    def fahrenheit_to_celsius(cls, fahrenheit: Numeric) -> Optional[float]:
+    def fahrenheit_to_celsius(cls, fahrenheit: Numeric) -> float | None:
         """Convert Fahrenheit to Celsius.
 
         Formula: C = (F - 32) × 5/9
@@ -147,7 +147,7 @@ class UnitConverter:
         return cls.round_result(celsius, 1)
 
     @classmethod
-    def celsius_to_fahrenheit(cls, celsius: Numeric) -> Optional[float]:
+    def celsius_to_fahrenheit(cls, celsius: Numeric) -> float | None:
         """Convert Celsius to Fahrenheit.
 
         Formula: F = C × 9/5 + 32
@@ -161,7 +161,7 @@ class UnitConverter:
     # ========== PRESSURE CONVERSIONS ==========
 
     @classmethod
-    def psi_to_bar(cls, psi: Numeric) -> Optional[float]:
+    def psi_to_bar(cls, psi: Numeric) -> float | None:
         """Convert PSI to bar."""
         val = cls.to_decimal(psi)
         if val is None:
@@ -169,7 +169,7 @@ class UnitConverter:
         return cls.round_result(val * cls.PSI_TO_BAR)
 
     @classmethod
-    def bar_to_psi(cls, bar: Numeric) -> Optional[float]:
+    def bar_to_psi(cls, bar: Numeric) -> float | None:
         """Convert bar to PSI."""
         val = cls.to_decimal(bar)
         if val is None:
@@ -179,7 +179,7 @@ class UnitConverter:
     # ========== WEIGHT CONVERSIONS ==========
 
     @classmethod
-    def lbs_to_kg(cls, lbs: Numeric) -> Optional[float]:
+    def lbs_to_kg(cls, lbs: Numeric) -> float | None:
         """Convert pounds to kilograms."""
         val = cls.to_decimal(lbs)
         if val is None:
@@ -187,7 +187,7 @@ class UnitConverter:
         return cls.round_result(val * cls.LBS_TO_KG)
 
     @classmethod
-    def kg_to_lbs(cls, kg: Numeric) -> Optional[float]:
+    def kg_to_lbs(cls, kg: Numeric) -> float | None:
         """Convert kilograms to pounds."""
         val = cls.to_decimal(kg)
         if val is None:
@@ -197,7 +197,7 @@ class UnitConverter:
     # ========== TORQUE CONVERSIONS ==========
 
     @classmethod
-    def lbft_to_nm(cls, lbft: Numeric) -> Optional[float]:
+    def lbft_to_nm(cls, lbft: Numeric) -> float | None:
         """Convert lb-ft to Newton-meters."""
         val = cls.to_decimal(lbft)
         if val is None:
@@ -205,7 +205,7 @@ class UnitConverter:
         return cls.round_result(val * cls.LBFT_TO_NM)
 
     @classmethod
-    def nm_to_lbft(cls, nm: Numeric) -> Optional[float]:
+    def nm_to_lbft(cls, nm: Numeric) -> float | None:
         """Convert Newton-meters to lb-ft."""
         val = cls.to_decimal(nm)
         if val is None:

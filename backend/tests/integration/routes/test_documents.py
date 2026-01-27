@@ -4,9 +4,10 @@ Integration tests for document routes.
 Tests document upload, retrieval, and deletion.
 """
 
+from io import BytesIO
+
 import pytest
 from httpx import AsyncClient
-from io import BytesIO
 
 
 @pytest.mark.integration

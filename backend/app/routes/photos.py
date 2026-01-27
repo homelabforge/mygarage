@@ -2,11 +2,10 @@
 
 import logging
 from pathlib import Path
-from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
-from sqlalchemy import select, delete, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,12 +14,12 @@ from app.database import get_db
 from app.models.photo import VehiclePhoto
 from app.models.user import User
 from app.schemas.photo import PhotoUpdate
-from app.services.auth import require_auth, get_vehicle_or_403
+from app.services.auth import get_vehicle_or_403, require_auth
+from app.services.file_upload_service import PHOTO_UPLOAD_CONFIG, FileUploadService
 from app.services.photo_service import PhotoService
-from app.services.file_upload_service import FileUploadService, PHOTO_UPLOAD_CONFIG
+from app.utils.logging_utils import sanitize_for_log
 from app.utils.path_validation import sanitize_filename, validate_path_within_base
 from app.utils.vin import validate_vin
-from app.utils.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/vehicles", tags=["Photos"])
@@ -32,7 +31,7 @@ PHOTO_DIR = settings.photos_dir
 async def upload_vehicle_photo(
     vin: str,
     file: UploadFile = File(...),
-    caption: Optional[str] = Form(None),
+    caption: str | None = Form(None),
     set_as_main: bool = Form(False),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_auth),
@@ -129,7 +128,7 @@ async def upload_vehicle_photo(
             sanitize_for_log(str(e)),
         )
         raise HTTPException(status_code=503, detail="Database temporarily unavailable")
-    except (OSError, IOError) as e:
+    except OSError as e:
         await db.rollback()
         logger.error(
             "File system error uploading photo for %s: %s",
@@ -346,7 +345,7 @@ async def delete_vehicle_photo(
             sanitize_for_log(str(e)),
         )
         raise HTTPException(status_code=503, detail="Database temporarily unavailable")
-    except (OSError, IOError) as e:
+    except OSError as e:
         await db.rollback()
         logger.error(
             "File system error deleting photo for %s: %s",

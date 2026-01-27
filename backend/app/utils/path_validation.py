@@ -2,10 +2,10 @@
 
 # pyright: reportArgumentType=false, reportReturnType=false
 
-import re
 import logging
+import re
 from pathlib import Path
-from typing import Optional
+
 from fastapi import HTTPException, status
 
 from app.utils.logging_utils import sanitize_for_log
@@ -53,7 +53,7 @@ def sanitize_filename(filename: str) -> str:
 
 def validate_path_within_base(
     file_path: Path, base_path: Path, raise_error: bool = True
-) -> Optional[Path]:
+) -> Path | None:
     """Ensure file_path is within base_path to prevent path traversal.
 
     This function resolves both paths to their canonical forms and verifies
@@ -97,7 +97,7 @@ def validate_path_within_base(
 
 
 def validate_and_resolve_path(
-    filename: str, base_dir: Path, allowed_extensions: Optional[set] = None
+    filename: str, base_dir: Path, allowed_extensions: set | None = None
 ) -> Path:
     """Complete validation: sanitize filename, check extension, prevent traversal.
 

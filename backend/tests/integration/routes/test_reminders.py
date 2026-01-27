@@ -4,9 +4,10 @@ Integration tests for reminder routes.
 Tests reminder CRUD operations and upcoming reminders.
 """
 
+from datetime import date, timedelta
+
 import pytest
 from httpx import AsyncClient
-from datetime import date, timedelta
 
 
 @pytest.mark.integration

@@ -1,7 +1,6 @@
 """Slack notification service."""
 
 import logging
-from typing import Optional
 
 import httpx
 
@@ -37,8 +36,8 @@ class SlackNotificationService(NotificationService):
         title: str,
         message: str,
         priority: str = "default",
-        tags: Optional[list[str]] = None,
-        url: Optional[str] = None,
+        tags: list[str] | None = None,
+        url: str | None = None,
     ) -> bool:
         try:
             color = PRIORITY_COLORS.get(priority, "#2196F3")

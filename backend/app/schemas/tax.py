@@ -1,11 +1,11 @@
 """Pydantic schemas for tax/registration records."""
 
-from datetime import date as date_type, datetime as datetime_type
+from datetime import date as date_type
+from datetime import datetime as datetime_type
 from decimal import Decimal
-from typing import Optional, Literal
+from typing import Literal
 
 from pydantic import BaseModel, Field
-
 
 TaxType = Literal["Registration", "Inspection", "Property Tax", "Tolls"]
 
@@ -14,10 +14,10 @@ class TaxRecordBase(BaseModel):
     """Base tax record schema."""
 
     date: date_type = Field(..., description="Date the fee was paid")
-    tax_type: Optional[TaxType] = Field(None, description="Type of tax/fee")
+    tax_type: TaxType | None = Field(None, description="Type of tax/fee")
     amount: Decimal = Field(..., description="Amount paid", ge=0)
-    renewal_date: Optional[date_type] = Field(None, description="Next renewal date")
-    notes: Optional[str] = None
+    renewal_date: date_type | None = Field(None, description="Next renewal date")
+    notes: str | None = None
 
 
 class TaxRecordCreate(TaxRecordBase):
@@ -44,11 +44,11 @@ class TaxRecordCreate(TaxRecordBase):
 class TaxRecordUpdate(BaseModel):
     """Schema for updating a tax record."""
 
-    date: Optional[date_type] = None
-    tax_type: Optional[TaxType] = None
-    amount: Optional[Decimal] = Field(None, ge=0)
-    renewal_date: Optional[date_type] = None
-    notes: Optional[str] = None
+    date: date_type | None = None
+    tax_type: TaxType | None = None
+    amount: Decimal | None = Field(None, ge=0)
+    renewal_date: date_type | None = None
+    notes: str | None = None
 
 
 class TaxRecordResponse(TaxRecordBase):

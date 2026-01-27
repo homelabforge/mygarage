@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
-from sqlalchemy import select, delete
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.settings import Setting
@@ -20,7 +18,7 @@ class SettingsService:
         return list(result.scalars().all())
 
     @staticmethod
-    async def get(db: AsyncSession, key: str) -> Optional[Setting]:
+    async def get(db: AsyncSession, key: str) -> Setting | None:
         """Fetch a single setting by key."""
         result = await db.execute(select(Setting).where(Setting.key == key))
         return result.scalar_one_or_none()
@@ -29,11 +27,11 @@ class SettingsService:
     async def set(
         db: AsyncSession,
         key: str,
-        value: Optional[str],
+        value: str | None,
         *,
-        category: Optional[str] = None,
-        description: Optional[str] = None,
-        encrypted: Optional[bool] = None,
+        category: str | None = None,
+        description: str | None = None,
+        encrypted: bool | None = None,
     ) -> Setting:
         """
         Create or update a Setting.

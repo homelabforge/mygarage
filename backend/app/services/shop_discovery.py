@@ -1,16 +1,17 @@
 """Shop discovery service using TomTom API (primary) and OSM Overpass (fallback)."""
 
 import logging
-from typing import Any, Optional
 from decimal import Decimal
+from typing import Any
+
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings as app_settings
-from app.services.settings_service import SettingsService
-from app.utils.url_validation import validate_tomtom_url
-from app.utils.logging_utils import sanitize_for_log, mask_api_key, mask_coordinates
 from app.exceptions import SSRFProtectionError
+from app.services.settings_service import SettingsService
+from app.utils.logging_utils import mask_api_key, mask_coordinates, sanitize_for_log
+from app.utils.url_validation import validate_tomtom_url
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +104,7 @@ class ShopDiscoveryService:
         self,
         latitude: float,
         longitude: float,
-        radius_meters: Optional[int] = None,
+        radius_meters: int | None = None,
         shop_type: str = "auto",
     ) -> list[dict[str, Any]]:
         """Search for repair shops near coordinates.
@@ -362,7 +363,7 @@ class ShopDiscoveryService:
             "website": None,  # Not included in category search
         }
 
-    def _normalize_osm_result(self, element: dict) -> Optional[dict[str, Any]]:
+    def _normalize_osm_result(self, element: dict) -> dict[str, Any] | None:
         """Normalize OSM result to common PlaceResult format.
 
         Args:

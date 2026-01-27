@@ -6,7 +6,8 @@ due to the delete logic being added after the initial migration run.
 
 import os
 from pathlib import Path
-from sqlalchemy import text, create_engine
+
+from sqlalchemy import create_engine, text
 
 
 def upgrade():

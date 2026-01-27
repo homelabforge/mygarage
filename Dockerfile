@@ -50,9 +50,9 @@ ENV PYTHONDONTWRITEBYTECODE=1
 RUN pip install --no-cache-dir --upgrade pip==25.3 && \
     rm -rf /usr/local/lib/python3.14/site-packages/pip-25.2.dist-info 2>/dev/null || true
 
-# Copy backend code and install with dependencies (including dev/test dependencies)
+# Copy backend code and install with dependencies (production only)
 COPY backend/ ./
-RUN pip install --no-cache-dir ".[dev]"
+RUN pip install --no-cache-dir "."
 
 # Stage 3: Production image
 FROM python:3.14-slim
@@ -86,10 +86,8 @@ RUN apt-get update && \
 COPY --from=backend-builder /usr/local/lib/python3.14/site-packages /usr/local/lib/python3.14/site-packages
 COPY --from=backend-builder /usr/local/bin /usr/local/bin
 
-# Copy backend application code and tests
+# Copy backend application code
 COPY --from=backend-builder /app/app ./app
-COPY --from=backend-builder /app/tests ./tests
-COPY --from=backend-builder /app/pytest.ini ./pytest.ini
 COPY --from=backend-builder /app/pyproject.toml ./pyproject.toml
 
 # Copy frontend build

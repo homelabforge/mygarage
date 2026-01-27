@@ -1,28 +1,28 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import StreamingResponse
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from datetime import datetime
 import csv
 import io
 import json
+from datetime import datetime
+from typing import Any
 
-from typing import Any, Optional
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.database import get_db
 from app.models import (
-    Vehicle,
-    ServiceRecord,
     FuelRecord,
+    InsurancePolicy,
+    Note,
     OdometerRecord,
     Reminder,
-    Note,
-    WarrantyRecord,
-    InsurancePolicy,
+    ServiceRecord,
     TaxRecord,
+    Vehicle,
+    WarrantyRecord,
 )
 from app.models.user import User
 from app.services.auth import require_auth
@@ -49,7 +49,7 @@ async def export_service_records_csv(
     request: Request,
     vin: str,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Export service records as CSV"""
     # Verify vehicle exists
@@ -111,7 +111,7 @@ async def export_fuel_records_csv(
     request: Request,
     vin: str,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Export fuel records as CSV"""
     # Verify vehicle exists
@@ -175,7 +175,7 @@ async def export_odometer_records_csv(
     request: Request,
     vin: str,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Export odometer records as CSV"""
     # Verify vehicle exists
@@ -223,7 +223,7 @@ async def export_warranties_csv(
     request: Request,
     vin: str,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Export warranties as CSV"""
     # Verify vehicle exists
@@ -289,7 +289,7 @@ async def export_insurance_csv(
     request: Request,
     vin: str,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Export insurance records as CSV"""
     # Verify vehicle exists
@@ -353,7 +353,7 @@ async def export_tax_records_csv(
     request: Request,
     vin: str,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Export tax records as CSV"""
     # Verify vehicle exists
@@ -411,7 +411,7 @@ async def export_notes_csv(
     request: Request,
     vin: str,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Export notes as CSV"""
     # Verify vehicle exists
@@ -461,7 +461,7 @@ async def export_vehicle_json(
     request: Request,
     vin: str,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Export complete vehicle data as JSON"""
     # Get vehicle

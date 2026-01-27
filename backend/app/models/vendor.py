@@ -1,10 +1,11 @@
 """Vendor database model."""
 
-from sqlalchemy import String, Integer, Text, DateTime, Index
+from datetime import datetime
+from typing import TYPE_CHECKING
+
+from sqlalchemy import DateTime, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
-from datetime import datetime
-from typing import Optional, TYPE_CHECKING
 
 from app.database import Base
 
@@ -20,13 +21,13 @@ class Vendor(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
-    address: Mapped[Optional[str]] = mapped_column(Text)
-    city: Mapped[Optional[str]] = mapped_column(String(100))
-    state: Mapped[Optional[str]] = mapped_column(String(50))
-    zip_code: Mapped[Optional[str]] = mapped_column(String(20))
-    phone: Mapped[Optional[str]] = mapped_column(String(20))
+    address: Mapped[str | None] = mapped_column(Text)
+    city: Mapped[str | None] = mapped_column(String(100))
+    state: Mapped[str | None] = mapped_column(String(50))
+    zip_code: Mapped[str | None] = mapped_column(String(20))
+    phone: Mapped[str | None] = mapped_column(String(20))
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[Optional[datetime]] = mapped_column(
+    updated_at: Mapped[datetime | None] = mapped_column(
         DateTime, onupdate=func.now()
     )
 
@@ -41,7 +42,7 @@ class Vendor(Base):
     __table_args__ = (Index("idx_vendors_name", "name"),)
 
     @property
-    def full_address(self) -> Optional[str]:
+    def full_address(self) -> str | None:
         """Return formatted full address."""
         parts = []
         if self.address:

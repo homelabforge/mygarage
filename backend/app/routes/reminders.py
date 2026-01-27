@@ -1,10 +1,9 @@
 """Reminder routes for MyGarage API."""
 
-from datetime import datetime, timezone
-from typing import Annotated, Optional
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -17,6 +16,7 @@ from app.schemas.reminder import (
     ReminderUpdate,
 )
 from app.services.auth import require_auth
+from app.utils.datetime_utils import utc_now
 
 router = APIRouter(prefix="/api/vehicles", tags=["reminders"])
 
@@ -26,7 +26,7 @@ async def list_reminders(
     vin: str,
     include_completed: bool = False,
     db: Annotated[AsyncSession, Depends(get_db)] = None,
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> ReminderListResponse:
     """List all reminders for a vehicle."""
     # Verify vehicle exists
@@ -77,7 +77,7 @@ async def create_reminder(
     vin: str,
     reminder_data: ReminderCreate,
     db: Annotated[AsyncSession, Depends(get_db)] = None,
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> ReminderResponse:
     """Create a new reminder for a vehicle."""
     # Verify vehicle exists
@@ -125,7 +125,7 @@ async def get_reminder(
     vin: str,
     reminder_id: int,
     db: Annotated[AsyncSession, Depends(get_db)] = None,
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> ReminderResponse:
     """Get a specific reminder."""
     result = await db.execute(
@@ -144,7 +144,7 @@ async def update_reminder(
     reminder_id: int,
     update_data: ReminderUpdate,
     db: Annotated[AsyncSession, Depends(get_db)] = None,
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> ReminderResponse:
     """Update a reminder."""
     # Get reminder
@@ -175,7 +175,7 @@ async def update_reminder(
     if update_data.is_completed is not None:
         reminder.is_completed = update_data.is_completed
         if update_data.is_completed and not reminder.completed_at:
-            reminder.completed_at = datetime.now(timezone.utc)
+            reminder.completed_at = utc_now()
         elif not update_data.is_completed:
             reminder.completed_at = None
 
@@ -190,7 +190,7 @@ async def delete_reminder(
     vin: str,
     reminder_id: int,
     db: Annotated[AsyncSession, Depends(get_db)] = None,
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> None:
     """Delete a reminder."""
     # Get reminder
@@ -210,7 +210,7 @@ async def complete_reminder(
     vin: str,
     reminder_id: int,
     db: Annotated[AsyncSession, Depends(get_db)] = None,
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> ReminderResponse:
     """Mark a reminder as completed."""
     # Get reminder
@@ -225,7 +225,7 @@ async def complete_reminder(
         raise HTTPException(status_code=400, detail="Reminder already completed")
 
     reminder.is_completed = True
-    reminder.completed_at = datetime.now(timezone.utc)
+    reminder.completed_at = utc_now()
 
     await db.commit()
     await db.refresh(reminder)
@@ -233,14 +233,12 @@ async def complete_reminder(
     return ReminderResponse.model_validate(reminder)
 
 
-@router.post(
-    "/{vin}/reminders/{reminder_id}/uncomplete", response_model=ReminderResponse
-)
+@router.post("/{vin}/reminders/{reminder_id}/uncomplete", response_model=ReminderResponse)
 async def uncomplete_reminder(
     vin: str,
     reminder_id: int,
     db: Annotated[AsyncSession, Depends(get_db)] = None,
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> ReminderResponse:
     """Mark a reminder as not completed."""
     # Get reminder

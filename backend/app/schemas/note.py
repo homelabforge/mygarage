@@ -1,7 +1,7 @@
 """Note schemas for MyGarage API."""
 
-from datetime import date as date_type, datetime as datetime_type
-from typing import Optional
+from datetime import date as date_type
+from datetime import datetime as datetime_type
 
 from pydantic import BaseModel, Field
 
@@ -10,7 +10,7 @@ class NoteBase(BaseModel):
     """Base note schema."""
 
     date: date_type
-    title: Optional[str] = Field(None, max_length=100)
+    title: str | None = Field(None, max_length=100)
     content: str = Field(..., min_length=1)
 
 
@@ -23,9 +23,9 @@ class NoteCreate(NoteBase):
 class NoteUpdate(BaseModel):
     """Schema for updating a note."""
 
-    date: Optional[date_type] = None
-    title: Optional[str] = Field(None, max_length=100)
-    content: Optional[str] = Field(None, min_length=1)
+    date: date_type | None = None
+    title: str | None = Field(None, max_length=100)
+    content: str | None = Field(None, min_length=1)
 
 
 class NoteResponse(NoteBase):
@@ -34,7 +34,7 @@ class NoteResponse(NoteBase):
     id: int
     vin: str
     created_at: datetime_type
-    updated_at: Optional[datetime_type] = None
+    updated_at: datetime_type | None = None
 
     class Config:
         """Pydantic config."""

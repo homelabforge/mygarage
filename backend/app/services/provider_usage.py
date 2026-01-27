@@ -1,6 +1,7 @@
 """POI Provider usage tracking middleware."""
 
 import logging
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.settings_service import SettingsService

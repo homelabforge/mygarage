@@ -1,6 +1,6 @@
 """Pydantic schemas for VIN-related operations."""
 
-from typing import Optional
+
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -33,55 +33,55 @@ class VINDecodeRequest(BaseModel):
 class EngineInfo(BaseModel):
     """Engine information from VIN decode."""
 
-    displacement_l: Optional[str] = Field(
+    displacement_l: str | None = Field(
         None, description="Engine displacement in liters"
     )
-    cylinders: Optional[int] = Field(None, description="Number of cylinders")
-    hp: Optional[int] = Field(None, description="Horsepower")
-    kw: Optional[int] = Field(None, description="Kilowatts")
-    fuel_type: Optional[str] = Field(None, description="Primary fuel type")
+    cylinders: int | None = Field(None, description="Number of cylinders")
+    hp: int | None = Field(None, description="Horsepower")
+    kw: int | None = Field(None, description="Kilowatts")
+    fuel_type: str | None = Field(None, description="Primary fuel type")
 
 
 class TransmissionInfo(BaseModel):
     """Transmission information from VIN decode."""
 
-    type: Optional[str] = Field(None, description="Transmission type")
-    speeds: Optional[str] = Field(None, description="Number of speeds")
+    type: str | None = Field(None, description="Transmission type")
+    speeds: str | None = Field(None, description="Number of speeds")
 
 
 class VINDecodeResponse(BaseModel):
     """Response schema for VIN decode endpoint."""
 
     vin: str = Field(..., description="The decoded VIN")
-    year: Optional[int] = Field(None, description="Model year")
-    make: Optional[str] = Field(None, description="Vehicle make (manufacturer brand)")
-    model: Optional[str] = Field(None, description="Vehicle model")
-    trim: Optional[str] = Field(None, description="Trim level")
-    vehicle_type: Optional[str] = Field(None, description="Type of vehicle")
-    body_class: Optional[str] = Field(None, description="Body class/style")
-    engine: Optional[EngineInfo] = Field(None, description="Engine information")
-    transmission: Optional[TransmissionInfo] = Field(
+    year: int | None = Field(None, description="Model year")
+    make: str | None = Field(None, description="Vehicle make (manufacturer brand)")
+    model: str | None = Field(None, description="Vehicle model")
+    trim: str | None = Field(None, description="Trim level")
+    vehicle_type: str | None = Field(None, description="Type of vehicle")
+    body_class: str | None = Field(None, description="Body class/style")
+    engine: EngineInfo | None = Field(None, description="Engine information")
+    transmission: TransmissionInfo | None = Field(
         None, description="Transmission information"
     )
-    drive_type: Optional[str] = Field(
+    drive_type: str | None = Field(
         None, description="Drive type (FWD, RWD, AWD, 4WD)"
     )
-    manufacturer: Optional[str] = Field(None, description="Manufacturer name")
-    plant_city: Optional[str] = Field(None, description="Manufacturing plant city")
-    plant_country: Optional[str] = Field(
+    manufacturer: str | None = Field(None, description="Manufacturer name")
+    plant_city: str | None = Field(None, description="Manufacturing plant city")
+    plant_country: str | None = Field(
         None, description="Manufacturing plant country"
     )
-    doors: Optional[int] = Field(None, description="Number of doors")
-    gvwr: Optional[str] = Field(None, description="Gross Vehicle Weight Rating")
-    series: Optional[str] = Field(None, description="Vehicle series")
-    steering_location: Optional[str] = Field(
+    doors: int | None = Field(None, description="Number of doors")
+    gvwr: str | None = Field(None, description="Gross Vehicle Weight Rating")
+    series: str | None = Field(None, description="Vehicle series")
+    steering_location: str | None = Field(
         None, description="Steering wheel location"
     )
-    entertainment_system: Optional[str] = Field(
+    entertainment_system: str | None = Field(
         None, description="Entertainment system"
     )
-    error_code: Optional[str] = Field(None, description="NHTSA error code (if any)")
-    error_text: Optional[str] = Field(None, description="NHTSA error text (if any)")
+    error_code: str | None = Field(None, description="NHTSA error code (if any)")
+    error_text: str | None = Field(None, description="NHTSA error text (if any)")
 
     model_config = {
         "json_schema_extra": {

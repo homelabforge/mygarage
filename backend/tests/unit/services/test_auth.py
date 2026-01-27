@@ -4,16 +4,17 @@ Unit tests for authentication service.
 Tests password hashing, JWT token generation, and token verification.
 """
 
-import pytest
-from datetime import datetime, timedelta, timezone
-from authlib.jose import jwt, JoseError
+from datetime import UTC, datetime, timedelta
 
+import pytest
+from authlib.jose import JoseError, jwt
+
+from app.config import settings
 from app.services.auth import (
+    create_access_token,
     hash_password,
     verify_password,
-    create_access_token,
 )
-from app.config import settings
 
 
 @pytest.mark.unit
@@ -117,8 +118,8 @@ class TestJWTTokens:
         exp_timestamp = payload["exp"]
 
         # Expiration should be approximately 30 minutes from now
-        expected_exp = datetime.now(timezone.utc) + expires_delta
-        actual_exp = datetime.fromtimestamp(exp_timestamp, tz=timezone.utc)
+        expected_exp = datetime.now(UTC) + expires_delta
+        actual_exp = datetime.fromtimestamp(exp_timestamp, tz=UTC)
 
         # Allow 5 second tolerance for test execution time
         assert abs((actual_exp - expected_exp).total_seconds()) < 5
@@ -132,10 +133,10 @@ class TestJWTTokens:
         exp_timestamp = payload["exp"]
 
         # Should use default from settings
-        expected_exp = datetime.now(timezone.utc) + timedelta(
+        expected_exp = datetime.now(UTC) + timedelta(
             minutes=settings.access_token_expire_minutes
         )
-        actual_exp = datetime.fromtimestamp(exp_timestamp, tz=timezone.utc)
+        actual_exp = datetime.fromtimestamp(exp_timestamp, tz=UTC)
 
         # Allow 5 second tolerance
         assert abs((actual_exp - expected_exp).total_seconds()) < 5

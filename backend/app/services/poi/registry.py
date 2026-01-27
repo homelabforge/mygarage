@@ -2,14 +2,15 @@
 
 import logging
 from typing import Any
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.poi.base import BasePOIProvider, POICategory
-from app.services.poi.tomtom import TomTomProvider
-from app.services.poi.osm import OSMProvider
-from app.services.poi.google_places import GooglePlacesProvider
-from app.services.poi.yelp import YelpProvider
 from app.services.poi.foursquare import FoursquareProvider
+from app.services.poi.google_places import GooglePlacesProvider
+from app.services.poi.osm import OSMProvider
+from app.services.poi.tomtom import TomTomProvider
+from app.services.poi.yelp import YelpProvider
 from app.services.settings_service import SettingsService
 from app.utils.logging_utils import sanitize_for_log
 

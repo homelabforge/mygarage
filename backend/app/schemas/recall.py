@@ -1,26 +1,26 @@
 """Recall Pydantic schemas for validation and serialization."""
 
 import datetime as dt
-from typing import Optional
+
 from pydantic import BaseModel, Field
 
 
 class RecallBase(BaseModel):
     """Base recall schema with common fields."""
 
-    nhtsa_campaign_number: Optional[str] = Field(
+    nhtsa_campaign_number: str | None = Field(
         None, description="NHTSA campaign number", max_length=50
     )
     component: str = Field(
         ..., description="Component affected by recall", min_length=1, max_length=200
     )
     summary: str = Field(..., description="Summary of the recall issue", min_length=1)
-    consequence: Optional[str] = Field(None, description="Potential consequences")
-    remedy: Optional[str] = Field(None, description="Remedy for the recall")
-    date_announced: Optional[dt.date] = Field(
+    consequence: str | None = Field(None, description="Potential consequences")
+    remedy: str | None = Field(None, description="Remedy for the recall")
+    date_announced: dt.date | None = Field(
         None, description="Date recall was announced"
     )
-    notes: Optional[str] = Field(None, description="User notes about the recall")
+    notes: str | None = Field(None, description="User notes about the recall")
 
 
 class RecallCreate(RecallBase):
@@ -35,22 +35,22 @@ class RecallCreate(RecallBase):
 class RecallUpdate(BaseModel):
     """Schema for updating an existing recall."""
 
-    nhtsa_campaign_number: Optional[str] = Field(
+    nhtsa_campaign_number: str | None = Field(
         None, description="NHTSA campaign number", max_length=50
     )
-    component: Optional[str] = Field(
+    component: str | None = Field(
         None, description="Component affected by recall", min_length=1, max_length=200
     )
-    summary: Optional[str] = Field(
+    summary: str | None = Field(
         None, description="Summary of the recall issue", min_length=1
     )
-    consequence: Optional[str] = Field(None, description="Potential consequences")
-    remedy: Optional[str] = Field(None, description="Remedy for the recall")
-    date_announced: Optional[dt.date] = Field(
+    consequence: str | None = Field(None, description="Potential consequences")
+    remedy: str | None = Field(None, description="Remedy for the recall")
+    date_announced: dt.date | None = Field(
         None, description="Date recall was announced"
     )
-    notes: Optional[str] = Field(None, description="User notes about the recall")
-    is_resolved: Optional[bool] = Field(
+    notes: str | None = Field(None, description="User notes about the recall")
+    is_resolved: bool | None = Field(
         None, description="Whether recall has been resolved"
     )
 
@@ -61,7 +61,7 @@ class RecallResponse(RecallBase):
     id: int
     vin: str
     is_resolved: bool
-    resolved_at: Optional[dt.datetime] = None
+    resolved_at: dt.datetime | None = None
     created_at: dt.datetime
 
     class Config:

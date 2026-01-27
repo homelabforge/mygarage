@@ -4,11 +4,11 @@ import csv
 import io
 import json
 import logging
-from datetime import datetime, date as date_type
+from datetime import date as date_type
+from datetime import datetime
 from decimal import Decimal, InvalidOperation
-from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Request
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy import select
@@ -17,15 +17,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.database import get_db
 from app.models import (
-    Vehicle,
-    ServiceRecord,
     FuelRecord,
+    InsurancePolicy,
+    Note,
     OdometerRecord,
     Reminder,
-    Note,
-    WarrantyRecord,
-    InsurancePolicy,
+    ServiceRecord,
     TaxRecord,
+    Vehicle,
+    WarrantyRecord,
 )
 from app.models.user import User
 from app.services.auth import require_auth
@@ -68,7 +68,7 @@ class ImportResult:
         }
 
 
-def parse_date(date_str: str) -> Optional[date_type]:
+def parse_date(date_str: str) -> date_type | None:
     """Parse date string in various formats."""
     if not date_str or date_str.strip() == "":
         return None
@@ -95,7 +95,7 @@ def parse_date(date_str: str) -> Optional[date_type]:
     raise ValueError(f"Unable to parse date: {date_str}")
 
 
-def parse_decimal(value: str) -> Optional[Decimal]:
+def parse_decimal(value: str) -> Decimal | None:
     """Parse decimal value from string."""
     if not value or value.strip() == "":
         return None
@@ -106,7 +106,7 @@ def parse_decimal(value: str) -> Optional[Decimal]:
         raise ValueError(f"Invalid decimal value: {value}")
 
 
-def parse_int(value: str) -> Optional[int]:
+def parse_int(value: str) -> int | None:
     """Parse integer value from string."""
     if not value or value.strip() == "":
         return None
@@ -134,7 +134,7 @@ async def import_service_csv(
     file: UploadFile = File(...),
     skip_duplicates: bool = Form(True),
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Import service records from CSV file."""
     # Verify vehicle exists
@@ -213,7 +213,7 @@ async def import_fuel_csv(
     file: UploadFile = File(...),
     skip_duplicates: bool = Form(True),
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Import fuel records from CSV file."""
     # Verify vehicle exists
@@ -292,7 +292,7 @@ async def import_odometer_csv(
     file: UploadFile = File(...),
     skip_duplicates: bool = Form(True),
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Import odometer records from CSV file."""
     # Verify vehicle exists
@@ -357,7 +357,7 @@ async def import_warranties_csv(
     file: UploadFile = File(...),
     skip_duplicates: bool = Form(True),
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Import warranties from CSV file."""
     # Verify vehicle exists
@@ -432,7 +432,7 @@ async def import_insurance_csv(
     file: UploadFile = File(...),
     skip_duplicates: bool = Form(True),
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Import insurance records from CSV file."""
     # Verify vehicle exists
@@ -504,7 +504,7 @@ async def import_tax_csv(
     file: UploadFile = File(...),
     skip_duplicates: bool = Form(True),
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Import tax records from CSV file."""
     # Verify vehicle exists
@@ -573,7 +573,7 @@ async def import_notes_csv(
     file: UploadFile = File(...),
     skip_duplicates: bool = Form(True),
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Import notes from CSV file."""
     # Verify vehicle exists
@@ -625,7 +625,7 @@ async def import_vehicle_json(
     file: UploadFile = File(...),
     skip_duplicates: bool = Form(True),
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Import complete vehicle data from JSON file."""
     # Verify vehicle exists

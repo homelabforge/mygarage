@@ -5,7 +5,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import String, Integer, Date, Numeric, Text, DateTime, ForeignKey, Index
+from sqlalchemy import Date, DateTime, ForeignKey, Index, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -28,9 +28,9 @@ class TollTag(Base):
     status: Mapped[str] = mapped_column(
         String(20), default="active"
     )  # 'active', 'inactive'
-    notes: Mapped[Optional[str]] = mapped_column(Text)
+    notes: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[Optional[datetime]] = mapped_column(
+    updated_at: Mapped[datetime | None] = mapped_column(
         DateTime, onupdate=func.now()
     )
 
@@ -55,13 +55,13 @@ class TollTransaction(Base):
     vin: Mapped[str] = mapped_column(
         String(17), ForeignKey("vehicles.vin", ondelete="CASCADE"), nullable=False
     )
-    toll_tag_id: Mapped[Optional[int]] = mapped_column(
+    toll_tag_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("toll_tags.id", ondelete="SET NULL")
     )
     date: Mapped[dt.date] = mapped_column(Date, nullable=False)
     amount: Mapped[Decimal] = mapped_column(Numeric(8, 2), nullable=False)
     location: Mapped[str] = mapped_column(String(200), nullable=False)
-    notes: Mapped[Optional[str]] = mapped_column(Text)
+    notes: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     # Relationships

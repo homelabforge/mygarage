@@ -1,7 +1,7 @@
 """Calendar schemas for MyGarage API."""
 
 from datetime import date as date_type
-from typing import Optional, List, Literal
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -14,11 +14,11 @@ class CalendarEvent(BaseModel):
         ..., description="Event type"
     )
     title: str = Field(..., description="Event title/description")
-    description: Optional[str] = Field(None, description="Additional details")
+    description: str | None = Field(None, description="Additional details")
     date: date_type = Field(..., description="Event date")
     vehicle_vin: str = Field(..., description="Associated vehicle VIN")
-    vehicle_nickname: Optional[str] = Field(None, description="Vehicle nickname")
-    vehicle_color: Optional[str] = Field(
+    vehicle_nickname: str | None = Field(None, description="Vehicle nickname")
+    vehicle_color: str | None = Field(
         None, description="Custom vehicle color for calendar (Phase 3)"
     )
     urgency: Literal["overdue", "high", "medium", "low", "historical"] = Field(
@@ -32,8 +32,8 @@ class CalendarEvent(BaseModel):
     category: Literal["maintenance", "legal", "financial", "history"] = Field(
         ..., description="Event category"
     )
-    notes: Optional[str] = Field(None, description="Event notes/comments (Phase 3)")
-    due_mileage: Optional[int] = Field(
+    notes: str | None = Field(None, description="Event notes/comments (Phase 3)")
+    due_mileage: int | None = Field(
         None, description="Due mileage for mileage-based reminders (Phase 3)"
     )
 
@@ -50,7 +50,7 @@ class CalendarSummary(BaseModel):
 class CalendarResponse(BaseModel):
     """Schema for calendar response."""
 
-    events: List[CalendarEvent] = Field(
+    events: list[CalendarEvent] = Field(
         default_factory=list, description="List of calendar events"
     )
     summary: CalendarSummary = Field(..., description="Summary statistics")

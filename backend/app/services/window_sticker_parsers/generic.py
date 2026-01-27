@@ -2,7 +2,6 @@
 
 import re
 from decimal import Decimal
-from typing import Optional
 
 from .base import BaseWindowStickerParser, WindowStickerData
 
@@ -223,7 +222,7 @@ class GenericWindowStickerParser(BaseWindowStickerParser):
 
         return items[:100]  # Limit to 100 items
 
-    def _extract_price(self, text: str, patterns: list[str]) -> Optional[Decimal]:
+    def _extract_price(self, text: str, patterns: list[str]) -> Decimal | None:
         """Override to be more lenient with price extraction."""
         for pattern in patterns:
             matches = list(re.finditer(pattern, text, re.IGNORECASE))

@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -27,13 +27,13 @@ class DocumentData:
     """Base class for structured data extracted from documents."""
 
     # Common metadata
-    raw_text: Optional[str] = None
-    parser_name: Optional[str] = None
+    raw_text: str | None = None
+    parser_name: str | None = None
     confidence_score: float = 0.0
-    document_type: Optional[DocumentType] = None
+    document_type: DocumentType | None = None
 
     # VIN if applicable
-    extracted_vin: Optional[str] = None
+    extracted_vin: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for API response."""
@@ -91,7 +91,7 @@ class BaseDocumentParser(ABC):
         """
         pass
 
-    def _extract_price(self, text: str, patterns: list[str]) -> Optional[Decimal]:
+    def _extract_price(self, text: str, patterns: list[str]) -> Decimal | None:
         """Extract a price value using multiple patterns."""
         import decimal
 
@@ -105,7 +105,7 @@ class BaseDocumentParser(ABC):
                     continue
         return None
 
-    def _extract_vin(self, text: str) -> Optional[str]:
+    def _extract_vin(self, text: str) -> str | None:
         """Extract VIN from text."""
         # Look for VIN label first
         vin_patterns = [
@@ -139,7 +139,7 @@ class BaseDocumentParser(ABC):
                 vins.append(vin)
         return vins
 
-    def _extract_pattern(self, text: str, patterns: list[str]) -> Optional[str]:
+    def _extract_pattern(self, text: str, patterns: list[str]) -> str | None:
         """Extract first match from list of regex patterns."""
         for pattern in patterns:
             match = re.search(pattern, text, re.IGNORECASE | re.MULTILINE)
@@ -147,7 +147,7 @@ class BaseDocumentParser(ABC):
                 return match.group(1).strip()
         return None
 
-    def _parse_currency(self, value: str) -> Optional[Decimal]:
+    def _parse_currency(self, value: str) -> Decimal | None:
         """Parse currency string to Decimal."""
         try:
             cleaned = value.replace("$", "").replace(",", "").strip()

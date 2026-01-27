@@ -1,13 +1,14 @@
 """TomTom Places API provider for POI search."""
 
 import logging
-from typing import Any
 from decimal import Decimal
+from typing import Any
+
 import httpx
 
+from app.exceptions import SSRFProtectionError
 from app.services.poi.base import BasePOIProvider, POICategory
 from app.utils.url_validation import validate_tomtom_url
-from app.exceptions import SSRFProtectionError
 
 logger = logging.getLogger(__name__)
 

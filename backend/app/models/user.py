@@ -1,7 +1,9 @@
 """User model for authentication."""
 
-from datetime import datetime, timezone
-from sqlalchemy import Column, String, Boolean, DateTime, Integer
+from datetime import UTC, datetime
+
+from sqlalchemy import Boolean, Column, DateTime, Integer, String
+
 from app.database import Base
 
 
@@ -36,12 +38,12 @@ class User(Base):
     show_both_units = Column(Boolean, default=False, nullable=False)
 
     created_at = Column(
-        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+        DateTime, default=lambda: datetime.now(UTC), nullable=False
     )
     updated_at = Column(
         DateTime,
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
         nullable=False,
     )
     last_login = Column(DateTime, nullable=True)

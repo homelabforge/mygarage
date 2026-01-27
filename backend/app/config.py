@@ -2,9 +2,11 @@
 
 import os
 import tomllib
-from pydantic_settings import BaseSettings
-from pydantic import Field
 from pathlib import Path
+
+from pydantic import Field
+from pydantic_settings import BaseSettings
+
 from app.utils.secret_key import get_or_create_secret_key
 
 

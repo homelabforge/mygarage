@@ -1,22 +1,22 @@
 """Service record database model."""
 
+import datetime as dt
+from datetime import datetime
+from decimal import Decimal
+
 from sqlalchemy import (
-    String,
-    Integer,
-    Numeric,
+    CheckConstraint,
     Date,
     DateTime,
-    Text,
     ForeignKey,
     Index,
-    CheckConstraint,
+    Integer,
+    Numeric,
+    String,
+    Text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
-import datetime as dt
-from datetime import datetime
-from typing import Optional
-from decimal import Decimal
 
 from app.database import Base
 
@@ -31,18 +31,18 @@ class ServiceRecord(Base):
         String(17), ForeignKey("vehicles.vin", ondelete="CASCADE"), nullable=False
     )
     date: Mapped[dt.date] = mapped_column(Date, nullable=False)
-    mileage: Mapped[Optional[int]] = mapped_column(Integer)
+    mileage: Mapped[int | None] = mapped_column(Integer)
     service_type: Mapped[str] = mapped_column(
         String(100), nullable=False
     )  # CHANGED: was description
-    cost: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2))
-    notes: Mapped[Optional[str]] = mapped_column(Text)
-    vendor_name: Mapped[Optional[str]] = mapped_column(String(100))
-    vendor_location: Mapped[Optional[str]] = mapped_column(String(100))
-    service_category: Mapped[Optional[str]] = mapped_column(
+    cost: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    notes: Mapped[str | None] = mapped_column(Text)
+    vendor_name: Mapped[str | None] = mapped_column(String(100))
+    vendor_location: Mapped[str | None] = mapped_column(String(100))
+    service_category: Mapped[str | None] = mapped_column(
         String(30)
     )  # CHANGED: was service_type
-    insurance_claim: Mapped[Optional[str]] = mapped_column(String(50))
+    insurance_claim: Mapped[str | None] = mapped_column(String(50))
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     # Relationships

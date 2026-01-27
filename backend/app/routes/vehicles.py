@@ -1,29 +1,28 @@
 """Vehicle CRUD API endpoints."""
 
 import logging
-from typing import Optional
-from datetime import datetime, timezone
 
-from fastapi import APIRouter, HTTPException, Depends
-from sqlalchemy import select, func
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models.vehicle import TrailerDetails, Vehicle
 from app.models.user import User
+from app.models.vehicle import TrailerDetails, Vehicle
 from app.schemas.vehicle import (
-    VehicleCreate,
-    VehicleUpdate,
-    VehicleResponse,
-    VehicleListResponse,
     TrailerDetailsCreate,
-    TrailerDetailsUpdate,
     TrailerDetailsResponse,
+    TrailerDetailsUpdate,
     VehicleArchiveRequest,
+    VehicleCreate,
+    VehicleListResponse,
+    VehicleResponse,
+    VehicleUpdate,
 )
-from app.services.auth import require_auth, optional_auth
+from app.services.auth import optional_auth, require_auth
 from app.services.vehicle_service import VehicleService
+from app.utils.datetime_utils import utc_now
 from app.utils.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
@@ -202,9 +201,7 @@ async def get_trailer_details(
     trailer = result.scalar_one_or_none()
 
     if not trailer:
-        raise HTTPException(
-            status_code=404, detail=f"Trailer details not found for VIN {vin}"
-        )
+        raise HTTPException(status_code=404, detail=f"Trailer details not found for VIN {vin}")
 
     return TrailerDetailsResponse.model_validate(trailer)
 
@@ -231,9 +228,7 @@ async def create_trailer_details(
         _ = await get_vehicle_or_403(vin, current_user, db)
 
         # Check if trailer details already exist
-        result = await db.execute(
-            select(TrailerDetails).where(TrailerDetails.vin == vin)
-        )
+        result = await db.execute(select(TrailerDetails).where(TrailerDetails.vin == vin))
         existing = result.scalar_one_or_none()
 
         if existing:
@@ -261,9 +256,7 @@ async def create_trailer_details(
             sanitize_for_log(vin),
             sanitize_for_log(str(e)),
         )
-        raise HTTPException(
-            status_code=409, detail=f"Trailer details already exist for VIN {vin}"
-        )
+        raise HTTPException(status_code=409, detail=f"Trailer details already exist for VIN {vin}")
     except OperationalError as e:
         await db.rollback()
         logger.error(
@@ -296,15 +289,11 @@ async def update_trailer_details(
         await get_vehicle_or_403(vin, current_user, db)
 
         # Get existing trailer details
-        result = await db.execute(
-            select(TrailerDetails).where(TrailerDetails.vin == vin)
-        )
+        result = await db.execute(select(TrailerDetails).where(TrailerDetails.vin == vin))
         trailer = result.scalar_one_or_none()
 
         if not trailer:
-            raise HTTPException(
-                status_code=404, detail=f"Trailer details not found for VIN {vin}"
-            )
+            raise HTTPException(status_code=404, detail=f"Trailer details not found for VIN {vin}")
 
         # Update fields
         update_data = trailer_data.model_dump(exclude_unset=True)
@@ -346,7 +335,7 @@ async def archive_vehicle(
     vin: str,
     archive_data: VehicleArchiveRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(optional_auth),
+    current_user: User | None = Depends(optional_auth),
 ):
     """
     Archive a vehicle (soft delete).
@@ -376,7 +365,7 @@ async def archive_vehicle(
             raise HTTPException(status_code=404, detail="Vehicle not found")
 
     # Set archive fields
-    vehicle.archived_at = datetime.now(timezone.utc)
+    vehicle.archived_at = utc_now()
     vehicle.archive_reason = archive_data.reason
     vehicle.archive_sale_price = archive_data.sale_price
     vehicle.archive_sale_date = archive_data.sale_date
@@ -398,7 +387,7 @@ async def archive_vehicle(
 async def unarchive_vehicle(
     vin: str,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(optional_auth),
+    current_user: User | None = Depends(optional_auth),
 ):
     """
     Restore an archived vehicle to active status.
@@ -450,7 +439,7 @@ async def list_archived_vehicles(
     skip: int = 0,
     limit: int = 100,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(optional_auth),
+    current_user: User | None = Depends(optional_auth),
 ):
     """
     Get list of archived vehicles (user's own only in auth mode, all in none mode).
@@ -511,7 +500,7 @@ async def toggle_archived_visibility(
     vin: str,
     visible: bool,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(optional_auth),
+    current_user: User | None = Depends(optional_auth),
 ):
     """
     Toggle visibility of archived vehicle in main list.
@@ -549,7 +538,5 @@ async def toggle_archived_visibility(
     await db.commit()
     await db.refresh(vehicle)
 
-    logger.info(
-        "Set archived vehicle %s visibility to %s", sanitize_for_log(vin), visible
-    )
+    logger.info("Set archived vehicle %s visibility to %s", sanitize_for_log(vin), visible)
     return VehicleResponse.model_validate(vehicle)

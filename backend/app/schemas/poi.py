@@ -1,8 +1,9 @@
 """Schemas for POI (Points of Interest) discovery feature."""
 
-from pydantic import BaseModel, Field
-from typing import Optional, Literal
 from decimal import Decimal
+from typing import Literal
+
+from pydantic import BaseModel, Field
 
 
 class POISearchRequest(BaseModel):
@@ -10,7 +11,7 @@ class POISearchRequest(BaseModel):
 
     latitude: float = Field(..., ge=-90, le=90, description="Latitude coordinate")
     longitude: float = Field(..., ge=-180, le=180, description="Longitude coordinate")
-    radius_meters: Optional[int] = Field(
+    radius_meters: int | None = Field(
         default=8000,
         ge=100,
         le=161000,
@@ -27,17 +28,17 @@ class POISearchRequest(BaseModel):
 class EVChargingMetadata(BaseModel):
     """EV charging station specific metadata."""
 
-    connector_types: Optional[list[str]] = Field(
+    connector_types: list[str] | None = Field(
         default=None,
         description="Available connector types (Type 2, CCS, CHAdeMO, etc.)",
     )
-    charging_speeds: Optional[list[str]] = Field(
+    charging_speeds: list[str] | None = Field(
         default=None, description="Charging speeds (Level 1, Level 2, DC Fast)"
     )
-    network: Optional[str] = Field(
+    network: str | None = Field(
         default=None, description="Charging network (ChargePoint, Tesla, etc.)"
     )
-    availability: Optional[str] = Field(
+    availability: str | None = Field(
         default=None, description="Real-time availability status"
     )
 
@@ -46,24 +47,24 @@ class POIResult(BaseModel):
     """Normalized POI result from any provider (TomTom, OSM, Google, etc.)."""
 
     business_name: str
-    address: Optional[str] = None
-    city: Optional[str] = None
-    state: Optional[str] = None
-    zip_code: Optional[str] = None
-    phone: Optional[str] = None
+    address: str | None = None
+    city: str | None = None
+    state: str | None = None
+    zip_code: str | None = None
+    phone: str | None = None
     latitude: Decimal
     longitude: Decimal
     source: str = Field(
         description="Provider that returned this result (tomtom, osm, google, etc.)"
     )
-    external_id: Optional[str] = None
-    rating: Optional[Decimal] = None
-    distance_meters: Optional[float] = None
-    website: Optional[str] = None
+    external_id: str | None = None
+    rating: Decimal | None = None
+    distance_meters: float | None = None
+    website: str | None = None
     poi_category: str = Field(
         description="POI category (auto_shop, rv_shop, ev_charging, gas_station, propane)"
     )
-    metadata: Optional[EVChargingMetadata] = Field(
+    metadata: EVChargingMetadata | None = Field(
         default=None, description="Category-specific metadata"
     )
 
@@ -86,14 +87,14 @@ class POIRecommendation(BaseModel):
 
     id: int
     business_name: str
-    address: Optional[str] = None
-    city: Optional[str] = None
-    state: Optional[str] = None
-    phone: Optional[str] = None
+    address: str | None = None
+    city: str | None = None
+    state: str | None = None
+    phone: str | None = None
     usage_count: int
-    rating: Optional[Decimal] = None
-    user_rating: Optional[int] = None
-    poi_category: Optional[str] = Field(
+    rating: Decimal | None = None
+    user_rating: int | None = None
+    poi_category: str | None = Field(
         default=None,
         description="POI category (auto_shop, rv_shop, ev_charging, gas_station, propane)",
     )

@@ -1,10 +1,10 @@
 """Error handling utilities for secure error responses."""
 
 import logging
-from typing import Optional
+
 from fastapi import Request, status
-from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
 
 logger = logging.getLogger(__name__)
@@ -17,7 +17,7 @@ class SecureErrorResponse:
     def generic_error(
         status_code: int = status.HTTP_500_INTERNAL_SERVER_ERROR,
         message: str = "An internal error occurred",
-        request_id: Optional[str] = None,
+        request_id: str | None = None,
     ) -> JSONResponse:
         """Return a generic error response.
 
@@ -48,7 +48,7 @@ class SecureErrorResponse:
     @staticmethod
     def validation_error(
         errors: list,
-        request_id: Optional[str] = None,
+        request_id: str | None = None,
     ) -> JSONResponse:
         """Return a validation error response.
 

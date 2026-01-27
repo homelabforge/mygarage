@@ -7,8 +7,9 @@ Tests user registration, login, logout, and protected endpoints.
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import delete  # noqa: F401
-from app.models.user import User
+
 from app.config import settings
+from app.models.user import User
 
 
 @pytest.mark.integration
@@ -241,6 +242,7 @@ class TestProtectedEndpoints:
         """Test accessing /me endpoint with expired token."""
         # Create an expired token (1 second expiry)
         from datetime import timedelta
+
         from app.services.auth import create_access_token
 
         expired_token = create_access_token(

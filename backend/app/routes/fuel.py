@@ -1,6 +1,7 @@
 """Fuel Record CRUD API endpoints with MPG calculation."""
 
 import logging
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -8,9 +9,9 @@ from app.database import get_db
 from app.models.user import User
 from app.schemas.fuel import (
     FuelRecordCreate,
-    FuelRecordUpdate,
-    FuelRecordResponse,
     FuelRecordListResponse,
+    FuelRecordResponse,
+    FuelRecordUpdate,
 )
 from app.services.auth import require_auth
 from app.services.fuel_service import FuelRecordService

@@ -1,30 +1,30 @@
 """Settings API endpoints."""
 
+import datetime as dt
 import logging
 import sys
 import time
-import datetime as dt
 from pathlib import Path
-from typing import Optional
-from fastapi import APIRouter, HTTPException, Depends, Response
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
 
-from app.database import get_db, engine
+from fastapi import APIRouter, Depends, HTTPException, Response
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.config import settings as app_settings
+from app.database import engine, get_db
 from app.models.settings import Setting
 from app.models.user import User
 from app.models.vehicle import Vehicle
-from app.config import settings as app_settings
-from app.services.auth import get_current_admin_user
-from app.services.settings_service import SettingsService
 from app.schemas.settings import (
     SettingCreate,
-    SettingUpdate,
     SettingResponse,
-    SettingsListResponse,
     SettingsBatchUpdate,
+    SettingsListResponse,
+    SettingUpdate,
     SystemInfoResponse,
 )
+from app.services.auth import get_current_admin_user
+from app.services.settings_service import SettingsService
 from app.utils.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
@@ -64,7 +64,7 @@ async def get_public_settings(db: AsyncSession = Depends(get_db)):
 @router.get("", response_model=SettingsListResponse)
 async def list_settings(
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_admin_user),
+    current_user: User | None = Depends(get_current_admin_user),
 ):
     """Get all settings (admin only).
 
@@ -184,7 +184,7 @@ async def get_poi_providers(
 async def add_poi_provider(
     provider_config: dict,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_admin_user),
+    current_user: User | None = Depends(get_current_admin_user),
 ):
     """Add or update POI provider configuration (admin only).
 
@@ -251,7 +251,7 @@ async def update_poi_provider(
     provider_name: str,
     provider_config: dict,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_admin_user),
+    current_user: User | None = Depends(get_current_admin_user),
 ):
     """Update POI provider configuration (admin only).
 
@@ -305,7 +305,7 @@ async def update_poi_provider(
 async def delete_poi_provider(
     provider_name: str,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_admin_user),
+    current_user: User | None = Depends(get_current_admin_user),
 ):
     """Remove POI provider configuration (admin only).
 
@@ -337,7 +337,7 @@ async def test_poi_provider(
     provider_name: str,
     test_config: dict,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_admin_user),
+    current_user: User | None = Depends(get_current_admin_user),
 ):
     """Test POI provider API key (admin only).
 
@@ -354,6 +354,7 @@ async def test_poi_provider(
         HTTPException: 400 if provider name invalid
     """
     import httpx
+
     from app.utils.url_validation import validate_tomtom_url
 
     api_key = test_config.get("api_key", "")
@@ -468,7 +469,7 @@ async def test_poi_provider(
 async def get_setting(
     key: str,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_admin_user),
+    current_user: User | None = Depends(get_current_admin_user),
 ):
     """Get a specific setting by key (admin only)."""
     result = await db.execute(select(Setting).where(Setting.key == key))
@@ -484,7 +485,7 @@ async def get_setting(
 async def create_setting(
     setting: SettingCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_admin_user),
+    current_user: User | None = Depends(get_current_admin_user),
 ):
     """Create a new setting (admin only)."""
     # Check if setting already exists
@@ -517,7 +518,7 @@ async def update_setting(
     key: str,
     setting_update: SettingUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_admin_user),
+    current_user: User | None = Depends(get_current_admin_user),
 ):
     """Update a setting (admin only)."""
     result = await db.execute(select(Setting).where(Setting.key == key))
@@ -554,7 +555,7 @@ async def update_setting(
 async def batch_update_settings(
     batch: SettingsBatchUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_admin_user),
+    current_user: User | None = Depends(get_current_admin_user),
 ):
     """Batch update or create multiple settings (admin only)."""
     updated_settings = []
@@ -599,7 +600,7 @@ async def batch_update_settings(
 async def delete_setting(
     key: str,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_admin_user),
+    current_user: User | None = Depends(get_current_admin_user),
 ):
     """Delete a setting (admin only)."""
     result = await db.execute(select(Setting).where(Setting.key == key))
@@ -618,7 +619,7 @@ async def delete_setting(
 @router.get("/system/info", response_model=SystemInfoResponse)
 async def get_system_info(
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_admin_user),
+    current_user: User | None = Depends(get_current_admin_user),
 ):
     """Get system information and statistics (admin only)."""
     # Count total vehicles

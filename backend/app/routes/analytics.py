@@ -2,61 +2,63 @@
 
 # pyright: reportArgumentType=false, reportOptionalOperand=false, reportCallIssue=false, reportMissingImports=false
 
+import calendar
 import logging
+from collections import defaultdict
+from datetime import date as date_type
+from datetime import datetime, timedelta
+from decimal import Decimal
+from typing import Any
+
+import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from datetime import date as date_type, datetime, timedelta
-from decimal import Decimal
-from typing import Any, Optional, List, Dict
-from collections import defaultdict
-import calendar
-import pandas as pd
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 
 logger = logging.getLogger(__name__)
 
 from app.config import settings
 from app.database import get_db
 from app.models import (
-    Vehicle,
-    ServiceRecord,
     FuelRecord,
     OdometerRecord,
+    ServiceRecord,
     SpotRentalBilling,
+    Vehicle,
 )
+from app.models.reminder import Reminder
 from app.models.spot_rental import SpotRental
 from app.models.user import User
-from app.models.reminder import Reminder
 from app.schemas.analytics import (
-    VehicleAnalytics,
+    AnomalyAlert,
+    CategoryChange,
     CostAnalysis,
     CostProjection,
-    FuelEfficiencyAlert,
-    MonthlyCostSummary,
-    ServiceTypeCostBreakdown,
-    FuelEconomyTrend,
     FuelEconomyDataPoint,
-    ServiceHistoryItem,
-    MaintenancePrediction,
+    FuelEconomyTrend,
+    FuelEfficiencyAlert,
     GarageAnalytics,
-    GarageCostTotals,
     GarageCostByCategory,
-    GarageVehicleCost,
+    GarageCostTotals,
     GarageMonthlyTrend,
-    VendorAnalyticsSummary,
-    VendorAnalysis,
-    SeasonalAnalyticsSummary,
-    SeasonalAnalysis,
+    GarageVehicleCost,
+    MaintenancePrediction,
+    MonthlyCostSummary,
     PeriodComparison,
-    CategoryChange,
-    AnomalyAlert,
+    SeasonalAnalysis,
+    SeasonalAnalyticsSummary,
+    ServiceHistoryItem,
+    ServiceTypeCostBreakdown,
+    VehicleAnalytics,
+    VendorAnalysis,
+    VendorAnalyticsSummary,
 )
-from app.services.auth import require_auth
 from app.services import analytics_service
+from app.services.auth import require_auth
 from app.utils.cache import cached
 
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
@@ -65,7 +67,7 @@ router = APIRouter(prefix="/api/analytics", tags=["analytics"])
 limiter = Limiter(key_func=get_remote_address)
 
 
-def calculate_trend(values: List[float]) -> str:
+def calculate_trend(values: list[float]) -> str:
     """Calculate trend from list of values (improving/declining/stable)."""
     if len(values) < 3:
         return "stable"
@@ -177,7 +179,7 @@ async def get_cost_analysis(db: AsyncSession, vin: str) -> CostAnalysis:
     )
 
     # Group service costs by type
-    service_type_data: Dict[str, dict[str, Any]] = defaultdict(
+    service_type_data: dict[str, dict[str, Any]] = defaultdict(
         lambda: {
             "total": Decimal("0.00"),
             "count": 0,
@@ -355,9 +357,9 @@ async def get_fuel_economy_trend(db: AsyncSession, vin: str) -> FuelEconomyTrend
     )
 
 
-def build_fuel_alerts(fuel_economy: FuelEconomyTrend) -> List[FuelEfficiencyAlert]:
+def build_fuel_alerts(fuel_economy: FuelEconomyTrend) -> list[FuelEfficiencyAlert]:
     """Generate alert messages based on fuel economy trends."""
-    alerts: List[FuelEfficiencyAlert] = []
+    alerts: list[FuelEfficiencyAlert] = []
 
     avg = fuel_economy.average_mpg
     recent = fuel_economy.recent_mpg
@@ -413,7 +415,7 @@ def build_fuel_alerts(fuel_economy: FuelEconomyTrend) -> List[FuelEfficiencyAler
 @cached(ttl_seconds=600)  # Cache for 10 minutes
 async def get_service_history_timeline(
     db: AsyncSession, vin: str
-) -> List[ServiceHistoryItem]:
+) -> list[ServiceHistoryItem]:
     """Get service history with timeline context."""
 
     result = await db.execute(
@@ -456,8 +458,8 @@ async def get_service_history_timeline(
 
 @cached(ttl_seconds=600)  # Cache for 10 minutes
 async def get_maintenance_predictions(
-    db: AsyncSession, vin: str, current_mileage: Optional[int] = None
-) -> List[MaintenancePrediction]:
+    db: AsyncSession, vin: str, current_mileage: int | None = None
+) -> list[MaintenancePrediction]:
     """Predict upcoming maintenance based on service history."""
 
     # Get service history
@@ -485,7 +487,7 @@ async def get_maintenance_predictions(
         current_mileage = odometer_result.scalar_one_or_none()
 
     # Create mapping of service types to reminders (fuzzy match)
-    reminder_map: Dict[str, Reminder] = {}
+    reminder_map: dict[str, Reminder] = {}
     for reminder in reminders:
         for service_type in set(r.service_type for r in service_records):
             # Fuzzy match: check if service type appears in reminder description
@@ -494,7 +496,7 @@ async def get_maintenance_predictions(
                 break
 
     # Group by service type and calculate intervals
-    service_intervals: Dict[str, List[dict[str, Any]]] = defaultdict(list[Any])
+    service_intervals: dict[str, list[dict[str, Any]]] = defaultdict(list[Any])
 
     for i in range(len(service_records) - 1):
         current = service_records[i + 1]
@@ -607,7 +609,7 @@ async def get_maintenance_predictions(
 async def get_vehicle_analytics(
     vin: str,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Get comprehensive analytics for a vehicle.
@@ -712,7 +714,7 @@ async def get_vehicle_analytics(
 @router.get("/garage", response_model=GarageAnalytics)
 async def get_garage_analytics(
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Get comprehensive analytics aggregated across all vehicles in the garage.
@@ -755,7 +757,7 @@ async def get_garage_analytics(
     vehicle_costs = []
 
     # Track monthly trends across garage
-    monthly_data: Dict[tuple[int, int], dict[str, Any]] = defaultdict(
+    monthly_data: dict[tuple[int, int], dict[str, Any]] = defaultdict(
         lambda: {
             "maintenance": Decimal("0.00"),
             "fuel": Decimal("0.00"),
@@ -936,7 +938,7 @@ async def get_garage_analytics(
 async def export_garage_analytics_pdf(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Export garage analytics as PDF report.
@@ -1180,8 +1182,8 @@ async def compare_periods(
     period1_end: date_type,
     period2_start: date_type,
     period2_end: date_type,
-    period1_label: Optional[str] = None,
-    period2_label: Optional[str] = None,
+    period1_label: str | None = None,
+    period2_label: str | None = None,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_auth),
 ):
@@ -1355,6 +1357,7 @@ async def export_analytics_pdf(
     - Seasonal patterns (if available)
     """
     from fastapi.responses import StreamingResponse
+
     from app.utils.pdf_generator import PDFReportGenerator
 
     # Verify vehicle ownership

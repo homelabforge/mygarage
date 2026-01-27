@@ -1,9 +1,10 @@
 """Unit tests for analytics service functions."""
 
-import pytest
-import pandas as pd
-from decimal import Decimal
 from datetime import date
+from decimal import Decimal
+
+import pandas as pd
+import pytest
 
 from app.services import analytics_service
 

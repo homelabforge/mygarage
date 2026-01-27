@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
@@ -19,7 +19,7 @@ from app.schemas.document import (
     DocumentUpdate,
 )
 from app.services.auth import require_auth
-from app.services.file_upload_service import FileUploadService, DOCUMENT_UPLOAD_CONFIG
+from app.services.file_upload_service import DOCUMENT_UPLOAD_CONFIG, FileUploadService
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +52,7 @@ def get_mime_type(filename: str) -> str:
 async def list_documents(
     vin: str,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> DocumentListResponse:
     """List all documents for a vehicle."""
     # Verify vehicle exists
@@ -83,7 +83,7 @@ async def upload_document(
     document_type: Annotated[str | None, Form()] = None,
     description: Annotated[str | None, Form()] = None,
     db: Annotated[AsyncSession, Depends(get_db)] = None,
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> DocumentResponse:
     """Upload a new document for a vehicle."""
     # Verify vehicle exists
@@ -122,7 +122,7 @@ async def update_document(
     document_id: int,
     update_data: DocumentUpdate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> DocumentResponse:
     """Update document metadata."""
     # Get document
@@ -152,7 +152,7 @@ async def delete_document(
     vin: str,
     document_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> None:
     """Delete a document."""
     # Get document
@@ -182,7 +182,7 @@ async def download_document(
     vin: str,
     document_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> FileResponse:
     """Download a document file."""
     # Get document

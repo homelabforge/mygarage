@@ -1,19 +1,19 @@
 """Hydrate VehiclePhoto entries for existing filesystem photos (one-time migration)."""
 
-import os
 import logging
+import os
 from pathlib import Path
-from typing import Optional
-from sqlalchemy import text, create_engine
-from sqlalchemy.orm import Session
+
 from PIL import Image, ImageOps, UnidentifiedImageError
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
 THUMBNAIL_SIZE = (512, 512)
 
 
-def _generate_thumbnail_for_existing(file_path: Path, photo_dir: Path) -> Optional[str]:
+def _generate_thumbnail_for_existing(file_path: Path, photo_dir: Path) -> str | None:
     """Create a thumbnail for an existing image file."""
     try:
         image = Image.open(file_path)

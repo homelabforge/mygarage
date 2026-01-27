@@ -1,7 +1,6 @@
 """Pushover notification service."""
 
 import logging
-from typing import Optional
 
 import httpx
 
@@ -42,8 +41,8 @@ class PushoverNotificationService(NotificationService):
         title: str,
         message: str,
         priority: str = "default",
-        tags: Optional[list[str]] = None,
-        url: Optional[str] = None,
+        tags: list[str] | None = None,
+        url: str | None = None,
     ) -> bool:
         try:
             endpoint = "https://api.pushover.net/1/messages.json"

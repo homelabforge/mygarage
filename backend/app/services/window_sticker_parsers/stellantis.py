@@ -2,7 +2,6 @@
 
 import re
 from decimal import Decimal
-from typing import Optional
 
 from .base import BaseWindowStickerParser, WindowStickerData
 
@@ -155,7 +154,7 @@ class StellantisWindowStickerParser(BaseWindowStickerParser):
 
     def _extract_stellantis_colors(
         self, text: str
-    ) -> tuple[Optional[str], Optional[str]]:
+    ) -> tuple[str | None, str | None]:
         """Extract colors from Stellantis sticker format."""
         exterior = None
         interior = None
@@ -201,7 +200,7 @@ class StellantisWindowStickerParser(BaseWindowStickerParser):
 
     def _extract_stellantis_powertrain(
         self, text: str
-    ) -> tuple[Optional[str], Optional[str]]:
+    ) -> tuple[str | None, str | None]:
         """Extract engine and transmission from Stellantis sticker."""
         engine = None
         transmission = None
@@ -436,7 +435,7 @@ class StellantisWindowStickerParser(BaseWindowStickerParser):
 
     def _extract_stellantis_warranty(
         self, text: str
-    ) -> tuple[Optional[str], Optional[str]]:
+    ) -> tuple[str | None, str | None]:
         """Extract warranty from Stellantis sticker - handles their specific format."""
         powertrain = None
         basic = None

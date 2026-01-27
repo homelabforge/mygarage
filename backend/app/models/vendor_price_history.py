@@ -1,17 +1,18 @@
 """Vendor price history database model."""
 
-from sqlalchemy import Integer, Numeric, Date, ForeignKey, Index
-from sqlalchemy.orm import Mapped, mapped_column, relationship
 from datetime import date as date_type
-from typing import TYPE_CHECKING
 from decimal import Decimal
+from typing import TYPE_CHECKING
+
+from sqlalchemy import Date, ForeignKey, Index, Integer, Numeric
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 
 if TYPE_CHECKING:
-    from app.models.vendor import Vendor
     from app.models.maintenance_schedule_item import MaintenanceScheduleItem
     from app.models.service_line_item import ServiceLineItem
+    from app.models.vendor import Vendor
 
 
 class VendorPriceHistory(Base):

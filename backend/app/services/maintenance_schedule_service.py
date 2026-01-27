@@ -2,7 +2,6 @@
 
 import logging
 from datetime import date
-from typing import Optional
 
 from fastapi import HTTPException
 from sqlalchemy import select
@@ -13,12 +12,12 @@ from app.models.maintenance_schedule_item import MaintenanceScheduleItem
 from app.models.odometer import OdometerRecord
 from app.models.user import User
 from app.schemas.maintenance_schedule import (
-    MaintenanceScheduleItemCreate,
-    MaintenanceScheduleItemUpdate,
-    MaintenanceScheduleItemResponse,
-    MaintenanceScheduleListResponse,
     ApplyTemplateRequest,
     ApplyTemplateResponse,
+    MaintenanceScheduleItemCreate,
+    MaintenanceScheduleItemResponse,
+    MaintenanceScheduleItemUpdate,
+    MaintenanceScheduleListResponse,
 )
 from app.utils.logging_utils import sanitize_for_log
 
@@ -38,7 +37,7 @@ class MaintenanceScheduleService:
         current_user: User,
         skip: int = 0,
         limit: int = 100,
-        status_filter: Optional[str] = None,
+        status_filter: str | None = None,
     ) -> MaintenanceScheduleListResponse:
         """
         Get all maintenance schedule items for a vehicle with status.
@@ -459,7 +458,7 @@ class MaintenanceScheduleService:
                 status_code=503, detail="Database temporarily unavailable"
             )
 
-    async def _get_current_mileage(self, vin: str) -> Optional[int]:
+    async def _get_current_mileage(self, vin: str) -> int | None:
         """Get the most recent mileage reading for a vehicle."""
         result = await self.db.execute(
             select(OdometerRecord.mileage)

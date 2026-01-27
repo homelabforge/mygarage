@@ -1,24 +1,24 @@
-from fastapi import APIRouter, Depends
-from sqlalchemy import select, func
-from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import date as date_type
-from typing import Optional
 from pathlib import Path
+
+from fastapi import APIRouter, Depends
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models import (
-    Vehicle,
-    ServiceRecord,
+    Document,
     FuelRecord,
+    Note,
     OdometerRecord,
     Reminder,
-    Document,
-    Note,
+    ServiceRecord,
+    Vehicle,
 )
 from app.models.user import User
 from app.schemas.dashboard import DashboardResponse, VehicleStatistics
-from app.services.fuel_service import calculate_mpg
 from app.services.auth import optional_auth
+from app.services.fuel_service import calculate_mpg
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
@@ -86,8 +86,8 @@ async def calculate_vehicle_stats(
         .limit(1)
     )
     latest_odometer = latest_odometer_record.first()
-    latest_odometer_reading: Optional[int] = None
-    latest_odometer_date: Optional[date_type] = None
+    latest_odometer_reading: int | None = None
+    latest_odometer_date: date_type | None = None
     if latest_odometer:
         latest_odometer_reading = latest_odometer[0]
         latest_odometer_date = latest_odometer[1]
@@ -124,15 +124,15 @@ async def calculate_vehicle_stats(
             if mpg:
                 mpg_values.append(float(mpg))
 
-    average_mpg: Optional[float] = None
-    recent_mpg: Optional[float] = None
+    average_mpg: float | None = None
+    recent_mpg: float | None = None
     if mpg_values:
         average_mpg = round(sum(mpg_values) / len(mpg_values), 2)
         # Recent MPG is average of last 3 fill-ups
         recent_mpg = round(sum(mpg_values[:3]) / min(3, len(mpg_values)), 2)
 
     # Get main photo URL from Vehicle.main_photo field
-    main_photo_url: Optional[str] = None
+    main_photo_url: str | None = None
     if vehicle.main_photo:
         # main_photo is stored as "VIN/filename.jpg"
         # Extract just the filename
@@ -170,7 +170,7 @@ async def calculate_vehicle_stats(
 @router.get("", response_model=DashboardResponse)
 async def get_dashboard(
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(optional_auth),
+    current_user: User | None = Depends(optional_auth),
 ):
     """
     Get complete dashboard with statistics for all vehicles

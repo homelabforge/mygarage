@@ -1,7 +1,9 @@
 """Pydantic schemas for Maintenance Schedule operations."""
 
-from typing import Optional, Literal
-from datetime import date as date_type, datetime
+from datetime import date as date_type
+from datetime import datetime
+from typing import Literal
+
 from pydantic import BaseModel, Field, field_validator
 
 # Component category types
@@ -39,8 +41,8 @@ class MaintenanceScheduleItemBase(BaseModel):
     )
     component_category: ComponentCategory = Field(..., description="Component category")
     item_type: ItemType = Field(..., description="Item type (service or inspection)")
-    interval_months: Optional[int] = Field(None, description="Interval in months", ge=1)
-    interval_miles: Optional[int] = Field(None, description="Interval in miles", ge=100)
+    interval_months: int | None = Field(None, description="Interval in months", ge=1)
+    interval_miles: int | None = Field(None, description="Interval in miles", ge=100)
 
     @field_validator("component_category")
     @classmethod
@@ -82,7 +84,7 @@ class MaintenanceScheduleItemCreate(MaintenanceScheduleItemBase):
 
     vin: str = Field(..., description="Vehicle VIN", min_length=17, max_length=17)
     source: SourceType = Field(default="custom", description="Source of item")
-    template_item_id: Optional[str] = Field(
+    template_item_id: str | None = Field(
         None, description="Template item ID if from template"
     )
 
@@ -106,17 +108,17 @@ class MaintenanceScheduleItemCreate(MaintenanceScheduleItemBase):
 class MaintenanceScheduleItemUpdate(BaseModel):
     """Schema for updating a maintenance schedule item."""
 
-    name: Optional[str] = Field(
+    name: str | None = Field(
         None, description="Maintenance item name", min_length=1, max_length=100
     )
-    component_category: Optional[ComponentCategory] = Field(
+    component_category: ComponentCategory | None = Field(
         None, description="Component category"
     )
-    item_type: Optional[ItemType] = Field(
+    item_type: ItemType | None = Field(
         None, description="Item type (service or inspection)"
     )
-    interval_months: Optional[int] = Field(None, description="Interval in months", ge=1)
-    interval_miles: Optional[int] = Field(None, description="Interval in miles", ge=100)
+    interval_months: int | None = Field(None, description="Interval in months", ge=1)
+    interval_miles: int | None = Field(None, description="Interval in miles", ge=100)
 
     model_config = {
         "json_schema_extra": {
@@ -136,21 +138,21 @@ class MaintenanceScheduleItemResponse(MaintenanceScheduleItemBase):
     id: int
     vin: str
     source: str
-    template_item_id: Optional[str] = None
-    last_performed_date: Optional[date_type] = None
-    last_performed_mileage: Optional[int] = None
-    last_service_line_item_id: Optional[int] = None
-    next_due_date: Optional[date_type] = Field(
+    template_item_id: str | None = None
+    last_performed_date: date_type | None = None
+    last_performed_mileage: int | None = None
+    last_service_line_item_id: int | None = None
+    next_due_date: date_type | None = Field(
         None, description="Calculated next due date"
     )
-    next_due_mileage: Optional[int] = Field(
+    next_due_mileage: int | None = Field(
         None, description="Calculated next due mileage"
     )
     status: StatusType = Field(description="Current status")
-    days_until_due: Optional[int] = Field(None, description="Days until due")
-    miles_until_due: Optional[int] = Field(None, description="Miles until due")
+    days_until_due: int | None = Field(None, description="Days until due")
+    miles_until_due: int | None = Field(None, description="Miles until due")
     created_at: datetime
-    updated_at: Optional[datetime] = None
+    updated_at: datetime | None = None
 
     model_config = {
         "from_attributes": True,
@@ -214,10 +216,10 @@ class ApplyTemplateRequest(BaseModel):
     template_source: str = Field(
         ..., description="Template source identifier (e.g., 'toyota_standard')"
     )
-    initial_date: Optional[date_type] = Field(
+    initial_date: date_type | None = Field(
         None, description="Initial 'last performed' date for all items"
     )
-    initial_mileage: Optional[int] = Field(
+    initial_mileage: int | None = Field(
         None, description="Initial 'last performed' mileage for all items"
     )
 

@@ -1,9 +1,10 @@
 """Insurance policy schemas."""
 
-from pydantic import BaseModel, Field
-from datetime import date as date_type, datetime
-from typing import Optional
+from datetime import date as date_type
+from datetime import datetime
 from decimal import Decimal
+
+from pydantic import BaseModel, Field
 
 
 class InsurancePolicyBase(BaseModel):
@@ -14,13 +15,13 @@ class InsurancePolicyBase(BaseModel):
     policy_type: str = Field(..., description="Type of insurance coverage")
     start_date: date_type = Field(..., description="Policy start date")
     end_date: date_type = Field(..., description="Policy end date")
-    premium_amount: Optional[Decimal] = Field(None, description="Premium amount", ge=0)
-    premium_frequency: Optional[str] = Field(
+    premium_amount: Decimal | None = Field(None, description="Premium amount", ge=0)
+    premium_frequency: str | None = Field(
         None, description="How often premium is paid"
     )
-    deductible: Optional[Decimal] = Field(None, description="Deductible amount", ge=0)
-    coverage_limits: Optional[str] = Field(None, description="Coverage limits details")
-    notes: Optional[str] = Field(None, description="Additional notes")
+    deductible: Decimal | None = Field(None, description="Deductible amount", ge=0)
+    coverage_limits: str | None = Field(None, description="Coverage limits details")
+    notes: str | None = Field(None, description="Additional notes")
 
 
 class InsurancePolicyCreate(InsurancePolicyBase):
@@ -32,16 +33,16 @@ class InsurancePolicyCreate(InsurancePolicyBase):
 class InsurancePolicyUpdate(BaseModel):
     """Schema for updating an insurance policy."""
 
-    provider: Optional[str] = None
-    policy_number: Optional[str] = None
-    policy_type: Optional[str] = None
-    start_date: Optional[date_type] = None
-    end_date: Optional[date_type] = None
-    premium_amount: Optional[Decimal] = Field(None, ge=0)
-    premium_frequency: Optional[str] = None
-    deductible: Optional[Decimal] = Field(None, ge=0)
-    coverage_limits: Optional[str] = None
-    notes: Optional[str] = None
+    provider: str | None = None
+    policy_number: str | None = None
+    policy_type: str | None = None
+    start_date: date_type | None = None
+    end_date: date_type | None = None
+    premium_amount: Decimal | None = Field(None, ge=0)
+    premium_frequency: str | None = None
+    deductible: Decimal | None = Field(None, ge=0)
+    coverage_limits: str | None = None
+    notes: str | None = None
 
 
 class InsurancePolicy(InsurancePolicyBase):

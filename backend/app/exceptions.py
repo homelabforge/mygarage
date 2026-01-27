@@ -1,6 +1,6 @@
 """Custom exceptions for MyGarage application."""
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 
 class SSRFProtectionError(Exception):
@@ -33,9 +33,9 @@ class PendingLinkRequiredException(Exception):
     def __init__(
         self,
         username: str,
-        claims: Dict[str, Any],
-        userinfo: Optional[Dict[str, Any]],
-        config: Dict[str, str],
+        claims: dict[str, Any],
+        userinfo: dict[str, Any] | None,
+        config: dict[str, str],
     ):
         """Initialize the exception with OIDC authentication data.
 

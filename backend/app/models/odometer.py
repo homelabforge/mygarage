@@ -1,11 +1,11 @@
 """Odometer record database model."""
 
-from sqlalchemy import String, Integer, Date, DateTime, Text, ForeignKey, Index
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy.sql import func
 import datetime as dt
 from datetime import datetime
-from typing import Optional
+
+from sqlalchemy import Date, DateTime, ForeignKey, Index, Integer, String, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.sql import func
 
 from app.database import Base
 
@@ -21,7 +21,7 @@ class OdometerRecord(Base):
     )
     date: Mapped[dt.date] = mapped_column(Date, nullable=False)
     mileage: Mapped[int] = mapped_column(Integer, nullable=False)
-    notes: Mapped[Optional[str]] = mapped_column(Text)
+    notes: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     # Relationships

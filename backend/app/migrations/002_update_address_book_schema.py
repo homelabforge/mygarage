@@ -7,7 +7,8 @@ Changes:
 
 import os
 from pathlib import Path
-from sqlalchemy import text, create_engine
+
+from sqlalchemy import create_engine, text
 
 
 def upgrade():

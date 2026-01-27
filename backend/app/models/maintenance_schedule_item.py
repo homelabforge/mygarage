@@ -1,16 +1,17 @@
 """Maintenance schedule item database model."""
 
-from sqlalchemy import String, Integer, Date, DateTime, ForeignKey, Index
+from datetime import date, datetime, timedelta
+from typing import TYPE_CHECKING
+
+from sqlalchemy import Date, DateTime, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
-from datetime import date, datetime, timedelta
-from typing import Optional, TYPE_CHECKING
 
 from app.database import Base
 
 if TYPE_CHECKING:
-    from app.models.vehicle import Vehicle
     from app.models.service_line_item import ServiceLineItem
+    from app.models.vehicle import Vehicle
 
 
 class MaintenanceScheduleItem(Base):
@@ -27,17 +28,17 @@ class MaintenanceScheduleItem(Base):
     item_type: Mapped[str] = mapped_column(
         String(20), nullable=False
     )  # 'service' or 'inspection'
-    interval_months: Mapped[Optional[int]] = mapped_column(Integer)
-    interval_miles: Mapped[Optional[int]] = mapped_column(Integer)
+    interval_months: Mapped[int | None] = mapped_column(Integer)
+    interval_miles: Mapped[int | None] = mapped_column(Integer)
     source: Mapped[str] = mapped_column(
         String(20), nullable=False
     )  # 'template', 'custom', 'migrated_reminder'
-    template_item_id: Mapped[Optional[str]] = mapped_column(String(100))
-    last_performed_date: Mapped[Optional[date]] = mapped_column(Date)
-    last_performed_mileage: Mapped[Optional[int]] = mapped_column(Integer)
-    last_service_line_item_id: Mapped[Optional[int]] = mapped_column(Integer)
+    template_item_id: Mapped[str | None] = mapped_column(String(100))
+    last_performed_date: Mapped[date | None] = mapped_column(Date)
+    last_performed_mileage: Mapped[int | None] = mapped_column(Integer)
+    last_service_line_item_id: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[Optional[datetime]] = mapped_column(
+    updated_at: Mapped[datetime | None] = mapped_column(
         DateTime, onupdate=func.now()
     )
 
@@ -56,21 +57,21 @@ class MaintenanceScheduleItem(Base):
     )
 
     @property
-    def next_due_date(self) -> Optional[date]:
+    def next_due_date(self) -> date | None:
         """Calculate next due date based on last performed and interval."""
         if not self.last_performed_date or not self.interval_months:
             return None
         return self.last_performed_date + timedelta(days=self.interval_months * 30)
 
     @property
-    def next_due_mileage(self) -> Optional[int]:
+    def next_due_mileage(self) -> int | None:
         """Calculate next due mileage based on last performed and interval."""
         if not self.last_performed_mileage or not self.interval_miles:
             return None
         return self.last_performed_mileage + self.interval_miles
 
     def calculate_status(
-        self, current_date: date, current_mileage: Optional[int] = None
+        self, current_date: date, current_mileage: int | None = None
     ) -> str:
         """
         Calculate maintenance status.
@@ -111,7 +112,7 @@ class MaintenanceScheduleItem(Base):
         return "on_track"
 
     def update_from_service(
-        self, service_date: date, mileage: Optional[int], line_item_id: int
+        self, service_date: date, mileage: int | None, line_item_id: int
     ) -> None:
         """
         Update schedule item when a service is performed.

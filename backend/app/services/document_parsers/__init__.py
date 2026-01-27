@@ -5,7 +5,7 @@ including window stickers and insurance policies.
 """
 
 from .base import BaseDocumentParser, DocumentData, DocumentType
-from .insurance import InsuranceDocumentParser, InsuranceData
+from .insurance import InsuranceData, InsuranceDocumentParser
 from .registry import DocumentParserRegistry, get_parser_for_document
 
 __all__ = [

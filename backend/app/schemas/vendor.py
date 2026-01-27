@@ -1,7 +1,7 @@
 """Pydantic schemas for Vendor operations."""
 
-from typing import Optional
 from datetime import datetime
+
 from pydantic import BaseModel, Field
 
 
@@ -9,11 +9,11 @@ class VendorBase(BaseModel):
     """Base vendor schema with common fields."""
 
     name: str = Field(..., description="Vendor/shop name", min_length=1, max_length=100)
-    address: Optional[str] = Field(None, description="Street address", max_length=500)
-    city: Optional[str] = Field(None, description="City", max_length=100)
-    state: Optional[str] = Field(None, description="State/province", max_length=50)
-    zip_code: Optional[str] = Field(None, description="ZIP/postal code", max_length=20)
-    phone: Optional[str] = Field(None, description="Phone number", max_length=20)
+    address: str | None = Field(None, description="Street address", max_length=500)
+    city: str | None = Field(None, description="City", max_length=100)
+    state: str | None = Field(None, description="State/province", max_length=50)
+    zip_code: str | None = Field(None, description="ZIP/postal code", max_length=20)
+    phone: str | None = Field(None, description="Phone number", max_length=20)
 
 
 class VendorCreate(VendorBase):
@@ -38,14 +38,14 @@ class VendorCreate(VendorBase):
 class VendorUpdate(BaseModel):
     """Schema for updating an existing vendor."""
 
-    name: Optional[str] = Field(
+    name: str | None = Field(
         None, description="Vendor/shop name", min_length=1, max_length=100
     )
-    address: Optional[str] = Field(None, description="Street address", max_length=500)
-    city: Optional[str] = Field(None, description="City", max_length=100)
-    state: Optional[str] = Field(None, description="State/province", max_length=50)
-    zip_code: Optional[str] = Field(None, description="ZIP/postal code", max_length=20)
-    phone: Optional[str] = Field(None, description="Phone number", max_length=20)
+    address: str | None = Field(None, description="Street address", max_length=500)
+    city: str | None = Field(None, description="City", max_length=100)
+    state: str | None = Field(None, description="State/province", max_length=50)
+    zip_code: str | None = Field(None, description="ZIP/postal code", max_length=20)
+    phone: str | None = Field(None, description="Phone number", max_length=20)
 
     model_config = {
         "json_schema_extra": {
@@ -63,8 +63,8 @@ class VendorResponse(VendorBase):
 
     id: int
     created_at: datetime
-    updated_at: Optional[datetime] = None
-    full_address: Optional[str] = Field(None, description="Formatted full address")
+    updated_at: datetime | None = None
+    full_address: str | None = Field(None, description="Formatted full address")
 
     model_config = {
         "from_attributes": True,
@@ -130,9 +130,9 @@ class VendorPriceHistoryResponse(BaseModel):
     vendor_id: int
     vendor_name: str
     history: list[VendorPriceHistoryEntry]
-    average_cost: Optional[float] = None
-    min_cost: Optional[float] = None
-    max_cost: Optional[float] = None
+    average_cost: float | None = None
+    min_cost: float | None = None
+    max_cost: float | None = None
 
     model_config = {
         "json_schema_extra": {

@@ -1,19 +1,19 @@
 """Warranty record database model."""
 
+from datetime import date, datetime
+
 from sqlalchemy import (
-    String,
-    Integer,
+    CheckConstraint,
     Date,
     DateTime,
-    Text,
     ForeignKey,
     Index,
-    CheckConstraint,
+    Integer,
+    String,
+    Text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
-from datetime import date, datetime
-from typing import Optional
 
 from app.database import Base
 
@@ -28,13 +28,13 @@ class WarrantyRecord(Base):
         String(17), ForeignKey("vehicles.vin", ondelete="CASCADE"), nullable=False
     )
     warranty_type: Mapped[str] = mapped_column(String(50), nullable=False)
-    provider: Mapped[Optional[str]] = mapped_column(String(100))
+    provider: Mapped[str | None] = mapped_column(String(100))
     start_date: Mapped[date] = mapped_column(Date, nullable=False)
-    end_date: Mapped[Optional[date]] = mapped_column(Date)
-    mileage_limit: Mapped[Optional[int]] = mapped_column(Integer)
-    coverage_details: Mapped[Optional[str]] = mapped_column(Text)
-    policy_number: Mapped[Optional[str]] = mapped_column(String(50))
-    notes: Mapped[Optional[str]] = mapped_column(Text)
+    end_date: Mapped[date | None] = mapped_column(Date)
+    mileage_limit: Mapped[int | None] = mapped_column(Integer)
+    coverage_details: Mapped[str | None] = mapped_column(Text)
+    policy_number: Mapped[str | None] = mapped_column(String(50))
+    notes: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     # Relationships

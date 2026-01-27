@@ -1,37 +1,37 @@
 """Pydantic schemas for API request/response validation."""
 
-from app.schemas.vin import (
-    VINDecodeRequest,
-    VINDecodeResponse,
-    EngineInfo,
-    TransmissionInfo,
-)
-from app.schemas.vehicle import (
-    VehicleCreate,
-    VehicleUpdate,
-    VehicleResponse,
-    VehicleListResponse,
-    TrailerDetailsCreate,
-    TrailerDetailsUpdate,
-    TrailerDetailsResponse,
-)
-from app.schemas.service import (
-    ServiceRecordCreate,
-    ServiceRecordUpdate,
-    ServiceRecordResponse,
-    ServiceRecordListResponse,
-)
 from app.schemas.fuel import (
     FuelRecordCreate,
-    FuelRecordUpdate,
-    FuelRecordResponse,
     FuelRecordListResponse,
+    FuelRecordResponse,
+    FuelRecordUpdate,
 )
 from app.schemas.odometer import (
     OdometerRecordCreate,
-    OdometerRecordUpdate,
-    OdometerRecordResponse,
     OdometerRecordListResponse,
+    OdometerRecordResponse,
+    OdometerRecordUpdate,
+)
+from app.schemas.service import (
+    ServiceRecordCreate,
+    ServiceRecordListResponse,
+    ServiceRecordResponse,
+    ServiceRecordUpdate,
+)
+from app.schemas.vehicle import (
+    TrailerDetailsCreate,
+    TrailerDetailsResponse,
+    TrailerDetailsUpdate,
+    VehicleCreate,
+    VehicleListResponse,
+    VehicleResponse,
+    VehicleUpdate,
+)
+from app.schemas.vin import (
+    EngineInfo,
+    TransmissionInfo,
+    VINDecodeRequest,
+    VINDecodeResponse,
 )
 
 __all__ = [

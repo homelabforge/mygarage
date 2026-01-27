@@ -1,7 +1,6 @@
 """Gotify notification service."""
 
 import logging
-from typing import Optional
 
 import httpx
 
@@ -45,8 +44,8 @@ class GotifyNotificationService(NotificationService):
         title: str,
         message: str,
         priority: str = "default",
-        tags: Optional[list[str]] = None,
-        url: Optional[str] = None,
+        tags: list[str] | None = None,
+        url: str | None = None,
     ) -> bool:
         try:
             endpoint = f"{self.server_url}/message"

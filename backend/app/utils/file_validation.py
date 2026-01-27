@@ -4,8 +4,9 @@
 
 import csv
 import logging
-from typing import Optional
+
 from fastapi import HTTPException, UploadFile
+
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -96,7 +97,7 @@ def verify_file_content_type(
 
 def validate_file_magic_bytes(
     file_bytes: bytes, filename: str, declared_mime: str, strict: bool = False
-) -> tuple[bool, Optional[str]]:
+) -> tuple[bool, str | None]:
     """Complete file validation with magic byte check.
 
     Args:

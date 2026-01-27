@@ -1,23 +1,23 @@
 """Recall CRUD API endpoints and NHTSA integration."""
 
-import logging
 import datetime as dt
+import logging
+
 import httpx
-from fastapi import APIRouter, HTTPException, Depends, Response
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
+from fastapi import APIRouter, Depends, HTTPException, Response
+from sqlalchemy import delete, select
 from sqlalchemy.exc import OperationalError
-from typing import Optional
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.recall import Recall
-from app.models.vehicle import Vehicle
 from app.models.user import User
+from app.models.vehicle import Vehicle
 from app.schemas.recall import (
     RecallCreate,
-    RecallUpdate,
-    RecallResponse,
     RecallListResponse,
+    RecallResponse,
+    RecallUpdate,
 )
 from app.services.auth import require_auth
 from app.services.nhtsa import NHTSAService
@@ -31,9 +31,9 @@ recalls_router = APIRouter(prefix="/api/vehicles/{vin}/recalls", tags=["Recalls"
 @recalls_router.get("", response_model=RecallListResponse)
 async def list_recalls(
     vin: str,
-    status: Optional[str] = None,  # 'active', 'resolved', or None for all
+    status: str | None = None,  # 'active', 'resolved', or None for all
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Get all recalls for a vehicle with optional status filtering."""
     # Verify vehicle exists
@@ -72,7 +72,7 @@ async def list_recalls(
 async def check_nhtsa_recalls(
     vin: str,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Fetch recalls from NHTSA API and store new ones in database."""
     # Verify vehicle exists
@@ -173,7 +173,7 @@ async def create_recall(
     vin: str,
     recall: RecallCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Create a new recall manually."""
     # Verify vehicle exists
@@ -211,7 +211,7 @@ async def get_recall(
     vin: str,
     recall_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Get a specific recall."""
     result = await db.execute(
@@ -230,7 +230,7 @@ async def update_recall(
     recall_id: int,
     recall_update: RecallUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Update a recall."""
     result = await db.execute(
@@ -270,7 +270,7 @@ async def delete_recall(
     vin: str,
     recall_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Delete a recall."""
     result = await db.execute(

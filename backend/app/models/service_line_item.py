@@ -1,27 +1,28 @@
 """Service line item database model."""
 
+from datetime import datetime
+from decimal import Decimal
+from typing import TYPE_CHECKING, Optional
+
 from sqlalchemy import (
-    String,
-    Integer,
-    Numeric,
     Boolean,
+    CheckConstraint,
     DateTime,
-    Text,
     ForeignKey,
     Index,
-    CheckConstraint,
+    Integer,
+    Numeric,
+    String,
+    Text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
-from datetime import datetime
-from typing import Optional, TYPE_CHECKING
-from decimal import Decimal
 
 from app.database import Base
 
 if TYPE_CHECKING:
-    from app.models.service_visit import ServiceVisit
     from app.models.maintenance_schedule_item import MaintenanceScheduleItem
+    from app.models.service_visit import ServiceVisit
 
 
 class ServiceLineItem(Base):
@@ -33,20 +34,20 @@ class ServiceLineItem(Base):
     visit_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("service_visits.id", ondelete="CASCADE"), nullable=False
     )
-    schedule_item_id: Mapped[Optional[int]] = mapped_column(
+    schedule_item_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("maintenance_schedule_items.id")
     )
     description: Mapped[str] = mapped_column(String(200), nullable=False)
-    cost: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2))
-    notes: Mapped[Optional[str]] = mapped_column(Text)
+    cost: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    notes: Mapped[str | None] = mapped_column(Text)
     is_inspection: Mapped[bool] = mapped_column(Boolean, default=False)
-    inspection_result: Mapped[Optional[str]] = mapped_column(
+    inspection_result: Mapped[str | None] = mapped_column(
         String(20)
     )  # passed, failed, needs_attention
-    inspection_severity: Mapped[Optional[str]] = mapped_column(
+    inspection_severity: Mapped[str | None] = mapped_column(
         String(10)
     )  # green, yellow, red
-    triggered_by_inspection_id: Mapped[Optional[int]] = mapped_column(
+    triggered_by_inspection_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("service_line_items.id")
     )
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

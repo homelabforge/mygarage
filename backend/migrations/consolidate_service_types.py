@@ -11,8 +11,8 @@ Changes:
 Service Types: Maintenance, Inspection, Collision, Upgrades
 """
 
-import sqlite3
 import os
+import sqlite3
 
 
 def migrate():

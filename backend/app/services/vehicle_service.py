@@ -3,15 +3,14 @@
 # pyright: reportArgumentType=false, reportOptionalOperand=false, reportGeneralTypeIssues=false, reportReturnType=false
 
 import logging
-from typing import Optional
 
 from fastapi import HTTPException
-from sqlalchemy import select, delete, func
+from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.vehicle import Vehicle
 from app.models.user import User
+from app.models.vehicle import Vehicle
 from app.schemas.vehicle import VehicleCreate, VehicleUpdate
 from app.utils.logging_utils import sanitize_for_log
 
@@ -25,7 +24,7 @@ class VehicleService:
         self.db = db
 
     async def list_vehicles(
-        self, current_user: Optional[User], skip: int = 0, limit: int = 100
+        self, current_user: User | None, skip: int = 0, limit: int = 100
     ) -> tuple[list[Vehicle], int]:
         """
         Get list of vehicles for the current user.
@@ -69,7 +68,7 @@ class VehicleService:
                 status_code=503, detail="Database temporarily unavailable"
             )
 
-    async def get_vehicle(self, vin: str, current_user: Optional[User]) -> Vehicle:
+    async def get_vehicle(self, vin: str, current_user: User | None) -> Vehicle:
         """
         Get a specific vehicle by VIN with ownership check.
 
@@ -90,7 +89,7 @@ class VehicleService:
         return vehicle
 
     async def create_vehicle(
-        self, vehicle_data: VehicleCreate, current_user: Optional[User]
+        self, vehicle_data: VehicleCreate, current_user: User | None
     ) -> Vehicle:
         """
         Create a new vehicle.

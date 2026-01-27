@@ -1,21 +1,21 @@
 """Odometer Record CRUD API endpoints."""
 
 import logging
-from fastapi import APIRouter, HTTPException, Depends
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete, func
+
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError, OperationalError
-from typing import Optional
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.odometer import OdometerRecord
-from app.models.vehicle import Vehicle
 from app.models.user import User
+from app.models.vehicle import Vehicle
 from app.schemas.odometer import (
     OdometerRecordCreate,
-    OdometerRecordUpdate,
-    OdometerRecordResponse,
     OdometerRecordListResponse,
+    OdometerRecordResponse,
+    OdometerRecordUpdate,
 )
 from app.services.auth import require_auth
 from app.utils.logging_utils import sanitize_for_log
@@ -31,7 +31,7 @@ async def list_odometer_records(
     skip: int = 0,
     limit: int = 100,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Get all odometer records for a vehicle.
@@ -107,7 +107,7 @@ async def get_odometer_record(
     vin: str,
     record_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Get a specific odometer record.
@@ -144,7 +144,7 @@ async def create_odometer_record(
     vin: str,
     record_data: OdometerRecordCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Create a new odometer record.
@@ -217,7 +217,7 @@ async def update_odometer_record(
     record_id: int,
     record_data: OdometerRecordUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Update an existing odometer record.
@@ -293,7 +293,7 @@ async def delete_odometer_record(
     vin: str,
     record_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Delete an odometer record.

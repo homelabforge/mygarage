@@ -2,13 +2,14 @@
 
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from pathlib import Path
 from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
 from app.config import settings
 from app.database import init_db
@@ -109,12 +110,13 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
 
 # Add security middleware
-from app.middleware import (
-    SecurityHeadersMiddleware,
-    RequestIDMiddleware,
-    CSRFProtectionMiddleware,
-)
 from slowapi.middleware import SlowAPIMiddleware
+
+from app.middleware import (
+    CSRFProtectionMiddleware,
+    RequestIDMiddleware,
+    SecurityHeadersMiddleware,
+)
 
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(RequestIDMiddleware)
@@ -122,13 +124,14 @@ app.add_middleware(CSRFProtectionMiddleware)
 app.add_middleware(SlowAPIMiddleware)
 
 # Add error handlers
-from app.utils.error_handlers import (
-    handle_generic_exception,
-    handle_validation_error,
-    handle_database_error,
-)
 from fastapi.exceptions import RequestValidationError
 from sqlalchemy.exc import SQLAlchemyError
+
+from app.utils.error_handlers import (
+    handle_database_error,
+    handle_generic_exception,
+    handle_validation_error,
+)
 
 if not settings.debug:
     # In production, use secure error handlers
@@ -192,44 +195,44 @@ async def api_health_check(request: Request):
 
 # Import and include routers
 from app.routes import (
-    vin_router,
-    vehicles_router,
-    photos_router,
-    service_router,
-    fuel_router,
-    odometer_router,
-    documents_router,
-    reminders_router,
-    notes_router,
-    dashboard_router,
-    export_router,
-    import_router,
+    address_book_router,
     analytics_router,
-    warranty_router,
+    attachments_router,
+    backup_router,
+    calendar_router,
+    dashboard_router,
+    documents_router,
+    export_router,
+    fuel_router,
+    import_router,
     insurance_router,
+    maintenance_schedule_router,
+    maintenance_templates_router,
+    notes_router,
+    notifications_router,
+    odometer_router,
+    photos_router,
+    recalls_router,
+    reminders_router,
     reports_router,
+    service_router,
+    service_visits_router,
+    settings_router,
+    shop_discovery_router,
+    spot_rental_billing_router,
+    spot_rental_router,
+    tax_router,
     toll_tags_router,
     toll_transactions_router,
-    recalls_router,
-    settings_router,
-    backup_router,
-    attachments_router,
-    tax_router,
-    spot_rental_router,
-    spot_rental_billing_router,
-    address_book_router,
-    calendar_router,
-    window_sticker_router,
-    notifications_router,
-    maintenance_templates_router,
-    shop_discovery_router,
+    vehicles_router,
     vendors_router,
-    service_visits_router,
-    maintenance_schedule_router,
+    vin_router,
+    warranty_router,
+    window_sticker_router,
 )
-from app.routes.poi import router as poi_router
 from app.routes.auth import router as auth_router
 from app.routes.oidc import router as oidc_router
+from app.routes.poi import router as poi_router
 
 app.include_router(auth_router)
 app.include_router(oidc_router)
@@ -273,8 +276,8 @@ app.include_router(maintenance_schedule_router)
 # Serve static files (frontend build) in production
 static_dir = Path("/app/static")
 if static_dir.exists():
-    from fastapi.responses import FileResponse
     from fastapi.exception_handlers import http_exception_handler
+    from fastapi.responses import FileResponse
 
     # Serve PWA files with correct MIME types
     @app.get("/sw.js", include_in_schema=False)

@@ -13,19 +13,19 @@ This service handles OAuth2/OIDC authentication flow with support for:
 
 import logging
 import secrets
-from typing import Optional, Dict, Any
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 
 import httpx
-from authlib.jose import jwt, JsonWebKey, JoseError
+from authlib.jose import JoseError, JsonWebKey, jwt
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.user import User
-from app.models.settings import Setting
-from app.models.oidc_state import OIDCState
-from app.utils.url_validation import validate_oidc_url
 from app.exceptions import SSRFProtectionError
+from app.models.oidc_state import OIDCState
+from app.models.settings import Setting
+from app.models.user import User
+from app.utils.url_validation import validate_oidc_url
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +63,7 @@ async def _cleanup_expired_states(db: AsyncSession):
     """
     from sqlalchemy import delete
 
-    cutoff = datetime.now(timezone.utc)
+    cutoff = datetime.now(UTC)
     await db.execute(delete(OIDCState).where(OIDCState.expires_at <= cutoff))
     await db.commit()
 
@@ -75,16 +75,17 @@ async def _cleanup_expired_pending_links(db: AsyncSession):
         db: Database session
     """
     from sqlalchemy import delete
+
     from app.models.oidc_pending_link import OIDCPendingLink
 
-    cutoff = datetime.now(timezone.utc)
+    cutoff = datetime.now(UTC)
     await db.execute(
         delete(OIDCPendingLink).where(OIDCPendingLink.expires_at <= cutoff)
     )
     await db.commit()
 
 
-async def get_oidc_config(db: AsyncSession) -> Dict[str, str]:
+async def get_oidc_config(db: AsyncSession) -> dict[str, str]:
     """Get OIDC configuration from database settings.
 
     Returns:
@@ -102,7 +103,7 @@ async def get_oidc_config(db: AsyncSession) -> Dict[str, str]:
     return config
 
 
-async def get_provider_metadata(issuer_url: str) -> Optional[Dict[str, Any]]:
+async def get_provider_metadata(issuer_url: str) -> dict[str, Any] | None:
     """Fetch OIDC provider metadata from well-known endpoint.
 
     Args:
@@ -187,7 +188,7 @@ async def store_oidc_state(db: AsyncSession, state: str, redirect_uri: str, nonc
         state=state,
         nonce=nonce,
         redirect_uri=redirect_uri,
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
         expires_at=OIDCState.get_expiry_time(minutes=10),
     )
     db.add(oidc_state)
@@ -197,7 +198,7 @@ async def store_oidc_state(db: AsyncSession, state: str, redirect_uri: str, nonc
 
 async def validate_and_consume_state(
     db: AsyncSession, state: str
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     """Validate and consume OIDC state from database (one-time use).
 
     Args:
@@ -240,8 +241,8 @@ async def validate_and_consume_state(
 
 async def create_authorization_url(
     db: AsyncSession,
-    config: Dict[str, str],
-    metadata: Dict[str, Any],
+    config: dict[str, str],
+    metadata: dict[str, Any],
     base_url: str,
 ) -> tuple[str, str]:
     """Create OIDC authorization URL.
@@ -296,10 +297,10 @@ async def create_authorization_url(
 
 async def exchange_code_for_tokens(
     code: str,
-    config: Dict[str, str],
-    metadata: Dict[str, Any],
+    config: dict[str, str],
+    metadata: dict[str, Any],
     redirect_uri: str,
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     """Exchange authorization code for tokens.
 
     Args:
@@ -378,10 +379,10 @@ async def exchange_code_for_tokens(
 
 async def verify_id_token(
     id_token: str,
-    config: Dict[str, str],
-    metadata: Dict[str, Any],
+    config: dict[str, str],
+    metadata: dict[str, Any],
     nonce: str,
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     """Verify and decode ID token from OIDC provider.
 
     Args:
@@ -445,8 +446,8 @@ async def verify_id_token(
 
 async def get_userinfo(
     access_token: str,
-    metadata: Dict[str, Any],
-) -> Optional[Dict[str, Any]]:
+    metadata: dict[str, Any],
+) -> dict[str, Any] | None:
     """Fetch user info from OIDC provider userinfo endpoint.
 
     Args:
@@ -501,10 +502,10 @@ async def get_userinfo(
 
 async def create_or_update_user_from_oidc(
     db: AsyncSession,
-    claims: Dict[str, Any],
-    userinfo: Optional[Dict[str, Any]],
-    config: Dict[str, str],
-) -> Optional[User]:
+    claims: dict[str, Any],
+    userinfo: dict[str, Any] | None,
+    config: dict[str, str],
+) -> User | None:
     """Create or update user from OIDC claims.
 
     Strategy:
@@ -559,7 +560,7 @@ async def create_or_update_user_from_oidc(
         # Update existing OIDC user
         logger.info("Found existing OIDC user: %s", user.username)
         user.full_name = full_name or user.full_name
-        user.last_login = datetime.now(timezone.utc)
+        user.last_login = datetime.now(UTC)
         user.oidc_provider = provider_name
         await db.commit()
         await db.refresh(user)
@@ -576,7 +577,7 @@ async def create_or_update_user_from_oidc(
         user.oidc_provider = provider_name
         user.auth_method = "oidc"  # Primary auth method is now OIDC
         user.full_name = full_name or user.full_name
-        user.last_login = datetime.now(timezone.utc)
+        user.last_login = datetime.now(UTC)
         await db.commit()
         await db.refresh(user)
         return user
@@ -659,7 +660,7 @@ async def create_or_update_user_from_oidc(
         oidc_subject=sub,
         oidc_provider=provider_name,
         auth_method="oidc",
-        last_login=datetime.now(timezone.utc),
+        last_login=datetime.now(UTC),
     )
 
     db.add(user)
@@ -673,9 +674,9 @@ async def create_or_update_user_from_oidc(
 async def create_pending_link_token(
     db: AsyncSession,
     username: str,
-    claims: Dict[str, Any],
-    userinfo: Optional[Dict[str, Any]],
-    config: Dict[str, str],
+    claims: dict[str, Any],
+    userinfo: dict[str, Any] | None,
+    config: dict[str, str],
 ) -> str:
     """Create pending link token for username-based OIDC account linking.
 
@@ -721,7 +722,7 @@ async def create_pending_link_token(
         userinfo_claims=userinfo_claims_json,
         provider_name=provider_name,
         attempt_count=0,
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
         expires_at=expires_at,
     )
 
@@ -740,7 +741,7 @@ async def validate_and_consume_pending_link(
     db: AsyncSession,
     token: str,
     password: str,
-) -> tuple[Optional[User], Optional[str]]:
+) -> tuple[User | None, str | None]:
     """Validate pending link token and link OIDC account to existing user.
 
     This function validates the pending link token, verifies the user's password,
@@ -762,9 +763,10 @@ async def validate_and_consume_pending_link(
         Tuple of (User, error_message). If User is None, error_message contains
         specific error for display.
     """
+    import json
+
     from app.models.oidc_pending_link import OIDCPendingLink
     from app.services.auth import verify_password
-    import json
 
     # Clean up expired tokens first
     await _cleanup_expired_pending_links(db)
@@ -892,7 +894,7 @@ async def validate_and_consume_pending_link(
     user.auth_method = "oidc"  # Primary auth method is now OIDC
     if full_name:
         user.full_name = full_name
-    user.last_login = datetime.now(timezone.utc)
+    user.last_login = datetime.now(UTC)
 
     # Delete pending link token (one-time use)
     await db.delete(pending_link)
@@ -903,7 +905,7 @@ async def validate_and_consume_pending_link(
     return (user, None)
 
 
-async def test_oidc_connection(config: Dict[str, str]) -> Dict[str, Any]:
+async def test_oidc_connection(config: dict[str, str]) -> dict[str, Any]:
     """Test OIDC provider connection and configuration.
 
     Args:

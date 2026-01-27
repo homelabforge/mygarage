@@ -2,20 +2,21 @@
 
 # pyright: reportMissingImports=false
 
-import pandas as pd
-import numpy as np
-from typing import Any, List, Dict, Optional, Tuple
+import calendar
 from datetime import date as date_type
 from decimal import Decimal
-import calendar
+from typing import Any
 
-from app.models import ServiceRecord, FuelRecord, SpotRentalBilling
+import numpy as np
+import pandas as pd
+
+from app.models import FuelRecord, ServiceRecord, SpotRentalBilling
 
 
 def records_to_dataframe(
-    service_records: List[ServiceRecord],
-    fuel_records: List[FuelRecord],
-    spot_rental_billings: Optional[List[SpotRentalBilling]] = None,
+    service_records: list[ServiceRecord],
+    fuel_records: list[FuelRecord],
+    spot_rental_billings: list[SpotRentalBilling] | None = None,
 ) -> pd.DataFrame:
     """
     Convert SQLAlchemy records to a unified pandas DataFrame.
@@ -187,8 +188,8 @@ def calculate_monthly_aggregation(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def calculate_rolling_averages(
-    monthly_df: pd.DataFrame, windows: List[int] = [3, 6, 12]
-) -> Dict[str, Optional[Decimal]]:
+    monthly_df: pd.DataFrame, windows: list[int] = [3, 6, 12]
+) -> dict[str, Decimal | None]:
     """
     Calculate rolling averages for different time windows.
 
@@ -255,8 +256,8 @@ def calculate_trend_direction(values: pd.Series, threshold: float = 0.05) -> str
 
 
 def calculate_fuel_economy_with_pandas(
-    fuel_records: List[FuelRecord],
-) -> Tuple[pd.DataFrame, Dict[str, Any]]:
+    fuel_records: list[FuelRecord],
+) -> tuple[pd.DataFrame, dict[str, Any]]:
     """
     Calculate fuel economy statistics using pandas.
 
@@ -457,7 +458,7 @@ def compare_time_periods(
     period1_end: date_type,
     period2_start: date_type,
     period2_end: date_type,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Compare costs and metrics between two time periods.
 
@@ -515,7 +516,7 @@ def compare_time_periods(
     }
 
 
-def detect_anomalies(values: pd.Series, std_threshold: float = 2.0) -> List[int]:
+def detect_anomalies(values: pd.Series, std_threshold: float = 2.0) -> list[int]:
     """
     Detect anomalies using standard deviation method.
 
@@ -545,7 +546,7 @@ def detect_anomalies(values: pd.Series, std_threshold: float = 2.0) -> List[int]
     return anomalies
 
 
-def calculate_propane_costs(fuel_records: List[FuelRecord]) -> Dict[str, Any]:
+def calculate_propane_costs(fuel_records: list[FuelRecord]) -> dict[str, Any]:
     """
     Calculate propane-specific costs and statistics for fifth wheels.
 
@@ -712,7 +713,7 @@ def calculate_propane_costs(fuel_records: List[FuelRecord]) -> Dict[str, Any]:
     }
 
 
-async def calculate_spot_rental_costs(db: Any, vin: str) -> Dict[str, Any]:
+async def calculate_spot_rental_costs(db: Any, vin: str) -> dict[str, Any]:
     """
     Calculate spot rental costs from billing entries for fifth wheels.
 
@@ -725,6 +726,7 @@ async def calculate_spot_rental_costs(db: Any, vin: str) -> Dict[str, Any]:
     """
     from sqlalchemy import select
     from sqlalchemy.orm import selectinload
+
     from app.models import SpotRental
 
     # Get all spot rentals with billings for this vehicle

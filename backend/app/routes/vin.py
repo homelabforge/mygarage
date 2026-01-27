@@ -1,9 +1,9 @@
 """VIN-related API endpoints."""
 
 import logging
-from typing import Optional
+
 import httpx
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 
 from app.models.user import User
@@ -59,7 +59,7 @@ async def _decode_vin_helper(vin: str) -> VINDecodeResponse:
 
 @router.post("/decode", response_model=VINDecodeResponse)
 async def decode_vin(
-    request: VINDecodeRequest, current_user: Optional[User] = Depends(require_auth)
+    request: VINDecodeRequest, current_user: User | None = Depends(require_auth)
 ):
     """
     Decode a VIN using the NHTSA vPIC API.
@@ -83,7 +83,7 @@ async def decode_vin(
 
 @router.get("/decode/{vin}", response_model=VINDecodeResponse)
 async def decode_vin_get(
-    vin: str, current_user: Optional[User] = Depends(require_auth)
+    vin: str, current_user: User | None = Depends(require_auth)
 ):
     """
     Decode a VIN using the NHTSA vPIC API (GET endpoint).
@@ -106,7 +106,7 @@ async def decode_vin_get(
 
 @router.get("/validate/{vin}")
 async def validate_vin_endpoint(
-    vin: str, current_user: Optional[User] = Depends(require_auth)
+    vin: str, current_user: User | None = Depends(require_auth)
 ):
     """
     Validate a VIN format without calling NHTSA API.

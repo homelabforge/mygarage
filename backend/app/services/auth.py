@@ -2,15 +2,16 @@
 
 # pyright: reportGeneralTypeIssues=false, reportArgumentType=false, reportAttributeAccessIssue=false, reportAssignmentType=false
 
-from datetime import datetime, timedelta, timezone
-from typing import Any, Optional
-from authlib.jose import jwt, JoseError
+from datetime import UTC, datetime, timedelta
+from typing import Any
+
 from argon2 import PasswordHasher
-from argon2.exceptions import VerifyMismatchError, InvalidHashError
-from fastapi import Depends, HTTPException, status, Request
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy.ext.asyncio import AsyncSession
+from argon2.exceptions import InvalidHashError, VerifyMismatchError
+from authlib.jose import JoseError, jwt
+from fastapi import Depends, HTTPException, Request, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.database import get_db
@@ -24,8 +25,8 @@ security = HTTPBearer(auto_error=False)
 
 def get_token_from_request(
     request: Request,
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-) -> Optional[str]:
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+) -> str | None:
     """Extract JWT token from cookie or Authorization header.
 
     Priority:
@@ -102,18 +103,18 @@ def hash_password(password: str) -> str:
 
 
 def create_access_token(
-    data: dict[str, Any], expires_delta: Optional[timedelta] = None
+    data: dict[str, Any], expires_delta: timedelta | None = None
 ) -> str:
     """Create a JWT access token."""
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
+        expire = datetime.now(UTC) + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(
+        expire = datetime.now(UTC) + timedelta(
             minutes=settings.access_token_expire_minutes
         )
 
-    to_encode.update({"exp": expire, "iat": datetime.now(timezone.utc)})
+    to_encode.update({"exp": expire, "iat": datetime.now(UTC)})
     header = {"alg": settings.algorithm}
     encoded_jwt = jwt.encode(header, to_encode, settings.secret_key)
     # jwt.encode from authlib always returns bytes
@@ -123,7 +124,7 @@ def create_access_token(
 async def get_current_user(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    token: Optional[str] = Depends(get_token_from_request),
+    token: str | None = Depends(get_token_from_request),
 ) -> User:
     """Get the current authenticated user from JWT token (cookie or header)."""
     import logging
@@ -148,8 +149,8 @@ async def get_current_user(
 
     try:
         payload = jwt.decode(token, settings.secret_key)
-        user_id_str: Optional[str] = payload.get("sub")
-        username: Optional[str] = payload.get("username")
+        user_id_str: str | None = payload.get("sub")
+        username: str | None = payload.get("username")
 
         if user_id_str is None or username is None:
             logger.error("Token missing user_id or username")
@@ -186,8 +187,8 @@ async def get_current_user(
 async def get_optional_user(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    token: Optional[str] = Depends(get_token_from_request),
-) -> Optional[User]:
+    token: str | None = Depends(get_token_from_request),
+) -> User | None:
     """Get the current user if credentials are provided, None otherwise.
 
     This is useful for endpoints that need to be accessible without authentication
@@ -219,8 +220,8 @@ async def get_current_active_user(
 async def get_current_admin_user(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    token: Optional[str] = Depends(get_token_from_request),
-) -> Optional[User]:
+    token: str | None = Depends(get_token_from_request),
+) -> User | None:
     """Get the current admin user.
 
     Returns None when auth_mode='none' (authentication disabled).
@@ -248,7 +249,7 @@ async def get_current_admin_user(
 
 async def authenticate_user(
     db: AsyncSession, username: str, password: str
-) -> Optional[User]:
+) -> User | None:
     """Authenticate a user by username and password.
 
     Auto-rehashes legacy bcrypt passwords to Argon2 on successful login.
@@ -284,8 +285,8 @@ async def authenticate_user(
 async def get_current_user_optional(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    token: Optional[str] = Depends(get_token_from_request),
-) -> Optional[User]:
+    token: str | None = Depends(get_token_from_request),
+) -> User | None:
     """Get the current user, but return None if no authentication is provided.
 
     This is useful for endpoints that work differently when authenticated vs not.
@@ -316,8 +317,8 @@ async def get_auth_mode(db: AsyncSession) -> str:
 async def optional_auth(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    token: Optional[str] = Depends(get_token_from_request),
-) -> Optional[User]:
+    token: str | None = Depends(get_token_from_request),
+) -> User | None:
     """Optional authentication based on auth_mode setting.
 
     Returns User if authenticated, None if auth_mode='none' or no credentials provided.
@@ -341,8 +342,8 @@ async def optional_auth(
 async def require_auth(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    token: Optional[str] = Depends(get_token_from_request),
-) -> Optional[User]:
+    token: str | None = Depends(get_token_from_request),
+) -> User | None:
     """Require authentication - checks auth_mode setting.
 
     Returns User if authenticated.
@@ -359,7 +360,7 @@ async def require_auth(
     return await get_current_user(request, db, token)
 
 
-async def get_vehicle_or_403(vin: str, current_user: Optional[User], db: AsyncSession):
+async def get_vehicle_or_403(vin: str, current_user: User | None, db: AsyncSession):
     """Get vehicle if user owns it or is admin, else raise 403.
 
     Args:
@@ -399,7 +400,7 @@ async def get_vehicle_or_403(vin: str, current_user: Optional[User], db: AsyncSe
     return vehicle
 
 
-def check_vehicle_ownership(vehicle: Vehicle, current_user: Optional[User]) -> None:
+def check_vehicle_ownership(vehicle: Vehicle, current_user: User | None) -> None:
     """Check if user owns vehicle or is admin, else raise 403.
 
     Args:

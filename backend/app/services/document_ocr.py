@@ -8,12 +8,12 @@ and routes to the appropriate parser based on document type.
 
 import logging
 import os
-from typing import Optional, Dict, Any
 from pathlib import Path
+from typing import Any
 
 from app.services.document_parsers import (
-    DocumentType,
     DocumentParserRegistry,
+    DocumentType,
     get_parser_for_document,
 )
 
@@ -33,11 +33,11 @@ class DocumentOCRService:
 
     async def extract_insurance_data(
         self,
-        file_path: Optional[str] = None,
-        file_bytes: Optional[bytes] = None,
-        target_vin: Optional[str] = None,
-        provider_hint: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        file_path: str | None = None,
+        file_bytes: bytes | None = None,
+        target_vin: str | None = None,
+        provider_hint: str | None = None,
+    ) -> dict[str, Any]:
         """
         Extract insurance data from a document.
 
@@ -90,11 +90,11 @@ class DocumentOCRService:
 
     async def test_insurance_extraction(
         self,
-        file_path: Optional[str] = None,
-        file_bytes: Optional[bytes] = None,
-        target_vin: Optional[str] = None,
-        provider_hint: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        file_path: str | None = None,
+        file_bytes: bytes | None = None,
+        target_vin: str | None = None,
+        provider_hint: str | None = None,
+    ) -> dict[str, Any]:
         """
         Test extraction without saving - returns full debug info.
 
@@ -279,8 +279,8 @@ class DocumentOCRService:
                 logger.warning("PaddleOCR failed, falling back to Tesseract: %s", e)
 
         try:
-            from PIL import Image
             import pytesseract
+            from PIL import Image
 
             image = Image.open(file_path)
             text = pytesseract.image_to_string(image)
@@ -303,9 +303,10 @@ class DocumentOCRService:
                 logger.warning("PaddleOCR bytes failed: %s", e)
 
         try:
-            from PIL import Image
-            import pytesseract
             import io
+
+            import pytesseract
+            from PIL import Image
 
             image = Image.open(io.BytesIO(img_bytes))
             return pytesseract.image_to_string(image)
@@ -345,9 +346,10 @@ class DocumentOCRService:
     async def _paddleocr_extract_bytes(self, img_bytes: bytes) -> str:
         """Extract text from image bytes using PaddleOCR."""
         try:
+            import io
+
             import numpy as np
             from PIL import Image
-            import io
 
             if self._paddleocr is None:
                 from paddleocr import PaddleOCR

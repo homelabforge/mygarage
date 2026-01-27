@@ -1,10 +1,11 @@
 """Parser registry for manufacturer-specific window sticker parsers."""
 
 import logging
-from typing import Any, Optional, Type
+from typing import Any
+
+from app.utils.logging_utils import sanitize_for_log
 
 from .base import BaseWindowStickerParser
-from app.utils.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
 
@@ -162,12 +163,12 @@ WMI_MAPPING: dict[str, str] = {
 class ParserRegistry:
     """Registry for window sticker parsers."""
 
-    _parsers: dict[str, Type[BaseWindowStickerParser]] = {}
+    _parsers: dict[str, type[BaseWindowStickerParser]] = {}
     _initialized: bool = False
 
     @classmethod
     def register(
-        cls, manufacturer: str, parser_class: Type[BaseWindowStickerParser]
+        cls, manufacturer: str, parser_class: type[BaseWindowStickerParser]
     ) -> None:
         """Register a parser for a manufacturer."""
         cls._parsers[manufacturer.lower()] = parser_class
@@ -176,7 +177,7 @@ class ParserRegistry:
         )
 
     @classmethod
-    def get_parser(cls, manufacturer: str) -> Optional[BaseWindowStickerParser]:
+    def get_parser(cls, manufacturer: str) -> BaseWindowStickerParser | None:
         """Get a parser instance for a manufacturer."""
         cls._ensure_initialized()
 
@@ -193,7 +194,7 @@ class ParserRegistry:
         return None
 
     @classmethod
-    def get_parser_for_vin(cls, vin: str) -> Optional[BaseWindowStickerParser]:
+    def get_parser_for_vin(cls, vin: str) -> BaseWindowStickerParser | None:
         """Get appropriate parser based on VIN."""
         if not vin or len(vin) < 3:
             return cls.get_parser("generic")
@@ -232,7 +233,7 @@ class ParserRegistry:
         ]
 
     @classmethod
-    def get_manufacturer_for_vin(cls, vin: str) -> Optional[str]:
+    def get_manufacturer_for_vin(cls, vin: str) -> str | None:
         """Get manufacturer name from VIN."""
         if not vin or len(vin) < 3:
             return None
@@ -286,7 +287,7 @@ class ParserRegistry:
 
 
 def get_parser_for_vehicle(
-    vin: str, make: Optional[str] = None
+    vin: str, make: str | None = None
 ) -> BaseWindowStickerParser:
     """
     Get the appropriate parser for a vehicle.

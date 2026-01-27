@@ -13,14 +13,15 @@ This file is kept for backwards compatibility but will be removed in a future ve
 
 # pyright: reportMissingImports=false
 
-import warnings
-import pdfplumber
+import logging
 import re
+import warnings
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
-from typing import Optional, Dict, Any
 from io import BytesIO
-import logging
+from typing import Any
+
+import pdfplumber
 
 logger = logging.getLogger(__name__)
 
@@ -66,8 +67,8 @@ class InsurancePDFParser:
         }
 
     async def parse_progressive_pdf(
-        self, pdf_bytes: bytes, target_vin: Optional[str] = None
-    ) -> Dict[str, Any]:
+        self, pdf_bytes: bytes, target_vin: str | None = None
+    ) -> dict[str, Any]:
         """
         Parse a Progressive insurance PDF.
 
@@ -175,7 +176,7 @@ class InsurancePDFParser:
 
         return result
 
-    def _extract_pattern(self, text: str, patterns: list) -> Optional[str]:
+    def _extract_pattern(self, text: str, patterns: list) -> str | None:
         """Extract first match from list of regex patterns."""
         for pattern in patterns:
             match = re.search(pattern, text, re.IGNORECASE | re.MULTILINE)
@@ -183,7 +184,7 @@ class InsurancePDFParser:
                 return match.group(1).strip()
         return None
 
-    def _extract_policy_period(self, text: str) -> Optional[Dict[str, str]]:
+    def _extract_policy_period(self, text: str) -> dict[str, str] | None:
         """Extract and parse policy period dates."""
         for pattern in self.progressive_patterns["policy_period"]:
             match = re.search(pattern, text, re.IGNORECASE)
@@ -202,7 +203,7 @@ class InsurancePDFParser:
                     }
         return None
 
-    def _parse_date(self, date_str: str) -> Optional[str]:
+    def _parse_date(self, date_str: str) -> str | None:
         """Parse various date formats to YYYY-MM-DD."""
         date_formats = [
             "%B %d, %Y",  # August 26, 2025
@@ -218,7 +219,7 @@ class InsurancePDFParser:
                 continue
         return None
 
-    def _parse_currency(self, value: str) -> Optional[Decimal]:
+    def _parse_currency(self, value: str) -> Decimal | None:
         """Parse currency string to Decimal."""
         try:
             # Remove $ and commas
@@ -239,7 +240,7 @@ class InsurancePDFParser:
                     vins.append(vin)
         return vins
 
-    def _extract_vehicle_specific_data(self, text: str, vin: str) -> Dict[str, Any]:
+    def _extract_vehicle_specific_data(self, text: str, vin: str) -> dict[str, Any]:
         """Extract vehicle-specific premium and deductible."""
         data = {}
 
@@ -315,7 +316,7 @@ class InsurancePDFParser:
         else:
             return "Other"
 
-    def _extract_coverage_limits(self, text: str) -> Optional[str]:
+    def _extract_coverage_limits(self, text: str) -> str | None:
         """Extract coverage limit information."""
         # Look for liability limits pattern (e.g., 100/300/100)
         pattern = r"(\$?\d{2,3},?\d{3})\s+each\s+person.*?(\$?\d{2,3},?\d{3})\s+each\s+accident.*?(\$?\d{2,3},?\d{3})\s+each\s+accident"

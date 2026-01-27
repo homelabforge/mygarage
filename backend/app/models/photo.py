@@ -1,10 +1,10 @@
 """Vehicle photo database model."""
 
-from sqlalchemy import String, Integer, DateTime, ForeignKey, Boolean, Index
+from datetime import datetime
+
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
-from datetime import datetime
-from typing import Optional
 
 from app.database import Base
 
@@ -19,9 +19,9 @@ class VehiclePhoto(Base):
         String(17), ForeignKey("vehicles.vin", ondelete="CASCADE"), nullable=False
     )
     file_path: Mapped[str] = mapped_column(String(255), nullable=False)
-    thumbnail_path: Mapped[Optional[str]] = mapped_column(String(255))
+    thumbnail_path: Mapped[str | None] = mapped_column(String(255))
     is_main: Mapped[bool] = mapped_column(Boolean, default=False)
-    caption: Mapped[Optional[str]] = mapped_column(String(200))
+    caption: Mapped[str | None] = mapped_column(String(200))
     uploaded_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     # Relationships

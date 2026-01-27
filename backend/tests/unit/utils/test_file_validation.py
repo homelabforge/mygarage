@@ -7,10 +7,10 @@ Tests magic byte verification, MIME type validation, and file size checks.
 import pytest
 
 from app.utils.file_validation import (
-    verify_file_content_type,
-    validate_file_magic_bytes,
-    MAGIC_BYTES,
     MAGIC_AVAILABLE,
+    MAGIC_BYTES,
+    validate_file_magic_bytes,
+    verify_file_content_type,
 )
 
 

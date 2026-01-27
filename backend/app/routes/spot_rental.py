@@ -1,9 +1,9 @@
 """Spot rental routes for MyGarage API."""
 
-from typing import Annotated, Optional
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -11,13 +11,13 @@ from app.database import get_db
 from app.models import SpotRental, Vehicle
 from app.models.spot_rental_billing import SpotRentalBilling
 from app.models.user import User
-from app.services.auth import require_auth
 from app.schemas.spot_rental import (
     SpotRentalCreate,
     SpotRentalListResponse,
     SpotRentalResponse,
     SpotRentalUpdate,
 )
+from app.services.auth import require_auth
 
 router = APIRouter(prefix="/api/vehicles", tags=["spot-rentals"])
 
@@ -26,7 +26,7 @@ router = APIRouter(prefix="/api/vehicles", tags=["spot-rentals"])
 async def list_spot_rentals(
     vin: str,
     db: Annotated[AsyncSession, Depends(get_db)] = None,
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> SpotRentalListResponse:
     """List all spot rentals for a vehicle."""
     # Verify vehicle exists
@@ -63,7 +63,7 @@ async def create_spot_rental(
     vin: str,
     rental_data: SpotRentalCreate,
     db: Annotated[AsyncSession, Depends(get_db)] = None,
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> SpotRentalResponse:
     """Create a new spot rental record."""
     # Verify vehicle exists
@@ -136,7 +136,7 @@ async def get_spot_rental(
     vin: str,
     rental_id: int,
     db: Annotated[AsyncSession, Depends(get_db)] = None,
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> SpotRentalResponse:
     """Get a specific spot rental record."""
     result = await db.execute(
@@ -157,7 +157,7 @@ async def update_spot_rental(
     rental_id: int,
     update_data: SpotRentalUpdate,
     db: Annotated[AsyncSession, Depends(get_db)] = None,
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> SpotRentalResponse:
     """Update a spot rental record."""
     # Get rental
@@ -209,7 +209,7 @@ async def delete_spot_rental(
     vin: str,
     rental_id: int,
     db: Annotated[AsyncSession, Depends(get_db)] = None,
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> None:
     """Delete a spot rental record."""
     # Verify rental exists

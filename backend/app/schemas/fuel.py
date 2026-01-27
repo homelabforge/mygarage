@@ -1,46 +1,47 @@
 """Pydantic schemas for Fuel Record operations."""
 
-from typing import Optional
-from datetime import date as date_type, datetime
+from datetime import date as date_type
+from datetime import datetime
 from decimal import Decimal
-from pydantic import BaseModel, Field, field_validator, ValidationInfo
+
+from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
 
 class FuelRecordBase(BaseModel):
     """Base fuel record schema with common fields."""
 
     date: date_type = Field(..., description="Fill-up date")
-    mileage: Optional[int] = Field(
+    mileage: int | None = Field(
         None, description="Odometer reading", ge=0, le=9999999
     )
-    gallons: Optional[Decimal] = Field(
+    gallons: Decimal | None = Field(
         None, description="Fuel amount in gallons", ge=0, le=999.999
     )
-    propane_gallons: Optional[Decimal] = Field(
+    propane_gallons: Decimal | None = Field(
         None,
         description="Propane amount in gallons",
         ge=0,
         le=999.999,
         decimal_places=3,
     )
-    tank_size_lb: Optional[Decimal] = Field(
+    tank_size_lb: Decimal | None = Field(
         None, description="Propane tank size in pounds", ge=0, le=999.99
     )
-    tank_quantity: Optional[int] = Field(
+    tank_quantity: int | None = Field(
         None, description="Number of propane tanks", ge=1
     )
-    kwh: Optional[Decimal] = Field(
+    kwh: Decimal | None = Field(
         None,
         description="Energy amount in kilowatt-hours",
         ge=0,
         le=99999.999,
         decimal_places=3,
     )
-    cost: Optional[Decimal] = Field(None, description="Total cost", ge=0, le=99999.99)
-    price_per_unit: Optional[Decimal] = Field(
+    cost: Decimal | None = Field(None, description="Total cost", ge=0, le=99999.99)
+    price_per_unit: Decimal | None = Field(
         None, description="Price per gallon", ge=0, le=999.999
     )
-    fuel_type: Optional[str] = Field(
+    fuel_type: str | None = Field(
         None, description="Fuel type (Gasoline, Diesel, etc.)", max_length=50
     )
     is_full_tank: bool = Field(True, description="Full tank fill-up")
@@ -48,7 +49,7 @@ class FuelRecordBase(BaseModel):
     is_hauling: bool = Field(
         False, description="Vehicle was towing/hauling during this fuel cycle"
     )
-    notes: Optional[str] = Field(None, description="Additional notes")
+    notes: str | None = Field(None, description="Additional notes")
 
 
 class FuelRecordCreate(FuelRecordBase):
@@ -59,8 +60,8 @@ class FuelRecordCreate(FuelRecordBase):
     @field_validator("tank_quantity")
     @classmethod
     def validate_tank_data_complete(
-        cls, v: Optional[int], info: ValidationInfo
-    ) -> Optional[int]:
+        cls, v: int | None, info: ValidationInfo
+    ) -> int | None:
         """Ensure both tank_size_lb and tank_quantity are provided together."""
         tank_size = info.data.get("tank_size_lb")
         has_size = tank_size is not None
@@ -94,54 +95,54 @@ class FuelRecordCreate(FuelRecordBase):
 class FuelRecordUpdate(BaseModel):
     """Schema for updating an existing fuel record."""
 
-    date: Optional[date_type] = Field(None, description="Fill-up date")
-    mileage: Optional[int] = Field(
+    date: date_type | None = Field(None, description="Fill-up date")
+    mileage: int | None = Field(
         None, description="Odometer reading", ge=0, le=9999999
     )
-    gallons: Optional[Decimal] = Field(
+    gallons: Decimal | None = Field(
         None, description="Fuel amount in gallons", ge=0, le=999.999
     )
-    propane_gallons: Optional[Decimal] = Field(
+    propane_gallons: Decimal | None = Field(
         None,
         description="Propane amount in gallons",
         ge=0,
         le=999.999,
         decimal_places=3,
     )
-    tank_size_lb: Optional[Decimal] = Field(
+    tank_size_lb: Decimal | None = Field(
         None, description="Propane tank size in pounds", ge=0, le=999.99
     )
-    tank_quantity: Optional[int] = Field(
+    tank_quantity: int | None = Field(
         None, description="Number of propane tanks", ge=1
     )
-    kwh: Optional[Decimal] = Field(
+    kwh: Decimal | None = Field(
         None,
         description="Energy amount in kilowatt-hours",
         ge=0,
         le=99999.999,
         decimal_places=3,
     )
-    cost: Optional[Decimal] = Field(None, description="Total cost", ge=0, le=99999.99)
-    price_per_unit: Optional[Decimal] = Field(
+    cost: Decimal | None = Field(None, description="Total cost", ge=0, le=99999.99)
+    price_per_unit: Decimal | None = Field(
         None, description="Price per gallon", ge=0, le=999.999
     )
-    fuel_type: Optional[str] = Field(
+    fuel_type: str | None = Field(
         None, description="Fuel type (Gasoline, Diesel, etc.)", max_length=50
     )
-    is_full_tank: Optional[bool] = Field(None, description="Full tank fill-up")
-    missed_fillup: Optional[bool] = Field(
+    is_full_tank: bool | None = Field(None, description="Full tank fill-up")
+    missed_fillup: bool | None = Field(
         None, description="Skipped recording a fill-up"
     )
-    is_hauling: Optional[bool] = Field(
+    is_hauling: bool | None = Field(
         None, description="Vehicle was towing/hauling during this fuel cycle"
     )
-    notes: Optional[str] = Field(None, description="Additional notes")
+    notes: str | None = Field(None, description="Additional notes")
 
     @field_validator("tank_quantity")
     @classmethod
     def validate_tank_data_complete(
-        cls, v: Optional[int], info: ValidationInfo
-    ) -> Optional[int]:
+        cls, v: int | None, info: ValidationInfo
+    ) -> int | None:
         """Ensure both tank_size_lb and tank_quantity are provided together."""
         tank_size = info.data.get("tank_size_lb")
         has_size = tank_size is not None
@@ -165,7 +166,7 @@ class FuelRecordResponse(FuelRecordBase):
     id: int
     vin: str
     created_at: datetime
-    mpg: Optional[Decimal] = Field(None, description="Calculated miles per gallon")
+    mpg: Decimal | None = Field(None, description="Calculated miles per gallon")
 
     model_config = {
         "from_attributes": True,
@@ -196,7 +197,7 @@ class FuelRecordListResponse(BaseModel):
 
     records: list[FuelRecordResponse]
     total: int
-    average_mpg: Optional[Decimal] = Field(
+    average_mpg: Decimal | None = Field(
         None, description="Average MPG across all records"
     )
 

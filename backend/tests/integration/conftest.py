@@ -5,9 +5,10 @@ Integration tests use the database and test full request/response cycles.
 These fixtures extend the base conftest.py fixtures.
 """
 
-import pytest
 from datetime import datetime, timedelta
 from decimal import Decimal
+
+import pytest
 
 
 @pytest.fixture

@@ -1,8 +1,9 @@
 """Pydantic schemas for toll tag and transaction operations."""
 
-from typing import Any, Optional
 import datetime as dt
 from decimal import Decimal
+from typing import Any
+
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -16,7 +17,7 @@ class TollTagBase(BaseModel):
         ..., description="Transponder/tag number", min_length=1, max_length=50
     )
     status: str = Field("active", description="Tag status")
-    notes: Optional[str] = Field(None, description="Additional notes")
+    notes: str | None = Field(None, description="Additional notes")
 
     @field_validator("status")
     @classmethod
@@ -71,18 +72,18 @@ class TollTagCreate(TollTagBase):
 class TollTagUpdate(BaseModel):
     """Schema for updating an existing toll tag."""
 
-    toll_system: Optional[str] = Field(
+    toll_system: str | None = Field(
         None, description="Toll system name", min_length=1, max_length=50
     )
-    tag_number: Optional[str] = Field(
+    tag_number: str | None = Field(
         None, description="Transponder/tag number", min_length=1, max_length=50
     )
-    status: Optional[str] = Field(None, description="Tag status")
-    notes: Optional[str] = Field(None, description="Additional notes")
+    status: str | None = Field(None, description="Tag status")
+    notes: str | None = Field(None, description="Additional notes")
 
     @field_validator("status")
     @classmethod
-    def validate_status(cls, v: Optional[str]) -> Optional[str]:
+    def validate_status(cls, v: str | None) -> str | None:
         """Validate status."""
         if v is None:
             return v
@@ -98,7 +99,7 @@ class TollTagResponse(TollTagBase):
     id: int
     vin: str
     created_at: dt.datetime
-    updated_at: Optional[dt.datetime] = None
+    updated_at: dt.datetime | None = None
 
     model_config = {
         "from_attributes": True,
@@ -156,8 +157,8 @@ class TollTransactionBase(BaseModel):
     location: str = Field(
         ..., description="Toll location/plaza", min_length=1, max_length=200
     )
-    toll_tag_id: Optional[int] = Field(None, description="Associated toll tag ID")
-    notes: Optional[str] = Field(None, description="Additional notes")
+    toll_tag_id: int | None = Field(None, description="Associated toll tag ID")
+    notes: str | None = Field(None, description="Additional notes")
 
 
 class TollTransactionCreate(TollTransactionBase):
@@ -186,13 +187,13 @@ class TollTransactionCreate(TollTransactionBase):
 class TollTransactionUpdate(BaseModel):
     """Schema for updating an existing toll transaction."""
 
-    transaction_date: Optional[dt.date] = Field(None, description="Transaction date")
-    amount: Optional[Decimal] = Field(None, description="Toll amount", ge=0)
-    location: Optional[str] = Field(
+    transaction_date: dt.date | None = Field(None, description="Transaction date")
+    amount: Decimal | None = Field(None, description="Toll amount", ge=0)
+    location: str | None = Field(
         None, description="Toll location/plaza", min_length=1, max_length=200
     )
-    toll_tag_id: Optional[int] = Field(None, description="Associated toll tag ID")
-    notes: Optional[str] = Field(None, description="Additional notes")
+    toll_tag_id: int | None = Field(None, description="Associated toll tag ID")
+    notes: str | None = Field(None, description="Additional notes")
 
 
 class TollTransactionResponse(TollTransactionBase):

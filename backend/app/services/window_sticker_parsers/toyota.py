@@ -2,7 +2,6 @@
 
 import re
 from decimal import Decimal
-from typing import Optional
 
 from .base import BaseWindowStickerParser, WindowStickerData
 
@@ -131,7 +130,7 @@ class ToyotaWindowStickerParser(BaseWindowStickerParser):
                 except (ValueError, Exception):
                     continue
 
-    def _extract_toyota_colors(self, text: str) -> tuple[Optional[str], Optional[str]]:
+    def _extract_toyota_colors(self, text: str) -> tuple[str | None, str | None]:
         """Extract colors from Toyota sticker."""
         exterior = None
         interior = None
@@ -193,7 +192,7 @@ class ToyotaWindowStickerParser(BaseWindowStickerParser):
 
     def _extract_toyota_warranty(
         self, text: str
-    ) -> tuple[Optional[str], Optional[str]]:
+    ) -> tuple[str | None, str | None]:
         """Extract warranty from Toyota sticker."""
         powertrain = None
         basic = None

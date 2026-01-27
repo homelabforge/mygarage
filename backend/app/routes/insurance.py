@@ -1,13 +1,15 @@
 """Insurance policy API routes."""
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from typing import List, Dict, Any, Optional
 import logging
+from typing import Any
+
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models import InsurancePolicy as InsurancePolicyModel, Vehicle
+from app.models import InsurancePolicy as InsurancePolicyModel
+from app.models import Vehicle
 from app.models.user import User
 from app.schemas.insurance import (
     InsurancePolicy,
@@ -22,11 +24,11 @@ router = APIRouter(prefix="/api", tags=["Insurance"])
 logger = logging.getLogger(__name__)
 
 
-@router.get("/vehicles/{vin}/insurance", response_model=List[InsurancePolicy])
+@router.get("/vehicles/{vin}/insurance", response_model=list[InsurancePolicy])
 async def get_insurance_policies(
     vin: str,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Get all insurance policies for a vehicle."""
     # Verify vehicle exists
@@ -52,7 +54,7 @@ async def create_insurance_policy(
     vin: str,
     policy: InsurancePolicyCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Create a new insurance policy."""
     # Verify vehicle exists
@@ -74,7 +76,7 @@ async def get_insurance_policy(
     vin: str,
     policy_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Get a specific insurance policy."""
     result = await db.execute(
@@ -94,7 +96,7 @@ async def update_insurance_policy(
     policy_id: int,
     policy_update: InsurancePolicyUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Update an insurance policy."""
     result = await db.execute(
@@ -121,7 +123,7 @@ async def delete_insurance_policy(
     vin: str,
     policy_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Delete an insurance policy."""
     result = await db.execute(
@@ -142,13 +144,13 @@ async def delete_insurance_policy(
 async def parse_insurance_pdf(
     vin: str,
     file: UploadFile = File(...),
-    provider: Optional[str] = Query(
+    provider: str | None = Query(
         None,
         description="Optional provider hint (progressive, statefarm, geico, allstate)",
     ),
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
-) -> Dict[str, Any]:
+    current_user: User | None = Depends(require_auth),
+) -> dict[str, Any]:
     """
     Parse an insurance PDF and extract policy data.
 
@@ -261,15 +263,15 @@ async def parse_insurance_pdf(
     except ValueError as e:
         logger.error("Document parsing error: %s", sanitize_for_log(str(e)))
         raise HTTPException(status_code=400, detail="Invalid insurance document format")
-    except (OSError, IOError) as e:
+    except OSError as e:
         logger.error("File system error parsing document: %s", sanitize_for_log(str(e)))
         raise HTTPException(status_code=500, detail="Error reading uploaded document")
 
 
 @router.get("/insurance/parsers")
 async def list_insurance_parsers(
-    current_user: Optional[User] = Depends(require_auth),
-) -> Dict[str, Any]:
+    current_user: User | None = Depends(require_auth),
+) -> dict[str, Any]:
     """List available insurance document parsers."""
     return {
         "parsers": document_ocr_service.list_available_insurance_parsers(),
@@ -281,10 +283,10 @@ async def list_insurance_parsers(
 async def test_parse_insurance_pdf(
     vin: str,
     file: UploadFile = File(...),
-    provider: Optional[str] = Query(None, description="Optional provider hint"),
+    provider: str | None = Query(None, description="Optional provider hint"),
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
-) -> Dict[str, Any]:
+    current_user: User | None = Depends(require_auth),
+) -> dict[str, Any]:
     """
     Test parse an insurance document - returns full debug info including raw text.
 

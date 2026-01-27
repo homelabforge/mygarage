@@ -1,9 +1,10 @@
 """Foursquare Places API provider for POI search."""
 
 import logging
-from typing import Any
 from decimal import Decimal
+from typing import Any
 from urllib.parse import urlparse
+
 import httpx
 
 from app.services.poi.base import BasePOIProvider, POICategory

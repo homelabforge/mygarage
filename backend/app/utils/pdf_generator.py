@@ -2,24 +2,25 @@
 
 # pyright: reportMissingModuleSource=false, reportArgumentType=false
 
-from io import BytesIO
-from datetime import datetime, date as date_type
+from datetime import date as date_type
+from datetime import datetime
 from decimal import Decimal
-from typing import List, Dict, Any, Optional
+from io import BytesIO
+from typing import Any
 
 from reportlab.lib import colors
+from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.pagesizes import letter
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
 from reportlab.platypus import (
+    PageBreak,
+    Paragraph,
     SimpleDocTemplate,
+    Spacer,
     Table,
     TableStyle,
-    Paragraph,
-    Spacer,
-    PageBreak,
 )
-from reportlab.lib.enums import TA_CENTER
 
 
 class PDFReportGenerator:
@@ -64,13 +65,13 @@ class PDFReportGenerator:
             )
         )
 
-    def _format_currency(self, amount: Optional[Decimal]) -> str:
+    def _format_currency(self, amount: Decimal | None) -> str:
         """Format decimal as currency."""
         if amount is None:
             return "N/A"
         return f"${float(amount):,.2f}"
 
-    def _format_date(self, date_obj: Optional[date_type]) -> str:
+    def _format_date(self, date_obj: date_type | None) -> str:
         """Format date object."""
         if date_obj is None:
             return "N/A"
@@ -80,10 +81,10 @@ class PDFReportGenerator:
 
     def generate_service_history_pdf(
         self,
-        vehicle_info: Dict[str, Any],
-        service_records: List[Dict[str, Any]],
-        start_date: Optional[date_type] = None,
-        end_date: Optional[date_type] = None,
+        vehicle_info: dict[str, Any],
+        service_records: list[dict[str, Any]],
+        start_date: date_type | None = None,
+        end_date: date_type | None = None,
     ) -> BytesIO:
         """Generate service history PDF report."""
         buffer = BytesIO()
@@ -213,8 +214,8 @@ class PDFReportGenerator:
 
     def generate_cost_summary_pdf(
         self,
-        vehicle_info: Dict[str, Any],
-        cost_data: Dict[str, Any],
+        vehicle_info: dict[str, Any],
+        cost_data: dict[str, Any],
         year: int,
     ) -> BytesIO:
         """Generate annual cost summary PDF."""
@@ -361,8 +362,8 @@ class PDFReportGenerator:
 
     def generate_tax_deduction_pdf(
         self,
-        vehicle_info: Dict[str, Any],
-        deductible_records: List[Dict[str, Any]],
+        vehicle_info: dict[str, Any],
+        deductible_records: list[dict[str, Any]],
         year: int,
     ) -> BytesIO:
         """Generate tax deduction report PDF."""
@@ -467,9 +468,9 @@ class PDFReportGenerator:
 
     def generate_analytics_pdf(
         self,
-        analytics_data: Dict[str, Any],
-        vendor_data: Optional[Dict[str, Any]] = None,
-        seasonal_data: Optional[Dict[str, Any]] = None,
+        analytics_data: dict[str, Any],
+        vendor_data: dict[str, Any] | None = None,
+        seasonal_data: dict[str, Any] | None = None,
     ) -> BytesIO:
         """Generate analytics summary PDF report."""
         buffer = BytesIO()
@@ -963,7 +964,7 @@ class PDFReportGenerator:
         buffer.seek(0)
         return buffer
 
-    def generate_garage_analytics_pdf(self, garage_data: Dict[str, Any]) -> BytesIO:
+    def generate_garage_analytics_pdf(self, garage_data: dict[str, Any]) -> BytesIO:
         """Generate garage analytics summary PDF report."""
         buffer = BytesIO()
         doc = SimpleDocTemplate(

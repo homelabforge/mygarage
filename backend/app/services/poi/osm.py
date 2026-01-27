@@ -2,8 +2,9 @@
 
 import logging
 import math
-from typing import Any, Optional
 from decimal import Decimal
+from typing import Any
+
 import httpx
 
 from app.services.poi.base import BasePOIProvider, POICategory
@@ -175,7 +176,7 @@ class OSMProvider(BasePOIProvider):
 
         return query
 
-    def normalize_result(self, raw_result: dict) -> Optional[dict[str, Any]]:
+    def normalize_result(self, raw_result: dict) -> dict[str, Any] | None:
         """Normalize OSM result to common format."""
         tags = raw_result.get("tags", {})
 

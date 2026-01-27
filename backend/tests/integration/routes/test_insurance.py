@@ -4,9 +4,10 @@ Integration tests for insurance routes.
 Tests insurance CRUD operations.
 """
 
+from datetime import date, timedelta
+
 import pytest
 from httpx import AsyncClient
-from datetime import date, timedelta
 
 
 @pytest.mark.integration

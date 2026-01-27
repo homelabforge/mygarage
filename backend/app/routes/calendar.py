@@ -1,22 +1,22 @@
 """Calendar routes for MyGarage API."""
 
 from datetime import date, timedelta
-from typing import Annotated, Optional
 from io import StringIO
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import Response
-from sqlalchemy import select, desc
+from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models import (
-    Reminder,
     InsurancePolicy,
-    WarrantyRecord,
-    Vehicle,
-    ServiceRecord,
     OdometerRecord,
+    Reminder,
+    ServiceRecord,
+    Vehicle,
+    WarrantyRecord,
 )
 from app.models.user import User
 from app.schemas.calendar import CalendarEvent, CalendarResponse, CalendarSummary
@@ -42,20 +42,20 @@ def calculate_urgency(event_date: date, is_overdue: bool) -> str:
 
 @router.get("/calendar", response_model=CalendarResponse)
 async def get_calendar_events(
-    start_date: Optional[date] = Query(
+    start_date: date | None = Query(
         None, description="Start date filter (default: 1 month ago)"
     ),
-    end_date: Optional[date] = Query(
+    end_date: date | None = Query(
         None, description="End date filter (default: 1 year ahead)"
     ),
-    vehicle_vins: Optional[str] = Query(
+    vehicle_vins: str | None = Query(
         None, description="Comma-separated VINs to filter by"
     ),
-    event_types: Optional[str] = Query(
+    event_types: str | None = Query(
         None, description="Comma-separated event types (reminder,insurance,warranty)"
     ),
     db: Annotated[AsyncSession, Depends(get_db)] = None,
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> CalendarResponse:
     """Get calendar events aggregated from reminders, insurance, and warranties."""
 
@@ -311,7 +311,7 @@ async def get_calendar_events(
 
 async def calculate_average_miles_per_day(
     vin: str, db: AsyncSession
-) -> Optional[float]:
+) -> float | None:
     """Calculate average miles per day for a vehicle based on odometer history."""
     # Get last 30 days of odometer readings (or all if less than 30 days of data)
     odometer_query = (
@@ -343,7 +343,7 @@ async def calculate_average_miles_per_day(
 
 async def estimate_date_from_mileage(
     vin: str, due_mileage: int, db: AsyncSession
-) -> Optional[date]:
+) -> date | None:
     """Estimate due date for a mileage-based reminder."""
     # Get current mileage
     odometer_query = (
@@ -381,12 +381,12 @@ async def estimate_date_from_mileage(
 
 @router.get("/calendar/export")
 async def export_calendar_ical(
-    start_date: Optional[date] = Query(None, description="Start date filter"),
-    end_date: Optional[date] = Query(None, description="End date filter"),
-    vehicle_vins: Optional[str] = Query(None, description="Comma-separated VINs"),
-    event_types: Optional[str] = Query(None, description="Comma-separated event types"),
+    start_date: date | None = Query(None, description="Start date filter"),
+    end_date: date | None = Query(None, description="End date filter"),
+    vehicle_vins: str | None = Query(None, description="Comma-separated VINs"),
+    event_types: str | None = Query(None, description="Comma-separated event types"),
     db: Annotated[AsyncSession, Depends(get_db)] = None,
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Export calendar events as iCal format."""
     # Get events using existing function logic

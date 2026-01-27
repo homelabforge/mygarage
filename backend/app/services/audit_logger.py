@@ -1,8 +1,9 @@
 """Audit logging service for tracking sensitive operations."""
 
 import logging
-from datetime import datetime, timezone
-from typing import Optional, Dict, Any
+from datetime import UTC, datetime
+from typing import Any
+
 from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -20,12 +21,12 @@ class AuditLogger:
         db: AsyncSession,
         action: str,
         success: bool = True,
-        user: Optional[User] = None,
-        resource_type: Optional[str] = None,
-        resource_id: Optional[str] = None,
-        details: Optional[Dict[str, Any]] = None,
-        error_message: Optional[str] = None,
-        request: Optional[Request] = None,
+        user: User | None = None,
+        resource_type: str | None = None,
+        resource_id: str | None = None,
+        details: dict[str, Any] | None = None,
+        error_message: str | None = None,
+        request: Request | None = None,
     ) -> AuditLog:
         """Log an audit event.
 
@@ -55,7 +56,7 @@ class AuditLogger:
             user_agent = request.headers.get("user-agent")
 
         audit_entry = AuditLog(
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             user_id=user.id if user else None,
             username=user.username if user else "system",
             action=action,
@@ -84,8 +85,8 @@ class AuditLogger:
         db: AsyncSession,
         filename: str,
         backup_type: str,
-        user: Optional[User] = None,
-        request: Optional[Request] = None,
+        user: User | None = None,
+        request: Request | None = None,
     ):
         """Log backup creation."""
         await AuditLogger.log_event(
@@ -103,8 +104,8 @@ class AuditLogger:
         db: AsyncSession,
         filename: str,
         backup_type: str,
-        user: Optional[User] = None,
-        request: Optional[Request] = None,
+        user: User | None = None,
+        request: Request | None = None,
     ):
         """Log backup restoration."""
         await AuditLogger.log_event(
@@ -121,8 +122,8 @@ class AuditLogger:
     async def log_backup_deleted(
         db: AsyncSession,
         filename: str,
-        user: Optional[User] = None,
-        request: Optional[Request] = None,
+        user: User | None = None,
+        request: Request | None = None,
     ):
         """Log backup deletion."""
         await AuditLogger.log_event(
@@ -139,8 +140,8 @@ class AuditLogger:
         db: AsyncSession,
         user: User,
         success: bool = True,
-        error_message: Optional[str] = None,
-        request: Optional[Request] = None,
+        error_message: str | None = None,
+        request: Request | None = None,
     ):
         """Log user login attempt."""
         await AuditLogger.log_event(
@@ -157,7 +158,7 @@ class AuditLogger:
     async def log_user_logout(
         db: AsyncSession,
         user: User,
-        request: Optional[Request] = None,
+        request: Request | None = None,
     ):
         """Log user logout."""
         await AuditLogger.log_event(
@@ -172,7 +173,7 @@ class AuditLogger:
     async def log_password_change(
         db: AsyncSession,
         user: User,
-        request: Optional[Request] = None,
+        request: Request | None = None,
     ):
         """Log password change."""
         await AuditLogger.log_event(
@@ -188,8 +189,8 @@ class AuditLogger:
     async def log_user_created(
         db: AsyncSession,
         created_user: User,
-        creator: Optional[User] = None,
-        request: Optional[Request] = None,
+        creator: User | None = None,
+        request: Request | None = None,
     ):
         """Log user creation."""
         await AuditLogger.log_event(
@@ -207,7 +208,7 @@ class AuditLogger:
         db: AsyncSession,
         deleted_user: User,
         deleter: User,
-        request: Optional[Request] = None,
+        request: Request | None = None,
     ):
         """Log user deletion."""
         await AuditLogger.log_event(

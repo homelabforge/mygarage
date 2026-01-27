@@ -1,8 +1,9 @@
 """Pydantic schemas for Vehicle operations."""
 
-from typing import Any, Optional
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Any
+
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -13,34 +14,34 @@ class VehicleBase(BaseModel):
         ..., description="User-friendly display name", min_length=1, max_length=100
     )
     vehicle_type: str = Field(..., description="Type of vehicle")
-    year: Optional[int] = Field(None, description="Model year", ge=1900, le=2100)
-    make: Optional[str] = Field(None, description="Manufacturer brand", max_length=50)
-    model: Optional[str] = Field(None, description="Model name", max_length=50)
-    license_plate: Optional[str] = Field(
+    year: int | None = Field(None, description="Model year", ge=1900, le=2100)
+    make: str | None = Field(None, description="Manufacturer brand", max_length=50)
+    model: str | None = Field(None, description="Model name", max_length=50)
+    license_plate: str | None = Field(
         None, description="License plate number", max_length=20
     )
-    color: Optional[str] = Field(None, description="Vehicle color", max_length=30)
-    purchase_date: Optional[date] = Field(None, description="Date purchased")
-    purchase_price: Optional[Decimal] = Field(None, description="Purchase price")
-    sold_date: Optional[date] = Field(None, description="Date sold")
-    sold_price: Optional[Decimal] = Field(None, description="Sale price")
+    color: str | None = Field(None, description="Vehicle color", max_length=30)
+    purchase_date: date | None = Field(None, description="Date purchased")
+    purchase_price: Decimal | None = Field(None, description="Purchase price")
+    sold_date: date | None = Field(None, description="Date sold")
+    sold_price: Decimal | None = Field(None, description="Sale price")
     # VIN decoded fields
-    trim: Optional[str] = Field(None, description="Trim level", max_length=50)
-    body_class: Optional[str] = Field(None, description="Body class", max_length=50)
-    drive_type: Optional[str] = Field(
+    trim: str | None = Field(None, description="Trim level", max_length=50)
+    body_class: str | None = Field(None, description="Body class", max_length=100)
+    drive_type: str | None = Field(
         None, description="Drive type (FWD, RWD, AWD, etc.)", max_length=30
     )
-    doors: Optional[int] = Field(None, description="Number of doors")
-    gvwr_class: Optional[str] = Field(None, description="GVWR class", max_length=50)
-    displacement_l: Optional[str] = Field(
+    doors: int | None = Field(None, description="Number of doors")
+    gvwr_class: str | None = Field(None, description="GVWR class", max_length=50)
+    displacement_l: str | None = Field(
         None, description="Engine displacement in liters", max_length=20
     )
-    cylinders: Optional[int] = Field(None, description="Number of cylinders")
-    fuel_type: Optional[str] = Field(None, description="Fuel type", max_length=50)
-    transmission_type: Optional[str] = Field(
+    cylinders: int | None = Field(None, description="Number of cylinders")
+    fuel_type: str | None = Field(None, description="Fuel type", max_length=50)
+    transmission_type: str | None = Field(
         None, description="Transmission type", max_length=50
     )
-    transmission_speeds: Optional[str] = Field(
+    transmission_speeds: str | None = Field(
         None, description="Transmission speeds", max_length=20
     )
 
@@ -110,10 +111,10 @@ class VehicleCreate(VehicleBase):
 class VehicleUpdate(VehicleBase):
     """Schema for updating an existing vehicle."""
 
-    nickname: Optional[str] = Field(
+    nickname: str | None = Field(
         None, description="User-friendly display name", min_length=1, max_length=100
     )
-    vehicle_type: Optional[str] = Field(None, description="Type of vehicle")
+    vehicle_type: str | None = Field(None, description="Type of vehicle")
 
     model_config = {
         "json_schema_extra": {
@@ -132,45 +133,45 @@ class VehicleResponse(VehicleBase):
     """Schema for vehicle response."""
 
     vin: str
-    main_photo: Optional[str] = None
+    main_photo: str | None = None
     created_at: datetime
-    updated_at: Optional[datetime] = None
+    updated_at: datetime | None = None
     # Window sticker fields
-    window_sticker_file_path: Optional[str] = None
-    window_sticker_uploaded_at: Optional[datetime] = None
-    msrp_base: Optional[Decimal] = None
-    msrp_options: Optional[Decimal] = None
-    msrp_total: Optional[Decimal] = None
-    fuel_economy_city: Optional[int] = None
-    fuel_economy_highway: Optional[int] = None
-    fuel_economy_combined: Optional[int] = None
-    standard_equipment: Optional[dict[str, Any]] = None
-    optional_equipment: Optional[dict[str, Any]] = None
-    assembly_location: Optional[str] = None
+    window_sticker_file_path: str | None = None
+    window_sticker_uploaded_at: datetime | None = None
+    msrp_base: Decimal | None = None
+    msrp_options: Decimal | None = None
+    msrp_total: Decimal | None = None
+    fuel_economy_city: int | None = None
+    fuel_economy_highway: int | None = None
+    fuel_economy_combined: int | None = None
+    standard_equipment: dict[str, Any] | None = None
+    optional_equipment: dict[str, Any] | None = None
+    assembly_location: str | None = None
     # Enhanced window sticker fields
-    destination_charge: Optional[Decimal] = None
-    window_sticker_options_detail: Optional[dict[str, Any]] = None
-    window_sticker_packages: Optional[dict[str, Any]] = None
-    exterior_color: Optional[str] = None
-    interior_color: Optional[str] = None
-    sticker_engine_description: Optional[str] = None
-    sticker_transmission_description: Optional[str] = None
-    sticker_drivetrain: Optional[str] = None
-    wheel_specs: Optional[str] = None
-    tire_specs: Optional[str] = None
-    warranty_powertrain: Optional[str] = None
-    warranty_basic: Optional[str] = None
-    environmental_rating_ghg: Optional[str] = None
-    environmental_rating_smog: Optional[str] = None
-    window_sticker_parser_used: Optional[str] = None
-    window_sticker_confidence_score: Optional[Decimal] = None
-    window_sticker_extracted_vin: Optional[str] = None
+    destination_charge: Decimal | None = None
+    window_sticker_options_detail: dict[str, Any] | None = None
+    window_sticker_packages: dict[str, Any] | None = None
+    exterior_color: str | None = None
+    interior_color: str | None = None
+    sticker_engine_description: str | None = None
+    sticker_transmission_description: str | None = None
+    sticker_drivetrain: str | None = None
+    wheel_specs: str | None = None
+    tire_specs: str | None = None
+    warranty_powertrain: str | None = None
+    warranty_basic: str | None = None
+    environmental_rating_ghg: str | None = None
+    environmental_rating_smog: str | None = None
+    window_sticker_parser_used: str | None = None
+    window_sticker_confidence_score: Decimal | None = None
+    window_sticker_extracted_vin: str | None = None
     # Archive fields
-    archived_at: Optional[datetime] = None
-    archive_reason: Optional[str] = None
-    archive_sale_price: Optional[Decimal] = None
-    archive_sale_date: Optional[date] = None
-    archive_notes: Optional[str] = None
+    archived_at: datetime | None = None
+    archive_reason: str | None = None
+    archive_sale_price: Decimal | None = None
+    archive_sale_date: date | None = None
+    archive_notes: str | None = None
     archived_visible: bool = True
 
     model_config = {
@@ -229,20 +230,20 @@ class VehicleListResponse(BaseModel):
 class TrailerDetailsBase(BaseModel):
     """Base schema for trailer details."""
 
-    gvwr: Optional[int] = Field(None, description="Gross Vehicle Weight Rating (lbs)")
-    hitch_type: Optional[str] = Field(None, description="Hitch type")
-    axle_count: Optional[int] = Field(None, description="Number of axles", ge=1, le=10)
-    brake_type: Optional[str] = Field(None, description="Brake type")
-    length_ft: Optional[Decimal] = Field(None, description="Length in feet")
-    width_ft: Optional[Decimal] = Field(None, description="Width in feet")
-    height_ft: Optional[Decimal] = Field(None, description="Height in feet")
-    tow_vehicle_vin: Optional[str] = Field(
+    gvwr: int | None = Field(None, description="Gross Vehicle Weight Rating (lbs)")
+    hitch_type: str | None = Field(None, description="Hitch type")
+    axle_count: int | None = Field(None, description="Number of axles", ge=1, le=10)
+    brake_type: str | None = Field(None, description="Brake type")
+    length_ft: Decimal | None = Field(None, description="Length in feet")
+    width_ft: Decimal | None = Field(None, description="Width in feet")
+    height_ft: Decimal | None = Field(None, description="Height in feet")
+    tow_vehicle_vin: str | None = Field(
         None, description="VIN of tow vehicle", min_length=17, max_length=17
     )
 
     @field_validator("hitch_type")
     @classmethod
-    def validate_hitch_type(cls, v: Optional[str]) -> Optional[str]:
+    def validate_hitch_type(cls, v: str | None) -> str | None:
         """Validate hitch type."""
         if v is None:
             return v
@@ -253,7 +254,7 @@ class TrailerDetailsBase(BaseModel):
 
     @field_validator("brake_type")
     @classmethod
-    def validate_brake_type(cls, v: Optional[str]) -> Optional[str]:
+    def validate_brake_type(cls, v: str | None) -> str | None:
         """Validate brake type."""
         if v is None:
             return v
@@ -293,11 +294,11 @@ class VehicleArchiveRequest(BaseModel):
         description="Reason for archiving (Sold, Totaled, Gifted, Trade-in, Other)",
         max_length=50,
     )
-    sale_price: Optional[Decimal] = Field(
+    sale_price: Decimal | None = Field(
         None, description="Sale price (if applicable)"
     )
-    sale_date: Optional[date] = Field(None, description="Sale/disposal date")
-    notes: Optional[str] = Field(
+    sale_date: date | None = Field(None, description="Sale/disposal date")
+    notes: str | None = Field(
         None, description="Additional notes about the archive", max_length=1000
     )
     visible: bool = Field(

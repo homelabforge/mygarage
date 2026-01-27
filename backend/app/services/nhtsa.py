@@ -3,15 +3,16 @@
 # pyright: reportArgumentType=false
 
 import logging
-from typing import Any, Optional
+from typing import Any
+
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.utils.logging_utils import sanitize_for_log
-from app.utils.vin import validate_vin
-from app.utils.url_validation import validate_nhtsa_url
 from app.exceptions import SSRFProtectionError
+from app.utils.logging_utils import sanitize_for_log
+from app.utils.url_validation import validate_nhtsa_url
+from app.utils.vin import validate_vin
 
 logger = logging.getLogger(__name__)
 
@@ -185,7 +186,7 @@ class NHTSAService:
             if v not in (None, "", "Not Applicable", "N/A")
         }
 
-    def _parse_int(self, value: Optional[str]) -> Optional[int]:
+    def _parse_int(self, value: str | None) -> int | None:
         """
         Safely parse string to int.
 
@@ -251,8 +252,9 @@ class NHTSAService:
             )
 
         # Get recalls API URL from settings
-        from app.models.settings import Setting
         from sqlalchemy import select
+
+        from app.models.settings import Setting
 
         result = await db.execute(
             select(Setting).where(Setting.key == "nhtsa_recalls_api_url")
@@ -383,8 +385,9 @@ class NHTSAService:
             )
 
         # Get TSB API URL from settings (if configured)
-        from app.models.settings import Setting
         from sqlalchemy import select
+
+        from app.models.settings import Setting
 
         result = await db.execute(
             select(Setting).where(Setting.key == "nhtsa_tsb_api_url")

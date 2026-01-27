@@ -1,10 +1,10 @@
 """Reminder database model."""
 
-from sqlalchemy import String, Integer, Date, DateTime, Text, ForeignKey, Boolean, Index
+from datetime import date, datetime
+
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
-from datetime import date, datetime
-from typing import Optional
 
 from app.database import Base
 
@@ -19,14 +19,14 @@ class Reminder(Base):
         String(17), ForeignKey("vehicles.vin", ondelete="CASCADE"), nullable=False
     )
     description: Mapped[str] = mapped_column(String(200), nullable=False)
-    due_date: Mapped[Optional[date]] = mapped_column(Date)
-    due_mileage: Mapped[Optional[int]] = mapped_column(Integer)
+    due_date: Mapped[date | None] = mapped_column(Date)
+    due_mileage: Mapped[int | None] = mapped_column(Integer)
     is_recurring: Mapped[bool] = mapped_column(Boolean, default=False)
-    recurrence_days: Mapped[Optional[int]] = mapped_column(Integer)
-    recurrence_miles: Mapped[Optional[int]] = mapped_column(Integer)
+    recurrence_days: Mapped[int | None] = mapped_column(Integer)
+    recurrence_miles: Mapped[int | None] = mapped_column(Integer)
     is_completed: Mapped[bool] = mapped_column(Boolean, default=False)
-    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
-    notes: Mapped[Optional[str]] = mapped_column(Text)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime)
+    notes: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     # Relationships

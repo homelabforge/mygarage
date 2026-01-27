@@ -2,35 +2,36 @@
 
 import logging
 import secrets
-from datetime import datetime, timedelta, timezone
-from typing import Any, List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, delete
+from datetime import UTC, datetime, timedelta
+from typing import Any
+
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+from sqlalchemy import delete, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.database import get_db
-from app.models.user import User
 from app.models.csrf_token import CSRFToken
 from app.models.settings import Setting
+from app.models.user import User
 from app.schemas.user import (
-    UserCreate,
-    UserResponse,
-    UserUpdate,
-    UserPasswordUpdate,
     LoginRequest,
     Token,
+    UserCreate,
+    UserPasswordUpdate,
+    UserResponse,
+    UserUpdate,
 )
 from app.services.auth import (
     authenticate_user,
     create_access_token,
-    get_current_user,
     get_current_admin_user,
+    get_current_user,
     hash_password,
-    verify_password,
     optional_auth,
+    verify_password,
 )
 
 logger = logging.getLogger(__name__)
@@ -129,13 +130,13 @@ async def login(
         )
 
     # Update last login
-    user.last_login = datetime.now(timezone.utc)
+    user.last_login = datetime.now(UTC)
 
     # Clean up expired CSRF tokens for this user
     await db.execute(
         delete(CSRFToken).where(
             CSRFToken.user_id == user.id,
-            CSRFToken.expires_at <= datetime.now(timezone.utc),
+            CSRFToken.expires_at <= datetime.now(UTC),
         )
     )
 
@@ -212,7 +213,7 @@ async def get_user_count(
 
 @router.get("/csrf-token")
 async def refresh_csrf_token(
-    current_user: Optional[User] = Depends(optional_auth),
+    current_user: User | None = Depends(optional_auth),
     db: AsyncSession = Depends(get_db),
 ):
     """Get a fresh CSRF token for the current session.
@@ -229,7 +230,7 @@ async def refresh_csrf_token(
     await db.execute(
         delete(CSRFToken).where(
             CSRFToken.user_id == current_user.id,
-            CSRFToken.expires_at <= datetime.now(timezone.utc),
+            CSRFToken.expires_at <= datetime.now(UTC),
         )
     )
 
@@ -282,7 +283,7 @@ async def update_current_user(
         current_user.full_name = user_update.full_name
 
     # Users cannot change their own is_active or is_admin status
-    current_user.updated_at = datetime.now(timezone.utc)
+    current_user.updated_at = datetime.now(UTC)
 
     await db.commit()
     await db.refresh(current_user)
@@ -312,7 +313,7 @@ async def update_password(
 
     # Update password
     current_user.hashed_password = hash_password(password_update.new_password)
-    current_user.updated_at = datetime.now(timezone.utc)
+    current_user.updated_at = datetime.now(UTC)
 
     await db.commit()
 
@@ -322,7 +323,7 @@ async def update_password(
 # Admin-only endpoints
 
 
-@router.get("/users", response_model=List[UserResponse])
+@router.get("/users", response_model=list[UserResponse])
 async def list_users(
     skip: int = 0,
     limit: int = 100,
@@ -456,7 +457,7 @@ async def update_user(
     if user_update.is_admin is not None:
         user.is_admin = user_update.is_admin
 
-    user.updated_at = datetime.now(timezone.utc)
+    user.updated_at = datetime.now(UTC)
 
     await db.commit()
     await db.refresh(user)
@@ -555,7 +556,7 @@ async def admin_reset_user_password(
 
     # Update password
     user.hashed_password = hash_password(new_password)
-    user.updated_at = datetime.now(timezone.utc)
+    user.updated_at = datetime.now(UTC)
 
     await db.commit()
 

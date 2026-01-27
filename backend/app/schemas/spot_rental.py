@@ -1,9 +1,9 @@
 """Spot rental schemas for validation."""
 
-from pydantic import BaseModel, Field
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Optional
+
+from pydantic import BaseModel, Field
 
 from app.schemas.spot_rental_billing import SpotRentalBillingResponse
 
@@ -11,19 +11,19 @@ from app.schemas.spot_rental_billing import SpotRentalBillingResponse
 class SpotRentalBase(BaseModel):
     """Base spot rental schema."""
 
-    location_name: Optional[str] = Field(None, max_length=100)
-    location_address: Optional[str] = None
+    location_name: str | None = Field(None, max_length=100)
+    location_address: str | None = None
     check_in_date: date
-    check_out_date: Optional[date] = None
-    nightly_rate: Optional[Decimal] = Field(None, ge=0, le=9999.99, decimal_places=2)
-    weekly_rate: Optional[Decimal] = Field(None, ge=0, le=99999.99, decimal_places=2)
-    monthly_rate: Optional[Decimal] = Field(None, ge=0, le=99999.99, decimal_places=2)
-    electric: Optional[Decimal] = Field(None, ge=0, le=9999.99, decimal_places=2)
-    water: Optional[Decimal] = Field(None, ge=0, le=9999.99, decimal_places=2)
-    waste: Optional[Decimal] = Field(None, ge=0, le=9999.99, decimal_places=2)
-    total_cost: Optional[Decimal] = Field(None, ge=0, le=99999.99, decimal_places=2)
-    amenities: Optional[str] = None
-    notes: Optional[str] = None
+    check_out_date: date | None = None
+    nightly_rate: Decimal | None = Field(None, ge=0, le=9999.99, decimal_places=2)
+    weekly_rate: Decimal | None = Field(None, ge=0, le=99999.99, decimal_places=2)
+    monthly_rate: Decimal | None = Field(None, ge=0, le=99999.99, decimal_places=2)
+    electric: Decimal | None = Field(None, ge=0, le=9999.99, decimal_places=2)
+    water: Decimal | None = Field(None, ge=0, le=9999.99, decimal_places=2)
+    waste: Decimal | None = Field(None, ge=0, le=9999.99, decimal_places=2)
+    total_cost: Decimal | None = Field(None, ge=0, le=99999.99, decimal_places=2)
+    amenities: str | None = None
+    notes: str | None = None
 
 
 class SpotRentalCreate(SpotRentalBase):
@@ -35,19 +35,19 @@ class SpotRentalCreate(SpotRentalBase):
 class SpotRentalUpdate(BaseModel):
     """Schema for updating a spot rental."""
 
-    location_name: Optional[str] = Field(None, max_length=100)
-    location_address: Optional[str] = None
-    check_in_date: Optional[date] = None
-    check_out_date: Optional[date] = None
-    nightly_rate: Optional[Decimal] = Field(None, ge=0, le=9999.99, decimal_places=2)
-    weekly_rate: Optional[Decimal] = Field(None, ge=0, le=99999.99, decimal_places=2)
-    monthly_rate: Optional[Decimal] = Field(None, ge=0, le=99999.99, decimal_places=2)
-    electric: Optional[Decimal] = Field(None, ge=0, le=9999.99, decimal_places=2)
-    water: Optional[Decimal] = Field(None, ge=0, le=9999.99, decimal_places=2)
-    waste: Optional[Decimal] = Field(None, ge=0, le=9999.99, decimal_places=2)
-    total_cost: Optional[Decimal] = Field(None, ge=0, le=99999.99, decimal_places=2)
-    amenities: Optional[str] = None
-    notes: Optional[str] = None
+    location_name: str | None = Field(None, max_length=100)
+    location_address: str | None = None
+    check_in_date: date | None = None
+    check_out_date: date | None = None
+    nightly_rate: Decimal | None = Field(None, ge=0, le=9999.99, decimal_places=2)
+    weekly_rate: Decimal | None = Field(None, ge=0, le=99999.99, decimal_places=2)
+    monthly_rate: Decimal | None = Field(None, ge=0, le=99999.99, decimal_places=2)
+    electric: Decimal | None = Field(None, ge=0, le=9999.99, decimal_places=2)
+    water: Decimal | None = Field(None, ge=0, le=9999.99, decimal_places=2)
+    waste: Decimal | None = Field(None, ge=0, le=9999.99, decimal_places=2)
+    total_cost: Decimal | None = Field(None, ge=0, le=99999.99, decimal_places=2)
+    amenities: str | None = None
+    notes: str | None = None
 
 
 class SpotRentalResponse(SpotRentalBase):

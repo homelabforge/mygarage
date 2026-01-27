@@ -2,16 +2,16 @@
 
 import logging
 import uuid
-from pathlib import Path
-from typing import Annotated, Any, Optional
-from datetime import datetime, timezone
+from datetime import datetime
 from decimal import Decimal
+from pathlib import Path
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, Query
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel
 
 from app.config import settings
 from app.database import get_db
@@ -19,6 +19,7 @@ from app.models import Vehicle
 from app.models.user import User
 from app.services.auth import require_auth
 from app.services.window_sticker_ocr import WindowStickerOCRService
+from app.utils.datetime_utils import utc_now
 from app.utils.vin import validate_vin
 
 logger = logging.getLogger(__name__)
@@ -232,7 +233,7 @@ async def upload_window_sticker(
 
     # Update vehicle with file path and extracted data
     vehicle.window_sticker_file_path = str(file_path)
-    vehicle.window_sticker_uploaded_at = datetime.now(timezone.utc)
+    vehicle.window_sticker_uploaded_at = utc_now()
 
     # Update all extracted fields
     field_mappings = [
@@ -285,7 +286,7 @@ async def test_window_sticker_extraction(
     file: Annotated[UploadFile, File(...)],
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: User = Depends(require_auth),
-    parser: Optional[str] = Query(None, description="Specific parser to use"),
+    parser: str | None = Query(None, description="Specific parser to use"),
 ) -> WindowStickerTestResponse:
     """
     Test window sticker extraction without saving.
@@ -389,9 +390,7 @@ async def delete_window_sticker(
         raise HTTPException(status_code=404, detail="Vehicle not found")
 
     if not vehicle.window_sticker_file_path:
-        raise HTTPException(
-            status_code=404, detail="No window sticker found for this vehicle"
-        )
+        raise HTTPException(status_code=404, detail="No window sticker found for this vehicle")
 
     # Delete file
     file_path = Path(vehicle.window_sticker_file_path)
@@ -454,15 +453,11 @@ async def download_window_sticker_file(
         raise HTTPException(status_code=404, detail="Vehicle not found")
 
     if not vehicle.window_sticker_file_path:
-        raise HTTPException(
-            status_code=404, detail="No window sticker found for this vehicle"
-        )
+        raise HTTPException(status_code=404, detail="No window sticker found for this vehicle")
 
     file_path = Path(vehicle.window_sticker_file_path)
     if not file_path.exists():
-        raise HTTPException(
-            status_code=404, detail="Window sticker file not found on disk"
-        )
+        raise HTTPException(status_code=404, detail="Window sticker file not found on disk")
 
     # Determine media type based on extension
     media_type_map = {
@@ -471,9 +466,7 @@ async def download_window_sticker_file(
         ".jpeg": "image/jpeg",
         ".png": "image/png",
     }
-    media_type = media_type_map.get(
-        file_path.suffix.lower(), "application/octet-stream"
-    )
+    media_type = media_type_map.get(file_path.suffix.lower(), "application/octet-stream")
 
     return FileResponse(
         path=file_path,

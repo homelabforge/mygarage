@@ -1,13 +1,13 @@
 """Backup service for settings and full data backups."""
 
-import os
 import json
-import tarfile
-import shutil
 import logging
+import os
+import shutil
+import tarfile
 from datetime import datetime
 from pathlib import Path, PurePosixPath
-from typing import Dict, Any, List
+from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -38,7 +38,7 @@ class BackupService:
         """Ensure backup directory exists."""
         self.backup_dir.mkdir(parents=True, exist_ok=True)
 
-    def get_database_stats(self) -> Dict[str, Any]:
+    def get_database_stats(self) -> dict[str, Any]:
         """Get database file statistics.
 
         Returns:
@@ -69,7 +69,7 @@ class BackupService:
                 "error": str(e),
             }
 
-    def get_backup_files(self, backup_type: str = "all") -> List[Dict[str, Any]]:
+    def get_backup_files(self, backup_type: str = "all") -> list[dict[str, Any]]:
         """Get list of backup files with metadata.
 
         Args:
@@ -123,7 +123,7 @@ class BackupService:
         backups.sort(key=lambda x: x["created"], reverse=True)
         return backups
 
-    async def create_settings_backup(self, db: AsyncSession) -> Dict[str, Any]:
+    async def create_settings_backup(self, db: AsyncSession) -> dict[str, Any]:
         """Create a backup of all settings.
 
         Args:
@@ -175,7 +175,7 @@ class BackupService:
             "created": datetime.fromtimestamp(stat.st_mtime).isoformat(),
         }
 
-    async def create_full_backup(self) -> Dict[str, Any]:
+    async def create_full_backup(self) -> dict[str, Any]:
         """Create a full backup including database and all uploaded files.
 
         Returns:
@@ -241,7 +241,7 @@ class BackupService:
 
     async def restore_settings_backup(
         self, filename: str, db: AsyncSession, create_safety: bool = True
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Restore settings from a backup file.
 
         Args:
@@ -289,7 +289,7 @@ class BackupService:
             logger.info("Created safety backup: %s", safety_filename)
 
         # Read and validate backup file
-        with open(backup_path, "r") as f:
+        with open(backup_path) as f:
             backup_data = json.load(f)
 
         # Validate backup structure
@@ -339,7 +339,7 @@ class BackupService:
 
     async def restore_full_backup(
         self, filename: str, create_safety: bool = True
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Restore from a full backup file.
 
         WARNING: This will overwrite the current database and all files!
@@ -484,7 +484,7 @@ class BackupService:
     # Internal helpers
     # ------------------------------------------------------------------ #
 
-    def _normalize_member_parts(self, member_name: str) -> List[str]:
+    def _normalize_member_parts(self, member_name: str) -> list[str]:
         """Normalize tar member names to POSIX parts without '.' entries."""
         if not member_name:
             return []
@@ -492,7 +492,7 @@ class BackupService:
         parts = [str(part) for part in path.parts if part not in ("", ".")]
         return parts
 
-    def _validate_backup_members(self, members: List[tarfile.TarInfo]) -> None:
+    def _validate_backup_members(self, members: list[tarfile.TarInfo]) -> None:
         """Ensure every tar entry stays within the expected directories."""
         for member in members:
             parts = self._normalize_member_parts(member.name)
@@ -517,7 +517,7 @@ class BackupService:
         tar: tarfile.TarFile,
         member: tarfile.TarInfo,
         destination_root: Path,
-        target_parts: List[str],
+        target_parts: list[str],
     ) -> None:
         """Safely extract member to destination ensuring it stays inside root."""
         destination_root = destination_root.resolve()

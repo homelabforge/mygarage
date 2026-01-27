@@ -2,7 +2,6 @@
 
 import re
 from decimal import Decimal
-from typing import Optional
 
 from .base import BaseWindowStickerParser, WindowStickerData
 
@@ -153,7 +152,7 @@ class MitsubishiWindowStickerParser(BaseWindowStickerParser):
 
     def _extract_mitsubishi_warranty(
         self, text: str
-    ) -> tuple[Optional[str], Optional[str]]:
+    ) -> tuple[str | None, str | None]:
         """Extract Mitsubishi warranty - famous for 10-year/100k powertrain."""
         powertrain = None
         basic = None

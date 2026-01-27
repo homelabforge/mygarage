@@ -1,10 +1,10 @@
 """Recall database model."""
 
-from sqlalchemy import String, Integer, Date, DateTime, Text, ForeignKey, Boolean, Index
+from datetime import date, datetime
+
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
-from datetime import date, datetime
-from typing import Optional
 
 from app.database import Base
 
@@ -18,15 +18,15 @@ class Recall(Base):
     vin: Mapped[str] = mapped_column(
         String(17), ForeignKey("vehicles.vin", ondelete="CASCADE"), nullable=False
     )
-    nhtsa_campaign_number: Mapped[Optional[str]] = mapped_column(String(20))
-    component: Mapped[Optional[str]] = mapped_column(String(100))
-    summary: Mapped[Optional[str]] = mapped_column(Text)
-    consequence: Mapped[Optional[str]] = mapped_column(Text)
-    remedy: Mapped[Optional[str]] = mapped_column(Text)
-    date_announced: Mapped[Optional[date]] = mapped_column(Date)
+    nhtsa_campaign_number: Mapped[str | None] = mapped_column(String(20))
+    component: Mapped[str | None] = mapped_column(String(100))
+    summary: Mapped[str | None] = mapped_column(Text)
+    consequence: Mapped[str | None] = mapped_column(Text)
+    remedy: Mapped[str | None] = mapped_column(Text)
+    date_announced: Mapped[date | None] = mapped_column(Date)
     is_resolved: Mapped[bool] = mapped_column(Boolean, default=False)
-    resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
-    notes: Mapped[Optional[str]] = mapped_column(Text)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime)
+    notes: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     # Relationships

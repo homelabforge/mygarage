@@ -1,6 +1,7 @@
+from datetime import date as date_type
+from datetime import datetime
+
 from pydantic import BaseModel
-from typing import Optional
-from datetime import date as date_type, datetime
 
 
 class VehicleStatistics(BaseModel):
@@ -10,7 +11,7 @@ class VehicleStatistics(BaseModel):
     year: int
     make: str
     model: str
-    main_photo_url: Optional[str] = None
+    main_photo_url: str | None = None
 
     # Counts
     total_service_records: int
@@ -22,21 +23,21 @@ class VehicleStatistics(BaseModel):
     total_photos: int
 
     # Recent activity
-    latest_service_date: Optional[date_type] = None
-    latest_fuel_date: Optional[date_type] = None
-    latest_odometer_reading: Optional[int] = None
-    latest_odometer_date: Optional[date_type] = None
+    latest_service_date: date_type | None = None
+    latest_fuel_date: date_type | None = None
+    latest_odometer_reading: int | None = None
+    latest_odometer_date: date_type | None = None
 
     # Upcoming reminders
     upcoming_reminders_count: int
     overdue_reminders_count: int
 
     # Fuel statistics
-    average_mpg: Optional[float] = None
-    recent_mpg: Optional[float] = None
+    average_mpg: float | None = None
+    recent_mpg: float | None = None
 
     # Archive status
-    archived_at: Optional[datetime] = None
+    archived_at: datetime | None = None
     archived_visible: bool = True
 
     class Config:

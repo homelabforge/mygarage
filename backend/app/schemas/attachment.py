@@ -1,16 +1,16 @@
 """Pydantic schemas for file attachments."""
 
 from datetime import datetime
+
 from pydantic import BaseModel, Field
-from typing import Optional
 
 
 class AttachmentBase(BaseModel):
     """Base attachment schema."""
 
     file_name: str = Field(..., description="Original filename")
-    file_type: Optional[str] = Field(None, description="MIME type or file extension")
-    file_size: Optional[int] = Field(None, description="File size in bytes", ge=0)
+    file_type: str | None = Field(None, description="MIME type or file extension")
+    file_size: int | None = Field(None, description="File size in bytes", ge=0)
 
 
 class AttachmentCreate(AttachmentBase):

@@ -4,15 +4,16 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mygarage"
-version = "2.20.1"
+version = "2.20.2"
 description = "Self-hosted vehicle maintenance tracking application"
-requires-python = ">=3.14"
+requires-python = ">=3.13"
 dependencies = [
     "fastapi>=0.121.1",
     "granian>=2.6.1",
     "sqlalchemy>=2.0.44",
     "aiosqlite>=0.21.0",
     "asyncpg>=0.31.0",  # PostgreSQL async driver
+    "psycopg2-binary>=2.9.10",  # PostgreSQL sync driver for migrations
     "pydantic>=2.12.3",
     "pydantic-settings>=2.6.0",
     "python-multipart>=0.0.18",
@@ -49,14 +50,19 @@ where = ["."]
 include = ["app*"]
 
 [tool.ruff]
-# Exclude E402 (module level import not at top of file) for specific patterns
-# These are intentional design choices in the codebase:
-# - main.py: Imports after app initialization (required for FastAPI middleware setup)
-# - models/*: Forward reference imports at end of file (circular dependency resolution)
-# - services/window_sticker_parsers/*: Registry pattern imports
+line-length = 100
+target-version = "py313"
 
 [tool.ruff.lint]
-per-file-ignores = { "app/main.py" = ["E402"], "app/models/*.py" = ["E402"], "app/routes/analytics.py" = ["E402"], "app/services/window_sticker_parsers/*.py" = ["E402"] }
+select = ["E", "F", "I", "N", "W", "UP"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"app/main.py" = ["E402"]
+"app/models/*.py" = ["E402"]
+"app/routes/analytics.py" = ["E402"]
+"app/services/window_sticker_parsers/*.py" = ["E402"]
+"tests/*" = ["S101"]
 
 [tool.pyright]
 # Pyright strict type checking configuration for MyGarage backend
@@ -72,7 +78,7 @@ exclude = [
     "**/venv",
     "**/node_modules",
 ]
-pythonVersion = "3.14"
+pythonVersion = "3.13"
 pythonPlatform = "Linux"
 
 # Type Checking Mode: Strict

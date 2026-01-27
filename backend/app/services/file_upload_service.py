@@ -4,16 +4,17 @@
 
 import logging
 import uuid
-from pathlib import Path
 from datetime import datetime
-from typing import Any, Optional
-from fastapi import UploadFile, HTTPException, status
-from PIL import Image, ImageOps, UnidentifiedImageError
 from io import BytesIO
+from pathlib import Path
+from typing import Any
+
+from fastapi import HTTPException, UploadFile, status
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 from app.config import settings
-from app.utils.path_validation import sanitize_filename, validate_path_within_base
 from app.utils.file_validation import validate_file_magic_bytes
+from app.utils.path_validation import sanitize_filename, validate_path_within_base
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +52,7 @@ class UploadResult:
         file_path: Path,
         file_size: int,
         content_type: str,
-        thumbnail_path: Optional[Path] = None,
+        thumbnail_path: Path | None = None,
     ):
         self.filename = filename
         self.file_path = file_path
@@ -191,7 +192,7 @@ class FileUploadService:
 
     @staticmethod
     async def upload_file(
-        file: UploadFile, config: FileUploadConfig, subdirectory: Optional[str] = None
+        file: UploadFile, config: FileUploadConfig, subdirectory: str | None = None
     ) -> UploadResult:
         """Complete file upload with validation, saving, and optional thumbnail.
 

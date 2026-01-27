@@ -1,10 +1,12 @@
 """Database configuration and session management."""
 
-from collections.abc import AsyncGenerator
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-from sqlalchemy.orm import DeclarativeBase
-from app.config import settings
 import logging
+from collections.abc import AsyncGenerator
+
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import DeclarativeBase
+
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +53,7 @@ class Base(DeclarativeBase):
     pass
 
 
-async def get_db() -> AsyncGenerator[AsyncSession, None]:
+async def get_db() -> AsyncGenerator[AsyncSession]:
     """
     Dependency function that yields database sessions.
 
@@ -89,7 +91,6 @@ def get_db_context():
 
 async def init_db():
     """Initialize database tables and run migrations."""
-    import os
     from pathlib import Path
 
     async with engine.begin() as conn:
@@ -100,17 +101,20 @@ async def init_db():
     # Run migrations using the migration runner
     logger.info("Running database migrations...")
     try:
-        # Create synchronous engine for migrations
-        data_dir = Path(os.getenv("DATA_DIR", "/data"))
-        database_path = data_dir / "mygarage.db"
-        database_url = f"sqlite:///{database_path}"
+        # Convert async database URL to sync for migrations
+        # asyncpg -> psycopg2, aiosqlite -> sqlite
+        sync_url = settings.database_url
+        if "asyncpg" in sync_url:
+            sync_url = sync_url.replace("postgresql+asyncpg", "postgresql+psycopg2")
+        elif "aiosqlite" in sync_url:
+            sync_url = sync_url.replace("sqlite+aiosqlite", "sqlite")
 
         # Import and run migration runner
         from app.migrations.runner import run_migrations
 
         migrations_dir = Path(__file__).parent / "migrations"
 
-        run_migrations(database_url, migrations_dir)
+        run_migrations(sync_url, migrations_dir)
 
     except Exception as e:
         logger.error("Migration error: %s", e)

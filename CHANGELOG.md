@@ -5,6 +5,21 @@ All notable changes to MyGarage will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [2.20.2] - 2026-01-27
+
+### Fixed
+- **PostgreSQL Compatibility** - Dashboard not showing new vehicles when using PostgreSQL ([#23](https://github.com/homelabforge/mygarage/issues/23))
+  - Changed `archived_visible` field from Integer to Boolean type for proper PostgreSQL compatibility
+  - Vehicle schema now correctly uses `bool` type instead of `int` for archive visibility
+- **NHTSA Body Class Field** - Increased `body_class` field length from 50 to 100 characters to accommodate longer NHTSA values
+- **Migration System Database URL** - Migration runner now uses configured `DATABASE_URL` environment variable instead of hardcoded SQLite path
+- **Archive Endpoint Timezone** - Fixed PostgreSQL timezone issue in archive endpoint
+  - Created `utc_now()` utility function for timezone-naive datetime operations
+  - Applied to vehicle archive/restore operations in `vehicles.py`, `window_sticker.py`, and `reminders.py`
+- **PostgreSQL Driver** - Added `psycopg2-binary` dependency for synchronous PostgreSQL migrations
+
 ## [2.20.1] - 2026-01-25
 
 ### Changed

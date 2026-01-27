@@ -1,11 +1,12 @@
 """Settings initialization service."""
 
 import logging
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.settings import Setting
 from app.config import settings as app_settings
+from app.models.settings import Setting
 
 logger = logging.getLogger(__name__)
 

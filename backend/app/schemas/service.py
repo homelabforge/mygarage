@@ -1,8 +1,10 @@
 """Pydantic schemas for Service Record operations."""
 
-from typing import Optional, Literal
-from datetime import date as date_type, datetime
+from datetime import date as date_type
+from datetime import datetime
 from decimal import Decimal
+from typing import Literal
+
 from pydantic import BaseModel, Field, field_validator
 
 # Service category type
@@ -107,28 +109,28 @@ class ServiceRecordBase(BaseModel):
     """Base service record schema with common fields."""
 
     date: date_type = Field(..., description="Service date")
-    mileage: Optional[int] = Field(None, description="Odometer reading", ge=0)
+    mileage: int | None = Field(None, description="Odometer reading", ge=0)
     service_type: str = Field(
         ..., description="Specific service type", min_length=1, max_length=100
     )
-    cost: Optional[Decimal] = Field(None, description="Service cost", ge=0)
-    notes: Optional[str] = Field(None, description="Additional notes", max_length=5000)
-    vendor_name: Optional[str] = Field(
+    cost: Decimal | None = Field(None, description="Service cost", ge=0)
+    notes: str | None = Field(None, description="Additional notes", max_length=5000)
+    vendor_name: str | None = Field(
         None, description="Shop/vendor name", max_length=100
     )
-    vendor_location: Optional[str] = Field(
+    vendor_location: str | None = Field(
         None, description="Shop location", max_length=100
     )
-    service_category: Optional[ServiceCategory] = Field(
+    service_category: ServiceCategory | None = Field(
         None, description="Service category"
     )
-    insurance_claim: Optional[str] = Field(
+    insurance_claim: str | None = Field(
         None, description="Insurance claim number", max_length=50
     )
 
     @field_validator("service_category")
     @classmethod
-    def validate_service_category(cls, v: Optional[str]) -> Optional[str]:
+    def validate_service_category(cls, v: str | None) -> str | None:
         """Validate service category."""
         if v is None:
             return v
@@ -181,29 +183,29 @@ class ServiceRecordCreate(ServiceRecordBase):
 class ServiceRecordUpdate(BaseModel):
     """Schema for updating an existing service record."""
 
-    date: Optional[date_type] = Field(None, description="Service date")
-    mileage: Optional[int] = Field(None, description="Odometer reading", ge=0)
-    service_type: Optional[str] = Field(
+    date: date_type | None = Field(None, description="Service date")
+    mileage: int | None = Field(None, description="Odometer reading", ge=0)
+    service_type: str | None = Field(
         None, description="Specific service type", min_length=1, max_length=100
     )
-    cost: Optional[Decimal] = Field(None, description="Service cost", ge=0)
-    notes: Optional[str] = Field(None, description="Additional notes", max_length=5000)
-    vendor_name: Optional[str] = Field(
+    cost: Decimal | None = Field(None, description="Service cost", ge=0)
+    notes: str | None = Field(None, description="Additional notes", max_length=5000)
+    vendor_name: str | None = Field(
         None, description="Shop/vendor name", max_length=100
     )
-    vendor_location: Optional[str] = Field(
+    vendor_location: str | None = Field(
         None, description="Shop location", max_length=100
     )
-    service_category: Optional[ServiceCategory] = Field(
+    service_category: ServiceCategory | None = Field(
         None, description="Service category"
     )
-    insurance_claim: Optional[str] = Field(
+    insurance_claim: str | None = Field(
         None, description="Insurance claim number", max_length=50
     )
 
     @field_validator("service_category")
     @classmethod
-    def validate_service_category(cls, v: Optional[str]) -> Optional[str]:
+    def validate_service_category(cls, v: str | None) -> str | None:
         """Validate service category."""
         if v is None:
             return v
@@ -222,7 +224,7 @@ class ServiceRecordUpdate(BaseModel):
 
     @field_validator("service_type")
     @classmethod
-    def validate_service_type(cls, v: Optional[str]) -> Optional[str]:
+    def validate_service_type(cls, v: str | None) -> str | None:
         """Validate service type against predefined list."""
         if v is None:
             return v

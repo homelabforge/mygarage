@@ -1,19 +1,23 @@
 """API routes for report generation and export."""
 
+import csv
+from datetime import datetime
+from io import StringIO
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
+from sqlalchemy import extract, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, extract
-from datetime import datetime
-from typing import Optional
-import csv
-from io import StringIO
 
 from app.database import get_db
 from app.models import (
-    Vehicle,
-    ServiceRecord as ServiceRecordModel,
     FuelRecord as FuelRecordModel,
+)
+from app.models import (
+    ServiceRecord as ServiceRecordModel,
+)
+from app.models import (
+    Vehicle,
 )
 from app.models.user import User
 from app.services.auth import require_auth
@@ -25,10 +29,10 @@ router = APIRouter(prefix="/api/vehicles", tags=["Reports"])
 @router.get("/{vin}/reports/service-history-pdf")
 async def download_service_history_pdf(
     vin: str,
-    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
-    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    start_date: str | None = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: str | None = Query(None, description="End date (YYYY-MM-DD)"),
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Generate and download service history PDF report."""
     # Verify vehicle exists
@@ -94,7 +98,7 @@ async def download_cost_summary_pdf(
     vin: str,
     year: int = Query(..., description="Year for cost summary"),
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Generate and download annual cost summary PDF."""
     # Verify vehicle exists
@@ -194,7 +198,7 @@ async def download_tax_deduction_pdf(
     vin: str,
     year: int = Query(..., description="Tax year"),
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Generate and download tax deduction report PDF."""
     # Verify vehicle exists
@@ -251,10 +255,10 @@ async def download_tax_deduction_pdf(
 @router.get("/{vin}/reports/service-history-csv")
 async def download_service_history_csv(
     vin: str,
-    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
-    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    start_date: str | None = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: str | None = Query(None, description="End date (YYYY-MM-DD)"),
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Export service history to CSV."""
     # Verify vehicle exists
@@ -324,9 +328,9 @@ async def download_service_history_csv(
 @router.get("/{vin}/reports/all-records-csv")
 async def download_all_records_csv(
     vin: str,
-    year: Optional[int] = Query(None, description="Filter by year"),
+    year: int | None = Query(None, description="Filter by year"),
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Export all maintenance records to CSV."""
     # Verify vehicle exists

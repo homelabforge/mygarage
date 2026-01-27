@@ -1,21 +1,21 @@
 """Maintenance Template API endpoints."""
 
 import logging
-from fastapi import APIRouter, HTTPException, Depends
+
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
-from typing import Optional
 
 from app.database import get_db
 from app.models.maintenance_template import MaintenanceTemplate
-from app.models.vehicle import Vehicle
 from app.models.user import User
+from app.models.vehicle import Vehicle
 from app.schemas.maintenance_template import (
-    MaintenanceTemplateResponse,
     MaintenanceTemplateListResponse,
-    TemplateSearchResponse,
+    MaintenanceTemplateResponse,
     TemplateApplyRequest,
     TemplateApplyResponse,
+    TemplateSearchResponse,
 )
 from app.services.auth import require_auth
 from app.services.maintenance_template_service import MaintenanceTemplateService
@@ -34,8 +34,8 @@ async def search_template(
     make: str,
     model: str,
     duty_type: str = "normal",
-    fuel_type: Optional[str] = None,
-    current_user: Optional[User] = Depends(require_auth),
+    fuel_type: str | None = None,
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Search for a maintenance template for a specific vehicle.
@@ -83,7 +83,7 @@ async def search_template(
 async def apply_template(
     request: TemplateApplyRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Apply a maintenance template to a vehicle.
@@ -172,7 +172,7 @@ async def apply_template(
 async def get_vehicle_templates(
     vin: str,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Get all templates that have been applied to a vehicle."""
     # Verify vehicle exists
@@ -196,7 +196,7 @@ async def delete_template_record(
     vin: str,
     template_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Delete a maintenance template application record.

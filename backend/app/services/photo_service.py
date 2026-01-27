@@ -5,10 +5,10 @@
 import logging
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
-from PIL import Image, ImageOps, UnidentifiedImageError
 from fastapi import HTTPException
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 from app.config import settings
 from app.utils.path_validation import validate_path_within_base
@@ -111,7 +111,7 @@ class PhotoService:
         return relative_photo_path, relative_thumbnail_path
 
     @staticmethod
-    def generate_thumbnail_for_existing(file_path: Path) -> Optional[str]:
+    def generate_thumbnail_for_existing(file_path: Path) -> str | None:
         """
         Create a thumbnail for an existing image file.
 

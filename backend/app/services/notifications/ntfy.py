@@ -1,7 +1,6 @@
 """ntfy notification service."""
 
 import logging
-from typing import Optional
 
 import httpx
 
@@ -19,7 +18,7 @@ class NtfyNotificationService(NotificationService):
         self,
         server_url: str,
         topic: str,
-        api_key: Optional[str] = None,
+        api_key: str | None = None,
     ) -> None:
         self.server_url = server_url.rstrip("/")
         self.topic = topic
@@ -39,8 +38,8 @@ class NtfyNotificationService(NotificationService):
         title: str,
         message: str,
         priority: str = "default",
-        tags: Optional[list[str]] = None,
-        url: Optional[str] = None,
+        tags: list[str] | None = None,
+        url: str | None = None,
     ) -> bool:
         try:
             endpoint = f"{self.server_url}/{self.topic}"

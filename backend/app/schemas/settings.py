@@ -1,16 +1,16 @@
 """Settings Pydantic schemas for validation and serialization."""
 
 import datetime as dt
-from typing import Optional
+
 from pydantic import BaseModel, Field
 
 
 class SettingBase(BaseModel):
     """Base setting schema."""
 
-    value: Optional[str] = Field(None, description="Setting value")
+    value: str | None = Field(None, description="Setting value")
     category: str = Field("general", description="Setting category")
-    description: Optional[str] = Field(None, description="Setting description")
+    description: str | None = Field(None, description="Setting description")
     encrypted: bool = Field(False, description="Whether the value is encrypted")
 
 
@@ -23,10 +23,10 @@ class SettingCreate(SettingBase):
 class SettingUpdate(BaseModel):
     """Schema for updating a setting."""
 
-    value: Optional[str] = Field(None, description="Setting value")
-    category: Optional[str] = Field(None, description="Setting category")
-    description: Optional[str] = Field(None, description="Setting description")
-    encrypted: Optional[bool] = Field(
+    value: str | None = Field(None, description="Setting value")
+    category: str | None = Field(None, description="Setting category")
+    description: str | None = Field(None, description="Setting description")
+    encrypted: bool | None = Field(
         None, description="Whether the value is encrypted"
     )
 

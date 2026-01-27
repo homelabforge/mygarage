@@ -1,18 +1,17 @@
 """Notification dispatcher for routing to enabled services."""
 
 import logging
-from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.notifications.base import NotificationService
-from app.services.notifications.ntfy import NtfyNotificationService
+from app.services.notifications.discord import DiscordNotificationService
+from app.services.notifications.email import EmailNotificationService
 from app.services.notifications.gotify import GotifyNotificationService
+from app.services.notifications.ntfy import NtfyNotificationService
 from app.services.notifications.pushover import PushoverNotificationService
 from app.services.notifications.slack import SlackNotificationService
-from app.services.notifications.discord import DiscordNotificationService
 from app.services.notifications.telegram import TelegramNotificationService
-from app.services.notifications.email import EmailNotificationService
 from app.services.settings_service import SettingsService
 
 logger = logging.getLogger(__name__)
@@ -201,9 +200,9 @@ class NotificationDispatcher:
         event_type: str,
         title: str,
         message: str,
-        priority: Optional[str] = None,
-        tags: Optional[list[str]] = None,
-        url: Optional[str] = None,
+        priority: str | None = None,
+        tags: list[str] | None = None,
+        url: str | None = None,
     ) -> dict[str, bool]:
         """
         Dispatch notification to all enabled services.
@@ -288,7 +287,7 @@ class NotificationDispatcher:
         self,
         vehicle_name: str,
         recall_count: int,
-        url: Optional[str] = None,
+        url: str | None = None,
     ) -> dict[str, bool]:
         """Send notification about new recalls detected."""
         return await self.dispatch(
@@ -303,7 +302,7 @@ class NotificationDispatcher:
         vehicle_name: str,
         service_type: str,
         days_until_due: int,
-        url: Optional[str] = None,
+        url: str | None = None,
     ) -> dict[str, bool]:
         """Send notification about upcoming service."""
         return await self.dispatch(
@@ -318,7 +317,7 @@ class NotificationDispatcher:
         vehicle_name: str,
         service_type: str,
         days_overdue: int,
-        url: Optional[str] = None,
+        url: str | None = None,
     ) -> dict[str, bool]:
         """Send notification about overdue service."""
         return await self.dispatch(
@@ -333,7 +332,7 @@ class NotificationDispatcher:
         vehicle_name: str,
         policy_name: str,
         days_until_expiry: int,
-        url: Optional[str] = None,
+        url: str | None = None,
     ) -> dict[str, bool]:
         """Send notification about expiring insurance."""
         return await self.dispatch(
@@ -348,7 +347,7 @@ class NotificationDispatcher:
         vehicle_name: str,
         warranty_name: str,
         days_until_expiry: int,
-        url: Optional[str] = None,
+        url: str | None = None,
     ) -> dict[str, bool]:
         """Send notification about expiring warranty."""
         return await self.dispatch(
@@ -362,7 +361,7 @@ class NotificationDispatcher:
         self,
         vehicle_name: str,
         milestone: int,
-        url: Optional[str] = None,
+        url: str | None = None,
     ) -> dict[str, bool]:
         """Send notification about odometer milestone."""
         formatted_milestone = f"{milestone:,}"

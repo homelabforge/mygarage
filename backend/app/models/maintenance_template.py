@@ -1,10 +1,11 @@
 """Maintenance Template database model."""
 
-from sqlalchemy import String, Integer, DateTime, ForeignKey, Index, JSON
+from datetime import datetime
+from typing import TYPE_CHECKING
+
+from sqlalchemy import JSON, DateTime, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
-from datetime import datetime
-from typing import Optional, TYPE_CHECKING
 
 from app.database import Base
 
@@ -32,7 +33,7 @@ class MaintenanceTemplate(Base):
     template_source: Mapped[str] = mapped_column(
         String(200), nullable=False
     )  # e.g., "github:ram/1500/2019-2024-normal.yml"
-    template_version: Mapped[Optional[str]] = mapped_column(
+    template_version: Mapped[str | None] = mapped_column(
         String(50)
     )  # Git commit SHA or version tag (e.g., "1.0.0")
 
@@ -52,7 +53,7 @@ class MaintenanceTemplate(Base):
 
     # Metadata
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[Optional[datetime]] = mapped_column(
+    updated_at: Mapped[datetime | None] = mapped_column(
         DateTime, onupdate=func.now()
     )
 

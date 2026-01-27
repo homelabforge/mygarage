@@ -5,25 +5,24 @@
 import logging
 from datetime import date
 from decimal import Decimal
-from typing import Optional
 
 from fastapi import HTTPException
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.service_visit import ServiceVisit
-from app.models.service_line_item import ServiceLineItem
 from app.models.maintenance_schedule_item import MaintenanceScheduleItem
-from app.models.vendor_price_history import VendorPriceHistory
+from app.models.service_line_item import ServiceLineItem
+from app.models.service_visit import ServiceVisit
 from app.models.user import User
+from app.models.vendor_price_history import VendorPriceHistory
 from app.schemas.service_visit import (
-    ServiceVisitCreate,
-    ServiceVisitUpdate,
-    ServiceVisitResponse,
     ServiceLineItemCreate,
     ServiceLineItemResponse,
+    ServiceVisitCreate,
+    ServiceVisitResponse,
+    ServiceVisitUpdate,
     VendorSummary,
 )
 from app.utils.cache import invalidate_cache_for_vehicle
@@ -591,7 +590,7 @@ class ServiceVisitService:
         self,
         schedule_item_id: int,
         service_date: date,
-        mileage: Optional[int],
+        mileage: int | None,
         line_item_id: int,
     ) -> None:
         """Update a maintenance schedule item with service completion."""

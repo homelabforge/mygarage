@@ -1,9 +1,9 @@
 """Address book routes for MyGarage API."""
 
-from typing import Annotated, Optional
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select, func, or_
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -11,9 +11,9 @@ from app.models import AddressBookEntry
 from app.models.user import User
 from app.schemas.address_book import (
     AddressBookEntryCreate,
-    AddressBookListResponse,
     AddressBookEntryResponse,
     AddressBookEntryUpdate,
+    AddressBookListResponse,
 )
 from app.services.auth import require_auth
 
@@ -23,11 +23,11 @@ router = APIRouter(prefix="/api/address-book", tags=["address-book"])
 @router.get("", response_model=AddressBookListResponse)
 async def list_entries(
     db: Annotated[AsyncSession, Depends(get_db)],
-    search: Optional[str] = Query(
+    search: str | None = Query(
         None, description="Search by name, business name, or city"
     ),
-    category: Optional[str] = Query(None, description="Filter by category"),
-    current_user: Optional[User] = Depends(require_auth),
+    category: str | None = Query(None, description="Filter by category"),
+    current_user: User | None = Depends(require_auth),
 ) -> AddressBookListResponse:
     """List all address book entries with optional search and filtering."""
     query = select(AddressBookEntry)
@@ -80,7 +80,7 @@ async def list_entries(
 async def create_entry(
     db: Annotated[AsyncSession, Depends(get_db)],
     entry_data: AddressBookEntryCreate,
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> AddressBookEntryResponse:
     """Create a new address book entry."""
     entry = AddressBookEntry(
@@ -108,7 +108,7 @@ async def create_entry(
 async def get_entry(
     entry_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> AddressBookEntryResponse:
     """Get a specific address book entry."""
     result = await db.execute(
@@ -126,7 +126,7 @@ async def update_entry(
     entry_id: int,
     update_data: AddressBookEntryUpdate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> AddressBookEntryResponse:
     """Update an address book entry."""
     # Get entry
@@ -171,7 +171,7 @@ async def update_entry(
 async def delete_entry(
     entry_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> None:
     """Delete an address book entry."""
     # Verify entry exists

@@ -1,22 +1,22 @@
 """Fuel record database model."""
 
+import datetime as dt
+from datetime import datetime
+from decimal import Decimal
+
 from sqlalchemy import (
-    String,
-    Integer,
-    Numeric,
+    Boolean,
     Date,
     DateTime,
-    Text,
     ForeignKey,
-    Boolean,
     Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
-import datetime as dt
-from datetime import datetime
-from typing import Optional
-from decimal import Decimal
 
 from app.database import Base
 
@@ -31,15 +31,15 @@ class FuelRecord(Base):
         String(17), ForeignKey("vehicles.vin", ondelete="CASCADE"), nullable=False
     )
     date: Mapped[dt.date] = mapped_column(Date, nullable=False)
-    mileage: Mapped[Optional[int]] = mapped_column(Integer)
-    gallons: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 3))
-    propane_gallons: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 3))
-    tank_size_lb: Mapped[Optional[Decimal]] = mapped_column(Numeric(6, 2))
-    tank_quantity: Mapped[Optional[int]] = mapped_column(Integer)
-    kwh: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 3))
-    cost: Mapped[Optional[Decimal]] = mapped_column(Numeric(8, 2))
-    price_per_unit: Mapped[Optional[Decimal]] = mapped_column(Numeric(6, 3))
-    fuel_type: Mapped[Optional[str]] = mapped_column(String(50))
+    mileage: Mapped[int | None] = mapped_column(Integer)
+    gallons: Mapped[Decimal | None] = mapped_column(Numeric(8, 3))
+    propane_gallons: Mapped[Decimal | None] = mapped_column(Numeric(8, 3))
+    tank_size_lb: Mapped[Decimal | None] = mapped_column(Numeric(6, 2))
+    tank_quantity: Mapped[int | None] = mapped_column(Integer)
+    kwh: Mapped[Decimal | None] = mapped_column(Numeric(8, 3))
+    cost: Mapped[Decimal | None] = mapped_column(Numeric(8, 2))
+    price_per_unit: Mapped[Decimal | None] = mapped_column(Numeric(6, 3))
+    fuel_type: Mapped[str | None] = mapped_column(String(50))
     is_full_tank: Mapped[bool] = mapped_column(Boolean, default=True)
     missed_fillup: Mapped[bool] = mapped_column(Boolean, default=False)
     is_hauling: Mapped[bool] = mapped_column(
@@ -47,7 +47,7 @@ class FuelRecord(Base):
         default=False,
         comment="Vehicle was towing/hauling during this fuel cycle",
     )
-    notes: Mapped[Optional[str]] = mapped_column(Text)
+    notes: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     # Relationships

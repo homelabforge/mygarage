@@ -1,20 +1,21 @@
 """Spot rental billing routes for MyGarage API."""
 
-from typing import Annotated, Optional
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models import SpotRentalBilling, SpotRental
+from app.models import SpotRental, SpotRentalBilling
 from app.models.user import User
-from app.services.auth import require_auth
 from app.schemas.spot_rental_billing import (
     SpotRentalBillingCreate,
     SpotRentalBillingListResponse,
     SpotRentalBillingResponse,
     SpotRentalBillingUpdate,
 )
+from app.services.auth import require_auth
 
 router = APIRouter(prefix="/api/vehicles", tags=["spot-rental-billings"])
 
@@ -27,7 +28,7 @@ async def list_billings(
     vin: str,
     rental_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> SpotRentalBillingListResponse:
     """List all billing entries for a spot rental."""
     # Verify spot rental exists and belongs to this vehicle
@@ -63,7 +64,7 @@ async def create_billing(
     rental_id: int,
     billing_data: SpotRentalBillingCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> SpotRentalBillingResponse:
     """Create a new billing entry for a spot rental."""
     # Verify spot rental exists and belongs to this vehicle
@@ -114,7 +115,7 @@ async def update_billing(
     billing_id: int,
     update_data: SpotRentalBillingUpdate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> SpotRentalBillingResponse:
     """Update a billing entry."""
     # Verify billing exists and belongs to the right rental
@@ -151,7 +152,7 @@ async def delete_billing(
     rental_id: int,
     billing_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ) -> None:
     """Delete a billing entry."""
     # Verify billing exists and belongs to the right rental

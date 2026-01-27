@@ -7,13 +7,13 @@ from the GitHub repository.
 
 import logging
 import re
-import httpx
-import yaml
-from typing import Optional
 from datetime import datetime, timedelta
 from urllib.parse import urlparse
-from sqlalchemy.ext.asyncio import AsyncSession
+
+import httpx
+import yaml
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.maintenance_template import MaintenanceTemplate
 from app.models.reminder import Reminder
@@ -75,7 +75,7 @@ class MaintenanceTemplateService:
             logger.error("URL validation error: %s", sanitize_for_log(e))
             return False
 
-    def _sanitize_path_component(self, component: str) -> Optional[str]:
+    def _sanitize_path_component(self, component: str) -> str | None:
         """Sanitize a path component for safe URL construction.
 
         Args:
@@ -151,7 +151,7 @@ class MaintenanceTemplateService:
         # Replace spaces with hyphens
         return model_lower.replace(" ", "-")
 
-    def _normalize_fuel_type(self, fuel_type: Optional[str]) -> Optional[str]:
+    def _normalize_fuel_type(self, fuel_type: str | None) -> str | None:
         """
         Normalize fuel type to match template naming convention.
 
@@ -189,7 +189,7 @@ class MaintenanceTemplateService:
         model: str,
         year: int,
         duty_type: str = "normal",
-        fuel_type: Optional[str] = None,
+        fuel_type: str | None = None,
     ) -> str:
         """
         Build the GitHub path for a template.
@@ -231,8 +231,8 @@ class MaintenanceTemplateService:
         make: str,
         model: str,
         duty_type: str = "normal",
-        fuel_type: Optional[str] = None,
-    ) -> Optional[tuple[str, dict]]:
+        fuel_type: str | None = None,
+    ) -> tuple[str, dict] | None:
         """
         Search for a maintenance template for a specific vehicle.
 
@@ -345,7 +345,7 @@ class MaintenanceTemplateService:
         vin: str,
         template_path: str,
         template_data: dict,
-        current_mileage: Optional[int] = None,
+        current_mileage: int | None = None,
         created_by: str = "auto",
     ) -> int:
         """

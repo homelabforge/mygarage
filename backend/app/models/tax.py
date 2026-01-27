@@ -1,22 +1,22 @@
 """Tax record database model."""
 
+import datetime as dt
+from datetime import datetime
+from decimal import Decimal
+
 from sqlalchemy import (
-    String,
-    Integer,
-    Numeric,
+    CheckConstraint,
     Date,
     DateTime,
-    Text,
     ForeignKey,
     Index,
-    CheckConstraint,
+    Integer,
+    Numeric,
+    String,
+    Text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
-import datetime as dt
-from datetime import datetime
-from typing import Optional
-from decimal import Decimal
 
 from app.database import Base
 
@@ -31,10 +31,10 @@ class TaxRecord(Base):
         String(17), ForeignKey("vehicles.vin", ondelete="CASCADE"), nullable=False
     )
     date: Mapped[dt.date] = mapped_column(Date, nullable=False)
-    tax_type: Mapped[Optional[str]] = mapped_column(String(30))
+    tax_type: Mapped[str | None] = mapped_column(String(30))
     amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
-    renewal_date: Mapped[Optional[dt.date]] = mapped_column(Date)
-    notes: Mapped[Optional[str]] = mapped_column(Text)
+    renewal_date: Mapped[dt.date | None] = mapped_column(Date)
+    notes: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     # Relationships

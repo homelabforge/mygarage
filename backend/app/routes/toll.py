@@ -1,31 +1,31 @@
 """Toll tag and transaction CRUD API endpoints."""
 
-import logging
-from fastapi import APIRouter, HTTPException, Depends, Response
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete, func
-from typing import Optional
-from decimal import Decimal
-import datetime as dt
 import csv
+import datetime as dt
 import io
+import logging
+from decimal import Decimal
+
+from fastapi import APIRouter, Depends, HTTPException, Response
+from sqlalchemy import delete, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.toll import TollTag, TollTransaction
 from app.models.user import User
 from app.models.vehicle import Vehicle
-from app.services.auth import require_auth
 from app.schemas.toll import (
     TollTagCreate,
-    TollTagUpdate,
-    TollTagResponse,
     TollTagListResponse,
+    TollTagResponse,
+    TollTagUpdate,
     TollTransactionCreate,
-    TollTransactionUpdate,
-    TollTransactionResponse,
     TollTransactionListResponse,
+    TollTransactionResponse,
     TollTransactionSummary,
+    TollTransactionUpdate,
 )
+from app.services.auth import require_auth
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ toll_tags_router = APIRouter(prefix="/api/vehicles/{vin}/toll-tags", tags=["Toll
 async def list_toll_tags(
     vin: str,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Get all toll tags for a vehicle."""
     # Verify vehicle exists
@@ -64,7 +64,7 @@ async def create_toll_tag(
     vin: str,
     toll_tag: TollTagCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Create a new toll tag for a vehicle."""
     # Verify vehicle exists
@@ -94,7 +94,7 @@ async def get_toll_tag(
     vin: str,
     tag_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Get a specific toll tag."""
     result = await db.execute(
@@ -113,7 +113,7 @@ async def update_toll_tag(
     tag_id: int,
     toll_tag_update: TollTagUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Update a toll tag."""
     result = await db.execute(
@@ -140,7 +140,7 @@ async def delete_toll_tag(
     vin: str,
     tag_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Delete a toll tag."""
     result = await db.execute(
@@ -166,11 +166,11 @@ toll_transactions_router = APIRouter(
 @toll_transactions_router.get("", response_model=TollTransactionListResponse)
 async def list_toll_transactions(
     vin: str,
-    start_date: Optional[dt.date] = None,
-    end_date: Optional[dt.date] = None,
-    toll_tag_id: Optional[int] = None,
+    start_date: dt.date | None = None,
+    end_date: dt.date | None = None,
+    toll_tag_id: int | None = None,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Get all toll transactions for a vehicle with optional filtering."""
     # Verify vehicle exists
@@ -210,7 +210,7 @@ async def create_toll_transaction(
     vin: str,
     transaction: TollTransactionCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Create a new toll transaction for a vehicle."""
     # Verify vehicle exists
@@ -254,7 +254,7 @@ async def get_toll_transaction(
     vin: str,
     transaction_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Get a specific toll transaction."""
     result = await db.execute(
@@ -277,7 +277,7 @@ async def update_toll_transaction(
     transaction_id: int,
     transaction_update: TollTransactionUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Update a toll transaction."""
     result = await db.execute(
@@ -317,7 +317,7 @@ async def delete_toll_transaction(
     vin: str,
     transaction_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Delete a toll transaction."""
     result = await db.execute(
@@ -344,7 +344,7 @@ async def delete_toll_transaction(
 async def get_toll_transaction_summary(
     vin: str,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Get toll transaction summary and monthly statistics."""
     # Verify vehicle exists
@@ -394,10 +394,10 @@ async def get_toll_transaction_summary(
 @toll_transactions_router.get("/export/csv")
 async def export_toll_transactions_csv(
     vin: str,
-    start_date: Optional[dt.date] = None,
-    end_date: Optional[dt.date] = None,
+    start_date: dt.date | None = None,
+    end_date: dt.date | None = None,
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Export toll transactions as CSV."""
     # Verify vehicle exists

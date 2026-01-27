@@ -1,21 +1,21 @@
 """Insurance policy database model."""
 
+from datetime import date, datetime
+from decimal import Decimal
+
 from sqlalchemy import (
-    String,
-    Integer,
-    Numeric,
+    CheckConstraint,
     Date,
     DateTime,
-    Text,
     ForeignKey,
     Index,
-    CheckConstraint,
+    Integer,
+    Numeric,
+    String,
+    Text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
-from datetime import date, datetime
-from typing import Optional
-from decimal import Decimal
 
 from app.database import Base
 
@@ -34,11 +34,11 @@ class InsurancePolicy(Base):
     policy_type: Mapped[str] = mapped_column(String(30), nullable=False)
     start_date: Mapped[date] = mapped_column(Date, nullable=False)
     end_date: Mapped[date] = mapped_column(Date, nullable=False)
-    premium_amount: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2))
-    premium_frequency: Mapped[Optional[str]] = mapped_column(String(20))
-    deductible: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2))
-    coverage_limits: Mapped[Optional[str]] = mapped_column(Text)
-    notes: Mapped[Optional[str]] = mapped_column(Text)
+    premium_amount: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    premium_frequency: Mapped[str | None] = mapped_column(String(20))
+    deductible: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    coverage_limits: Mapped[str | None] = mapped_column(Text)
+    notes: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     # Relationships

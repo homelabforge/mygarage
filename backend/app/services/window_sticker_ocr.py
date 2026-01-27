@@ -4,14 +4,14 @@
 
 import logging
 import os
-from typing import Optional, Dict, Any
-from pathlib import Path
 from decimal import Decimal
+from pathlib import Path
+from typing import Any
 
 from app.services.window_sticker_parsers import (
+    ParserRegistry,
     WindowStickerData,
     get_parser_for_vehicle,
-    ParserRegistry,
 )
 
 logger = logging.getLogger(__name__)
@@ -31,9 +31,9 @@ class WindowStickerOCRService:
     async def extract_data_from_file(
         self,
         file_path: str,
-        vin: Optional[str] = None,
-        make: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        vin: str | None = None,
+        make: str | None = None,
+    ) -> dict[str, Any]:
         """
         Extract structured data from a window sticker file.
 
@@ -98,10 +98,10 @@ class WindowStickerOCRService:
     async def test_extraction(
         self,
         file_path: str,
-        vin: Optional[str] = None,
-        make: Optional[str] = None,
-        parser_name: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        vin: str | None = None,
+        make: str | None = None,
+        parser_name: str | None = None,
+    ) -> dict[str, Any]:
         """
         Test extraction without saving - returns full debug info.
 
@@ -247,8 +247,8 @@ class WindowStickerOCRService:
 
         # Fallback to Tesseract
         try:
-            from PIL import Image
             import pytesseract
+            from PIL import Image
 
             image = Image.open(file_path)
             text = pytesseract.image_to_string(image)
@@ -273,9 +273,10 @@ class WindowStickerOCRService:
 
         # Fallback to Tesseract
         try:
-            from PIL import Image
-            import pytesseract
             import io
+
+            import pytesseract
+            from PIL import Image
 
             image = Image.open(io.BytesIO(img_bytes))
             return pytesseract.image_to_string(image)
@@ -316,9 +317,10 @@ class WindowStickerOCRService:
     async def _paddleocr_extract_bytes(self, img_bytes: bytes) -> str:
         """Extract text from image bytes using PaddleOCR."""
         try:
+            import io
+
             import numpy as np
             from PIL import Image
-            import io
 
             if self._paddleocr is None:
                 from paddleocr import PaddleOCR
@@ -347,7 +349,7 @@ class WindowStickerOCRService:
             logger.error("PaddleOCR bytes extraction failed: %s", e)
             return ""
 
-    def _sticker_data_to_dict(self, data: WindowStickerData) -> Dict[str, Any]:
+    def _sticker_data_to_dict(self, data: WindowStickerData) -> dict[str, Any]:
         """Convert WindowStickerData to dict for database storage."""
         result = {}
 
