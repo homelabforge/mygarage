@@ -5,7 +5,7 @@ import {
   ResponsiveContainer,
   PieChart as RechartsPieChart,
   Pie,
-  Cell,
+  Sector,
   Tooltip,
   BarChart as RechartsBarChart,
   Bar,
@@ -15,7 +15,7 @@ import {
   Legend,
   Line,
 } from 'recharts'
-import type { PieLabelRenderProps } from 'recharts'
+import type { PieLabelRenderProps, SectorProps } from 'recharts'
 import type { GarageAnalytics, GarageMonthlyTrend } from '../types/analytics'
 import GarageAnalyticsHelpModal from '../components/GarageAnalyticsHelpModal'
 
@@ -240,10 +240,16 @@ export default function GarageAnalytics() {
     totalCost: parseFloat(vehicle.total_cost),
   }))
 
-  const trendData = monthly_trends.map((trend) => ({
+  // Pre-calculate rolling averages
+  const rollingAvg3 = calculateRollingAverage(monthly_trends, 3)
+  const rollingAvg6 = calculateRollingAverage(monthly_trends, 6)
+
+  const trendData = monthly_trends.map((trend, idx) => ({
     month: trend.month,
     Maintenance: parseFloat(trend.maintenance),
     Fuel: parseFloat(trend.fuel),
+    avg3: rollingAvg3[idx],
+    avg6: rollingAvg6[idx],
   }))
 
   return (
@@ -362,13 +368,11 @@ export default function GarageAnalytics() {
                       return `${labelName} ${(percent * 100).toFixed(0)}%`
                     }}
                     outerRadius={100}
-                    fill="#8884d8"
                     dataKey="value"
-                  >
-                    {pieData.map((_item, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
+                    shape={(props: SectorProps & { index?: number }) => (
+                      <Sector {...props} fill={COLORS[(props.index ?? 0) % COLORS.length]} />
+                    )}
+                  />
                   <Tooltip
                     cursor={false}
                     wrapperStyle={{ outline: 'none' }}
@@ -576,40 +580,30 @@ export default function GarageAnalytics() {
               <Bar dataKey="Maintenance" fill="#3B82F6" stackId="a" />
               <Bar dataKey="Fuel" fill="#10B981" stackId="a" />
 
-              {/* Rolling average trend lines */}
+              {/* Rolling average trend lines - data from trendData via chart's data prop */}
               {trendData.length >= 3 && (
-                <>
-                  <Line
-                    type="monotone"
-                    data={trendData.map((item, idx) => ({
-                      month: item.month,
-                      avg3: calculateRollingAverage(monthly_trends, 3)[idx],
-                    }))}
-                    dataKey="avg3"
-                    stroke="#10B981"
-                    strokeWidth={2}
-                    strokeDasharray="5 5"
-                    dot={false}
-                    name="3-Month Avg"
-                  />
-                </>
+                <Line
+                  type="monotone"
+                  dataKey="avg3"
+                  stroke="#10B981"
+                  strokeWidth={2}
+                  strokeDasharray="5 5"
+                  dot={false}
+                  name="3-Month Avg"
+                  connectNulls={false}
+                />
               )}
               {trendData.length >= 6 && (
-                <>
-                  <Line
-                    type="monotone"
-                    data={trendData.map((item, idx) => ({
-                      month: item.month,
-                      avg6: calculateRollingAverage(monthly_trends, 6)[idx],
-                    }))}
-                    dataKey="avg6"
-                    stroke="#8B5CF6"
-                    strokeWidth={2}
-                    strokeDasharray="5 5"
-                    dot={false}
-                    name="6-Month Avg"
-                  />
-                </>
+                <Line
+                  type="monotone"
+                  dataKey="avg6"
+                  stroke="#8B5CF6"
+                  strokeWidth={2}
+                  strokeDasharray="5 5"
+                  dot={false}
+                  name="6-Month Avg"
+                  connectNulls={false}
+                />
               )}
             </RechartsBarChart>
           </ResponsiveContainer>
