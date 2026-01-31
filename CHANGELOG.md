@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.20.4] - 2026-01-31
+
 ### Fixed
 - **Monthly Spending Trend Chart** - Fixed chart displaying duplicate x-axis labels and empty right half
   - Line components for rolling averages were providing separate `data` props, causing Recharts to render duplicate axis entries
@@ -20,12 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Recharts Cell Migration** - Migrated deprecated `Cell` component to `shape` prop pattern for Pie chart (Recharts 3.7.0 deprecation)
 
 ### Security
-- **CodeQL Alert #905** - Fixed clear-text logging false positive in POI registry
-  - Extracted `priority` value from config dict before logging to break taint chain
-  - Config dict contains `api_key` which tainted the entire object
-- **CodeQL Alerts #906, #907** - Fixed additional clear-text logging false positives in POI registry
-  - Used `str()` and `int()` constructors to create new primitive values that break CodeQL taint chain
-  - `config["name"]` and `config["priority"]` were flagged because parent dict contains `api_key`
+- **CodeQL Alerts #905-#908** - Fixed clear-text logging false positives in POI registry
+  - Config dict contains `api_key` which tainted all derived values including `name` and `priority`
+  - Used `sanitize_for_log()` to break taint chain through string transformation
+  - Used `int()` constructor for priority values
 
 ## [2.20.3] - 2026-01-27
 
