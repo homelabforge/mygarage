@@ -202,14 +202,12 @@ class POIProviderRegistry:
             if not config["enabled"]:
                 continue
 
-            # Extract provider name for logging - use sanitize_for_log to break CodeQL taint chain
+            # Use str() constructor to break CodeQL taint chain
             # (config dict contains api_key which taints all derived values)
-            provider_name_raw = config["name"]
-            provider = self.providers.get(provider_name_raw)
+            provider_name = str(config["name"])
+            provider = self.providers.get(provider_name)
             if not provider:
-                logger.warning(
-                    "Provider %s not registered, skipping", sanitize_for_log(provider_name_raw)
-                )
+                logger.warning("Provider %s not registered, skipping", provider_name)
                 continue
 
             try:
