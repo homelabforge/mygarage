@@ -169,7 +169,7 @@ class MQTTSubscriber:
                         try:
                             await self._process_message(
                                 str(message.topic),
-                                message.payload if isinstance(message.payload, bytes) else b"",
+                                message.payload,
                                 config["topic_prefix"],
                             )
                         except Exception as e:

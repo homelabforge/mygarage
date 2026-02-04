@@ -1,6 +1,6 @@
 # ==============================================================================
 # Multi-stage Dockerfile for MyGarage
-# Frontend: Bun 1.3.6
+# Frontend: Bun 1.3.8
 # Backend: Python 3.14-slim
 # ==============================================================================
 
@@ -58,7 +58,7 @@ LABEL org.opencontainers.image.frontend.builder="bun-1.3.6"
 
 # HTTP server metadata
 LABEL http.server.name="granian"
-LABEL http.server.version="2.6.1"
+LABEL http.server.version="2.7.0"
 LABEL http.server.type="asgi"
 
 WORKDIR /app

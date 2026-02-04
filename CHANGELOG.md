@@ -64,12 +64,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **LiveLink Dashboard Widget** - Removed battery voltage from compact vehicle card view (still visible in full LiveLink tab)
 - **LiveLink Tab Header** - Removed battery voltage from status bar for cleaner display
 
+### Fixed
+- **MQTT Subscriber** - Removed unnecessary isinstance check that caused pyright error in CI
+
+### Dependencies
+- **granian**: 2.6.1 → 2.7.0
+
 ### Dev Dependencies
 - **@vitejs/plugin-react-swc**: 4.2.2 → 4.2.3
 - **eslint-plugin-react-refresh**: 0.4.26 → 0.5.0
 - **globals**: 17.2.0 → 17.3.0
 - **jsdom**: 27.4.0 → 28.0.0
 - **aiomqtt**: Added >=2.3.0 for MQTT subscription support
+- **@types/react**: 19.2.10 → 19.2.11
+- **ruff**: 0.14.14 → 0.15.0
 
 ## [2.20.4] - 2026-01-31
 

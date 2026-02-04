@@ -29,7 +29,7 @@
         "@testing-library/react": "^16.3.2",
         "@testing-library/user-event": "^14.6.1",
         "@types/leaflet": "^1.9.21",
-        "@types/react": "^19.2.10",
+        "@types/react": "^19.2.11",
         "@types/react-big-calendar": "^1.16.3",
         "@types/react-dom": "^19.2.3",
         "@typescript-eslint/eslint-plugin": "^8.54.0",
@@ -367,7 +367,7 @@
 
     "@types/prop-types": ["@types/prop-types@15.7.15", "", {}, "sha512-F6bEyamV9jKGAFBEmlQnesRPGOQqS2+Uwi0Em15xenOxHaf2hv6L8YCVn3rPdPJOiJfPiCnLIRyvwVaqMY3MIw=="],
 
-    "@types/react": ["@types/react@19.2.10", "", { "dependencies": { "csstype": "^3.2.2" } }, "sha512-WPigyYuGhgZ/cTPRXB2EwUw+XvsRA3GqHlsP4qteqrnnjDrApbS7MxcGr/hke5iUoeB7E/gQtrs9I37zAJ0Vjw=="],
+    "@types/react": ["@types/react@19.2.11", "", { "dependencies": { "csstype": "^3.2.2" } }, "sha512-tORuanb01iEzWvMGVGv2ZDhYZVeRMrw453DCSAIn/5yvcSVnMoUMTyf33nQJLahYEnv9xqrTNbgz4qY5EfSh0g=="],
 
     "@types/react-big-calendar": ["@types/react-big-calendar@1.16.3", "", { "dependencies": { "@types/date-arithmetic": "*", "@types/prop-types": "*", "@types/react": "*" } }, "sha512-CR+5BKMhlr/wPgsp+sXOeNKNkoU1h/+6H1XoWuL7xnurvzGRQv/EnM8jPS9yxxBvXI8pjQBaJcI7RTSGiewG/Q=="],
 
