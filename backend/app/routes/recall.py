@@ -142,6 +142,16 @@ async def check_nhtsa_recalls(
             resolved_count=resolved_count,
         )
 
+    except ValueError as e:
+        logger.warning(
+            "VIN decode failure for %s: %s",
+            sanitize_for_log(vin),
+            sanitize_for_log(str(e)),
+        )
+        raise HTTPException(
+            status_code=422,
+            detail=f"Could not decode VIN to fetch recalls: {str(e)}",
+        )
     except httpx.TimeoutException:
         logger.error("NHTSA API timeout fetching recalls for VIN %s", sanitize_for_log(vin))
         raise HTTPException(status_code=504, detail="NHTSA API request timed out")

@@ -190,6 +190,59 @@ class TelemetryService:
         # Replace underscores with spaces and title case
         return param_key.replace("_", " ").title()
 
+    def _is_odometer_param(self, param_key: str) -> bool:
+        """Check if a parameter key represents an odometer reading."""
+        param_upper = param_key.upper()
+        for pattern in ODOMETER_PID_PATTERNS:
+            if pattern.upper() in param_upper:
+                return True
+        return False
+
+    async def _sanitize_odometer_value(self, vin: str, value: float) -> float | None:
+        """Sanitize an odometer value, returning None if invalid.
+
+        Applies the same sanity checks as _sync_odometer_from_telemetry:
+        - Absolute cap at 1 million miles
+        - Reject unreasonable jumps (>10,000 from existing max)
+        - Reject negative/zero values
+
+        Returns:
+            Sanitized value if valid, None if should be rejected
+        """
+        mileage = int(round(value))
+
+        # Reject zero/negative
+        if mileage <= 0:
+            return None
+
+        # Absolute cap at 1 million miles
+        if mileage > 1_000_000:
+            logger.warning(
+                "Rejected odometer %d for %s: exceeds 1M mile cap",
+                mileage,
+                vin[:8],
+            )
+            return None
+
+        # Query max existing mileage to check for unreasonable jumps
+        max_result = await self.db.execute(
+            select(func.max(OdometerRecord.mileage)).where(OdometerRecord.vin == vin)
+        )
+        max_mileage = max_result.scalar() or 0
+
+        # Reject values that are unreasonably higher than existing max
+        # (prevents overflow values like 0xFFFFFF from being displayed)
+        if max_mileage > 0 and mileage > max_mileage + 10_000:
+            logger.warning(
+                "Rejected odometer %d for %s: unreasonable jump from %d",
+                mileage,
+                vin[:8],
+                max_mileage,
+            )
+            return None
+
+        return float(mileage)
+
     # =========================================================================
     # Telemetry Storage
     # =========================================================================
@@ -236,6 +289,15 @@ class TelemetryService:
                 param_class = param_config.get("class") if param_config else None
                 param = await self.auto_register_parameter(param_key, unit, param_class)
                 parameters[param_key] = param
+
+            # Check if this is an odometer parameter and apply sanity checks
+            is_odometer = self._is_odometer_param(param_key)
+            if is_odometer:
+                sanitized_value = await self._sanitize_odometer_value(vin, float(value))
+                if sanitized_value is None:
+                    # Invalid odometer value - skip storing to latest but may still log to historical
+                    continue
+                value = sanitized_value
 
             # Always update latest value (for live dashboard)
             await self._upsert_latest_value(vin, param_key, float(value), timestamp, received_at)

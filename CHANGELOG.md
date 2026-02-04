@@ -36,6 +36,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Wiki Documentation** - Comprehensive LiveLink guide, FAQ section, and troubleshooting
 
 ### Fixed
+- **NHTSA Recall Check Error Handling** - Fixed unhandled ValueError when VIN cannot be decoded by NHTSA
+  - Route now catches ValueError from VIN decode failures and returns proper 422 response
+  - Previously, invalid VINs would cause 500 Internal Server Error
+- **LiveLink Odometer Display Sanity Checks** - Fixed Live tab showing invalid odometer values like 16,777,215
+  - Extended existing odometer sanity checks to filter values before storing in latest cache
+  - Invalid values (overflow, >1M miles, >10K jump) are now rejected from Live display
+  - Prevents OBD2 parsing errors (like 24-bit overflow 0xFFFFFF) from showing incorrect readings
+- **LiveLink Odometer Double Conversion** - Fixed incorrect odometer display in LiveLink showing ~62% of actual value
+  - WiCAN devices report odometer in vehicle's native unit (miles for US vehicles)
+  - Frontend was incorrectly applying km→miles conversion to values already in miles
+  - Odometer now displays raw OBD2 value without conversion on Live tab and Sessions tab
+- **Document Deletion Error Handling** - Improved document deletion with proper transaction rollback
+  - File system errors now properly abort the database transaction
+  - Added explicit error handling for database and OS errors
+  - Consistent with attachment deletion behavior
+- **LiveLink Charts Missing Parameters** - Charts tab now shows all available telemetry parameters
+  - Previously only showed parameters with `show_on_dashboard` flag (just Battery Voltage)
+  - Now shows all parameters except those marked `archive_only`
+  - RPM, Speed, Coolant Temp, Throttle, and other parameters now available for charting
 - **OIDC Admin User Management** - OIDC admins can now access Multi-User Management in Settings
   - Previously restricted to local auth admins only
   - Add User button and multi-user toggle hidden for OIDC (users managed in identity provider)
