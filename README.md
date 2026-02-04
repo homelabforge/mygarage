@@ -29,7 +29,7 @@ Self-hosted vehicle maintenance tracking with VIN decoding, service records, fue
 - **Fifth Wheel & Trailer Support** - Propane tracking, spot rental billing, and RV park management
 - **Unit Conversion** - Imperial/Metric units with per-user preferences
 - **Document Management** - Store registration, insurance, manuals with OCR
-- **Multi-User Support** - Separate accounts with admin controls
+- **Family Multi-User System** - Separate accounts with vehicle sharing, ownership transfers, and family dashboard
 - **Authentication Options** - No auth, local JWT, or OIDC (Authentik, Keycloak, Google, Azure AD)
 - **Self-Hosted** - Your data stays on your infrastructure
 

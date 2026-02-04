@@ -39,6 +39,16 @@ class User(Base):
     )  # 'imperial' or 'metric'
     show_both_units = Column(Boolean, default=False, nullable=False)
 
+    # Family/relationship fields
+    relationship = Column(
+        String(50), nullable=True
+    )  # spouse, child, parent, sibling, grandparent, grandchild, in_law, friend, other
+    relationship_custom = Column(
+        String(100), nullable=True
+    )  # Custom text when relationship='other'
+    show_on_family_dashboard = Column(Boolean, default=False, nullable=False)
+    family_dashboard_order = Column(Integer, default=0, nullable=False)
+
     created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
     updated_at = Column(
         DateTime,

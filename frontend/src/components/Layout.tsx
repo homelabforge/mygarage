@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
-import { Car, Settings, Home, Search, Info, BookUser, BarChart3, Calendar, LogOut, User, MapPin } from 'lucide-react'
+import { Car, Settings, Home, Search, Info, BookUser, BarChart3, Calendar, LogOut, User, MapPin, Users } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useAppVersion } from '../hooks/useAppVersion'
 import { useEffect, useState } from 'react'
@@ -76,6 +76,15 @@ export default function Layout() {
                 <Calendar className="w-4 h-4" />
                 <span>Calendar</span>
               </Link>
+              {isAdmin && (
+                <Link
+                  to="/family"
+                  className="flex items-center space-x-2 text-garage-text-muted hover:text-garage-text transition-colors"
+                >
+                  <Users className="w-4 h-4" />
+                  <span>Family</span>
+                </Link>
+              )}
               <Link
                 to="/vin-demo"
                 className="flex items-center space-x-2 text-garage-text-muted hover:text-garage-text transition-colors"
@@ -209,6 +218,20 @@ export default function Layout() {
             <BarChart3 className="w-5 h-5" />
             <span className="text-xs mt-1">Analytics</span>
           </Link>
+
+          {isAdmin && (
+            <Link
+              to="/family"
+              className={`flex flex-col items-center justify-center min-w-[56px] py-3 px-3 rounded-lg transition-colors ${
+                location.pathname === '/family'
+                  ? 'text-primary-500 bg-primary-500/10'
+                  : 'text-garage-text-muted hover:text-garage-text'
+              }`}
+            >
+              <Users className="w-5 h-5" />
+              <span className="text-xs mt-1">Family</span>
+            </Link>
+          )}
 
           <Link
             to="/settings"

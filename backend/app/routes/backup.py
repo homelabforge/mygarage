@@ -266,9 +266,15 @@ async def upload_backup(
     Returns:
         Metadata about the uploaded backup file
     """
+    from datetime import datetime
+
     try:
         backup_service = get_backup_service()
         backup_service.ensure_backup_dir()
+
+        # Validate filename exists
+        if not file.filename:
+            raise HTTPException(status_code=400, detail="No filename provided")
 
         # Validate file type
         if not (file.filename.endswith(".json") or file.filename.endswith(".tar.gz")):
@@ -289,29 +295,23 @@ async def upload_backup(
                 detail=f"File size exceeds maximum of {max_backup_size // (1024 * 1024)}MB",
             )
 
-        # Sanitize filename
-        import os
-        from datetime import datetime
+        # Determine backup type and generate standardized filename
+        # This ensures uploaded files appear in the backup list
+        timestamp = datetime.now().strftime("%Y-%m-%d-%H%M%S")
+        if file.filename.endswith(".json"):
+            backup_type = "settings"
+            safe_filename = f"mygarage-settings-uploaded-{timestamp}.json"
+        else:
+            backup_type = "full"
+            safe_filename = f"mygarage-full-uploaded-{timestamp}.tar.gz"
 
-        safe_filename = os.path.basename(file.filename)
-
-        # Add timestamp if filename already exists
         backup_path = BACKUP_DIR / safe_filename
-        if backup_path.exists():
-            timestamp = datetime.now().strftime("%Y-%m-%d-%H%M%S")
-            if safe_filename.endswith(".json"):
-                name_part = safe_filename.replace(".json", "")
-                safe_filename = f"{name_part}-uploaded-{timestamp}.json"
-            else:
-                name_part = safe_filename.replace(".tar.gz", "")
-                safe_filename = f"{name_part}-uploaded-{timestamp}.tar.gz"
-            backup_path = BACKUP_DIR / safe_filename
 
         # Now read and validate file content
         content = await file.read()
 
         # Validate JSON backups
-        if safe_filename.endswith(".json"):
+        if backup_type == "settings":
             import json
 
             try:
@@ -325,11 +325,10 @@ async def upload_backup(
         with open(backup_path, "wb") as f:
             f.write(content)
 
-        logger.info("Uploaded backup: %s", safe_filename)
+        logger.info("Uploaded backup: %s (original: %s)", safe_filename, file.filename)
 
         # Get file stats
         stat = backup_path.stat()
-        backup_type = "settings" if safe_filename.endswith(".json") else "full"
 
         return {
             "success": True,

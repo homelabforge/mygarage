@@ -8,6 +8,7 @@ import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import {
   ArrowLeft,
+  ArrowRightLeft,
   Edit,
   Trash2,
   Car,
@@ -32,6 +33,7 @@ import {
   Radio,
   Activity,
   Clock,
+  Share2,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import vehicleService from '../services/vehicleService'
@@ -60,7 +62,11 @@ import SubTabNav from '../components/SubTabNav'
 import { livelinkService } from '../services/livelinkService'
 import WindowStickerUpload from '../components/WindowStickerUpload'
 import VehicleRemoveModal from '../components/modals/VehicleRemoveModal'
+import VehicleTransferWizard from '../components/modals/VehicleTransferWizard'
+import VehicleSharingModal from '../components/modals/VehicleSharingModal'
+import TransferHistorySection from '../components/TransferHistorySection'
 import { useOnlineStatus } from '../hooks/useOnlineStatus'
+import { useAuth } from '../contexts/AuthContext'
 
 type ApiError = {
   response?: {
@@ -95,6 +101,7 @@ type SubTabType = 'photos' | 'documents' | 'service' | 'fuel' | 'propane' | 'odo
 export default function VehicleDetail() {
   const { vin } = useParams<{ vin: string }>()
   const navigate = useNavigate()
+  const { isAdmin } = useAuth()
   const [searchParams] = useSearchParams()
   const [vehicle, setVehicle] = useState<Vehicle | null>(null)
   const [loading, setLoading] = useState(true)
@@ -102,6 +109,8 @@ export default function VehicleDetail() {
   const [activePrimaryTab, setActivePrimaryTab] = useState<PrimaryTabType>('overview')
   const [activeSubTab, setActiveSubTab] = useState<SubTabType | null>(null)
   const [showRemoveModal, setShowRemoveModal] = useState(false)
+  const [showTransferWizard, setShowTransferWizard] = useState(false)
+  const [showSharingModal, setShowSharingModal] = useState(false)
   const [showWindowStickerUpload, setShowWindowStickerUpload] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [importing, setImporting] = useState(false)
@@ -601,12 +610,30 @@ export default function VehicleDetail() {
                   <span>Analytics</span>
                 </button>
                 <button
+                  onClick={() => setShowSharingModal(true)}
+                  className="flex items-center space-x-2 px-5 py-3 btn btn-primary rounded-lg"
+                  title="Share vehicle with other users"
+                >
+                  <Share2 className="w-4 h-4" />
+                  <span>Share</span>
+                </button>
+                <button
                   onClick={() => navigate(`/vehicles/${vin}/edit`)}
                   className="flex items-center space-x-2 px-5 py-3 btn btn-primary rounded-lg"
                 >
                   <Edit className="w-4 h-4" />
                   <span>Edit</span>
                 </button>
+                {isAdmin && (
+                  <button
+                    onClick={() => setShowTransferWizard(true)}
+                    className="flex items-center space-x-2 px-5 py-3 bg-amber-900/30 border border-amber-700 text-amber-400 rounded-lg hover:bg-amber-800/50 transition-colors"
+                    title="Transfer vehicle ownership"
+                  >
+                    <ArrowRightLeft className="w-4 h-4" />
+                    <span>Transfer</span>
+                  </button>
+                )}
                 <button
                   onClick={() => setShowRemoveModal(true)}
                   className="flex items-center space-x-2 px-5 py-3 bg-red-900/30 border border-red-700 text-red-400 rounded-lg hover:bg-red-800/50 transition-colors"
@@ -747,6 +774,9 @@ export default function VehicleDetail() {
                 </div>
               </div>
             )}
+
+            {/* Transfer History */}
+            <TransferHistorySection vin={vehicle.vin} />
 
             {/* VIN Decoded Information */}
             {(vehicle.trim || vehicle.body_class || vehicle.drive_type || vehicle.doors || vehicle.gvwr_class || vehicle.wheel_specs || vehicle.tire_specs || (!isMotorized && vehicle.fuel_type)) && (
@@ -1171,6 +1201,30 @@ export default function VehicleDetail() {
         vehicle={vehicle}
         onConfirm={handleVehicleRemoved}
       />
+
+      {/* Vehicle Transfer Wizard */}
+      {vin && vehicle && (
+        <VehicleTransferWizard
+          isOpen={showTransferWizard}
+          onClose={() => setShowTransferWizard(false)}
+          vin={vin}
+          vehicleNickname={vehicle.nickname}
+          onTransferComplete={() => {
+            // Reload vehicle to get updated owner
+            loadVehicle()
+          }}
+        />
+      )}
+
+      {/* Vehicle Sharing Modal */}
+      {vin && vehicle && (
+        <VehicleSharingModal
+          isOpen={showSharingModal}
+          onClose={() => setShowSharingModal(false)}
+          vin={vin}
+          vehicleNickname={vehicle.nickname}
+        />
+      )}
 
       {/* Mobile Actions Menu */}
       {showMobileMenu && (

@@ -1,22 +1,9 @@
 import { useState, useEffect } from 'react'
-import { Users, X, Search, Edit, Trash2, Key, Power, PowerOff } from 'lucide-react'
+import { Users, X, Search, Edit, Trash2, Key, Power, PowerOff, Eye, EyeOff } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '@/services/api'
-
-interface User {
-  id: number
-  username: string
-  email: string
-  full_name: string | null
-  is_active: boolean
-  is_admin: boolean
-  auth_method: 'local' | 'oidc'
-  oidc_subject: string | null
-  oidc_provider: string | null
-  created_at: string
-  updated_at: string
-  last_login: string | null
-}
+import { formatRelationship } from '@/types/family'
+import type { User } from '@/types/user'
 
 interface UserManagementModalProps {
   isOpen: boolean
@@ -67,10 +54,32 @@ export default function UserManagementModal({
   // Count active admins
   const activeAdminCount = users.filter(u => u.is_admin && u.is_active).length
 
+  // Toggle family dashboard visibility
+  const handleToggleDashboard = async (user: User) => {
+    try {
+      await api.put(`/family/dashboard/members/${user.id}`, {
+        show_on_family_dashboard: !user.show_on_family_dashboard,
+      })
+      // Update local state
+      setUsers(users.map(u =>
+        u.id === user.id
+          ? { ...u, show_on_family_dashboard: !u.show_on_family_dashboard }
+          : u
+      ))
+      toast.success(
+        user.show_on_family_dashboard
+          ? `${user.username} removed from family dashboard`
+          : `${user.username} added to family dashboard`
+      )
+    } catch {
+      toast.error('Failed to update dashboard visibility')
+    }
+  }
+
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-garage-surface border border-garage-border rounded-lg max-w-5xl w-full max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="p-6 border-b border-garage-border flex items-center justify-between">
@@ -111,9 +120,10 @@ export default function UserManagementModal({
                 <tr className="text-left">
                   <th className="pb-3 text-sm font-medium text-garage-text">Username</th>
                   <th className="pb-3 text-sm font-medium text-garage-text">Email</th>
+                  <th className="pb-3 text-sm font-medium text-garage-text">Relationship</th>
                   <th className="pb-3 text-sm font-medium text-garage-text">Role</th>
                   <th className="pb-3 text-sm font-medium text-garage-text">Status</th>
-                  <th className="pb-3 text-sm font-medium text-garage-text">Auth</th>
+                  <th className="pb-3 text-sm font-medium text-garage-text">Dashboard</th>
                   <th className="pb-3 text-sm font-medium text-garage-text text-right">Actions</th>
                 </tr>
               </thead>
@@ -127,6 +137,15 @@ export default function UserManagementModal({
                       )}
                     </td>
                     <td className="py-3 text-sm text-garage-text">{user.email}</td>
+                    <td className="py-3">
+                      {user.relationship ? (
+                        <span className="px-2 py-1 text-xs bg-info/20 text-info rounded">
+                          {formatRelationship(user.relationship, user.relationship_custom)}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-garage-text-muted">-</span>
+                      )}
+                    </td>
                     <td className="py-3">
                       {user.is_admin ? (
                         <span className="px-2 py-1 text-xs bg-primary/20 text-primary rounded">Admin</span>
@@ -142,11 +161,25 @@ export default function UserManagementModal({
                       )}
                     </td>
                     <td className="py-3">
-                      {user.auth_method === 'oidc' ? (
-                        <span className="px-2 py-1 text-xs bg-warning/20 text-warning rounded">OIDC</span>
-                      ) : (
-                        <span className="px-2 py-1 text-xs bg-garage-border text-garage-text-muted rounded">Local</span>
-                      )}
+                      <button
+                        onClick={() => handleToggleDashboard(user)}
+                        className={`p-1.5 rounded transition-colors ${
+                          user.show_on_family_dashboard
+                            ? 'bg-success/20 hover:bg-success/30'
+                            : 'hover:bg-garage-border'
+                        }`}
+                        title={
+                          user.show_on_family_dashboard
+                            ? 'Remove from family dashboard'
+                            : 'Add to family dashboard'
+                        }
+                      >
+                        {user.show_on_family_dashboard ? (
+                          <Eye className="w-4 h-4 text-success" />
+                        ) : (
+                          <EyeOff className="w-4 h-4 text-garage-text-muted" />
+                        )}
+                      </button>
                     </td>
                     <td className="py-3 text-right">
                       <div className="flex items-center justify-end gap-2">

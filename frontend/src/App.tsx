@@ -28,6 +28,7 @@ const Analytics = lazy(() => import('./pages/Analytics'))
 const GarageAnalytics = lazy(() => import('./pages/GarageAnalytics'))
 const Settings = lazy(() => import('./pages/Settings'))
 const About = lazy(() => import('./pages/About'))
+const FamilyDashboard = lazy(() => import('./pages/FamilyDashboard'))
 
 // Loading component
 const LoadingFallback = () => (
@@ -66,6 +67,7 @@ function App() {
                     <Route path="vehicles/:vin/analytics" element={<Analytics />} />
                     <Route path="settings" element={<Settings />} />
                     <Route path="about" element={<About />} />
+                    <Route path="family" element={<FamilyDashboard />} />
                   </Route>
                 </Route>
               </Routes>

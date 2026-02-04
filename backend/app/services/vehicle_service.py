@@ -5,12 +5,13 @@
 import logging
 
 from fastapi import HTTPException
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
 from app.models.vehicle import Vehicle
+from app.models.vehicle_share import VehicleShare
 from app.schemas.vehicle import VehicleCreate, VehicleUpdate
 from app.utils.logging_utils import sanitize_for_log
 
@@ -29,6 +30,8 @@ class VehicleService:
         """
         Get list of vehicles for the current user.
 
+        Includes both owned vehicles and vehicles shared with the user.
+
         Args:
             current_user: The authenticated user (None if auth_mode='none')
             skip: Number of records to skip (pagination)
@@ -42,9 +45,23 @@ class VehicleService:
             query = select(Vehicle).order_by(Vehicle.created_at.desc())
 
             # If auth is disabled, show all vehicles
-            # Non-admin users can only see their own vehicles
+            # Admin users see all vehicles
+            # Non-admin users see their own vehicles + shared vehicles
             if current_user is not None and not current_user.is_admin:
-                query = query.where(Vehicle.user_id == current_user.id)
+                # Get VINs of vehicles shared with this user
+                shared_vins_subquery = (
+                    select(VehicleShare.vehicle_vin)
+                    .where(VehicleShare.user_id == current_user.id)
+                    .scalar_subquery()
+                )
+
+                # User can see: owned vehicles OR shared vehicles
+                query = query.where(
+                    or_(
+                        Vehicle.user_id == current_user.id,
+                        Vehicle.vin.in_(shared_vins_subquery),
+                    )
+                )
 
             # Get vehicles with pagination
             result = await self.db.execute(query.offset(skip).limit(limit))
@@ -53,7 +70,17 @@ class VehicleService:
             # Get total count with same filter
             count_query = select(func.count()).select_from(Vehicle)
             if current_user is not None and not current_user.is_admin:
-                count_query = count_query.where(Vehicle.user_id == current_user.id)
+                shared_vins_subquery = (
+                    select(VehicleShare.vehicle_vin)
+                    .where(VehicleShare.user_id == current_user.id)
+                    .scalar_subquery()
+                )
+                count_query = count_query.where(
+                    or_(
+                        Vehicle.user_id == current_user.id,
+                        Vehicle.vin.in_(shared_vins_subquery),
+                    )
+                )
 
             count_result = await self.db.execute(count_query)
             total = count_result.scalar()

@@ -3,18 +3,8 @@ import { X, Eye, EyeOff } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '@/services/api'
 import { passwordSchema } from '@/schemas/auth'
-
-interface User {
-  id: number
-  username: string
-  email: string
-  full_name: string | null
-  is_active: boolean
-  is_admin: boolean
-  auth_method: 'local' | 'oidc'
-  oidc_subject: string | null
-  oidc_provider: string | null
-}
+import { RELATIONSHIP_PRESETS } from '@/types/family'
+import type { User } from '@/types/user'
 
 interface AddEditUserModalProps {
   isOpen: boolean
@@ -35,6 +25,8 @@ export default function AddEditUserModal({ isOpen, onClose, user, onSave, curren
     confirmPassword: '',
     is_admin: false,
     is_active: true,
+    relationship: '' as string,
+    relationship_custom: '',
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(false)
@@ -51,6 +43,8 @@ export default function AddEditUserModal({ isOpen, onClose, user, onSave, curren
         confirmPassword: '',
         is_admin: user.is_admin,
         is_active: user.is_active,
+        relationship: user.relationship || '',
+        relationship_custom: user.relationship_custom || '',
       })
     } else {
       setFormData({
@@ -61,6 +55,8 @@ export default function AddEditUserModal({ isOpen, onClose, user, onSave, curren
         confirmPassword: '',
         is_admin: false,
         is_active: true,
+        relationship: '',
+        relationship_custom: '',
       })
     }
     setErrors({})
@@ -101,6 +97,8 @@ export default function AddEditUserModal({ isOpen, onClose, user, onSave, curren
           full_name: formData.full_name || null,
           is_admin: formData.is_admin,
           is_active: formData.is_active,
+          relationship: formData.relationship || null,
+          relationship_custom: formData.relationship === 'other' ? formData.relationship_custom || null : null,
         })
 
         // Update password separately if provided
@@ -118,6 +116,8 @@ export default function AddEditUserModal({ isOpen, onClose, user, onSave, curren
           email: formData.email,
           full_name: formData.full_name || null,
           password: formData.password,
+          relationship: formData.relationship || null,
+          relationship_custom: formData.relationship === 'other' ? formData.relationship_custom || null : null,
         })
 
         const newUserId = response.data.id
@@ -151,7 +151,7 @@ export default function AddEditUserModal({ isOpen, onClose, user, onSave, curren
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-garage-surface border border-garage-border rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="p-6 border-b border-garage-border flex items-center justify-between sticky top-0 bg-garage-surface">
@@ -255,6 +255,45 @@ export default function AddEditUserModal({ isOpen, onClose, user, onSave, curren
                 </button>
               </div>
               {errors.confirmPassword && <p className="text-sm text-danger mt-1">{errors.confirmPassword}</p>}
+            </div>
+          )}
+
+          {/* Relationship */}
+          <div>
+            <label className="block text-sm font-medium text-garage-text mb-1.5">
+              Relationship
+            </label>
+            <select
+              value={formData.relationship}
+              onChange={(e) => setFormData({ ...formData, relationship: e.target.value, relationship_custom: e.target.value !== 'other' ? '' : formData.relationship_custom })}
+              className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary"
+            >
+              <option value="">None</option>
+              {RELATIONSHIP_PRESETS.map((preset) => (
+                <option key={preset.value} value={preset.value}>
+                  {preset.label}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-garage-text-muted mt-1">
+              Family relationship for the family dashboard
+            </p>
+          </div>
+
+          {/* Custom Relationship (only when "Other" is selected) */}
+          {formData.relationship === 'other' && (
+            <div>
+              <label className="block text-sm font-medium text-garage-text mb-1.5">
+                Custom Relationship
+              </label>
+              <input
+                type="text"
+                value={formData.relationship_custom}
+                onChange={(e) => setFormData({ ...formData, relationship_custom: e.target.value })}
+                placeholder="e.g., Roommate, Neighbor, Coworker"
+                maxLength={100}
+                className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary"
+              />
             </div>
           )}
 

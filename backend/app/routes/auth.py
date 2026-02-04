@@ -17,6 +17,7 @@ from app.models.csrf_token import CSRFToken
 from app.models.settings import Setting
 from app.models.user import User
 from app.schemas.user import (
+    AdminUserCreate,
     LoginRequest,
     Token,
     UserCreate,
@@ -209,6 +210,29 @@ async def get_user_count(
     return {"count": count}
 
 
+@router.get("/relationship-presets")
+async def get_relationship_presets():
+    """Get list of available relationship presets for user management.
+
+    Returns a list of relationship types that can be assigned to users
+    to indicate their relationship to the admin/account owner.
+
+    Available presets:
+    - spouse: Spouse/Partner
+    - child: Child
+    - parent: Parent
+    - sibling: Sibling
+    - grandparent: Grandparent
+    - grandchild: Grandchild
+    - in_law: In-Law
+    - friend: Friend
+    - other: Other (allows custom text)
+    """
+    from app.schemas.user import RELATIONSHIP_PRESETS
+
+    return {"presets": RELATIONSHIP_PRESETS}
+
+
 @router.get("/csrf-token")
 async def refresh_csrf_token(
     current_user: User | None = Depends(optional_auth),
@@ -331,9 +355,32 @@ async def list_users(
     return users
 
 
+@router.get("/users/shareable")
+async def get_shareable_users(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get list of users available for vehicle sharing.
+
+    Returns minimal user info (id, display_name, relationship) for all active
+    users except the current user. This is used to populate the "Share with"
+    dropdown when sharing vehicles.
+
+    **Security:**
+    - Requires authentication (any authenticated user)
+    - Excludes current user and disabled users
+    - Returns minimal data only (no email, admin status, etc.)
+    """
+    from app.services.sharing_service import SharingService
+
+    service = SharingService(db)
+    users = await service.get_shareable_users(current_user)
+    return {"users": users}
+
+
 @router.post("/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def create_user(
-    user_data: UserCreate,
+    user_data: AdminUserCreate,
     current_user: User = Depends(get_current_admin_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -342,6 +389,11 @@ async def create_user(
     This is the only way to create users after the first admin account is created.
     New users are created as inactive by default and must be activated by an admin.
     Requires multi_user_enabled setting to be true.
+
+    Supports setting relationship type during creation:
+    - relationship: One of spouse, child, parent, sibling, grandparent, grandchild, in_law, friend, other
+    - relationship_custom: Custom text when relationship is 'other'
+    - show_on_family_dashboard: Whether to show on family dashboard (default: false)
     """
     # Check if multi-user mode is enabled
     result = await db.execute(select(Setting).where(Setting.key == "multi_user_enabled"))
@@ -378,6 +430,10 @@ async def create_user(
         hashed_password=hashed_password,
         is_active=False,  # Inactive by default, admin must activate
         is_admin=False,  # Non-admin by default
+        # Family/relationship fields
+        relationship=user_data.relationship,
+        relationship_custom=user_data.relationship_custom,
+        show_on_family_dashboard=user_data.show_on_family_dashboard,
     )
 
     db.add(new_user)
@@ -446,6 +502,22 @@ async def update_user(
 
     if user_update.is_admin is not None:
         user.is_admin = user_update.is_admin
+
+    # Family/relationship fields
+    if user_update.relationship is not None:
+        user.relationship = user_update.relationship
+        # Clear custom relationship if switching away from 'other'
+        if user_update.relationship != "other":
+            user.relationship_custom = None
+
+    if user_update.relationship_custom is not None:
+        user.relationship_custom = user_update.relationship_custom
+
+    if user_update.show_on_family_dashboard is not None:
+        user.show_on_family_dashboard = user_update.show_on_family_dashboard
+
+    if user_update.family_dashboard_order is not None:
+        user.family_dashboard_order = user_update.family_dashboard_order
 
     user.updated_at = datetime.now(UTC)
 

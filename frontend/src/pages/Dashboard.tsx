@@ -1,12 +1,13 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useLocation } from 'react-router-dom'
-import { Plus, Car as CarIcon, SlidersHorizontal } from 'lucide-react'
+import { Plus, Car as CarIcon, SlidersHorizontal, Filter } from 'lucide-react'
 import VehicleStatisticsCard from '../components/VehicleStatisticsCard'
 import VehicleWizard from '../components/VehicleWizard'
 import type { DashboardResponse } from '../types/dashboard'
 import api from '../services/api'
 
 type SortOption = 'name' | 'year-new' | 'year-old' | 'reminders'
+type FilterOption = 'all' | 'owned' | 'shared'
 
 export default function Dashboard() {
   const location = useLocation()
@@ -14,6 +15,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [showWizard, setShowWizard] = useState(false)
   const [sortBy, setSortBy] = useState<SortOption>('name')
+  const [filterBy, setFilterBy] = useState<FilterOption>('all')
 
   useEffect(() => {
     // Load dashboard data when component mounts or navigation occurs
@@ -35,12 +37,25 @@ export default function Dashboard() {
     loadDashboard()
   }
 
-  // Sort vehicles
+  // Check if there are any shared vehicles
+  const hasSharedVehicles = useMemo(() => {
+    return dashboard?.vehicles?.some((v) => v.is_shared_with_me) ?? false
+  }, [dashboard?.vehicles])
+
+  // Filter and sort vehicles
   const sortedVehicles = useMemo(() => {
     if (!dashboard?.vehicles) return []
 
+    // Apply filter first
+    let filtered = dashboard.vehicles
+    if (filterBy === 'owned') {
+      filtered = dashboard.vehicles.filter((v) => !v.is_shared_with_me)
+    } else if (filterBy === 'shared') {
+      filtered = dashboard.vehicles.filter((v) => v.is_shared_with_me)
+    }
+
     // Apply sorting
-    const sorted = [...dashboard.vehicles].sort((a, b) => {
+    const sorted = [...filtered].sort((a, b) => {
       switch (sortBy) {
         case 'name':
           return `${a.year} ${a.make} ${a.model}`.localeCompare(
@@ -62,7 +77,7 @@ export default function Dashboard() {
     })
 
     return sorted
-  }, [dashboard?.vehicles, sortBy])
+  }, [dashboard?.vehicles, sortBy, filterBy])
 
   const vehicleCount = dashboard?.total_vehicles || 0
 
@@ -80,6 +95,27 @@ export default function Dashboard() {
             </p>
           </div>
           <div className="flex items-center gap-3">
+            {/* Filter - only show if there are shared vehicles */}
+            {vehicleCount > 0 && hasSharedVehicles && (
+              <div className="relative">
+                <select
+                  value={filterBy}
+                  onChange={(e) => setFilterBy(e.target.value as FilterOption)}
+                  className="pl-3 pr-10 py-2 border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text appearance-none cursor-pointer"
+                >
+                  <option value="all" className="bg-garage-bg text-garage-text">
+                    All Vehicles
+                  </option>
+                  <option value="owned" className="bg-garage-bg text-garage-text">
+                    My Vehicles
+                  </option>
+                  <option value="shared" className="bg-garage-bg text-garage-text">
+                    Shared With Me
+                  </option>
+                </select>
+                <Filter className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-garage-text-muted pointer-events-none" />
+              </div>
+            )}
             {/* Sort */}
             {vehicleCount > 0 && (
               <div className="relative">

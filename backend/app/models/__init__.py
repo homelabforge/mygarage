@@ -27,11 +27,13 @@ from app.models.spot_rental_billing import SpotRentalBilling
 from app.models.tax import TaxRecord
 from app.models.vehicle import TrailerDetails, Vehicle
 from app.models.vehicle_dtc import VehicleDTC
+from app.models.vehicle_share import VehicleShare
 from app.models.vehicle_telemetry import (
     TelemetryDailySummary,
     VehicleTelemetry,
     VehicleTelemetryLatest,
 )
+from app.models.vehicle_transfer import VehicleTransfer
 from app.models.vendor import Vendor
 from app.models.vendor_price_history import VendorPriceHistory
 from app.models.warranty import WarrantyRecord
@@ -65,6 +67,9 @@ __all__ = [
     "VehicleDTC",
     "DTCDefinition",
     "DriveSession",
+    # Family Multi-User
+    "VehicleShare",
+    "VehicleTransfer",
     # System
     "Setting",
     "AddressBookEntry",

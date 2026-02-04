@@ -350,13 +350,19 @@ async def require_auth(
     return await get_current_user(request, db, token)
 
 
-async def get_vehicle_or_403(vin: str, current_user: User | None, db: AsyncSession):
-    """Get vehicle if user owns it or is admin, else raise 403.
+async def get_vehicle_or_403(
+    vin: str,
+    current_user: User | None,
+    db: AsyncSession,
+    require_write: bool = False,
+):
+    """Get vehicle if user has access (owner, admin, or shared), else raise 403.
 
     Args:
         vin: Vehicle VIN
         current_user: Current authenticated user (None if auth_mode='none')
         db: Database session
+        require_write: If True, requires write permission for shared vehicles
 
     Returns:
         Vehicle object if user has access
@@ -366,6 +372,7 @@ async def get_vehicle_or_403(vin: str, current_user: User | None, db: AsyncSessi
         HTTPException 403: User does not have access to this vehicle
     """
     from app.models.vehicle import Vehicle
+    from app.models.vehicle_share import VehicleShare
 
     result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
     vehicle = result.scalar_one_or_none()
@@ -381,11 +388,29 @@ async def get_vehicle_or_403(vin: str, current_user: User | None, db: AsyncSessi
     if current_user.is_admin:
         return vehicle
 
-    # Check if vehicle belongs to user
-    if not hasattr(vehicle, "user_id") or vehicle.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Not authorized to access this vehicle")
+    # Check if vehicle belongs to user (owner has full access)
+    if hasattr(vehicle, "user_id") and vehicle.user_id == current_user.id:
+        return vehicle
 
-    return vehicle
+    # Check if user has share access
+    share_result = await db.execute(
+        select(VehicleShare).where(
+            VehicleShare.vehicle_vin == vin,
+            VehicleShare.user_id == current_user.id,
+        )
+    )
+    share = share_result.scalar_one_or_none()
+
+    if share:
+        # User has share access
+        if require_write and share.permission != "write":
+            raise HTTPException(
+                status_code=403,
+                detail="Write permission required for this action",
+            )
+        return vehicle
+
+    raise HTTPException(status_code=403, detail="Not authorized to access this vehicle")
 
 
 def check_vehicle_ownership(vehicle: Vehicle, current_user: User | None) -> None:

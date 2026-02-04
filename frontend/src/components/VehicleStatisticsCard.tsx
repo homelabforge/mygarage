@@ -11,6 +11,7 @@ import {
   Camera,
   TrendingUp,
   AlertCircle,
+  Share2,
 } from 'lucide-react'
 import type { VehicleStatistics } from '../types/dashboard'
 import { formatDateForDisplay } from '../utils/dateUtils'
@@ -69,6 +70,17 @@ function VehicleStatisticsCard({ stats }: VehicleStatisticsCardProps) {
           </h3>
           <p className="text-sm text-garage-text-muted">{stats.vin}</p>
         </div>
+
+        {/* Shared badge */}
+        {stats.is_shared_with_me && (
+          <div
+            className="absolute top-3 left-3 bg-info text-white px-2 py-1 rounded-md text-xs font-semibold flex items-center gap-1"
+            title={`Shared by ${stats.shared_by_username}${stats.share_permission === 'write' ? ' (can edit)' : ' (view only)'}`}
+          >
+            <Share2 className="w-3 h-3" />
+            Shared
+          </div>
+        )}
 
         {/* Reminder badges */}
         {stats.overdue_reminders_count > 0 && (

@@ -102,25 +102,19 @@ export default function SettingsBackupTab() {
     }
   }
 
-  const handleDownload = async (filename: string) => {
-    try {
-      const response = await api.get(`/backup/download/${filename}`, {
-        responseType: 'blob'
-      })
+  const handleDownload = (filename: string) => {
+    // Use direct browser download instead of loading into memory via AJAX
+    // This provides proper progress indication and doesn't consume browser memory
+    const baseUrl = api.defaults.baseURL || ''
+    const downloadUrl = `${baseUrl}/backup/download/${encodeURIComponent(filename)}`
 
-      const blob = response.data
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = filename
-      document.body.appendChild(a)
-      a.click()
-      window.URL.revokeObjectURL(url)
-      document.body.removeChild(a)
-    } catch {
-      // Removed console.error
-      setMessage({ type: 'error', text: `Failed to download ${filename}` })
-    }
+    // Create a temporary link and trigger native browser download
+    const a = document.createElement('a')
+    a.href = downloadUrl
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
   }
 
   const handleRestore = async (filename: string, isFullBackup: boolean) => {

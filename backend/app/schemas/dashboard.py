@@ -40,6 +40,11 @@ class VehicleStatistics(BaseModel):
     archived_at: datetime | None = None
     archived_visible: bool = True
 
+    # Sharing info (for shared vehicles)
+    is_shared_with_me: bool = False
+    shared_by_username: str | None = None
+    share_permission: str | None = None  # 'read' or 'write'
+
     class Config:
         from_attributes = True
 

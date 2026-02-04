@@ -16,6 +16,7 @@ from app.models import (
     Vehicle,
 )
 from app.models.user import User
+from app.models.vehicle_share import VehicleShare
 from app.schemas.dashboard import DashboardResponse, VehicleStatistics
 from app.services.auth import optional_auth
 from app.services.fuel_service import calculate_mpg
@@ -27,7 +28,13 @@ PHOTO_DIR = Path("/data/photos")
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
 
 
-async def calculate_vehicle_stats(db: AsyncSession, vehicle: Vehicle) -> VehicleStatistics:
+async def calculate_vehicle_stats(
+    db: AsyncSession,
+    vehicle: Vehicle,
+    is_shared_with_me: bool = False,
+    shared_by_username: str | None = None,
+    share_permission: str | None = None,
+) -> VehicleStatistics:
     """Calculate statistics for a single vehicle"""
 
     # Count records
@@ -158,6 +165,9 @@ async def calculate_vehicle_stats(db: AsyncSession, vehicle: Vehicle) -> Vehicle
         recent_mpg=recent_mpg,
         archived_at=vehicle.archived_at,
         archived_visible=vehicle.archived_visible,
+        is_shared_with_me=is_shared_with_me,
+        shared_by_username=shared_by_username,
+        share_permission=share_permission,
     )
 
 
@@ -167,23 +177,67 @@ async def get_dashboard(
     current_user: User | None = Depends(optional_auth),
 ):
     """
-    Get complete dashboard with statistics for all vehicles
-    Shows active vehicles + archived vehicles where archived_visible=True
-    """
-    # Get active vehicles and archived vehicles that are marked visible
-    result = await db.execute(
-        select(Vehicle).where(
-            (Vehicle.archived_at.is_(None))
-            | ((Vehicle.archived_at.isnot(None)) & (Vehicle.archived_visible.is_(True)))
-        )
-    )
-    vehicles = result.scalars().all()
+    Get complete dashboard with statistics for all vehicles.
 
-    # Calculate statistics for each vehicle
+    For authenticated users: Shows owned vehicles + shared vehicles.
+    For unauthenticated: Shows all active vehicles (legacy behavior).
+    Shows active vehicles + archived vehicles where archived_visible=True.
+    """
     vehicle_stats = []
-    for vehicle in vehicles:
-        stats = await calculate_vehicle_stats(db, vehicle)
-        vehicle_stats.append(stats)
+
+    if current_user and not current_user.is_admin:
+        # Non-admin user: get owned vehicles
+        owned_result = await db.execute(
+            select(Vehicle).where(
+                Vehicle.user_id == current_user.id,
+                (Vehicle.archived_at.is_(None))
+                | ((Vehicle.archived_at.isnot(None)) & (Vehicle.archived_visible.is_(True))),
+            )
+        )
+        owned_vehicles = owned_result.scalars().all()
+
+        # Get stats for owned vehicles
+        for vehicle in owned_vehicles:
+            stats = await calculate_vehicle_stats(db, vehicle)
+            vehicle_stats.append(stats)
+
+        # Get shared vehicles
+        shared_result = await db.execute(
+            select(VehicleShare, Vehicle, User)
+            .join(Vehicle, VehicleShare.vehicle_vin == Vehicle.vin)
+            .join(User, Vehicle.user_id == User.id)
+            .where(
+                VehicleShare.user_id == current_user.id,
+                (Vehicle.archived_at.is_(None))
+                | ((Vehicle.archived_at.isnot(None)) & (Vehicle.archived_visible.is_(True))),
+            )
+        )
+        shared_rows = shared_result.all()
+
+        # Get stats for shared vehicles
+        for share, vehicle, owner in shared_rows:
+            stats = await calculate_vehicle_stats(
+                db,
+                vehicle,
+                is_shared_with_me=True,
+                shared_by_username=owner.username,
+                share_permission=share.permission,
+            )
+            vehicle_stats.append(stats)
+    else:
+        # Admin or unauthenticated: get all vehicles (legacy behavior)
+        result = await db.execute(
+            select(Vehicle).where(
+                (Vehicle.archived_at.is_(None))
+                | ((Vehicle.archived_at.isnot(None)) & (Vehicle.archived_visible.is_(True)))
+            )
+        )
+        vehicles = result.scalars().all()
+
+        # Calculate statistics for each vehicle
+        for vehicle in vehicles:
+            stats = await calculate_vehicle_stats(db, vehicle)
+            vehicle_stats.append(stats)
 
     # Calculate garage-wide totals
     total_service = sum(v.total_service_records for v in vehicle_stats)

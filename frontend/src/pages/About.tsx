@@ -12,6 +12,7 @@ import {
   Bell,
   Calendar,
   Radio,
+  Users,
 } from 'lucide-react'
 import { useAppVersion } from '../hooks/useAppVersion'
 
@@ -124,6 +125,22 @@ const featureGroups = [
     ],
   },
   {
+    title: 'Family Multi-User System',
+    description: 'Household vehicle management with sharing, transfers, and family dashboard.',
+    icon: Users,
+    points: [
+      'User relationships (spouse, child, parent, sibling, etc.) with custom option for flexibility.',
+      'Vehicle sharing with read or write permissions - grant access without transferring ownership.',
+      'Permanent vehicle transfers between family members with complete audit trail.',
+      'Selective data transfer - choose which records (service, fuel, documents, photos) to include.',
+      'Transfer history timeline showing ownership changes with dates, notes, and who performed each transfer.',
+      'Family dashboard (admin-only) showing all members, their vehicles, and overdue/upcoming reminders.',
+      'Dashboard member management - control visibility and display order of family members.',
+      'Shared vehicle indicators with blue badge and filter dropdown (All/My Vehicles/Shared With Me).',
+      'OIDC-compatible user management - admins can manage users regardless of authentication method.',
+    ],
+  },
+  {
     title: 'Recall Monitoring & Safety',
     description: 'Stay informed about vehicle recalls and safety issues.',
     icon: Shield,
@@ -169,10 +186,10 @@ const frontendStack = [
 ]
 
 const projectStats = [
-  { label: 'Total Lines of Code', value: '~95,600', icon: Code },
-  { label: 'Python Backend', value: '~53,800', icon: Database },
-  { label: 'TypeScript Frontend', value: '~41,800', icon: Layers },
-  { label: 'Interactive Pages', value: '19', icon: BarChart3 },
+  { label: 'Total Lines of Code', value: '~102,000', icon: Code },
+  { label: 'Python Backend', value: '~57,300', icon: Database },
+  { label: 'TypeScript Frontend', value: '~44,700', icon: Layers },
+  { label: 'Interactive Pages', value: '20', icon: BarChart3 },
 ]
 
 export default function About() {

@@ -31,6 +31,11 @@ export interface VehicleStatistics {
   // Archive status
   archived_at?: string
   archived_visible: boolean
+
+  // Sharing info (for shared vehicles)
+  is_shared_with_me?: boolean
+  shared_by_username?: string
+  share_permission?: 'read' | 'write'
 }
 
 export interface DashboardResponse {

@@ -233,6 +233,7 @@ from app.routes import (
     window_sticker_router,
 )
 from app.routes.auth import router as auth_router
+from app.routes.family import router as family_router
 from app.routes.livelink import router as livelink_ingest_router
 from app.routes.livelink_admin import router as livelink_admin_router
 from app.routes.livelink_vehicle import router as livelink_vehicle_router
@@ -240,6 +241,7 @@ from app.routes.oidc import router as oidc_router
 from app.routes.poi import router as poi_router
 
 app.include_router(auth_router)
+app.include_router(family_router)
 app.include_router(oidc_router)
 app.include_router(vin_router)
 app.include_router(vehicles_router)

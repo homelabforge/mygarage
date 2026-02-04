@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Family Dashboard Management Modal** - Dedicated modal for managing family dashboard member visibility and ordering
+  - Toggle member visibility on/off with Eye icon buttons
+  - Reorder visible members with up/down arrows
+  - Separates visible and hidden members into distinct sections
+  - Real-time API updates (no "Save" button needed)
+- **Transfer History Section** - Display vehicle ownership transfer history on VehicleDetail page
+  - Collapsible timeline showing ownership transfers
+  - Displays from_user → to_user with relationship badges
+  - Shows transfer date, transferred_by admin, and notes
+  - Shows data included (service records, fuel logs, etc.) as badges
+- **Dashboard Shared Vehicle Badge & Filter** - Visual distinction for shared vehicles
+  - Blue "Shared" badge on vehicle cards when vehicle is shared with you
+  - Tooltip shows who shared the vehicle and permission level (view/edit)
+  - Filter dropdown (All Vehicles / My Vehicles / Shared With Me) - only appears if you have shared vehicles
 - **LiveLink Integration** - Real-time vehicle telemetry monitoring with WiCAN OBD2 devices
   - **HTTPS POST Transport** - WiCAN PRO devices can push telemetry directly to MyGarage with token authentication
   - **MQTT Subscription** - Subscribe to MQTT broker for telemetry from any WiCAN device (PRO or standard)
@@ -22,12 +36,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Wiki Documentation** - Comprehensive LiveLink guide, FAQ section, and troubleshooting
 
 ### Fixed
+- **OIDC Admin User Management** - OIDC admins can now access Multi-User Management in Settings
+  - Previously restricted to local auth admins only
+  - Add User button and multi-user toggle hidden for OIDC (users managed in identity provider)
 - **Odometer Sync Sanity Checks** - Prevent corrupted values (0xFFFFFF sentinel) from being stored
   - Added 1 million mile absolute cap
   - Added 10,000 mile jump limit to catch overflow values
   - Capped dates to today to prevent future-dated entries from device clock issues
+- **Backup Download Performance** - Fixed slow backup downloads by using native browser download
+  - Previously loaded entire file into memory via AJAX before triggering download
+  - Now uses direct browser navigation, providing proper progress indication and reduced memory usage
+- **Backup Upload Visibility** - Uploaded backups now appear in the backup list
+  - Previously, uploaded files with non-standard names wouldn't match the listing glob pattern
+  - Now renames uploaded files to `mygarage-{type}-uploaded-{timestamp}.{ext}` for consistency
+  - Added validation for missing filename
 
 ### Changed
+- **Centralized User Types** - Consolidated duplicate User interface definitions into single source of truth
+  - Created `frontend/src/types/user.ts` with canonical User interface
+  - Updated UserManagementModal, AddEditUserModal, and SettingsSystemTab to import from shared type
+- **Authentication Mode UI** - Redesigned Settings > System authentication configuration
+  - Renamed "Local JWT" button to "Local" for clarity
+  - Local and OIDC configuration now open in modal dialogs instead of inline forms
+  - Tab buttons (None, Local, OIDC) now only select the mode; click "Configure" to open settings
+  - Modal backdrops use blur effect for better visual hierarchy
+  - Moved Archived Vehicles card below Authentication Mode card in layout
 - **LiveLink Dashboard Widget** - Removed battery voltage from compact vehicle card view (still visible in full LiveLink tab)
 - **LiveLink Tab Header** - Removed battery voltage from status bar for cleaner display
 
