@@ -2,12 +2,15 @@
  * Odometer Record type definitions
  */
 
+export type OdometerSource = 'manual' | 'livelink' | 'import'
+
 export interface OdometerRecord {
   id: number
   vin: string
   date: string
   mileage: number
   notes?: string
+  source?: OdometerSource
   created_at: string
 }
 

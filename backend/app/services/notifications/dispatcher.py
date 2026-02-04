@@ -30,6 +30,11 @@ EVENT_SETTINGS_MAP = {
     "warranty_expiring": ("ntfy_enabled", "notify_warranty_expiring"),
     # Milestone notifications
     "odometer_milestone": ("ntfy_enabled", "notify_milestones"),
+    # LiveLink notifications
+    "livelink_new_device": ("ntfy_enabled", "notify_livelink_new_device"),
+    "livelink_device_offline": ("ntfy_enabled", "notify_livelink_device_offline"),
+    "livelink_threshold_alert": ("ntfy_enabled", "notify_livelink_threshold_alerts"),
+    "livelink_firmware_update": ("ntfy_enabled", "notify_livelink_firmware_update"),
 }
 
 # Priority mapping for different event types
@@ -40,6 +45,11 @@ EVENT_PRIORITY_MAP = {
     "insurance_expiring": "high",
     "warranty_expiring": "default",
     "odometer_milestone": "low",
+    # LiveLink events
+    "livelink_new_device": "default",
+    "livelink_device_offline": "high",
+    "livelink_threshold_alert": "high",
+    "livelink_firmware_update": "low",
 }
 
 # Tags mapping for different event types (emoji names for ntfy)
@@ -50,6 +60,11 @@ EVENT_TAGS_MAP = {
     "insurance_expiring": ["page_facing_up", "warning"],
     "warranty_expiring": ["shield", "calendar"],
     "odometer_milestone": ["tada", "car"],
+    # LiveLink events
+    "livelink_new_device": ["satellite", "car"],
+    "livelink_device_offline": ["warning", "satellite"],
+    "livelink_threshold_alert": ["warning", "thermometer"],
+    "livelink_firmware_update": ["arrow_up", "satellite"],
 }
 
 
@@ -358,4 +373,73 @@ class NotificationDispatcher:
             title=f"Milestone Reached: {vehicle_name}",
             message=f"Congratulations! {vehicle_name} has reached {formatted_milestone} miles!",
             url=url,
+        )
+
+    # LiveLink notification convenience methods
+
+    async def notify_livelink_new_device(
+        self,
+        device_id: str,
+        hw_version: str | None = None,
+        url: str | None = None,
+    ) -> dict[str, bool]:
+        """Send notification about newly discovered LiveLink device."""
+        hw_info = f" ({hw_version})" if hw_version else ""
+        return await self.dispatch(
+            event_type="livelink_new_device",
+            title="New LiveLink Device Discovered",
+            message=f"A new WiCAN device{hw_info} has been detected: {device_id}. Link it to a vehicle to start receiving telemetry.",
+            url=url,
+        )
+
+    async def notify_livelink_device_offline(
+        self,
+        device_id: str,
+        vehicle_name: str | None = None,
+        offline_minutes: int | None = None,
+        url: str | None = None,
+    ) -> dict[str, bool]:
+        """Send notification when LiveLink device goes offline."""
+        vehicle_info = f" for {vehicle_name}" if vehicle_name else ""
+        duration_info = f" for {offline_minutes} minutes" if offline_minutes else ""
+        return await self.dispatch(
+            event_type="livelink_device_offline",
+            title=f"LiveLink Device Offline{vehicle_info}",
+            message=f"Device {device_id}{vehicle_info} has been offline{duration_info}. Check vehicle battery and WiFi connectivity.",
+            url=url,
+        )
+
+    async def notify_livelink_threshold_alert(
+        self,
+        vehicle_name: str,
+        parameter_name: str,
+        value: float,
+        threshold_type: str,
+        threshold_value: float,
+        unit: str | None = None,
+        url: str | None = None,
+    ) -> dict[str, bool]:
+        """Send notification when telemetry value exceeds threshold."""
+        unit_str = f" {unit}" if unit else ""
+        direction = "exceeded maximum" if threshold_type == "max" else "dropped below minimum"
+        return await self.dispatch(
+            event_type="livelink_threshold_alert",
+            title=f"Threshold Alert: {vehicle_name}",
+            message=f"{parameter_name} {direction} ({value:.1f}{unit_str} vs threshold {threshold_value:.1f}{unit_str}).",
+            url=url,
+        )
+
+    async def notify_livelink_firmware_update(
+        self,
+        device_id: str,
+        current_version: str,
+        latest_version: str,
+        release_url: str | None = None,
+    ) -> dict[str, bool]:
+        """Send notification about available firmware update."""
+        return await self.dispatch(
+            event_type="livelink_firmware_update",
+            title="WiCAN Firmware Update Available",
+            message=f"Device {device_id} is running v{current_version}. Version {latest_version} is available.",
+            url=release_url,
         )

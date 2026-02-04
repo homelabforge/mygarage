@@ -451,6 +451,51 @@ DEFAULT_SETTINGS = {
         "description": "TomTom API key for Places API (2,500 free requests/day)",
         "encrypted": True,
     },
+    # ============================================
+    # LiveLink MQTT Settings
+    # ============================================
+    "livelink_mqtt_enabled": {
+        "value": "false",
+        "category": "livelink",
+        "description": "Enable MQTT subscription for WiCAN devices (alternative to HTTPS POST)",
+        "encrypted": False,
+    },
+    "livelink_mqtt_broker_host": {
+        "value": "",
+        "category": "livelink",
+        "description": "MQTT broker hostname or IP address (e.g., 10.10.1.11 or mqtt.local)",
+        "encrypted": False,
+    },
+    "livelink_mqtt_broker_port": {
+        "value": "1883",
+        "category": "livelink",
+        "description": "MQTT broker port (default: 1883, TLS: 8883)",
+        "encrypted": False,
+    },
+    "livelink_mqtt_username": {
+        "value": "",
+        "category": "livelink",
+        "description": "MQTT broker username (optional, leave empty for anonymous)",
+        "encrypted": False,
+    },
+    "livelink_mqtt_password": {
+        "value": "",
+        "category": "livelink",
+        "description": "MQTT broker password (optional)",
+        "encrypted": True,
+    },
+    "livelink_mqtt_topic_prefix": {
+        "value": "wican",
+        "category": "livelink",
+        "description": "MQTT topic prefix (default: wican). Subscribes to {prefix}/{device_id}/#",
+        "encrypted": False,
+    },
+    "livelink_mqtt_use_tls": {
+        "value": "false",
+        "category": "livelink",
+        "description": "Use TLS/SSL for MQTT connection",
+        "encrypted": False,
+    },
 }
 
 

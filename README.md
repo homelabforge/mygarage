@@ -23,6 +23,7 @@ Self-hosted vehicle maintenance tracking with VIN decoding, service records, fue
 - **VIN Decoding** - Automatic vehicle details via NHTSA API
 - **Service Visits** - Track maintenance with line items, tax/fees, and attachments
 - **Maintenance Scheduling** - Proactive maintenance tracking with due date/mileage alerts
+- **LiveLink Telemetry** - Real-time OBD2 data via WiCAN devices (HTTPS POST or MQTT)
 - **POI Finder** - Discover nearby auto shops, EV charging, and fuel stations with interactive map
 - **Fuel Tracking** - Log fill-ups with automatic MPG calculations
 - **Fifth Wheel & Trailer Support** - Propane tracking, spot rental billing, and RV park management

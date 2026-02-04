@@ -29,6 +29,9 @@ import {
   MapPin,
   MoreVertical,
   X,
+  Radio,
+  Activity,
+  Clock,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import vehicleService from '../services/vehicleService'
@@ -49,7 +52,12 @@ import SafetyTab from '../components/tabs/SafetyTab'
 import TaxRecordList from '../components/TaxRecordList'
 import SpotRentalsTab from '../components/tabs/SpotRentalsTab'
 import PropaneTab from '../components/tabs/PropaneTab'
+import LiveLinkLiveTab from '../components/tabs/LiveLinkLiveTab'
+import LiveLinkDTCsTab from '../components/tabs/LiveLinkDTCsTab'
+import LiveLinkSessionsTab from '../components/tabs/LiveLinkSessionsTab'
+import LiveLinkChartsTab from '../components/tabs/LiveLinkChartsTab'
 import SubTabNav from '../components/SubTabNav'
+import { livelinkService } from '../services/livelinkService'
 import WindowStickerUpload from '../components/WindowStickerUpload'
 import VehicleRemoveModal from '../components/modals/VehicleRemoveModal'
 import { useOnlineStatus } from '../hooks/useOnlineStatus'
@@ -81,8 +89,8 @@ const getApiErrorMessage = (error: unknown, fallback: string) => {
   return fallback
 }
 
-type PrimaryTabType = 'overview' | 'media' | 'maintenance' | 'tracking' | 'financial'
-type SubTabType = 'photos' | 'documents' | 'service' | 'fuel' | 'propane' | 'odometer' | 'reminders' | 'notes' | 'warranties' | 'insurance' | 'tax' | 'tolls' | 'spotrentals' | 'recalls' | 'reports'
+type PrimaryTabType = 'overview' | 'media' | 'maintenance' | 'tracking' | 'financial' | 'livelink'
+type SubTabType = 'photos' | 'documents' | 'service' | 'fuel' | 'propane' | 'odometer' | 'reminders' | 'notes' | 'warranties' | 'insurance' | 'tax' | 'tolls' | 'spotrentals' | 'recalls' | 'reports' | 'live' | 'dtcs' | 'sessions' | 'charts'
 
 export default function VehicleDetail() {
   const { vin } = useParams<{ vin: string }>()
@@ -99,6 +107,7 @@ export default function VehicleDetail() {
   const [importing, setImporting] = useState(false)
   const [fromCache, setFromCache] = useState(false)
   const [showMobileMenu, setShowMobileMenu] = useState(false)
+  const [hasLiveLinkDevice, setHasLiveLinkDevice] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const isOnline = useOnlineStatus()
   const loadVehicle = useCallback(async () => {
@@ -133,6 +142,21 @@ export default function VehicleDetail() {
     loadVehicle()
   }, [loadVehicle])
 
+  // Check if vehicle has a linked LiveLink device
+  useEffect(() => {
+    const checkLiveLinkDevice = async () => {
+      if (!vin) return
+      try {
+        const hasDevice = await livelinkService.hasLinkedDevice(vin)
+        setHasLiveLinkDevice(hasDevice)
+      } catch {
+        // Silently fail - LiveLink tab just won't show
+        setHasLiveLinkDevice(false)
+      }
+    }
+    checkLiveLinkDevice()
+  }, [vin])
+
   // Handle URL tab parameter from calendar navigation
   useEffect(() => {
     const tabParam = searchParams.get('tab')
@@ -155,6 +179,10 @@ export default function VehicleDetail() {
       'spotrentals': { primary: 'financial', sub: 'spotrentals' },
       'recalls': { primary: 'maintenance', sub: 'recalls' },
       'reports': { primary: 'tracking', sub: 'reports' },
+      'live': { primary: 'livelink', sub: 'live' },
+      'dtcs': { primary: 'livelink', sub: 'dtcs' },
+      'sessions': { primary: 'livelink', sub: 'sessions' },
+      'charts': { primary: 'livelink', sub: 'charts' },
     }
 
     const mapping = tabMapping[tabParam]
@@ -334,6 +362,9 @@ export default function VehicleDetail() {
       case 'overview':
         setActiveSubTab(null)
         break
+      case 'livelink':
+        setActiveSubTab('live')
+        break
     }
   }
 
@@ -404,6 +435,13 @@ export default function VehicleDetail() {
       icon: DollarSign,
       hasSubTabs: true
     },
+    // LiveLink tab - only visible when vehicle has linked device
+    ...(hasLiveLinkDevice ? [{
+      id: 'livelink' as const,
+      label: 'LiveLink',
+      icon: Radio,
+      hasSubTabs: true
+    }] : []),
   ]
 
   // Sub-tabs for each primary tab
@@ -430,6 +468,12 @@ export default function VehicleDetail() {
       { id: 'tax' as const, label: 'Tax & Registration', icon: DollarSign },
       { id: 'tolls' as const, label: 'Tolls', icon: CreditCard },
       { id: 'spotrentals' as const, label: 'Spot Rentals', icon: MapPin, visible: isRVOrFifthWheel },
+    ],
+    livelink: [
+      { id: 'live' as const, label: 'Live', icon: Activity },
+      { id: 'dtcs' as const, label: 'DTCs', icon: AlertTriangle },
+      { id: 'sessions' as const, label: 'Sessions', icon: Clock },
+      { id: 'charts' as const, label: 'Charts', icon: BarChart3 },
     ],
   }
 
@@ -1112,6 +1156,12 @@ export default function VehicleDetail() {
         {activePrimaryTab === 'financial' && activeSubTab === 'tax' && vin && <TaxRecordList vin={vin} />}
         {activePrimaryTab === 'financial' && activeSubTab === 'tolls' && vin && <TollsTab vin={vin} />}
         {activePrimaryTab === 'financial' && activeSubTab === 'spotrentals' && vin && <SpotRentalsTab vin={vin} />}
+
+        {/* LiveLink Sub-tabs */}
+        {activePrimaryTab === 'livelink' && activeSubTab === 'live' && vin && <LiveLinkLiveTab vin={vin} />}
+        {activePrimaryTab === 'livelink' && activeSubTab === 'dtcs' && vin && <LiveLinkDTCsTab vin={vin} />}
+        {activePrimaryTab === 'livelink' && activeSubTab === 'sessions' && vin && <LiveLinkSessionsTab vin={vin} />}
+        {activePrimaryTab === 'livelink' && activeSubTab === 'charts' && vin && <LiveLinkChartsTab vin={vin} />}
       </div>
 
       {/* Vehicle Remove Modal */}

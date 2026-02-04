@@ -207,7 +207,9 @@ class POIProviderRegistry:
             provider_name_raw = config["name"]
             provider = self.providers.get(provider_name_raw)
             if not provider:
-                logger.warning("Provider %s not registered, skipping", sanitize_for_log(provider_name_raw))
+                logger.warning(
+                    "Provider %s not registered, skipping", sanitize_for_log(provider_name_raw)
+                )
                 continue
 
             try:

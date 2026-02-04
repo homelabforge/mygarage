@@ -24,6 +24,9 @@ class OdometerRecord(Base):
     date: Mapped[dt.date] = mapped_column(Date, nullable=False)
     mileage: Mapped[int] = mapped_column(Integer, nullable=False)
     notes: Mapped[str | None] = mapped_column(Text)
+    source: Mapped[str] = mapped_column(
+        String(20), default="manual"
+    )  # manual, livelink, service, fuel
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     # Relationships
@@ -35,6 +38,7 @@ class OdometerRecord(Base):
         Index("idx_odometer_records_mileage", "mileage"),  # For mileage queries
         Index("idx_odometer_vin_date", "vin", "date"),  # Composite for common queries
         Index("idx_odometer_vin_mileage", "vin", "mileage"),  # For mileage tracking
+        Index("idx_odometer_source", "source"),  # For filtering by source
     )
 
 

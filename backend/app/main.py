@@ -87,8 +87,15 @@ async def lifespan(app: FastAPI):
             logger.warning("⚠️  This should NEVER be used in production environments!")
             logger.warning("=" * 80)
 
+    # Start MQTT subscriber if enabled
+    from app.tasks.livelink_tasks import start_mqtt_subscriber, stop_mqtt_subscriber
+
+    await start_mqtt_subscriber()
+
     yield
 
+    # Stop MQTT subscriber on shutdown
+    await stop_mqtt_subscriber()
     logger.info("Shutting down MyGarage application...")
 
 
@@ -226,6 +233,9 @@ from app.routes import (
     window_sticker_router,
 )
 from app.routes.auth import router as auth_router
+from app.routes.livelink import router as livelink_ingest_router
+from app.routes.livelink_admin import router as livelink_admin_router
+from app.routes.livelink_vehicle import router as livelink_vehicle_router
 from app.routes.oidc import router as oidc_router
 from app.routes.poi import router as poi_router
 
@@ -266,6 +276,9 @@ app.include_router(shop_discovery_router)  # Backward compatibility (deprecated)
 app.include_router(vendors_router)
 app.include_router(service_visits_router)
 app.include_router(maintenance_schedule_router)
+app.include_router(livelink_ingest_router)
+app.include_router(livelink_admin_router)
+app.include_router(livelink_vehicle_router)
 
 
 # Serve static files (frontend build) in production

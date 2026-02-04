@@ -16,6 +16,7 @@ import type { VehicleStatistics } from '../types/dashboard'
 import { formatDateForDisplay } from '../utils/dateUtils'
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { UnitFormatter } from '../utils/units'
+import VehicleLiveLinkWidget from './livelink/VehicleLiveLinkWidget'
 
 interface VehicleStatisticsCardProps {
   stats: VehicleStatistics
@@ -186,6 +187,9 @@ function VehicleStatisticsCard({ stats }: VehicleStatisticsCardProps) {
             </div>
           </div>
         </div>
+
+        {/* LiveLink Widget - shows only if vehicle has a linked device */}
+        <VehicleLiveLinkWidget vin={stats.vin} />
 
         {/* View Details Button */}
         <button

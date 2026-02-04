@@ -33,6 +33,7 @@ dependencies = [
     "pytesseract>=0.3.13",
     "aiosmtplib>=3.0.0",  # Async SMTP for email notifications
     "pyyaml>=6.0.1",  # YAML parsing for maintenance templates
+    "aiomqtt>=2.3.0",  # Async MQTT client for LiveLink WiCAN support
 ]
 
 [project.optional-dependencies]

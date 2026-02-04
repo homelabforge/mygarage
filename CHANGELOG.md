@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **LiveLink Integration** - Real-time vehicle telemetry monitoring with WiCAN OBD2 devices
+  - **HTTPS POST Transport** - WiCAN PRO devices can push telemetry directly to MyGarage with token authentication
+  - **MQTT Subscription** - Subscribe to MQTT broker for telemetry from any WiCAN device (PRO or standard)
+  - **Real-time Dashboard** - Live gauges displaying speed, RPM, coolant temp, and other parameters
+  - **Drive Sessions** - Automatic session detection on engine start/stop with trip statistics
+  - **DTC Monitoring** - Track diagnostic trouble codes with severity levels and user notes
+  - **Odometer Auto-Sync** - Automatic odometer updates from telemetry with LiveLink badge
+  - **Historical Charts** - Time-series visualization with multi-parameter overlay and CSV export
+  - **Device Management** - Link devices to vehicles, per-device tokens, firmware update notifications
+  - **Threshold Alerts** - Configurable warnings for parameters like coolant temp and battery voltage
+  - **Data Retention** - Configurable retention periods (30-365 days) with daily aggregation
+  - **Wiki Documentation** - Comprehensive LiveLink guide, FAQ section, and troubleshooting
+
+### Fixed
+- **Odometer Sync Sanity Checks** - Prevent corrupted values (0xFFFFFF sentinel) from being stored
+  - Added 1 million mile absolute cap
+  - Added 10,000 mile jump limit to catch overflow values
+  - Capped dates to today to prevent future-dated entries from device clock issues
+
+### Changed
+- **LiveLink Dashboard Widget** - Removed battery voltage from compact vehicle card view (still visible in full LiveLink tab)
+- **LiveLink Tab Header** - Removed battery voltage from status bar for cleaner display
+
+### Dev Dependencies
+- **@vitejs/plugin-react-swc**: 4.2.2 → 4.2.3
+- **eslint-plugin-react-refresh**: 0.4.26 → 0.5.0
+- **globals**: 17.2.0 → 17.3.0
+- **jsdom**: 27.4.0 → 28.0.0
+- **aiomqtt**: Added >=2.3.0 for MQTT subscription support
+
 ## [2.20.4] - 2026-01-31
 
 ### Fixed

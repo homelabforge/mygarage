@@ -1,9 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
-import { CheckCircle, AlertCircle, Plug, Check, X, Plus } from 'lucide-react'
+import { CheckCircle, AlertCircle, Plug, Check, X, Plus, Radio, Settings, ArrowUpCircle } from 'lucide-react'
 import { useSettings } from '@/contexts/SettingsContext'
 import api from '@/services/api'
+import { livelinkService } from '@/services/livelinkService'
+import type { LiveLinkSettings, LiveLinkDeviceListResponse, DeviceFirmwareStatus } from '@/types/livelink'
 import AddProviderModal from '../modals/AddProviderModal'
 import EditProviderModal from '../modals/EditProviderModal'
+import LiveLinkSettingsModal from '../modals/LiveLinkSettingsModal'
 
 // Sample VIN for testing NHTSA API connection
 const TEST_VIN = '1HGCM82633A123456'
@@ -37,6 +40,13 @@ export default function SettingsIntegrationsTab() {
   const [isAddProviderModalOpen, setIsAddProviderModalOpen] = useState(false)
   const [selectedProvider, setSelectedProvider] = useState<POIProvider | null>(null)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [isLiveLinkModalOpen, setIsLiveLinkModalOpen] = useState(false)
+
+  // LiveLink state
+  const [livelinkSettings, setLivelinkSettings] = useState<LiveLinkSettings | null>(null)
+  const [livelinkDevices, setLivelinkDevices] = useState<LiveLinkDeviceListResponse | null>(null)
+  const [livelinkFirmware, setLivelinkFirmware] = useState<DeviceFirmwareStatus[]>([])
+  const [livelinkLoading, setLivelinkLoading] = useState(true)
 
   const [formData, setFormData] = useState({
     nhtsa_enabled: 'true',
@@ -78,11 +88,6 @@ export default function SettingsIntegrationsTab() {
     }
   }, [])
 
-  useEffect(() => {
-    loadSettings()
-    loadProviders()
-  }, [loadSettings])
-
   const loadProviders = async () => {
     try {
       console.log('Loading POI providers...')
@@ -94,6 +99,33 @@ export default function SettingsIntegrationsTab() {
       setMessage({ type: 'error', text: 'Failed to load POI providers' })
     }
   }
+
+  const loadLiveLinkData = useCallback(async () => {
+    setLivelinkLoading(true)
+    try {
+      const [settings, devices, firmware] = await Promise.all([
+        livelinkService.getSettings(),
+        livelinkService.getDevices(),
+        livelinkService.getDeviceFirmwareStatus(),
+      ])
+      setLivelinkSettings(settings)
+      setLivelinkDevices(devices)
+      setLivelinkFirmware(firmware)
+    } catch {
+      // LiveLink may not be configured yet, silently ignore
+      setLivelinkSettings(null)
+      setLivelinkDevices(null)
+      setLivelinkFirmware([])
+    } finally {
+      setLivelinkLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadSettings()
+    loadProviders()
+    loadLiveLinkData()
+  }, [loadSettings, loadLiveLinkData])
 
   const handleEditProvider = (provider: POIProvider) => {
     setSelectedProvider(provider)
@@ -287,7 +319,7 @@ export default function SettingsIntegrationsTab() {
             <button
               onClick={handleTestNHTSA}
               disabled={testing || formData.nhtsa_enabled === 'false'}
-              className="flex items-center gap-2 btn-primary transition-colors disabled:opacity-50"
+              className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors disabled:opacity-50"
             >
               <CheckCircle size={16} />
               {testing ? 'Testing Connection...' : 'Test NHTSA Connection'}
@@ -414,6 +446,95 @@ export default function SettingsIntegrationsTab() {
         </div>
         </div>
 
+        {/* LiveLink Integration */}
+        <div className="bg-garage-surface rounded-lg border border-garage-border p-6">
+          <div className="flex items-start gap-3 mb-6">
+            <Radio className="w-6 h-6 text-primary mt-1" />
+            <div className="flex-1">
+              <h2 className="text-xl font-semibold text-garage-text mb-2">LiveLink</h2>
+              <p className="text-sm text-garage-text-muted">
+                Real-time vehicle telemetry from WiCAN PRO OBD2 devices
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            {livelinkLoading ? (
+              <div className="text-sm text-garage-text-muted">Loading LiveLink status...</div>
+            ) : (
+              <>
+                {/* Status Indicator */}
+                <div className="flex items-center gap-2">
+                  <div
+                    className={`w-3 h-3 rounded-full ${
+                      !livelinkSettings?.enabled
+                        ? 'bg-gray-500'
+                        : livelinkDevices && livelinkDevices.online_count > 0
+                        ? 'bg-green-500'
+                        : 'bg-yellow-500'
+                    }`}
+                  />
+                  <span className="text-sm text-garage-text">
+                    {!livelinkSettings?.enabled
+                      ? 'Disabled'
+                      : livelinkDevices && livelinkDevices.online_count > 0
+                      ? 'Receiving data'
+                      : livelinkDevices && livelinkDevices.total > 0
+                      ? 'No data (devices offline)'
+                      : 'No devices configured'}
+                  </span>
+                </div>
+
+                {/* Device Summary */}
+                {livelinkDevices && livelinkDevices.total > 0 && (
+                  <div className="text-sm text-garage-text-muted">
+                    {livelinkDevices.total} device{livelinkDevices.total !== 1 ? 's' : ''} linked
+                    {livelinkDevices.online_count > 0 && (
+                      <span className="text-green-500">
+                        , {livelinkDevices.online_count} online
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {/* Firmware Update Badge */}
+                {livelinkFirmware.some((d) => d.update_available) && (
+                  <div className="flex items-center gap-2 text-sm text-yellow-500">
+                    <ArrowUpCircle className="w-4 h-4" />
+                    <span>Firmware update available</span>
+                  </div>
+                )}
+
+                {/* Configure Button */}
+                <div className="pt-4 border-t border-garage-border">
+                  <button
+                    onClick={() => setIsLiveLinkModalOpen(true)}
+                    className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors"
+                  >
+                    <Settings size={16} />
+                    Configure LiveLink
+                  </button>
+                  <p className="mt-2 text-sm text-garage-text-muted">
+                    Manage devices, tokens, alerts, and data retention
+                  </p>
+                </div>
+              </>
+            )}
+
+            {/* Info Box */}
+            <div className="bg-garage-bg rounded-lg p-4 border border-garage-border">
+              <h3 className="text-sm font-medium text-garage-text mb-2">About LiveLink</h3>
+              <p className="text-sm text-garage-text-muted">
+                LiveLink connects WiCAN PRO OBD2 devices to MyGarage for real-time vehicle telemetry.
+                Track engine parameters, detect drive sessions, and receive diagnostic trouble code alerts.
+              </p>
+              <p className="text-sm text-garage-text-muted mt-2">
+                <strong>Requires:</strong> WiCAN PRO with firmware v4.40 or newer
+              </p>
+            </div>
+          </div>
+        </div>
+
         <AddProviderModal
           isOpen={isAddProviderModalOpen}
           onClose={() => setIsAddProviderModalOpen(false)}
@@ -425,6 +546,11 @@ export default function SettingsIntegrationsTab() {
           provider={selectedProvider}
           onClose={() => setIsEditModalOpen(false)}
           onSave={loadProviders}
+        />
+
+        <LiveLinkSettingsModal
+          isOpen={isLiveLinkModalOpen}
+          onClose={() => setIsLiveLinkModalOpen(false)}
         />
       </div>
     </div>

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { formatDateForDisplay } from '../utils/dateUtils'
-import { Gauge, Plus, Edit, Trash2, Calendar, Download, Upload } from 'lucide-react'
+import { Gauge, Plus, Edit, Trash2, Calendar, Download, Upload, Radio } from 'lucide-react'
 import { toast } from 'sonner'
 import type { OdometerRecord } from '../types/odometer'
 import api from '../services/api'
@@ -272,6 +272,11 @@ export default function OdometerRecordList({ vin, onAddClick, onEditClick, onRef
                       <div className="flex items-center gap-2 text-sm font-medium text-garage-text">
                         <Gauge className="w-4 h-4 text-garage-text-muted" />
                         {UnitFormatter.formatDistance(record.mileage, system, showBoth)}
+                        {record.source === 'livelink' && (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs bg-primary/10 text-primary" title="Auto-tracked by LiveLink">
+                            <Radio className="w-3 h-3" />
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="px-4 py-3">

@@ -103,6 +103,7 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
         "/api/settings/public",  # Public settings endpoint
         "/api/backup/",  # Backup routes (protected by JWT auth, no user input)
         "/api/settings/batch",  # User preferences (protected by JWT auth, auto-save)
+        "/api/v1/livelink/ingest",  # WiCAN device ingestion (protected by Bearer token auth)
     ]
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:

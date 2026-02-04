@@ -11,6 +11,7 @@ import {
   BarChart3,
   Bell,
   Calendar,
+  Radio,
 } from 'lucide-react'
 import { useAppVersion } from '../hooks/useAppVersion'
 
@@ -45,6 +46,22 @@ const featureGroups = [
       'Attachment support for receipts, invoices, and service documentation.',
       'Service history timeline with searchable and filterable views.',
       'Real-time vehicle statistics showing service records, fuel consumption, and maintenance history.',
+    ],
+  },
+  {
+    title: 'LiveLink OBD2 Telemetry',
+    description: 'Real-time vehicle data via WiCAN devices with HTTPS POST or MQTT.',
+    icon: Radio,
+    points: [
+      'WiCAN device integration supporting both HTTPS POST (PRO) and MQTT (all models) transport.',
+      'Real-time telemetry dashboard with live gauges for speed, RPM, coolant temp, and more.',
+      'Automatic drive session detection on engine start/stop with trip statistics.',
+      'Diagnostic Trouble Code (DTC) monitoring with severity levels and user notes.',
+      'Automatic odometer sync from OBD2 with sanity checks to prevent invalid values.',
+      'Historical telemetry charts with time-series visualization and CSV export.',
+      'Device management with per-device tokens and firmware update notifications.',
+      'Configurable threshold alerts for parameters like coolant temperature and battery voltage.',
+      'Data retention policies (30-365 days) with daily aggregation for long-term trends.',
     ],
   },
   {
@@ -135,6 +152,7 @@ const backendStack = [
   'Database-backed settings with encrypted value support',
   'Multi-service notifications: ntfy, Gotify, Pushover, Slack, Discord, Telegram, Email',
   'aiosmtplib 3.0+ for async SMTP email delivery',
+  'aiomqtt 2.3+ for MQTT subscription (LiveLink telemetry)',
   'Comprehensive security middleware (CSP, rate limiting, audit logging)',
 ]
 
@@ -151,9 +169,9 @@ const frontendStack = [
 ]
 
 const projectStats = [
-  { label: 'Total Lines of Code', value: '~86,200', icon: Code },
-  { label: 'Python Backend', value: '~47,700', icon: Database },
-  { label: 'TypeScript Frontend', value: '~38,500', icon: Layers },
+  { label: 'Total Lines of Code', value: '~95,600', icon: Code },
+  { label: 'Python Backend', value: '~53,800', icon: Database },
+  { label: 'TypeScript Frontend', value: '~41,800', icon: Layers },
   { label: 'Interactive Pages', value: '19', icon: BarChart3 },
 ]
 
@@ -403,7 +421,7 @@ export default function About() {
             Made with <Heart className="w-4 h-4 text-danger" /> for the homelab community
           </p>
           <p className="text-garage-text-muted text-xs mt-2">
-            MyGarage v{version} • Built with AI collaboration • January 2026
+            MyGarage v{version} • Built with AI collaboration • February 2026
           </p>
         </div>
       </div>
