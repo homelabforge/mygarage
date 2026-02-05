@@ -267,20 +267,21 @@ class MQTTSubscriber:
         # Map status to ecu_status
         ecu_status = "online" if status == "online" else "offline"
 
-        # Update device status
-        await livelink_service.update_device_status(
-            device_id=device_id,
-            device_status="online",  # Device is online if we're getting MQTT messages
-            ecu_status=ecu_status,
-        )
-
-        # Handle session transitions if device is linked
+        # Handle session transitions BEFORE updating device status,
+        # so the transition detector sees the old ecu_status
         if device.vin:
             session_service = SessionService(db)
             if ecu_status == "online":
                 await session_service.handle_ecu_online(device.vin, device_id)
             else:
                 await session_service.handle_ecu_offline(device.vin, device_id)
+
+        # Update device status (after session detection has read old state)
+        await livelink_service.update_device_status(
+            device_id=device_id,
+            device_status="online",  # Device is online if we're getting MQTT messages
+            ecu_status=ecu_status,
+        )
 
         logger.debug("Updated device %s status: ecu=%s", device_id, ecu_status)
 
@@ -344,10 +345,25 @@ class MQTTSubscriber:
         if not device.enabled:
             return
 
-        # Update last_seen
+        # Infer ECU status from telemetry: if we're receiving data, ECU must be on
+        # This handles WiCAN devices that don't send explicit can/status messages
+        ecu_was_offline = device.ecu_status != "online"
+
+        # If ECU just came online, start a drive session BEFORE updating status,
+        # so the transition detector sees the old ecu_status
+        if ecu_was_offline:
+            session_service = SessionService(db)
+            await session_service.handle_ecu_online(device.vin, device_id)
+            logger.info(
+                "ECU online inferred from telemetry for device %s, started session",
+                device_id,
+            )
+
+        # Update last_seen and ECU status (after session detection)
         await livelink_service.update_device_status(
             device_id=device_id,
             device_status="online",
+            ecu_status="online",
         )
 
         # Normalize parameter keys and filter numeric values

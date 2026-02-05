@@ -143,8 +143,17 @@ async def ingest_wican_payload(
             results["device_new"] = is_new
             results["device_linked"] = device.vin is not None
 
-            # Update device status
+            # Handle ECU status transitions for session management BEFORE
+            # updating device status, so the transition detector sees the old state
             ecu_online = payload.status.ecu_status == "online"
+            if device.vin:
+                session_service = SessionService(db)
+                if ecu_online:
+                    await session_service.handle_ecu_online(device.vin, device_id)
+                else:
+                    await session_service.handle_ecu_offline(device.vin, device_id)
+
+            # Update device status (after session detection has read old state)
             await livelink_service.update_device_status(
                 device_id=device_id,
                 sta_ip=payload.status.sta_ip,
@@ -153,14 +162,6 @@ async def ingest_wican_payload(
                 ecu_status="online" if ecu_online else "offline",
                 device_status="online",
             )
-
-            # Handle ECU status transitions for session management
-            if device.vin:
-                session_service = SessionService(db)
-                if ecu_online:
-                    await session_service.handle_ecu_online(device.vin, device_id)
-                else:
-                    await session_service.handle_ecu_offline(device.vin, device_id)
         else:
             # Telemetry-only payload - just get the existing device
             device = await livelink_service.get_device_by_id(device_id)

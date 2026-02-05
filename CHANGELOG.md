@@ -36,6 +36,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Wiki Documentation** - Comprehensive LiveLink guide, FAQ section, and troubleshooting
 
 ### Fixed
+- **LiveLink Drive Sessions Not Recording** - Fixed three bugs preventing session creation
+  - Background scheduler (APScheduler) was never started — session timeouts and device offline detection never ran
+  - `set_device_offline` only reset `device_status` but not `ecu_status`, leaving it permanently stuck at "online"
+  - Status update was applied before session transition detection in all three ingestion paths (HTTPS, MQTT status, MQTT telemetry), causing the transition detector to see stale state
+- **LiveLink Session Aggregates Missing** - Fixed speed, RPM, coolant temp, throttle, and fuel stats showing "--" on completed sessions
+  - Aggregate calculation looked for generic param keys (`SPEED`, `ENGINE_RPM`) but WiCAN sends OBD2 PID-prefixed keys (`0D-VehicleSpeed`, `0C-EngineRPM`)
+  - Now matches both naming conventions via case-insensitive multi-key lookup
 - **NHTSA Recall Check Error Handling** - Fixed unhandled ValueError when VIN cannot be decoded by NHTSA
   - Route now catches ValueError from VIN decode failures and returns proper 422 response
   - Previously, invalid VINs would cause 500 Internal Server Error

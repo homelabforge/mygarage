@@ -356,12 +356,13 @@ class LiveLinkService:
         )
 
     async def set_device_offline(self, device_id: str) -> None:
-        """Mark a device as offline."""
+        """Mark a device and its ECU as offline."""
         await self.db.execute(
             update(LiveLinkDevice)
             .where(LiveLinkDevice.device_id == device_id)
             .values(
                 device_status="offline",
+                ecu_status="offline",
                 updated_at=datetime.now(UTC),
             )
         )

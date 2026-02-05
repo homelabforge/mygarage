@@ -87,6 +87,11 @@ async def lifespan(app: FastAPI):
             logger.warning("⚠️  This should NEVER be used in production environments!")
             logger.warning("=" * 80)
 
+    # Start scheduled background tasks (session timeouts, device offline detection, etc.)
+    from app.tasks.scheduled import start_scheduler, stop_scheduler
+
+    start_scheduler()
+
     # Start MQTT subscriber if enabled
     from app.tasks.livelink_tasks import start_mqtt_subscriber, stop_mqtt_subscriber
 
@@ -96,6 +101,7 @@ async def lifespan(app: FastAPI):
 
     # Stop MQTT subscriber on shutdown
     await stop_mqtt_subscriber()
+    stop_scheduler()
     logger.info("Shutting down MyGarage application...")
 
 
@@ -146,7 +152,7 @@ app.add_exception_handler(RequestValidationError, handle_validation_error)  # ty
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins,
+    allow_origins=settings.cors_origins_list,
     allow_credentials=True,  # Required for cookie-based authentication
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
     allow_headers=[

@@ -226,18 +226,29 @@ class SessionService:
         if not session.started_at or not session.ended_at:
             return
 
-        # Define which parameters to aggregate
+        # Define which parameters to aggregate.
+        # Each entry maps to a list of possible param_key names to check,
+        # since different WiCAN firmware/configs use different naming conventions
+        # (e.g. OBD2 PID-prefixed "0D-VehicleSpeed" vs generic "SPEED").
         aggregate_mappings = {
-            "speed": ("SPEED", "avg_speed", "max_speed"),
-            "rpm": ("ENGINE_RPM", "avg_rpm", "max_rpm"),
-            "coolant": ("COOLANT_TMP", "avg_coolant_temp", "max_coolant_temp"),
-            "throttle": ("THROTTLE", "avg_throttle", "max_throttle"),
-            "fuel": ("FUEL", "avg_fuel_level", None),
+            "speed": (["SPEED", "0D-VehicleSpeed", "0D-VEHICLESPEED"], "avg_speed", "max_speed"),
+            "rpm": (["ENGINE_RPM", "0C-EngineRPM", "0C-ENGINERPM"], "avg_rpm", "max_rpm"),
+            "coolant": (
+                ["COOLANT_TMP", "05-EngineCoolantTemp", "05-ENGINECOOLANTTEMP"],
+                "avg_coolant_temp",
+                "max_coolant_temp",
+            ),
+            "throttle": (
+                ["THROTTLE", "11-ThrottlePosition", "11-THROTTLEPOSITION"],
+                "avg_throttle",
+                "max_throttle",
+            ),
+            "fuel": (["FUEL", "2F-FuelTankLevel", "2F-FUELTANKLEVEL"], "avg_fuel_level", None),
         }
 
-        for _, (param_key, avg_attr, max_attr) in aggregate_mappings.items():
-            stats = await self._get_param_stats(
-                session.vin, param_key, session.started_at, session.ended_at
+        for _, (param_keys, avg_attr, max_attr) in aggregate_mappings.items():
+            stats = await self._get_param_stats_multi(
+                session.vin, param_keys, session.started_at, session.ended_at
             )
             count = stats.get("count")
             if count and count > 0:
@@ -246,15 +257,19 @@ class SessionService:
                 if max_attr:
                     setattr(session, max_attr, stats["max"])
 
-    async def _get_param_stats(
+    async def _get_param_stats_multi(
         self,
         vin: str,
-        param_key: str,
+        param_keys: list[str],
         start: datetime,
         end: datetime,
     ) -> dict[str, float | None]:
-        """Get stats for a parameter during a time range."""
-        # Handle case-insensitive param matching
+        """Get stats for a parameter during a time range.
+
+        Accepts multiple possible param_key names and matches any of them
+        (case-insensitive) to handle different WiCAN naming conventions.
+        """
+        upper_keys = [k.upper() for k in param_keys]
         result = await self.db.execute(
             select(
                 func.min(VehicleTelemetry.value),
@@ -263,7 +278,7 @@ class SessionService:
                 func.count(VehicleTelemetry.id),
             )
             .where(VehicleTelemetry.vin == vin)
-            .where(func.upper(VehicleTelemetry.param_key) == param_key.upper())
+            .where(func.upper(VehicleTelemetry.param_key).in_(upper_keys))
             .where(VehicleTelemetry.timestamp >= start)
             .where(VehicleTelemetry.timestamp <= end)
         )
