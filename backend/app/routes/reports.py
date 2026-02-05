@@ -306,7 +306,7 @@ async def download_service_history_csv(
                 record.service_type or "",
                 f"{float(record.cost):.2f}" if record.cost else "",
                 record.vendor_name or "",
-                record.vendor_phone or "",
+                record.vendor_location or "",
                 record.notes or "",
             ]
         )

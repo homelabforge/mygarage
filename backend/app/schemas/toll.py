@@ -186,15 +186,21 @@ class TollTransactionUpdate(BaseModel):
     notes: str | None = Field(None, description="Additional notes")
 
 
-class TollTransactionResponse(TollTransactionBase):
+class TollTransactionResponse(BaseModel):
     """Schema for toll transaction response."""
 
     id: int
     vin: str
+    transaction_date: dt.date = Field(..., alias="date", description="Transaction date")
+    amount: Decimal = Field(..., description="Toll amount")
+    location: str = Field(..., description="Toll location/plaza")
+    toll_tag_id: int | None = Field(None, description="Associated toll tag ID")
+    notes: str | None = Field(None, description="Additional notes")
     created_at: dt.datetime
 
     model_config = {
         "from_attributes": True,
+        "populate_by_name": True,
         "json_schema_extra": {
             "examples": [
                 {

@@ -60,13 +60,12 @@ export default function LiveLinkChartsTab({ vin }: LiveLinkChartsTabProps) {
     const fetchParameters = async () => {
       try {
         const data = await livelinkService.getParameters()
-        const dashboardParams = data.parameters.filter(
-          (p) => p.show_on_dashboard && !p.archive_only
-        )
-        setParameters(dashboardParams)
+        // Show all parameters except archive_only (charts should allow any parameter)
+        const chartableParams = data.parameters.filter((p) => !p.archive_only)
+        setParameters(chartableParams)
         // Default select first 3 parameters
-        if (dashboardParams.length > 0) {
-          setSelectedParams(dashboardParams.slice(0, 3).map((p) => p.param_key))
+        if (chartableParams.length > 0) {
+          setSelectedParams(chartableParams.slice(0, 3).map((p) => p.param_key))
         }
       } catch (err) {
         console.error('Failed to fetch parameters:', err)

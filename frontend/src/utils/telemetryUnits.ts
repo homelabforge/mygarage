@@ -59,11 +59,10 @@ function detectParamType(
     return 'temperature'
   }
 
-  // Distance detection
+  // Distance detection - EXCLUDE odometer/mileage (raw OBD2 values match user's locale)
+  // WiCAN reports odometer in the vehicle's native unit (miles for US, km for metric)
   if (
-    key.includes('distance') ||
-    key.includes('odometer') ||
-    key.includes('mileage') ||
+    (key.includes('distance') && !key.includes('odometer')) ||
     unitLower === 'km' ||
     unitLower === 'kilometers'
   ) {

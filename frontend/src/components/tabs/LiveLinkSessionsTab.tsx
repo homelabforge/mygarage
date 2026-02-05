@@ -54,13 +54,13 @@ export default function LiveLinkSessionsTab({ vin }: LiveLinkSessionsTabProps) {
     return `${minutes}m`
   }
 
-  const formatDistance = (km: number | null) => {
-    if (km === null) return '--'
-    if (unitSystem === 'imperial') {
-      const miles = km * 0.621371
-      return `${miles.toFixed(1)} mi`
-    }
-    return `${km.toFixed(1)} km`
+  // Odometer and distance values from sessions are raw OBD2 values
+  // They match the user's locale (miles for US, km for metric)
+  // No conversion needed - just display with the appropriate unit label
+  const formatOdometer = (value: number | null) => {
+    if (value === null) return '--'
+    const label = unitSystem === 'imperial' ? 'mi' : 'km'
+    return `${Math.round(value).toLocaleString()} ${label}`
   }
 
   const formatSpeed = (kmh: number | null) => {
@@ -120,7 +120,7 @@ export default function LiveLinkSessionsTab({ vin }: LiveLinkSessionsTabProps) {
           isExpanded={expandedSession === session.id}
           onToggle={() => toggleExpanded(session.id)}
           formatDuration={formatDuration}
-          formatDistance={formatDistance}
+          formatOdometer={formatOdometer}
           formatSpeed={formatSpeed}
           formatTemp={formatTemp}
         />
@@ -135,7 +135,7 @@ function SessionCard({
   isExpanded,
   onToggle,
   formatDuration,
-  formatDistance,
+  formatOdometer,
   formatSpeed,
   formatTemp,
 }: {
@@ -143,7 +143,7 @@ function SessionCard({
   isExpanded: boolean
   onToggle: () => void
   formatDuration: (s: number | null) => string
-  formatDistance: (km: number | null) => string
+  formatOdometer: (value: number | null) => string
   formatSpeed: (kmh: number | null) => string
   formatTemp: (c: number | null) => string
 }) {
@@ -202,7 +202,7 @@ function SessionCard({
             {session.distance_km !== null && (
               <div className="flex items-center gap-1">
                 <MapPin className="w-4 h-4" />
-                <span>{formatDistance(session.distance_km)}</span>
+                <span>{formatOdometer(session.distance_km)}</span>
               </div>
             )}
             {session.max_speed !== null && (
@@ -236,7 +236,7 @@ function SessionCard({
             <StatCard
               icon={<MapPin className="w-5 h-5 text-primary" />}
               label="Distance"
-              value={formatDistance(session.distance_km)}
+              value={formatOdometer(session.distance_km)}
             />
 
             {/* Speed */}
@@ -269,7 +269,7 @@ function SessionCard({
               <StatCard
                 icon={<Gauge className="w-5 h-5 text-primary" />}
                 label="Odometer Start / End"
-                value={`${formatDistance(session.start_odometer)} → ${formatDistance(session.end_odometer)}`}
+                value={`${formatOdometer(session.start_odometer)} → ${formatOdometer(session.end_odometer)}`}
               />
             )}
           </div>

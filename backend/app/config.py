@@ -118,8 +118,6 @@ class Settings(BaseSettings):
             return not self.debug
 
     # Security Settings
-    auth_enabled: bool = True
-    allow_auth_none: bool = False  # Allow auth_mode='none' in production (security risk!)
     cors_origins: list[str] = [
         "http://localhost:3000",
         "http://localhost:5173",
