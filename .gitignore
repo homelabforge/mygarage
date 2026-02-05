@@ -21,8 +21,6 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
-__pycache__/
-*.py[cod]
 
 # Virtual Environments
 venv/
@@ -39,6 +37,7 @@ htmlcov/
 .tox/
 .nox/
 coverage.xml
+coverage.json
 *.cover
 .hypothesis/
 
@@ -117,10 +116,12 @@ alembic.ini
 .ipynb_checkpoints/
 *.ipynb
 
-# mypy
+# Linters / Type Checkers
 .mypy_cache/
 .dmypy.json
 dmypy.json
+.ruff_cache/
+.pyright/
 
 # Pyre type checker
 .pyre/

@@ -97,6 +97,7 @@ async def client(db_session, test_data_dir: Path) -> AsyncGenerator[AsyncClient]
     """Provide an async HTTP client for testing API endpoints."""
     from app.routes import documents as documents_route
     from app.routes import photos as photos_route
+    from app.routes import window_sticker as window_sticker_route
     from app.services import file_upload_service
 
     # Override the get_db dependency to use our test session
@@ -122,12 +123,14 @@ async def client(db_session, test_data_dir: Path) -> AsyncGenerator[AsyncClient]
     original_attachment_base_dir = file_upload_service.ATTACHMENT_UPLOAD_CONFIG.base_dir
     original_doc_storage_path = documents_route.DOCUMENT_STORAGE_PATH
     original_photo_dir = photos_route.PHOTO_DIR
+    original_sticker_storage_path = window_sticker_route.STICKER_STORAGE_PATH
 
     file_upload_service.PHOTO_UPLOAD_CONFIG.base_dir = test_data_dir / "photos"
     file_upload_service.DOCUMENT_UPLOAD_CONFIG.base_dir = test_data_dir / "documents"
     file_upload_service.ATTACHMENT_UPLOAD_CONFIG.base_dir = test_data_dir / "attachments"
     documents_route.DOCUMENT_STORAGE_PATH = test_data_dir / "documents"
     photos_route.PHOTO_DIR = test_data_dir / "photos"
+    window_sticker_route.STICKER_STORAGE_PATH = test_data_dir / "documents"
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         yield ac
@@ -144,6 +147,7 @@ async def client(db_session, test_data_dir: Path) -> AsyncGenerator[AsyncClient]
     file_upload_service.ATTACHMENT_UPLOAD_CONFIG.base_dir = original_attachment_base_dir
     documents_route.DOCUMENT_STORAGE_PATH = original_doc_storage_path
     photos_route.PHOTO_DIR = original_photo_dir
+    window_sticker_route.STICKER_STORAGE_PATH = original_sticker_storage_path
 
     # Clean up overrides
     app.dependency_overrides.clear()

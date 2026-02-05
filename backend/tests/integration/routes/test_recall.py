@@ -13,9 +13,7 @@ from httpx import AsyncClient
 class TestRecallRoutes:
     """Test recall API endpoints."""
 
-    async def test_list_recalls(
-        self, client: AsyncClient, auth_headers, test_vehicle
-    ):
+    async def test_list_recalls(self, client: AsyncClient, auth_headers, test_vehicle):
         """Test listing recalls for a vehicle."""
         response = await client.get(
             f"/api/vehicles/{test_vehicle['vin']}/recalls",
@@ -30,9 +28,7 @@ class TestRecallRoutes:
         assert "resolved_count" in data
         assert isinstance(data["recalls"], list)
 
-    async def test_get_recall_by_id(
-        self, client: AsyncClient, auth_headers, test_vehicle
-    ):
+    async def test_get_recall_by_id(self, client: AsyncClient, auth_headers, test_vehicle):
         """Test retrieving a specific recall."""
         # First create a recall
         create_response = await client.post(
@@ -60,9 +56,7 @@ class TestRecallRoutes:
         assert data["component"] == "Airbag"
         assert data["nhtsa_campaign_number"] == "24V001"
 
-    async def test_create_recall(
-        self, client: AsyncClient, auth_headers, test_vehicle
-    ):
+    async def test_create_recall(self, client: AsyncClient, auth_headers, test_vehicle):
         """Test creating a new recall manually."""
         payload = {
             "vin": test_vehicle["vin"],
@@ -92,9 +86,7 @@ class TestRecallRoutes:
         assert "id" in data
         assert "created_at" in data
 
-    async def test_update_recall(
-        self, client: AsyncClient, auth_headers, test_vehicle
-    ):
+    async def test_update_recall(self, client: AsyncClient, auth_headers, test_vehicle):
         """Test updating a recall."""
         # Create a recall
         create_response = await client.post(
@@ -126,9 +118,7 @@ class TestRecallRoutes:
         assert data["is_resolved"] is True
         assert data["resolved_at"] is not None
 
-    async def test_delete_recall(
-        self, client: AsyncClient, auth_headers, test_vehicle
-    ):
+    async def test_delete_recall(self, client: AsyncClient, auth_headers, test_vehicle):
         """Test deleting a recall."""
         # Create a recall
         create_response = await client.post(
@@ -163,9 +153,7 @@ class TestRecallRoutes:
 
         assert response.status_code == 401
 
-    async def test_recall_vehicle_not_found(
-        self, client: AsyncClient, auth_headers
-    ):
+    async def test_recall_vehicle_not_found(self, client: AsyncClient, auth_headers):
         """Test recalls with non-existent vehicle."""
         response = await client.get(
             "/api/vehicles/1HGBH000000000000/recalls",
@@ -174,9 +162,7 @@ class TestRecallRoutes:
 
         assert response.status_code == 404
 
-    async def test_recall_not_found(
-        self, client: AsyncClient, auth_headers, test_vehicle
-    ):
+    async def test_recall_not_found(self, client: AsyncClient, auth_headers, test_vehicle):
         """Test get recall with non-existent ID."""
         response = await client.get(
             f"/api/vehicles/{test_vehicle['vin']}/recalls/99999",
@@ -185,9 +171,7 @@ class TestRecallRoutes:
 
         assert response.status_code == 404
 
-    async def test_create_resolved_recall(
-        self, client: AsyncClient, auth_headers, test_vehicle
-    ):
+    async def test_create_resolved_recall(self, client: AsyncClient, auth_headers, test_vehicle):
         """Test creating an already-resolved recall."""
         payload = {
             "vin": test_vehicle["vin"],
@@ -207,9 +191,7 @@ class TestRecallRoutes:
         assert data["is_resolved"] is True
         assert data["resolved_at"] is not None
 
-    async def test_mark_recall_unresolved(
-        self, client: AsyncClient, auth_headers, test_vehicle
-    ):
+    async def test_mark_recall_unresolved(self, client: AsyncClient, auth_headers, test_vehicle):
         """Test marking a resolved recall as unresolved."""
         # Create a resolved recall
         create_response = await client.post(
@@ -305,24 +287,37 @@ class TestRecallRoutes:
         for recall in data["recalls"]:
             assert recall["is_resolved"] is True
 
-    async def test_recall_counts(
-        self, client: AsyncClient, auth_headers, test_vehicle
-    ):
+    async def test_recall_counts(self, client: AsyncClient, auth_headers, test_vehicle):
         """Test that recall counts are calculated correctly."""
         # Create multiple recalls with different statuses
         await client.post(
             f"/api/vehicles/{test_vehicle['vin']}/recalls",
-            json={"vin": test_vehicle["vin"], "component": "Active1", "summary": "Test1", "is_resolved": False},
+            json={
+                "vin": test_vehicle["vin"],
+                "component": "Active1",
+                "summary": "Test1",
+                "is_resolved": False,
+            },
             headers=auth_headers,
         )
         await client.post(
             f"/api/vehicles/{test_vehicle['vin']}/recalls",
-            json={"vin": test_vehicle["vin"], "component": "Active2", "summary": "Test2", "is_resolved": False},
+            json={
+                "vin": test_vehicle["vin"],
+                "component": "Active2",
+                "summary": "Test2",
+                "is_resolved": False,
+            },
             headers=auth_headers,
         )
         await client.post(
             f"/api/vehicles/{test_vehicle['vin']}/recalls",
-            json={"vin": test_vehicle["vin"], "component": "Resolved1", "summary": "Test3", "is_resolved": True},
+            json={
+                "vin": test_vehicle["vin"],
+                "component": "Resolved1",
+                "summary": "Test3",
+                "is_resolved": True,
+            },
             headers=auth_headers,
         )
 
@@ -339,9 +334,7 @@ class TestRecallRoutes:
         assert data["active_count"] >= 2
         assert data["resolved_count"] >= 1
 
-    async def test_partial_update_recall(
-        self, client: AsyncClient, auth_headers, test_vehicle
-    ):
+    async def test_partial_update_recall(self, client: AsyncClient, auth_headers, test_vehicle):
         """Test partial update of recall."""
         # Create a recall
         create_response = await client.post(
@@ -372,9 +365,7 @@ class TestRecallRoutes:
         # Summary updated
         assert data["summary"] == "Updated summary with more details"
 
-    async def test_recall_with_all_fields(
-        self, client: AsyncClient, auth_headers, test_vehicle
-    ):
+    async def test_recall_with_all_fields(self, client: AsyncClient, auth_headers, test_vehicle):
         """Test creating a recall with all possible fields."""
         payload = {
             "vin": test_vehicle["vin"],
@@ -403,9 +394,7 @@ class TestRecallRoutes:
         assert data["date_announced"] == payload["date_announced"]
         assert data["notes"] == payload["notes"]
 
-    async def test_create_recall_minimal(
-        self, client: AsyncClient, auth_headers, test_vehicle
-    ):
+    async def test_create_recall_minimal(self, client: AsyncClient, auth_headers, test_vehicle):
         """Test creating a recall with minimal required fields."""
         payload = {
             "vin": test_vehicle["vin"],

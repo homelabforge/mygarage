@@ -28,6 +28,7 @@ class TestVINValidation:
         is_valid, error = validate_vin(short_vin)
 
         assert is_valid is False
+        assert error is not None
         assert "17 characters" in error
         assert "got 13" in error
 
@@ -37,6 +38,7 @@ class TestVINValidation:
         is_valid, error = validate_vin(long_vin)
 
         assert is_valid is False
+        assert error is not None
         assert "17 characters" in error
         assert "got 20" in error
 
@@ -46,6 +48,7 @@ class TestVINValidation:
         is_valid, error = validate_vin(invalid_vin)
 
         assert is_valid is False
+        assert error is not None
         assert "I, O, or Q" in error
 
     def test_validate_vin_contains_letter_o(self):
@@ -54,6 +57,7 @@ class TestVINValidation:
         is_valid, error = validate_vin(invalid_vin)
 
         assert is_valid is False
+        assert error is not None
         assert "I, O, or Q" in error
 
     def test_validate_vin_contains_letter_q(self):
@@ -62,6 +66,7 @@ class TestVINValidation:
         is_valid, error = validate_vin(invalid_vin)
 
         assert is_valid is False
+        assert error is not None
         assert "I, O, or Q" in error
 
     def test_validate_vin_lowercase_converted(self):
@@ -86,6 +91,7 @@ class TestVINValidation:
         is_valid, error = validate_vin(invalid_vin)
 
         assert is_valid is False
+        assert error is not None
         assert "invalid characters" in error
 
     def test_validate_vin_all_numbers(self):
@@ -110,6 +116,7 @@ class TestVINValidation:
         is_valid, error = validate_vin(empty_vin)
 
         assert is_valid is False
+        assert error is not None
         assert "17 characters" in error
 
     def test_validate_vin_spaces_only(self):
@@ -118,6 +125,7 @@ class TestVINValidation:
         is_valid, error = validate_vin(spaces_vin)
 
         assert is_valid is False
+        assert error is not None
         assert "17 characters" in error  # After stripping, it's 0 characters
 
 
@@ -142,6 +150,7 @@ class TestCheckDigitCalculation:
         check_digit = calculate_check_digit(vin)
 
         # This specific VIN should have check digit X at position 9
+        assert check_digit is not None
         assert check_digit == "X" or check_digit in "0123456789"
 
     def test_calculate_check_digit_numeric(self):
