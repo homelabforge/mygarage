@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models import Note, Vehicle
+from app.models import Note
 from app.models.user import User
 from app.schemas.note import (
     NoteCreate,
@@ -15,7 +15,7 @@ from app.schemas.note import (
     NoteResponse,
     NoteUpdate,
 )
-from app.services.auth import require_auth
+from app.services.auth import get_vehicle_or_403, require_auth
 
 router = APIRouter(prefix="/api/vehicles", tags=["notes"])
 
@@ -27,11 +27,8 @@ async def list_notes(
     current_user: User | None = Depends(require_auth),
 ) -> NoteListResponse:
     """List all notes for a vehicle."""
-    # Verify vehicle exists
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    # Verify vehicle exists and user has access
+    _ = await get_vehicle_or_403(vin, current_user, db)
 
     # Get notes sorted by date descending (newest first)
     result = await db.execute(select(Note).where(Note.vin == vin).order_by(Note.date.desc()))
@@ -51,11 +48,8 @@ async def create_note(
     current_user: User | None = Depends(require_auth),
 ) -> NoteResponse:
     """Create a new note for a vehicle."""
-    # Verify vehicle exists
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    # Verify vehicle exists and user has write access
+    _ = await get_vehicle_or_403(vin, current_user, db, require_write=True)
 
     # Create note
     note = Note(
@@ -80,6 +74,9 @@ async def get_note(
     current_user: User | None = Depends(require_auth),
 ) -> NoteResponse:
     """Get a specific note."""
+    # Verify vehicle exists and user has access
+    _ = await get_vehicle_or_403(vin, current_user, db)
+
     result = await db.execute(select(Note).where(Note.id == note_id, Note.vin == vin))
     note = result.scalar_one_or_none()
     if not note:
@@ -97,6 +94,9 @@ async def update_note(
     current_user: User | None = Depends(require_auth),
 ) -> NoteResponse:
     """Update a note."""
+    # Verify vehicle exists and user has write access
+    _ = await get_vehicle_or_403(vin, current_user, db, require_write=True)
+
     # Get note
     result = await db.execute(select(Note).where(Note.id == note_id, Note.vin == vin))
     note = result.scalar_one_or_none()
@@ -125,6 +125,9 @@ async def delete_note(
     current_user: User | None = Depends(require_auth),
 ) -> None:
     """Delete a note."""
+    # Verify vehicle exists and user has write access
+    _ = await get_vehicle_or_403(vin, current_user, db, require_write=True)
+
     # Get note
     result = await db.execute(select(Note).where(Note.id == note_id, Note.vin == vin))
     note = result.scalar_one_or_none()

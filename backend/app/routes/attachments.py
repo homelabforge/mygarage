@@ -16,7 +16,7 @@ from app.models.service import ServiceRecord
 from app.models.service_visit import ServiceVisit
 from app.models.user import User
 from app.schemas.attachment import AttachmentListResponse, AttachmentResponse
-from app.services.auth import require_auth
+from app.services.auth import get_vehicle_or_403, require_auth
 from app.services.file_upload_service import ATTACHMENT_UPLOAD_CONFIG, FileUploadService
 from app.utils.logging_utils import sanitize_for_log
 
@@ -30,6 +30,46 @@ UPLOAD_DIR = settings.attachments_dir
 def get_file_extension(filename: str) -> str:
     """Get file extension from filename."""
     return Path(filename).suffix.lower()
+
+
+async def get_attachment_vin(
+    attachment: Attachment,
+    db: AsyncSession,
+) -> str:
+    """Resolve an attachment to its vehicle VIN.
+
+    Args:
+        attachment: Attachment record
+        db: Database session
+
+    Returns:
+        VIN string
+
+    Raises:
+        HTTPException 404: If parent record not found
+    """
+    if attachment.record_type == "service":
+        result = await db.execute(
+            select(ServiceRecord).where(ServiceRecord.id == attachment.record_id)
+        )
+        service_record = result.scalar_one_or_none()
+        if not service_record:
+            raise HTTPException(status_code=404, detail="Parent service record not found")
+        return service_record.vin
+
+    elif attachment.record_type == "service_visit":
+        result = await db.execute(
+            select(ServiceVisit).where(ServiceVisit.id == attachment.record_id)
+        )
+        service_visit = result.scalar_one_or_none()
+        if not service_visit:
+            raise HTTPException(status_code=404, detail="Parent service visit not found")
+        return service_visit.vin
+
+    else:
+        raise HTTPException(
+            status_code=500, detail=f"Unknown attachment type: {attachment.record_type}"
+        )
 
 
 @router.post(
@@ -55,6 +95,9 @@ async def upload_service_attachment(
         service_record = result.scalar_one_or_none()
         if not service_record:
             raise HTTPException(status_code=404, detail=f"Service record {record_id} not found")
+
+        # Verify user has write access to the vehicle
+        _ = await get_vehicle_or_403(service_record.vin, current_user, db, require_write=True)
 
         # Upload using shared service
         upload_result = await FileUploadService.upload_file(
@@ -123,6 +166,9 @@ async def list_service_attachments(
         service_record = result.scalar_one_or_none()
         if not service_record:
             raise HTTPException(status_code=404, detail=f"Service record {record_id} not found")
+
+        # Verify user has access to the vehicle
+        _ = await get_vehicle_or_403(service_record.vin, current_user, db)
 
         # Get attachments
         result = await db.execute(
@@ -193,6 +239,10 @@ async def view_attachment(
         if not attachment:
             raise HTTPException(status_code=404, detail="Attachment not found")
 
+        # Verify user has access to the vehicle
+        vin = await get_attachment_vin(attachment, db)
+        _ = await get_vehicle_or_403(vin, current_user, db)
+
         # Check if file exists
         file_path = Path(attachment.file_path)
         if not file_path.exists():
@@ -233,6 +283,10 @@ async def download_attachment(
         attachment = result.scalar_one_or_none()
         if not attachment:
             raise HTTPException(status_code=404, detail="Attachment not found")
+
+        # Verify user has access to the vehicle
+        vin = await get_attachment_vin(attachment, db)
+        _ = await get_vehicle_or_403(vin, current_user, db)
 
         # Check if file exists
         file_path = Path(attachment.file_path)
@@ -283,6 +337,10 @@ async def delete_attachment(
         if not attachment:
             raise HTTPException(status_code=404, detail="Attachment not found")
 
+        # Verify user has write access to the vehicle
+        vin = await get_attachment_vin(attachment, db)
+        _ = await get_vehicle_or_403(vin, current_user, db, require_write=True)
+
         # Delete file from disk
         file_path = Path(attachment.file_path)
         if file_path.exists():
@@ -325,7 +383,7 @@ async def upload_service_visit_attachment(
     visit_id: int,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
-    _current_user: User | None = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Upload a file attachment to a service visit.
@@ -339,6 +397,9 @@ async def upload_service_visit_attachment(
         service_visit = result.scalar_one_or_none()
         if not service_visit:
             raise HTTPException(status_code=404, detail=f"Service visit {visit_id} not found")
+
+        # Verify user has write access to the vehicle
+        _ = await get_vehicle_or_403(service_visit.vin, current_user, db, require_write=True)
 
         # Upload using shared service
         upload_result = await FileUploadService.upload_file(
@@ -398,7 +459,7 @@ async def upload_service_visit_attachment(
 async def list_service_visit_attachments(
     visit_id: int,
     db: AsyncSession = Depends(get_db),
-    _current_user: User | None = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """Get all attachments for a service visit."""
     try:
@@ -407,6 +468,9 @@ async def list_service_visit_attachments(
         service_visit = result.scalar_one_or_none()
         if not service_visit:
             raise HTTPException(status_code=404, detail=f"Service visit {visit_id} not found")
+
+        # Verify user has access to the vehicle
+        _ = await get_vehicle_or_403(service_visit.vin, current_user, db)
 
         # Get attachments
         result = await db.execute(

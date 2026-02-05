@@ -6,19 +6,20 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
-from sqlalchemy import select
+from sqlalchemy import delete, select
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.database import get_db
-from app.models import Document, Vehicle
+from app.models import Document
 from app.models.user import User
 from app.schemas.document import (
     DocumentListResponse,
     DocumentResponse,
     DocumentUpdate,
 )
-from app.services.auth import require_auth
+from app.services.auth import get_vehicle_or_403, require_auth
 from app.services.file_upload_service import DOCUMENT_UPLOAD_CONFIG, FileUploadService
 
 logger = logging.getLogger(__name__)
@@ -55,11 +56,8 @@ async def list_documents(
     current_user: User | None = Depends(require_auth),
 ) -> DocumentListResponse:
     """List all documents for a vehicle."""
-    # Verify vehicle exists
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    # Verify vehicle exists and user has access
+    _ = await get_vehicle_or_403(vin, current_user, db)
 
     # Get documents
     result = await db.execute(
@@ -84,11 +82,8 @@ async def upload_document(
     current_user: User | None = Depends(require_auth),
 ) -> DocumentResponse:
     """Upload a new document for a vehicle."""
-    # Verify vehicle exists
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    # Verify vehicle exists and user has write access
+    _ = await get_vehicle_or_403(vin, current_user, db, require_write=True)
 
     # Upload using shared service
     upload_result = await FileUploadService.upload_file(
@@ -123,6 +118,9 @@ async def update_document(
     current_user: User | None = Depends(require_auth),
 ) -> DocumentResponse:
     """Update document metadata."""
+    # Verify vehicle exists and user has write access
+    _ = await get_vehicle_or_403(vin, current_user, db, require_write=True)
+
     # Get document
     result = await db.execute(
         select(Document).where(Document.id == document_id, Document.vin == vin)
@@ -153,26 +151,41 @@ async def delete_document(
     current_user: User | None = Depends(require_auth),
 ) -> None:
     """Delete a document."""
-    # Get document
-    result = await db.execute(
-        select(Document).where(Document.id == document_id, Document.vin == vin)
-    )
-    document = result.scalar_one_or_none()
-    if not document:
-        raise HTTPException(status_code=404, detail="Document not found")
+    try:
+        # Verify vehicle exists and user has write access
+        _ = await get_vehicle_or_403(vin, current_user, db, require_write=True)
 
-    # Delete file from disk
-    file_path = Path(document.file_path)
-    if file_path.exists():
-        try:
+        # Get document
+        result = await db.execute(
+            select(Document).where(Document.id == document_id, Document.vin == vin)
+        )
+        document = result.scalar_one_or_none()
+        if not document:
+            raise HTTPException(status_code=404, detail="Document not found")
+
+        # Delete file from disk first
+        file_path = Path(document.file_path)
+        if file_path.exists():
             file_path.unlink()
-        except Exception as e:
-            # Log error but continue with DB deletion
-            logger.warning("Failed to delete file %s: %s", file_path, e)
+            logger.info("Deleted document file: %s", file_path)
 
-    # Delete from database
-    await db.delete(document)
-    await db.commit()
+        # Delete from database
+        await db.execute(delete(Document).where(Document.id == document_id))
+        await db.commit()
+
+        logger.info("Deleted document %s for vehicle %s", document_id, vin)
+        return None
+
+    except HTTPException:
+        raise
+    except OperationalError as e:
+        await db.rollback()
+        logger.error("Database error deleting document: %s", e)
+        raise HTTPException(status_code=503, detail="Database temporarily unavailable")
+    except OSError as e:
+        await db.rollback()
+        logger.error("File system error deleting document: %s", e)
+        raise HTTPException(status_code=500, detail="Error deleting document file")
 
 
 @router.get("/{vin}/documents/{document_id}/download")
@@ -183,6 +196,9 @@ async def download_document(
     current_user: User | None = Depends(require_auth),
 ) -> FileResponse:
     """Download a document file."""
+    # Verify vehicle exists and user has access
+    _ = await get_vehicle_or_403(vin, current_user, db)
+
     # Get document
     result = await db.execute(
         select(Document).where(Document.id == document_id, Document.vin == vin)

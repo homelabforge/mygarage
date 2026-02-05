@@ -141,6 +141,14 @@ async def get_current_user(
 
     try:
         payload = jwt.decode(token, settings.secret_key)
+
+        # Explicitly validate expiration (defense-in-depth)
+        exp = payload.get("exp")
+        if exp is not None:
+            if datetime.now(UTC).timestamp() > exp:
+                logger.error("Token has expired")
+                raise credentials_exception
+
         user_id_str: str | None = payload.get("sub")
         username: str | None = payload.get("username")
 

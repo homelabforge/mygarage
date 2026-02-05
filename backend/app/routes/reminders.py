@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models import Reminder, Vehicle
+from app.models import Reminder
 from app.models.user import User
 from app.schemas.reminder import (
     ReminderCreate,
@@ -15,7 +15,7 @@ from app.schemas.reminder import (
     ReminderResponse,
     ReminderUpdate,
 )
-from app.services.auth import require_auth
+from app.services.auth import get_vehicle_or_403, require_auth
 from app.utils.datetime_utils import utc_now
 
 router = APIRouter(prefix="/api/vehicles", tags=["reminders"])
@@ -29,11 +29,8 @@ async def list_reminders(
     current_user: User | None = Depends(require_auth),
 ) -> ReminderListResponse:
     """List all reminders for a vehicle."""
-    # Verify vehicle exists
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    # Verify vehicle exists and user has access
+    _ = await get_vehicle_or_403(vin, current_user, db)
 
     # Build query
     query = select(Reminder).where(Reminder.vin == vin)
@@ -80,11 +77,8 @@ async def create_reminder(
     current_user: User | None = Depends(require_auth),
 ) -> ReminderResponse:
     """Create a new reminder for a vehicle."""
-    # Verify vehicle exists
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    # Verify vehicle exists and user has write access
+    _ = await get_vehicle_or_403(vin, current_user, db, require_write=True)
 
     # Validate that at least one due condition is set
     if not reminder_data.due_date and not reminder_data.due_mileage:
@@ -128,6 +122,9 @@ async def get_reminder(
     current_user: User | None = Depends(require_auth),
 ) -> ReminderResponse:
     """Get a specific reminder."""
+    # Verify vehicle exists and user has access
+    _ = await get_vehicle_or_403(vin, current_user, db)
+
     result = await db.execute(
         select(Reminder).where(Reminder.id == reminder_id, Reminder.vin == vin)
     )
@@ -147,6 +144,9 @@ async def update_reminder(
     current_user: User | None = Depends(require_auth),
 ) -> ReminderResponse:
     """Update a reminder."""
+    # Verify vehicle exists and user has write access
+    _ = await get_vehicle_or_403(vin, current_user, db, require_write=True)
+
     # Get reminder
     result = await db.execute(
         select(Reminder).where(Reminder.id == reminder_id, Reminder.vin == vin)
@@ -193,6 +193,9 @@ async def delete_reminder(
     current_user: User | None = Depends(require_auth),
 ) -> None:
     """Delete a reminder."""
+    # Verify vehicle exists and user has write access
+    _ = await get_vehicle_or_403(vin, current_user, db, require_write=True)
+
     # Get reminder
     result = await db.execute(
         select(Reminder).where(Reminder.id == reminder_id, Reminder.vin == vin)
@@ -213,6 +216,9 @@ async def complete_reminder(
     current_user: User | None = Depends(require_auth),
 ) -> ReminderResponse:
     """Mark a reminder as completed."""
+    # Verify vehicle exists and user has write access
+    _ = await get_vehicle_or_403(vin, current_user, db, require_write=True)
+
     # Get reminder
     result = await db.execute(
         select(Reminder).where(Reminder.id == reminder_id, Reminder.vin == vin)
@@ -241,6 +247,9 @@ async def uncomplete_reminder(
     current_user: User | None = Depends(require_auth),
 ) -> ReminderResponse:
     """Mark a reminder as not completed."""
+    # Verify vehicle exists and user has write access
+    _ = await get_vehicle_or_403(vin, current_user, db, require_write=True)
+
     # Get reminder
     result = await db.execute(
         select(Reminder).where(Reminder.id == reminder_id, Reminder.vin == vin)

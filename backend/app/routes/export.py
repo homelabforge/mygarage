@@ -4,7 +4,7 @@ import json
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -21,11 +21,10 @@ from app.models import (
     Reminder,
     ServiceRecord,
     TaxRecord,
-    Vehicle,
     WarrantyRecord,
 )
 from app.models.user import User
-from app.services.auth import require_auth
+from app.services.auth import get_vehicle_or_403, require_auth
 
 router = APIRouter(prefix="/api/export", tags=["export"])
 
@@ -52,11 +51,8 @@ async def export_service_records_csv(
     current_user: User | None = Depends(require_auth),
 ):
     """Export service records as CSV"""
-    # Verify vehicle exists
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    # Verify vehicle exists and user has access
+    vehicle = await get_vehicle_or_403(vin, current_user, db)
 
     # Get all service records
     result = await db.execute(
@@ -112,11 +108,8 @@ async def export_fuel_records_csv(
     current_user: User | None = Depends(require_auth),
 ):
     """Export fuel records as CSV"""
-    # Verify vehicle exists
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    # Verify vehicle exists and user has access
+    vehicle = await get_vehicle_or_403(vin, current_user, db)
 
     # Get all fuel records
     result = await db.execute(
@@ -176,11 +169,8 @@ async def export_odometer_records_csv(
     current_user: User | None = Depends(require_auth),
 ):
     """Export odometer records as CSV"""
-    # Verify vehicle exists
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    # Verify vehicle exists and user has access
+    vehicle = await get_vehicle_or_403(vin, current_user, db)
 
     # Get all odometer records
     result = await db.execute(
@@ -222,11 +212,8 @@ async def export_warranties_csv(
     current_user: User | None = Depends(require_auth),
 ):
     """Export warranties as CSV"""
-    # Verify vehicle exists
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    # Verify vehicle exists and user has access
+    vehicle = await get_vehicle_or_403(vin, current_user, db)
 
     # Get all warranties
     result = await db.execute(
@@ -288,11 +275,8 @@ async def export_insurance_csv(
     current_user: User | None = Depends(require_auth),
 ):
     """Export insurance records as CSV"""
-    # Verify vehicle exists
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    # Verify vehicle exists and user has access
+    vehicle = await get_vehicle_or_403(vin, current_user, db)
 
     # Get all insurance records
     result = await db.execute(
@@ -352,11 +336,8 @@ async def export_tax_records_csv(
     current_user: User | None = Depends(require_auth),
 ):
     """Export tax records as CSV"""
-    # Verify vehicle exists
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    # Verify vehicle exists and user has access
+    vehicle = await get_vehicle_or_403(vin, current_user, db)
 
     # Get all tax records
     result = await db.execute(
@@ -410,11 +391,8 @@ async def export_notes_csv(
     current_user: User | None = Depends(require_auth),
 ):
     """Export notes as CSV"""
-    # Verify vehicle exists
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    # Verify vehicle exists and user has access
+    vehicle = await get_vehicle_or_403(vin, current_user, db)
 
     # Get all notes
     result = await db.execute(select(Note).where(Note.vin == vin).order_by(Note.date.desc()))
@@ -458,11 +436,8 @@ async def export_vehicle_json(
     current_user: User | None = Depends(require_auth),
 ):
     """Export complete vehicle data as JSON"""
-    # Get vehicle
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    # Verify vehicle exists and user has access
+    vehicle = await get_vehicle_or_403(vin, current_user, db)
 
     # Get all related records
     service_result = await db.execute(
