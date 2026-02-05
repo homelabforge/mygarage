@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.21.0] - 2026-02-05
+
 ### Added
 - **Family Dashboard Management Modal** - Dedicated modal for managing family dashboard member visibility and ordering
   - Toggle member visibility on/off with Eye icon buttons
