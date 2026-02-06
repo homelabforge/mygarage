@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { formatDateForDisplay } from '../utils/dateUtils'
+import { formatCurrency } from '../utils/formatUtils'
 import { Wrench, Plus, Edit, Trash2, DollarSign, Calendar, Gauge, Search, Download, Upload, Paperclip } from 'lucide-react'
 import { toast } from 'sonner'
 import type { ServiceRecord } from '../types/service'
@@ -164,14 +165,6 @@ export default function ServiceRecordList({ vin, onAddClick, onEditClick, onRefr
     } finally {
       setDeleting(null)
     }
-  }
-
-  const formatCurrency = (amount?: number) => {
-    if (amount === undefined || amount === null) return '-'
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(amount)
   }
 
   const formatDate = (dateString: string) => {

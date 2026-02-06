@@ -99,6 +99,7 @@ export default function Layout() {
                 to="/about"
                 className="text-garage-text-muted hover:text-garage-text transition-colors"
                 title="About"
+                aria-label="About"
               >
                 <Info className="w-5 h-5" />
               </Link>
@@ -106,6 +107,7 @@ export default function Layout() {
                 to="/settings"
                 className="text-garage-text-muted hover:text-garage-text transition-colors"
                 title="Settings"
+                aria-label="Settings"
               >
                 <Settings className="w-5 h-5" />
               </Link>

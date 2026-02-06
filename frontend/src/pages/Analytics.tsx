@@ -53,6 +53,7 @@ import type {
   PeriodComparison,
 } from '../types/analytics'
 import AnalyticsHelpModal from '../components/AnalyticsHelpModal'
+import { formatCurrencyZero as formatCurrency } from '../utils/formatUtils'
 
 export default function Analytics() {
   const { vin } = useParams<{ vin: string }>()
@@ -292,15 +293,6 @@ export default function Analytics() {
     link.click()
   }
 
-  const formatCurrency = (value: string | number | null): string => {
-    if (value === null || value === undefined) return '$0.00'
-    const num = typeof value === 'string' ? parseFloat(value) : value
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(num)
-  }
-
   const formatDate = (dateString: string | null): string => {
     if (!dateString) return 'N/A'
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -336,8 +328,9 @@ export default function Analytics() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center min-h-screen" role="status" aria-label="Loading analytics">
         <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+        <span className="sr-only">Loading analytics...</span>
       </div>
     )
   }

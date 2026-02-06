@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import Column, DateTime, Index, String
+from sqlalchemy import DateTime, Index, String
+from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
 
@@ -19,16 +20,18 @@ class OIDCState(Base):
 
     __tablename__ = "oidc_states"
 
-    state = Column(String(128), primary_key=True, index=True, nullable=False)
-    nonce = Column(String(128), nullable=False)
-    redirect_uri = Column(String(512), nullable=False)
-    created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
-    expires_at = Column(DateTime, nullable=False)
+    state: Mapped[str] = mapped_column(String(128), primary_key=True, index=True, nullable=False)
+    nonce: Mapped[str] = mapped_column(String(128), nullable=False)
+    redirect_uri: Mapped[str] = mapped_column(String(512), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(UTC), nullable=False
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
 
     # Index for efficient cleanup of expired states
     __table_args__ = (Index("ix_oidc_expires_at", "expires_at"),)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<OIDCState(state={self.state[:16]}..., expires_at={self.expires_at})>"
 
     def is_expired(self) -> bool:
@@ -38,7 +41,7 @@ class OIDCState(Base):
         expires = self.expires_at
         if expires.tzinfo is None:
             expires = expires.replace(tzinfo=UTC)
-        return now > expires  # type: ignore[return-value]
+        return now > expires
 
     @classmethod
     def get_expiry_time(cls, minutes: int = 10) -> datetime:

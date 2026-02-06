@@ -1,6 +1,6 @@
 """Authentication service for JWT token management."""
 
-# pyright: reportGeneralTypeIssues=false, reportArgumentType=false, reportAttributeAccessIssue=false, reportAssignmentType=false
+# pyright: reportAssignmentType=false
 
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -82,7 +82,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
                 return False
 
             return bcrypt.checkpw(password_bytes, hashed_password.encode("utf-8"))
-        except Exception as e:
+        except (ValueError, TypeError) as e:
             logger.error("Error verifying bcrypt password: %s", e)
             return False
 
@@ -146,7 +146,7 @@ async def get_current_user(
         exp = payload.get("exp")
         if exp is not None:
             if datetime.now(UTC).timestamp() > exp:
-                logger.error("Token has expired")
+                logger.debug("Token has expired")
                 raise credentials_exception
 
         user_id_str: str | None = payload.get("sub")
@@ -363,7 +363,7 @@ async def get_vehicle_or_403(
     current_user: User | None,
     db: AsyncSession,
     require_write: bool = False,
-):
+) -> Vehicle:
     """Get vehicle if user has access (owner, admin, or shared), else raise 403.
 
     Args:

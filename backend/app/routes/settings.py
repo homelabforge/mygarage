@@ -136,11 +136,14 @@ async def get_poi_providers(
             continue  # Skip if no API key configured
 
         enabled_setting = await SettingsService.get(db, f"{provider_name}_enabled")
-        enabled = enabled_setting.value.lower() == "true" if enabled_setting else False
+        enabled = bool(
+            enabled_setting and enabled_setting.value and enabled_setting.value.lower() == "true"
+        )
 
         # Get usage tracking
         usage_stats = await get_provider_usage(db, provider_name)
 
+        api_key_value = api_key_setting.value or ""
         providers.append(
             {
                 "name": provider_name,
@@ -148,9 +151,7 @@ async def get_poi_providers(
                 "enabled": enabled,
                 "is_default": False,
                 "api_key_configured": True,
-                "api_key_masked": (
-                    f"{api_key_setting.value[:8]}***" if len(api_key_setting.value) > 8 else "***"
-                ),
+                "api_key_masked": (f"{api_key_value[:8]}***" if len(api_key_value) > 8 else "***"),
                 "api_usage": usage_stats["usage"],
                 "api_limit": metadata["api_limit"],
                 "priority": metadata["priority"],

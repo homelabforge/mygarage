@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Edit, Trash2, Plus, AlertCircle, MapPin, Calendar, ChevronDown, ChevronUp, DollarSign } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateForDisplay } from '../utils/dateUtils'
+import { formatCurrency } from '../utils/formatUtils'
 import type { SpotRental, SpotRentalBilling } from '../types/spotRental'
 import SpotRentalForm from './SpotRentalForm'
 import BillingEntryForm from './BillingEntryForm'
@@ -135,14 +136,6 @@ export default function SpotRentalList({ vin }: SpotRentalListProps) {
   const getLastBilling = (billings?: SpotRentalBilling[]): SpotRentalBilling | null => {
     if (!billings || billings.length === 0) return null
     return billings[0] // Already sorted by date desc from backend
-  }
-
-  const formatCurrency = (amount: number | null): string => {
-    if (amount === null) return '-'
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(amount)
   }
 
   const getTotalCost = (): number => {

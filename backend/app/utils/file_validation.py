@@ -1,6 +1,6 @@
 """File upload validation utilities."""
 
-# pyright: reportArgumentType=false, reportOptionalMemberAccess=false, reportMissingImports=false, reportPossiblyUnboundVariable=false
+# pyright: reportOptionalMemberAccess=false, reportPossiblyUnboundVariable=false
 
 import csv
 import logging
@@ -12,12 +12,12 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 # Import python-magic for content-type verification
+MAGIC_AVAILABLE = False
 try:
     import magic
 
     MAGIC_AVAILABLE = True
 except ImportError:
-    MAGIC_AVAILABLE = False
     logger.warning("python-magic not available, magic byte verification disabled")
 
 # Magic byte signatures for common file types

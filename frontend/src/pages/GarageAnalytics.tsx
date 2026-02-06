@@ -18,6 +18,7 @@ import {
 import type { PieLabelRenderProps, SectorProps } from 'recharts'
 import type { GarageAnalytics, GarageMonthlyTrend } from '../types/analytics'
 import GarageAnalyticsHelpModal from '../components/GarageAnalyticsHelpModal'
+import { formatCurrencyZero as formatCurrency } from '../utils/formatUtils'
 
 // Colors for pie chart categories (8 categories: Maintenance, Upgrades, Inspection, Collision, Detailing, Fuel, Insurance, Taxes)
 const COLORS = ['#3B82F6', '#8B5CF6', '#F59E0B', '#EF4444', '#10B981', '#06B6D4', '#EC4899', '#6B7280']
@@ -28,18 +29,6 @@ export default function GarageAnalytics() {
   const [error, setError] = useState<string | null>(null)
   const [fromCache, setFromCache] = useState(false)
   const [showHelpModal, setShowHelpModal] = useState(false)
-
-  const formatCurrency = (value: string | number | null): string => {
-    if (value === null || value === undefined) return '$0.00'
-    const num = typeof value === 'string' ? parseFloat(value) : value
-    if (isNaN(num)) return '$0.00'
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(num)
-  }
 
   const exportToCSV = () => {
     if (!analytics) return
@@ -199,8 +188,9 @@ export default function GarageAnalytics() {
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
-        <div className="flex items-center justify-center py-16">
+        <div className="flex items-center justify-center py-16" role="status" aria-label="Loading analytics">
           <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+          <span className="sr-only">Loading garage analytics...</span>
         </div>
       </div>
     )

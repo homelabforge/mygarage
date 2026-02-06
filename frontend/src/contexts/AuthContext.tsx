@@ -103,13 +103,16 @@ export function AuthProvider({ children }: { children: ReactNode}) {
       // Token state updated for backward compatibility
       setToken(newToken)
 
-      // Small delay to ensure cookie is stored by browser before making authenticated requests
-      // This prevents race condition where /auth/me is called before cookie is available
-      await new Promise(resolve => setTimeout(resolve, 100))
-
-      // Load user info
-      const userResponse = await api.get('/auth/me')
-      setUser(userResponse.data)
+      // Load user info — retry once if cookie isn't available yet
+      try {
+        const userResponse = await api.get('/auth/me')
+        setUser(userResponse.data)
+      } catch {
+        // Browser may not have processed Set-Cookie yet; retry after a tick
+        await new Promise(resolve => setTimeout(resolve, 50))
+        const userResponse = await api.get('/auth/me')
+        setUser(userResponse.data)
+      }
     } catch (error: unknown) {
       const err = error as { response?: { data?: { detail?: string } }; message?: string }
       const errorMessage = err.response?.data?.detail || err.message || 'Login failed'

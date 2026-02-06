@@ -284,6 +284,7 @@ async def delete_vehicle_photo(
             raise HTTPException(status_code=400, detail="Invalid file path")
 
         # codeql[py/path-injection] - Path validated by validate_path_within_base above
+        assert validated_path is not None  # raise_error=True guarantees non-None
         if not validated_path.exists():
             raise HTTPException(status_code=404, detail="Photo not found")
 
@@ -304,7 +305,7 @@ async def delete_vehicle_photo(
                     validated_thumb = validate_path_within_base(
                         thumb_path, PHOTO_DIR, raise_error=True
                     )
-                    if validated_thumb.exists():
+                    if validated_thumb and validated_thumb.exists():
                         validated_thumb.unlink()
                 except ValueError as e:
                     logger.warning(

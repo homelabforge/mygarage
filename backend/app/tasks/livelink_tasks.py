@@ -3,6 +3,8 @@
 import logging
 from datetime import UTC, datetime, timedelta
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.database import AsyncSessionLocal
 from app.services.firmware_service import FirmwareService
 from app.services.livelink_service import LiveLinkService
@@ -67,6 +69,21 @@ async def check_device_offline_status():
             devices = await livelink_service.list_devices()
             dispatcher = NotificationDispatcher(db)
 
+            # Pre-fetch vehicle names for all devices with VINs (eliminates N+1 queries)
+            device_vins = [d.vin for d in devices if d.vin]
+            vehicle_name_map: dict[str, str] = {}
+            if device_vins:
+                from sqlalchemy import select
+
+                from app.models.vehicle import Vehicle
+
+                result = await db.execute(
+                    select(Vehicle.vin, Vehicle.year, Vehicle.make, Vehicle.model).where(
+                        Vehicle.vin.in_(device_vins)
+                    )
+                )
+                vehicle_name_map = {row[0]: f"{row[1]} {row[2]} {row[3]}" for row in result.all()}
+
             for device in devices:
                 if device.device_status == "online" and device.last_seen:
                     if device.last_seen < cutoff:
@@ -76,21 +93,7 @@ async def check_device_offline_status():
 
                         # Send notification if enabled
                         if notify_enabled and device.enabled:
-                            # Get vehicle name if linked
-                            vehicle_name = None
-                            if device.vin:
-                                from sqlalchemy import select
-
-                                from app.models.vehicle import Vehicle
-
-                                result = await db.execute(
-                                    select(Vehicle.year, Vehicle.make, Vehicle.model).where(
-                                        Vehicle.vin == device.vin
-                                    )
-                                )
-                                row = result.first()
-                                if row:
-                                    vehicle_name = f"{row[0]} {row[1]} {row[2]}"
+                            vehicle_name = vehicle_name_map.get(device.vin) if device.vin else None
 
                             offline_minutes = int(
                                 (datetime.now(UTC) - device.last_seen).total_seconds() / 60
@@ -231,7 +234,7 @@ async def generate_daily_summaries():
             logger.error("Error generating daily summaries: %s", e)
 
 
-async def _get_bool_setting(db, key: str, default: bool = False) -> bool:
+async def _get_bool_setting(db: AsyncSession, key: str, default: bool = False) -> bool:
     """Get a boolean setting value."""
     setting = await SettingsService.get(db, key)
     if not setting or not setting.value:

@@ -1,6 +1,6 @@
 """Family dashboard service for aggregating family member vehicle data."""
 
-# pyright: reportArgumentType=false, reportOptionalOperand=false, reportGeneralTypeIssues=false, reportReturnType=false, reportAttributeAccessIssue=false
+# pyright: reportOptionalOperand=false, reportReturnType=false
 
 from __future__ import annotations
 

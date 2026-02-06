@@ -1,7 +1,5 @@
 """Analytics service with pandas-based data processing."""
 
-# pyright: reportMissingImports=false
-
 import calendar
 from datetime import date as date_type
 from decimal import Decimal

@@ -8,10 +8,9 @@ interface TollTagListProps {
   vin: string
   onAddClick: () => void
   onEditClick: (tag: TollTag) => void
-  onRefresh?: () => void
 }
 
-export default function TollTagList({ vin, onAddClick, onEditClick, onRefresh }: TollTagListProps) {
+export default function TollTagList({ vin, onAddClick, onEditClick }: TollTagListProps) {
   const [tollTags, setTollTags] = useState<TollTag[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -31,15 +30,6 @@ export default function TollTagList({ vin, onAddClick, onEditClick, onRefresh }:
     setLoading(true)
     fetchTollTags().finally(() => setLoading(false))
   }, [fetchTollTags])
-
-  useEffect(() => {
-    if (onRefresh) {
-      // Allow parent to trigger refresh
-      const refreshHandler = () => fetchTollTags()
-      window.addEventListener('toll-tags-refresh', refreshHandler)
-      return () => window.removeEventListener('toll-tags-refresh', refreshHandler)
-    }
-  }, [onRefresh, fetchTollTags])
 
   const handleDelete = async (tagId: number) => {
     if (!confirm('Are you sure you want to delete this toll tag?')) {

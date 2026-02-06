@@ -6,6 +6,7 @@ import { memo } from 'react'
 import { Link } from 'react-router-dom'
 import { Car, Calendar, DollarSign, FileText } from 'lucide-react'
 import type { Vehicle } from '../types/vehicle'
+import { formatCurrency } from '../utils/formatUtils'
 
 interface VehicleCardProps {
   vehicle: Vehicle
@@ -20,16 +21,6 @@ function VehicleCard({ vehicle }: VehicleCardProps) {
     if (!dateString) return null
     const date = new Date(dateString)
     return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
-  }
-
-  const formatPrice = (price?: number) => {
-    if (!price) return null
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(price)
   }
 
   return (
@@ -93,7 +84,7 @@ function VehicleCard({ vehicle }: VehicleCardProps) {
           {vehicle.purchase_price && (
             <div className="flex items-center space-x-2 text-xs text-garage-text-muted">
               <DollarSign className="w-3.5 h-3.5" />
-              <span>{formatPrice(vehicle.purchase_price)}</span>
+              <span>{formatCurrency(vehicle.purchase_price, { wholeDollars: true })}</span>
             </div>
           )}
         </div>

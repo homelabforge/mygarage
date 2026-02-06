@@ -11,8 +11,6 @@ Use app.services.document_ocr.document_ocr_service instead, which provides:
 This file is kept for backwards compatibility but will be removed in a future version.
 """
 
-# pyright: reportMissingImports=false
-
 import logging
 import re
 import warnings
@@ -79,6 +77,7 @@ class InsurancePDFParser:
         Returns:
             Dictionary with extracted insurance data
         """
+        confidence: dict[str, str] = {}
         result = {
             "provider": "Progressive",
             "policy_number": None,
@@ -90,7 +89,7 @@ class InsurancePDFParser:
             "coverage_limits": None,
             "policy_type": None,
             "notes": None,
-            "confidence": {},  # Confidence scores for each field
+            "confidence": confidence,
             "raw_text": "",
             "vehicles_found": [],
         }
@@ -113,14 +112,14 @@ class InsurancePDFParser:
                 )
                 if policy_num:
                     result["policy_number"] = policy_num
-                    result["confidence"]["policy_number"] = "high"
+                    confidence["policy_number"] = "high"
 
                 # Extract policy period (start and end dates)
                 period_match = self._extract_policy_period(full_text)
                 if period_match:
                     result["start_date"] = period_match["start"]
                     result["end_date"] = period_match["end"]
-                    result["confidence"]["dates"] = "high"
+                    confidence["dates"] = "high"
 
                 # Extract total premium
                 premium = self._extract_pattern(
@@ -128,7 +127,7 @@ class InsurancePDFParser:
                 )
                 if premium:
                     result["premium_amount"] = self._parse_currency(premium)
-                    result["confidence"]["premium_amount"] = "high"
+                    confidence["premium_amount"] = "high"
 
                 # Extract VINs and vehicle-specific data
                 vins = self._extract_all_vins(full_text)
@@ -155,13 +154,13 @@ class InsurancePDFParser:
                 )
                 if deductible:
                     result["deductible"] = self._parse_currency(deductible)
-                    result["confidence"]["deductible"] = "medium"
+                    confidence["deductible"] = "medium"
 
                 # Extract coverage limits
                 coverage = self._extract_coverage_limits(full_text)
                 if coverage:
                     result["coverage_limits"] = coverage
-                    result["confidence"]["coverage_limits"] = "medium"
+                    confidence["coverage_limits"] = "medium"
 
                 # Add parsing note
                 result["notes"] = (

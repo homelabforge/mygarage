@@ -36,8 +36,8 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1
 
 # Upgrade pip to latest version and clean up old metadata
-RUN pip install --no-cache-dir --upgrade pip==25.3 && \
-    rm -rf /usr/local/lib/python3.14/site-packages/pip-25.2.dist-info 2>/dev/null || true
+RUN pip install --no-cache-dir --upgrade pip==26.0.1 && \
+    rm -rf /usr/local/lib/python3.14/site-packages/pip-25.3.dist-info 2>/dev/null || true
 
 # Copy backend code and install with dependencies (production only)
 COPY backend/ ./
@@ -54,7 +54,7 @@ LABEL org.opencontainers.image.authors="HomeLabForge"
 LABEL org.opencontainers.image.title="MyGarage"
 LABEL org.opencontainers.image.url="https://www.homelabforge.io"
 LABEL org.opencontainers.image.description="Vehicle and garage management platform with maintenance tracking"
-LABEL org.opencontainers.image.frontend.builder="bun-1.3.6"
+LABEL org.opencontainers.image.frontend.builder="bun-1.3.8"
 
 # HTTP server metadata
 LABEL http.server.name="granian"

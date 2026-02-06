@@ -40,6 +40,8 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
 
   // Initialize theme from localStorage and database
   useEffect(() => {
+    let cancelled = false;
+
     const initializeTheme = async () => {
       // First, try to get theme from localStorage (instant)
       const localTheme = localStorage.getItem('theme') as Theme | null;
@@ -52,6 +54,8 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
       // Use public endpoint for unauthenticated access (Security Enhancement v2.10.0)
       try {
         const response = await axios.get('/api/settings/public');
+        if (cancelled) return;
+
         const settings = response.data.settings; // API returns { settings: [...], total: N }
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const themeSetting = settings.find((s: any) => s.key === 'theme');
@@ -75,10 +79,14 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
         // If database fails, keep localStorage value or default to dark
       }
 
-      setIsInitialized(true);
+      if (!cancelled) {
+        setIsInitialized(true);
+      }
     };
 
     initializeTheme();
+
+    return () => { cancelled = true; };
   }, [applyTheme]);
 
   const setTheme = async (newTheme: Theme) => {

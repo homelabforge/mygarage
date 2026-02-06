@@ -242,7 +242,7 @@ async def parse_insurance_pdf(
 
         # Add warning if target VIN not found
         if vin.upper() not in [v.upper() for v in parsed_data.get("vehicles_found", [])]:
-            response["warnings"].append(f"VIN {vin} not found in PDF - using policy-level data")
+            safe_warnings.append(f"VIN {vin} not found in PDF - using policy-level data")
 
         logger.info(
             "Successfully parsed document using %s - found %d vehicles, confidence: %.0f%%",

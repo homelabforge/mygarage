@@ -1,7 +1,8 @@
 """Window Sticker OCR and data extraction service."""
 
-# pyright: reportMissingImports=false, reportArgumentType=false, reportOptionalMemberAccess=false
+# pyright: reportOptionalMemberAccess=false
 
+import asyncio
 import logging
 import os
 from decimal import Decimal
@@ -241,14 +242,14 @@ class WindowStickerOCRService:
             except Exception as e:
                 logger.warning("PaddleOCR failed, falling back to Tesseract: %s", e)
 
-        # Fallback to Tesseract
+        # Fallback to Tesseract (offload CPU-intensive OCR to thread pool)
         try:
             import pytesseract
             from PIL import Image
 
-            image = Image.open(file_path)
-            text = pytesseract.image_to_string(image)
-            return text
+            image = await asyncio.to_thread(Image.open, file_path)
+            text = await asyncio.to_thread(pytesseract.image_to_string, image)
+            return str(text)
         except ImportError:
             logger.warning("PIL or pytesseract not installed, OCR not available")
             return ""
@@ -267,7 +268,7 @@ class WindowStickerOCRService:
             except Exception as e:
                 logger.warning("PaddleOCR bytes failed: %s", e)
 
-        # Fallback to Tesseract
+        # Fallback to Tesseract (offload CPU-intensive OCR to thread pool)
         try:
             import io
 
@@ -275,7 +276,7 @@ class WindowStickerOCRService:
             from PIL import Image
 
             image = Image.open(io.BytesIO(img_bytes))
-            return pytesseract.image_to_string(image)
+            return str(await asyncio.to_thread(pytesseract.image_to_string, image))
         except Exception as e:
             logger.error("Error OCR-ing image bytes: %s", e)
             return ""

@@ -2,11 +2,55 @@
 
 from datetime import date
 from decimal import Decimal
+from types import SimpleNamespace
 
 import pandas as pd
 import pytest
 
 from app.services import analytics_service
+
+
+def _make_fuel_record(**kwargs):
+    """Create a mock FuelRecord-like object with sensible defaults."""
+    defaults = {
+        "id": 1,
+        "vin": "1HGBH41JXMN109186",
+        "date": date(2024, 1, 15),
+        "mileage": 50000,
+        "gallons": Decimal("12.5"),
+        "propane_gallons": None,
+        "tank_size_lb": None,
+        "tank_quantity": None,
+        "kwh": None,
+        "cost": Decimal("45.00"),
+        "price_per_unit": None,
+        "fuel_type": "Gasoline",
+        "is_full_tank": True,
+        "missed_fillup": False,
+        "is_hauling": False,
+        "notes": None,
+    }
+    defaults.update(kwargs)
+    return SimpleNamespace(**defaults)
+
+
+def _make_service_record(**kwargs):
+    """Create a mock ServiceRecord-like object with sensible defaults."""
+    defaults = {
+        "id": 1,
+        "vin": "1HGBH41JXMN109186",
+        "date": date(2024, 1, 15),
+        "mileage": 50000,
+        "service_type": "Oil Change",
+        "cost": Decimal("75.00"),
+        "notes": None,
+        "vendor_name": "AutoShop",
+        "vendor_location": None,
+        "service_category": "Maintenance",
+        "insurance_claim": None,
+    }
+    defaults.update(kwargs)
+    return SimpleNamespace(**defaults)
 
 
 @pytest.mark.unit
@@ -40,7 +84,6 @@ class TestAnalyticsService:
 
     def test_calculate_rolling_averages(self):
         """Test rolling average calculations."""
-        # Create DataFrame with year/month columns (required by calculate_rolling_averages)
         df = pd.DataFrame(
             {
                 "year": [2024] * 12 + [2025],
@@ -82,25 +125,21 @@ class TestAnalyticsService:
 
         rolling_avgs = analytics_service.calculate_rolling_averages(df)
 
-        # With only 2 months, 3m/6m/12m averages should be None
         assert rolling_avgs["rolling_3m"] is None
         assert rolling_avgs["rolling_6m"] is None
         assert rolling_avgs["rolling_12m"] is None
 
     def test_detect_anomalies_z_score(self):
         """Test anomaly detection using Z-score method."""
-        # Normal distribution with one outlier
         values = pd.Series([100, 110, 105, 108, 102, 500, 107, 103])
 
         anomaly_indices = analytics_service.detect_anomalies(values, std_threshold=2.0)
 
-        # Index 5 (value 500) should be detected as anomaly
         assert 5 in anomaly_indices
         assert len(anomaly_indices) == 1
 
     def test_detect_anomalies_no_anomalies(self):
         """Test anomaly detection with no anomalies."""
-        # All values within normal range
         values = pd.Series([100, 105, 102, 108, 103, 107, 104])
 
         anomaly_indices = analytics_service.detect_anomalies(values, std_threshold=2.0)
@@ -113,15 +152,10 @@ class TestAnalyticsService:
 
         anomaly_indices = analytics_service.detect_anomalies(values, std_threshold=2.0)
 
-        # Should return empty list with < 3 data points
         assert len(anomaly_indices) == 0
 
     def test_calculate_monthly_aggregation(self):
         """Test monthly cost aggregation."""
-        # Create sample data with proper alignment:
-        # - January 2024: 31 days (service)
-        # - February 2024: 29 days (fuel) - leap year
-        # - March 2024: 31 days (service)
         dates = pd.date_range(start="2024-01-01", end="2024-03-31", freq="D")
         df = pd.DataFrame(
             {
@@ -133,10 +167,8 @@ class TestAnalyticsService:
 
         monthly_df = analytics_service.calculate_monthly_aggregation(df)
 
-        # Should have 3 months
         assert len(monthly_df) == 3
 
-        # Check columns
         assert "year" in monthly_df.columns
         assert "month" in monthly_df.columns
         assert "month_name" in monthly_df.columns
@@ -146,7 +178,6 @@ class TestAnalyticsService:
         assert "service_count" in monthly_df.columns
         assert "fuel_count" in monthly_df.columns
 
-        # January should have 31 service records and no fuel
         jan_row = monthly_df[monthly_df["month"] == 1].iloc[0]
         assert jan_row["service_count"] == 31
         assert jan_row["fuel_count"] == 0
@@ -163,35 +194,572 @@ class TestAnalyticsService:
 
 @pytest.mark.unit
 @pytest.mark.analytics
-def test_calculate_fuel_economy_basic():
-    """Test basic fuel economy calculation."""
-    # This would require mock FuelRecord objects
-    # Simplified test showing the structure
-    assert True  # Placeholder
+class TestRecordsToDataframe:
+    """Test records_to_dataframe with actual data."""
+
+    def test_service_records_only(self):
+        """Test conversion with service records."""
+        records = [
+            _make_service_record(id=1, date=date(2024, 1, 15), cost=Decimal("100.00")),
+            _make_service_record(id=2, date=date(2024, 2, 20), cost=Decimal("200.00")),
+        ]
+
+        df = analytics_service.records_to_dataframe(records, [])
+
+        assert len(df) == 2
+        assert all(df["type"] == "service")
+        assert df["cost"].sum() == 300.0
+        # Verify sorted by date
+        assert df.iloc[0]["date"] <= df.iloc[1]["date"]
+
+    def test_fuel_records_only(self):
+        """Test conversion with fuel records."""
+        records = [
+            _make_fuel_record(
+                id=1, date=date(2024, 3, 10), cost=Decimal("55.00"), gallons=Decimal("15.5")
+            ),
+            _make_fuel_record(
+                id=2, date=date(2024, 1, 5), cost=Decimal("40.00"), gallons=Decimal("12.0")
+            ),
+        ]
+
+        df = analytics_service.records_to_dataframe([], records)
+
+        assert len(df) == 2
+        assert all(df["type"] == "fuel")
+        # Should be sorted by date (Jan before Mar)
+        assert df.iloc[0]["date"] < df.iloc[1]["date"]
+
+    def test_mixed_records(self):
+        """Test conversion with both service and fuel records."""
+        service = [_make_service_record(date=date(2024, 2, 1), cost=Decimal("150.00"))]
+        fuel = [_make_fuel_record(date=date(2024, 1, 15), cost=Decimal("50.00"))]
+
+        df = analytics_service.records_to_dataframe(service, fuel)
+
+        assert len(df) == 2
+        assert set(df["type"]) == {"service", "fuel"}
+        # Fuel (Jan) should come first
+        assert df.iloc[0]["type"] == "fuel"
+
+    def test_skips_records_without_date_or_cost(self):
+        """Test that records missing date or cost are filtered out."""
+        records = [
+            _make_service_record(id=1, date=date(2024, 1, 1), cost=Decimal("100.00")),
+            _make_service_record(id=2, date=None, cost=Decimal("50.00")),
+            _make_service_record(id=3, date=date(2024, 3, 1), cost=None),
+        ]
+
+        df = analytics_service.records_to_dataframe(records, [])
+
+        assert len(df) == 1
 
 
 @pytest.mark.unit
 @pytest.mark.analytics
-def test_seasonal_analysis_grouping():
-    """Test seasonal grouping logic."""
-    # Test that dates are correctly grouped into seasons
-    winter_date = date(2024, 1, 15)
-    spring_date = date(2024, 4, 15)
-    summer_date = date(2024, 7, 15)
-    fall_date = date(2024, 10, 15)
+class TestCalculateFuelEconomy:
+    """Test fuel economy calculation."""
 
-    # Helper to determine season (would be in analytics_service)
-    def get_season(month):
-        if month in [12, 1, 2]:
-            return "Winter"
-        elif month in [3, 4, 5]:
-            return "Spring"
-        elif month in [6, 7, 8]:
-            return "Summer"
-        else:
-            return "Fall"
+    def test_basic_mpg_calculation(self):
+        """Test MPG calculation with valid fill-up sequence."""
+        records = [
+            _make_fuel_record(
+                date=date(2024, 1, 1), mileage=10000, gallons=Decimal("15.0"), cost=Decimal("50.00")
+            ),
+            _make_fuel_record(
+                date=date(2024, 1, 15),
+                mileage=10300,
+                gallons=Decimal("12.0"),
+                cost=Decimal("40.00"),
+            ),
+            _make_fuel_record(
+                date=date(2024, 2, 1), mileage=10600, gallons=Decimal("12.5"), cost=Decimal("42.00")
+            ),
+        ]
 
-    assert get_season(winter_date.month) == "Winter"
-    assert get_season(spring_date.month) == "Spring"
-    assert get_season(summer_date.month) == "Summer"
-    assert get_season(fall_date.month) == "Fall"
+        df, stats = analytics_service.calculate_fuel_economy_with_pandas(records)
+
+        # First record is baseline (no diff), so 2 data points
+        assert len(df) == 2
+        assert "average_mpg" in stats
+        assert "best_mpg" in stats
+        assert "worst_mpg" in stats
+        assert "recent_mpg" in stats
+        assert "trend" in stats
+
+        # MPG: 300/12=25, 300/12.5=24
+        assert stats["average_mpg"] > Decimal("0")
+        assert stats["best_mpg"] >= stats["worst_mpg"]
+
+    def test_insufficient_records(self):
+        """Test that fewer than 2 records returns empty."""
+        records = [
+            _make_fuel_record(date=date(2024, 1, 1), mileage=10000, gallons=Decimal("15.0")),
+        ]
+
+        df, stats = analytics_service.calculate_fuel_economy_with_pandas(records)
+
+        assert df.empty
+        assert stats == {}
+
+    def test_empty_records(self):
+        """Test with no records."""
+        df, stats = analytics_service.calculate_fuel_economy_with_pandas([])
+
+        assert df.empty
+        assert stats == {}
+
+    def test_filters_unrealistic_mpg(self):
+        """Test that unrealistic MPG values (>100 or <5) are filtered."""
+        records = [
+            _make_fuel_record(
+                date=date(2024, 1, 1), mileage=10000, gallons=Decimal("15.0"), cost=Decimal("50.00")
+            ),
+            # Tiny distance = unrealistically low MPG (2/15 = 0.13 MPG)
+            _make_fuel_record(
+                date=date(2024, 1, 15),
+                mileage=10002,
+                gallons=Decimal("15.0"),
+                cost=Decimal("50.00"),
+            ),
+            # Normal trip
+            _make_fuel_record(
+                date=date(2024, 2, 1), mileage=10302, gallons=Decimal("12.0"), cost=Decimal("40.00")
+            ),
+        ]
+
+        df, stats = analytics_service.calculate_fuel_economy_with_pandas(records)
+
+        # Only the normal trip (300 mi / 12 gal = 25 MPG) should remain
+        assert len(df) == 1
+        assert stats["average_mpg"] == Decimal("25.0")
+
+    def test_filters_negative_miles(self):
+        """Test that negative mileage diffs are filtered (odometer correction)."""
+        records = [
+            _make_fuel_record(
+                date=date(2024, 1, 1), mileage=10000, gallons=Decimal("12.0"), cost=Decimal("40.00")
+            ),
+            # Odometer went backwards
+            _make_fuel_record(
+                date=date(2024, 1, 15), mileage=9500, gallons=Decimal("12.0"), cost=Decimal("40.00")
+            ),
+            # Normal
+            _make_fuel_record(
+                date=date(2024, 2, 1), mileage=9800, gallons=Decimal("12.0"), cost=Decimal("40.00")
+            ),
+        ]
+
+        df, stats = analytics_service.calculate_fuel_economy_with_pandas(records)
+
+        # Only the 9500->9800 (300 mi) trip should be valid
+        assert len(df) == 1
+
+    def test_records_missing_mileage_or_gallons(self):
+        """Test that records without mileage or gallons are excluded."""
+        records = [
+            _make_fuel_record(
+                date=date(2024, 1, 1), mileage=10000, gallons=Decimal("12.0"), cost=Decimal("40.00")
+            ),
+            _make_fuel_record(
+                date=date(2024, 1, 15), mileage=None, gallons=Decimal("12.0"), cost=Decimal("40.00")
+            ),
+            _make_fuel_record(
+                date=date(2024, 2, 1), mileage=10600, gallons=None, cost=Decimal("40.00")
+            ),
+        ]
+
+        # Only 1 valid record after filtering → less than 2 data points → empty
+        df, stats = analytics_service.calculate_fuel_economy_with_pandas(records)
+
+        assert df.empty
+        assert stats == {}
+
+
+@pytest.mark.unit
+@pytest.mark.analytics
+class TestCalculateSeasonalPatterns:
+    """Test seasonal analysis grouping."""
+
+    def test_all_four_seasons(self):
+        """Test data spanning all four seasons."""
+        df = pd.DataFrame(
+            {
+                "date": pd.to_datetime(
+                    [
+                        "2024-01-15",  # Winter
+                        "2024-04-15",  # Spring
+                        "2024-07-15",  # Summer
+                        "2024-10-15",  # Fall
+                    ]
+                ),
+                "cost": [100.0, 200.0, 300.0, 400.0],
+                "type": ["service"] * 4,
+            }
+        )
+
+        result = analytics_service.calculate_seasonal_patterns(df)
+
+        assert len(result) == 4
+        seasons = result["season"].tolist()
+        assert "Winter" in seasons
+        assert "Spring" in seasons
+        assert "Summer" in seasons
+        assert "Fall" in seasons
+
+        winter = result[result["season"] == "Winter"].iloc[0]
+        assert winter["total_cost"] == 100.0
+        assert winter["count"] == 1
+
+        summer = result[result["season"] == "Summer"].iloc[0]
+        assert summer["total_cost"] == 300.0
+
+    def test_empty_dataframe(self):
+        """Test that empty data returns all seasons with zeros."""
+        df = pd.DataFrame(columns=["date", "cost", "type"])
+
+        result = analytics_service.calculate_seasonal_patterns(df)
+
+        assert len(result) == 4
+        assert all(result["total_cost"] == 0.0)
+        assert all(result["count"] == 0)
+
+    def test_partial_year_still_has_all_seasons(self):
+        """Test that data covering only some months still returns all 4 seasons."""
+        df = pd.DataFrame(
+            {
+                "date": pd.to_datetime(["2024-06-01", "2024-07-01", "2024-08-01"]),
+                "cost": [100.0, 200.0, 300.0],
+                "type": ["service"] * 3,
+            }
+        )
+
+        result = analytics_service.calculate_seasonal_patterns(df)
+
+        assert len(result) == 4
+
+        summer = result[result["season"] == "Summer"].iloc[0]
+        assert summer["total_cost"] == 600.0
+        assert summer["count"] == 3
+
+        # Other seasons should be zero
+        winter = result[result["season"] == "Winter"].iloc[0]
+        assert winter["total_cost"] == 0.0
+        assert winter["count"] == 0
+
+    def test_december_is_winter(self):
+        """Test that December is classified as Winter."""
+        df = pd.DataFrame(
+            {
+                "date": pd.to_datetime(["2024-12-25"]),
+                "cost": [500.0],
+                "type": ["service"],
+            }
+        )
+
+        result = analytics_service.calculate_seasonal_patterns(df)
+
+        winter = result[result["season"] == "Winter"].iloc[0]
+        assert winter["total_cost"] == 500.0
+
+
+@pytest.mark.unit
+@pytest.mark.analytics
+class TestCalculateVendorAnalysis:
+    """Test vendor analysis calculations."""
+
+    def test_multiple_vendors(self):
+        """Test vendor breakdown with multiple vendors."""
+        df = pd.DataFrame(
+            {
+                "date": pd.to_datetime(["2024-01-01", "2024-02-01", "2024-03-01", "2024-04-01"]),
+                "cost": [100.0, 200.0, 150.0, 300.0],
+                "type": ["service", "service", "service", "service"],
+                "vendor": ["Shop A", "Shop B", "Shop A", "Shop B"],
+                "service_type": ["Oil Change", "Brake Pad", "Tire Rotation", "Alignment"],
+            }
+        )
+
+        result = analytics_service.calculate_vendor_analysis(df)
+
+        assert len(result) == 2
+        # Sorted by total_spent descending
+        assert result.iloc[0]["vendor"] == "Shop B"  # 200 + 300 = 500
+        assert result.iloc[0]["total_spent"] == 500.0
+        assert result.iloc[0]["service_count"] == 2
+
+        assert result.iloc[1]["vendor"] == "Shop A"  # 100 + 150 = 250
+        assert result.iloc[1]["total_spent"] == 250.0
+
+    def test_excludes_fuel_records(self):
+        """Test that fuel records are excluded from vendor analysis."""
+        df = pd.DataFrame(
+            {
+                "date": pd.to_datetime(["2024-01-01", "2024-02-01"]),
+                "cost": [100.0, 50.0],
+                "type": ["service", "fuel"],
+                "vendor": ["Shop A", "Fuel Station"],
+                "service_type": ["Oil Change", "Fuel"],
+            }
+        )
+
+        result = analytics_service.calculate_vendor_analysis(df)
+
+        assert len(result) == 1
+        assert result.iloc[0]["vendor"] == "Shop A"
+
+    def test_empty_dataframe(self):
+        """Test empty data returns empty result."""
+        df = pd.DataFrame(columns=["date", "cost", "type", "vendor", "service_type"])
+
+        result = analytics_service.calculate_vendor_analysis(df)
+
+        assert result.empty
+
+    def test_single_vendor(self):
+        """Test with a single vendor."""
+        df = pd.DataFrame(
+            {
+                "date": pd.to_datetime(["2024-01-01", "2024-06-01"]),
+                "cost": [100.0, 200.0],
+                "type": ["service", "service"],
+                "vendor": ["Only Shop", "Only Shop"],
+                "service_type": ["Oil Change", "Brake Pad"],
+            }
+        )
+
+        result = analytics_service.calculate_vendor_analysis(df)
+
+        assert len(result) == 1
+        assert result.iloc[0]["total_spent"] == 300.0
+        assert result.iloc[0]["service_count"] == 2
+        assert "service_types" in result.columns
+
+
+@pytest.mark.unit
+@pytest.mark.analytics
+class TestCompareTimePeriods:
+    """Test time period comparison."""
+
+    def test_basic_comparison(self):
+        """Test comparing two time periods with known costs."""
+        df = pd.DataFrame(
+            {
+                "date": pd.to_datetime(
+                    [
+                        "2024-01-15",
+                        "2024-02-15",
+                        "2024-07-15",
+                        "2024-08-15",
+                    ]
+                ),
+                "cost": [100.0, 200.0, 300.0, 400.0],
+                "type": ["service", "service", "service", "service"],
+            }
+        )
+
+        result = analytics_service.compare_time_periods(
+            df,
+            period1_start=date(2024, 1, 1),
+            period1_end=date(2024, 3, 31),
+            period2_start=date(2024, 7, 1),
+            period2_end=date(2024, 9, 30),
+        )
+
+        assert result["period1_cost"] == Decimal("300.00")  # 100 + 200
+        assert result["period2_cost"] == Decimal("700.00")  # 300 + 400
+        assert result["period1_count"] == 2
+        assert result["period2_count"] == 2
+        # Change: (700-300)/300 * 100 = 133.33%
+        assert result["cost_change_pct"] > Decimal("0")
+
+    def test_empty_dataframe(self):
+        """Test comparison with empty data."""
+        df = pd.DataFrame(columns=["date", "cost", "type"])
+
+        result = analytics_service.compare_time_periods(
+            df,
+            period1_start=date(2024, 1, 1),
+            period1_end=date(2024, 6, 30),
+            period2_start=date(2024, 7, 1),
+            period2_end=date(2024, 12, 31),
+        )
+
+        assert result["period1_cost"] == Decimal("0.00")
+        assert result["period2_cost"] == Decimal("0.00")
+        assert result["period1_count"] == 0
+        assert result["period2_count"] == 0
+
+    def test_no_data_in_period2(self):
+        """Test when period 2 has no records."""
+        df = pd.DataFrame(
+            {
+                "date": pd.to_datetime(["2024-01-15"]),
+                "cost": [100.0],
+                "type": ["service"],
+            }
+        )
+
+        result = analytics_service.compare_time_periods(
+            df,
+            period1_start=date(2024, 1, 1),
+            period1_end=date(2024, 6, 30),
+            period2_start=date(2024, 7, 1),
+            period2_end=date(2024, 12, 31),
+        )
+
+        assert result["period1_cost"] == Decimal("100.00")
+        assert result["period2_cost"] == Decimal("0.00")
+        # -100% change
+        assert result["cost_change_pct"] == Decimal("-100.0")
+
+    def test_service_count_breakdown(self):
+        """Test that service counts are broken out separately."""
+        df = pd.DataFrame(
+            {
+                "date": pd.to_datetime(["2024-01-15", "2024-01-20", "2024-07-15"]),
+                "cost": [100.0, 50.0, 200.0],
+                "type": ["service", "fuel", "service"],
+            }
+        )
+
+        result = analytics_service.compare_time_periods(
+            df,
+            period1_start=date(2024, 1, 1),
+            period1_end=date(2024, 6, 30),
+            period2_start=date(2024, 7, 1),
+            period2_end=date(2024, 12, 31),
+        )
+
+        assert result["period1_service_count"] == 1  # 1 service, 1 fuel
+        assert result["period2_service_count"] == 1
+
+
+@pytest.mark.unit
+@pytest.mark.analytics
+class TestCalculatePropaneCosts:
+    """Test propane cost calculation for fifth wheels."""
+
+    def test_basic_propane_tracking(self):
+        """Test propane cost aggregation with valid records."""
+        records = [
+            _make_fuel_record(
+                id=1,
+                date=date(2024, 1, 15),
+                gallons=None,
+                propane_gallons=Decimal("7.5"),
+                tank_size_lb=Decimal("30"),
+                tank_quantity=2,
+                cost=Decimal("22.50"),
+                price_per_unit=Decimal("3.00"),
+            ),
+            _make_fuel_record(
+                id=2,
+                date=date(2024, 2, 15),
+                gallons=None,
+                propane_gallons=Decimal("8.0"),
+                tank_size_lb=Decimal("30"),
+                tank_quantity=2,
+                cost=Decimal("24.00"),
+                price_per_unit=Decimal("3.00"),
+            ),
+        ]
+
+        result = analytics_service.calculate_propane_costs(records)
+
+        assert result["total_spent"] == Decimal("46.50")
+        assert result["total_gallons"] == Decimal("15.50")  # 7.5 + 8.0
+        assert result["record_count"] == 2
+        assert result["avg_price_per_gallon"] is not None
+        assert len(result["monthly_trend"]) == 2
+        assert "30" in result["tank_breakdown"]
+
+    def test_no_propane_records(self):
+        """Test with no propane records (only gasoline)."""
+        records = [
+            _make_fuel_record(gallons=Decimal("12.0"), propane_gallons=None),
+        ]
+
+        result = analytics_service.calculate_propane_costs(records)
+
+        assert result["total_spent"] == Decimal("0.00")
+        assert result["record_count"] == 0
+        assert result["monthly_trend"] == []
+
+    def test_empty_records(self):
+        """Test with empty list."""
+        result = analytics_service.calculate_propane_costs([])
+
+        assert result["total_spent"] == Decimal("0.00")
+        assert result["total_gallons"] == Decimal("0.00")
+        assert result["record_count"] == 0
+
+    def test_tank_breakdown_multiple_sizes(self):
+        """Test tank breakdown with different tank sizes."""
+        records = [
+            _make_fuel_record(
+                id=1,
+                date=date(2024, 1, 10),
+                gallons=None,
+                propane_gallons=Decimal("7.0"),
+                tank_size_lb=Decimal("30"),
+                cost=Decimal("21.00"),
+                price_per_unit=Decimal("3.00"),
+            ),
+            _make_fuel_record(
+                id=2,
+                date=date(2024, 2, 10),
+                gallons=None,
+                propane_gallons=Decimal("10.0"),
+                tank_size_lb=Decimal("40"),
+                cost=Decimal("30.00"),
+                price_per_unit=Decimal("3.00"),
+            ),
+        ]
+
+        result = analytics_service.calculate_propane_costs(records)
+
+        assert "30" in result["tank_breakdown"]
+        assert "40" in result["tank_breakdown"]
+        assert result["tank_breakdown"]["30"]["total_gallons"] == 7.0
+        assert result["tank_breakdown"]["40"]["total_gallons"] == 10.0
+
+    def test_refill_frequency(self):
+        """Test refill frequency calculation with multiple fills of same tank."""
+        records = [
+            _make_fuel_record(
+                id=1,
+                date=date(2024, 1, 1),
+                gallons=None,
+                propane_gallons=Decimal("7.0"),
+                tank_size_lb=Decimal("30"),
+                cost=Decimal("21.00"),
+                price_per_unit=Decimal("3.00"),
+            ),
+            _make_fuel_record(
+                id=2,
+                date=date(2024, 1, 15),
+                gallons=None,
+                propane_gallons=Decimal("7.0"),
+                tank_size_lb=Decimal("30"),
+                cost=Decimal("21.00"),
+                price_per_unit=Decimal("3.00"),
+            ),
+            _make_fuel_record(
+                id=3,
+                date=date(2024, 2, 14),
+                gallons=None,
+                propane_gallons=Decimal("7.0"),
+                tank_size_lb=Decimal("30"),
+                cost=Decimal("21.00"),
+                price_per_unit=Decimal("3.00"),
+            ),
+        ]
+
+        result = analytics_service.calculate_propane_costs(records)
+
+        assert "30" in result["refill_frequency"]
+        freq = result["refill_frequency"]["30"]
+        assert freq["avg_days_between"] > 0
+        assert freq["min_days"] == 14  # Jan 1 → Jan 15
+        assert freq["max_days"] == 30  # Jan 15 → Feb 14

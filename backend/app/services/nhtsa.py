@@ -1,7 +1,5 @@
 """NHTSA (National Highway Traffic Safety Administration) API service."""
 
-# pyright: reportArgumentType=false
-
 import logging
 from typing import Any
 

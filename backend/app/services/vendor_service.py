@@ -51,9 +51,9 @@ class VendorService:
         """
         try:
             query = select(Vendor)
+            search_pattern = f"%{search}%" if search else ""
 
             if search:
-                search_pattern = f"%{search}%"
                 query = query.where(Vendor.name.ilike(search_pattern))
 
             # Get total count

@@ -5,7 +5,7 @@ import tomllib
 from pathlib import Path
 
 from pydantic import Field
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.utils.secret_key import get_or_create_secret_key
 
@@ -162,9 +162,7 @@ class Settings(BaseSettings):
         """Convert max CSV size to bytes."""
         return self.max_csv_size_mb * 1024 * 1024
 
-    class Config:
-        env_prefix = "MYGARAGE_"
-        # No env_file required - all settings have sensible defaults
+    model_config = SettingsConfigDict(env_prefix="MYGARAGE_")
 
 
 settings = Settings()

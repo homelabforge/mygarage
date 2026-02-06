@@ -1,7 +1,8 @@
 """Unified file upload service for all upload endpoints."""
 
-# pyright: reportArgumentType=false, reportOptionalMemberAccess=false, reportCallIssue=false
+# pyright: reportOptionalMemberAccess=false
 
+import asyncio
 import logging
 import uuid
 from datetime import datetime
@@ -151,6 +152,12 @@ class FileUploadService:
         return contents
 
     @staticmethod
+    def _write_file(path: Path, contents: bytes) -> None:
+        """Write file contents to disk (sync helper for thread pool)."""
+        with open(path, "wb") as f:
+            f.write(contents)
+
+    @staticmethod
     def create_thumbnail(
         image_bytes: bytes, thumbnail_path: Path, size: tuple[Any, ...] = (300, 300)
     ) -> None:
@@ -226,9 +233,8 @@ class FileUploadService:
             # Validate path is within base directory
             validated_path = validate_path_within_base(file_path, config.base_dir, raise_error=True)
 
-            # Save file
-            with open(validated_path, "wb") as f:
-                f.write(contents)
+            # Save file (offload blocking I/O to thread pool)
+            await asyncio.to_thread(FileUploadService._write_file, validated_path, contents)
 
             logger.info("Saved file: %s", validated_path)
 
@@ -239,7 +245,12 @@ class FileUploadService:
                 thumbnail_filename = f"{Path(filename).stem}_thumb.jpg"
                 thumbnail_path = thumbnail_dir / thumbnail_filename
 
-                FileUploadService.create_thumbnail(contents, thumbnail_path, config.thumbnail_size)
+                await asyncio.to_thread(
+                    FileUploadService.create_thumbnail,
+                    contents,
+                    thumbnail_path,
+                    config.thumbnail_size,
+                )
 
                 # Validate thumbnail path
                 validate_path_within_base(thumbnail_path, config.base_dir, raise_error=True)

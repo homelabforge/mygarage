@@ -440,4 +440,4 @@ class MaintenanceTemplateService:
             .where(MaintenanceTemplate.vin == vin)
             .order_by(MaintenanceTemplate.applied_at.desc())
         )
-        return result.scalars().all()
+        return list(result.scalars().all())

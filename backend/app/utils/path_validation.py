@@ -1,6 +1,6 @@
 """Path validation utilities for preventing path traversal attacks."""
 
-# pyright: reportArgumentType=false, reportReturnType=false
+# pyright: reportReturnType=false
 
 import logging
 import re

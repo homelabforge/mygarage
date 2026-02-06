@@ -89,7 +89,9 @@ async def get_calendar_events(
 
         for reminder in reminders:
             vehicle = vehicles_dict.get(reminder.vin)
-            is_overdue = reminder.due_date < today and not reminder.is_completed
+            is_overdue = bool(
+                reminder.due_date and reminder.due_date < today and not reminder.is_completed
+            )
 
             events.append(
                 CalendarEvent(
@@ -207,7 +209,7 @@ async def get_calendar_events(
 
         for warranty in warranties:
             vehicle = vehicles_dict.get(warranty.vin)
-            is_overdue = warranty.end_date < today
+            is_overdue = bool(warranty.end_date and warranty.end_date < today)
 
             events.append(
                 CalendarEvent(

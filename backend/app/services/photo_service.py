@@ -1,6 +1,6 @@
 """Photo management business logic."""
 
-# pyright: reportOptionalMemberAccess=false, reportArgumentType=false
+# pyright: reportOptionalMemberAccess=false
 
 import logging
 from io import BytesIO
@@ -11,17 +11,19 @@ from fastapi import HTTPException
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 from app.config import settings
+from app.models.photo import VehiclePhoto
 from app.utils.path_validation import validate_path_within_base
 
 logger = logging.getLogger(__name__)
 
+HEIF_SUPPORTED = False
 try:
     import pillow_heif  # type: ignore
 
     pillow_heif.register_heif_opener()
     HEIF_SUPPORTED = True
 except Exception:  # pragma: no cover - optional dependency
-    HEIF_SUPPORTED = False
+    pass
 
 IMAGE_FORMAT_MAP = {
     ".jpg": "JPEG",
@@ -138,7 +140,9 @@ class PhotoService:
         return str(thumb_path.relative_to(PHOTO_DIR))
 
     @staticmethod
-    def build_photo_payload(vin: str, photo, photo_dir: Path = PHOTO_DIR) -> dict[str, Any]:
+    def build_photo_payload(
+        vin: str, photo: VehiclePhoto, photo_dir: Path = PHOTO_DIR
+    ) -> dict[str, Any]:
         """
         Build consistent photo response dict.
 

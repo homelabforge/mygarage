@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Dependency Updates** - Updated 18 Python dependency floors (fastapi, sqlalchemy, aiosqlite, pydantic, httpx, pandas 3.0, pillow, pillow-heif, reportlab, pymupdf, aiomqtt, authlib security patch, and more)
+- **aiosmtplib 3.x to 5.x** - Pin-only update, API fully backwards compatible
+- **pydantic-settings 2.6 to 2.12** - Replaced deprecated `class Config` with `model_config = SettingsConfigDict()`
+- **Dockerfile Alignment** - Aligned pip (26.0.1) and bun (1.3.8) labels with actual versions
+- **Ruff target-version** - Changed from `py314` to `py313` to avoid PEP 758 syntax issues, fixed 22 except clauses across 18 files
+
+### Improved
+- **N+1 Query Fix** - `check_device_offline_status()` pre-fetches all vehicle names in a single query instead of N separate queries per device
+- **Thread Pool Offloading** - File writes, thumbnail creation, and Tesseract OCR calls now run in `asyncio.to_thread()` to avoid blocking the event loop
+- **CSRF Middleware** - Refactored to use `async with get_db_context()` context manager, eliminating potential resource leaks from manual `anext()`/`aclose()`
+- **Query Deduplication** - Extracted shared ownership filter in `VehicleService.list_vehicles()`
+- **Exception Handling** - Specific `(ValueError, TypeError)` for bcrypt in auth service, token expiry log downgraded to debug level, `.is_(True)` idiom for SQLAlchemy boolean comparisons
+- **Currency Formatting** - Consolidated all 12 duplicate `formatCurrency` implementations into shared `formatUtils.ts` utility
+- **Modal State** - VehicleDetail modal management simplified from 4 boolean `useState` hooks to single `ModalType` union type
+- **Auth Page Layout** - Extracted shared `AuthPageLayout` component, removing ~80 lines of duplication from Login and Register pages
+- **Dead Code Removal** - Removed unused `toll-tags-refresh` window event listener and unused `onRefresh` prop from TollTagList
+- **Accessibility** - Added ARIA labels to icon-only nav links, `role="status"` to loading spinners, progressbar attributes to password strength meter, `aria-label` to filter/sort dropdowns
+- **Pyright Strict Mode** - Reduced `"none"` suppressions from 13 to 7 (46% reduction), warnings from 1,317 to 1,296; fixed insurance parser method signatures, constant redefinition patterns, and untyped parameters
+
+### Fixed
+- **VehicleDetail Offline Cache** - Offline cache path incorrectly set error state, making the cached data warning banner unreachable; now correctly shows cached vehicle data with offline warning instead of error page
+- **VehicleDetail JSON.parse Safety** - Wrapped localStorage cache parsing in try-catch; corrupted cache is cleared on failure instead of crashing
+- **Theme Context Race Condition** - Added `cancelled` flag with cleanup in useEffect to prevent stale state updates on unmount
+- **Dashboard Error State** - Replaced silent catch with user-visible error UI and retry button
+- **Auth Timeout** - Replaced unreliable 100ms `setTimeout` in AuthContext with immediate try + 50ms retry pattern
+
+### Added
+- **Test Suite Expansion** - Added 120 new tests (85 backend + 35 frontend), up from 1,011 to 1,131 total
+  - Backend: CSRF middleware (20), LiveLink token validation (10), notification dispatcher (30), analytics service (25)
+  - Frontend: ErrorBoundary (6), ThemeContext (8), AuthContext (9), VehicleDetail page (12)
+- **Playwright E2E Tests** - 13 end-to-end tests across 5 specs (auth, dashboard, navigation, settings, vehicle) with full frontend-to-backend coverage
+  - Dual web server setup (Granian backend + Vite frontend) with fresh SQLite per run
+  - API-based auth setup with CSRF token handling
+  - CI pipeline integration with Playwright report and test result artifacts
+
 ## [2.21.0] - 2026-02-05
 
 ### Added

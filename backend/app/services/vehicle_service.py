@@ -1,6 +1,6 @@
 """Vehicle business logic service layer."""
 
-# pyright: reportArgumentType=false, reportOptionalOperand=false, reportGeneralTypeIssues=false, reportReturnType=false
+# pyright: reportOptionalOperand=false, reportReturnType=false
 
 import logging
 
@@ -41,47 +41,33 @@ class VehicleService:
             Tuple of (vehicles list, total count)
         """
         try:
-            # Build query with ownership filter
-            query = select(Vehicle).order_by(Vehicle.created_at.desc())
-
+            # Build ownership filter (shared across results + count queries)
             # If auth is disabled, show all vehicles
             # Admin users see all vehicles
             # Non-admin users see their own vehicles + shared vehicles
+            ownership_filter = None
             if current_user is not None and not current_user.is_admin:
-                # Get VINs of vehicles shared with this user
                 shared_vins_subquery = (
                     select(VehicleShare.vehicle_vin)
                     .where(VehicleShare.user_id == current_user.id)
                     .scalar_subquery()
                 )
-
-                # User can see: owned vehicles OR shared vehicles
-                query = query.where(
-                    or_(
-                        Vehicle.user_id == current_user.id,
-                        Vehicle.vin.in_(shared_vins_subquery),
-                    )
+                ownership_filter = or_(
+                    Vehicle.user_id == current_user.id,
+                    Vehicle.vin.in_(shared_vins_subquery),
                 )
 
             # Get vehicles with pagination
+            query = select(Vehicle).order_by(Vehicle.created_at.desc())
+            if ownership_filter is not None:
+                query = query.where(ownership_filter)
             result = await self.db.execute(query.offset(skip).limit(limit))
             vehicles = list(result.scalars().all())
 
             # Get total count with same filter
             count_query = select(func.count()).select_from(Vehicle)
-            if current_user is not None and not current_user.is_admin:
-                shared_vins_subquery = (
-                    select(VehicleShare.vehicle_vin)
-                    .where(VehicleShare.user_id == current_user.id)
-                    .scalar_subquery()
-                )
-                count_query = count_query.where(
-                    or_(
-                        Vehicle.user_id == current_user.id,
-                        Vehicle.vin.in_(shared_vins_subquery),
-                    )
-                )
-
+            if ownership_filter is not None:
+                count_query = count_query.where(ownership_filter)
             count_result = await self.db.execute(count_query)
             total = count_result.scalar()
 

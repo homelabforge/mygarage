@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Edit, Trash2, Plus, AlertCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateForDisplay } from '../utils/dateUtils'
+import { formatCurrency } from '../utils/formatUtils'
 import type { TaxRecord, TaxRecordListResponse } from '../types/tax'
 import TaxRecordForm from './TaxRecordForm'
 import api from '../services/api'
@@ -64,13 +65,6 @@ export default function TaxRecordList({ vin }: TaxRecordListProps) {
   const handleSuccess = () => {
     fetchRecords()
     setShowForm(false)
-  }
-
-  const formatCurrency = (amount: number): string => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(amount)
   }
 
   const getTotalAmount = (): number => {

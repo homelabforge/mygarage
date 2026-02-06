@@ -527,6 +527,9 @@ async def clear_dtc(
     dtc_service = DTCService(db)
     cleared = await dtc_service.clear_dtc(dtc_id, notes=request.notes)
 
+    if not cleared:
+        raise HTTPException(status_code=404, detail=f"DTC {dtc_id} not found")
+
     return DTCClearResponse(
         success=True,
         dtc_id=dtc_id,

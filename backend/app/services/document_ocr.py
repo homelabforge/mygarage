@@ -4,8 +4,7 @@ This service handles text extraction from various document types using OCR
 and routes to the appropriate parser based on document type.
 """
 
-# pyright: reportMissingImports=false
-
+import asyncio
 import logging
 import os
 from pathlib import Path
@@ -276,13 +275,14 @@ class DocumentOCRService:
             except Exception as e:
                 logger.warning("PaddleOCR failed, falling back to Tesseract: %s", e)
 
+        # Fallback to Tesseract (offload CPU-intensive OCR to thread pool)
         try:
             import pytesseract
             from PIL import Image
 
-            image = Image.open(file_path)
-            text = pytesseract.image_to_string(image)
-            return text
+            image = await asyncio.to_thread(Image.open, file_path)
+            text = await asyncio.to_thread(pytesseract.image_to_string, image)
+            return str(text)
         except ImportError:
             logger.warning("PIL or pytesseract not installed")
             return ""
@@ -300,6 +300,7 @@ class DocumentOCRService:
             except Exception as e:
                 logger.warning("PaddleOCR bytes failed: %s", e)
 
+        # Fallback to Tesseract (offload CPU-intensive OCR to thread pool)
         try:
             import io
 
@@ -307,7 +308,7 @@ class DocumentOCRService:
             from PIL import Image
 
             image = Image.open(io.BytesIO(img_bytes))
-            return pytesseract.image_to_string(image)
+            return str(await asyncio.to_thread(pytesseract.image_to_string, image))
         except Exception as e:
             logger.error("Error OCR-ing image bytes: %s", e)
             return ""

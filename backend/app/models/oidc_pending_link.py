@@ -3,8 +3,10 @@ from __future__ import annotations
 """OIDC pending link model for username-based account linking with password verification."""
 
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
-from sqlalchemy import JSON, Column, DateTime, Index, Integer, String
+from sqlalchemy import JSON, DateTime, Index, Integer, String
+from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
 
@@ -25,14 +27,22 @@ class OIDCPendingLink(Base):
 
     __tablename__ = "oidc_pending_links"
 
-    token = Column(String(128), primary_key=True, index=True, nullable=False)
-    username = Column(String(100), nullable=False, index=True)
-    oidc_claims = Column(JSON, nullable=False)  # Full ID token claims
-    userinfo_claims = Column(JSON, nullable=True)  # Optional userinfo endpoint claims
-    provider_name = Column(String(100), nullable=False)  # Provider display name
-    attempt_count = Column(Integer, default=0, nullable=False)  # Failed password attempts
-    created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
-    expires_at = Column(DateTime, nullable=False)
+    token: Mapped[str] = mapped_column(String(128), primary_key=True, index=True, nullable=False)
+    username: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    oidc_claims: Mapped[dict[str, Any]] = mapped_column(
+        JSON, nullable=False
+    )  # Full ID token claims
+    userinfo_claims: Mapped[dict[str, Any] | None] = mapped_column(
+        JSON, nullable=True
+    )  # Optional userinfo endpoint claims
+    provider_name: Mapped[str] = mapped_column(String(100), nullable=False)  # Provider display name
+    attempt_count: Mapped[int] = mapped_column(
+        Integer, default=0, nullable=False
+    )  # Failed password attempts
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(UTC), nullable=False
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
 
     # Indexes for efficient queries and cleanup
     __table_args__ = (
@@ -40,7 +50,7 @@ class OIDCPendingLink(Base):
         Index("ix_oidc_pending_link_expires_at", "expires_at"),
     )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<OIDCPendingLink(token={self.token[:16]}..., username={self.username}, expires_at={self.expires_at})>"
 
     def is_expired(self) -> bool:
@@ -50,7 +60,7 @@ class OIDCPendingLink(Base):
         expires = self.expires_at
         if expires.tzinfo is None:
             expires = expires.replace(tzinfo=UTC)
-        return now > expires  # type: ignore[return-value]
+        return now > expires
 
     @classmethod
     def get_expiry_time(cls, minutes: int = 5) -> datetime:

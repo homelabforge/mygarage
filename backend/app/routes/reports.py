@@ -130,8 +130,8 @@ async def download_cost_summary_pdf(
         .where(extract("year", ServiceRecordModel.date) == year)
     )
     service_stats = service_result.first()
-    cost_data["service_count"] = service_stats.count or 0
-    cost_data["service_total"] = service_stats.total or 0
+    cost_data["service_count"] = (service_stats.count or 0) if service_stats else 0
+    cost_data["service_total"] = (service_stats.total or 0) if service_stats else 0
 
     # Fuel records - only for motorized vehicles
     if is_motorized:
@@ -144,8 +144,8 @@ async def download_cost_summary_pdf(
             .where(extract("year", FuelRecordModel.date) == year)
         )
         fuel_stats = fuel_result.first()
-        cost_data["fuel_count"] = fuel_stats.count or 0
-        cost_data["fuel_total"] = fuel_stats.total or 0
+        cost_data["fuel_count"] = (fuel_stats.count or 0) if fuel_stats else 0
+        cost_data["fuel_total"] = (fuel_stats.total or 0) if fuel_stats else 0
     else:
         cost_data["fuel_count"] = 0
         cost_data["fuel_total"] = 0
@@ -161,8 +161,8 @@ async def download_cost_summary_pdf(
         .where(extract("year", ServiceRecordModel.date) == year)
     )
     collision_stats = collision_result.first()
-    cost_data["collision_count"] = collision_stats.count or 0
-    cost_data["collision_total"] = collision_stats.total or 0
+    cost_data["collision_count"] = (collision_stats.count or 0) if collision_stats else 0
+    cost_data["collision_total"] = (collision_stats.total or 0) if collision_stats else 0
 
     # Upgrade records (now in service_records with service_type='Upgrades')
     upgrade_result = await db.execute(
@@ -175,8 +175,8 @@ async def download_cost_summary_pdf(
         .where(extract("year", ServiceRecordModel.date) == year)
     )
     upgrade_stats = upgrade_result.first()
-    cost_data["upgrade_count"] = upgrade_stats.count or 0
-    cost_data["upgrade_total"] = upgrade_stats.total or 0
+    cost_data["upgrade_count"] = (upgrade_stats.count or 0) if upgrade_stats else 0
+    cost_data["upgrade_total"] = (upgrade_stats.total or 0) if upgrade_stats else 0
 
     # Generate PDF
     pdf_gen = PDFReportGenerator()

@@ -19,6 +19,7 @@ import {
   Download,
 } from 'lucide-react'
 import api from '../services/api'
+import { formatCurrency } from '../utils/formatUtils'
 
 interface ExtractedData {
   msrp_base: string | null
@@ -133,15 +134,6 @@ export default function WindowStickerTest() {
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text)
     toast.success('Copied to clipboard')
-  }
-
-  const formatCurrency = (value: string | null) => {
-    if (!value) return '-'
-    const num = parseFloat(value)
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(num)
   }
 
   return (

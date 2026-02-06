@@ -82,6 +82,12 @@ test/
 *.spec.ts
 *.spec.tsx
 
+# Playwright
+frontend/e2e/
+frontend/test-results/
+frontend/playwright-report/
+frontend/playwright.config.ts
+
 # CI/CD
 .github/
 .gitlab-ci.yml

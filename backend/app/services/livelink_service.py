@@ -193,7 +193,7 @@ class LiveLinkService:
         result = await self.db.execute(
             select(LiveLinkDevice)
             .where(
-                LiveLinkDevice.enabled == True,  # noqa: E712
+                LiveLinkDevice.enabled.is_(True),
                 LiveLinkDevice.device_status == "online",
             )
             .order_by(LiveLinkDevice.last_seen.desc())
@@ -206,7 +206,7 @@ class LiveLinkService:
         # Fallback: any enabled device (even if offline) sorted by last_seen
         result = await self.db.execute(
             select(LiveLinkDevice)
-            .where(LiveLinkDevice.enabled == True)  # noqa: E712
+            .where(LiveLinkDevice.enabled.is_(True))
             .order_by(LiveLinkDevice.last_seen.desc().nullslast())
             .limit(1)
         )

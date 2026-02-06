@@ -8,7 +8,7 @@ export default function ProtectedRoute() {
   // Show loading spinner while checking auth status
   if (loading) {
     return (
-      <div className="min-h-screen bg-garage-bg flex items-center justify-center">
+      <div className="min-h-screen bg-garage-bg flex items-center justify-center" role="status" aria-label="Loading">
         <div className="text-center">
           <Loader className="w-8 h-8 text-primary animate-spin mx-auto mb-4" />
           <p className="text-garage-text-muted">Loading...</p>

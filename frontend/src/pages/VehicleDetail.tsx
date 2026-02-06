@@ -67,6 +67,7 @@ import VehicleSharingModal from '../components/modals/VehicleSharingModal'
 import TransferHistorySection from '../components/TransferHistorySection'
 import { useOnlineStatus } from '../hooks/useOnlineStatus'
 import { useAuth } from '../contexts/AuthContext'
+import { formatCurrency } from '../utils/formatUtils'
 
 type ApiError = {
   response?: {
@@ -95,6 +96,7 @@ const getApiErrorMessage = (error: unknown, fallback: string) => {
   return fallback
 }
 
+type ModalType = 'remove' | 'transfer' | 'sharing' | 'windowSticker' | null
 type PrimaryTabType = 'overview' | 'media' | 'maintenance' | 'tracking' | 'financial' | 'livelink'
 type SubTabType = 'photos' | 'documents' | 'service' | 'fuel' | 'propane' | 'odometer' | 'reminders' | 'notes' | 'warranties' | 'insurance' | 'tax' | 'tolls' | 'spotrentals' | 'recalls' | 'reports' | 'live' | 'dtcs' | 'sessions' | 'charts'
 
@@ -108,10 +110,7 @@ export default function VehicleDetail() {
   const [error, setError] = useState<string | null>(null)
   const [activePrimaryTab, setActivePrimaryTab] = useState<PrimaryTabType>('overview')
   const [activeSubTab, setActiveSubTab] = useState<SubTabType | null>(null)
-  const [showRemoveModal, setShowRemoveModal] = useState(false)
-  const [showTransferWizard, setShowTransferWizard] = useState(false)
-  const [showSharingModal, setShowSharingModal] = useState(false)
-  const [showWindowStickerUpload, setShowWindowStickerUpload] = useState(false)
+  const [openModal, setOpenModal] = useState<ModalType>(null)
   const [exporting, setExporting] = useState(false)
   const [importing, setImporting] = useState(false)
   const [fromCache, setFromCache] = useState(false)
@@ -134,11 +133,14 @@ export default function VehicleDetail() {
       if (!navigator.onLine) {
         const cached = localStorage.getItem(cacheKey)
         if (cached) {
-          const parsed = JSON.parse(cached)
-          setVehicle(parsed.data)
-          setFromCache(true)
-          setError('Offline: showing cached vehicle data.')
-          return
+          try {
+            const parsed = JSON.parse(cached)
+            setVehicle(parsed.data)
+            setFromCache(true)
+            return
+          } catch {
+            localStorage.removeItem(cacheKey)
+          }
         }
       }
       setError(getApiErrorMessage(error, 'Failed to load vehicle'))
@@ -341,15 +343,6 @@ export default function VehicleDetail() {
     return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
   }
 
-  const formatPrice = (price?: number) => {
-    if (!price) return 'Not specified'
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-    }).format(price)
-  }
-
   // Handle primary tab click
   const handlePrimaryTabClick = (tabId: PrimaryTabType) => {
     setActivePrimaryTab(tabId)
@@ -488,8 +481,9 @@ export default function VehicleDetail() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center min-h-screen" role="status" aria-label="Loading vehicle">
         <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+        <span className="sr-only">Loading vehicle details...</span>
       </div>
     )
   }
@@ -610,7 +604,7 @@ export default function VehicleDetail() {
                   <span>Analytics</span>
                 </button>
                 <button
-                  onClick={() => setShowSharingModal(true)}
+                  onClick={() => setOpenModal('sharing')}
                   className="flex items-center space-x-2 px-5 py-3 btn btn-primary rounded-lg"
                   title="Share vehicle with other users"
                 >
@@ -626,7 +620,7 @@ export default function VehicleDetail() {
                 </button>
                 {isAdmin && (
                   <button
-                    onClick={() => setShowTransferWizard(true)}
+                    onClick={() => setOpenModal('transfer')}
                     className="flex items-center space-x-2 px-5 py-3 bg-amber-900/30 border border-amber-700 text-amber-400 rounded-lg hover:bg-amber-800/50 transition-colors"
                     title="Transfer vehicle ownership"
                   >
@@ -635,7 +629,7 @@ export default function VehicleDetail() {
                   </button>
                 )}
                 <button
-                  onClick={() => setShowRemoveModal(true)}
+                  onClick={() => setOpenModal('remove')}
                   className="flex items-center space-x-2 px-5 py-3 bg-red-900/30 border border-red-700 text-red-400 rounded-lg hover:bg-red-800/50 transition-colors"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -747,7 +741,7 @@ export default function VehicleDetail() {
                     <DollarSign className="w-4 h-4" />
                     <span>Purchase Price</span>
                   </p>
-                  <p className="text-garage-text font-medium mt-1">{formatPrice(vehicle.purchase_price)}</p>
+                  <p className="text-garage-text font-medium mt-1">{formatCurrency(vehicle.purchase_price, { fallback: 'Not specified' })}</p>
                 </div>
               </div>
             </div>
@@ -769,7 +763,7 @@ export default function VehicleDetail() {
                       <DollarSign className="w-4 h-4" />
                       <span>Sale Price</span>
                     </p>
-                    <p className="text-garage-text font-medium mt-1">{formatPrice(vehicle.sold_price)}</p>
+                    <p className="text-garage-text font-medium mt-1">{formatCurrency(vehicle.sold_price, { fallback: 'Not specified' })}</p>
                   </div>
                 </div>
               </div>
@@ -1141,7 +1135,7 @@ export default function VehicleDetail() {
                       )}
                     </div>
                     <button
-                      onClick={() => setShowWindowStickerUpload(true)}
+                      onClick={() => setOpenModal('windowSticker')}
                       className="text-sm text-garage-text-muted hover:text-garage-text transition-colors"
                     >
                       Replace sticker...
@@ -1152,7 +1146,7 @@ export default function VehicleDetail() {
                     <FileText className="w-10 h-10 text-garage-text-muted mx-auto mb-2 opacity-50" />
                     <p className="text-sm text-garage-text-muted mb-3">No window sticker uploaded</p>
                     <button
-                      onClick={() => setShowWindowStickerUpload(true)}
+                      onClick={() => setOpenModal('windowSticker')}
                       className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors text-sm"
                     >
                       Upload Window Sticker
@@ -1196,8 +1190,8 @@ export default function VehicleDetail() {
 
       {/* Vehicle Remove Modal */}
       <VehicleRemoveModal
-        isOpen={showRemoveModal}
-        onClose={() => setShowRemoveModal(false)}
+        isOpen={openModal === 'remove'}
+        onClose={() => setOpenModal(null)}
         vehicle={vehicle}
         onConfirm={handleVehicleRemoved}
       />
@@ -1205,8 +1199,8 @@ export default function VehicleDetail() {
       {/* Vehicle Transfer Wizard */}
       {vin && vehicle && (
         <VehicleTransferWizard
-          isOpen={showTransferWizard}
-          onClose={() => setShowTransferWizard(false)}
+          isOpen={openModal === 'transfer'}
+          onClose={() => setOpenModal(null)}
           vin={vin}
           vehicleNickname={vehicle.nickname}
           onTransferComplete={() => {
@@ -1219,8 +1213,8 @@ export default function VehicleDetail() {
       {/* Vehicle Sharing Modal */}
       {vin && vehicle && (
         <VehicleSharingModal
-          isOpen={showSharingModal}
-          onClose={() => setShowSharingModal(false)}
+          isOpen={openModal === 'sharing'}
+          onClose={() => setOpenModal(null)}
           vin={vin}
           vehicleNickname={vehicle.nickname}
         />
@@ -1285,7 +1279,7 @@ export default function VehicleDetail() {
               <button
                 onClick={() => {
                   setShowMobileMenu(false)
-                  setShowRemoveModal(true)
+                  setOpenModal('remove')
                 }}
                 className="w-full flex items-center space-x-3 px-4 py-3 text-left text-red-400 hover:bg-red-900/20 rounded-lg transition-colors"
               >
@@ -1298,15 +1292,15 @@ export default function VehicleDetail() {
       )}
 
       {/* Window Sticker Upload Modal */}
-      {showWindowStickerUpload && vin && (
+      {openModal === 'windowSticker' && vin && (
         <WindowStickerUpload
           vin={vin}
           onSuccess={() => {
-            setShowWindowStickerUpload(false)
+            setOpenModal(null)
             loadVehicle()
             toast.success('Window sticker uploaded successfully!')
           }}
-          onClose={() => setShowWindowStickerUpload(false)}
+          onClose={() => setOpenModal(null)}
         />
       )}
     </div>

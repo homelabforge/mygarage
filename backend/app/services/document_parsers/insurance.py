@@ -1,7 +1,5 @@
 """Insurance document parsers with provider-specific implementations."""
 
-# pyright: reportIncompatibleMethodOverride=false, reportArgumentType=false
-
 import logging
 import re
 from abc import abstractmethod
@@ -92,7 +90,7 @@ class InsuranceDocumentParser(BaseDocumentParser):
     PROVIDER_NAME: str = "Unknown"
 
     @abstractmethod
-    def parse(self, text: str, target_vin: str | None = None) -> InsuranceData:
+    def parse(self, text: str, *, target_vin: str | None = None, **kwargs: Any) -> InsuranceData:
         """Parse insurance document text."""
         pass
 
@@ -219,7 +217,7 @@ class ProgressiveInsuranceParser(InsuranceDocumentParser):
         text_lower = text.lower()
         return any(indicator in text_lower for indicator in indicators)
 
-    def parse(self, text: str, target_vin: str | None = None) -> InsuranceData:
+    def parse(self, text: str, *, target_vin: str | None = None, **kwargs: Any) -> InsuranceData:
         """Parse Progressive insurance document."""
         data = InsuranceData(
             provider=self.PROVIDER_NAME,
@@ -370,7 +368,7 @@ class StateFarmInsuranceParser(InsuranceDocumentParser):
         text_lower = text.lower()
         return any(indicator in text_lower for indicator in indicators)
 
-    def parse(self, text: str, target_vin: str | None = None) -> InsuranceData:
+    def parse(self, text: str, *, target_vin: str | None = None, **kwargs: Any) -> InsuranceData:
         """Parse State Farm insurance document."""
         data = InsuranceData(
             provider=self.PROVIDER_NAME,
@@ -457,7 +455,7 @@ class GeicoInsuranceParser(InsuranceDocumentParser):
         text_lower = text.lower()
         return any(indicator in text_lower for indicator in indicators)
 
-    def parse(self, text: str, target_vin: str | None = None) -> InsuranceData:
+    def parse(self, text: str, *, target_vin: str | None = None, **kwargs: Any) -> InsuranceData:
         """Parse GEICO insurance document."""
         data = InsuranceData(
             provider=self.PROVIDER_NAME,
@@ -541,7 +539,7 @@ class AllstateInsuranceParser(InsuranceDocumentParser):
         text_lower = text.lower()
         return any(indicator in text_lower for indicator in indicators)
 
-    def parse(self, text: str, target_vin: str | None = None) -> InsuranceData:
+    def parse(self, text: str, *, target_vin: str | None = None, **kwargs: Any) -> InsuranceData:
         """Parse Allstate insurance document."""
         data = InsuranceData(
             provider=self.PROVIDER_NAME,
@@ -628,7 +626,7 @@ class GenericInsuranceParser(InsuranceDocumentParser):
         """Generic parser can always parse - used as fallback."""
         return True
 
-    def parse(self, text: str, target_vin: str | None = None) -> InsuranceData:
+    def parse(self, text: str, *, target_vin: str | None = None, **kwargs: Any) -> InsuranceData:
         """Parse insurance document with generic patterns."""
         data = InsuranceData(
             parser_name=self.PARSER_NAME,

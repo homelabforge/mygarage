@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { formatDateForDisplay } from '../utils/dateUtils'
+import { formatCurrency } from '../utils/formatUtils'
 import {
   Wrench,
   Plus,
@@ -126,14 +127,6 @@ export default function ServiceVisitList({
       }
       return next
     })
-  }
-
-  const formatCurrency = (amount?: number) => {
-    if (amount === undefined || amount === null) return '-'
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(amount)
   }
 
   const formatDate = (dateString: string) => {

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { DollarSign, Plus, Edit, Trash2, MapPin, Calendar, Download, CreditCard } from 'lucide-react'
 import { toast } from 'sonner'
 import type { TollTransaction, TollTag, TollTransactionSummary } from '../types/toll'
+import { formatCurrency } from '../utils/formatUtils'
 import api from '../services/api'
 
 interface TollTransactionListProps {
@@ -105,13 +106,6 @@ export default function TollTransactionList({ vin, tollTags, onAddClick, onEditC
       month: 'short',
       day: 'numeric',
     })
-  }
-
-  const formatCurrency = (amount: number): string => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(amount)
   }
 
   const getTollTagName = (tagId?: number): string => {

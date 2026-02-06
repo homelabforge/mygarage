@@ -248,7 +248,7 @@ async def get_dashboard(
     total_photos = sum(v.total_photos for v in vehicle_stats)
 
     return DashboardResponse(
-        total_vehicles=len(vehicles),
+        total_vehicles=len(vehicle_stats),
         vehicles=vehicle_stats,
         total_service_records=total_service,
         total_fuel_records=total_fuel,

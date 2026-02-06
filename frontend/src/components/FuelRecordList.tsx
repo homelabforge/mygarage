@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import type { FuelRecord } from '../types/fuel'
 import type { Vehicle } from '../types/vehicle'
 import { formatDateForDisplay } from '../utils/dateUtils'
+import { formatCurrency } from '../utils/formatUtils'
 import api from '../services/api'
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { UnitFormatter } from '../utils/units'
@@ -165,14 +166,6 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick, onRefresh
     } finally {
       setDeleting(null)
     }
-  }
-
-  const formatCurrency = (amount?: number) => {
-    if (amount === undefined || amount === null) return '-'
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(amount)
   }
 
   const formatDate = (dateString: string) => {

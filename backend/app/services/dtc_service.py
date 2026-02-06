@@ -77,7 +77,7 @@ class DTCService:
         vin: str,
         device_id: str,
         code: str,
-    ) -> VehicleDTC:
+    ) -> VehicleDTC | None:
         """Record a single DTC code.
 
         Convenience method that wraps process_dtcs for a single code.

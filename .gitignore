@@ -34,12 +34,18 @@ pip-delete-this-directory.txt
 .pytest_cache/
 .coverage
 htmlcov/
+frontend/coverage/
 .tox/
 .nox/
 coverage.xml
 coverage.json
 *.cover
 .hypothesis/
+
+# Playwright
+frontend/test-results/
+frontend/playwright-report/
+frontend/e2e/.auth/
 
 # Node / Frontend
 node_modules/

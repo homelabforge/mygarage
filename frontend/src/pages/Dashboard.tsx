@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useLocation } from 'react-router-dom'
-import { Plus, Car as CarIcon, SlidersHorizontal, Filter } from 'lucide-react'
+import { Plus, Car as CarIcon, SlidersHorizontal, Filter, RefreshCw } from 'lucide-react'
 import VehicleStatisticsCard from '../components/VehicleStatisticsCard'
 import VehicleWizard from '../components/VehicleWizard'
 import type { DashboardResponse } from '../types/dashboard'
@@ -13,6 +13,7 @@ export default function Dashboard() {
   const location = useLocation()
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [showWizard, setShowWizard] = useState(false)
   const [sortBy, setSortBy] = useState<SortOption>('name')
   const [filterBy, setFilterBy] = useState<FilterOption>('all')
@@ -23,11 +24,12 @@ export default function Dashboard() {
   }, [location.key])
 
   const loadDashboard = async () => {
+    setError(null)
     try {
       const response = await api.get('/dashboard')
       setDashboard(response.data)
     } catch {
-      // Silent fail - dashboard will show loading state
+      setError('Failed to load dashboard. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -101,6 +103,7 @@ export default function Dashboard() {
                 <select
                   value={filterBy}
                   onChange={(e) => setFilterBy(e.target.value as FilterOption)}
+                  aria-label="Filter vehicles"
                   className="pl-3 pr-10 py-2 border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text appearance-none cursor-pointer"
                 >
                   <option value="all" className="bg-garage-bg text-garage-text">
@@ -122,6 +125,7 @@ export default function Dashboard() {
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as SortOption)}
+                  aria-label="Sort vehicles"
                   className="pl-3 pr-10 py-2 border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text appearance-none cursor-pointer"
                 >
                   <option value="name" className="bg-garage-bg text-garage-text">
@@ -152,8 +156,20 @@ export default function Dashboard() {
 
         {/* Vehicles Grid */}
         {loading ? (
-          <div className="flex items-center justify-center py-16">
+          <div className="flex items-center justify-center py-16" role="status" aria-label="Loading dashboard">
             <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+            <span className="sr-only">Loading dashboard...</span>
+          </div>
+        ) : error ? (
+          <div className="bg-garage-surface rounded-lg border border-garage-border text-center py-16">
+            <p className="text-red-500 mb-4">{error}</p>
+            <button
+              onClick={loadDashboard}
+              className="inline-flex items-center gap-2 btn btn-primary rounded-lg"
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span>Retry</span>
+            </button>
           </div>
         ) : dashboard && vehicleCount > 0 ? (
           <div>

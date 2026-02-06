@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Edit, Trash2, Plus, AlertCircle, Fuel } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateForDisplay } from '../utils/dateUtils'
+import { formatCurrency } from '../utils/formatUtils'
 import type { FuelRecord } from '../types/fuel'
 import PropaneRecordForm from './PropaneRecordForm'
 import api from '../services/api'
@@ -75,16 +76,6 @@ export default function PropaneRecordList({ vin }: PropaneRecordListProps) {
   const handleSuccess = () => {
     fetchRecords()
     setShowForm(false)
-  }
-
-  const formatCurrency = (amount?: number | string): string => {
-    if (!amount) return '-'
-    const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount
-    if (isNaN(numAmount)) return '-'
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(numAmount)
   }
 
   const formatVolume = (gallons?: number | string): string => {

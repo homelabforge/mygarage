@@ -1,6 +1,6 @@
 """Analytics and reporting routes."""
 
-# pyright: reportArgumentType=false, reportOptionalOperand=false, reportCallIssue=false, reportMissingImports=false
+# pyright: reportOptionalOperand=false
 
 import calendar
 import logging
