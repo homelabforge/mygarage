@@ -82,6 +82,9 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
                 return False
 
             return bcrypt.checkpw(password_bytes, hashed_password.encode("utf-8"))
+        except ImportError:
+            logger.warning("bcrypt not installed; cannot verify legacy hash")
+            return False
         except (ValueError, TypeError) as e:
             logger.error("Error verifying bcrypt password: %s", e)
             return False
