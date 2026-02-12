@@ -104,7 +104,7 @@ class TestReportRoutes:
         content = response.content.decode("utf-8")
         assert "Date" in content
         assert "Mileage" in content
-        assert "Service Type" in content
+        assert "Category" in content
 
     async def test_download_service_history_csv_with_date_range(
         self, client: AsyncClient, auth_headers, test_vehicle
@@ -236,9 +236,9 @@ class TestReportRoutes:
         first_line = content.split("\n")[0]
         assert "Date" in first_line
         assert "Mileage" in first_line
-        assert "Service Type" in first_line
+        assert "Category" in first_line
         assert "Cost" in first_line
-        assert "Vendor Name" in first_line
+        assert "Vendor" in first_line
 
         # All records CSV
         response = await client.get(

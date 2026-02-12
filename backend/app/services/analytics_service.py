@@ -8,7 +8,127 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from app.models import FuelRecord, ServiceRecord, SpotRentalBilling
+from app.models import DEFRecord, FuelRecord, ServiceRecord, ServiceVisit, SpotRentalBilling
+
+
+def visits_to_dataframe(
+    service_visits: list[ServiceVisit],
+    fuel_records: list[FuelRecord],
+    def_records: list[DEFRecord] | None = None,
+    spot_rental_billings: list[SpotRentalBilling] | None = None,
+) -> pd.DataFrame:
+    """
+    Convert ServiceVisit records to a unified pandas DataFrame.
+
+    One row per visit (not per line item) for financial accuracy.
+    Uses visit.calculated_total_cost which includes tax/fees.
+
+    Args:
+        service_visits: List of ServiceVisit objects (with line_items loaded)
+        fuel_records: List of FuelRecord objects
+        def_records: Optional list of DEFRecord objects
+        spot_rental_billings: Optional list of SpotRentalBilling objects
+
+    Returns:
+        DataFrame with columns: date, cost, type, vendor, mileage, service_type, etc.
+    """
+    # Convert service visits — one row per visit
+    service_data = []
+    for visit in service_visits:
+        total = visit.calculated_total_cost
+        if total is None or (total == 0 and not visit.line_items):
+            continue
+
+        # Use first line item description for DataFrame service_type field
+        first_desc = None
+        if visit.line_items:
+            first_desc = visit.line_items[0].description
+        service_type_label = first_desc or visit.notes or "Service"
+
+        service_data.append(
+            {
+                "date": pd.Timestamp(visit.date),
+                "cost": float(total),
+                "type": "service",
+                "vendor": visit.vendor.name if visit.vendor else "Unknown",
+                "mileage": visit.mileage,
+                "service_type": service_type_label,
+                "service_category": visit.service_category or "Maintenance",
+                "description": visit.notes,
+            }
+        )
+
+    # Convert fuel records
+    fuel_data = []
+    for record in fuel_records:
+        if record.date and record.cost:
+            fuel_data.append(
+                {
+                    "date": pd.Timestamp(record.date),
+                    "cost": float(record.cost),
+                    "type": "fuel",
+                    "vendor": "Fuel Station",
+                    "mileage": record.mileage,
+                    "service_type": "Fuel",
+                    "gallons": float(record.gallons) if record.gallons else None,
+                }
+            )
+
+    # Convert DEF records
+    def_data = []
+    if def_records:
+        for record in def_records:
+            if record.date and record.cost:
+                def_data.append(
+                    {
+                        "date": pd.Timestamp(record.date),
+                        "cost": float(record.cost),
+                        "type": "def",
+                        "vendor": record.source or "DEF",
+                        "mileage": record.mileage,
+                        "service_type": "DEF",
+                    }
+                )
+
+    # Convert spot rental billing records
+    spot_rental_data = []
+    if spot_rental_billings:
+        for record in spot_rental_billings:
+            if record.billing_date and record.total:
+                spot_rental_data.append(
+                    {
+                        "date": pd.Timestamp(record.billing_date),
+                        "cost": float(record.total),
+                        "type": "spot_rental",
+                        "vendor": "RV Park",
+                        "mileage": None,
+                        "service_type": "Spot Rental",
+                        "description": record.notes or "Monthly RV spot rental",
+                    }
+                )
+
+    # Combine and create DataFrame
+    all_data = service_data + fuel_data + def_data + spot_rental_data
+
+    if not all_data:
+        return pd.DataFrame(
+            columns=[
+                "date",
+                "cost",
+                "type",
+                "vendor",
+                "mileage",
+                "service_type",
+                "service_category",
+                "description",
+                "gallons",
+            ]
+        )
+
+    df = pd.DataFrame(all_data)
+    df = df.sort_values("date").reset_index(drop=True)
+
+    return df
 
 
 def records_to_dataframe(
@@ -18,6 +138,10 @@ def records_to_dataframe(
 ) -> pd.DataFrame:
     """
     Convert SQLAlchemy records to a unified pandas DataFrame.
+
+    .. deprecated::
+        Use ``visits_to_dataframe()`` instead. This function reads from legacy
+        ServiceRecord and will be removed when that model is dropped.
 
     Args:
         service_records: List of ServiceRecord objects
@@ -119,9 +243,11 @@ def calculate_monthly_aggregation(df: pd.DataFrame) -> pd.DataFrame:
                 "month",
                 "service_cost",
                 "fuel_cost",
+                "def_cost",
                 "spot_rental_cost",
                 "service_count",
                 "fuel_count",
+                "def_count",
                 "spot_rental_count",
                 "total_cost",
             ]
@@ -131,9 +257,10 @@ def calculate_monthly_aggregation(df: pd.DataFrame) -> pd.DataFrame:
     df["year"] = df["date"].dt.year
     df["month"] = df["date"].dt.month
 
-    # Separate service, fuel, and spot rental
+    # Separate service, fuel, DEF, and spot rental
     service_df = df[df["type"] == "service"].copy()
     fuel_df = df[df["type"] == "fuel"].copy()
+    def_df = df[df["type"] == "def"].copy()
     spot_rental_df = df[df["type"] == "spot_rental"].copy()
 
     # Aggregate service by month
@@ -146,6 +273,15 @@ def calculate_monthly_aggregation(df: pd.DataFrame) -> pd.DataFrame:
     fuel_monthly = fuel_df.groupby(["year", "month"]).agg({"cost": ["sum", "count"]}).reset_index()
     fuel_monthly.columns = ["year", "month", "fuel_cost", "fuel_count"]
 
+    # Aggregate DEF by month
+    if not def_df.empty:
+        def_monthly = (
+            def_df.groupby(["year", "month"]).agg({"cost": ["sum", "count"]}).reset_index()
+        )
+        def_monthly.columns = ["year", "month", "def_cost", "def_count"]
+    else:
+        def_monthly = pd.DataFrame(columns=["year", "month", "def_cost", "def_count"])
+
     # Aggregate spot rental by month
     spot_rental_monthly = (
         spot_rental_df.groupby(["year", "month"]).agg({"cost": ["sum", "count"]}).reset_index()
@@ -157,19 +293,24 @@ def calculate_monthly_aggregation(df: pd.DataFrame) -> pd.DataFrame:
         "spot_rental_count",
     ]
 
-    # Merge service, fuel, and spot rental
+    # Merge service, fuel, DEF, and spot rental
     monthly = pd.merge(service_monthly, fuel_monthly, on=["year", "month"], how="outer")
+    monthly = pd.merge(monthly, def_monthly, on=["year", "month"], how="outer")
     monthly = pd.merge(monthly, spot_rental_monthly, on=["year", "month"], how="outer").fillna(0)
 
     # Calculate totals
     monthly["total_cost"] = (
-        monthly["service_cost"] + monthly["fuel_cost"] + monthly["spot_rental_cost"]
+        monthly["service_cost"]
+        + monthly["fuel_cost"]
+        + monthly["def_cost"]
+        + monthly["spot_rental_cost"]
     )
     monthly["month_name"] = monthly["month"].apply(lambda x: calendar.month_name[int(x)])
 
     # Convert to integers where appropriate
     monthly["service_count"] = monthly["service_count"].astype(int)
     monthly["fuel_count"] = monthly["fuel_count"].astype(int)
+    monthly["def_count"] = monthly["def_count"].astype(int)
     monthly["spot_rental_count"] = monthly["spot_rental_count"].astype(int)
 
     return monthly.sort_values(["year", "month"])

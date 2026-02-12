@@ -8,22 +8,31 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy import extract, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.models import (
     FuelRecord as FuelRecordModel,
 )
 from app.models import (
-    ServiceRecord as ServiceRecordModel,
-)
-from app.models import (
     Vehicle,
 )
+from app.models.service_visit import ServiceVisit
 from app.models.user import User
 from app.services.auth import require_auth
 from app.utils.pdf_generator import PDFReportGenerator
 
 router = APIRouter(prefix="/api/vehicles", tags=["Reports"])
+
+
+def _service_visits_query(vin: str):
+    """Build base query for service visits with eager-loaded line items + vendor."""
+    return (
+        select(ServiceVisit)
+        .options(selectinload(ServiceVisit.line_items))
+        .options(selectinload(ServiceVisit.vendor))
+        .where(ServiceVisit.vin == vin)
+    )
 
 
 @router.get("/{vin}/reports/service-history-pdf")
@@ -45,16 +54,16 @@ async def download_service_history_pdf(
     start_dt = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else None
     end_dt = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else None
 
-    # Query service records
-    query = select(ServiceRecordModel).where(ServiceRecordModel.vin == vin)
+    # Query service visits with line items + vendor
+    query = _service_visits_query(vin)
     if start_dt:
-        query = query.where(ServiceRecordModel.date >= start_dt)
+        query = query.where(ServiceVisit.date >= start_dt)
     if end_dt:
-        query = query.where(ServiceRecordModel.date <= end_dt)
-    query = query.order_by(ServiceRecordModel.date.desc())
+        query = query.where(ServiceVisit.date <= end_dt)
+    query = query.order_by(ServiceVisit.date.desc())
 
     result = await db.execute(query)
-    service_records = result.scalars().all()
+    visits = result.scalars().all()
 
     # Prepare vehicle info
     vehicle_info = {
@@ -65,18 +74,34 @@ async def download_service_history_pdf(
         "license_plate": vehicle.license_plate,
     }
 
-    # Prepare service records data
-    records_data = [
-        {
-            "date": record.date,
-            "mileage": record.mileage,
-            "service_category": record.service_category,
-            "service_type": record.service_type,
-            "cost": record.cost,
-            "vendor_name": record.vendor_name,
-        }
-        for record in service_records
-    ]
+    # Prepare service records data — one row per line item for detail
+    records_data = []
+    for visit in visits:
+        vendor_name = visit.vendor.name if visit.vendor else None
+        if visit.line_items:
+            for item in visit.line_items:
+                records_data.append(
+                    {
+                        "date": visit.date,
+                        "mileage": visit.mileage,
+                        "service_category": visit.service_category,
+                        "service_type": item.description,
+                        "cost": item.cost,
+                        "vendor_name": vendor_name,
+                    }
+                )
+        else:
+            # Visit with no line items (fee-only or notes-only)
+            records_data.append(
+                {
+                    "date": visit.date,
+                    "mileage": visit.mileage,
+                    "service_category": visit.service_category,
+                    "service_type": visit.notes or "Service",
+                    "cost": visit.calculated_total_cost,
+                    "vendor_name": vendor_name,
+                }
+            )
 
     # Generate PDF
     pdf_gen = PDFReportGenerator()
@@ -120,14 +145,14 @@ async def download_cost_summary_pdf(
     # Query cost data for the year
     cost_data = {}
 
-    # Service records
+    # Service visits — use total_cost (backfilled by migration 039)
     service_result = await db.execute(
         select(
-            func.count(ServiceRecordModel.id).label("count"),
-            func.sum(ServiceRecordModel.cost).label("total"),
+            func.count(ServiceVisit.id).label("count"),
+            func.sum(ServiceVisit.total_cost).label("total"),
         )
-        .where(ServiceRecordModel.vin == vin)
-        .where(extract("year", ServiceRecordModel.date) == year)
+        .where(ServiceVisit.vin == vin)
+        .where(extract("year", ServiceVisit.date) == year)
     )
     service_stats = service_result.first()
     cost_data["service_count"] = (service_stats.count or 0) if service_stats else 0
@@ -150,29 +175,29 @@ async def download_cost_summary_pdf(
         cost_data["fuel_count"] = 0
         cost_data["fuel_total"] = 0
 
-    # Collision records (now in service_records with service_type='Collision')
+    # Collision visits (service_category='Collision')
     collision_result = await db.execute(
         select(
-            func.count(ServiceRecordModel.id).label("count"),
-            func.sum(ServiceRecordModel.cost).label("total"),
+            func.count(ServiceVisit.id).label("count"),
+            func.sum(ServiceVisit.total_cost).label("total"),
         )
-        .where(ServiceRecordModel.vin == vin)
-        .where(ServiceRecordModel.service_type == "Collision")
-        .where(extract("year", ServiceRecordModel.date) == year)
+        .where(ServiceVisit.vin == vin)
+        .where(ServiceVisit.service_category == "Collision")
+        .where(extract("year", ServiceVisit.date) == year)
     )
     collision_stats = collision_result.first()
     cost_data["collision_count"] = (collision_stats.count or 0) if collision_stats else 0
     cost_data["collision_total"] = (collision_stats.total or 0) if collision_stats else 0
 
-    # Upgrade records (now in service_records with service_type='Upgrades')
+    # Upgrade visits (service_category='Upgrades')
     upgrade_result = await db.execute(
         select(
-            func.count(ServiceRecordModel.id).label("count"),
-            func.sum(ServiceRecordModel.cost).label("total"),
+            func.count(ServiceVisit.id).label("count"),
+            func.sum(ServiceVisit.total_cost).label("total"),
         )
-        .where(ServiceRecordModel.vin == vin)
-        .where(ServiceRecordModel.service_type == "Upgrades")
-        .where(extract("year", ServiceRecordModel.date) == year)
+        .where(ServiceVisit.vin == vin)
+        .where(ServiceVisit.service_category == "Upgrades")
+        .where(extract("year", ServiceVisit.date) == year)
     )
     upgrade_stats = upgrade_result.first()
     cost_data["upgrade_count"] = (upgrade_stats.count or 0) if upgrade_stats else 0
@@ -213,27 +238,27 @@ async def download_tax_deduction_pdf(
         "model": vehicle.model,
     }
 
-    # Query potentially deductible service records
-    # (excluding routine maintenance like oil changes)
-    service_result = await db.execute(
-        select(ServiceRecordModel)
-        .where(ServiceRecordModel.vin == vin)
-        .where(extract("year", ServiceRecordModel.date) == year)
-        .where(ServiceRecordModel.cost.is_not(None))
-        .order_by(ServiceRecordModel.date)
+    # Query service visits with line items for the year
+    visit_result = await db.execute(
+        _service_visits_query(vin)
+        .where(extract("year", ServiceVisit.date) == year)
+        .order_by(ServiceVisit.date)
     )
-    service_records = service_result.scalars().all()
+    visits = visit_result.scalars().all()
 
-    # Prepare deductible records
-    deductible_records = [
-        {
-            "date": record.date,
-            "category": record.service_category or "Service",
-            "description": record.service_type,
-            "cost": record.cost,
-        }
-        for record in service_records
-    ]
+    # Prepare deductible records — one row per line item
+    deductible_records = []
+    for visit in visits:
+        for item in visit.line_items:
+            if item.cost:
+                deductible_records.append(
+                    {
+                        "date": visit.date,
+                        "category": visit.service_category or "Service",
+                        "description": item.description,
+                        "cost": item.cost,
+                    }
+                )
 
     # Generate PDF
     pdf_gen = PDFReportGenerator()
@@ -267,16 +292,16 @@ async def download_service_history_csv(
     start_dt = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else None
     end_dt = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else None
 
-    # Query service records
-    query = select(ServiceRecordModel).where(ServiceRecordModel.vin == vin)
+    # Query service visits with line items + vendor
+    query = _service_visits_query(vin)
     if start_dt:
-        query = query.where(ServiceRecordModel.date >= start_dt)
+        query = query.where(ServiceVisit.date >= start_dt)
     if end_dt:
-        query = query.where(ServiceRecordModel.date <= end_dt)
-    query = query.order_by(ServiceRecordModel.date.desc())
+        query = query.where(ServiceVisit.date <= end_dt)
+    query = query.order_by(ServiceVisit.date.desc())
 
     result = await db.execute(query)
-    service_records = result.scalars().all()
+    visits = result.scalars().all()
 
     # Create CSV
     output = StringIO()
@@ -287,29 +312,29 @@ async def download_service_history_csv(
         [
             "Date",
             "Mileage",
-            "Service Type",
+            "Category",
             "Description",
             "Cost",
-            "Vendor Name",
-            "Vendor Phone",
+            "Vendor",
             "Notes",
         ]
     )
 
-    # Write data
-    for record in service_records:
-        writer.writerow(
-            [
-                record.date.strftime("%Y-%m-%d") if record.date else "",
-                record.mileage or "",
-                record.service_category or "",
-                record.service_type or "",
-                f"{float(record.cost):.2f}" if record.cost else "",
-                record.vendor_name or "",
-                record.vendor_location or "",
-                record.notes or "",
-            ]
-        )
+    # Write data — one row per line item
+    for visit in visits:
+        vendor_name = visit.vendor.name if visit.vendor else ""
+        for item in visit.line_items:
+            writer.writerow(
+                [
+                    visit.date.strftime("%Y-%m-%d") if visit.date else "",
+                    visit.mileage or "",
+                    visit.service_category or "",
+                    item.description or "",
+                    f"{float(item.cost):.2f}" if item.cost else "",
+                    vendor_name,
+                    visit.notes or "",
+                ]
+            )
 
     # Return as downloadable file
     output.seek(0)
@@ -342,23 +367,34 @@ async def download_all_records_csv(
     # Write header
     writer.writerow(["Date", "Type", "Category", "Description", "Cost", "Mileage", "Vendor"])
 
-    # Query and write service records
-    service_query = select(ServiceRecordModel).where(ServiceRecordModel.vin == vin)
+    # Query and write service visits with line items
+    visit_query = _service_visits_query(vin)
     if year:
-        service_query = service_query.where(extract("year", ServiceRecordModel.date) == year)
-    service_result = await db.execute(service_query.order_by(ServiceRecordModel.date))
-    for record in service_result.scalars():
-        writer.writerow(
-            [
-                record.date.strftime("%Y-%m-%d") if record.date else "",
-                "Service",
-                record.service_category or "",
-                record.service_type or "",
-                f"{float(record.cost):.2f}" if record.cost else "",
-                record.mileage or "",
-                record.vendor_name or "",
-            ]
-        )
+        visit_query = visit_query.where(extract("year", ServiceVisit.date) == year)
+    visit_result = await db.execute(visit_query.order_by(ServiceVisit.date))
+    for visit in visit_result.scalars():
+        vendor_name = visit.vendor.name if visit.vendor else ""
+        category = visit.service_category or "Maintenance"
+
+        # Determine type label from category
+        type_label = "Service"
+        if category == "Collision":
+            type_label = "Collision"
+        elif category == "Upgrades":
+            type_label = "Upgrade"
+
+        for item in visit.line_items:
+            writer.writerow(
+                [
+                    visit.date.strftime("%Y-%m-%d") if visit.date else "",
+                    type_label,
+                    category,
+                    item.description or "",
+                    f"{float(item.cost):.2f}" if item.cost else "",
+                    visit.mileage or "",
+                    vendor_name,
+                ]
+            )
 
     # Query and write fuel records
     fuel_query = select(FuelRecordModel).where(FuelRecordModel.vin == vin)
@@ -375,50 +411,6 @@ async def download_all_records_csv(
                 f"{float(record.cost):.2f}" if record.cost else "",
                 record.mileage or "",
                 "",  # No station field in FuelRecord model
-            ]
-        )
-
-    # Query and write collision records (now in service_records with service_type='Collision')
-    collision_query = (
-        select(ServiceRecordModel)
-        .where(ServiceRecordModel.vin == vin)
-        .where(ServiceRecordModel.service_type == "Collision")
-    )
-    if year:
-        collision_query = collision_query.where(extract("year", ServiceRecordModel.date) == year)
-    collision_result = await db.execute(collision_query.order_by(ServiceRecordModel.date))
-    for record in collision_result.scalars():
-        writer.writerow(
-            [
-                record.date.strftime("%Y-%m-%d") if record.date else "",
-                "Collision",
-                "Collision",
-                record.service_type or "",
-                f"{float(record.cost):.2f}" if record.cost else "",
-                record.mileage or "",
-                record.vendor_name or "",
-            ]
-        )
-
-    # Query and write upgrade records (now in service_records with service_type='Upgrades')
-    upgrade_query = (
-        select(ServiceRecordModel)
-        .where(ServiceRecordModel.vin == vin)
-        .where(ServiceRecordModel.service_type == "Upgrades")
-    )
-    if year:
-        upgrade_query = upgrade_query.where(extract("year", ServiceRecordModel.date) == year)
-    upgrade_result = await db.execute(upgrade_query.order_by(ServiceRecordModel.date))
-    for record in upgrade_result.scalars():
-        writer.writerow(
-            [
-                record.date.strftime("%Y-%m-%d") if record.date else "",
-                "Upgrade",
-                "Upgrades",
-                record.service_type or "",
-                f"{float(record.cost):.2f}" if record.cost else "",
-                record.mileage or "",
-                record.vendor_name or "",
             ]
         )
 

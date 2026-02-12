@@ -21,7 +21,7 @@ from app.config import settings
 from app.database import Base, get_db
 from app.main import app
 from app.models.fuel import FuelRecord
-from app.models.service import ServiceRecord
+from app.models.service_visit import ServiceVisit
 from app.models.user import User
 from app.models.vehicle import Vehicle
 
@@ -253,13 +253,13 @@ async def vehicle_with_service_records(
 
     for vehicle in vehicles:
         service_result = await db_session.execute(
-            select(ServiceRecord).where(ServiceRecord.vin == vehicle.vin).limit(1)
+            select(ServiceVisit).where(ServiceVisit.vin == vehicle.vin).limit(1)
         )
         if service_result.scalar_one_or_none():
             return vehicle
 
     # skip_test() never returns - it raises Skipped exception
-    skip_test("No vehicles with service records found. Please add service records first.")
+    skip_test("No vehicles with service visits found. Please add service visits first.")
 
 
 @pytest_asyncio.fixture
@@ -295,7 +295,7 @@ async def vehicle_with_analytics_data(
 
     for vehicle in vehicles:
         service_result = await db_session.execute(
-            select(ServiceRecord).where(ServiceRecord.vin == vehicle.vin).limit(1)
+            select(ServiceVisit).where(ServiceVisit.vin == vehicle.vin).limit(1)
         )
         fuel_result = await db_session.execute(
             select(FuelRecord).where(FuelRecord.vin == vehicle.vin).limit(1)
@@ -305,7 +305,7 @@ async def vehicle_with_analytics_data(
             return vehicle
 
     # skip_test() never returns - it raises Skipped exception
-    skip_test("No vehicles with both service and fuel records found. Please add more data first.")
+    skip_test("No vehicles with both service visits and fuel records found.")
 
 
 @pytest.fixture

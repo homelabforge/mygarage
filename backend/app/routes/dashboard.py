@@ -12,7 +12,7 @@ from app.models import (
     Note,
     OdometerRecord,
     Reminder,
-    ServiceRecord,
+    ServiceVisit,
     Vehicle,
 )
 from app.models.user import User
@@ -39,7 +39,7 @@ async def calculate_vehicle_stats(
 
     # Count records
     service_count = await db.scalar(
-        select(func.count(ServiceRecord.id)).where(ServiceRecord.vin == vehicle.vin)
+        select(func.count(ServiceVisit.id)).where(ServiceVisit.vin == vehicle.vin)
     )
     fuel_count = await db.scalar(
         select(func.count(FuelRecord.id)).where(FuelRecord.vin == vehicle.vin)
@@ -67,9 +67,9 @@ async def calculate_vehicle_stats(
 
     # Get latest service date
     latest_service = await db.scalar(
-        select(ServiceRecord.date)
-        .where(ServiceRecord.vin == vehicle.vin)
-        .order_by(ServiceRecord.date.desc())
+        select(ServiceVisit.date)
+        .where(ServiceVisit.vin == vehicle.vin)
+        .order_by(ServiceVisit.date.desc())
         .limit(1)
     )
 

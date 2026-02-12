@@ -253,7 +253,7 @@ class GarageMonthlyTrend(BaseModel):
     """Monthly spending trend across garage."""
 
     month: str
-    maintenance: Decimal = Field(default=Decimal("0.00"))
+    service: Decimal = Field(default=Decimal("0.00"))
     fuel: Decimal = Field(default=Decimal("0.00"))
     def_cost: Decimal = Field(default=Decimal("0.00"))
     total: Decimal = Field(default=Decimal("0.00"))

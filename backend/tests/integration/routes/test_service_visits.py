@@ -378,6 +378,84 @@ class TestServiceVisitRoutes:
         data = response.json()
         assert len(data["visits"]) <= 3
 
+    async def test_total_cost_auto_computed_on_create(
+        self, client: AsyncClient, auth_headers, test_vehicle
+    ):
+        """Create visit without total_cost; verify it's populated from line items + fees."""
+        payload = {
+            "date": "2024-08-01",
+            "mileage": 80000,
+            "tax_amount": 5.00,
+            "shop_supplies": 2.50,
+            "line_items": [
+                {"description": "Battery Replacement", "cost": 180.00},
+            ],
+        }
+        response = await client.post(
+            f"/api/vehicles/{test_vehicle['vin']}/service-visits",
+            json=payload,
+            headers=auth_headers,
+        )
+        assert response.status_code == 201
+        data = response.json()
+        # total_cost = 180 + 5 + 2.50 = 187.50
+        assert float(data["total_cost"]) == 187.50
+        assert float(data["calculated_total_cost"]) == 187.50
+
+    async def test_total_cost_overwritten_on_create(
+        self, client: AsyncClient, auth_headers, test_vehicle
+    ):
+        """Create visit with explicit total_cost that differs; verify computed value wins."""
+        payload = {
+            "date": "2024-08-02",
+            "mileage": 80100,
+            "total_cost": 999.99,  # Wrong value — should be overwritten
+            "line_items": [
+                {"description": "Alignment", "cost": 89.00},
+            ],
+        }
+        response = await client.post(
+            f"/api/vehicles/{test_vehicle['vin']}/service-visits",
+            json=payload,
+            headers=auth_headers,
+        )
+        assert response.status_code == 201
+        data = response.json()
+        # total_cost should be computed from line items, not caller-provided
+        assert float(data["total_cost"]) == 89.00
+
+    async def test_total_cost_recomputed_on_line_item_add(
+        self, client: AsyncClient, auth_headers, test_vehicle
+    ):
+        """Add line item to visit; verify total_cost is refreshed."""
+        # Create visit
+        create_response = await client.post(
+            f"/api/vehicles/{test_vehicle['vin']}/service-visits",
+            json={
+                "date": "2024-08-03",
+                "mileage": 80200,
+                "line_items": [{"description": "Oil Change", "cost": 45.00}],
+            },
+            headers=auth_headers,
+        )
+        visit = create_response.json()
+        assert float(visit["total_cost"]) == 45.00
+
+        # Add another line item
+        await client.post(
+            f"/api/vehicles/{test_vehicle['vin']}/service-visits/{visit['id']}/line-items",
+            json={"description": "Filter Replacement", "cost": 15.00},
+            headers=auth_headers,
+        )
+
+        # Re-fetch and verify total_cost updated
+        get_response = await client.get(
+            f"/api/vehicles/{test_vehicle['vin']}/service-visits/{visit['id']}",
+            headers=auth_headers,
+        )
+        updated = get_response.json()
+        assert float(updated["total_cost"]) == 60.00  # 45 + 15
+
     async def test_service_category_options(self, client: AsyncClient, auth_headers, test_vehicle):
         """Test creating service visits with all valid categories."""
         categories = ["Maintenance", "Inspection", "Collision", "Upgrades", "Detailing"]

@@ -8,13 +8,14 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import Response
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.models import (
     InsurancePolicy,
     OdometerRecord,
     Reminder,
-    ServiceRecord,
+    ServiceVisit,
     Vehicle,
     WarrantyRecord,
 )
@@ -234,29 +235,44 @@ async def get_calendar_events(
 
     # Fetch service history (past records only for historical context)
     if "service" in type_list:
-        service_query = select(ServiceRecord).where(
-            ServiceRecord.date >= start_date,
-            ServiceRecord.date <= end_date,
+        service_query = (
+            select(ServiceVisit)
+            .options(selectinload(ServiceVisit.line_items))
+            .options(selectinload(ServiceVisit.vendor))
+            .where(
+                ServiceVisit.date >= start_date,
+                ServiceVisit.date <= end_date,
+            )
         )
 
         if vin_list:
-            service_query = service_query.where(ServiceRecord.vin.in_(vin_list))
+            service_query = service_query.where(ServiceVisit.vin.in_(vin_list))
 
         service_result = await db.execute(service_query)
-        services = service_result.scalars().all()
+        visits = service_result.scalars().all()
 
-        for service in services:
-            vehicle = vehicles_dict.get(service.vin)
+        for visit in visits:
+            vehicle = vehicles_dict.get(visit.vin)
+            # Build title from first line item description, or notes, or category
+            title = "Service"
+            if visit.line_items:
+                title = visit.line_items[0].description
+            elif visit.notes:
+                title = visit.notes
+
+            vendor_name = visit.vendor.name if visit.vendor else None
+            description = f"{visit.service_category or 'Service'}"
+            if vendor_name:
+                description += f" - {vendor_name}"
 
             events.append(
                 CalendarEvent(
-                    id=f"service-{service.id}",
+                    id=f"service-{visit.id}",
                     type="service",
-                    title=service.service_type,  # Now holds specific service
-                    description=f"{service.service_category or 'Service'}"
-                    + (f" - {service.vendor_name}" if service.vendor_name else ""),
-                    date=service.date,
-                    vehicle_vin=service.vin,
+                    title=title,
+                    description=description,
+                    date=visit.date,
+                    vehicle_vin=visit.vin,
                     vehicle_nickname=vehicle.nickname if vehicle else None,
                     vehicle_color=None,
                     urgency="historical",  # Historical events don't have urgency
@@ -264,7 +280,7 @@ async def get_calendar_events(
                     is_completed=True,  # Service history is always completed
                     is_estimated=False,
                     category="history",
-                    notes=service.notes if hasattr(service, "notes") else None,
+                    notes=visit.notes,
                     due_mileage=None,
                 )
             )

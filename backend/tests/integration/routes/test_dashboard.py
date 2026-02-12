@@ -88,10 +88,10 @@ class TestDashboardRoutes:
         assert "upcoming_reminders_count" in test_vehicle_stats
         assert "overdue_reminders_count" in test_vehicle_stats
 
-    async def test_dashboard_after_adding_service_record(
+    async def test_dashboard_after_adding_service_visit(
         self, client: AsyncClient, auth_headers, test_vehicle
     ):
-        """Test that dashboard reflects new service records."""
+        """Test that dashboard reflects new service visits."""
         # Get initial dashboard
         initial_response = await client.get(
             "/api/dashboard",
@@ -99,15 +99,17 @@ class TestDashboardRoutes:
         )
         initial_data = initial_response.json()
 
-        # Add a service record
+        # Add a service visit
         await client.post(
-            f"/api/vehicles/{test_vehicle['vin']}/service",
+            f"/api/vehicles/{test_vehicle['vin']}/service-visits",
             json={
-                "vin": test_vehicle["vin"],
                 "date": "2024-06-15",
                 "mileage": 55000,
-                "service_type": "Dashboard Test Service",
-                "cost": 100.00,
+                "service_category": "Maintenance",
+                "notes": "Dashboard Test Service",
+                "line_items": [
+                    {"description": "Dashboard Test", "cost": 100.00},
+                ],
             },
             headers=auth_headers,
         )
@@ -196,15 +198,17 @@ class TestDashboardRoutes:
 
     async def test_dashboard_latest_dates(self, client: AsyncClient, auth_headers, test_vehicle):
         """Test that dashboard tracks latest service/fuel dates."""
-        # Add a service record with known date
+        # Add a service visit with known date
         await client.post(
-            f"/api/vehicles/{test_vehicle['vin']}/service",
+            f"/api/vehicles/{test_vehicle['vin']}/service-visits",
             json={
-                "vin": test_vehicle["vin"],
                 "date": "2024-07-15",
                 "mileage": 60000,
-                "service_type": "Latest Date Test",
-                "cost": 50.00,
+                "service_category": "Maintenance",
+                "notes": "Latest Date Test",
+                "line_items": [
+                    {"description": "Latest Date Test Service", "cost": 50.00},
+                ],
             },
             headers=auth_headers,
         )

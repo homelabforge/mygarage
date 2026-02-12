@@ -11,9 +11,10 @@ from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.models.reminder import Reminder
-from app.models.service import ServiceRecord
+from app.models.service_visit import ServiceVisit
 from app.models.user import User
 from app.models.vehicle import Vehicle
 from app.schemas.family import (
@@ -147,11 +148,12 @@ class FamilyDashboardService:
         """Build a vehicle summary with service and reminder info."""
         today = date.today()
 
-        # Get last service record
+        # Get last service visit with line items
         last_service_result = await self.db.execute(
-            select(ServiceRecord)
-            .where(ServiceRecord.vin == vehicle.vin)
-            .order_by(ServiceRecord.date.desc())
+            select(ServiceVisit)
+            .options(selectinload(ServiceVisit.line_items))
+            .where(ServiceVisit.vin == vehicle.vin)
+            .order_by(ServiceVisit.date.desc())
             .limit(1)
         )
         last_service = last_service_result.scalar_one_or_none()
@@ -201,7 +203,11 @@ class FamilyDashboardService:
             model=vehicle.model,
             main_photo=vehicle.main_photo,
             last_service_date=last_service.date if last_service else None,
-            last_service_description=last_service.service_type if last_service else None,
+            last_service_description=(
+                last_service.line_items[0].description
+                if last_service and last_service.line_items
+                else (last_service.notes if last_service else None)
+            ),
             next_reminder_description=next_reminder_description,
             next_reminder_due=next_reminder_due,
             overdue_reminders=overdue_count,

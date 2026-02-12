@@ -206,6 +206,11 @@ class ServiceVisitService:
                         item_data.cost,
                     )
 
+            # Always recompute total_cost from line items + fees (denormalized cache)
+            await self.db.refresh(visit, attribute_names=["line_items"])
+            visit.total_cost = visit.calculated_total_cost
+            await self.db.flush()
+
             await self.db.commit()
             await self.db.refresh(visit)
 
@@ -311,6 +316,11 @@ class ServiceVisitService:
                         triggered_by_inspection_id=item_data.get("triggered_by_inspection_id"),
                     )
                     self.db.add(line_item)
+
+            # Always recompute total_cost from line items + fees (denormalized cache)
+            await self.db.flush()
+            await self.db.refresh(visit, attribute_names=["line_items"])
+            visit.total_cost = visit.calculated_total_cost
 
             await self.db.commit()
             await self.db.refresh(visit)
@@ -466,6 +476,11 @@ class ServiceVisitService:
                     item_data.cost,
                 )
 
+            # Recompute total_cost (denormalized cache)
+            await self.db.flush()
+            await self.db.refresh(visit, attribute_names=["line_items"])
+            visit.total_cost = visit.calculated_total_cost
+
             await self.db.commit()
             await self.db.refresh(line_item)
 
@@ -528,7 +543,21 @@ class ServiceVisitService:
             if not line_item:
                 raise HTTPException(status_code=404, detail=f"Line item {line_item_id} not found")
 
+            # Get the visit before deleting line item to recompute total
+            visit_result = await self.db.execute(
+                select(ServiceVisit)
+                .options(selectinload(ServiceVisit.line_items))
+                .where(ServiceVisit.id == visit_id)
+            )
+            visit = visit_result.scalar_one()
+
             await self.db.delete(line_item)
+            await self.db.flush()
+
+            # Recompute total_cost (denormalized cache)
+            await self.db.refresh(visit, attribute_names=["line_items"])
+            visit.total_cost = visit.calculated_total_cost
+
             await self.db.commit()
 
             logger.info(

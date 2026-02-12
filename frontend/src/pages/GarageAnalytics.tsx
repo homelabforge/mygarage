@@ -77,10 +77,10 @@ export default function GarageAnalytics() {
     // Monthly Trends
     if (analytics.monthly_trends.length > 0) {
       rows.push('Monthly Spending Trends')
-      rows.push('Month,Maintenance,Fuel,DEF,Total')
+      rows.push('Month,Service,Fuel,DEF,Total')
       analytics.monthly_trends.forEach((trend) => {
-        const total = (parseFloat(trend.maintenance) + parseFloat(trend.fuel) + parseFloat(trend.def_cost)).toFixed(2)
-        rows.push(`${trend.month},${trend.maintenance},${trend.fuel},${trend.def_cost},${total}`)
+        const total = (parseFloat(trend.service) + parseFloat(trend.fuel) + parseFloat(trend.def_cost)).toFixed(2)
+        rows.push(`${trend.month},${trend.service},${trend.fuel},${trend.def_cost},${total}`)
       })
     }
 
@@ -123,7 +123,7 @@ export default function GarageAnalytics() {
       if (idx < period - 1) return null
       const slice = data.slice(idx - period + 1, idx + 1)
       const sum = slice.reduce(
-        (acc, item) => acc + parseFloat(item.maintenance) + parseFloat(item.fuel) + parseFloat(item.def_cost),
+        (acc, item) => acc + parseFloat(item.service) + parseFloat(item.fuel) + parseFloat(item.def_cost),
         0
       )
       return sum / period
@@ -237,7 +237,7 @@ export default function GarageAnalytics() {
 
   const trendData = monthly_trends.map((trend, idx) => ({
     month: trend.month,
-    Maintenance: parseFloat(trend.maintenance),
+    Service: parseFloat(trend.service),
     Fuel: parseFloat(trend.fuel),
     DEF: parseFloat(trend.def_cost),
     avg3: rollingAvg3[idx],
@@ -587,7 +587,7 @@ export default function GarageAnalytics() {
                 }}
               />
               <Legend wrapperStyle={{ paddingTop: '10px', fontSize: '12px' }} />
-              <Bar dataKey="Maintenance" fill="#3B82F6" stackId="a" />
+              <Bar dataKey="Service" fill="#3B82F6" stackId="a" />
               <Bar dataKey="Fuel" fill="#10B981" stackId="a" />
               <Bar dataKey="DEF" fill="#14B8A6" stackId="a" />
 

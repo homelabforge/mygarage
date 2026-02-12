@@ -763,3 +763,175 @@ class TestCalculatePropaneCosts:
         assert freq["avg_days_between"] > 0
         assert freq["min_days"] == 14  # Jan 1 → Jan 15
         assert freq["max_days"] == 30  # Jan 15 → Feb 14
+
+
+def _make_line_item(**kwargs):
+    """Create a mock ServiceLineItem-like object with sensible defaults."""
+    defaults = {
+        "id": 1,
+        "visit_id": 1,
+        "description": "Oil Change",
+        "cost": Decimal("50.00"),
+        "notes": None,
+        "is_inspection": False,
+        "inspection_result": None,
+        "inspection_severity": None,
+    }
+    defaults.update(kwargs)
+    return SimpleNamespace(**defaults)
+
+
+def _make_service_visit(**kwargs):
+    """Create a mock ServiceVisit-like object with computed calculated_total_cost."""
+    defaults = {
+        "id": 1,
+        "vin": "1HGBH41JXMN109186",
+        "date": date(2024, 1, 15),
+        "mileage": 50000,
+        "total_cost": None,
+        "tax_amount": None,
+        "shop_supplies": None,
+        "misc_fees": None,
+        "notes": None,
+        "service_category": "Maintenance",
+        "line_items": [],
+        "vendor": SimpleNamespace(name="AutoShop"),
+    }
+    defaults.update(kwargs)
+    visit = SimpleNamespace(**defaults)
+
+    # Compute calculated_total_cost property as the real model does
+    subtotal = sum((li.cost for li in visit.line_items if li.cost), Decimal(0))
+    total = subtotal
+    if visit.tax_amount:
+        total += visit.tax_amount
+    if visit.shop_supplies:
+        total += visit.shop_supplies
+    if visit.misc_fees:
+        total += visit.misc_fees
+    visit.calculated_total_cost = total
+
+    return visit
+
+
+def _make_def_record(**kwargs):
+    """Create a mock DEFRecord-like object."""
+    defaults = {
+        "id": 1,
+        "vin": "1HGBH41JXMN109186",
+        "date": date(2024, 1, 15),
+        "mileage": 50000,
+        "gallons": Decimal("2.5"),
+        "cost": Decimal("18.75"),
+        "price_per_unit": Decimal("7.50"),
+        "fill_level": 0.85,
+        "source": None,
+        "brand": None,
+        "notes": None,
+    }
+    defaults.update(kwargs)
+    return SimpleNamespace(**defaults)
+
+
+@pytest.mark.unit
+@pytest.mark.analytics
+class TestVisitsToDataframe:
+    """Test visits_to_dataframe with ServiceVisit objects."""
+
+    def test_one_row_per_visit(self):
+        """Verify that a visit with 3 line items produces 1 DataFrame row."""
+        items = [
+            _make_line_item(id=1, description="Oil Change", cost=Decimal("30.00")),
+            _make_line_item(id=2, description="Air Filter", cost=Decimal("15.00")),
+            _make_line_item(id=3, description="Cabin Filter", cost=Decimal("20.00")),
+        ]
+        visit = _make_service_visit(id=1, line_items=items)
+
+        df = analytics_service.visits_to_dataframe([visit], [])
+
+        assert len(df) == 1
+        assert df.iloc[0]["cost"] == 65.0  # 30 + 15 + 20
+        assert df.iloc[0]["type"] == "service"
+
+    def test_visit_cost_includes_tax_fees(self):
+        """Verify tax, shop_supplies, and misc_fees are included in row cost."""
+        items = [_make_line_item(cost=Decimal("100.00"))]
+        visit = _make_service_visit(
+            line_items=items,
+            tax_amount=Decimal("8.00"),
+            shop_supplies=Decimal("3.50"),
+            misc_fees=Decimal("2.00"),
+        )
+
+        df = analytics_service.visits_to_dataframe([visit], [])
+
+        assert len(df) == 1
+        # 100 + 8 + 3.50 + 2 = 113.50
+        assert df.iloc[0]["cost"] == 113.5
+
+    def test_def_records_included(self):
+        """Verify DEF records produce type='def' rows."""
+        def_records = [
+            _make_def_record(id=1, date=date(2024, 1, 10), cost=Decimal("18.75")),
+            _make_def_record(id=2, date=date(2024, 2, 10), cost=Decimal("20.00")),
+        ]
+
+        df = analytics_service.visits_to_dataframe([], [], def_records=def_records)
+
+        assert len(df) == 2
+        assert all(df["type"] == "def")
+        assert df["cost"].sum() == 38.75
+
+    def test_mixed_visits_fuel_def(self):
+        """Test DataFrame with visits, fuel, and DEF together."""
+        items = [_make_line_item(cost=Decimal("50.00"))]
+        visit = _make_service_visit(date=date(2024, 1, 15), line_items=items)
+
+        fuel = [_make_fuel_record(date=date(2024, 1, 20), cost=Decimal("45.00"))]
+        def_recs = [_make_def_record(date=date(2024, 1, 25), cost=Decimal("18.75"))]
+
+        df = analytics_service.visits_to_dataframe([visit], fuel, def_records=def_recs)
+
+        assert len(df) == 3
+        assert set(df["type"]) == {"service", "fuel", "def"}
+        # Verify sorted by date
+        dates = df["date"].tolist()
+        assert dates == sorted(dates)
+
+    def test_empty_visits(self):
+        """Test with no data at all."""
+        df = analytics_service.visits_to_dataframe([], [])
+
+        assert df.empty
+        assert "date" in df.columns
+        assert "type" in df.columns
+        assert "cost" in df.columns
+
+    def test_visit_without_line_items_skipped_if_zero_cost(self):
+        """Visits with no line items and no fees should be skipped."""
+        visit = _make_service_visit(line_items=[])
+
+        df = analytics_service.visits_to_dataframe([visit], [])
+
+        assert df.empty
+
+    def test_visit_vendor_name(self):
+        """Verify vendor name is correctly mapped."""
+        items = [_make_line_item(cost=Decimal("50.00"))]
+        visit = _make_service_visit(
+            line_items=items,
+            vendor=SimpleNamespace(name="Pep Boys"),
+        )
+
+        df = analytics_service.visits_to_dataframe([visit], [])
+
+        assert df.iloc[0]["vendor"] == "Pep Boys"
+
+    def test_visit_no_vendor(self):
+        """Verify missing vendor defaults to 'Unknown'."""
+        items = [_make_line_item(cost=Decimal("50.00"))]
+        visit = _make_service_visit(line_items=items, vendor=None)
+
+        df = analytics_service.visits_to_dataframe([visit], [])
+
+        assert df.iloc[0]["vendor"] == "Unknown"

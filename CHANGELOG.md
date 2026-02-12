@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Analytics migrated to ServiceVisit** - All analytics, dashboard, reports, calendar, and family dashboard now query `service_visits` + `service_line_items` instead of legacy `service_records` table
+- **Report CSV columns** - Service history CSV headers changed: "Service Type" → "Category", "Vendor Name" → "Vendor", added "Notes"
+- **Schema rename** - `GarageMonthlyTrend.maintenance` → `GarageMonthlyTrend.service` in analytics API and frontend
+
+### Added
+- **Migration 039** - Backfills `service_visits.total_cost` from line items + tax/fees for existing records
+- **`visits_to_dataframe()`** - New analytics service function producing one DataFrame row per visit (visit-level totals for financial accuracy)
+- **Write-path total_cost sync** - `total_cost` is always recomputed from `calculated_total_cost` on every service visit create, update, line item add, and line item delete
+
+### Fixed
+- **MissingGreenlet on service visit creation** - `calculated_total_cost` property triggered lazy load of `line_items` in async context; now eagerly refreshes relationship first
+
 ### Added
 - **DEF Tracking** - CRUD, analytics, CSV/JSON export/import for Diesel Exhaust Fluid records
 - **DEF in Garage Analytics** - Own cost category in pie chart, vehicle table, monthly trends

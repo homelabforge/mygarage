@@ -202,7 +202,7 @@ export interface GarageVehicleCost {
 
 export interface GarageMonthlyTrend {
   month: string
-  maintenance: string
+  service: string
   fuel: string
   def_cost: string
   total: string
