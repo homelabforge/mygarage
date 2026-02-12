@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import api from '../services/api'
-import { Car, Wrench, Fuel, Shield, FileText, Download, HelpCircle } from 'lucide-react'
+import { Car, Wrench, Fuel, Shield, FileText, Download, HelpCircle, Droplets } from 'lucide-react'
 import {
   ResponsiveContainer,
   PieChart as RechartsPieChart,
@@ -20,8 +20,8 @@ import type { GarageAnalytics, GarageMonthlyTrend } from '../types/analytics'
 import GarageAnalyticsHelpModal from '../components/GarageAnalyticsHelpModal'
 import { formatCurrencyZero as formatCurrency } from '../utils/formatUtils'
 
-// Colors for pie chart categories (8 categories: Maintenance, Upgrades, Inspection, Collision, Detailing, Fuel, Insurance, Taxes)
-const COLORS = ['#3B82F6', '#8B5CF6', '#F59E0B', '#EF4444', '#10B981', '#06B6D4', '#EC4899', '#6B7280']
+// Colors for pie chart categories (9 categories: Maintenance, Upgrades, Inspection, Collision, Detailing, Fuel, DEF, Insurance, Taxes)
+const COLORS = ['#3B82F6', '#8B5CF6', '#F59E0B', '#EF4444', '#10B981', '#06B6D4', '#14B8A6', '#EC4899', '#6B7280']
 
 export default function GarageAnalytics() {
   const [analytics, setAnalytics] = useState<GarageAnalytics | null>(null)
@@ -51,6 +51,7 @@ export default function GarageAnalytics() {
     rows.push(`Collision,${analytics.total_costs.total_collision}`)
     rows.push(`Detailing,${analytics.total_costs.total_detailing}`)
     rows.push(`Fuel,${analytics.total_costs.total_fuel}`)
+    rows.push(`DEF,${analytics.total_costs.total_def}`)
     rows.push(`Insurance,${analytics.total_costs.total_insurance}`)
     rows.push(`Taxes,${analytics.total_costs.total_taxes}`)
     rows.push('')
@@ -65,10 +66,10 @@ export default function GarageAnalytics() {
 
     // Cost by Vehicle
     rows.push('Cost by Vehicle')
-    rows.push('Vehicle,Purchase Price,Maintenance,Upgrades,Inspection,Collision,Detailing,Fuel,Running Costs')
+    rows.push('Vehicle,Purchase Price,Maintenance,Upgrades,Inspection,Collision,Detailing,Fuel,DEF,Running Costs')
     analytics.cost_by_vehicle.forEach((vehicle) => {
       rows.push(
-        `"${vehicle.name}",${vehicle.purchase_price},${vehicle.total_maintenance},${vehicle.total_upgrades},${vehicle.total_inspection},${vehicle.total_collision},${vehicle.total_detailing},${vehicle.total_fuel},${vehicle.total_cost}`
+        `"${vehicle.name}",${vehicle.purchase_price},${vehicle.total_maintenance},${vehicle.total_upgrades},${vehicle.total_inspection},${vehicle.total_collision},${vehicle.total_detailing},${vehicle.total_fuel},${vehicle.total_def},${vehicle.total_cost}`
       )
     })
     rows.push('')
@@ -76,10 +77,10 @@ export default function GarageAnalytics() {
     // Monthly Trends
     if (analytics.monthly_trends.length > 0) {
       rows.push('Monthly Spending Trends')
-      rows.push('Month,Maintenance,Fuel,Total')
+      rows.push('Month,Maintenance,Fuel,DEF,Total')
       analytics.monthly_trends.forEach((trend) => {
-        const total = (parseFloat(trend.maintenance) + parseFloat(trend.fuel)).toFixed(2)
-        rows.push(`${trend.month},${trend.maintenance},${trend.fuel},${total}`)
+        const total = (parseFloat(trend.maintenance) + parseFloat(trend.fuel) + parseFloat(trend.def_cost)).toFixed(2)
+        rows.push(`${trend.month},${trend.maintenance},${trend.fuel},${trend.def_cost},${total}`)
       })
     }
 
@@ -122,7 +123,7 @@ export default function GarageAnalytics() {
       if (idx < period - 1) return null
       const slice = data.slice(idx - period + 1, idx + 1)
       const sum = slice.reduce(
-        (acc, item) => acc + parseFloat(item.maintenance) + parseFloat(item.fuel),
+        (acc, item) => acc + parseFloat(item.maintenance) + parseFloat(item.fuel) + parseFloat(item.def_cost),
         0
       )
       return sum / period
@@ -238,6 +239,7 @@ export default function GarageAnalytics() {
     month: trend.month,
     Maintenance: parseFloat(trend.maintenance),
     Fuel: parseFloat(trend.fuel),
+    DEF: parseFloat(trend.def_cost),
     avg3: rollingAvg3[idx],
     avg6: rollingAvg6[idx],
   }))
@@ -313,6 +315,18 @@ export default function GarageAnalytics() {
             {formatCurrency(total_costs.total_fuel)}
           </p>
         </div>
+
+        {parseFloat(total_costs.total_def) > 0 && (
+          <div className="bg-garage-surface border border-garage-border rounded-lg p-6">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-medium text-garage-text-muted">DEF</h3>
+              <Droplets className="w-5 h-5 text-teal-500" />
+            </div>
+            <p className="text-2xl font-bold text-garage-text">
+              {formatCurrency(total_costs.total_def)}
+            </p>
+          </div>
+        )}
 
         <div className="bg-garage-surface border border-garage-border rounded-lg p-6">
           <div className="flex items-center justify-between mb-2">
@@ -481,6 +495,9 @@ export default function GarageAnalytics() {
                         Fuel
                       </th>
                       <th className="text-right py-2 px-3 text-sm font-medium text-garage-text-muted">
+                        DEF
+                      </th>
+                      <th className="text-right py-2 px-3 text-sm font-medium text-garage-text-muted">
                         Total
                       </th>
                     </tr>
@@ -506,6 +523,9 @@ export default function GarageAnalytics() {
                         </td>
                         <td className="py-2 px-3 text-sm text-garage-text text-right">
                           {formatCurrency(vehicle.total_fuel)}
+                        </td>
+                        <td className="py-2 px-3 text-sm text-garage-text text-right">
+                          {formatCurrency(vehicle.total_def)}
                         </td>
                         <td className="py-2 px-3 text-sm text-garage-text text-right font-semibold">
                           {formatCurrency(vehicle.total_cost)}
@@ -569,6 +589,7 @@ export default function GarageAnalytics() {
               <Legend wrapperStyle={{ paddingTop: '10px', fontSize: '12px' }} />
               <Bar dataKey="Maintenance" fill="#3B82F6" stackId="a" />
               <Bar dataKey="Fuel" fill="#10B981" stackId="a" />
+              <Bar dataKey="DEF" fill="#14B8A6" stackId="a" />
 
               {/* Rolling average trend lines - data from trendData via chart's data prop */}
               {trendData.length >= 3 && (

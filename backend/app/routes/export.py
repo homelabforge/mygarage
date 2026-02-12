@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.database import get_db
 from app.models import (
+    DEFRecord,
     FuelRecord,
     InsurancePolicy,
     Note,
@@ -152,6 +153,61 @@ async def export_fuel_records_csv(
 
     # Generate filename
     filename = f"{vehicle.year}_{vehicle.make}_{vehicle.model}_fuel_records_{datetime.now().strftime('%Y%m%d')}.csv"
+
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/vehicles/{vin}/def/csv")
+@limiter.limit(settings.rate_limit_exports)
+async def export_def_records_csv(
+    request: Request,
+    vin: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(require_auth),
+):
+    """Export DEF records as CSV."""
+    vehicle = await get_vehicle_or_403(vin, current_user, db)
+
+    result = await db.execute(
+        select(DEFRecord).where(DEFRecord.vin == vin).order_by(DEFRecord.date.desc())
+    )
+    records = result.scalars().all()
+
+    headers = [
+        "Date",
+        "Mileage",
+        "Gallons",
+        "Price Per Unit",
+        "Total Cost",
+        "Fill Level",
+        "Source",
+        "Brand",
+        "Notes",
+    ]
+
+    rows = []
+    for record in records:
+        rows.append(
+            [
+                record.date.isoformat() if record.date else "",
+                record.mileage or "",
+                f"{record.gallons:.3f}" if record.gallons else "",
+                f"{record.price_per_unit:.3f}" if record.price_per_unit else "",
+                f"{record.cost:.2f}" if record.cost else "",
+                f"{record.fill_level:.2f}" if record.fill_level else "",
+                record.source or "",
+                record.brand or "",
+                record.notes or "",
+            ]
+        )
+
+    output = generate_csv_stream(headers, rows)
+
+    filename = f"{vehicle.year}_{vehicle.make}_{vehicle.model}_def_records_{datetime.now().strftime('%Y%m%d')}.csv"
 
     return StreamingResponse(
         iter([output.getvalue()]),
@@ -463,6 +519,11 @@ async def export_vehicle_json(
     note_result = await db.execute(select(Note).where(Note.vin == vin).order_by(Note.date.desc()))
     notes = note_result.scalars().all()
 
+    def_result = await db.execute(
+        select(DEFRecord).where(DEFRecord.vin == vin).order_by(DEFRecord.date.desc())
+    )
+    def_records = def_result.scalars().all()
+
     # Build export data
     export_data = {
         "export_date": datetime.now().isoformat(),
@@ -504,6 +565,20 @@ async def export_vehicle_json(
                 "notes": r.notes,
             }
             for r in fuel_records
+        ],
+        "def_records": [
+            {
+                "date": r.date.isoformat() if r.date else None,
+                "mileage": r.mileage,
+                "gallons": float(r.gallons) if r.gallons else None,
+                "price_per_unit": float(r.price_per_unit) if r.price_per_unit else None,
+                "cost": float(r.cost) if r.cost else None,
+                "fill_level": float(r.fill_level) if r.fill_level else None,
+                "source": r.source,
+                "brand": r.brand,
+                "notes": r.notes,
+            }
+            for r in def_records
         ],
         "odometer_records": [
             {

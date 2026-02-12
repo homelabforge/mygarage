@@ -38,6 +38,10 @@ class VehicleBase(BaseModel):
     fuel_type: str | None = Field(None, description="Fuel type", max_length=50)
     transmission_type: str | None = Field(None, description="Transmission type", max_length=50)
     transmission_speeds: str | None = Field(None, description="Transmission speeds", max_length=20)
+    # DEF tracking
+    def_tank_capacity_gallons: Decimal | None = Field(
+        None, description="DEF tank capacity in gallons", ge=0, le=999.99
+    )
 
     @field_validator("vehicle_type")
     @classmethod

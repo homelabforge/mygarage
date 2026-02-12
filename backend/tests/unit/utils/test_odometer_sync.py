@@ -62,6 +62,7 @@ class TestOdometerSync:
         assert result.date == test_date
         assert result.notes is not None
         assert "[AUTO-SYNC from service #1]" in result.notes
+        assert result.source == "service"
 
     async def test_sync_skips_when_mileage_is_none(self, db_session: AsyncSession, test_vehicle):
         """Test that sync does nothing when mileage is None."""
@@ -109,6 +110,7 @@ class TestOdometerSync:
         assert updated.mileage == 51500
         assert updated.notes is not None
         assert "[AUTO-SYNC from fuel #2]" in updated.notes
+        assert updated.source == "fuel"
 
     async def test_sync_does_not_overwrite_manual_entry(
         self, db_session: AsyncSession, test_vehicle, clean_odometer_records
@@ -116,12 +118,13 @@ class TestOdometerSync:
         """Test that sync does not overwrite manual odometer entry."""
         test_date = date(2024, 4, 1)
 
-        # Create a manual odometer entry (no AUTO-SYNC marker)
+        # Create a manual odometer entry (no AUTO-SYNC marker, source=manual)
         manual_record = OdometerRecord(
             vin=test_vehicle["vin"],
             date=test_date,
             mileage=52000,
             notes="Manual entry from inspection",
+            source="manual",
         )
         db_session.add(manual_record)
         await db_session.commit()
@@ -150,10 +153,50 @@ class TestOdometerSync:
         assert record.notes is not None
         assert "Manual entry" in record.notes
 
+    async def test_sync_overwrites_livelink_record(
+        self, db_session: AsyncSession, test_vehicle, clean_odometer_records
+    ):
+        """Test that fuel/service sync overwrites a LiveLink odometer record.
+
+        User-entered data from fuel fill-ups or service visits is more
+        authoritative than auto-recorded LiveLink telemetry.
+        """
+        test_date = date(2024, 4, 15)
+
+        # Create a LiveLink odometer record (as the telemetry service would)
+        livelink_record = OdometerRecord(
+            vin=test_vehicle["vin"],
+            date=test_date,
+            mileage=7924,  # km stored as miles (the bug this fixes)
+            source="livelink",
+            notes="Auto-updated from LiveLink (A6-Odometer)",
+        )
+        db_session.add(livelink_record)
+        await db_session.commit()
+        await db_session.refresh(livelink_record)
+        record_id = livelink_record.id
+
+        # Fuel fill-up sync should overwrite the LiveLink record
+        result = await sync_odometer_from_record(
+            db=db_session,
+            vin=test_vehicle["vin"],
+            date=test_date,
+            mileage=4908,
+            source_type="fuel",
+            source_id=42,
+        )
+
+        assert result is not None
+        assert result.id == record_id  # Same record updated, not a new one
+        assert result.mileage == 4908
+        assert result.source == "fuel"
+        assert result.notes is not None
+        assert "[AUTO-SYNC from fuel #42]" in result.notes
+
     async def test_sync_from_service_record(
         self, db_session: AsyncSession, test_vehicle, clean_odometer_records
     ):
-        """Test sync creates correct notes for service source."""
+        """Test sync creates correct notes and source for service source."""
         result = await sync_odometer_from_record(
             db=db_session,
             vin=test_vehicle["vin"],
@@ -166,9 +209,10 @@ class TestOdometerSync:
         assert result is not None
         assert result.notes is not None
         assert "[AUTO-SYNC from service #42]" in result.notes
+        assert result.source == "service"
 
     async def test_sync_from_fuel_record(self, db_session: AsyncSession, test_vehicle):
-        """Test sync creates correct notes for fuel source."""
+        """Test sync creates correct notes and source for fuel source."""
         result = await sync_odometer_from_record(
             db=db_session,
             vin=test_vehicle["vin"],
@@ -181,6 +225,7 @@ class TestOdometerSync:
         assert result is not None
         assert result.notes is not None
         assert "[AUTO-SYNC from fuel #99]" in result.notes
+        assert result.source == "fuel"
 
     async def test_sync_preserves_manual_entry_with_empty_notes(
         self, db_session: AsyncSession, test_vehicle, clean_odometer_records
@@ -194,6 +239,7 @@ class TestOdometerSync:
             date=test_date,
             mileage=54000,
             notes=None,  # No notes = manual entry
+            source="manual",
         )
         db_session.add(manual_record)
         await db_session.commit()

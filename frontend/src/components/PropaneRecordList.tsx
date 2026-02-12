@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Edit, Trash2, Plus, AlertCircle, Fuel } from 'lucide-react'
+import { Edit, Trash2, Plus, AlertCircle, Fuel, DollarSign, Droplets } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateForDisplay } from '../utils/dateUtils'
 import { formatCurrency } from '../utils/formatUtils'
@@ -120,11 +120,7 @@ export default function PropaneRecordList({ vin }: PropaneRecordListProps) {
           <h3 className="text-lg font-semibold text-garage-text">Propane Records</h3>
           {records.length > 0 && (
             <p className="text-sm text-garage-text-muted">
-              {records.length} {records.length === 1 ? 'record' : 'records'} •
-              Total Spent: {formatCurrency(records.reduce((sum, r) => {
-                const cost = typeof r.cost === 'string' ? parseFloat(r.cost) : (r.cost || 0)
-                return sum + (isNaN(cost) ? 0 : cost)
-              }, 0))}
+              {records.length} {records.length === 1 ? 'record' : 'records'}
             </p>
           )}
         </div>
@@ -136,6 +132,53 @@ export default function PropaneRecordList({ vin }: PropaneRecordListProps) {
           <span>Add Propane</span>
         </button>
       </div>
+
+      {/* Inline Analytics Cards */}
+      {records.length > 0 && (() => {
+        const totalCost = records.reduce((sum, r) => {
+          const cost = typeof r.cost === 'string' ? parseFloat(r.cost) : (r.cost || 0)
+          return sum + (isNaN(cost) ? 0 : cost)
+        }, 0)
+        const totalGallons = records.reduce((sum, r) => {
+          const gal = typeof r.propane_gallons === 'string' ? parseFloat(r.propane_gallons) : (r.propane_gallons || 0)
+          return sum + (isNaN(gal) ? 0 : gal)
+        }, 0)
+        const avgCostPerGallon = totalGallons > 0 ? totalCost / totalGallons : null
+
+        return (
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4">
+            <div className="bg-garage-surface border border-garage-border rounded-lg p-3">
+              <div className="flex items-center gap-1 text-xs text-garage-text-muted mb-1">
+                <DollarSign className="w-3 h-3" />
+                <span>Total Spent</span>
+              </div>
+              <div className="text-lg font-semibold text-garage-text">
+                {formatCurrency(totalCost)}
+              </div>
+            </div>
+            <div className="bg-garage-surface border border-garage-border rounded-lg p-3">
+              <div className="flex items-center gap-1 text-xs text-garage-text-muted mb-1">
+                <Droplets className="w-3 h-3" />
+                <span>Total Gallons</span>
+              </div>
+              <div className="text-lg font-semibold text-garage-text">
+                {totalGallons.toFixed(1)} gal
+              </div>
+            </div>
+            {avgCostPerGallon !== null && (
+              <div className="bg-garage-surface border border-garage-border rounded-lg p-3">
+                <div className="flex items-center gap-1 text-xs text-garage-text-muted mb-1">
+                  <DollarSign className="w-3 h-3" />
+                  <span>Avg Cost/Gal</span>
+                </div>
+                <div className="text-lg font-semibold text-garage-text">
+                  {formatCurrency(avgCostPerGallon)}
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })()}
 
       {error && (
         <div className="flex items-start gap-2 p-3 bg-danger/10 border border-danger/20 rounded-md mb-4">

@@ -262,36 +262,79 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick, onRefresh
         </div>
       )}
 
-      {averageMpg !== null && (
-        <div className="bg-primary/10 border border-primary rounded-lg p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="bg-primary/20 rounded-full p-3">
-                <TrendingUp className="w-6 h-6 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm text-garage-text-muted">
-                  Average Fuel Economy {includeHauling ? '(Including Towing)' : '(Normal Driving)'}
-                </p>
-                <p className="text-2xl font-bold text-garage-text">
+      {/* Inline Analytics Cards */}
+      {records.length > 0 && (() => {
+        const totalCost = records.reduce((sum, r) => sum + (r.cost ? parseFloat(String(r.cost)) : 0), 0)
+        const totalGallons = records.reduce((sum, r) => sum + (r.gallons ? parseFloat(String(r.gallons)) : 0), 0)
+        const avgCostPerGallon = totalGallons > 0 ? totalCost / totalGallons : null
+        const mileages = records.filter(r => r.mileage).map(r => r.mileage!)
+        const costPer1kMiles = mileages.length >= 2
+          ? (totalCost / (Math.max(...mileages) - Math.min(...mileages))) * 1000
+          : null
+
+        return (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {averageMpg !== null && (
+              <div className="bg-garage-surface border border-garage-border rounded-lg p-3">
+                <div className="flex items-center gap-1 text-xs text-garage-text-muted mb-1">
+                  <TrendingUp className="w-3 h-3" />
+                  <span>Avg Fuel Economy</span>
+                </div>
+                <div className="text-lg font-semibold text-garage-text">
                   {UnitFormatter.formatFuelEconomy(averageMpg, system, showBoth)}
+                </div>
+                <div className="flex items-center gap-2 mt-1">
+                  <label className="flex items-center gap-1 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={includeHauling}
+                      onChange={(e) => setIncludeHauling(e.target.checked)}
+                      className="h-3 w-3 text-primary focus:ring-primary border-garage-border rounded bg-garage-bg"
+                    />
+                    <span className="text-xs text-garage-text-muted">Incl. Towing</span>
+                  </label>
+                </div>
+              </div>
+            )}
+            {totalCost > 0 && (
+              <div className="bg-garage-surface border border-garage-border rounded-lg p-3">
+                <div className="flex items-center gap-1 text-xs text-garage-text-muted mb-1">
+                  <DollarSign className="w-3 h-3" />
+                  <span>Total Spent</span>
+                </div>
+                <div className="text-lg font-semibold text-garage-text">
+                  {formatCurrency(totalCost)}
+                </div>
+                <p className="text-xs text-garage-text-muted">
+                  {totalGallons.toFixed(1)} gal total
                 </p>
               </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={includeHauling}
-                  onChange={(e) => setIncludeHauling(e.target.checked)}
-                  className="h-4 w-4 text-primary focus:ring-primary border-garage-border rounded bg-garage-bg"
-                />
-                <span className="text-sm text-garage-text">Include Towing</span>
-              </label>
-            </div>
+            )}
+            {avgCostPerGallon !== null && (
+              <div className="bg-garage-surface border border-garage-border rounded-lg p-3">
+                <div className="flex items-center gap-1 text-xs text-garage-text-muted mb-1">
+                  <Gauge className="w-3 h-3" />
+                  <span>Avg Cost/Gal</span>
+                </div>
+                <div className="text-lg font-semibold text-garage-text">
+                  {formatCurrency(avgCostPerGallon)}
+                </div>
+              </div>
+            )}
+            {costPer1kMiles !== null && isFinite(costPer1kMiles) && (
+              <div className="bg-garage-surface border border-garage-border rounded-lg p-3">
+                <div className="flex items-center gap-1 text-xs text-garage-text-muted mb-1">
+                  <Truck className="w-3 h-3" />
+                  <span>Cost/1k Miles</span>
+                </div>
+                <div className="text-lg font-semibold text-garage-text">
+                  {formatCurrency(costPer1kMiles)}
+                </div>
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        )
+      })()}
 
       {records.length === 0 ? (
         <div className="bg-garage-surface border border-garage-border rounded-lg p-8 text-center">

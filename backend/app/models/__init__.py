@@ -3,6 +3,7 @@
 from app.models.address_book import AddressBookEntry
 from app.models.attachment import Attachment
 from app.models.csrf_token import CSRFToken
+from app.models.def_record import DEFRecord
 from app.models.document import Document
 from app.models.drive_session import DriveSession
 from app.models.dtc_definition import DTCDefinition
@@ -43,6 +44,7 @@ __all__ = [
     "Vehicle",
     "TrailerDetails",
     # Maintenance & Records
+    "DEFRecord",
     "SpotRental",
     "SpotRentalBilling",
     "ServiceRecord",

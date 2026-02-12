@@ -59,10 +59,13 @@ function detectParamType(
     return 'temperature'
   }
 
-  // Distance detection - EXCLUDE odometer/mileage (raw OBD2 values match user's locale)
-  // WiCAN reports odometer in the vehicle's native unit (miles for US, km for metric)
+  // Distance detection
+  // Standard OBD2 PIDs (hex-prefixed like "A6-Odometer") always report in km per SAE J1979.
+  // Custom PIDs (e.g. Mitsubishi's "ODOMETER") may already be in the user's unit.
+  const isStandardOBD2 = /^[0-9a-f]{1,2}-/i.test(paramKey)
   if (
-    (key.includes('distance') && !key.includes('odometer')) ||
+    key.includes('distance') ||
+    (key.includes('odometer') && isStandardOBD2) ||
     unitLower === 'km' ||
     unitLower === 'kilometers'
   ) {

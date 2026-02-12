@@ -116,7 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode}) {
     } catch (error: unknown) {
       const err = error as { response?: { data?: { detail?: string } }; message?: string }
       const errorMessage = err.response?.data?.detail || err.message || 'Login failed'
-      throw new Error(errorMessage)
+      throw new Error(errorMessage, { cause: error })
     }
   }
 
@@ -127,7 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode}) {
     } catch (error: unknown) {
       const err = error as { response?: { data?: { detail?: string } }; message?: string }
       const errorMessage = err.response?.data?.detail || err.message || 'Registration failed'
-      throw new Error(errorMessage)
+      throw new Error(errorMessage, { cause: error })
     }
   }
 

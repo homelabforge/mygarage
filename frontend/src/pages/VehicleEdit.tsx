@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { ArrowLeft, Save } from 'lucide-react'
+import { ArrowLeft, Save, Droplets } from 'lucide-react'
 import api from '../services/api'
 import type { Vehicle } from '../types/vehicle'
 import { vehicleEditSchema, type VehicleEditFormData, VEHICLE_TYPES } from '../schemas/vehicle'
@@ -15,15 +15,21 @@ export default function VehicleEdit() {
   const [error, setError] = useState<string | null>(null)
   const [vehicle, setVehicle] = useState<Vehicle | null>(null)
 
+  const [defEnabled, setDefEnabled] = useState(false)
+
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
     reset,
+    setValue,
+    watch,
   } = useForm<VehicleEditFormData>({
     resolver: zodResolver(vehicleEditSchema) as Resolver<VehicleEditFormData>,
     defaultValues: {},
   })
+
+  const watchedFuelType = watch('fuel_type')
 
   const fetchVehicle = useCallback(async () => {
     if (!vin) return
@@ -50,7 +56,13 @@ export default function VehicleEdit() {
         sold_price: data.sold_price,
         // Always include fuel_type (for propane on fifth wheels)
         fuel_type: data.fuel_type,
+        def_tank_capacity_gallons: data.def_tank_capacity_gallons != null ? Number(data.def_tank_capacity_gallons) : undefined,
       }
+
+      // Initialize DEF enabled state
+      const isDiesel = data.fuel_type?.toLowerCase().includes('diesel') ?? false
+      const hasTankCap = data.def_tank_capacity_gallons != null && Number(data.def_tank_capacity_gallons) > 0
+      setDefEnabled(isDiesel || hasTankCap)
 
       // Only include VIN decoded and engine fields for motorized vehicles
       if (vehicleIsMotorized) {
@@ -81,6 +93,15 @@ export default function VehicleEdit() {
     if (!vin) return
 
     setError(null)
+
+    // If DEF tracking is enabled but no tank capacity entered, set to 0.01
+    if (defEnabled && (!data.def_tank_capacity_gallons || data.def_tank_capacity_gallons <= 0)) {
+      data.def_tank_capacity_gallons = 0.01
+    }
+    // If DEF tracking is disabled, clear the tank capacity
+    if (!defEnabled) {
+      data.def_tank_capacity_gallons = undefined
+    }
 
     try {
       await api.put(`/vehicles/${vin}`, data)
@@ -423,6 +444,62 @@ export default function VehicleEdit() {
                 />
                 <FormError error={errors.transmission_speeds} />
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* DEF Tracking Section - only for motorized vehicles */}
+        {isMotorized && (
+          <div>
+            <h3 className="text-lg font-semibold text-garage-text mb-4 flex items-center gap-2">
+              <Droplets className="w-5 h-5" />
+              DEF Tracking
+            </h3>
+            <div className="space-y-4">
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={defEnabled}
+                  onChange={(e) => {
+                    setDefEnabled(e.target.checked)
+                    if (!e.target.checked) {
+                      setValue('def_tank_capacity_gallons', undefined)
+                    }
+                  }}
+                  className="w-4 h-4 rounded border-garage-border bg-garage-bg text-primary focus:ring-primary"
+                />
+                <span className="text-sm font-medium text-garage-text">
+                  Enable DEF Tracking
+                </span>
+              </label>
+              {watchedFuelType?.toLowerCase().includes('diesel') && !defEnabled && (
+                <p className="text-sm text-warning">
+                  This vehicle uses diesel fuel. Consider enabling DEF tracking.
+                </p>
+              )}
+              {defEnabled && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="def_tank_capacity_gallons" className="block text-sm font-medium text-garage-text mb-1">
+                      DEF Tank Capacity (gallons)
+                    </label>
+                    <input
+                      type="number"
+                      id="def_tank_capacity_gallons"
+                      {...register('def_tank_capacity_gallons', { valueAsNumber: true })}
+                      className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-garage-text"
+                      placeholder="5.0"
+                      step="0.01"
+                      min="0"
+                      max="999.99"
+                    />
+                    <p className="text-xs text-garage-text-muted mt-1">
+                      Optional. Helps estimate remaining DEF capacity.
+                    </p>
+                    <FormError error={errors.def_tank_capacity_gallons} />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

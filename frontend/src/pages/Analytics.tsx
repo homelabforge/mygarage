@@ -22,6 +22,7 @@ import {
   AlertTriangle,
   Download,
   HelpCircle,
+  Droplets,
 } from 'lucide-react'
 import {
   LineChart as RechartsLineChart,
@@ -210,16 +211,18 @@ export default function Analytics() {
 
     // Monthly Breakdown
     rows.push(['Monthly Breakdown'])
-    rows.push(['Month', 'Year', 'Service Cost', 'Fuel Cost', 'Total Cost', 'Service Count', 'Fuel Count'])
+    rows.push(['Month', 'Year', 'Service Cost', 'Fuel Cost', 'DEF Cost', 'Total Cost', 'Service Count', 'Fuel Count', 'DEF Count'])
     cost_analysis.monthly_breakdown.forEach(month => {
       rows.push([
         month.month_name,
         month.year.toString(),
         month.total_service_cost,
         month.total_fuel_cost,
+        month.total_def_cost,
         month.total_cost,
         month.service_count.toString(),
         month.fuel_count.toString(),
+        month.def_count.toString(),
       ])
     })
     rows.push([]) // Empty row
@@ -936,6 +939,7 @@ export default function Analytics() {
                   month: `${month.month_name.slice(0, 3)} ${month.year}`,
                   Service: parseFloat(month.total_service_cost),
                   Fuel: parseFloat(month.total_fuel_cost),
+                  ...(parseFloat(month.total_def_cost) > 0 ? { DEF: parseFloat(month.total_def_cost) } : {}),
                   ...(hasPropane ? { 'Spot Rental': parseFloat(month.total_spot_rental_cost) } : {})
                 }))}
                 margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
@@ -987,6 +991,7 @@ export default function Analytics() {
                 />
                 <Bar dataKey="Service" fill="#3B82F6" stackId="a" />
                 <Bar dataKey="Fuel" fill="#10B981" stackId="a" />
+                {analytics.def_analysis && <Bar dataKey="DEF" fill="#14B8A6" stackId="a" />}
                 {hasPropane && <Bar dataKey="Spot Rental" fill="#F59E0B" stackId="a" />}
               </RechartsBarChart>
             </ResponsiveContainer>
@@ -1002,6 +1007,7 @@ export default function Analytics() {
                   </p>
                   <p className="text-xs text-garage-text-muted">
                     Service: {formatCurrency(month.total_service_cost)} • Fuel: {formatCurrency(month.total_fuel_cost)}
+                    {parseFloat(month.total_def_cost) > 0 && ` • DEF: ${formatCurrency(month.total_def_cost)}`}
                     {parseFloat(month.total_spot_rental_cost) > 0 && ` • Spot Rental: ${formatCurrency(month.total_spot_rental_cost)}`}
                   </p>
                 </div>
@@ -1265,6 +1271,46 @@ export default function Analytics() {
               </ResponsiveContainer>
             </div>
           )}
+        </div>
+      )}
+
+      {/* DEF Analysis for diesel vehicles */}
+      {analytics.def_analysis && analytics.def_analysis.record_count > 0 && (
+        <div className="bg-garage-surface border border-garage-border rounded-lg p-6 mb-8">
+          <div className="flex items-center gap-2 mb-4">
+            <Droplets className="w-5 h-5 text-teal-500" />
+            <h2 className="text-xl font-bold text-garage-text">DEF Analysis</h2>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="text-center p-4 bg-garage-bg rounded-lg">
+              <p className="text-sm text-garage-text-muted mb-1">Total Spent</p>
+              <p className="text-2xl font-bold text-garage-text">
+                {formatCurrency(analytics.def_analysis.total_spent)}
+              </p>
+            </div>
+            <div className="text-center p-4 bg-garage-bg rounded-lg">
+              <p className="text-sm text-garage-text-muted mb-1">Total Gallons</p>
+              <p className="text-2xl font-bold text-garage-text">
+                {parseFloat(analytics.def_analysis.total_gallons).toFixed(1)} gal
+              </p>
+            </div>
+            <div className="text-center p-4 bg-garage-bg rounded-lg">
+              <p className="text-sm text-garage-text-muted mb-1">Avg Cost/Gallon</p>
+              <p className="text-2xl font-bold text-garage-text">
+                {analytics.def_analysis.avg_cost_per_gallon
+                  ? formatCurrency(analytics.def_analysis.avg_cost_per_gallon)
+                  : '-'}
+              </p>
+            </div>
+            <div className="text-center p-4 bg-garage-bg rounded-lg">
+              <p className="text-sm text-garage-text-muted mb-1">Consumption Rate</p>
+              <p className="text-2xl font-bold text-primary">
+                {analytics.def_analysis.gallons_per_1000_miles
+                  ? `${analytics.def_analysis.gallons_per_1000_miles} gal/1k mi`
+                  : '-'}
+              </p>
+            </div>
+          </div>
         </div>
       )}
 

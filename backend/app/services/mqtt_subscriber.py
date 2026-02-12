@@ -245,7 +245,7 @@ class MQTTSubscriber:
 
             except Exception as e:
                 await db.rollback()
-                logger.error("Error handling MQTT message: %s", e)
+                logger.error("Error handling MQTT message: %s", e, exc_info=True)
                 raise
 
     async def _handle_status(

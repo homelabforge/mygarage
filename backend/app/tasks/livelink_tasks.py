@@ -95,8 +95,11 @@ async def check_device_offline_status():
                         if notify_enabled and device.enabled:
                             vehicle_name = vehicle_name_map.get(device.vin) if device.vin else None
 
+                            last_seen = device.last_seen
+                            if last_seen.tzinfo is None:
+                                last_seen = last_seen.replace(tzinfo=UTC)
                             offline_minutes = int(
-                                (datetime.now(UTC) - device.last_seen).total_seconds() / 60
+                                (datetime.now(UTC) - last_seen).total_seconds() / 60
                             )
                             await dispatcher.notify_livelink_device_offline(
                                 device_id=device.device_id,

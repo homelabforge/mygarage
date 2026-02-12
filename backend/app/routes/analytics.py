@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 from app.config import settings
 from app.database import get_db
 from app.models import (
+    DEFRecord,
     FuelRecord,
     OdometerRecord,
     ServiceRecord,
@@ -117,6 +118,14 @@ async def get_cost_analysis(db: AsyncSession, vin: str) -> CostAnalysis:
     )
     fuel_records = fuel_result.scalars().all()
 
+    # Get all DEF records with costs
+    def_result = await db.execute(
+        select(DEFRecord)
+        .where(DEFRecord.vin == vin, DEFRecord.cost.isnot(None))
+        .order_by(DEFRecord.date)
+    )
+    def_records = def_result.scalars().all()
+
     # Get spot rental billings via spot_rentals (only if vehicle type supports it)
     spot_rental_billings = []
     if has_spot_rentals:
@@ -131,10 +140,11 @@ async def get_cost_analysis(db: AsyncSession, vin: str) -> CostAnalysis:
     # Calculate totals
     total_service_cost = sum((r.cost for r in service_records if r.cost), Decimal("0.00"))
     total_fuel_cost = sum((r.cost for r in fuel_records if r.cost), Decimal("0.00"))
+    total_def_cost = sum((r.cost for r in def_records if r.cost), Decimal("0.00"))
     total_spot_rental_cost = sum(
         (r.total for r in spot_rental_billings if r.total), Decimal("0.00")
     )
-    total_cost = total_service_cost + total_fuel_cost + total_spot_rental_cost
+    total_cost = total_service_cost + total_fuel_cost + total_def_cost + total_spot_rental_cost
 
     # Use pandas for monthly aggregation
     df = analytics_service.records_to_dataframe(service_records, fuel_records, spot_rental_billings)
@@ -273,10 +283,12 @@ async def get_cost_analysis(db: AsyncSession, vin: str) -> CostAnalysis:
     return CostAnalysis(
         total_service_cost=total_service_cost,
         total_fuel_cost=total_fuel_cost,
+        total_def_cost=total_def_cost,
         total_cost=total_cost,
         average_monthly_cost=average_monthly_cost,
         service_count=len(service_records),
         fuel_count=len(fuel_records),
+        def_count=len(def_records),
         months_tracked=months_tracked,
         cost_per_mile=cost_per_mile,
         rolling_avg_3m=rolling_avgs.get("rolling_3m"),
@@ -663,6 +675,37 @@ async def get_vehicle_analytics(
         # Get spot rental costs
         spot_rental_analysis = await analytics_service.calculate_spot_rental_costs(db, vin)
 
+    # DEF analysis (for diesel vehicles with DEF records)
+    def_analysis = None
+    def_result = await db.execute(
+        select(DEFRecord).where(DEFRecord.vin == vin).order_by(DEFRecord.date)
+    )
+    all_def_records = def_result.scalars().all()
+    if all_def_records:
+        total_def_gallons = sum((r.gallons for r in all_def_records if r.gallons), Decimal("0.00"))
+        total_def_spent = sum((r.cost for r in all_def_records if r.cost), Decimal("0.00"))
+        avg_cost_per_gallon = total_def_spent / total_def_gallons if total_def_gallons > 0 else None
+
+        # Calculate gallons per 1,000 miles
+        gallons_per_1000_miles = None
+        def_mileages = [r.mileage for r in all_def_records if r.mileage is not None]
+        if len(def_mileages) >= 2:
+            min_mi = min(def_mileages)
+            max_mi = max(def_mileages)
+            miles_span = max_mi - min_mi
+            if miles_span > 0:
+                gallons_per_1000_miles = float(total_def_gallons) / miles_span * 1000
+
+        def_analysis = {
+            "total_spent": str(total_def_spent),
+            "total_gallons": str(total_def_gallons),
+            "avg_cost_per_gallon": str(avg_cost_per_gallon) if avg_cost_per_gallon else None,
+            "gallons_per_1000_miles": (
+                f"{gallons_per_1000_miles:.1f}" if gallons_per_1000_miles else None
+            ),
+            "record_count": len(all_def_records),
+        }
+
     return VehicleAnalytics(
         vin=vin,
         vehicle_name=vehicle_name,
@@ -678,6 +721,7 @@ async def get_vehicle_analytics(
         days_owned=days_owned,
         propane_analysis=propane_analysis,
         spot_rental_analysis=spot_rental_analysis,
+        def_analysis=def_analysis,
     )
 
 
@@ -694,6 +738,7 @@ async def get_garage_analytics(
         select(Vehicle).options(
             selectinload(Vehicle.service_records),
             selectinload(Vehicle.fuel_records),
+            selectinload(Vehicle.def_records),
             selectinload(Vehicle.insurance_policies),
             selectinload(Vehicle.tax_records),
         )
@@ -720,6 +765,7 @@ async def get_garage_analytics(
     total_detailing = Decimal("0.00")
     # Other totals
     total_fuel = Decimal("0.00")
+    total_def = Decimal("0.00")
     total_insurance = Decimal("0.00")
     total_taxes = Decimal("0.00")
 
@@ -731,6 +777,7 @@ async def get_garage_analytics(
         lambda: {
             "maintenance": Decimal("0.00"),
             "fuel": Decimal("0.00"),
+            "def": Decimal("0.00"),
         }
     )
 
@@ -787,7 +834,13 @@ async def get_garage_analytics(
 
         vehicle_fuel = sum((r.cost for r in fuel_records if r.cost), Decimal("0.00"))
 
-        # Running costs = all service categories + fuel (excludes purchase price)
+        # Use eager-loaded DEF records (no additional query)
+        def_records = [r for r in vehicle.def_records if r.cost is not None]
+        def_records.sort(key=lambda r: r.date)
+
+        vehicle_def = sum((r.cost for r in def_records if r.cost), Decimal("0.00"))
+
+        # Running costs = all service categories + fuel + DEF (excludes purchase price)
         vehicle_total = (
             vehicle_maintenance
             + vehicle_upgrades
@@ -795,6 +848,7 @@ async def get_garage_analytics(
             + vehicle_collision
             + vehicle_detailing
             + vehicle_fuel
+            + vehicle_def
         )
 
         # Add to garage totals
@@ -804,6 +858,7 @@ async def get_garage_analytics(
         total_collision += vehicle_collision
         total_detailing += vehicle_detailing
         total_fuel += vehicle_fuel
+        total_def += vehicle_def
 
         # Add to vehicle costs list
         vehicle_costs.append(
@@ -818,6 +873,7 @@ async def get_garage_analytics(
                 total_collision=vehicle_collision,
                 total_detailing=vehicle_detailing,
                 total_fuel=vehicle_fuel,
+                total_def=vehicle_def,
                 total_cost=vehicle_total,
             )
         )
@@ -832,6 +888,11 @@ async def get_garage_analytics(
             if record.date and record.cost:
                 key = (record.date.year, record.date.month)
                 monthly_data[key]["fuel"] += record.cost
+
+        for record in def_records:
+            if record.date and record.cost:
+                key = (record.date.year, record.date.month)
+                monthly_data[key]["def"] += record.cost
 
     # Sort vehicle costs by total cost (descending)
     vehicle_costs.sort(key=lambda x: x.total_cost, reverse=True)
@@ -852,6 +913,8 @@ async def get_garage_analytics(
         cost_breakdown.append(GarageCostByCategory(category="Detailing", amount=total_detailing))
     if total_fuel > 0:
         cost_breakdown.append(GarageCostByCategory(category="Fuel", amount=total_fuel))
+    if total_def > 0:
+        cost_breakdown.append(GarageCostByCategory(category="DEF", amount=total_def))
     if total_insurance > 0:
         cost_breakdown.append(GarageCostByCategory(category="Insurance", amount=total_insurance))
     if total_taxes > 0:
@@ -868,7 +931,8 @@ async def get_garage_analytics(
                 month=month_name,
                 maintenance=data["maintenance"],
                 fuel=data["fuel"],
-                total=data["maintenance"] + data["fuel"],
+                def_cost=data["def"],
+                total=data["maintenance"] + data["fuel"] + data["def"],
             )
         )
 
@@ -881,6 +945,7 @@ async def get_garage_analytics(
             total_collision=total_collision,
             total_detailing=total_detailing,
             total_fuel=total_fuel,
+            total_def=total_def,
             total_insurance=total_insurance,
             total_taxes=total_taxes,
         ),

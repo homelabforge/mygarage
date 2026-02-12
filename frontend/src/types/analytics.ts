@@ -4,10 +4,12 @@ export interface MonthlyCostSummary {
   month_name: string
   total_service_cost: string
   total_fuel_cost: string
+  total_def_cost: string
   total_spot_rental_cost: string
   total_cost: string
   service_count: number
   fuel_count: number
+  def_count: number
   spot_rental_count: number
 }
 
@@ -64,10 +66,12 @@ export interface MaintenancePrediction {
 export interface CostAnalysis {
   total_service_cost: string
   total_fuel_cost: string
+  total_def_cost: string
   total_cost: string
   average_monthly_cost: string
   service_count: number
   fuel_count: number
+  def_count: number
   months_tracked: number
   cost_per_mile: string | null
   rolling_avg_3m: string | null
@@ -149,6 +153,13 @@ export interface VehicleAnalytics {
       waste: number
     }>
   }
+  def_analysis?: {
+    total_spent: string
+    total_gallons: string
+    avg_cost_per_gallon: string | null
+    gallons_per_1000_miles: string | null
+    record_count: number
+  }
 }
 
 export interface GarageCostTotals {
@@ -161,6 +172,7 @@ export interface GarageCostTotals {
   total_detailing: string
   // Other costs
   total_fuel: string
+  total_def: string
   total_insurance: string
   total_taxes: string
 }
@@ -183,7 +195,8 @@ export interface GarageVehicleCost {
   total_detailing: string
   // Other costs
   total_fuel: string
-  // Running costs = all service categories + fuel (excludes purchase price)
+  total_def: string
+  // Running costs = all service categories + fuel + DEF (excludes purchase price)
   total_cost: string
 }
 
@@ -191,6 +204,7 @@ export interface GarageMonthlyTrend {
   month: string
   maintenance: string
   fuel: string
+  def_cost: string
   total: string
 }
 

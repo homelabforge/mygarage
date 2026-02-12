@@ -68,6 +68,8 @@ export interface Vehicle {
   archive_sale_date?: string | null
   archive_notes?: string | null
   archived_visible?: boolean
+  // DEF tracking
+  def_tank_capacity_gallons?: number | string
 }
 
 export interface VehicleCreate {
@@ -94,6 +96,7 @@ export interface VehicleCreate {
   fuel_type?: string
   transmission_type?: string
   transmission_speeds?: string
+  def_tank_capacity_gallons?: number | string
 }
 
 export interface VehicleUpdate {
@@ -119,6 +122,7 @@ export interface VehicleUpdate {
   fuel_type?: string
   transmission_type?: string
   transmission_speeds?: string
+  def_tank_capacity_gallons?: number | string
 }
 
 export interface VehicleListResponse {

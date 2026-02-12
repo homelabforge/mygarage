@@ -1,11 +1,11 @@
 # ==============================================================================
 # Multi-stage Dockerfile for MyGarage
-# Frontend: Bun 1.3.8
+# Frontend: Bun 1.3.9
 # Backend: Python 3.14-slim
 # ==============================================================================
 
 # Stage 1: Build frontend with Bun
-FROM oven/bun:1.3.8-alpine AS frontend-builder
+FROM oven/bun:1.3.9-alpine AS frontend-builder
 
 # Set working directory
 WORKDIR /app/frontend
@@ -54,12 +54,7 @@ LABEL org.opencontainers.image.authors="HomeLabForge"
 LABEL org.opencontainers.image.title="MyGarage"
 LABEL org.opencontainers.image.url="https://www.homelabforge.io"
 LABEL org.opencontainers.image.description="Vehicle and garage management platform with maintenance tracking"
-LABEL org.opencontainers.image.frontend.builder="bun-1.3.8"
-
-# HTTP server metadata
-LABEL http.server.name="granian"
-LABEL http.server.version="2.7.0"
-LABEL http.server.type="asgi"
+LABEL org.opencontainers.image.frontend.builder="bun-1.3.9"
 
 WORKDIR /app
 

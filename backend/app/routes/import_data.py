@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.database import get_db
 from app.models import (
+    DEFRecord,
     FuelRecord,
     InsurancePolicy,
     Note,
@@ -28,7 +29,7 @@ from app.models import (
     WarrantyRecord,
 )
 from app.models.user import User
-from app.services.auth import require_auth
+from app.services.auth import get_vehicle_or_403, require_auth
 from app.utils.file_validation import validate_csv_upload
 
 logger = logging.getLogger(__name__)
@@ -276,6 +277,76 @@ async def import_fuel_csv(
         except Exception as e:
             logger.error("Fuel import row %d failed: %s", row_num, e)
             import_result.add_error(row_num, "Invalid fuel record data")
+
+    await db.commit()
+
+    return import_result.to_dict()
+
+
+@router.post("/vehicles/{vin}/def/csv")
+@limiter.limit(settings.rate_limit_uploads)
+async def import_def_csv(
+    request: Request,
+    vin: str,
+    file: UploadFile = File(...),
+    skip_duplicates: bool = Form(True),
+    db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(require_auth),
+):
+    """Import DEF records from CSV file."""
+    await get_vehicle_or_403(vin, current_user, db, require_write=True)
+
+    csv_data = await validate_csv_upload(file)
+    csv_reader = csv.DictReader(io.StringIO(csv_data))
+
+    import_result = ImportResult()
+
+    for row_num, row in enumerate(csv_reader, start=2):
+        try:
+            date = parse_date(row.get("Date", ""))
+            if not date:
+                import_result.add_error(row_num, "Date is required")
+                continue
+
+            mileage = parse_int(row.get("Mileage", ""))
+            gallons = parse_decimal(row.get("Gallons", ""))
+            price_per_unit = parse_decimal(row.get("Price Per Unit", ""))
+            cost = parse_decimal(row.get("Total Cost", "") or row.get("Cost", ""))
+            fill_level = parse_decimal(row.get("Fill Level", ""))
+            source = row.get("Source", "").strip() or None
+            brand = row.get("Brand", "").strip() or None
+            notes = row.get("Notes", "").strip() or None
+
+            if skip_duplicates:
+                existing = await db.execute(
+                    select(DEFRecord).where(
+                        DEFRecord.vin == vin,
+                        DEFRecord.date == date,
+                        DEFRecord.mileage == mileage,
+                    )
+                )
+                if existing.scalar_one_or_none():
+                    import_result.add_skip()
+                    continue
+
+            record = DEFRecord(
+                vin=vin,
+                date=date,
+                mileage=mileage,
+                gallons=gallons,
+                price_per_unit=price_per_unit,
+                cost=cost,
+                fill_level=fill_level,
+                source=source,
+                brand=brand,
+                notes=notes,
+            )
+            db.add(record)
+            import_result.add_success()
+
+        except Exception as e:
+            logger.error("DEF import row %d failed: %s", row_num, e)
+            import_result.add_error(row_num, "Invalid DEF record data")
 
     await db.commit()
 
@@ -652,6 +723,7 @@ async def import_vehicle_json(
     results = {
         "service_records": {"success": 0, "errors": 0, "skipped": 0},
         "fuel_records": {"success": 0, "errors": 0, "skipped": 0},
+        "def_records": {"success": 0, "errors": 0, "skipped": 0},
         "odometer_records": {"success": 0, "errors": 0, "skipped": 0},
         "reminders": {"success": 0, "errors": 0, "skipped": 0},
         "notes": {"success": 0, "errors": 0, "skipped": 0},
@@ -730,6 +802,47 @@ async def import_vehicle_json(
         except Exception as e:
             results["fuel_records"]["errors"] += 1
             results["errors"].append(f"Fuel record {idx}: {str(e)}")
+
+    # Import DEF records
+    for idx, record_data in enumerate(data.get("def_records", [])):
+        try:
+            date = datetime.fromisoformat(record_data["date"]).date()
+
+            if skip_duplicates:
+                existing = await db.execute(
+                    select(DEFRecord).where(
+                        DEFRecord.vin == vin,
+                        DEFRecord.date == date,
+                        DEFRecord.mileage == record_data.get("mileage"),
+                    )
+                )
+                if existing.scalar_one_or_none():
+                    results["def_records"]["skipped"] += 1
+                    continue
+
+            record = DEFRecord(
+                vin=vin,
+                date=date,
+                mileage=record_data.get("mileage"),
+                gallons=Decimal(str(record_data["gallons"]))
+                if record_data.get("gallons")
+                else None,
+                price_per_unit=Decimal(str(record_data["price_per_unit"]))
+                if record_data.get("price_per_unit")
+                else None,
+                cost=Decimal(str(record_data["cost"])) if record_data.get("cost") else None,
+                fill_level=Decimal(str(record_data["fill_level"]))
+                if record_data.get("fill_level")
+                else None,
+                source=record_data.get("source"),
+                brand=record_data.get("brand"),
+                notes=record_data.get("notes"),
+            )
+            db.add(record)
+            results["def_records"]["success"] += 1
+        except Exception as e:
+            results["def_records"]["errors"] += 1
+            results["errors"].append(f"DEF record {idx}: {str(e)}")
 
     # Import odometer records
     for idx, record_data in enumerate(data.get("odometer_records", [])):
@@ -811,6 +924,7 @@ async def import_vehicle_json(
     metric_keys = (
         "service_records",
         "fuel_records",
+        "def_records",
         "odometer_records",
         "reminders",
         "notes",

@@ -34,6 +34,7 @@ import {
   Activity,
   Clock,
   Share2,
+  Droplets,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import vehicleService from '../services/vehicleService'
@@ -54,6 +55,7 @@ import SafetyTab from '../components/tabs/SafetyTab'
 import TaxRecordList from '../components/TaxRecordList'
 import SpotRentalsTab from '../components/tabs/SpotRentalsTab'
 import PropaneTab from '../components/tabs/PropaneTab'
+import DEFTab from '../components/tabs/DEFTab'
 import LiveLinkLiveTab from '../components/tabs/LiveLinkLiveTab'
 import LiveLinkDTCsTab from '../components/tabs/LiveLinkDTCsTab'
 import LiveLinkSessionsTab from '../components/tabs/LiveLinkSessionsTab'
@@ -98,7 +100,7 @@ const getApiErrorMessage = (error: unknown, fallback: string) => {
 
 type ModalType = 'remove' | 'transfer' | 'sharing' | 'windowSticker' | null
 type PrimaryTabType = 'overview' | 'media' | 'maintenance' | 'tracking' | 'financial' | 'livelink'
-type SubTabType = 'photos' | 'documents' | 'service' | 'fuel' | 'propane' | 'odometer' | 'reminders' | 'notes' | 'warranties' | 'insurance' | 'tax' | 'tolls' | 'spotrentals' | 'recalls' | 'reports' | 'live' | 'dtcs' | 'sessions' | 'charts'
+type SubTabType = 'photos' | 'documents' | 'service' | 'fuel' | 'def' | 'propane' | 'odometer' | 'reminders' | 'notes' | 'warranties' | 'insurance' | 'tax' | 'tolls' | 'spotrentals' | 'recalls' | 'reports' | 'live' | 'dtcs' | 'sessions' | 'charts'
 
 export default function VehicleDetail() {
   const { vin } = useParams<{ vin: string }>()
@@ -178,6 +180,7 @@ export default function VehicleDetail() {
       'reminders': { primary: 'tracking', sub: 'reminders' },
       'insurance': { primary: 'financial', sub: 'insurance' },
       'propane': { primary: 'maintenance', sub: 'propane' },
+      'def': { primary: 'maintenance', sub: 'def' },
       'warranties': { primary: 'financial', sub: 'warranties' },
       'service': { primary: 'maintenance', sub: 'service' },
       'notes': { primary: 'tracking', sub: 'notes' },
@@ -401,6 +404,10 @@ export default function VehicleDetail() {
   const hasPropane = vehicle?.vehicle_type &&
     ['RV', 'FifthWheel', 'TravelTrailer'].includes(vehicle.vehicle_type)
 
+  // Check if vehicle has DEF tracking (diesel vehicles or manually enabled)
+  const hasDEF = vehicle?.fuel_type?.toLowerCase().includes('diesel') ||
+    (vehicle?.def_tank_capacity_gallons != null && Number(vehicle.def_tank_capacity_gallons) > 0)
+
   // Check if vehicle is RV, Fifth Wheel, or Travel Trailer (for spot rentals)
   const isRVOrFifthWheel = vehicle?.vehicle_type &&
     ['RV', 'FifthWheel', 'TravelTrailer'].includes(vehicle.vehicle_type)
@@ -455,6 +462,7 @@ export default function VehicleDetail() {
     maintenance: [
       { id: 'service' as const, label: 'Service', icon: Wrench },
       { id: 'fuel' as const, label: 'Fuel', icon: Fuel, visible: isMotorized },
+      { id: 'def' as const, label: 'DEF', icon: Droplets, visible: hasDEF },
       { id: 'propane' as const, label: 'Propane', icon: Fuel, visible: hasPropane },
       { id: 'odometer' as const, label: 'Odometer', icon: Gauge, visible: isMotorized },
       { id: 'recalls' as const, label: 'Recalls', icon: AlertTriangle },
@@ -1165,6 +1173,7 @@ export default function VehicleDetail() {
         {/* Maintenance Sub-tabs */}
         {activePrimaryTab === 'maintenance' && activeSubTab === 'service' && vin && <ServiceTab vin={vin} />}
         {activePrimaryTab === 'maintenance' && activeSubTab === 'fuel' && vin && <FuelTab vin={vin} />}
+        {activePrimaryTab === 'maintenance' && activeSubTab === 'def' && vin && <DEFTab vin={vin} />}
         {activePrimaryTab === 'maintenance' && activeSubTab === 'propane' && vin && <PropaneTab vin={vin} />}
         {activePrimaryTab === 'maintenance' && activeSubTab === 'odometer' && vin && <OdometerTab vin={vin} />}
         {activePrimaryTab === 'maintenance' && activeSubTab === 'recalls' && vin && <SafetyTab vin={vin} />}

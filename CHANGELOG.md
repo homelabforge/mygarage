@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **DEF Tracking** - CRUD, analytics, CSV/JSON export/import for Diesel Exhaust Fluid records
+- **DEF in Garage Analytics** - Own cost category in pie chart, vehicle table, monthly trends
+- **DEF in Vehicle Analytics** - Dedicated section with spend, gallons, avg cost/gal, consumption rate
+- **Inline Analytics Cards** - Added to Fuel and Propane tabs to match DEF tab pattern
+
+### Changed
+- **TypeScript target** - ES2020 → ES2022
+- Removed misleading DEF Level gauge from analytics cards (fill level stays in table)
+
+### Fixed
+- **ESLint `preserve-caught-error`** - Added `{ cause }` to re-thrown errors in AuthContext
+
+### Dockerfile Dependencies
+- **oven/bun**: 1.3.8-alpine → 1.3.9-alpine
+
+### Fixed
+- **LiveLink Odometer Unit Conversion** - Standard OBD2 PID A6 (Odometer) reports in kilometers per SAE J1979, but values were stored directly as miles. Now converts km to miles based on the system `distance_unit` setting. Custom PIDs (e.g. Mitsubishi-specific) are left as-is since they already report in the configured unit.
+- **Fuel/Service Odometer Sync Blocked by LiveLink** - Adding a fuel fill-up or service record on the same date as a LiveLink odometer reading failed to create/update the odometer record. The sync logic only checked notes for `[AUTO-SYNC from` markers but didn't recognize LiveLink-sourced records as overwritable. Now checks the `source` field and allows fuel/service data to take priority over LiveLink telemetry.
+- **Odometer Record Source Field** - Auto-synced odometer records from fuel and service entries were created with `source="manual"` instead of the correct `source="fuel"` or `source="service"`. New and updated records now set the source field properly.
+- **Naive/Aware Datetime Mismatch** - Fixed `TypeError: can't subtract offset-naive and offset-aware datetimes` in drive session duration calculation and device offline notification. SQLite strips timezone info on storage; reads are now normalized to UTC before arithmetic.
+
 ### Changed
 - **Dependency Updates** - Updated 18 Python dependency floors (fastapi, sqlalchemy, aiosqlite, pydantic, httpx, pandas 3.0, pillow, pillow-heif, reportlab, pymupdf, aiomqtt, authlib security patch, and more)
 - **aiosmtplib 3.x to 5.x** - Pin-only update, API fully backwards compatible

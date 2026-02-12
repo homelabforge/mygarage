@@ -6,6 +6,7 @@ from app.routes.attachments import router as attachments_router
 from app.routes.backup import router as backup_router
 from app.routes.calendar import router as calendar_router
 from app.routes.dashboard import router as dashboard_router
+from app.routes.def_routes import router as def_router
 from app.routes.documents import router as documents_router
 from app.routes.export import router as export_router
 from app.routes.fuel import router as fuel_router
@@ -45,6 +46,7 @@ __all__ = [
     "reminders_router",
     "notes_router",
     "dashboard_router",
+    "def_router",
     "export_router",
     "import_router",
     "analytics_router",

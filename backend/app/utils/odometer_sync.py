@@ -33,9 +33,10 @@ async def sync_odometer_from_record(
     Behavior:
         - Skips sync if mileage is None
         - Checks for existing odometer record on same (vin, date)
-        - If exists and was auto-synced: updates mileage
+        - If exists and was auto-synced or from livelink: updates mileage
+          (user-entered fuel/service data is more authoritative than LiveLink)
         - If exists and was manual: does not overwrite
-        - If not exists: creates new odometer record with auto-sync marker
+        - If not exists: creates new odometer record with source marker
     """
     # Skip if no mileage provided
     if mileage is None:
@@ -50,11 +51,14 @@ async def sync_odometer_from_record(
     auto_sync_marker = f"[AUTO-SYNC from {source_type} #{source_id}]"
 
     if existing:
-        # Check if this was auto-synced (has marker in notes)
-        if existing.notes and "[AUTO-SYNC from" in existing.notes:
-            # Update the mileage and notes
+        # Allow overwrite if: auto-synced from another record, OR from livelink
+        is_auto_synced = existing.notes and "[AUTO-SYNC from" in existing.notes
+        is_livelink = existing.source == "livelink"
+
+        if is_auto_synced or is_livelink:
             existing.mileage = mileage
             existing.notes = auto_sync_marker
+            existing.source = source_type
             await db.commit()
             await db.refresh(existing)
             return existing
@@ -64,7 +68,11 @@ async def sync_odometer_from_record(
     else:
         # Create new odometer record
         odometer_record = OdometerRecord(
-            vin=vin, date=date, mileage=mileage, notes=auto_sync_marker
+            vin=vin,
+            date=date,
+            mileage=mileage,
+            notes=auto_sync_marker,
+            source=source_type,
         )
         db.add(odometer_record)
         await db.commit()

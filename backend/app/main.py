@@ -209,6 +209,7 @@ from app.routes import (
     backup_router,
     calendar_router,
     dashboard_router,
+    def_router,
     documents_router,
     export_router,
     fuel_router,
@@ -254,6 +255,7 @@ app.include_router(vehicles_router)
 app.include_router(photos_router)
 app.include_router(service_router)
 app.include_router(fuel_router)
+app.include_router(def_router)
 app.include_router(odometer_router)
 app.include_router(documents_router)
 app.include_router(reminders_router)

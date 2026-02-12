@@ -24,6 +24,7 @@ from sqlalchemy.sql import func
 from app.database import Base
 
 if TYPE_CHECKING:
+    from app.models.def_record import DEFRecord
     from app.models.document import Document
     from app.models.fuel import FuelRecord
     from app.models.insurance import InsurancePolicy
@@ -115,6 +116,8 @@ class Vehicle(Base):
     archive_sale_date: Mapped[date | None] = mapped_column(Date)
     archive_notes: Mapped[str | None] = mapped_column(String(1000))
     archived_visible: Mapped[bool] = mapped_column(Boolean, server_default="1")
+    # DEF tracking
+    def_tank_capacity_gallons: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime | None] = mapped_column(DateTime, onupdate=func.now())
 
@@ -132,6 +135,9 @@ class Vehicle(Base):
     )
     service_records: Mapped[list[ServiceRecord]] = relationship(
         "ServiceRecord", back_populates="vehicle", cascade="all, delete-orphan"
+    )
+    def_records: Mapped[list[DEFRecord]] = relationship(
+        "DEFRecord", back_populates="vehicle", cascade="all, delete-orphan"
     )
     fuel_records: Mapped[list[FuelRecord]] = relationship(
         "FuelRecord", back_populates="vehicle", cascade="all, delete-orphan"

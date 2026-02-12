@@ -129,6 +129,22 @@ def sample_fuel_payload():
 
 
 @pytest.fixture
+def sample_def_payload():
+    """Sample payload for creating a DEF record."""
+    return {
+        "date": datetime.now().date().isoformat(),
+        "mileage": 16000,
+        "gallons": 2.5,
+        "cost": 18.75,
+        "price_per_unit": 7.50,
+        "fill_level": 0.85,
+        "source": "Truck Stop",
+        "brand": "BlueDEF",
+        "notes": "Test DEF fill",
+    }
+
+
+@pytest.fixture
 def sample_vehicle_payload():
     """Sample payload for creating a vehicle."""
     return {

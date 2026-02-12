@@ -3,6 +3,7 @@
 import hashlib
 import json
 import logging
+import re
 from datetime import UTC, datetime, timedelta
 from datetime import date as date_type
 from typing import Any
@@ -20,6 +21,8 @@ from app.models.vehicle_telemetry import (
     VehicleTelemetry,
     VehicleTelemetryLatest,
 )
+from app.services.settings_service import SettingsService
+from app.utils.units import UnitConverter
 
 # PIDs that represent odometer readings (case-insensitive matching)
 ODOMETER_PID_PATTERNS = [
@@ -30,6 +33,10 @@ ODOMETER_PID_PATTERNS = [
     "DISTANCE_TOTAL",
     "TOTAL_DISTANCE",
 ]
+
+# Regex to detect standard OBD2 PID-prefixed param keys (e.g. "A6-Odometer", "0D-VehicleSpeed").
+# Standard OBD2 PIDs always report in metric units per SAE J1979.
+_OBD2_PID_PREFIX_RE = re.compile(r"^[0-9A-Fa-f]{1,2}-")
 
 logger = logging.getLogger(__name__)
 
@@ -363,7 +370,23 @@ class TelemetryService:
         if odometer_value is None or odometer_key is None:
             return  # No odometer PID found
 
-        # Convert to integer mileage (odometer values are typically in km or miles)
+        # Standard OBD2 PIDs (e.g. A6-Odometer) report in metric per SAE J1979.
+        # Convert to the system's distance unit if needed.
+        if _OBD2_PID_PREFIX_RE.match(odometer_key):
+            distance_setting = await SettingsService.get(self.db, "distance_unit")
+            distance_unit = distance_setting.value if distance_setting else "miles"
+            if distance_unit == "miles":
+                converted = UnitConverter.km_to_miles(odometer_value)
+                if converted is None:
+                    return
+                logger.debug(
+                    "Converting OBD2 odometer %.1f km → %.1f mi for %s",
+                    odometer_value,
+                    converted,
+                    vin[:8],
+                )
+                odometer_value = converted
+
         mileage = int(round(odometer_value))
         if mileage <= 0:
             return  # Invalid odometer reading

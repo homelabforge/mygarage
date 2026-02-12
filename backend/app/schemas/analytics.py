@@ -15,10 +15,12 @@ class MonthlyCostSummary(BaseModel):
     month_name: str
     total_service_cost: Decimal = Field(default=Decimal("0.00"))
     total_fuel_cost: Decimal = Field(default=Decimal("0.00"))
+    total_def_cost: Decimal = Field(default=Decimal("0.00"))
     total_spot_rental_cost: Decimal = Field(default=Decimal("0.00"))
     total_cost: Decimal = Field(default=Decimal("0.00"))
     service_count: int = 0
     fuel_count: int = 0
+    def_count: int = 0
     spot_rental_count: int = 0
 
     model_config = {"from_attributes": True}
@@ -114,10 +116,12 @@ class CostAnalysis(BaseModel):
 
     total_service_cost: Decimal = Field(default=Decimal("0.00"))
     total_fuel_cost: Decimal = Field(default=Decimal("0.00"))
+    total_def_cost: Decimal = Field(default=Decimal("0.00"))
     total_cost: Decimal = Field(default=Decimal("0.00"))
     average_monthly_cost: Decimal = Field(default=Decimal("0.00"))
     service_count: int = 0
     fuel_count: int = 0
+    def_count: int = 0
     months_tracked: int = 0
     cost_per_mile: Decimal | None = None
 
@@ -189,6 +193,9 @@ class VehicleAnalytics(BaseModel):
     propane_analysis: dict[str, Any] | None = None  # For fifth wheels with propane tracking
     spot_rental_analysis: dict[str, Any] | None = None  # For fifth wheels with spot rentals
 
+    # DEF Specific (optional - diesel vehicles)
+    def_analysis: dict[str, Any] | None = None
+
     model_config = {"from_attributes": True}
 
 
@@ -204,6 +211,7 @@ class GarageCostTotals(BaseModel):
     total_detailing: Decimal = Field(default=Decimal("0.00"))
     # Other costs
     total_fuel: Decimal = Field(default=Decimal("0.00"))
+    total_def: Decimal = Field(default=Decimal("0.00"))
     total_insurance: Decimal = Field(default=Decimal("0.00"))
     total_taxes: Decimal = Field(default=Decimal("0.00"))
 
@@ -234,7 +242,8 @@ class GarageVehicleCost(BaseModel):
     total_detailing: Decimal = Field(default=Decimal("0.00"))
     # Other costs
     total_fuel: Decimal = Field(default=Decimal("0.00"))
-    # Running costs = all service categories + fuel (excludes purchase price)
+    total_def: Decimal = Field(default=Decimal("0.00"))
+    # Running costs = all service categories + fuel + DEF (excludes purchase price)
     total_cost: Decimal = Field(default=Decimal("0.00"))
 
     model_config = {"from_attributes": True}
@@ -246,6 +255,7 @@ class GarageMonthlyTrend(BaseModel):
     month: str
     maintenance: Decimal = Field(default=Decimal("0.00"))
     fuel: Decimal = Field(default=Decimal("0.00"))
+    def_cost: Decimal = Field(default=Decimal("0.00"))
     total: Decimal = Field(default=Decimal("0.00"))
 
     model_config = {"from_attributes": True}

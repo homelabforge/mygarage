@@ -179,7 +179,15 @@ class SessionService:
         # Calculate session duration
         session.ended_at = timestamp
         if session.started_at:
-            duration = (timestamp - session.started_at).total_seconds()
+            # Ensure both datetimes are timezone-aware for subtraction
+            # (SQLite stores without tz info, so DB reads may be naive)
+            started = session.started_at
+            if started.tzinfo is None:
+                started = started.replace(tzinfo=UTC)
+            ended = timestamp
+            if ended.tzinfo is None:
+                ended = ended.replace(tzinfo=UTC)
+            duration = (ended - started).total_seconds()
             session.duration_seconds = int(duration)
 
         # Get end odometer

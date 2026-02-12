@@ -105,6 +105,16 @@ export const vehicleEditSchema = z.object({
   // Sale Information
   sold_date: optionalDateSchema,
   sold_price: soldPriceSchema,
+
+  // DEF Tracking
+  def_tank_capacity_gallons: z
+    .number()
+    .min(0, 'Tank capacity cannot be negative')
+    .max(999.99, 'Tank capacity too large')
+    .or(z.nan())
+    .nullable()
+    .optional()
+    .transform(val => (val === null || (typeof val === 'number' && isNaN(val))) ? undefined : val),
 })
 
 // Use z.output for Zod v4 compatibility with z.coerce fields
