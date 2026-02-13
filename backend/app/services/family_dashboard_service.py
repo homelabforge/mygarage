@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import logging
 from datetime import date
+from pathlib import Path
 
 from fastapi import HTTPException
 from sqlalchemy import func, select
@@ -195,13 +196,19 @@ class FamilyDashboardService:
             elif next_reminder.due_mileage:
                 next_reminder_due = f"{next_reminder.due_mileage:,} miles"
 
+        # Build photo URL from raw DB path (e.g. "VIN/photo.jpg" -> "/api/vehicles/{vin}/photos/photo.jpg")
+        main_photo_url: str | None = None
+        if vehicle.main_photo:
+            filename = Path(vehicle.main_photo).name
+            main_photo_url = f"/api/vehicles/{vehicle.vin}/photos/{filename}"
+
         return FamilyVehicleSummary(
             vin=vehicle.vin,
             nickname=vehicle.nickname,
             year=vehicle.year,
             make=vehicle.make,
             model=vehicle.model,
-            main_photo=vehicle.main_photo,
+            main_photo=main_photo_url,
             last_service_date=last_service.date if last_service else None,
             last_service_description=(
                 last_service.line_items[0].description

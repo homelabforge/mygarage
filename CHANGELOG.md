@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Family Dashboard vehicle images not displaying** - Construct proper API URLs for vehicle photos instead of passing raw DB paths
 - **Analytics 500 error for vehicles with 3+ months of cost data** - Convert Decimal values to float before numpy trend calculation
 - **Maintenance templates create schedule items instead of reminders** - Apply Template now creates `MaintenanceScheduleItem` records with duplicate detection, not deprecated `Reminder` objects
 
