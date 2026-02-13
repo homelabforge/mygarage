@@ -11,11 +11,15 @@ export type ComponentCategory =
   | 'Electrical'
   | 'HVAC'
   | 'Fluids'
+  | 'Drivetrain'
   | 'Suspension'
+  | 'Emissions'
   | 'Body/Exterior'
   | 'Interior'
   | 'Exhaust'
   | 'Fuel System'
+  | 'General'
+  | 'Towing'
   | 'Other'
 
 export const COMPONENT_CATEGORIES: ComponentCategory[] = [
@@ -26,11 +30,15 @@ export const COMPONENT_CATEGORIES: ComponentCategory[] = [
   'Electrical',
   'HVAC',
   'Fluids',
+  'Drivetrain',
   'Suspension',
+  'Emissions',
   'Body/Exterior',
   'Interior',
   'Exhaust',
   'Fuel System',
+  'General',
+  'Towing',
   'Other',
 ]
 
@@ -93,18 +101,6 @@ export interface MaintenanceScheduleListResponse {
   overdue_count: number
   on_track_count: number
   never_performed_count: number
-}
-
-export interface ApplyTemplateRequest {
-  template_source: string
-  initial_date?: string
-  initial_mileage?: number
-}
-
-export interface ApplyTemplateResponse {
-  items_created: number
-  items_skipped: number
-  message: string
 }
 
 // Grouped schedule items for display

@@ -7,7 +7,6 @@ from the GitHub repository.
 
 import logging
 import re
-from datetime import datetime, timedelta
 from urllib.parse import urlparse
 
 import httpx
@@ -15,8 +14,8 @@ import yaml
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.maintenance_schedule_item import MaintenanceScheduleItem
 from app.models.maintenance_template import MaintenanceTemplate
-from app.models.reminder import Reminder
 from app.models.vehicle import Vehicle
 from app.utils.logging_utils import sanitize_for_log
 
@@ -324,6 +323,35 @@ class MaintenanceTemplateService:
         )
         return None
 
+    @staticmethod
+    def _slugify_description(description: str) -> str:
+        """Generate a stable template_item_id from a description.
+
+        Args:
+            description: Maintenance item description
+
+        Returns:
+            Slugified string like "engine-oil-filter-change"
+        """
+        slug = description.lower().strip()
+        slug = re.sub(r"[^a-z0-9]+", "-", slug)
+        return slug.strip("-")
+
+    @staticmethod
+    def _infer_item_type(description: str) -> str:
+        """Infer whether a template item is a service or inspection.
+
+        Args:
+            description: Maintenance item description
+
+        Returns:
+            "inspection" or "service"
+        """
+        desc_lower = description.lower()
+        if "inspection" in desc_lower or "check" in desc_lower:
+            return "inspection"
+        return "service"
+
     async def apply_template_to_vehicle(
         self,
         db: AsyncSession,
@@ -334,18 +362,18 @@ class MaintenanceTemplateService:
         created_by: str = "auto",
     ) -> int:
         """
-        Apply a maintenance template to a vehicle by creating reminders.
+        Apply a maintenance template to a vehicle by creating schedule items.
 
         Args:
             db: Database session
             vin: Vehicle VIN
             template_path: Path to template (e.g., "ram/1500/2019-2024-normal.yml")
             template_data: Parsed template YAML data
-            current_mileage: Current vehicle mileage (for mileage-based reminders)
+            current_mileage: Current vehicle mileage (unused, kept for API compat)
             created_by: "auto" or "manual"
 
         Returns:
-            Number of reminders created
+            Number of schedule items created
         """
         # Verify vehicle exists
         result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
@@ -359,44 +387,52 @@ class MaintenanceTemplateService:
             logger.warning("No maintenance items in template %s", sanitize_for_log(template_path))
             return 0
 
-        reminders_created = 0
+        # Get existing template_item_ids for this VIN to avoid duplicates
+        existing_result = await db.execute(
+            select(MaintenanceScheduleItem.template_item_id).where(
+                MaintenanceScheduleItem.vin == vin,
+                MaintenanceScheduleItem.template_item_id.isnot(None),
+            )
+        )
+        existing_ids = {row[0] for row in existing_result}
+
+        items_created = 0
 
         for item in maintenance_items:
             try:
                 description = item.get("description")
-                interval_months = item.get("interval_months")
-                interval_miles = item.get("interval_miles")
-                notes = item.get("notes", "")
-
                 if not description:
                     continue
 
-                # Create reminder
-                reminder = Reminder(
+                template_item_id = self._slugify_description(description)
+
+                # Skip duplicates
+                if template_item_id in existing_ids:
+                    logger.info(
+                        "Skipping duplicate template item %s for %s",
+                        sanitize_for_log(template_item_id),
+                        sanitize_for_log(vin),
+                    )
+                    continue
+
+                schedule_item = MaintenanceScheduleItem(
                     vin=vin,
-                    description=description,
-                    notes=notes,
-                    is_completed=False,
+                    name=description,
+                    component_category=item.get("category", "Other"),
+                    item_type=self._infer_item_type(description),
+                    interval_months=item.get("interval_months"),
+                    interval_miles=item.get("interval_miles"),
+                    source="template",
+                    template_item_id=template_item_id,
                 )
 
-                # Set due date if interval_months is specified
-                if interval_months:
-                    reminder.due_date = datetime.now().date() + timedelta(days=interval_months * 30)
-                    reminder.is_recurring = True
-                    reminder.recurrence_days = interval_months * 30
-
-                # Set due mileage if interval_miles and current_mileage are specified
-                if interval_miles and current_mileage:
-                    reminder.due_mileage = current_mileage + interval_miles
-                    reminder.is_recurring = True
-                    reminder.recurrence_miles = interval_miles
-
-                db.add(reminder)
-                reminders_created += 1
+                db.add(schedule_item)
+                existing_ids.add(template_item_id)
+                items_created += 1
 
             except Exception as e:
                 logger.error(
-                    "Error creating reminder for item %s: %s",
+                    "Error creating schedule item for %s: %s",
                     sanitize_for_log(item),
                     sanitize_for_log(e),
                 )
@@ -409,20 +445,20 @@ class MaintenanceTemplateService:
             template_version=template_data.get("metadata", {}).get("version"),
             template_data=template_data,
             created_by=created_by,
-            reminders_created=reminders_created,
+            reminders_created=items_created,
         )
         db.add(template_record)
 
         await db.commit()
 
         logger.info(
-            "Applied template %s to %s, created %s reminders",
+            "Applied template %s to %s, created %d schedule items",
             sanitize_for_log(template_path),
             sanitize_for_log(vin),
-            reminders_created,
+            items_created,
         )
 
-        return reminders_created
+        return items_created
 
     async def get_applied_templates(self, db: AsyncSession, vin: str) -> list[MaintenanceTemplate]:
         """

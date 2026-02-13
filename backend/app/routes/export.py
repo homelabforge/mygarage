@@ -10,6 +10,7 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.config import settings
 from app.database import get_db
@@ -20,7 +21,7 @@ from app.models import (
     Note,
     OdometerRecord,
     Reminder,
-    ServiceRecord,
+    ServiceVisit,
     TaxRecord,
     WarrantyRecord,
 )
@@ -51,42 +52,59 @@ async def export_service_records_csv(
     db: AsyncSession = Depends(get_db),
     current_user: User | None = Depends(require_auth),
 ):
-    """Export service records as CSV"""
+    """Export service records as CSV (from ServiceVisit model)."""
     # Verify vehicle exists and user has access
     vehicle = await get_vehicle_or_403(vin, current_user, db)
 
-    # Get all service records
+    # Get all service visits with line items and vendor
     result = await db.execute(
-        select(ServiceRecord).where(ServiceRecord.vin == vin).order_by(ServiceRecord.date.desc())
+        select(ServiceVisit)
+        .where(ServiceVisit.vin == vin)
+        .options(selectinload(ServiceVisit.line_items), selectinload(ServiceVisit.vendor))
+        .order_by(ServiceVisit.date.desc())
     )
-    records = result.scalars().all()
+    visits = result.scalars().all()
 
-    # Generate CSV
+    # Generate CSV — one row per line item for backward-compatible format
     headers = [
         "Date",
-        "Service Type",
+        "Category",
         "Description",
         "Mileage",
         "Cost",
-        "Vendor Name",
-        "Vendor Location",
+        "Vendor",
         "Notes",
     ]
 
     rows = []
-    for record in records:
-        rows.append(
-            [
-                record.date.isoformat() if record.date else "",
-                record.service_category or "",
-                record.service_type or "",
-                record.mileage or "",
-                f"{record.cost:.2f}" if record.cost else "",
-                record.vendor_name or "",
-                record.vendor_location or "",
-                record.notes or "",
-            ]
-        )
+    for visit in visits:
+        vendor_name = visit.vendor.name if visit.vendor else ""
+        if visit.line_items:
+            for item in visit.line_items:
+                rows.append(
+                    [
+                        visit.date.isoformat() if visit.date else "",
+                        visit.service_category or "",
+                        item.description or "",
+                        visit.mileage or "",
+                        f"{item.cost:.2f}" if item.cost else "",
+                        vendor_name,
+                        item.notes or visit.notes or "",
+                    ]
+                )
+        else:
+            # Visit with no line items — single row with visit-level data
+            rows.append(
+                [
+                    visit.date.isoformat() if visit.date else "",
+                    visit.service_category or "",
+                    "",
+                    visit.mileage or "",
+                    f"{visit.calculated_total_cost:.2f}" if visit.calculated_total_cost else "",
+                    vendor_name,
+                    visit.notes or "",
+                ]
+            )
 
     output = generate_csv_stream(headers, rows)
 
@@ -497,9 +515,12 @@ async def export_vehicle_json(
 
     # Get all related records
     service_result = await db.execute(
-        select(ServiceRecord).where(ServiceRecord.vin == vin).order_by(ServiceRecord.date.desc())
+        select(ServiceVisit)
+        .where(ServiceVisit.vin == vin)
+        .options(selectinload(ServiceVisit.line_items), selectinload(ServiceVisit.vendor))
+        .order_by(ServiceVisit.date.desc())
     )
-    service_records = service_result.scalars().all()
+    service_visits = service_result.scalars().all()
 
     fuel_result = await db.execute(
         select(FuelRecord).where(FuelRecord.vin == vin).order_by(FuelRecord.date.desc())
@@ -538,18 +559,18 @@ async def export_vehicle_json(
             "purchase_date": vehicle.purchase_date.isoformat() if vehicle.purchase_date else None,
             "purchase_price": float(vehicle.purchase_price) if vehicle.purchase_price else None,
         },
+        # Keep "service_records" key for backward-compatible JSON re-import
         "service_records": [
             {
-                "date": r.date.isoformat() if r.date else None,
-                "service_category": r.service_category,
-                "service_type": r.service_type,
-                "mileage": r.mileage,
-                "cost": float(r.cost) if r.cost else None,
-                "vendor_name": r.vendor_name,
-                "vendor_location": r.vendor_location,
-                "notes": r.notes,
+                "date": v.date.isoformat() if v.date else None,
+                "service_category": v.service_category,
+                "service_type": v.line_items[0].description if v.line_items else None,
+                "mileage": v.mileage,
+                "cost": float(v.calculated_total_cost) if v.calculated_total_cost else None,
+                "vendor_name": v.vendor.name if v.vendor else None,
+                "notes": v.notes,
             }
-            for r in service_records
+            for v in service_visits
         ],
         "fuel_records": [
             {

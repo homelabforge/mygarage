@@ -224,7 +224,6 @@ from app.routes import (
     recalls_router,
     reminders_router,
     reports_router,
-    service_router,
     service_visits_router,
     settings_router,
     shop_discovery_router,
@@ -253,7 +252,6 @@ app.include_router(oidc_router)
 app.include_router(vin_router)
 app.include_router(vehicles_router)
 app.include_router(photos_router)
-app.include_router(service_router)
 app.include_router(fuel_router)
 app.include_router(def_router)
 app.include_router(odometer_router)

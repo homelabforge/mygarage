@@ -12,8 +12,6 @@ from app.models.maintenance_schedule_item import MaintenanceScheduleItem
 from app.models.odometer import OdometerRecord
 from app.models.user import User
 from app.schemas.maintenance_schedule import (
-    ApplyTemplateRequest,
-    ApplyTemplateResponse,
     MaintenanceScheduleItemCreate,
     MaintenanceScheduleItemResponse,
     MaintenanceScheduleItemUpdate,
@@ -336,104 +334,6 @@ class MaintenanceScheduleService:
             logger.error(
                 "Database connection error deleting schedule item %s: %s",
                 item_id,
-                sanitize_for_log(e),
-            )
-            raise HTTPException(status_code=503, detail="Database temporarily unavailable")
-
-    async def apply_template(
-        self, vin: str, request: ApplyTemplateRequest, current_user: User
-    ) -> ApplyTemplateResponse:
-        """
-        Apply a maintenance template to a vehicle.
-
-        Args:
-            vin: Vehicle VIN
-            request: Apply template request data
-            current_user: The authenticated user
-
-        Returns:
-            ApplyTemplateResponse with counts
-        """
-        from app.services.auth import get_vehicle_or_403
-        from app.services.maintenance_template_service import MAINTENANCE_TEMPLATES
-
-        vin = vin.upper().strip()
-
-        try:
-            await get_vehicle_or_403(vin, current_user, self.db)
-
-            # Get template
-            template = MAINTENANCE_TEMPLATES.get(request.template_source)
-            if not template:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Template '{request.template_source}' not found",
-                )
-
-            # Get existing items to avoid duplicates
-            result = await self.db.execute(
-                select(MaintenanceScheduleItem.template_item_id).where(
-                    MaintenanceScheduleItem.vin == vin
-                )
-            )
-            existing_template_ids = {row[0] for row in result}
-
-            items_created = 0
-            items_skipped = 0
-
-            for template_item in template.get("items", []):
-                template_item_id = template_item.get("id")
-
-                if template_item_id in existing_template_ids:
-                    items_skipped += 1
-                    continue
-
-                item = MaintenanceScheduleItem(
-                    vin=vin,
-                    name=template_item.get("name"),
-                    component_category=template_item.get("category", "Other"),
-                    item_type=template_item.get("type", "service"),
-                    interval_months=template_item.get("interval_months"),
-                    interval_miles=template_item.get("interval_miles"),
-                    source="template",
-                    template_item_id=template_item_id,
-                    last_performed_date=request.initial_date,
-                    last_performed_mileage=request.initial_mileage,
-                )
-                self.db.add(item)
-                items_created += 1
-
-            await self.db.commit()
-
-            logger.info(
-                "Applied template %s to %s: %d created, %d skipped",
-                sanitize_for_log(request.template_source),
-                sanitize_for_log(vin),
-                items_created,
-                items_skipped,
-            )
-
-            return ApplyTemplateResponse(
-                items_created=items_created,
-                items_skipped=items_skipped,
-                message=f"Successfully applied template '{request.template_source}' with {items_created} maintenance items",
-            )
-
-        except HTTPException:
-            raise
-        except IntegrityError as e:
-            await self.db.rollback()
-            logger.error(
-                "Database constraint violation applying template for %s: %s",
-                sanitize_for_log(vin),
-                sanitize_for_log(e),
-            )
-            raise HTTPException(status_code=409, detail="Failed to apply template")
-        except OperationalError as e:
-            await self.db.rollback()
-            logger.error(
-                "Database connection error applying template for %s: %s",
-                sanitize_for_log(vin),
                 sanitize_for_log(e),
             )
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")

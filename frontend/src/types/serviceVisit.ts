@@ -2,8 +2,10 @@
  * Service Visit type definitions
  */
 
-import type { ServiceCategory } from './service'
 import type { Vendor } from './vendor'
+
+// Service categories matching backend Literal type
+export type ServiceCategory = 'Maintenance' | 'Inspection' | 'Collision' | 'Upgrades' | 'Detailing'
 
 // Inspection result types
 export type InspectionResult = 'passed' | 'failed' | 'needs_attention'

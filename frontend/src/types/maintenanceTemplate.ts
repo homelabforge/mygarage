@@ -55,7 +55,7 @@ export interface TemplateApplyRequest {
 
 export interface TemplateApplyResponse {
   success: boolean
-  reminders_created: number
+  items_created: number
   template_source: string
   template_version?: string
   error?: string

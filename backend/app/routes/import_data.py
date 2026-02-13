@@ -23,18 +23,23 @@ from app.models import (
     Note,
     OdometerRecord,
     Reminder,
-    ServiceRecord,
+    ServiceLineItem,
+    ServiceVisit,
     TaxRecord,
     Vehicle,
     WarrantyRecord,
 )
 from app.models.user import User
+from app.models.vendor import Vendor
 from app.services.auth import get_vehicle_or_403, require_auth
 from app.utils.file_validation import validate_csv_upload
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/import", tags=["import"])
+
+# Valid service categories matching the ServiceVisit check constraint
+VALID_SERVICE_CATEGORIES = {"Maintenance", "Inspection", "Collision", "Upgrades", "Detailing"}
 limiter = Limiter(key_func=get_remote_address)
 
 
@@ -135,7 +140,7 @@ async def import_service_csv(
     db: AsyncSession = Depends(get_db),
     current_user: User | None = Depends(require_auth),
 ):
-    """Import service records from CSV file."""
+    """Import service records from CSV file (creates ServiceVisit + ServiceLineItem)."""
     # Verify vehicle exists
     result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
     vehicle = result.scalar_one_or_none()
@@ -156,42 +161,74 @@ async def import_service_csv(
                 import_result.add_error(row_num, "Date is required")
                 continue
 
-            # Parse optional fields
+            # Parse optional fields — accept both old and new header names
+            raw_category = row.get("Category", "").strip() or None
             service_type = row.get("Service Type", "").strip() or None
             description = row.get("Description", "").strip() or None
+
+            # "Category" maps to service_category if valid; "Service Type" is the description
+            if raw_category and raw_category in VALID_SERVICE_CATEGORIES:
+                category = raw_category
+            elif service_type and service_type in VALID_SERVICE_CATEGORIES:
+                category = service_type
+            else:
+                category = None
+
+            # Use service_type or raw_category as description fallback
+            if not description:
+                description = service_type or raw_category
             mileage = parse_int(row.get("Mileage", ""))
             cost = parse_decimal(row.get("Cost", ""))
-            vendor_name = row.get("Vendor Name", "").strip() or None
-            vendor_location = row.get("Vendor Location", "").strip() or None
+            vendor_name = (
+                row.get("Vendor", "").strip() or row.get("Vendor Name", "").strip() or None
+            )
             notes = row.get("Notes", "").strip() or None
 
-            # Check for duplicates if requested
+            # Check for duplicates against ServiceVisit
             if skip_duplicates:
                 existing = await db.execute(
-                    select(ServiceRecord).where(
-                        ServiceRecord.vin == vin,
-                        ServiceRecord.date == date,
-                        ServiceRecord.service_type == service_type,
-                        ServiceRecord.mileage == mileage,
+                    select(ServiceVisit).where(
+                        ServiceVisit.vin == vin,
+                        ServiceVisit.date == date,
+                        ServiceVisit.mileage == mileage,
                     )
                 )
                 if existing.scalar_one_or_none():
                     import_result.add_skip()
                     continue
 
-            # Create record
-            record = ServiceRecord(
+            # Lookup or create Vendor
+            vendor_id = None
+            if vendor_name:
+                vendor_result = await db.execute(
+                    select(Vendor).where(Vendor.name == vendor_name).limit(1)
+                )
+                vendor = vendor_result.scalar_one_or_none()
+                if not vendor:
+                    vendor = Vendor(name=vendor_name)
+                    db.add(vendor)
+                    await db.flush()
+                vendor_id = vendor.id
+
+            # Create ServiceVisit with one line item per CSV row
+            visit = ServiceVisit(
                 vin=vin,
                 date=date,
-                service_type=service_type,
-                description=description,
                 mileage=mileage,
-                cost=cost,
-                vendor_name=vendor_name,
-                vendor_location=vendor_location,
+                service_category=category or "Maintenance",
+                vendor_id=vendor_id,
                 notes=notes,
+                total_cost=cost or Decimal("0"),
             )
-            db.add(record)
+            db.add(visit)
+            await db.flush()
+
+            line_item = ServiceLineItem(
+                visit_id=visit.id,
+                description=description or category or "Service",
+                cost=cost or Decimal("0"),
+            )
+            db.add(line_item)
             import_result.add_success()
 
         except Exception as e:
@@ -730,36 +767,61 @@ async def import_vehicle_json(
         "errors": [],
     }
 
-    # Import service records
+    # Import service records (creates ServiceVisit + ServiceLineItem + Vendor)
     for idx, record_data in enumerate(data.get("service_records", [])):
         try:
             date = datetime.fromisoformat(record_data["date"]).date()
 
             if skip_duplicates:
                 existing = await db.execute(
-                    select(ServiceRecord).where(
-                        ServiceRecord.vin == vin,
-                        ServiceRecord.date == date,
-                        ServiceRecord.service_type == record_data.get("service_type"),
-                        ServiceRecord.mileage == record_data.get("mileage"),
+                    select(ServiceVisit).where(
+                        ServiceVisit.vin == vin,
+                        ServiceVisit.date == date,
+                        ServiceVisit.mileage == record_data.get("mileage"),
                     )
                 )
                 if existing.scalar_one_or_none():
                     results["service_records"]["skipped"] += 1
                     continue
 
-            record = ServiceRecord(
+            # Lookup or create Vendor
+            vendor_id = None
+            vendor_name = record_data.get("vendor_name")
+            if vendor_name:
+                vendor_result = await db.execute(
+                    select(Vendor).where(Vendor.name == vendor_name).limit(1)
+                )
+                vendor = vendor_result.scalar_one_or_none()
+                if not vendor:
+                    vendor = Vendor(name=vendor_name)
+                    db.add(vendor)
+                    await db.flush()
+                vendor_id = vendor.id
+
+            cost = Decimal(str(record_data["cost"])) if record_data.get("cost") else Decimal("0")
+            description = (
+                record_data.get("service_type") or record_data.get("description") or "Service"
+            )
+            category = record_data.get("service_category") or "Maintenance"
+
+            visit = ServiceVisit(
                 vin=vin,
                 date=date,
-                service_type=record_data.get("service_type"),
-                description=record_data.get("description"),
                 mileage=record_data.get("mileage"),
-                cost=Decimal(str(record_data["cost"])) if record_data.get("cost") else None,
-                vendor_name=record_data.get("vendor_name"),
-                vendor_location=record_data.get("vendor_location"),
+                service_category=category,
+                vendor_id=vendor_id,
                 notes=record_data.get("notes"),
+                total_cost=cost,
             )
-            db.add(record)
+            db.add(visit)
+            await db.flush()
+
+            line_item = ServiceLineItem(
+                visit_id=visit.id,
+                description=description,
+                cost=cost,
+            )
+            db.add(line_item)
             results["service_records"]["success"] += 1
         except Exception as e:
             results["service_records"]["errors"] += 1

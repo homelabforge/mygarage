@@ -48,9 +48,9 @@ export default function MaintenanceTemplatePanel({ vin, vehicle }: MaintenanceTe
       const data: TemplateApplyResponse = response.data
 
       if (data.success) {
-        toast.success(`Successfully applied template! Created ${data.reminders_created} reminders.`)
+        toast.success(`Successfully applied template! Created ${data.items_created} schedule items.`)
         await fetchTemplates()
-        // Trigger reminder refresh
+        // Trigger schedule refresh
         window.dispatchEvent(new Event('reminders-refresh'))
       } else {
         toast.error(data.error || 'Failed to apply template')
@@ -63,7 +63,7 @@ export default function MaintenanceTemplatePanel({ vin, vehicle }: MaintenanceTe
   }
 
   const handleDeleteTemplate = async (templateId: number) => {
-    if (!confirm('Are you sure you want to delete this template record? This will not delete the reminders that were created.')) {
+    if (!confirm('Are you sure you want to delete this template record? This will not delete the schedule items that were created.')) {
       return
     }
 
@@ -120,7 +120,7 @@ export default function MaintenanceTemplatePanel({ vin, vehicle }: MaintenanceTe
           <p className="text-sm">No maintenance templates applied yet.</p>
           {vehicle && (
             <p className="text-xs mt-2">
-              Apply a manufacturer template to automatically create recommended maintenance reminders for your {vehicle.year} {vehicle.make} {vehicle.model}.
+              Apply a manufacturer template to automatically create a recommended maintenance schedule for your {vehicle.year} {vehicle.make} {vehicle.model}.
             </p>
           )}
         </div>
@@ -144,7 +144,7 @@ export default function MaintenanceTemplatePanel({ vin, vehicle }: MaintenanceTe
                 </div>
                 <div className="text-sm text-garage-text-muted space-y-1">
                   <p>Applied: {formatDate(template.applied_at)}</p>
-                  <p>Created {template.reminders_created} reminder{template.reminders_created !== 1 ? 's' : ''}</p>
+                  <p>Created {template.reminders_created} schedule item{template.reminders_created !== 1 ? 's' : ''}</p>
                   {template.template_data?.metadata?.duty_type && (
                     <p className="capitalize">{template.template_data.metadata.duty_type} duty schedule</p>
                   )}

@@ -7,10 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Analytics 500 error for vehicles with 3+ months of cost data** - Convert Decimal values to float before numpy trend calculation
+- **Maintenance templates create schedule items instead of reminders** - Apply Template now creates `MaintenanceScheduleItem` records with duplicate detection, not deprecated `Reminder` objects
+
+### Removed
+- **Legacy ServiceRecord** - Deleted model, routes (`/api/vehicles/{vin}/service`), service layer, schemas, and tests. All functionality replaced by ServiceVisit + ServiceLineItem
+- **Legacy frontend components** - Removed `ServiceRecordForm`, `ServiceRecordList`, `types/service.ts`, `schemas/service.ts` (dead code since ServiceVisit migration)
+- **Legacy attachment endpoints** - Removed `/api/service/{id}/attachments` upload/list endpoints (replaced by `/api/service-visits/{id}/attachments`)
+- **Migration 040** - Drops `service_records` table and migrates any remaining `record_type='service'` attachments to `'service_visit'`
+
 ### Changed
 - **Analytics migrated to ServiceVisit** - All analytics, dashboard, reports, calendar, and family dashboard now query `service_visits` + `service_line_items` instead of legacy `service_records` table
 - **Report CSV columns** - Service history CSV headers changed: "Service Type" → "Category", "Vendor Name" → "Vendor", added "Notes"
 - **Schema rename** - `GarageMonthlyTrend.maintenance` → `GarageMonthlyTrend.service` in analytics API and frontend
+- **CSV/JSON export** - Service export now queries `ServiceVisit` with line items and vendor relationships; JSON keeps `"service_records"` key for backward-compatible re-import
+- **CSV/JSON import** - Service CSV/JSON import now creates `ServiceVisit` + `ServiceLineItem` + `Vendor`; accepts both old ("Service Type") and new ("Category") CSV headers
+- **Attachments route** - `get_attachment_vin()` handles both `record_type='service'` and `'service_visit'` via ServiceVisit lookup
 
 ### Added
 - **Migration 039** - Backfills `service_visits.total_cost` from line items + tax/fees for existing records
@@ -19,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - **MissingGreenlet on service visit creation** - `calculated_total_cost` property triggered lazy load of `line_items` in async context; now eagerly refreshes relationship first
+- **LiveLink session duration datetime bug** - Normalized naive `session_started_at` to UTC before arithmetic in `livelink_vehicle.py`
 
 ### Added
 - **DEF Tracking** - CRUD, analytics, CSV/JSON export/import for Diesel Exhaust Fluid records

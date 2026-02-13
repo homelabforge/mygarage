@@ -4,7 +4,7 @@ import csv
 import io
 import json
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
@@ -136,8 +136,11 @@ async def get_vehicle_livelink_status(
             current_session_id = current_session.id
             session_started_at = current_session.started_at
             if session_started_at:
+                # Normalize naive datetime (SQLite strips tzinfo) to UTC
+                if session_started_at.tzinfo is None:
+                    session_started_at = session_started_at.replace(tzinfo=UTC)
                 session_duration_seconds = int(
-                    (datetime.now(session_started_at.tzinfo) - session_started_at).total_seconds()
+                    (datetime.now(UTC) - session_started_at).total_seconds()
                 )
 
     return VehicleLiveLinkStatus(

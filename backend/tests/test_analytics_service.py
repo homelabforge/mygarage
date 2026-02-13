@@ -34,25 +34,6 @@ def _make_fuel_record(**kwargs):
     return SimpleNamespace(**defaults)
 
 
-def _make_service_record(**kwargs):
-    """Create a mock ServiceRecord-like object with sensible defaults."""
-    defaults = {
-        "id": 1,
-        "vin": "1HGBH41JXMN109186",
-        "date": date(2024, 1, 15),
-        "mileage": 50000,
-        "service_type": "Oil Change",
-        "cost": Decimal("75.00"),
-        "notes": None,
-        "vendor_name": "AutoShop",
-        "vendor_location": None,
-        "service_category": "Maintenance",
-        "insurance_claim": None,
-    }
-    defaults.update(kwargs)
-    return SimpleNamespace(**defaults)
-
-
 @pytest.mark.unit
 @pytest.mark.analytics
 class TestAnalyticsService:
@@ -181,78 +162,6 @@ class TestAnalyticsService:
         jan_row = monthly_df[monthly_df["month"] == 1].iloc[0]
         assert jan_row["service_count"] == 31
         assert jan_row["fuel_count"] == 0
-
-    def test_records_to_dataframe_empty(self):
-        """Test converting empty record lists to DataFrame."""
-        df = analytics_service.records_to_dataframe([], [])
-
-        assert df.empty
-        assert "date" in df.columns
-        assert "type" in df.columns
-        assert "cost" in df.columns
-
-
-@pytest.mark.unit
-@pytest.mark.analytics
-class TestRecordsToDataframe:
-    """Test records_to_dataframe with actual data."""
-
-    def test_service_records_only(self):
-        """Test conversion with service records."""
-        records = [
-            _make_service_record(id=1, date=date(2024, 1, 15), cost=Decimal("100.00")),
-            _make_service_record(id=2, date=date(2024, 2, 20), cost=Decimal("200.00")),
-        ]
-
-        df = analytics_service.records_to_dataframe(records, [])
-
-        assert len(df) == 2
-        assert all(df["type"] == "service")
-        assert df["cost"].sum() == 300.0
-        # Verify sorted by date
-        assert df.iloc[0]["date"] <= df.iloc[1]["date"]
-
-    def test_fuel_records_only(self):
-        """Test conversion with fuel records."""
-        records = [
-            _make_fuel_record(
-                id=1, date=date(2024, 3, 10), cost=Decimal("55.00"), gallons=Decimal("15.5")
-            ),
-            _make_fuel_record(
-                id=2, date=date(2024, 1, 5), cost=Decimal("40.00"), gallons=Decimal("12.0")
-            ),
-        ]
-
-        df = analytics_service.records_to_dataframe([], records)
-
-        assert len(df) == 2
-        assert all(df["type"] == "fuel")
-        # Should be sorted by date (Jan before Mar)
-        assert df.iloc[0]["date"] < df.iloc[1]["date"]
-
-    def test_mixed_records(self):
-        """Test conversion with both service and fuel records."""
-        service = [_make_service_record(date=date(2024, 2, 1), cost=Decimal("150.00"))]
-        fuel = [_make_fuel_record(date=date(2024, 1, 15), cost=Decimal("50.00"))]
-
-        df = analytics_service.records_to_dataframe(service, fuel)
-
-        assert len(df) == 2
-        assert set(df["type"]) == {"service", "fuel"}
-        # Fuel (Jan) should come first
-        assert df.iloc[0]["type"] == "fuel"
-
-    def test_skips_records_without_date_or_cost(self):
-        """Test that records missing date or cost are filtered out."""
-        records = [
-            _make_service_record(id=1, date=date(2024, 1, 1), cost=Decimal("100.00")),
-            _make_service_record(id=2, date=None, cost=Decimal("50.00")),
-            _make_service_record(id=3, date=date(2024, 3, 1), cost=None),
-        ]
-
-        df = analytics_service.records_to_dataframe(records, [])
-
-        assert len(df) == 1
 
 
 @pytest.mark.unit

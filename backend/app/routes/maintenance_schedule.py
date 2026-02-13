@@ -9,8 +9,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.user import User
 from app.schemas.maintenance_schedule import (
-    ApplyTemplateRequest,
-    ApplyTemplateResponse,
     MaintenanceScheduleItemCreate,
     MaintenanceScheduleItemResponse,
     MaintenanceScheduleItemUpdate,
@@ -254,30 +252,3 @@ async def delete_schedule_item(
     service = MaintenanceScheduleService(db)
     await service.delete_schedule_item(vin, item_id, current_user)
     return None
-
-
-@router.post("/apply-template", response_model=ApplyTemplateResponse)
-async def apply_template(
-    vin: str,
-    request: ApplyTemplateRequest,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
-):
-    """
-    Apply a maintenance template to a vehicle.
-
-    **Path Parameters:**
-    - **vin**: Vehicle VIN
-
-    **Request Body:**
-    - Template source and optional initial date/mileage
-
-    **Returns:**
-    - Count of items created/skipped
-
-    **Raises:**
-    - **404**: Vehicle or template not found
-    - **403**: Not authorized
-    """
-    service = MaintenanceScheduleService(db)
-    return await service.apply_template(vin, request, current_user)

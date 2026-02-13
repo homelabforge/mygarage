@@ -12,12 +12,6 @@ from app.schemas.odometer import (
     OdometerRecordResponse,
     OdometerRecordUpdate,
 )
-from app.schemas.service import (
-    ServiceRecordCreate,
-    ServiceRecordListResponse,
-    ServiceRecordResponse,
-    ServiceRecordUpdate,
-)
 from app.schemas.vehicle import (
     TrailerDetailsCreate,
     TrailerDetailsResponse,
@@ -46,10 +40,6 @@ __all__ = [
     "TrailerDetailsCreate",
     "TrailerDetailsUpdate",
     "TrailerDetailsResponse",
-    "ServiceRecordCreate",
-    "ServiceRecordUpdate",
-    "ServiceRecordResponse",
-    "ServiceRecordListResponse",
     "FuelRecordCreate",
     "FuelRecordUpdate",
     "FuelRecordResponse",

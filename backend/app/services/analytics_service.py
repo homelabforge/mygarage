@@ -8,7 +8,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from app.models import DEFRecord, FuelRecord, ServiceRecord, ServiceVisit, SpotRentalBilling
+from app.models import DEFRecord, FuelRecord, ServiceVisit, SpotRentalBilling
 
 
 def visits_to_dataframe(
@@ -111,101 +111,6 @@ def visits_to_dataframe(
     all_data = service_data + fuel_data + def_data + spot_rental_data
 
     if not all_data:
-        return pd.DataFrame(
-            columns=[
-                "date",
-                "cost",
-                "type",
-                "vendor",
-                "mileage",
-                "service_type",
-                "service_category",
-                "description",
-                "gallons",
-            ]
-        )
-
-    df = pd.DataFrame(all_data)
-    df = df.sort_values("date").reset_index(drop=True)
-
-    return df
-
-
-def records_to_dataframe(
-    service_records: list[ServiceRecord],
-    fuel_records: list[FuelRecord],
-    spot_rental_billings: list[SpotRentalBilling] | None = None,
-) -> pd.DataFrame:
-    """
-    Convert SQLAlchemy records to a unified pandas DataFrame.
-
-    .. deprecated::
-        Use ``visits_to_dataframe()`` instead. This function reads from legacy
-        ServiceRecord and will be removed when that model is dropped.
-
-    Args:
-        service_records: List of ServiceRecord objects
-        fuel_records: List of FuelRecord objects
-        spot_rental_billings: Optional list of SpotRentalBilling objects
-
-    Returns:
-        DataFrame with columns: date, cost, type, vendor, mileage, service_type, etc.
-    """
-    # Convert service records
-    service_data = []
-    for record in service_records:
-        if record.date and record.cost:
-            service_data.append(
-                {
-                    "date": pd.Timestamp(record.date),
-                    "cost": float(record.cost),
-                    "type": "service",
-                    "vendor": record.vendor_name or "Unknown",
-                    "mileage": record.mileage,
-                    "service_type": record.service_type,  # Now holds specific service type
-                    "service_category": record.service_category,  # Category grouping
-                    "description": record.notes,  # Notes field for additional details
-                }
-            )
-
-    # Convert fuel records
-    fuel_data = []
-    for record in fuel_records:
-        if record.date and record.cost:
-            fuel_data.append(
-                {
-                    "date": pd.Timestamp(record.date),
-                    "cost": float(record.cost),
-                    "type": "fuel",
-                    "vendor": "Fuel Station",  # FuelRecord doesn't have a station/vendor field
-                    "mileage": record.mileage,
-                    "service_type": "Fuel",
-                    "gallons": float(record.gallons) if record.gallons else None,
-                }
-            )
-
-    # Convert spot rental billing records
-    spot_rental_data = []
-    if spot_rental_billings:
-        for record in spot_rental_billings:
-            if record.billing_date and record.total:
-                spot_rental_data.append(
-                    {
-                        "date": pd.Timestamp(record.billing_date),
-                        "cost": float(record.total),
-                        "type": "spot_rental",
-                        "vendor": "RV Park",
-                        "mileage": None,
-                        "service_type": "Spot Rental",
-                        "description": record.notes or "Monthly RV spot rental",
-                    }
-                )
-
-    # Combine and create DataFrame
-    all_data = service_data + fuel_data + spot_rental_data
-
-    if not all_data:
-        # Return empty DataFrame with expected columns
         return pd.DataFrame(
             columns=[
                 "date",
@@ -360,15 +265,15 @@ def calculate_trend_direction(values: pd.Series, threshold: float = 0.05) -> str
     if len(values) < 3:
         return "stable"
 
-    # Use simple linear regression
+    # Use simple linear regression — convert from Decimal/object dtype to float
     x = np.arange(len(values))
-    y = values.values
+    y = np.array(values.tolist(), dtype=np.float64)
 
     # Calculate slope
     slope = np.polyfit(x, y, 1)[0]
 
     # Calculate percentage change
-    mean_value = y.mean()
+    mean_value = float(y.mean())
     if mean_value == 0:
         return "stable"
 

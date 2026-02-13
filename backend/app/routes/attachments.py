@@ -12,7 +12,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.database import get_db
 from app.models.attachment import Attachment
-from app.models.service import ServiceRecord
 from app.models.service_visit import ServiceVisit
 from app.models.user import User
 from app.schemas.attachment import AttachmentListResponse, AttachmentResponse
@@ -48,16 +47,8 @@ async def get_attachment_vin(
     Raises:
         HTTPException 404: If parent record not found
     """
-    if attachment.record_type == "service":
-        result = await db.execute(
-            select(ServiceRecord).where(ServiceRecord.id == attachment.record_id)
-        )
-        service_record = result.scalar_one_or_none()
-        if not service_record:
-            raise HTTPException(status_code=404, detail="Parent service record not found")
-        return service_record.vin
-
-    elif attachment.record_type == "service_visit":
+    if attachment.record_type in ("service_visit", "service"):
+        # "service" is a legacy record_type from before the ServiceVisit migration
         result = await db.execute(
             select(ServiceVisit).where(ServiceVisit.id == attachment.record_id)
         )
@@ -70,159 +61,6 @@ async def get_attachment_vin(
         raise HTTPException(
             status_code=500, detail=f"Unknown attachment type: {attachment.record_type}"
         )
-
-
-@router.post(
-    "/service/{record_id}/attachments",
-    response_model=AttachmentResponse,
-    status_code=status.HTTP_201_CREATED,
-)
-async def upload_service_attachment(
-    record_id: int,
-    file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_db),
-    current_user: User | None = Depends(require_auth),
-):
-    """
-    Upload a file attachment to a service record.
-
-    Supported file types: JPG, PNG, GIF, PDF
-    Max file size: 10MB
-    """
-    try:
-        # Verify service record exists
-        result = await db.execute(select(ServiceRecord).where(ServiceRecord.id == record_id))
-        service_record = result.scalar_one_or_none()
-        if not service_record:
-            raise HTTPException(status_code=404, detail=f"Service record {record_id} not found")
-
-        # Verify user has write access to the vehicle
-        _ = await get_vehicle_or_403(service_record.vin, current_user, db, require_write=True)
-
-        # Upload using shared service
-        upload_result = await FileUploadService.upload_file(
-            file, ATTACHMENT_UPLOAD_CONFIG, subdirectory=f"service/{record_id}"
-        )
-
-        # Create database record
-        attachment = Attachment(
-            record_type="service",
-            record_id=record_id,
-            file_path=str(upload_result.file_path),
-            file_type=upload_result.content_type,
-            file_size=upload_result.file_size,
-        )
-
-        db.add(attachment)
-        await db.commit()
-        await db.refresh(attachment)
-
-        logger.info("Uploaded attachment %s for service record %s", attachment.id, record_id)
-
-        return AttachmentResponse(
-            id=attachment.id,
-            record_type=attachment.record_type,
-            record_id=attachment.record_id,
-            file_name=file.filename,
-            file_type=attachment.file_type,
-            file_size=attachment.file_size,
-            uploaded_at=attachment.uploaded_at,
-            download_url=f"/api/attachments/{attachment.id}/download",
-            view_url=f"/api/attachments/{attachment.id}/view",
-        )
-
-    except HTTPException:
-        raise
-    except IntegrityError as e:
-        await db.rollback()
-        logger.error(
-            "Database constraint violation uploading attachment: %s",
-            sanitize_for_log(str(e)),
-        )
-        raise HTTPException(status_code=409, detail="Attachment record already exists")
-    except OperationalError as e:
-        await db.rollback()
-        logger.error(
-            "Database connection error uploading attachment: %s",
-            sanitize_for_log(str(e)),
-        )
-        raise HTTPException(status_code=503, detail="Database temporarily unavailable")
-    except OSError as e:
-        await db.rollback()
-        logger.error("File system error uploading attachment: %s", sanitize_for_log(str(e)))
-        raise HTTPException(status_code=500, detail="Failed to save attachment file")
-
-
-@router.get("/service/{record_id}/attachments", response_model=AttachmentListResponse)
-async def list_service_attachments(
-    record_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user: User | None = Depends(require_auth),
-):
-    """Get all attachments for a service record."""
-    try:
-        # Verify service record exists
-        result = await db.execute(select(ServiceRecord).where(ServiceRecord.id == record_id))
-        service_record = result.scalar_one_or_none()
-        if not service_record:
-            raise HTTPException(status_code=404, detail=f"Service record {record_id} not found")
-
-        # Verify user has access to the vehicle
-        _ = await get_vehicle_or_403(service_record.vin, current_user, db)
-
-        # Get attachments
-        result = await db.execute(
-            select(Attachment)
-            .where(Attachment.record_type == "service")
-            .where(Attachment.record_id == record_id)
-            .order_by(Attachment.uploaded_at.desc())
-        )
-        attachments = result.scalars().all()
-
-        # Get total count
-        count_result = await db.execute(
-            select(func.count())
-            .select_from(Attachment)
-            .where(Attachment.record_type == "service")
-            .where(Attachment.record_id == record_id)
-        )
-        total = count_result.scalar()
-
-        # Build response
-        attachment_responses = []
-        for att in attachments:
-            # Extract original filename from path
-            filename = Path(att.file_path).name
-            # Remove timestamp prefix if present
-            if "_" in filename:
-                parts = filename.split("_", 2)
-                if len(parts) >= 3:
-                    filename = parts[2]  # Get part after timestamp
-
-            attachment_responses.append(
-                AttachmentResponse(
-                    id=att.id,
-                    record_type=att.record_type,
-                    record_id=att.record_id,
-                    file_name=filename,
-                    file_type=att.file_type,
-                    file_size=att.file_size,
-                    uploaded_at=att.uploaded_at,
-                    download_url=f"/api/attachments/{att.id}/download",
-                    view_url=f"/api/attachments/{att.id}/view",
-                )
-            )
-
-        return AttachmentListResponse(attachments=attachment_responses, total=total or 0)
-
-    except HTTPException:
-        raise
-    except OperationalError as e:
-        logger.error(
-            "Database connection error listing attachments: %s",
-            sanitize_for_log(str(e)),
-        )
-        raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
 
 @router.get("/attachments/{attachment_id}/view")

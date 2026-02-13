@@ -71,7 +71,7 @@ class TemplateApplyResponse(BaseModel):
     """Schema for template application response."""
 
     success: bool
-    reminders_created: int
+    items_created: int
     template_source: str
     template_version: str | None = None
     error: str | None = None

@@ -35,7 +35,6 @@ if TYPE_CHECKING:
     from app.models.photo import VehiclePhoto
     from app.models.recall import Recall
     from app.models.reminder import Reminder
-    from app.models.service import ServiceRecord
     from app.models.service_visit import ServiceVisit
     from app.models.spot_rental import SpotRental
     from app.models.tax import TaxRecord
@@ -132,9 +131,6 @@ class Vehicle(Base):
     )
     spot_rentals: Mapped[list[SpotRental]] = relationship(
         "SpotRental", back_populates="vehicle", cascade="all, delete-orphan"
-    )
-    service_records: Mapped[list[ServiceRecord]] = relationship(
-        "ServiceRecord", back_populates="vehicle", cascade="all, delete-orphan"
     )
     def_records: Mapped[list[DEFRecord]] = relationship(
         "DEFRecord", back_populates="vehicle", cascade="all, delete-orphan"

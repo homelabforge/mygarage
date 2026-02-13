@@ -4,7 +4,8 @@ import {
   optionalMileageSchema,
   optionalCurrencySchema,
 } from './shared'
-import { SERVICE_CATEGORIES } from './service'
+// Service categories matching backend Literal type
+export const SERVICE_CATEGORIES = ['Maintenance', 'Inspection', 'Collision', 'Upgrades', 'Detailing'] as const
 
 /**
  * Service Visit validation schemas matching backend Pydantic validators.

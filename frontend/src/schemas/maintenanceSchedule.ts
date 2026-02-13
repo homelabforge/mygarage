@@ -15,11 +15,15 @@ export const COMPONENT_CATEGORIES = [
   'Electrical',
   'HVAC',
   'Fluids',
+  'Drivetrain',
   'Suspension',
+  'Emissions',
   'Body/Exterior',
   'Interior',
   'Exhaust',
   'Fuel System',
+  'General',
+  'Towing',
   'Other',
 ] as const
 
@@ -97,19 +101,7 @@ export const maintenanceScheduleItemUpdateSchema = z.object({
   last_performed_mileage: optionalMileageSchema,
 })
 
-// Apply template schema
-export const applyTemplateSchema = z.object({
-  template_source: z
-    .string()
-    .min(1, 'Template source is required')
-    .max(50, 'Template source too long'),
-  initial_date: dateSchema.optional(),
-  initial_mileage: optionalMileageSchema,
-})
-
 export type MaintenanceScheduleItemInput = z.input<typeof maintenanceScheduleItemSchema>
 export type MaintenanceScheduleItemFormData = z.output<typeof maintenanceScheduleItemSchema>
 export type MaintenanceScheduleItemUpdateInput = z.input<typeof maintenanceScheduleItemUpdateSchema>
 export type MaintenanceScheduleItemUpdateFormData = z.output<typeof maintenanceScheduleItemUpdateSchema>
-export type ApplyTemplateInput = z.input<typeof applyTemplateSchema>
-export type ApplyTemplateFormData = z.output<typeof applyTemplateSchema>

@@ -16,12 +16,7 @@ class TestImportRoutes:
     """Test data import API endpoints."""
 
     async def test_import_service_csv(self, client: AsyncClient, auth_headers, test_vehicle):
-        """Test importing service records from CSV.
-
-        Note: The import code has field mapping issues (uses 'description'
-        which doesn't exist on ServiceRecord). This test verifies the endpoint
-        handles errors gracefully and returns proper error messages.
-        """
+        """Test importing service records from CSV creates ServiceVisit + ServiceLineItem."""
         csv_content = """Date,Service Type,Mileage,Cost,Vendor Name,Notes
 2024-01-15,Oil Change,50000,45.99,QuickLube,Regular maintenance
 2024-02-20,Tire Rotation,51000,25.00,Discount Tire,"""
@@ -35,10 +30,9 @@ class TestImportRoutes:
 
         assert response.status_code == 200
         data = response.json()
-        # Import may fail due to model field issues, but should return valid result
-        assert "success_count" in data
-        assert "error_count" in data
-        assert "total_processed" in data
+        assert data["success_count"] == 2
+        assert data["error_count"] == 0
+        assert data["total_processed"] == 2
 
     async def test_import_service_csv_missing_date(
         self, client: AsyncClient, auth_headers, test_vehicle

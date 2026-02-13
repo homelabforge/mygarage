@@ -88,13 +88,13 @@ async def apply_template(
 
     This will:
     1. Find the appropriate template based on vehicle year/make/model
-    2. Create reminders for all maintenance items in the template
+    2. Create maintenance schedule items for all items in the template
     3. Record which template was applied
 
     Body:
     - vin: Vehicle VIN
     - duty_type: "normal" or "severe" (default: "normal")
-    - current_mileage: Current vehicle mileage (optional, for mileage-based reminders)
+    - current_mileage: Current vehicle mileage (optional)
     """
     # Verify vehicle exists
     result = await db.execute(select(Vehicle).where(Vehicle.vin == request.vin))
@@ -129,7 +129,7 @@ async def apply_template(
         if result is None:
             return TemplateApplyResponse(
                 success=False,
-                reminders_created=0,
+                items_created=0,
                 template_source="",
                 error=f"No template found for {vehicle.year} {vehicle.make} {vehicle.model} ({request.duty_type} duty, {vehicle.fuel_type})",
             )
@@ -137,7 +137,7 @@ async def apply_template(
         template_path, template_data = result
 
         # Apply template
-        reminders_created = await service.apply_template_to_vehicle(
+        items_created = await service.apply_template_to_vehicle(
             db=db,
             vin=request.vin,
             template_path=template_path,
@@ -148,7 +148,7 @@ async def apply_template(
 
         return TemplateApplyResponse(
             success=True,
-            reminders_created=reminders_created,
+            items_created=items_created,
             template_source=f"github:{template_path}",
             template_version=template_data.get("metadata", {}).get("version"),
         )

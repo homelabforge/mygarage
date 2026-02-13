@@ -4,7 +4,7 @@ from datetime import date as date_type
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 # Component category types
 ComponentCategory = Literal[
@@ -15,11 +15,15 @@ ComponentCategory = Literal[
     "Electrical",
     "HVAC",
     "Fluids",
+    "Drivetrain",
     "Suspension",
+    "Emissions",
     "Body/Exterior",
     "Interior",
     "Exhaust",
     "Fuel System",
+    "General",
+    "Towing",
     "Other",
 ]
 
@@ -41,38 +45,6 @@ class MaintenanceScheduleItemBase(BaseModel):
     item_type: ItemType = Field(..., description="Item type (service or inspection)")
     interval_months: int | None = Field(None, description="Interval in months", ge=1)
     interval_miles: int | None = Field(None, description="Interval in miles", ge=100)
-
-    @field_validator("component_category")
-    @classmethod
-    def validate_component_category(cls, v: str) -> str:
-        """Validate component category."""
-        valid_categories = [
-            "Engine",
-            "Transmission",
-            "Brakes",
-            "Tires",
-            "Electrical",
-            "HVAC",
-            "Fluids",
-            "Suspension",
-            "Body/Exterior",
-            "Interior",
-            "Exhaust",
-            "Fuel System",
-            "Other",
-        ]
-        if v not in valid_categories:
-            raise ValueError(f"Component category must be one of: {', '.join(valid_categories)}")
-        return v
-
-    @field_validator("item_type")
-    @classmethod
-    def validate_item_type(cls, v: str) -> str:
-        """Validate item type."""
-        valid_types = ["service", "inspection"]
-        if v not in valid_types:
-            raise ValueError(f"Item type must be one of: {', '.join(valid_types)}")
-        return v
 
 
 class MaintenanceScheduleItemCreate(MaintenanceScheduleItemBase):
@@ -122,11 +94,16 @@ class MaintenanceScheduleItemUpdate(BaseModel):
     }
 
 
-class MaintenanceScheduleItemResponse(MaintenanceScheduleItemBase):
+class MaintenanceScheduleItemResponse(BaseModel):
     """Schema for maintenance schedule item response."""
 
     id: int
     vin: str
+    name: str
+    component_category: str = Field(description="Component category")
+    item_type: str = Field(description="Item type (service or inspection)")
+    interval_months: int | None = None
+    interval_miles: int | None = None
     source: str
     template_item_id: str | None = None
     last_performed_date: date_type | None = None
@@ -190,52 +167,6 @@ class MaintenanceScheduleListResponse(BaseModel):
                     "overdue_count": 0,
                     "on_track_count": 13,
                     "never_performed_count": 0,
-                }
-            ]
-        }
-    }
-
-
-class ApplyTemplateRequest(BaseModel):
-    """Schema for applying a maintenance template."""
-
-    template_source: str = Field(
-        ..., description="Template source identifier (e.g., 'toyota_standard')"
-    )
-    initial_date: date_type | None = Field(
-        None, description="Initial 'last performed' date for all items"
-    )
-    initial_mileage: int | None = Field(
-        None, description="Initial 'last performed' mileage for all items"
-    )
-
-    model_config = {
-        "json_schema_extra": {
-            "examples": [
-                {
-                    "template_source": "toyota_standard",
-                    "initial_date": "2025-01-01",
-                    "initial_mileage": 75000,
-                }
-            ]
-        }
-    }
-
-
-class ApplyTemplateResponse(BaseModel):
-    """Schema for apply template response."""
-
-    items_created: int = Field(description="Number of schedule items created")
-    items_skipped: int = Field(description="Number of items skipped (already exist)")
-    message: str
-
-    model_config = {
-        "json_schema_extra": {
-            "examples": [
-                {
-                    "items_created": 16,
-                    "items_skipped": 0,
-                    "message": "Successfully applied template 'toyota_standard' with 16 maintenance items",
                 }
             ]
         }
