@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Dockerfile Dependencies
+- **oven/bun**: 1.3.8-alpine → 1.3.9-alpine
+
+### Dev Dependencies
+- **ruff**: 0.15.0 → 0.15.1
+
+### App Dependencies
+- **authlib**: 1.6.7 → 1.6.8
+- **fastapi**: 0.128.8 → 0.129.0
+- **lucide-react**: 0.563.0 → 0.564.0
+- **python-dateutil**: 2.9.0 → 2.9.0.post0
+- **reportlab**: 4.4.9 → 4.4.10
+
 ### Added
 - **DEF Tracking** - CRUD, analytics, CSV/JSON export/import for Diesel Exhaust Fluid records
 - **DEF in Garage Analytics** - Own cost category in pie chart, vehicle table, monthly trends
@@ -37,7 +50,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **pydantic-settings 2.6 to 2.12** - Replaced deprecated `class Config` with `model_config = SettingsConfigDict()`
 - **Dockerfile Alignment** - Aligned pip (26.0.1) and bun (1.3.8) labels with actual versions
 - **Ruff target-version** - Changed from `py314` to `py313` to avoid PEP 758 syntax issues, fixed 22 except clauses across 18 files
-- **oven/bun**: 1.3.8-alpine → 1.3.9-alpine
 
 ### Fixed
 - **Family Dashboard vehicle images not displaying** - Construct proper API URLs for vehicle photos instead of passing raw DB paths
