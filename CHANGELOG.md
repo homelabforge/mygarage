@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.21.1] - 2026-02-14
+
 ### Dockerfile Dependencies
 - **oven/bun**: 1.3.8-alpine → 1.3.9-alpine
 
