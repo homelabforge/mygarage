@@ -151,7 +151,8 @@ class TestOIDCRoutes:
                 response = await client.get("/api/auth/oidc/login", follow_redirects=False)
 
         assert response.status_code == 302
-        assert "auth.example.com" in response.headers.get("location", "")
+        location = response.headers.get("location", "")
+        assert location.startswith("https://auth.example.com/")
 
     async def test_login_provider_timeout(self, client: AsyncClient, db_session):
         """Test login when provider times out."""

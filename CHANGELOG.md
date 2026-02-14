@@ -7,16 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
-- **Family Dashboard vehicle images not displaying** - Construct proper API URLs for vehicle photos instead of passing raw DB paths
-- **Analytics 500 error for vehicles with 3+ months of cost data** - Convert Decimal values to float before numpy trend calculation
-- **Maintenance templates create schedule items instead of reminders** - Apply Template now creates `MaintenanceScheduleItem` records with duplicate detection, not deprecated `Reminder` objects
-
-### Removed
-- **Legacy ServiceRecord** - Deleted model, routes (`/api/vehicles/{vin}/service`), service layer, schemas, and tests. All functionality replaced by ServiceVisit + ServiceLineItem
-- **Legacy frontend components** - Removed `ServiceRecordForm`, `ServiceRecordList`, `types/service.ts`, `schemas/service.ts` (dead code since ServiceVisit migration)
-- **Legacy attachment endpoints** - Removed `/api/service/{id}/attachments` upload/list endpoints (replaced by `/api/service-visits/{id}/attachments`)
-- **Migration 040** - Drops `service_records` table and migrates any remaining `record_type='service'` attachments to `'service_visit'`
+### Added
+- **DEF Tracking** - CRUD, analytics, CSV/JSON export/import for Diesel Exhaust Fluid records
+- **DEF in Garage Analytics** - Own cost category in pie chart, vehicle table, monthly trends
+- **DEF in Vehicle Analytics** - Dedicated section with spend, gallons, avg cost/gal, consumption rate
+- **Inline Analytics Cards** - Added to Fuel and Propane tabs to match DEF tab pattern
+- **Migration 039** - Backfills `service_visits.total_cost` from line items + tax/fees for existing records
+- **`visits_to_dataframe()`** - New analytics service function producing one DataFrame row per visit (visit-level totals for financial accuracy)
+- **Write-path total_cost sync** - `total_cost` is always recomputed from `calculated_total_cost` on every service visit create, update, line item add, and line item delete
+- **Test Suite Expansion** - Added 120 new tests (85 backend + 35 frontend), up from 1,011 to 1,131 total
+  - Backend: CSRF middleware (20), LiveLink token validation (10), notification dispatcher (30), analytics service (25)
+  - Frontend: ErrorBoundary (6), ThemeContext (8), AuthContext (9), VehicleDetail page (12)
+- **Playwright E2E Tests** - 13 end-to-end tests across 5 specs (auth, dashboard, navigation, settings, vehicle) with full frontend-to-backend coverage
+  - Dual web server setup (Granian backend + Vite frontend) with fresh SQLite per run
+  - API-based auth setup with CSRF token handling
+  - CI pipeline integration with Playwright report and test result artifacts
 
 ### Changed
 - **Analytics migrated to ServiceVisit** - All analytics, dashboard, reports, calendar, and family dashboard now query `service_visits` + `service_line_items` instead of legacy `service_records` table
@@ -25,44 +30,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **CSV/JSON export** - Service export now queries `ServiceVisit` with line items and vendor relationships; JSON keeps `"service_records"` key for backward-compatible re-import
 - **CSV/JSON import** - Service CSV/JSON import now creates `ServiceVisit` + `ServiceLineItem` + `Vendor`; accepts both old ("Service Type") and new ("Category") CSV headers
 - **Attachments route** - `get_attachment_vin()` handles both `record_type='service'` and `'service_visit'` via ServiceVisit lookup
-
-### Added
-- **Migration 039** - Backfills `service_visits.total_cost` from line items + tax/fees for existing records
-- **`visits_to_dataframe()`** - New analytics service function producing one DataFrame row per visit (visit-level totals for financial accuracy)
-- **Write-path total_cost sync** - `total_cost` is always recomputed from `calculated_total_cost` on every service visit create, update, line item add, and line item delete
-
-### Fixed
-- **MissingGreenlet on service visit creation** - `calculated_total_cost` property triggered lazy load of `line_items` in async context; now eagerly refreshes relationship first
-- **LiveLink session duration datetime bug** - Normalized naive `session_started_at` to UTC before arithmetic in `livelink_vehicle.py`
-
-### Added
-- **DEF Tracking** - CRUD, analytics, CSV/JSON export/import for Diesel Exhaust Fluid records
-- **DEF in Garage Analytics** - Own cost category in pie chart, vehicle table, monthly trends
-- **DEF in Vehicle Analytics** - Dedicated section with spend, gallons, avg cost/gal, consumption rate
-- **Inline Analytics Cards** - Added to Fuel and Propane tabs to match DEF tab pattern
-
-### Changed
 - **TypeScript target** - ES2020 → ES2022
 - Removed misleading DEF Level gauge from analytics cards (fill level stays in table)
-
-### Fixed
-- **ESLint `preserve-caught-error`** - Added `{ cause }` to re-thrown errors in AuthContext
-
-### Dockerfile Dependencies
-- **oven/bun**: 1.3.8-alpine → 1.3.9-alpine
-
-### Fixed
-- **LiveLink Odometer Unit Conversion** - Standard OBD2 PID A6 (Odometer) reports in kilometers per SAE J1979, but values were stored directly as miles. Now converts km to miles based on the system `distance_unit` setting. Custom PIDs (e.g. Mitsubishi-specific) are left as-is since they already report in the configured unit.
-- **Fuel/Service Odometer Sync Blocked by LiveLink** - Adding a fuel fill-up or service record on the same date as a LiveLink odometer reading failed to create/update the odometer record. The sync logic only checked notes for `[AUTO-SYNC from` markers but didn't recognize LiveLink-sourced records as overwritable. Now checks the `source` field and allows fuel/service data to take priority over LiveLink telemetry.
-- **Odometer Record Source Field** - Auto-synced odometer records from fuel and service entries were created with `source="manual"` instead of the correct `source="fuel"` or `source="service"`. New and updated records now set the source field properly.
-- **Naive/Aware Datetime Mismatch** - Fixed `TypeError: can't subtract offset-naive and offset-aware datetimes` in drive session duration calculation and device offline notification. SQLite strips timezone info on storage; reads are now normalized to UTC before arithmetic.
-
-### Changed
 - **Dependency Updates** - Updated 18 Python dependency floors (fastapi, sqlalchemy, aiosqlite, pydantic, httpx, pandas 3.0, pillow, pillow-heif, reportlab, pymupdf, aiomqtt, authlib security patch, and more)
 - **aiosmtplib 3.x to 5.x** - Pin-only update, API fully backwards compatible
 - **pydantic-settings 2.6 to 2.12** - Replaced deprecated `class Config` with `model_config = SettingsConfigDict()`
 - **Dockerfile Alignment** - Aligned pip (26.0.1) and bun (1.3.8) labels with actual versions
 - **Ruff target-version** - Changed from `py314` to `py313` to avoid PEP 758 syntax issues, fixed 22 except clauses across 18 files
+- **oven/bun**: 1.3.8-alpine → 1.3.9-alpine
+
+### Fixed
+- **Family Dashboard vehicle images not displaying** - Construct proper API URLs for vehicle photos instead of passing raw DB paths
+- **Analytics 500 error for vehicles with 3+ months of cost data** - Convert Decimal values to float before numpy trend calculation
+- **Maintenance templates create schedule items instead of reminders** - Apply Template now creates `MaintenanceScheduleItem` records with duplicate detection, not deprecated `Reminder` objects
+- **MissingGreenlet on service visit creation** - `calculated_total_cost` property triggered lazy load of `line_items` in async context; now eagerly refreshes relationship first
+- **LiveLink session duration datetime bug** - Normalized naive `session_started_at` to UTC before arithmetic in `livelink_vehicle.py`
+- **ESLint `preserve-caught-error`** - Added `{ cause }` to re-thrown errors in AuthContext
+- **LiveLink Odometer Unit Conversion** - Standard OBD2 PID A6 (Odometer) reports in kilometers per SAE J1979, but values were stored directly as miles. Now converts km to miles based on the system `distance_unit` setting. Custom PIDs (e.g. Mitsubishi-specific) are left as-is since they already report in the configured unit.
+- **Fuel/Service Odometer Sync Blocked by LiveLink** - Adding a fuel fill-up or service record on the same date as a LiveLink odometer reading failed to create/update the odometer record. The sync logic only checked notes for `[AUTO-SYNC from` markers but didn't recognize LiveLink-sourced records as overwritable. Now checks the `source` field and allows fuel/service data to take priority over LiveLink telemetry.
+- **Odometer Record Source Field** - Auto-synced odometer records from fuel and service entries were created with `source="manual"` instead of the correct `source="fuel"` or `source="service"`. New and updated records now set the source field properly.
+- **Naive/Aware Datetime Mismatch** - Fixed `TypeError: can't subtract offset-naive and offset-aware datetimes` in drive session duration calculation and device offline notification. SQLite strips timezone info on storage; reads are now normalized to UTC before arithmetic.
+- **VehicleDetail Offline Cache** - Offline cache path incorrectly set error state, making the cached data warning banner unreachable; now correctly shows cached vehicle data with offline warning instead of error page
+- **VehicleDetail JSON.parse Safety** - Wrapped localStorage cache parsing in try-catch; corrupted cache is cleared on failure instead of crashing
+- **Theme Context Race Condition** - Added `cancelled` flag with cleanup in useEffect to prevent stale state updates on unmount
+- **Dashboard Error State** - Replaced silent catch with user-visible error UI and retry button
+- **Auth Timeout** - Replaced unreliable 100ms `setTimeout` in AuthContext with immediate try + 50ms retry pattern
 
 ### Improved
 - **N+1 Query Fix** - `check_device_offline_status()` pre-fetches all vehicle names in a single query instead of N separate queries per device
@@ -77,21 +69,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Accessibility** - Added ARIA labels to icon-only nav links, `role="status"` to loading spinners, progressbar attributes to password strength meter, `aria-label` to filter/sort dropdowns
 - **Pyright Strict Mode** - Reduced `"none"` suppressions from 13 to 7 (46% reduction), warnings from 1,317 to 1,296; fixed insurance parser method signatures, constant redefinition patterns, and untyped parameters
 
-### Fixed
-- **VehicleDetail Offline Cache** - Offline cache path incorrectly set error state, making the cached data warning banner unreachable; now correctly shows cached vehicle data with offline warning instead of error page
-- **VehicleDetail JSON.parse Safety** - Wrapped localStorage cache parsing in try-catch; corrupted cache is cleared on failure instead of crashing
-- **Theme Context Race Condition** - Added `cancelled` flag with cleanup in useEffect to prevent stale state updates on unmount
-- **Dashboard Error State** - Replaced silent catch with user-visible error UI and retry button
-- **Auth Timeout** - Replaced unreliable 100ms `setTimeout` in AuthContext with immediate try + 50ms retry pattern
-
-### Added
-- **Test Suite Expansion** - Added 120 new tests (85 backend + 35 frontend), up from 1,011 to 1,131 total
-  - Backend: CSRF middleware (20), LiveLink token validation (10), notification dispatcher (30), analytics service (25)
-  - Frontend: ErrorBoundary (6), ThemeContext (8), AuthContext (9), VehicleDetail page (12)
-- **Playwright E2E Tests** - 13 end-to-end tests across 5 specs (auth, dashboard, navigation, settings, vehicle) with full frontend-to-backend coverage
-  - Dual web server setup (Granian backend + Vite frontend) with fresh SQLite per run
-  - API-based auth setup with CSRF token handling
-  - CI pipeline integration with Playwright report and test result artifacts
+### Removed
+- **Legacy ServiceRecord** - Deleted model, routes (`/api/vehicles/{vin}/service`), service layer, schemas, and tests. All functionality replaced by ServiceVisit + ServiceLineItem
+- **Legacy frontend components** - Removed `ServiceRecordForm`, `ServiceRecordList`, `types/service.ts`, `schemas/service.ts` (dead code since ServiceVisit migration)
+- **Legacy attachment endpoints** - Removed `/api/service/{id}/attachments` upload/list endpoints (replaced by `/api/service-visits/{id}/attachments`)
+- **Migration 040** - Drops `service_records` table and migrates any remaining `record_type='service'` attachments to `'service_visit'`
 
 ## [2.21.0] - 2026-02-05
 
