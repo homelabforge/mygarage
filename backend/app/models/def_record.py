@@ -41,6 +41,12 @@ class DEFRecord(Base):
     brand: Mapped[str | None] = mapped_column(String(100))
     notes: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    entry_type: Mapped[str] = mapped_column(
+        String(20), default="purchase", server_default="purchase"
+    )
+    origin_fuel_record_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("fuel_records.id", ondelete="SET NULL")
+    )
 
     # Relationships
     vehicle: Mapped[Vehicle] = relationship("Vehicle", back_populates="def_records")
@@ -50,6 +56,8 @@ class DEFRecord(Base):
         Index("idx_def_records_date", "date"),
         Index("idx_def_records_vin_date", "vin", "date"),
         Index("idx_def_records_mileage", "mileage"),
+        Index("idx_def_entry_type", "entry_type"),
+        Index("idx_def_origin_fuel_record_id", "origin_fuel_record_id"),
     )
 
 

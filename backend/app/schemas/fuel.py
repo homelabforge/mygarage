@@ -46,6 +46,12 @@ class FuelRecordCreate(FuelRecordBase):
     """Schema for creating a new fuel record."""
 
     vin: str = Field(..., description="Vehicle VIN", min_length=17, max_length=17)
+    def_fill_level: Decimal | None = Field(
+        None,
+        description="DEF tank level (0.00=empty, 1.00=full) — auto-creates a DEF observation",
+        ge=Decimal("0.00"),
+        le=Decimal("1.00"),
+    )
 
     @field_validator("tank_quantity")
     @classmethod
@@ -113,6 +119,12 @@ class FuelRecordUpdate(BaseModel):
         None, description="Vehicle was towing/hauling during this fuel cycle"
     )
     notes: str | None = Field(None, description="Additional notes")
+    def_fill_level: Decimal | None = Field(
+        None,
+        description="DEF tank level (0.00=empty, 1.00=full) — auto-creates a DEF observation",
+        ge=Decimal("0.00"),
+        le=Decimal("1.00"),
+    )
 
     @field_validator("tank_quantity")
     @classmethod

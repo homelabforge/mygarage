@@ -124,6 +124,58 @@ class TestDEFAnalytics:
         assert result.record_count == 5
         assert result.total_gallons is not None
 
+    async def test_analytics_frequency_excludes_auto_sync(self):
+        """Test that avg_purchase_frequency_days only counts purchase records.
+
+        Auto-synced records (entry_type='auto_fuel_sync') from fuel tickets
+        should not inflate purchase frequency statistics.
+        """
+        mock_db = AsyncMock()
+        service = DEFRecordService(mock_db)
+
+        mock_vehicle = _make_mock_vehicle(tank_capacity=Decimal("5.0"))
+
+        # 3 purchase records ~30 days apart, plus 2 auto-synced records in between
+        records = [
+            _make_mock_record(date(2024, 1, 1), 10000, Decimal("2.5"), Decimal("15.00")),
+            _make_mock_record(
+                date(2024, 1, 15),
+                10500,
+                None,
+                None,  # auto-sync, no gallons/cost
+            ),
+            _make_mock_record(date(2024, 2, 1), 11000, Decimal("2.5"), Decimal("16.00")),
+            _make_mock_record(
+                date(2024, 2, 15),
+                11500,
+                None,
+                None,  # auto-sync, no gallons/cost
+            ),
+            _make_mock_record(date(2024, 3, 1), 12000, Decimal("2.5"), Decimal("14.50")),
+        ]
+        # Set entry_type: purchases vs auto_fuel_sync
+        records[0].entry_type = "purchase"
+        records[1].entry_type = "auto_fuel_sync"
+        records[2].entry_type = "purchase"
+        records[3].entry_type = "auto_fuel_sync"
+        records[4].entry_type = "purchase"
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = records
+        mock_db.execute.return_value = mock_result
+
+        with patch(
+            "app.services.auth.get_vehicle_or_403",
+            new_callable=AsyncMock,
+            return_value=mock_vehicle,
+        ):
+            result = await service.get_def_analytics("TEST_VIN", MagicMock())
+
+        assert result.record_count == 5
+        # Frequency should be based on 3 purchase records spanning Jan 1 - Mar 1 (60 days)
+        # 60 days / (3-1) = 30 days — NOT inflated by the auto-sync records
+        assert result.avg_purchase_frequency_days == 30
+
 
 @pytest.mark.unit
 @pytest.mark.def_records

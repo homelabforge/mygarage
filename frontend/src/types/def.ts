@@ -15,6 +15,8 @@ export interface DEFRecord {
   brand?: string
   notes?: string
   created_at: string
+  entry_type?: string
+  origin_fuel_record_id?: number | null
 }
 
 export interface DEFRecordCreate {

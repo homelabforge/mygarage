@@ -21,7 +21,15 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
   const isEdit = !!record
   const [error, setError] = useState<string | null>(null)
   const [vehicleFuelType, setVehicleFuelType] = useState<string>('')
+  const [defTankCapacity, setDefTankCapacity] = useState<number>(0)
   const { system } = useUnitPreference()
+
+  const FILL_LEVEL_PRESETS = [
+    { label: 'Full', value: 100 },
+    { label: '3/4', value: 75 },
+    { label: '1/2', value: 50 },
+    { label: '1/4', value: 25 },
+  ] as const
 
   // Helper to format date for input[type="date"] without timezone issues
   const formatDateForInput = (dateString?: string): string => {
@@ -93,8 +101,10 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
         const response = await api.get(`/vehicles/${vin}`)
         const vehicleData: Vehicle = response.data
 
-        // Store fuel_type for conditional rendering
+        // Store fuel_type and DEF tank capacity for conditional rendering
         setVehicleFuelType(vehicleData.fuel_type || '')
+        const cap = vehicleData.def_tank_capacity_gallons
+        setDefTankCapacity(cap ? (typeof cap === 'string' ? parseFloat(cap) : cap) : 0)
 
         // Auto-populate fuel_type from vehicle if not editing
         if (!record && vehicleData.fuel_type) {
@@ -158,6 +168,9 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
         missed_fillup: data.missed_fillup,
         is_hauling: data.is_hauling,
         notes: data.notes,
+        def_fill_level: data.def_fill_level !== undefined
+          ? data.def_fill_level / 100
+          : undefined,
       }
 
       if (isEdit) {
@@ -178,11 +191,13 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
   const isHybrid = vehicleFuelType?.toLowerCase().includes('hybrid')
   const isPropane = vehicleFuelType?.toLowerCase().includes('propane')
 
+  const isDiesel = vehicleFuelType?.toLowerCase().includes('diesel')
   const showGallons = !isElectric || isHybrid
   const showKwh = isElectric || isHybrid
   const showPropane = isPropane
   const showFullTankCheckbox = !isElectric
   const showHaulingCheckbox = !isElectric
+  const showDefLevel = isDiesel || defTankCapacity > 0
 
   // Dynamic labels
   const priceLabel = isElectric ? 'Price per kWh' : `Price per ${UnitFormatter.getVolumeUnit(system)}`
@@ -423,6 +438,68 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
               <label htmlFor="is_hauling" className="ml-2 block text-sm text-garage-text">
                 Towing/Hauling Load
               </label>
+            </div>
+          )}
+
+          {/* DEF Level - shown for diesel vehicles or vehicles with DEF tank capacity */}
+          {showDefLevel && (
+            <div className="border border-garage-border rounded-lg p-4 space-y-2">
+              <label className="block text-sm font-medium text-garage-text">
+                DEF Tank Level
+              </label>
+              <div className="flex gap-2 mb-2">
+                {FILL_LEVEL_PRESETS.map(preset => (
+                  <button
+                    key={preset.value}
+                    type="button"
+                    onClick={() => setValue('def_fill_level', preset.value)}
+                    className={`px-3 py-1.5 text-sm rounded-md border transition-colors ${
+                      watch('def_fill_level') === preset.value
+                        ? 'bg-primary text-white border-primary'
+                        : 'bg-garage-bg text-garage-text border-garage-border hover:border-primary'
+                    }`}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setValue('def_fill_level', undefined)}
+                  className="px-3 py-1.5 text-sm rounded-md border border-garage-border bg-garage-bg text-garage-text-muted hover:border-danger"
+                >
+                  Clear
+                </button>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  {...register('def_fill_level', { valueAsNumber: true })}
+                  min="0"
+                  max="100"
+                  step="1"
+                  placeholder="75"
+                  className={`w-24 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
+                    errors.def_fill_level ? 'border-red-500' : 'border-garage-border'
+                  }`}
+                  disabled={isSubmitting}
+                />
+                <span className="text-sm text-garage-text-muted">%</span>
+                {watch('def_fill_level') !== undefined && !isNaN(watch('def_fill_level') ?? NaN) && (
+                  <div className="flex-1 h-4 bg-garage-bg rounded-full border border-garage-border overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all ${
+                        (watch('def_fill_level') ?? 0) > 50 ? 'bg-success' :
+                        (watch('def_fill_level') ?? 0) > 25 ? 'bg-warning' : 'bg-danger'
+                      }`}
+                      style={{ width: `${Math.min(100, Math.max(0, watch('def_fill_level') ?? 0))}%` }}
+                    />
+                  </div>
+                )}
+              </div>
+              <FormError error={errors.def_fill_level} />
+              <p className="text-xs text-garage-text-muted">
+                Auto-creates a DEF observation record for analytics
+              </p>
             </div>
           )}
 

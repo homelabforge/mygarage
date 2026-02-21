@@ -335,3 +335,285 @@ class TestFuelRecordRoutes:
         data = response.json()
         # Average MPG should exclude hauling records
         assert "average_mpg" in data
+
+
+@pytest.mark.integration
+@pytest.mark.fuel
+@pytest.mark.def_records
+@pytest.mark.asyncio
+class TestFuelDEFSync:
+    """Test DEF auto-sync from fuel records."""
+
+    async def test_create_fuel_with_def_creates_linked_def_record(
+        self, client: AsyncClient, auth_headers, test_vehicle
+    ):
+        """Test that creating a fuel record with def_fill_level auto-creates a DEF record."""
+        vin = test_vehicle["vin"]
+
+        # Create fuel record with DEF fill level (backend expects 0.00-1.00)
+        response = await client.post(
+            f"/api/vehicles/{vin}/fuel",
+            json={
+                "vin": vin,
+                "date": "2024-08-01",
+                "gallons": 15.0,
+                "cost": 54.00,
+                "mileage": 60000,
+                "is_full_tank": True,
+                "def_fill_level": 0.50,
+            },
+            headers=auth_headers,
+        )
+        assert response.status_code == 201
+        fuel_record = response.json()
+
+        # Check DEF records for this vehicle
+        def_response = await client.get(
+            f"/api/vehicles/{vin}/def",
+            headers=auth_headers,
+        )
+        assert def_response.status_code == 200
+        def_data = def_response.json()
+
+        # Find the auto-synced DEF record
+        auto_records = [r for r in def_data["records"] if r.get("entry_type") == "auto_fuel_sync"]
+        assert len(auto_records) >= 1
+
+        synced = auto_records[-1]
+        assert synced["origin_fuel_record_id"] == fuel_record["id"]
+        assert float(synced["fill_level"]) == pytest.approx(0.50, abs=0.01)
+        assert synced["mileage"] == 60000
+        assert synced["date"] == "2024-08-01"
+
+    async def test_create_fuel_without_def_no_def_record(
+        self, client: AsyncClient, auth_headers, test_vehicle
+    ):
+        """Test that creating a fuel record without def_fill_level does NOT create a DEF record."""
+        vin = test_vehicle["vin"]
+
+        # Get initial DEF record count
+        initial_def = await client.get(
+            f"/api/vehicles/{vin}/def",
+            headers=auth_headers,
+        )
+        initial_count = initial_def.json()["total"]
+
+        # Create fuel record WITHOUT DEF level
+        response = await client.post(
+            f"/api/vehicles/{vin}/fuel",
+            json={
+                "vin": vin,
+                "date": "2024-08-05",
+                "gallons": 12.0,
+                "cost": 43.20,
+                "mileage": 60500,
+                "is_full_tank": True,
+            },
+            headers=auth_headers,
+        )
+        assert response.status_code == 201
+
+        # DEF record count should not change
+        after_def = await client.get(
+            f"/api/vehicles/{vin}/def",
+            headers=auth_headers,
+        )
+        assert after_def.json()["total"] == initial_count
+
+    async def test_update_fuel_def_updates_linked_record(
+        self, client: AsyncClient, auth_headers, test_vehicle
+    ):
+        """Test that updating def_fill_level on a fuel record updates the linked DEF record."""
+        vin = test_vehicle["vin"]
+
+        # Create fuel record with DEF level
+        create_resp = await client.post(
+            f"/api/vehicles/{vin}/fuel",
+            json={
+                "vin": vin,
+                "date": "2024-09-01",
+                "gallons": 14.0,
+                "cost": 50.00,
+                "mileage": 62000,
+                "is_full_tank": True,
+                "def_fill_level": 0.75,
+            },
+            headers=auth_headers,
+        )
+        assert create_resp.status_code == 201
+        fuel_id = create_resp.json()["id"]
+
+        # Update the fuel record with a new DEF level
+        update_resp = await client.put(
+            f"/api/vehicles/{vin}/fuel/{fuel_id}",
+            json={
+                "def_fill_level": 0.25,
+            },
+            headers=auth_headers,
+        )
+        assert update_resp.status_code == 200
+
+        # Verify the linked DEF record was updated
+        def_response = await client.get(
+            f"/api/vehicles/{vin}/def",
+            headers=auth_headers,
+        )
+        auto_records = [
+            r for r in def_response.json()["records"] if r.get("origin_fuel_record_id") == fuel_id
+        ]
+        assert len(auto_records) == 1
+        assert float(auto_records[0]["fill_level"]) == pytest.approx(0.25, abs=0.01)
+
+    async def test_update_fuel_clear_def_removes_linked_record(
+        self, client: AsyncClient, auth_headers, test_vehicle
+    ):
+        """Test that setting def_fill_level to null removes the linked DEF record."""
+        vin = test_vehicle["vin"]
+
+        # Create fuel record with DEF level
+        create_resp = await client.post(
+            f"/api/vehicles/{vin}/fuel",
+            json={
+                "vin": vin,
+                "date": "2024-10-01",
+                "gallons": 13.0,
+                "cost": 47.00,
+                "mileage": 64000,
+                "is_full_tank": True,
+                "def_fill_level": 0.60,
+            },
+            headers=auth_headers,
+        )
+        assert create_resp.status_code == 201
+        fuel_id = create_resp.json()["id"]
+
+        # Verify DEF record exists
+        def_response = await client.get(
+            f"/api/vehicles/{vin}/def",
+            headers=auth_headers,
+        )
+        linked = [
+            r for r in def_response.json()["records"] if r.get("origin_fuel_record_id") == fuel_id
+        ]
+        assert len(linked) == 1
+
+        # Update fuel record with null DEF level (clear it)
+        update_resp = await client.put(
+            f"/api/vehicles/{vin}/fuel/{fuel_id}",
+            json={
+                "def_fill_level": None,
+            },
+            headers=auth_headers,
+        )
+        assert update_resp.status_code == 200
+
+        # Verify DEF record was removed
+        def_after = await client.get(
+            f"/api/vehicles/{vin}/def",
+            headers=auth_headers,
+        )
+        linked_after = [
+            r for r in def_after.json()["records"] if r.get("origin_fuel_record_id") == fuel_id
+        ]
+        assert len(linked_after) == 0
+
+    async def test_delete_fuel_cascades_def_record(
+        self, client: AsyncClient, auth_headers, test_vehicle
+    ):
+        """Test that deleting a fuel record also removes the linked DEF record."""
+        vin = test_vehicle["vin"]
+
+        # Create fuel record with DEF level
+        create_resp = await client.post(
+            f"/api/vehicles/{vin}/fuel",
+            json={
+                "vin": vin,
+                "date": "2024-11-01",
+                "gallons": 16.0,
+                "cost": 58.00,
+                "mileage": 66000,
+                "is_full_tank": True,
+                "def_fill_level": 0.80,
+            },
+            headers=auth_headers,
+        )
+        assert create_resp.status_code == 201
+        fuel_id = create_resp.json()["id"]
+
+        # Verify DEF record exists
+        def_response = await client.get(
+            f"/api/vehicles/{vin}/def",
+            headers=auth_headers,
+        )
+        linked = [
+            r for r in def_response.json()["records"] if r.get("origin_fuel_record_id") == fuel_id
+        ]
+        assert len(linked) == 1
+
+        # Delete the fuel record
+        del_resp = await client.delete(
+            f"/api/vehicles/{vin}/fuel/{fuel_id}",
+            headers=auth_headers,
+        )
+        assert del_resp.status_code == 204
+
+        # Verify DEF record was also deleted
+        def_after = await client.get(
+            f"/api/vehicles/{vin}/def",
+            headers=auth_headers,
+        )
+        linked_after = [
+            r for r in def_after.json()["records"] if r.get("origin_fuel_record_id") == fuel_id
+        ]
+        assert len(linked_after) == 0
+
+    async def test_def_response_includes_entry_type(
+        self, client: AsyncClient, auth_headers, test_vehicle
+    ):
+        """Test that DEF records include entry_type and origin_fuel_record_id in response."""
+        vin = test_vehicle["vin"]
+
+        # Create a manual DEF record (purchase)
+        manual_resp = await client.post(
+            f"/api/vehicles/{vin}/def",
+            json={
+                "vin": vin,
+                "date": "2024-12-01",
+                "gallons": 2.5,
+                "cost": 15.00,
+                "fill_level": 1.0,
+            },
+            headers=auth_headers,
+        )
+        assert manual_resp.status_code == 201
+        manual_data = manual_resp.json()
+        assert manual_data["entry_type"] == "purchase"
+        assert manual_data["origin_fuel_record_id"] is None
+
+        # Create a fuel record with DEF → auto-synced DEF record
+        fuel_resp = await client.post(
+            f"/api/vehicles/{vin}/fuel",
+            json={
+                "vin": vin,
+                "date": "2024-12-15",
+                "gallons": 14.0,
+                "cost": 50.00,
+                "mileage": 68000,
+                "is_full_tank": True,
+                "def_fill_level": 0.50,
+            },
+            headers=auth_headers,
+        )
+        assert fuel_resp.status_code == 201
+        fuel_id = fuel_resp.json()["id"]
+
+        # Verify the auto-synced record has correct entry_type
+        def_response = await client.get(
+            f"/api/vehicles/{vin}/def",
+            headers=auth_headers,
+        )
+        auto_records = [
+            r for r in def_response.json()["records"] if r.get("origin_fuel_record_id") == fuel_id
+        ]
+        assert len(auto_records) == 1
+        assert auto_records[0]["entry_type"] == "auto_fuel_sync"

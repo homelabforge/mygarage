@@ -27,6 +27,7 @@ export const fuelRecordSchema = z.object({
   missed_fillup: z.boolean(),
   is_hauling: z.boolean(),
   notes: notesSchema.optional(),
+  def_fill_level: z.coerce.number().min(0).max(100).optional(),
 })
 
 // Export both input and output types for Zod v4 zodResolver compatibility

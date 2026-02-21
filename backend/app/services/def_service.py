@@ -317,14 +317,13 @@ class DEFRecordService:
                 last_fill_level = r.fill_level
                 break
 
-        # Average purchase frequency
+        # Average purchase frequency (only count actual purchases, not auto-synced observations)
         avg_purchase_frequency_days: int | None = None
-        if record_count >= 2:
-            dated_records = [r for r in records if r.date is not None]
-            if len(dated_records) >= 2:
-                total_days = (dated_records[-1].date - dated_records[0].date).days
-                if total_days > 0:
-                    avg_purchase_frequency_days = total_days // (len(dated_records) - 1)
+        purchase_records = [r for r in records if r.date is not None and r.entry_type == "purchase"]
+        if len(purchase_records) >= 2:
+            total_days = (purchase_records[-1].date - purchase_records[0].date).days
+            if total_days > 0:
+                avg_purchase_frequency_days = total_days // (len(purchase_records) - 1)
 
         # Consumption rate: gallons per 1000 miles
         # Requires minimum 3 records with mileage, and span > 500 miles

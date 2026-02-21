@@ -258,6 +258,7 @@ export default function DEFRecordList({ vin }: DEFRecordListProps) {
               <thead className="bg-garage-bg border-b border-garage-border">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium text-garage-text-muted uppercase">Date</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-garage-text-muted uppercase">Type</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-garage-text-muted uppercase">Mileage</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-garage-text-muted uppercase">Gallons</th>
                   <th className="px-4 py-3 text-center text-xs font-medium text-garage-text-muted uppercase">Fill Level</th>
@@ -274,6 +275,17 @@ export default function DEFRecordList({ vin }: DEFRecordListProps) {
                     <tr key={record.id} className="hover:bg-garage-bg transition-colors">
                       <td className="px-4 py-3 text-sm text-garage-text">
                         {formatDateForDisplay(record.date)}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-center">
+                        {record.entry_type === 'auto_fuel_sync' ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-primary/15 text-primary">
+                            Auto
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-success/15 text-success">
+                            Purchase
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-sm text-garage-text text-right">
                         {record.mileage?.toLocaleString() || '-'}
@@ -297,10 +309,10 @@ export default function DEFRecordList({ vin }: DEFRecordListProps) {
                         ) : '-'}
                       </td>
                       <td className="px-4 py-3 text-sm text-garage-text-muted">
-                        {record.source || '-'}
+                        {record.entry_type === 'auto_fuel_sync' ? '\u2014' : (record.source || '-')}
                       </td>
                       <td className="px-4 py-3 text-sm text-garage-text-muted">
-                        {record.brand || '-'}
+                        {record.entry_type === 'auto_fuel_sync' ? '\u2014' : (record.brand || '-')}
                       </td>
                       <td className="px-4 py-3 text-sm text-garage-text text-right font-semibold">
                         {formatCurrency(record.cost)}

@@ -39,6 +39,7 @@ export interface FuelRecordCreate {
   missed_fillup: boolean
   is_hauling: boolean
   notes?: string
+  def_fill_level?: number
 }
 
 export interface FuelRecordUpdate {
@@ -56,6 +57,7 @@ export interface FuelRecordUpdate {
   missed_fillup?: boolean
   is_hauling?: boolean
   notes?: string
+  def_fill_level?: number | null
 }
 
 export interface FuelRecordListResponse {

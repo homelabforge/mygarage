@@ -15,6 +15,7 @@ from app.models.fuel import FuelRecord
 from app.models.user import User
 from app.schemas.fuel import FuelRecordCreate, FuelRecordResponse, FuelRecordUpdate
 from app.utils.cache import cached, invalidate_cache_for_vehicle
+from app.utils.def_sync import sync_def_from_fuel_record
 from app.utils.logging_utils import sanitize_for_log
 from app.utils.odometer_sync import sync_odometer_from_record
 
@@ -292,11 +293,14 @@ class FuelRecordService:
 
         try:
             # Check vehicle ownership (raises 403 if unauthorized)
-            _ = await get_vehicle_or_403(vin, current_user, self.db)
+            _ = await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
 
             # Create fuel record
             record_dict = record_data.model_dump()
             record_dict["vin"] = vin
+
+            # Pop DEF fill level before creating FuelRecord (not a fuel table column)
+            def_fill_level = record_dict.pop("def_fill_level", None)
 
             # Auto-calculate propane_gallons if tank data provided but gallons not
             if (
@@ -347,7 +351,24 @@ class FuelRecordService:
                         record.id,
                         sanitize_for_log(e),
                     )
-                    # Don't fail the request if odometer sync fails
+
+            # Auto-sync DEF observation if fill level provided
+            if def_fill_level is not None:
+                try:
+                    await sync_def_from_fuel_record(
+                        db=self.db,
+                        vin=vin,
+                        date=record.date,
+                        mileage=record.mileage,
+                        fill_level=def_fill_level,
+                        fuel_record_id=record.id,
+                    )
+                except Exception as e:
+                    logger.warning(
+                        "Failed to auto-sync DEF for fuel record %s: %s",
+                        record.id,
+                        sanitize_for_log(e),
+                    )
 
             # Invalidate analytics cache for this vehicle
             await invalidate_cache_for_vehicle(vin)
@@ -401,7 +422,7 @@ class FuelRecordService:
 
         try:
             # Check vehicle ownership (raises 403 if unauthorized)
-            await get_vehicle_or_403(vin, current_user, self.db)
+            await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
 
             # Get existing record
             result = await self.db.execute(
@@ -414,6 +435,10 @@ class FuelRecordService:
 
             # Update fields
             update_data = record_data.model_dump(exclude_unset=True)
+
+            # Pop DEF fill level before applying to FuelRecord (not a fuel table column)
+            def_fill_level = update_data.pop("def_fill_level", None)
+            def_fill_level_was_sent = "def_fill_level" in record_data.model_fields_set
 
             # Auto-calculate propane_gallons if tank data provided/updated but gallons not
             if (
@@ -461,7 +486,34 @@ class FuelRecordService:
                         record_id,
                         sanitize_for_log(e),
                     )
-                    # Don't fail the request if odometer sync fails
+
+            # Auto-sync DEF observation based on what was sent
+            if def_fill_level_was_sent:
+                try:
+                    if def_fill_level is not None:
+                        # Value provided — create or update linked DEF record
+                        await sync_def_from_fuel_record(
+                            db=self.db,
+                            vin=vin,
+                            date=record.date,
+                            mileage=record.mileage,
+                            fill_level=def_fill_level,
+                            fuel_record_id=record.id,
+                        )
+                    else:
+                        # Explicitly sent as null — remove linked DEF record
+                        from app.models.def_record import DEFRecord
+
+                        await self.db.execute(
+                            delete(DEFRecord).where(DEFRecord.origin_fuel_record_id == record_id)
+                        )
+                        await self.db.commit()
+                except Exception as e:
+                    logger.warning(
+                        "Failed to auto-sync DEF for fuel record %s: %s",
+                        record_id,
+                        sanitize_for_log(e),
+                    )
 
             # Invalidate analytics cache for this vehicle
             await invalidate_cache_for_vehicle(vin)
@@ -507,7 +559,7 @@ class FuelRecordService:
 
         try:
             # Check vehicle ownership (raises 403 if unauthorized)
-            await get_vehicle_or_403(vin, current_user, self.db)
+            await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
 
             # Check if record exists
             result = await self.db.execute(
@@ -518,7 +570,14 @@ class FuelRecordService:
             if not record:
                 raise HTTPException(status_code=404, detail=f"Fuel record {record_id} not found")
 
-            # Delete record
+            # Delete linked DEF record first (same transaction for atomicity)
+            from app.models.def_record import DEFRecord
+
+            await self.db.execute(
+                delete(DEFRecord).where(DEFRecord.origin_fuel_record_id == record_id)
+            )
+
+            # Delete fuel record
             await self.db.execute(
                 delete(FuelRecord).where(FuelRecord.id == record_id).where(FuelRecord.vin == vin)
             )

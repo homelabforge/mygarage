@@ -81,6 +81,8 @@ class DEFRecordResponse(DEFRecordBase):
     id: int
     vin: str
     created_at: datetime
+    entry_type: str = "purchase"
+    origin_fuel_record_id: int | None = None
 
     model_config = {
         "from_attributes": True,

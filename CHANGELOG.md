@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- DEF level auto-sync from fuel records — note DEF gauge level on fuel fill-ups to auto-create DEF observation records
+
+### Fixed
+- Fuel service write permission checks (added `require_write=True` to create/update/delete)
+
+### Dev Dependencies
+- **@tailwindcss/vite**: 4.1.18 → 4.2.0
+- **@typescript-eslint/eslint-plugin**: 8.55.0 → 8.56.0
+- **@typescript-eslint/parser**: 8.55.0 → 8.56.0
+- **eslint**: 10.0.0 → 10.0.1
+- **jsdom**: 28.0.0 → 28.1.0
+- **ruff**: 0.15.1 → 0.15.2
+- **tailwindcss**: 4.1.18 → 4.2.0
+- **typescript-eslint**: 8.55.0 → 8.56.0
+
+### App Dependencies
+- **fastapi**: 0.129.0 → 0.129.2
+- **lucide-react**: 0.564.0 → 0.575.0
+- **pandas**: 3.0.0 → 3.0.1
+- **pillow-heif**: 1.2.0 → 1.2.1
+- **pydantic-settings**: 2.12.0 → 2.13.1
+- **react-hook-form**: 7.71.1 → 7.71.2
+
 ## [2.21.1] - 2026-02-14
 
 ### Dockerfile Dependencies
