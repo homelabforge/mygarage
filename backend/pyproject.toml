@@ -34,6 +34,7 @@ dependencies = [
     "aiosmtplib>=5.1.0",  # Async SMTP for email notifications
     "pyyaml>=6.0.3",  # YAML parsing for maintenance templates
     "aiomqtt>=2.5.0",  # Async MQTT client for LiveLink WiCAN support
+    "matplotlib>=3.10.0",  # Chart generation for PDF analytics reports
 ]
 
 [project.optional-dependencies]

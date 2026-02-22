@@ -157,8 +157,29 @@ class TestAnalyticsEndpoints:
         assert response.headers["content-type"] == "application/pdf"
         assert "attachment" in response.headers.get("content-disposition", "")
 
-        # Check that PDF has content
-        assert len(response.content) > 0
+        # Validate PDF magic bytes and content
+        assert response.content[:5] == b"%PDF-"
+        assert len(response.content) > 100
+
+    async def test_export_garage_analytics_pdf(
+        self,
+        client: AsyncClient,
+        vehicle_with_analytics_data: Vehicle,
+        auth_headers: dict,
+    ):
+        """Test garage-wide PDF export endpoint."""
+        response = await client.get(
+            "/api/analytics/garage/export",
+            headers=auth_headers,
+        )
+
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "application/pdf"
+        assert "attachment" in response.headers.get("content-disposition", "")
+
+        # Validate PDF magic bytes and content
+        assert response.content[:5] == b"%PDF-"
+        assert len(response.content) > 100
 
     async def test_garage_analytics(self, client: AsyncClient, test_user: User, auth_headers: dict):
         """Test garage-wide analytics endpoint."""

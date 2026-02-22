@@ -9,9 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - DEF level auto-sync from fuel records — note DEF gauge level on fuel fill-ups to auto-create DEF observation records
+- **Redesigned Analytics PDF Reports** — branded layout with charts, KPI cards, and visual hierarchy replacing plain table-only reports
+  - Vehicle report: monthly spending bar chart, service cost donut chart, vendor analysis, seasonal spending cards, cost projections
+  - Garage report: cost breakdown donut, vehicle cost comparison table, monthly trends chart
+  - Bundled DM Sans + JetBrains Mono fonts with graceful fallbacks
+  - Added `matplotlib` dependency for chart generation
 
 ### Fixed
 - Fuel service write permission checks (added `require_write=True` to create/update/delete)
+- Garage PDF export now uses `model_dump()` — fixes missing `total_upgrades`, `total_inspection`, `total_collision`, `total_detailing`, `total_def` fields
 
 ### Dev Dependencies
 - **@tailwindcss/vite**: 4.1.18 → 4.2.0

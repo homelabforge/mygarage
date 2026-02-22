@@ -999,7 +999,7 @@ async def export_garage_analytics_pdf(
     """
     Export garage analytics as PDF report.
     """
-    from app.utils.pdf_generator import PDFReportGenerator
+    from app.utils.pdf_garage_report import generate_garage_analytics_pdf
 
     # Get garage analytics first
     garage_data = await get_garage_analytics(db, current_user)
@@ -1007,46 +1007,8 @@ async def export_garage_analytics_pdf(
     if garage_data.vehicle_count == 0:
         raise HTTPException(status_code=404, detail="No vehicles found in garage")
 
-    # Convert Pydantic model to dict for PDF generator
-    garage_dict = {
-        "vehicle_count": garage_data.vehicle_count,
-        "total_costs": {
-            "total_garage_value": str(garage_data.total_costs.total_garage_value),
-            "total_maintenance": str(garage_data.total_costs.total_maintenance),
-            "total_fuel": str(garage_data.total_costs.total_fuel),
-            "total_insurance": str(garage_data.total_costs.total_insurance),
-            "total_taxes": str(garage_data.total_costs.total_taxes),
-        },
-        "cost_breakdown_by_category": [
-            {
-                "category": cat.category,
-                "amount": str(cat.amount),
-            }
-            for cat in garage_data.cost_breakdown_by_category
-        ],
-        "cost_by_vehicle": [
-            {
-                "name": v.name,
-                "purchase_price": str(v.purchase_price),
-                "total_maintenance": str(v.total_maintenance),
-                "total_fuel": str(v.total_fuel),
-                "total_cost": str(v.total_cost),
-            }
-            for v in garage_data.cost_by_vehicle
-        ],
-        "monthly_trends": [
-            {
-                "month": t.month,
-                "service": str(t.service),
-                "fuel": str(t.fuel),
-            }
-            for t in garage_data.monthly_trends
-        ],
-    }
-
-    # Generate PDF
-    pdf_generator = PDFReportGenerator()
-    pdf_buffer = pdf_generator.generate_garage_analytics_pdf(garage_dict)
+    # Use model_dump() to pass all fields through (fixes data flow bug)
+    pdf_buffer = generate_garage_analytics_pdf(garage_data.model_dump())
 
     # Return as file download
     return StreamingResponse(
@@ -1369,7 +1331,7 @@ async def export_analytics_pdf(
     """
     from fastapi.responses import StreamingResponse
 
-    from app.utils.pdf_generator import PDFReportGenerator
+    from app.utils.pdf_vehicle_report import generate_vehicle_analytics_pdf
 
     # Verify vehicle access
     vehicle = await get_vehicle_or_403(vin, current_user, db)
@@ -1400,8 +1362,7 @@ async def export_analytics_pdf(
     analytics_data = analytics.model_dump()
 
     # Generate PDF
-    pdf_generator = PDFReportGenerator()
-    pdf_buffer = pdf_generator.generate_analytics_pdf(
+    pdf_buffer = generate_vehicle_analytics_pdf(
         analytics_data=analytics_data,
         vendor_data=vendor_data,
         seasonal_data=seasonal_data,
