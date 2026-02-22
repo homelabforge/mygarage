@@ -1,16 +1,37 @@
 /**
- * Family Member Card - Collapsible card showing member's vehicles and reminders
+ * Family Member Card - Collapsible card showing member's vehicles and reminders.
+ * Optionally shows admin action icons when showActions is true.
  */
 
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ChevronDown, ChevronRight, Car, AlertTriangle, Bell, User } from 'lucide-react'
+import {
+  ChevronDown, ChevronRight, ChevronUp, Car, AlertTriangle, Bell, User,
+  Eye, EyeOff, Edit, Key, Power, PowerOff, Trash2,
+} from 'lucide-react'
 import type { FamilyMemberData, FamilyVehicleSummary } from '@/types/family'
+import type { User as UserType } from '@/types/user'
 import { formatRelationship } from '@/types/family'
 
 interface FamilyMemberCardProps {
   member: FamilyMemberData
   defaultExpanded?: boolean
+  // Admin management (all optional, backward compatible)
+  user?: UserType
+  currentUserId?: number
+  activeAdminCount?: number
+  showActions?: boolean
+  isUpdating?: boolean
+  membersLoaded?: boolean
+  onEdit?: () => void
+  onDelete?: () => void
+  onToggleActive?: () => void
+  onToggleDashboard?: () => void
+  onResetPassword?: () => void
+  onMoveUp?: () => void
+  onMoveDown?: () => void
+  canMoveUp?: boolean
+  canMoveDown?: boolean
 }
 
 function VehicleSummaryRow({ vehicle }: { vehicle: FamilyVehicleSummary }) {
@@ -81,18 +102,59 @@ function VehicleSummaryRow({ vehicle }: { vehicle: FamilyVehicleSummary }) {
   )
 }
 
-export default function FamilyMemberCard({ member, defaultExpanded = false }: FamilyMemberCardProps) {
+export default function FamilyMemberCard({
+  member,
+  defaultExpanded = false,
+  user,
+  currentUserId,
+  activeAdminCount,
+  showActions = false,
+  isUpdating = false,
+  membersLoaded = true,
+  onEdit,
+  onDelete,
+  onToggleActive,
+  onToggleDashboard,
+  onResetPassword,
+  onMoveUp,
+  onMoveDown,
+  canMoveUp = false,
+  canMoveDown = false,
+}: FamilyMemberCardProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded)
 
   const displayName = member.full_name || member.username
   const relationshipLabel = formatRelationship(member.relationship, member.relationship_custom)
 
+  const isOidc = user?.auth_method === 'oidc'
+  const isInactive = user ? !user.is_active : false
+  const isSelf = user ? user.id === currentUserId : false
+  const isLastAdmin = user ? (user.is_admin && user.is_active && (activeAdminCount ?? 0) === 1) : false
+
+  // Permission matrix
+  const canToggleDashboard = showActions && !isInactive && membersLoaded && !!onToggleDashboard
+  const canEdit = showActions && !!onEdit
+  const canResetPassword = showActions && !isOidc && !isInactive && !!onResetPassword
+  const canToggleActive = showActions && !isOidc && !isLastAdmin && !!onToggleActive
+  const canDeleteUser = showActions && !isOidc && !isSelf && !!onDelete
+  const canReorder = showActions && !isInactive && membersLoaded && !!(onMoveUp || onMoveDown)
+
+  const handleHeaderKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      setIsExpanded(!isExpanded)
+    }
+  }
+
   return (
-    <div className="bg-garage-surface border border-garage-border rounded-lg overflow-hidden">
+    <div className={`bg-garage-surface border border-garage-border rounded-lg overflow-hidden ${isInactive ? 'opacity-60' : ''}`}>
       {/* Header */}
-      <button
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full flex items-center gap-4 p-4 hover:bg-garage-bg transition-colors"
+        onKeyDown={handleHeaderKeyDown}
+        className="w-full flex items-center gap-4 p-4 hover:bg-garage-bg transition-colors cursor-pointer"
       >
         {/* Expand Icon */}
         <div className="flex-shrink-0">
@@ -109,12 +171,27 @@ export default function FamilyMemberCard({ member, defaultExpanded = false }: Fa
         </div>
 
         {/* Member Info */}
-        <div className="flex-1 text-left">
-          <div className="flex items-center gap-2">
-            <p className="font-semibold text-garage-text">{displayName}</p>
+        <div className="flex-1 text-left min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="font-semibold text-garage-text truncate">{displayName}</p>
             {relationshipLabel && (
               <span className="px-2 py-0.5 text-xs bg-info/20 text-info rounded">
                 {relationshipLabel}
+              </span>
+            )}
+            {showActions && user?.is_admin && (
+              <span className="px-2 py-0.5 text-xs bg-primary/20 text-primary rounded">
+                Admin
+              </span>
+            )}
+            {showActions && isOidc && (
+              <span className="px-2 py-0.5 text-xs bg-warning/20 text-warning rounded">
+                OIDC
+              </span>
+            )}
+            {showActions && isInactive && (
+              <span className="px-2 py-0.5 text-xs bg-danger/20 text-danger rounded">
+                Inactive
               </span>
             )}
           </div>
@@ -122,22 +199,17 @@ export default function FamilyMemberCard({ member, defaultExpanded = false }: Fa
         </div>
 
         {/* Stats */}
-        <div className="flex items-center gap-4">
-          {/* Vehicle Count */}
+        <div className="flex items-center gap-4 flex-shrink-0">
           <div className="flex items-center gap-1.5 text-garage-text-muted">
             <Car className="w-4 h-4" />
             <span className="text-sm">{member.vehicle_count}</span>
           </div>
-
-          {/* Upcoming Reminders */}
           {member.upcoming_reminders > 0 && (
             <div className="flex items-center gap-1.5 text-info">
               <Bell className="w-4 h-4" />
               <span className="text-sm">{member.upcoming_reminders}</span>
             </div>
           )}
-
-          {/* Overdue Reminders */}
           {member.overdue_reminders > 0 && (
             <div className="flex items-center gap-1.5 text-danger">
               <AlertTriangle className="w-4 h-4" />
@@ -145,7 +217,113 @@ export default function FamilyMemberCard({ member, defaultExpanded = false }: Fa
             </div>
           )}
         </div>
-      </button>
+
+        {/* Action Icons */}
+        {showActions && (
+          <div className="flex items-center gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
+            {/* Dashboard Visibility */}
+            {canToggleDashboard && (
+              <button
+                type="button"
+                onClick={() => onToggleDashboard!()}
+                disabled={isUpdating}
+                className={`p-1.5 rounded transition-colors disabled:opacity-50 ${
+                  member.show_on_family_dashboard
+                    ? 'bg-success/20 hover:bg-success/30'
+                    : 'hover:bg-garage-border'
+                }`}
+                title={member.show_on_family_dashboard ? 'Hide from dashboard' : 'Show on dashboard'}
+              >
+                {member.show_on_family_dashboard ? (
+                  <Eye className="w-4 h-4 text-success" />
+                ) : (
+                  <EyeOff className="w-4 h-4 text-garage-text-muted" />
+                )}
+              </button>
+            )}
+
+            {/* Edit */}
+            {canEdit && (
+              <button
+                type="button"
+                onClick={() => onEdit!()}
+                disabled={isUpdating}
+                className="p-1.5 hover:bg-garage-border rounded transition-colors disabled:opacity-50"
+                title="Edit user"
+              >
+                <Edit className="w-4 h-4 text-garage-text-muted" />
+              </button>
+            )}
+
+            {/* Reset Password (local auth only, active only) */}
+            {canResetPassword && (
+              <button
+                type="button"
+                onClick={() => onResetPassword!()}
+                disabled={isUpdating}
+                className="p-1.5 hover:bg-garage-border rounded transition-colors disabled:opacity-50"
+                title="Reset password"
+              >
+                <Key className="w-4 h-4 text-garage-text-muted" />
+              </button>
+            )}
+
+            {/* Toggle Active (not OIDC, not last admin) */}
+            {canToggleActive && (
+              <button
+                type="button"
+                onClick={() => onToggleActive!()}
+                disabled={isUpdating}
+                className="p-1.5 hover:bg-garage-border rounded transition-colors disabled:opacity-50"
+                title={isInactive ? 'Enable user' : 'Disable user'}
+              >
+                {isInactive ? (
+                  <Power className="w-4 h-4 text-garage-text-muted" />
+                ) : (
+                  <PowerOff className="w-4 h-4 text-garage-text-muted" />
+                )}
+              </button>
+            )}
+
+            {/* Delete (not OIDC, not self) */}
+            {canDeleteUser && (
+              <button
+                type="button"
+                onClick={() => onDelete!()}
+                disabled={isUpdating}
+                className="p-1.5 hover:bg-danger/20 rounded transition-colors disabled:opacity-50"
+                title="Delete user"
+              >
+                <Trash2 className="w-4 h-4 text-danger" />
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Reorder Arrows */}
+        {canReorder && (
+          <div className="flex flex-col gap-0.5 flex-shrink-0" onClick={e => e.stopPropagation()}>
+            <button
+              type="button"
+              onClick={() => onMoveUp?.()}
+              disabled={!canMoveUp || isUpdating}
+              className="p-1 hover:bg-garage-border rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              title="Move up"
+            >
+              <ChevronUp className="w-4 h-4 text-garage-text-muted" />
+            </button>
+            <button
+              type="button"
+              onClick={() => onMoveDown?.()}
+              disabled={!canMoveDown || isUpdating}
+              className="p-1 hover:bg-garage-border rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              title="Move down"
+            >
+              <ChevronDown className="w-4 h-4 text-garage-text-muted" />
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* Expanded Content */}
       {isExpanded && (

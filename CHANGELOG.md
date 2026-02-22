@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Simplified top nav from 7 items to 5 — VIN Decoder moved to About page modal, Family merged into Settings
+- Unified Family Management into a single view with inline action icons on member cards (replaces 3-tab layout + separate Manage Members modal)
+- OIDC users restricted to role and relationship edits only in the user edit modal
+
+### Removed
+- Standalone Family Dashboard page (redirects to Settings)
+- FamilyDashboardManageModal (functionality merged into FamilyManagementModal)
+
 ## [2.21.2] - 2026-02-22
 
 ### Added

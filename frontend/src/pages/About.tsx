@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import {
   Car,
   Shield,
@@ -7,11 +8,14 @@ import {
   Bell,
   CheckCircle,
   ExternalLink,
+  Search,
 } from 'lucide-react'
 import { useAppVersion } from '../hooks/useAppVersion'
+import VINDecoderModal from '../components/modals/VINDecoderModal'
 
 export default function About() {
   const version = useAppVersion()
+  const [showVINDecoder, setShowVINDecoder] = useState(false)
 
   return (
     <div className="min-h-screen bg-garage-bg">
@@ -167,7 +171,7 @@ export default function About() {
         {/* Links */}
         <div className="bg-garage-surface rounded-lg border border-garage-border p-6">
           <h2 className="text-2xl font-bold text-garage-text mb-4">Learn More</h2>
-          <div className="flex flex-col sm:flex-row gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <a
               href="https://homelabforge.io/builds/mygarage"
               target="_blank"
@@ -186,8 +190,30 @@ export default function About() {
               <ExternalLink className="w-4 h-4" />
               GitHub Repository
             </a>
+            <a
+              href="https://www.nhtsa.gov/recalls"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-primary flex items-center gap-2"
+            >
+              <ExternalLink className="w-4 h-4" />
+              NHTSA VIN Search
+            </a>
+            <button
+              onClick={() => setShowVINDecoder(true)}
+              className="btn btn-primary flex items-center gap-2"
+            >
+              <Search className="w-4 h-4" />
+              VIN Decoder
+            </button>
           </div>
         </div>
+
+        {/* VIN Decoder Modal */}
+        <VINDecoderModal
+          isOpen={showVINDecoder}
+          onClose={() => setShowVINDecoder(false)}
+        />
 
         {/* Footer */}
         <div className="text-center pt-8 pb-8 border-t border-garage-border">

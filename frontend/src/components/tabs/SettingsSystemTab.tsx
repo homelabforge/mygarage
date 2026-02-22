@@ -4,14 +4,10 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useSettings } from '@/contexts/SettingsContext'
 import { useTheme } from '@/contexts/ThemeContext'
 import type { DashboardResponse } from '@/types/dashboard'
-import type { User } from '@/types/user'
 import api from '@/services/api'
 import { toast } from 'sonner'
-import UserManagementModal from '@/components/modals/UserManagementModal'
-import AddEditUserModal from '@/components/modals/AddEditUserModal'
-import DeleteUserModal from '@/components/modals/DeleteUserModal'
-import LocalAuthModal from '@/components/modals/LocalAuthModal'
 import OIDCModal from '@/components/modals/OIDCModal'
+import FamilyManagementModal from '@/components/modals/FamilyManagementModal'
 import ArchivedVehiclesList from '@/components/ArchivedVehiclesList'
 
 type RawSetting = {
@@ -39,25 +35,15 @@ export default function SettingsSystemTab() {
     oidc_username_claim: 'preferred_username',
     oidc_email_claim: 'email',
     oidc_full_name_claim: 'name',
-    multi_user_enabled: 'false',
   })
   const [loadedFormData, setLoadedFormData] = useState<typeof formData | null>(null)
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
-  const [showUserManagement, setShowUserManagement] = useState(false)
-  const [userCount, setUserCount] = useState(0)
   const [authenticatorDetected, setAuthenticatorDetected] = useState<boolean | null>(null)
   const [authEverEnabled, setAuthEverEnabled] = useState(false)
   const [dashboardStats, setDashboardStats] = useState<DashboardResponse | null>(null)
 
-  // Multi-user management state
-  const [users, setUsers] = useState<User[]>([])
-  const [showAddUserModal, setShowAddUserModal] = useState(false)
-  const [showEditUserModal, setShowEditUserModal] = useState(false)
-  const [showDeleteUserModal, setShowDeleteUserModal] = useState(false)
-  const [selectedUser, setSelectedUser] = useState<User | null>(null)
-
-  // Auth modal state
-  const [showLocalAuthModal, setShowLocalAuthModal] = useState(false)
+  // Modal state
+  const [showFamilyManagement, setShowFamilyManagement] = useState(false)
   const [showOIDCModal, setShowOIDCModal] = useState(false)
 
   // Unit preference state
@@ -116,7 +102,6 @@ export default function SettingsSystemTab() {
         oidc_username_claim: settingsMap.oidc_username_claim || 'preferred_username',
         oidc_email_claim: settingsMap.oidc_email_claim || 'email',
         oidc_full_name_claim: settingsMap.oidc_full_name_claim || 'name',
-        multi_user_enabled: settingsMap.multi_user_enabled || 'false',
       }
       setFormData(newFormData)
       setLoadedFormData(newFormData)
@@ -125,7 +110,6 @@ export default function SettingsSystemTab() {
       try {
         const countResponse = await api.get('/auth/users/count')
         const countData = countResponse.data
-        setUserCount(countData.count || 0)
         setAuthEverEnabled(countData.count > 0)
       } catch {
         setAuthEverEnabled(false)
@@ -166,25 +150,6 @@ export default function SettingsSystemTab() {
     }
     loadDashboardStats()
   }, [])
-
-  // Load users when multi-user is enabled
-  const loadUsers = useCallback(async () => {
-    if (formData.multi_user_enabled !== 'true') return
-
-    try {
-      const response = await api.get('/auth/users')
-      setUsers(response.data)
-      setUserCount(response.data.length)
-    } catch (error) {
-      console.error('Failed to load users:', error)
-    }
-  }, [formData.multi_user_enabled])
-
-  useEffect(() => {
-    if (formData.multi_user_enabled === 'true') {
-      void loadUsers()
-    }
-  }, [formData.multi_user_enabled, loadUsers])
 
   // Detect reverse proxy authenticators
   useEffect(() => {
@@ -285,61 +250,6 @@ export default function SettingsSystemTab() {
     }
   }
 
-  // User management handlers
-  const handleEditUser = (user: User) => {
-    setSelectedUser(user)
-    setShowEditUserModal(true)
-  }
-
-  const handleDeleteUser = (user: User) => {
-    if (user.id === currentUser?.id) {
-      toast.error('You cannot delete your own account')
-      return
-    }
-    setSelectedUser(user)
-    setShowDeleteUserModal(true)
-  }
-
-  const handleResetPassword = (user: User) => {
-    if (user.auth_method === 'oidc') {
-      toast.error('Cannot reset password for OIDC users')
-      return
-    }
-    setSelectedUser(user)
-    setShowEditUserModal(true)
-  }
-
-  const handleToggleActive = async (user: User) => {
-    try {
-      await api.put(`/auth/users/${user.id}`, {
-        is_active: !user.is_active
-      })
-      toast.success(`User ${user.is_active ? 'disabled' : 'enabled'} successfully`)
-      await loadUsers()
-    } catch (err) {
-      const error = err as { response?: { data?: { detail?: string } } }
-      const detail = error.response?.data?.detail
-      if (typeof detail === 'string') {
-        toast.error(detail)
-      } else {
-        toast.error('Failed to update user status')
-      }
-    }
-  }
-
-  const handleUserSaved = () => {
-    void loadUsers()
-    setShowAddUserModal(false)
-    setShowEditUserModal(false)
-    setSelectedUser(null)
-  }
-
-  const handleUserDeleted = () => {
-    void loadUsers()
-    setShowDeleteUserModal(false)
-    setSelectedUser(null)
-  }
-
   // Register save handler
   useEffect(() => {
     registerSaveHandler('system', handleSave)
@@ -354,9 +264,6 @@ export default function SettingsSystemTab() {
       triggerSave()
     }
   }, [formData, loadedFormData, triggerSave])
-
-  // Calculate active admin count for last admin protection
-  const activeAdminCount = users.filter(u => u.is_admin && u.is_active).length
 
   return (
     <div className="space-y-6">
@@ -591,106 +498,26 @@ export default function SettingsSystemTab() {
         )}
       </div>
 
-      {/* Multi-User Management Card */}
+      {/* Family Management Card */}
       {isAdmin && (formData.auth_mode === 'local' || formData.auth_mode === 'oidc') && (
         <div className="bg-garage-surface rounded-lg border border-garage-border p-6 space-y-6">
-          {/* Header */}
           <div className="flex items-start gap-3">
             <Users className="w-6 h-6 text-primary mt-1" />
             <div className="flex-1">
               <h2 className="text-xl font-semibold text-garage-text mb-2">
-                Multi-User Management
+                Family Management
               </h2>
               <p className="text-sm text-garage-text-muted">
-                {formData.auth_mode === 'oidc'
-                  ? 'Manage users who authenticate via OIDC. Set relationships, dashboard visibility, and permissions.'
-                  : 'Enable multi-user mode to create and manage additional user accounts.'
-                }
+                Manage family members, user accounts, and dashboard visibility.
               </p>
             </div>
           </div>
-
-          {/* Toggle - only show for local auth */}
-          {formData.auth_mode === 'local' && (
-            <div>
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={formData.multi_user_enabled === 'true'}
-                  onChange={(e) => setFormData({ ...formData, multi_user_enabled: e.target.checked ? 'true' : 'false' })}
-                  className="w-4 h-4 text-primary bg-garage-bg border-garage-border rounded focus:ring-primary focus:ring-2"
-                />
-                <span className="text-sm font-medium text-garage-text">
-                  Enable multi-user mode
-                </span>
-              </label>
-              <p className="mt-2 ml-7 text-sm text-garage-text-muted">
-                {formData.multi_user_enabled === 'true'
-                  ? 'Multiple users can access MyGarage with separate accounts.'
-                  : 'Only the first admin account can access MyGarage.'
-                }
-              </p>
-            </div>
-          )}
-
-          {/* User Management UI (show when enabled for local, always for OIDC) */}
-          {(formData.auth_mode === 'oidc' || formData.multi_user_enabled === 'true') && (
-            <div className={formData.auth_mode === 'local' ? "border-t border-garage-border pt-4 space-y-4" : "space-y-4"}>
-              {/* User count and quick preview */}
-              <div className="p-4 bg-garage-bg border border-garage-border rounded-lg">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="text-sm font-medium text-garage-text">
-                    {userCount} {userCount === 1 ? 'User' : 'Users'}
-                  </div>
-                  {/* Only show Add User for local auth */}
-                  {formData.auth_mode === 'local' && (
-                    <button
-                      onClick={() => setShowAddUserModal(true)}
-                      className="px-3 py-1.5 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
-                    >
-                      Add User
-                    </button>
-                  )}
-                </div>
-
-                {/* First 3 users preview */}
-                {users.length > 0 && (
-                  <div className="space-y-2">
-                    {users.slice(0, 3).map((user) => (
-                      <div key={user.id} className="flex items-center justify-between text-sm py-2 border-b border-garage-border last:border-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-garage-text">{user.username}</span>
-                          {user.is_admin && (
-                            <span className="px-1.5 py-0.5 text-xs bg-primary/20 text-primary rounded">Admin</span>
-                          )}
-                          {user.auth_method === 'oidc' && (
-                            <span className="px-1.5 py-0.5 text-xs bg-warning/20 text-warning rounded">OIDC</span>
-                          )}
-                          {!user.is_active && (
-                            <span className="px-1.5 py-0.5 text-xs bg-danger/20 text-danger rounded">Inactive</span>
-                          )}
-                        </div>
-                        <span className="text-garage-text-muted text-xs">{user.email}</span>
-                      </div>
-                    ))}
-                    {userCount > 3 && (
-                      <div className="text-xs text-garage-text-muted text-center pt-2">
-                        + {userCount - 3} more users
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Manage All Users button */}
-              <button
-                onClick={() => setShowUserManagement(true)}
-                className="w-full px-4 py-2 bg-garage-surface border border-garage-border text-garage-text rounded-lg hover:bg-garage-bg transition-colors"
-              >
-                Manage All Users
-              </button>
-            </div>
-          )}
+          <button
+            onClick={() => setShowFamilyManagement(true)}
+            className="w-full px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors font-medium"
+          >
+            Manage Family
+          </button>
         </div>
       )}
 
@@ -800,14 +627,14 @@ export default function SettingsSystemTab() {
                     <strong className="text-sm font-semibold text-garage-text">Local Authentication</strong>
                     <p className="mt-1 text-sm text-garage-text">
                       {authEverEnabled
-                        ? `Local authentication is enabled with ${userCount} registered user${userCount !== 1 ? 's' : ''}.`
+                        ? 'Local authentication is configured.'
                         : 'Local authentication allows users to log in with a username and password stored locally.'}
                     </p>
                     <button
-                      onClick={() => setShowLocalAuthModal(true)}
+                      onClick={() => setShowFamilyManagement(true)}
                       className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium"
                     >
-                      Configure Local Auth
+                      Manage Family & Auth →
                     </button>
                   </div>
                 </div>
@@ -864,54 +691,10 @@ export default function SettingsSystemTab() {
       </div>
       </div>
 
-      {/* User Management Modal */}
-      <UserManagementModal
-        isOpen={showUserManagement}
-        onClose={() => setShowUserManagement(false)}
-        currentUserId={currentUser?.id || 0}
-        onEditUser={handleEditUser}
-        onDeleteUser={handleDeleteUser}
-        onResetPassword={handleResetPassword}
-        onToggleActive={handleToggleActive}
-      />
-
-      {/* Add User Modal */}
-      <AddEditUserModal
-        isOpen={showAddUserModal}
-        onClose={() => setShowAddUserModal(false)}
-        user={null}
-        onSave={handleUserSaved}
-        currentUserId={currentUser?.id || 0}
-        activeAdminCount={activeAdminCount}
-      />
-
-      {/* Edit User Modal */}
-      <AddEditUserModal
-        isOpen={showEditUserModal}
-        onClose={() => setShowEditUserModal(false)}
-        user={selectedUser}
-        onSave={handleUserSaved}
-        currentUserId={currentUser?.id || 0}
-        activeAdminCount={activeAdminCount}
-      />
-
-      {/* Delete User Modal */}
-      <DeleteUserModal
-        isOpen={showDeleteUserModal}
-        onClose={() => setShowDeleteUserModal(false)}
-        user={selectedUser}
-        onConfirm={handleUserDeleted}
-      />
-
-      {/* Local Auth Modal */}
-      <LocalAuthModal
-        isOpen={showLocalAuthModal}
-        onClose={() => setShowLocalAuthModal(false)}
-        authEverEnabled={authEverEnabled}
-        userCount={userCount}
-        users={users}
-        onShowUserManagement={() => setShowUserManagement(true)}
-        onShowAddUser={() => setShowAddUserModal(true)}
+      {/* Family Management Modal */}
+      <FamilyManagementModal
+        isOpen={showFamilyManagement}
+        onClose={() => setShowFamilyManagement(false)}
       />
 
       {/* OIDC Modal */}

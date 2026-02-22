@@ -17,6 +17,7 @@ interface AddEditUserModalProps {
 
 export default function AddEditUserModal({ isOpen, onClose, user, onSave, currentUserId, activeAdminCount }: AddEditUserModalProps) {
   const isEditMode = !!user
+  const isOidc = isEditMode && user?.auth_method === 'oidc'
   const [formData, setFormData] = useState({
     username: '',
     email: '',
@@ -91,18 +92,20 @@ export default function AddEditUserModal({ isOpen, onClose, user, onSave, curren
 
     try {
       if (isEditMode) {
-        // Update user
+        // Update user — OIDC users only get role + relationship updates
         await api.put(`/auth/users/${user.id}`, {
-          email: formData.email,
-          full_name: formData.full_name || null,
+          ...(!isOidc && {
+            email: formData.email,
+            full_name: formData.full_name || null,
+            is_active: formData.is_active,
+          }),
           is_admin: formData.is_admin,
-          is_active: formData.is_active,
           relationship: formData.relationship || null,
           relationship_custom: formData.relationship === 'other' ? formData.relationship_custom || null : null,
         })
 
-        // Update password separately if provided
-        if (formData.password) {
+        // Update password separately if provided (never for OIDC)
+        if (!isOidc && formData.password) {
           await api.put(`/auth/users/${user.id}/password`, {
             new_password: formData.password,
           })
@@ -151,7 +154,7 @@ export default function AddEditUserModal({ isOpen, onClose, user, onSave, curren
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
       <div className="bg-garage-surface border border-garage-border rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="p-6 border-b border-garage-border flex items-center justify-between sticky top-0 bg-garage-surface">
@@ -190,8 +193,10 @@ export default function AddEditUserModal({ isOpen, onClose, user, onSave, curren
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               required
-              className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary"
+              disabled={isOidc}
+              className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
             />
+            {isOidc && <p className="text-xs text-garage-text-muted mt-1">Managed by OIDC provider</p>}
           </div>
 
           {/* Full Name */}
@@ -203,37 +208,41 @@ export default function AddEditUserModal({ isOpen, onClose, user, onSave, curren
               type="text"
               value={formData.full_name}
               onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-              className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary"
+              disabled={isOidc}
+              className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
             />
+            {isOidc && <p className="text-xs text-garage-text-muted mt-1">Managed by OIDC provider</p>}
           </div>
 
-          {/* Password */}
-          <div>
-            <label className="block text-sm font-medium text-garage-text mb-1.5">
-              Password {!isEditMode && <span className="text-danger">*</span>}
-              {isEditMode && <span className="text-xs text-garage-text-muted ml-2">(leave blank to keep current)</span>}
-            </label>
-            <div className="relative">
-              <input
-                type={showPassword ? 'text' : 'password'}
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                required={!isEditMode}
-                className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary pr-10"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 hover:bg-garage-border rounded transition-colors"
-              >
-                {showPassword ? <EyeOff className="w-4 h-4 text-garage-text-muted" /> : <Eye className="w-4 h-4 text-garage-text-muted" />}
-              </button>
+          {/* Password (hidden for OIDC users) */}
+          {!isOidc && (
+            <div>
+              <label className="block text-sm font-medium text-garage-text mb-1.5">
+                Password {!isEditMode && <span className="text-danger">*</span>}
+                {isEditMode && <span className="text-xs text-garage-text-muted ml-2">(leave blank to keep current)</span>}
+              </label>
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  required={!isEditMode}
+                  className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 hover:bg-garage-border rounded transition-colors"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4 text-garage-text-muted" /> : <Eye className="w-4 h-4 text-garage-text-muted" />}
+                </button>
+              </div>
+              {errors.password && <p className="text-sm text-danger mt-1">{errors.password}</p>}
             </div>
-            {errors.password && <p className="text-sm text-danger mt-1">{errors.password}</p>}
-          </div>
+          )}
 
-          {/* Confirm Password */}
-          {(!isEditMode || formData.password) && (
+          {/* Confirm Password (hidden for OIDC users) */}
+          {!isOidc && (!isEditMode || formData.password) && (
             <div>
               <label className="block text-sm font-medium text-garage-text mb-1.5">
                 Confirm Password <span className="text-danger">*</span>
@@ -318,27 +327,28 @@ export default function AddEditUserModal({ isOpen, onClose, user, onSave, curren
 
           {/* Active Status */}
           <div>
-            <label className="flex items-center gap-3 cursor-pointer">
+            <label className={`flex items-center gap-3 ${isOidc ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
               <input
                 type="checkbox"
                 checked={formData.is_active}
                 onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-                className="w-4 h-4 text-primary bg-garage-bg border-garage-border rounded focus:ring-primary focus:ring-2"
+                disabled={isOidc}
+                className="w-4 h-4 text-primary bg-garage-bg border-garage-border rounded focus:ring-primary focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed"
               />
               <span className="text-sm font-medium text-garage-text">
                 Active User
               </span>
             </label>
             <p className="mt-1 ml-7 text-sm text-garage-text-muted">
-              Inactive users cannot log in
+              {isOidc ? 'Managed by OIDC provider' : 'Inactive users cannot log in'}
             </p>
           </div>
 
           {/* OIDC Badge */}
-          {user?.auth_method === 'oidc' && (
+          {isOidc && (
             <div className="p-3 bg-warning/10 border border-warning/30 rounded-lg">
               <p className="text-sm text-garage-text">
-                <strong>OIDC User</strong> - Password managed by {user.oidc_provider || 'identity provider'}
+                <strong>OIDC User</strong> - Identity managed by {user?.oidc_provider || 'external provider'}. Only role and relationship can be edited.
               </p>
             </div>
           )}
