@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Bundled DM Sans + JetBrains Mono fonts with graceful fallbacks
   - Added `matplotlib` dependency for chart generation
 
+### Changed
+- Streamlined About page — removed duplicated features, tech stack, and statistics (now lives on project website); added links to website and GitHub
+
 ### Fixed
 - Fuel service write permission checks (added `require_write=True` to create/update/delete)
 - Garage PDF export now uses `model_dump()` — fixes missing `total_upgrades`, `total_inspection`, `total_collision`, `total_detailing`, `total_def` fields

@@ -1,196 +1,14 @@
 import {
   Car,
   Shield,
-  FileText,
-  CheckCircle,
-  Code,
   Database,
-  Layers,
   Sparkles,
   Heart,
-  BarChart3,
   Bell,
-  Calendar,
-  Radio,
-  Users,
+  CheckCircle,
+  ExternalLink,
 } from 'lucide-react'
 import { useAppVersion } from '../hooks/useAppVersion'
-
-const featureGroups = [
-  {
-    title: 'Homelab-Grade Security',
-    description: 'Self-hosted security built for privacy-focused homelabs.',
-    icon: Shield,
-    points: [
-      'JWT authentication with Argon2id password hashing (OWASP recommended) and auto-generated secret keys.',
-      'OpenID Connect (OIDC) / SSO integration for Authentik, Keycloak, and other identity providers.',
-      'Email-based account linking - OIDC accounts auto-link to existing local accounts.',
-      'Role-based access control (user/admin) with comprehensive user management.',
-      'Security headers (CSP, X-Frame-Options, etc.) to prevent XSS and clickjacking attacks.',
-      'Rate limiting on all endpoints with stricter limits on file uploads to prevent abuse.',
-      'File upload validation with MIME type checking and size limits.',
-      'Audit logging for all sensitive operations (logins, backups, admin actions).',
-      'Sensitive data masking in logs (VINs, emails, etc.).',
-      'Zero-configuration deployment with secure defaults.',
-    ],
-  },
-  {
-    title: 'Comprehensive Vehicle Tracking',
-    description: 'Manage all your vehicles with complete service and maintenance history.',
-    icon: Car,
-    points: [
-      'Multi-vehicle support with detailed profiles including VIN, make, model, year, and license plate information.',
-      'Automatic VIN decoding using NHTSA database to populate vehicle details.',
-      'Service record management with date, mileage, cost, and description tracking.',
-      'Fuel record tracking with date, mileage, gallons, cost, and price per gallon.',
-      'Propane tracking for RVs and fifth wheels with separate gallon field for appliance fuel.',
-      'Attachment support for receipts, invoices, and service documentation.',
-      'Service history timeline with searchable and filterable views.',
-      'Real-time vehicle statistics showing service records, fuel consumption, and maintenance history.',
-    ],
-  },
-  {
-    title: 'LiveLink OBD2 Telemetry',
-    description: 'Real-time vehicle data via WiCAN devices with HTTPS POST or MQTT.',
-    icon: Radio,
-    points: [
-      'WiCAN device integration supporting both HTTPS POST (PRO) and MQTT (all models) transport.',
-      'Real-time telemetry dashboard with live gauges for speed, RPM, coolant temp, and more.',
-      'Automatic drive session detection on engine start/stop with trip statistics.',
-      'Diagnostic Trouble Code (DTC) monitoring with severity levels and user notes.',
-      'Automatic odometer sync from OBD2 with sanity checks to prevent invalid values.',
-      'Historical telemetry charts with time-series visualization and CSV export.',
-      'Device management with per-device tokens and firmware update notifications.',
-      'Configurable threshold alerts for parameters like coolant temperature and battery voltage.',
-      'Data retention policies (30-365 days) with daily aggregation for long-term trends.',
-    ],
-  },
-  {
-    title: 'Smart Reminders & Multi-Service Notifications',
-    description: 'Never miss scheduled maintenance with 7 notification providers.',
-    icon: Bell,
-    points: [
-      'Configurable reminders for scheduled maintenance, oil changes, inspections, and more.',
-      'Mileage-based and date-based reminder triggers.',
-      'Overdue reminder tracking with dashboard alerts.',
-      '7 notification providers: ntfy, Gotify, Pushover, Slack, Discord, Telegram, and Email.',
-      'Per-service configuration with test connection buttons and enable toggles.',
-      'Event-type filtering: recalls, service due/overdue, insurance/warranty expiring, milestones.',
-      'Priority-based retry logic with configurable attempts and delays.',
-      'Insurance and warranty expiration notifications with configurable advance warning days.',
-    ],
-  },
-  {
-    title: 'Global Calendar & Planning',
-    description: 'Unified calendar view of all maintenance events and deadlines.',
-    icon: Calendar,
-    points: [
-      'Multi-source event aggregation from reminders, insurance, warranties, and service history.',
-      'Interactive calendar with month, week, day, and agenda views.',
-      'Intelligent mileage-based reminder estimation using vehicle usage patterns.',
-      'Color-coded urgency indicators (overdue, high priority, upcoming).',
-      'Quick-complete actions for reminders directly from calendar.',
-      'Bulk operations for managing multiple events at once.',
-      'Search and filter capabilities across all calendar events.',
-      'iCal export for integration with external calendar applications (Google Calendar, Apple Calendar, Outlook).',
-      'Upcoming events sidebar showing next 30 days at a glance.',
-    ],
-  },
-  {
-    title: 'Analytics & Reports',
-    description: 'Comprehensive cost analysis and data visualization for informed decisions.',
-    icon: BarChart3,
-    points: [
-      'Individual vehicle analytics with cost breakdowns, spending trends, and rolling averages.',
-      'Garage-wide analytics comparing costs across all vehicles in your garage.',
-      'Fuel efficiency tracking with MPG calculations and towing/hauling impact analysis.',
-      'Anomaly detection automatically identifies unusual spending patterns.',
-      'Seasonal spending analysis to identify patterns and plan budgets.',
-      'Vendor spending analysis showing total costs per service provider.',
-      'Period comparison tools to analyze costs year-over-year or between custom date ranges.',
-      'Maintenance predictions based on service history with confidence scoring.',
-      'CSV and PDF export for all analytics data and reports.',
-      'Visual charts including pie charts, bar charts, and time-series trends with rolling averages.',
-    ],
-  },
-  {
-    title: 'Document & Photo Management',
-    description: 'Store and organize all vehicle-related documents and photos.',
-    icon: FileText,
-    points: [
-      'Document storage for insurance, registration, warranty, and other paperwork.',
-      'Photo gallery for vehicle images with categorization support.',
-      'Secure file upload with configurable size limits and type restrictions.',
-      'Attachment support on service records and other entries.',
-    ],
-  },
-  {
-    title: 'Family Multi-User System',
-    description: 'Household vehicle management with sharing, transfers, and family dashboard.',
-    icon: Users,
-    points: [
-      'User relationships (spouse, child, parent, sibling, etc.) with custom option for flexibility.',
-      'Vehicle sharing with read or write permissions - grant access without transferring ownership.',
-      'Permanent vehicle transfers between family members with complete audit trail.',
-      'Selective data transfer - choose which records (service, fuel, documents, photos) to include.',
-      'Transfer history timeline showing ownership changes with dates, notes, and who performed each transfer.',
-      'Family dashboard (admin-only) showing all members, their vehicles, and overdue/upcoming reminders.',
-      'Dashboard member management - control visibility and display order of family members.',
-      'Shared vehicle indicators with blue badge and filter dropdown (All/My Vehicles/Shared With Me).',
-      'OIDC-compatible user management - admins can manage users regardless of authentication method.',
-    ],
-  },
-  {
-    title: 'Recall Monitoring & Safety',
-    description: 'Stay informed about vehicle recalls and safety issues.',
-    icon: Shield,
-    points: [
-      'NHTSA integration for automatic recall checking by VIN.',
-      'CarComplaints.com integration for researching common vehicle issues and problem trends.',
-      'Direct links to CarComplaints for cars, trucks, SUVs, and motorcycles (excludes RVs and trailers).',
-      'Configurable recall check intervals (daily, weekly, monthly, quarterly).',
-      'Recall notification alerts when new recalls are detected.',
-      'Recall history tracking with status management (open, addressed, dismissed).',
-    ],
-  },
-]
-
-const backendStack = [
-  'Python 3.14+ with FastAPI 0.121.1 and Granian 2.6.1 ASGI server',
-  'SQLAlchemy 2.0.44 + SQLite (WAL mode) via aiosqlite 0.21.0',
-  'Pydantic 2.12.3 for data validation and settings management',
-  'JWT authentication with Argon2id password hashing (argon2-cffi 25.1.0)',
-  'OIDC/OAuth2 authentication via authlib 1.6.5 for SSO integration',
-  'Auto-generated secret keys with secure persistence',
-  'NHTSA API integration for VIN decoding and recall checking',
-  'httpx 0.27.2 async HTTP client for external API integration',
-  'ReportLab 4.0.0 for PDF generation and analytics export',
-  'PyMuPDF 1.25.0 and Tesseract OCR for document scanning',
-  'Database-backed settings with encrypted value support',
-  'Multi-service notifications: ntfy, Gotify, Pushover, Slack, Discord, Telegram, Email',
-  'aiosmtplib 3.0+ for async SMTP email delivery',
-  'aiomqtt 2.3+ for MQTT subscription (LiveLink telemetry)',
-  'Comprehensive security middleware (CSP, rate limiting, audit logging)',
-]
-
-const frontendStack = [
-  'React 19.2.3 + TypeScript 5.9.3 with Bun 1.3.6 runtime and Vite 7.3.1 bundler',
-  'Tailwind CSS 4.1.18 with custom garage theme and light/dark mode',
-  'React Router 7.12.0 for client-side navigation',
-  'Recharts 3.6.0 for interactive analytics charts and visualizations',
-  'react-big-calendar 1.19.4 for comprehensive calendar UI',
-  'date-fns 4.1.0 for date manipulation and formatting',
-  'Zod 4.3.5 + React Hook Form 7.71.1 for declarative form validation',
-  'Lucide React 0.562.0 iconography throughout the UI',
-  'Sonner 2.0.7 for toast notifications',
-]
-
-const projectStats = [
-  { label: 'Total Lines of Code', value: '~102,000', icon: Code },
-  { label: 'Python Backend', value: '~57,300', icon: Database },
-  { label: 'TypeScript Frontend', value: '~44,700', icon: Layers },
-  { label: 'Interactive Pages', value: '20', icon: BarChart3 },
-]
 
 export default function About() {
   const version = useAppVersion()
@@ -291,92 +109,6 @@ export default function About() {
           </div>
         </div>
 
-        {/* Key Features */}
-        <div className="bg-garage-surface rounded-lg border border-garage-border p-6">
-          <h2 className="text-2xl font-bold text-garage-text mb-6">Key Features</h2>
-          <div className="space-y-4">
-            {featureGroups.map(({ title, description, icon: Icon, points }, idx) => (
-              <details
-                key={title}
-                className="group border border-garage-border rounded-lg bg-garage-bg"
-                {...(idx === 0 ? { open: true } : {})}
-              >
-                <summary className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between px-4 py-4 cursor-pointer select-none">
-                  <span className="flex items-center gap-3 text-garage-text font-semibold">
-                    <Icon className="w-5 h-5 text-primary" />
-                    {title}
-                  </span>
-                  <span className="text-sm text-garage-text-muted md:text-right">{description}</span>
-                </summary>
-                <ul className="px-6 pb-5 space-y-3 text-sm text-garage-text-muted">
-                  {points.map((point) => (
-                    <li key={point} className="flex items-start gap-2">
-                      <CheckCircle className="w-4 h-4 text-success-500 mt-0.5 flex-shrink-0" />
-                      <span>{point}</span>
-                    </li>
-                  ))}
-                </ul>
-              </details>
-            ))}
-          </div>
-        </div>
-
-        {/* Technology Stack */}
-        <div className="bg-garage-surface rounded-lg border border-garage-border p-6">
-          <h2 className="text-2xl font-bold text-garage-text mb-6">Technology Stack</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <h3 className="text-garage-text font-semibold mb-3 flex items-center gap-2">
-                <Code className="w-5 h-5 text-primary" />
-                Backend
-              </h3>
-              <ul className="space-y-2 text-garage-text-muted text-sm">
-                {backendStack.map((item) => (
-                  <li key={item} className="flex items-start gap-2">
-                    <CheckCircle className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div>
-              <h3 className="text-garage-text font-semibold mb-3 flex items-center gap-2">
-                <Layers className="w-5 h-5 text-primary" />
-                Frontend
-              </h3>
-              <ul className="space-y-2 text-garage-text-muted text-sm">
-                {frontendStack.map((item) => (
-                  <li key={item} className="flex items-start gap-2">
-                    <CheckCircle className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </div>
-
-        {/* Project Statistics */}
-        <div className="bg-garage-surface rounded-lg border border-garage-border p-6">
-          <h2 className="text-2xl font-bold text-garage-text mb-6">Project Statistics</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {projectStats.map(({ label, value, icon: Icon }) => (
-              <div
-                key={label}
-                className="bg-garage-bg border border-garage-border rounded-lg p-4 flex items-start gap-4"
-              >
-                <div className="flex-shrink-0">
-                  <Icon className="w-6 h-6 text-primary" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-garage-text-muted">{label}</p>
-                  <p className="text-2xl font-bold text-primary mt-1">{value}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
         {/* Built with AI */}
         <div className="bg-garage-surface rounded-lg border border-garage-border p-6">
           <h2 className="text-2xl font-bold text-garage-text mb-4 flex items-center gap-2">
@@ -385,7 +117,7 @@ export default function About() {
           </h2>
           <p className="text-garage-text-muted leading-relaxed mb-4">
             MyGarage is built through collaboration between human expertise and cutting-edge AI capabilities.
-            Claude (Opus 4.5) handles architecture design and full-stack development, Codex (GPT-5.1)
+            Claude handles architecture design and full-stack development, Codex
             assists with bug fixing and security auditing, while the Operator guides product vision, requirements,
             and deployment strategy.
           </p>
@@ -393,7 +125,7 @@ export default function About() {
             <li className="flex items-start gap-2">
               <CheckCircle className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
               <span>
-                <strong className="text-garage-text">Claude (Opus 4.5)</strong> – Full-stack
+                <strong className="text-garage-text">Claude</strong> – Full-stack
                 architecture, feature development, and production-ready code delivery.
               </span>
             </li>
@@ -407,7 +139,7 @@ export default function About() {
             <li className="flex items-start gap-2">
               <CheckCircle className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
               <span>
-                <strong className="text-garage-text">Codex (GPT-5.1)</strong> – Bug fixing,
+                <strong className="text-garage-text">Codex</strong> – Bug fixing,
                 security auditing, and code quality improvements.
               </span>
             </li>
@@ -432,13 +164,38 @@ export default function About() {
           </p>
         </div>
 
+        {/* Links */}
+        <div className="bg-garage-surface rounded-lg border border-garage-border p-6">
+          <h2 className="text-2xl font-bold text-garage-text mb-4">Learn More</h2>
+          <div className="flex flex-col sm:flex-row gap-4">
+            <a
+              href="https://homelabforge.io/builds/mygarage"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-primary flex items-center gap-2"
+            >
+              <ExternalLink className="w-4 h-4" />
+              Project Website
+            </a>
+            <a
+              href="https://github.com/homelabforge/mygarage"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-primary flex items-center gap-2"
+            >
+              <ExternalLink className="w-4 h-4" />
+              GitHub Repository
+            </a>
+          </div>
+        </div>
+
         {/* Footer */}
         <div className="text-center pt-8 pb-8 border-t border-garage-border">
           <p className="text-garage-text-muted text-sm flex items-center justify-center gap-1">
             Made with <Heart className="w-4 h-4 text-danger" /> for the homelab community
           </p>
           <p className="text-garage-text-muted text-xs mt-2">
-            MyGarage v{version} • Built with AI collaboration • February 2026
+            MyGarage v{version}
           </p>
         </div>
       </div>
