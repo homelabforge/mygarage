@@ -32,6 +32,7 @@ import type {
   MQTTSettingsUpdate,
   MQTTStatus,
   MQTTTestResult,
+  DeviceCommandResponse,
 } from '../types/livelink'
 
 export const livelinkService = {
@@ -398,6 +399,21 @@ export const livelinkService = {
    */
   async testMQTTConnection(): Promise<MQTTTestResult> {
     const response = await api.post<MQTTTestResult>('/livelink/mqtt/test')
+    return response.data
+  },
+
+  // ===========================================================================
+  // Device Commands
+  // ===========================================================================
+
+  /**
+   * Send a command to a WiCAN device via MQTT
+   */
+  async sendDeviceCommand(deviceId: string, command: string): Promise<DeviceCommandResponse> {
+    const response = await api.post<DeviceCommandResponse>(
+      `/livelink/devices/${deviceId}/command`,
+      { command }
+    )
     return response.data
   },
 }

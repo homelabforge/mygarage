@@ -237,6 +237,67 @@ async def generate_daily_summaries():
             logger.error("Error generating daily summaries: %s", e)
 
 
+async def finalize_pending_offlines():
+    """Finalize devices that have been pending offline past the grace period.
+
+    Runs every 15 seconds. Checks for devices with pending_offline_at set
+    and past the configured grace period, then calls handle_ecu_offline.
+    This prevents phantom micro-sessions from brief WiFi disconnections.
+    """
+    async with AsyncSessionLocal() as db:
+        try:
+            livelink_service = LiveLinkService(db)
+            if not await livelink_service.is_enabled():
+                return
+
+            grace_seconds = await livelink_service.get_session_grace_period_seconds()
+            if grace_seconds <= 0:
+                return  # Grace period disabled
+
+            devices = await livelink_service.get_devices_pending_offline()
+            if not devices:
+                return
+
+            cutoff = datetime.now(UTC) - timedelta(seconds=grace_seconds)
+            session_service = SessionService(db)
+            finalized = 0
+
+            for device in devices:
+                pending_at = device.pending_offline_at
+                if not pending_at:
+                    continue
+
+                # Ensure timezone-aware comparison
+                if pending_at.tzinfo is None:
+                    pending_at = pending_at.replace(tzinfo=UTC)
+
+                if pending_at <= cutoff:
+                    # Grace period expired — finalize the offline transition
+                    if device.vin:
+                        await session_service.handle_ecu_offline(
+                            device.vin,
+                            device.device_id,
+                        )
+
+                    # Clear pending state and set ecu_status to offline
+                    await livelink_service.clear_pending_offline(device.device_id)
+                    await livelink_service.update_device_status(
+                        device_id=device.device_id,
+                        ecu_status="offline",
+                    )
+                    finalized += 1
+                    logger.info(
+                        "Finalized pending offline for device %s (grace period expired)",
+                        device.device_id,
+                    )
+
+            if finalized:
+                await db.commit()
+
+        except Exception as e:
+            logger.error("Error finalizing pending offlines: %s", e)
+
+
 async def _get_bool_setting(db: AsyncSession, key: str, default: bool = False) -> bool:
     """Get a boolean setting value."""
     setting = await SettingsService.get(db, key)

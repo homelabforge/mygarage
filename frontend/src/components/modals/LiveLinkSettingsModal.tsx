@@ -22,6 +22,7 @@ import {
   Server,
   Play,
   Square,
+  Battery,
 } from 'lucide-react'
 import { livelinkService } from '@/services/livelinkService'
 import { vehicleService } from '@/services/vehicleService'
@@ -320,6 +321,16 @@ export default function LiveLinkSettingsModal({ isOpen, onClose }: LiveLinkSetti
     } catch (error) {
       console.error('Failed to revoke device token:', error)
       toast.error('Failed to revoke device token')
+    }
+  }
+
+  const handleSendCommand = async (deviceId: string, command: string) => {
+    try {
+      const result = await livelinkService.sendDeviceCommand(deviceId, command)
+      toast.success(result.message)
+    } catch (error) {
+      console.error('Failed to send command:', error)
+      toast.error('Failed to send command to device')
     }
   }
 
@@ -646,10 +657,12 @@ export default function LiveLinkSettingsModal({ isOpen, onClose }: LiveLinkSetti
                             device={device}
                             vehicles={vehicles}
                             deviceFirmware={deviceFirmware.find((d) => d.device_id === device.device_id)}
+                            mqttConnected={mqttStatus?.connection_status === 'connected'}
                             onUpdate={handleUpdateDevice}
                             onDelete={handleDeleteDevice}
                             onGenerateToken={handleGenerateDeviceToken}
                             onRevokeToken={handleRevokeDeviceToken}
+                            onSendCommand={handleSendCommand}
                           />
                         ))}
                       </tbody>
@@ -744,6 +757,27 @@ export default function LiveLinkSettingsModal({ isOpen, onClose }: LiveLinkSetti
                       <span className="text-garage-text-muted text-sm">minutes</span>
                     </div>
                   </div>
+                  <div>
+                    <label className="block text-sm font-medium text-garage-text mb-1">Session Grace Period</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min="0"
+                        max="300"
+                        value={settings?.session_grace_period_seconds ?? 60}
+                        onChange={(e) =>
+                          handleSaveSettings({ session_grace_period_seconds: parseInt(e.target.value) })
+                        }
+                        disabled={saving}
+                        className="w-20 px-3 py-2 bg-garage-surface border border-garage-border rounded-lg text-garage-text text-sm focus:ring-2 focus:ring-primary"
+                      />
+                      <span className="text-garage-text-muted text-sm">seconds</span>
+                    </div>
+                    <p className="text-xs text-garage-text-muted mt-1">
+                      Delay before ending a drive session after WiFi drop (0 = disabled)
+                    </p>
+                  </div>
+                  <div /> {/* Empty cell for grid alignment */}
                   <div className="col-span-2 grid grid-cols-2 gap-3">
                     <label className="flex items-center gap-2">
                       <input
@@ -902,18 +936,22 @@ function DeviceRow({
   device,
   vehicles,
   deviceFirmware,
+  mqttConnected,
   onUpdate,
   onDelete,
   onGenerateToken,
   onRevokeToken,
+  onSendCommand,
 }: {
   device: LiveLinkDevice
   vehicles: Vehicle[]
   deviceFirmware?: DeviceFirmwareStatus
+  mqttConnected?: boolean
   onUpdate: (deviceId: string, update: { vin?: string | null; label?: string; enabled?: boolean }) => void
   onDelete: (deviceId: string) => void
   onGenerateToken: (deviceId: string) => void
   onRevokeToken: (deviceId: string) => void
+  onSendCommand: (deviceId: string, command: string) => void
 }) {
   const [editing, setEditing] = useState(false)
   const [label, setLabel] = useState(device.label ?? '')
@@ -993,6 +1031,15 @@ function DeviceRow({
       </td>
       <td className="py-2 px-3 text-right">
         <div className="flex items-center justify-end gap-1">
+          {mqttConnected && device.device_status === 'online' && (
+            <button
+              onClick={() => onSendCommand(device.device_id, 'get_vbatt')}
+              className="p-1 text-garage-text-muted hover:text-green-500"
+              title="Check battery voltage"
+            >
+              <Battery className="w-4 h-4" />
+            </button>
+          )}
           {device.sta_ip && (
             <a
               href={`http://${device.sta_ip}`}

@@ -164,6 +164,11 @@ class LiveLinkSettingsResponse(BaseModel):
     firmware_check_enabled: bool = Field(True, description="Auto-check for firmware updates")
     alert_cooldown_minutes: int = Field(30, description="Cooldown between alerts")
 
+    # Session grace period
+    session_grace_period_seconds: int = Field(
+        60, description="Seconds to wait before ending session after ECU offline (0 = disabled)"
+    )
+
     # Notification toggles
     notify_device_offline: bool = Field(True, description="Notify when device goes offline")
     notify_threshold_alerts: bool = Field(True, description="Notify on threshold breaches")
@@ -181,6 +186,7 @@ class LiveLinkSettingsUpdate(BaseModel):
     daily_aggregation_enabled: bool | None = None
     firmware_check_enabled: bool | None = None
     alert_cooldown_minutes: int | None = Field(None, ge=5, le=120)
+    session_grace_period_seconds: int | None = Field(None, ge=0, le=300)
     notify_device_offline: bool | None = None
     notify_threshold_alerts: bool | None = None
     notify_firmware_update: bool | None = None
@@ -259,3 +265,24 @@ class MQTTTestResult(BaseModel):
     success: bool = Field(..., description="Whether connection test succeeded")
     message: str = Field(..., description="Result message")
     broker: str | None = Field(None, description="Broker address tested")
+
+
+# =============================================================================
+# Device Command Schemas
+# =============================================================================
+
+
+class DeviceCommandRequest(BaseModel):
+    """Schema for sending a command to a WiCAN device via MQTT."""
+
+    command: str = Field(
+        ...,
+        description="Command to send (get_vbatt, get_autopid_data, reboot)",
+    )
+
+
+class DeviceCommandResponse(BaseModel):
+    """Schema for device command response."""
+
+    status: str = Field(..., description="Command status (sent, error)")
+    message: str = Field(..., description="Result message")

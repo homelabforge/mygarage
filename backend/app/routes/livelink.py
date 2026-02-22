@@ -110,8 +110,9 @@ async def ingest_wican_payload(
             logger.warning("Received telemetry without status and no known device for token")
             return {
                 "status": "rejected",
-                "message": "No device_id in payload and no device associated with this token. "
-                "Please send a status payload first to register the device.",
+                "message": "No device_id in payload and cannot resolve device from token. "
+                "Send a status payload first to register the device, or use per-device "
+                "tokens for multi-device setups.",
             }
 
     # Validate token
@@ -143,15 +144,33 @@ async def ingest_wican_payload(
             results["device_new"] = is_new
             results["device_linked"] = device.vin is not None
 
-            # Handle ECU status transitions for session management BEFORE
-            # updating device status, so the transition detector sees the old state
-            ecu_online = payload.status.ecu_status == "online"
-            if device.vin:
-                session_service = SessionService(db)
-                if ecu_online:
-                    await session_service.handle_ecu_online(device.vin, device_id)
+            # Handle ECU status transitions with grace period for WiFi drop resilience.
+            # Skip transitions for unknown status — only explicit online/offline matters.
+            ecu_status = payload.status.ecu_status  # Already normalized by schema
+            if device.vin and ecu_status != "unknown":
+                grace_seconds = await livelink_service.get_session_grace_period_seconds()
+                if ecu_status == "online":
+                    # ECU came online — if pending offline, WiFi recovered (clear pending)
+                    if device.pending_offline_at:
+                        await livelink_service.clear_pending_offline(device_id)
+                        logger.debug("Cleared pending offline for %s (WiFi recovered)", device_id)
+                    else:
+                        # Not pending — genuine ECU online, start session
+                        session_service = SessionService(db)
+                        await session_service.handle_ecu_online(device.vin, device_id)
                 else:
-                    await session_service.handle_ecu_offline(device.vin, device_id)
+                    # ECU offline — start grace period instead of immediate session end
+                    if grace_seconds > 0:
+                        await livelink_service.set_pending_offline(device_id)
+                        logger.debug(
+                            "Set pending offline for %s (grace period: %ds)",
+                            device_id,
+                            grace_seconds,
+                        )
+                    else:
+                        # Grace period disabled — immediate session end
+                        session_service = SessionService(db)
+                        await session_service.handle_ecu_offline(device.vin, device_id)
 
             # Update device status (after session detection has read old state)
             await livelink_service.update_device_status(
@@ -159,7 +178,7 @@ async def ingest_wican_payload(
                 sta_ip=payload.status.sta_ip,
                 rssi=payload.status.rssi,
                 battery_voltage=payload.status.battery_voltage,
-                ecu_status="online" if ecu_online else "offline",
+                ecu_status=ecu_status,
                 device_status="online",
             )
         else:
@@ -180,8 +199,8 @@ async def ingest_wican_payload(
         if device.vin and payload.autopid_data:
             telemetry_service = TelemetryService(db)
 
-            # Store telemetry using the bulk method
-            stored_count = await telemetry_service.store_telemetry(
+            # Store telemetry using the bulk method (includes validation)
+            store_result = await telemetry_service.store_telemetry(
                 vin=device.vin,
                 device_id=device_id,
                 autopid_data=payload.autopid_data,
@@ -190,11 +209,11 @@ async def ingest_wican_payload(
                 },
                 timestamp=payload.timestamp,
             )
-            results["parameters_stored"] = stored_count
+            results["parameters_stored"] = store_result.stored_count
 
-            # Check thresholds for each parameter
-            for param_key, value in payload.autopid_data.items():
-                if value is not None:
+            # Check thresholds for validated data only (not rejected garbage)
+            for param_key, value in store_result.validated_data.items():
+                if value is not None and isinstance(value, (int, float)):
                     await telemetry_service.check_thresholds(
                         vin=device.vin,
                         param_key=param_key,

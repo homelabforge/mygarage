@@ -10,6 +10,8 @@ from app.database import get_db
 from app.models.user import User
 from app.schemas.dtc import DTCDefinitionResponse, DTCSearchResponse
 from app.schemas.livelink import (
+    DeviceCommandRequest,
+    DeviceCommandResponse,
     DeviceFirmwareStatus,
     FirmwareInfoResponse,
     LiveLinkDeviceListResponse,
@@ -77,6 +79,7 @@ async def get_livelink_settings(
         ),
         firmware_check_enabled=await _get_bool_setting(db, "livelink_firmware_check_enabled", True),
         alert_cooldown_minutes=await service.get_alert_cooldown_minutes(),
+        session_grace_period_seconds=await service.get_session_grace_period_seconds(),
         notify_device_offline=await _get_bool_setting(db, "livelink_notify_device_offline", True),
         notify_threshold_alerts=await _get_bool_setting(
             db, "livelink_notify_threshold_alerts", True
@@ -126,6 +129,12 @@ async def update_livelink_settings(
     if updates.alert_cooldown_minutes is not None:
         await SettingsService.set(
             db, "livelink_alert_cooldown_minutes", str(updates.alert_cooldown_minutes)
+        )
+    if updates.session_grace_period_seconds is not None:
+        await SettingsService.set(
+            db,
+            "livelink_session_grace_period_seconds",
+            str(updates.session_grace_period_seconds),
         )
     if updates.notify_device_offline is not None:
         await SettingsService.set(
@@ -342,6 +351,39 @@ async def get_device_token_info(
         created_at=device.updated_at or device.created_at,
         last_used=device.last_seen,
     )
+
+
+@router.post("/devices/{device_id}/command", response_model=DeviceCommandResponse)
+async def send_device_command(
+    device_id: str,
+    request: DeviceCommandRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_auth),
+):
+    """
+    Send a command to a WiCAN device via MQTT.
+
+    Supported commands:
+    - **get_vbatt**: Request battery voltage
+    - **get_autopid_data**: Trigger one-shot AutoPID data poll (requires ECU online)
+    - **reboot**: Reboot the WiCAN device
+
+    Commands are fire-and-forget. Responses arrive via normal MQTT telemetry topics.
+
+    **Security:**
+    - Requires authentication
+    - Device must be online
+    - MQTT subscriber must be connected
+    """
+    from app.services.device_command_service import send_command
+
+    try:
+        result = await send_command(db, device_id, request.command)
+        return DeviceCommandResponse(**result)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
 
 
 # =============================================================================

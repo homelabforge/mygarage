@@ -109,6 +109,8 @@ export interface LiveLinkSettings {
   daily_aggregation_enabled: boolean
   firmware_check_enabled: boolean
   alert_cooldown_minutes: number
+  // Session grace period
+  session_grace_period_seconds: number
   // Notification toggles
   notify_device_offline: boolean
   notify_threshold_alerts: boolean
@@ -124,6 +126,7 @@ export interface LiveLinkSettingsUpdate {
   daily_aggregation_enabled?: boolean
   firmware_check_enabled?: boolean
   alert_cooldown_minutes?: number
+  session_grace_period_seconds?: number
   notify_device_offline?: boolean
   notify_threshold_alerts?: boolean
   notify_firmware_update?: boolean
@@ -423,4 +426,17 @@ export interface MQTTTestResult {
   success: boolean
   message: string
   broker: string | null
+}
+
+// =============================================================================
+// Device Command Types
+// =============================================================================
+
+export interface DeviceCommandRequest {
+  command: string
+}
+
+export interface DeviceCommandResponse {
+  status: string
+  message: string
 }

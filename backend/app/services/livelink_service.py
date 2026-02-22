@@ -173,45 +173,57 @@ class LiveLinkService:
         )
         return list(result.scalars().all())
 
-    async def get_device_id_by_token(self, _authorization: str | None) -> str | None:
-        """Get the most recently active device ID for telemetry-only payloads.
+    async def get_device_id_by_token(self, authorization: str | None) -> str | None:
+        """Resolve device ID from a telemetry-only payload (no status.device_id).
 
-        When WiCAN sends telemetry without a status block, we need to identify
-        the device from context. This method returns the most recently seen
-        online device, which works well for single-device setups.
-
-        For multi-device setups with the global token, this returns the most
-        recently active device. For better accuracy, use per-device tokens.
+        Resolution order:
+        1. If a per-device token matches, return that device (authoritative).
+        2. If using global token and exactly one enabled device exists, return it.
+        3. Otherwise return None (ambiguous — caller should reject).
 
         Args:
-            authorization: The Authorization header (used for logging/future per-device lookup)
+            authorization: The Authorization header (Bearer token)
 
         Returns:
-            device_id of the most recently seen online device, or None if no devices found
+            device_id if unambiguously resolved, None otherwise
         """
-        # Find the most recently seen device that's online and enabled
-        result = await self.db.execute(
-            select(LiveLinkDevice)
-            .where(
-                LiveLinkDevice.enabled.is_(True),
-                LiveLinkDevice.device_status == "online",
-            )
-            .order_by(LiveLinkDevice.last_seen.desc())
-            .limit(1)
-        )
-        device = result.scalar_one_or_none()
-        if device:
-            return device.device_id
+        # Extract raw token from "Bearer <token>"
+        token: str | None = None
+        if authorization:
+            parts = authorization.split()
+            if len(parts) == 2 and parts[0].lower() == "bearer":
+                token = parts[1]
 
-        # Fallback: any enabled device (even if offline) sorted by last_seen
+        # Step 1: Try per-device token match (authoritative)
+        if token:
+            token_hash = self.hash_token(token)
+            result = await self.db.execute(
+                select(LiveLinkDevice).where(
+                    LiveLinkDevice.enabled.is_(True),
+                    LiveLinkDevice.device_token_hash == token_hash,
+                )
+            )
+            device = result.scalar_one_or_none()
+            if device:
+                return device.device_id
+
+        # Step 2: Global token — only resolve if exactly one enabled device
         result = await self.db.execute(
-            select(LiveLinkDevice)
-            .where(LiveLinkDevice.enabled.is_(True))
-            .order_by(LiveLinkDevice.last_seen.desc().nullslast())
-            .limit(1)
+            select(LiveLinkDevice).where(LiveLinkDevice.enabled.is_(True))
         )
-        device = result.scalar_one_or_none()
-        return device.device_id if device else None
+        devices = list(result.scalars().all())
+
+        if len(devices) == 1:
+            return devices[0].device_id
+
+        if len(devices) > 1:
+            logger.warning(
+                "Ambiguous device resolution: %d enabled devices with global token. "
+                "Use per-device tokens for multi-device setups.",
+                len(devices),
+            )
+
+        return None
 
     async def auto_discover_device(
         self,
@@ -395,3 +407,39 @@ class LiveLinkService:
         """Get alert cooldown period in minutes."""
         setting = await SettingsService.get(self.db, "livelink_alert_cooldown_minutes")
         return int(setting.value) if setting and setting.value else 30
+
+    async def get_session_grace_period_seconds(self) -> int:
+        """Get session grace period in seconds (0 = disabled)."""
+        setting = await SettingsService.get(self.db, "livelink_session_grace_period_seconds")
+        return int(setting.value) if setting and setting.value else 60
+
+    async def set_pending_offline(self, device_id: str) -> None:
+        """Mark a device as pending offline (grace period started)."""
+        await self.db.execute(
+            update(LiveLinkDevice)
+            .where(LiveLinkDevice.device_id == device_id)
+            .values(
+                pending_offline_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
+            )
+        )
+
+    async def clear_pending_offline(self, device_id: str) -> None:
+        """Clear pending offline state (device recovered)."""
+        await self.db.execute(
+            update(LiveLinkDevice)
+            .where(LiveLinkDevice.device_id == device_id)
+            .values(
+                pending_offline_at=None,
+                updated_at=datetime.now(UTC),
+            )
+        )
+
+    async def get_devices_pending_offline(self) -> list[LiveLinkDevice]:
+        """Get all devices with pending offline state."""
+        result = await self.db.execute(
+            select(LiveLinkDevice).where(
+                LiveLinkDevice.pending_offline_at.isnot(None),
+            )
+        )
+        return list(result.scalars().all())

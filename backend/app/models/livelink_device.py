@@ -61,6 +61,9 @@ class LiveLinkDevice(Base):
         Integer, ForeignKey("drive_sessions.id", ondelete="SET NULL")
     )
 
+    # Session grace period (WiFi drop resilience)
+    pending_offline_at: Mapped[datetime | None] = mapped_column(DateTime)
+
     # State
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     last_seen: Mapped[datetime | None] = mapped_column(DateTime)

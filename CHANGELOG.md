@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- LiveLink session grace period — configurable delay (0-300s, default 60) before ending sessions after WiFi drops, preventing phantom micro-sessions
+- LiveLink MQTT command publishing — send `get_vbatt`, `get_autopid_data`, and `reboot` to WiCAN devices via MQTT
+- LiveLink telemetry validation — range and rate-of-change checks reject garbage values from partial ECU wakes
+- LiveLink grouped PID format support — forward-compatible parsing for community firmware forks
+
+### Fixed
+- Vehicle sharing modal crash — backend response unwrapping fixed in familyService
+- LiveLink token-bound device resolution — global token with multiple devices no longer attaches telemetry to wrong vehicle
+- LiveLink DTC ingestion — `DIAGNOSTIC_TROUBLE_CODES` string values now survive schema validation
+- LiveLink MQTT unknown status — malformed status messages no longer trigger false session transitions
+
 ### Changed
 - Simplified top nav from 7 items to 5 — VIN Decoder moved to About page modal, Family merged into Settings
 - Unified Family Management into a single view with inline action icons on member cards (replaces 3-tab layout + separate Manage Members modal)

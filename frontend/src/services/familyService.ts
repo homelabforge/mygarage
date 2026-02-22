@@ -107,8 +107,8 @@ export const familyService = {
    * Get users available for sharing (excludes current user and disabled users)
    */
   async getShareableUsers(): Promise<ShareableUser[]> {
-    const response = await api.get<ShareableUser[]>('/auth/users/shareable')
-    return response.data
+    const response = await api.get<{ users: ShareableUser[] }>('/auth/users/shareable')
+    return response.data.users
   },
 
   // ===========================================================================

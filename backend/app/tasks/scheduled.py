@@ -10,6 +10,7 @@ from app.tasks.livelink_tasks import (
     check_device_offline_status,
     check_firmware_updates,
     check_session_timeouts,
+    finalize_pending_offlines,
     generate_daily_summaries,
     prune_old_telemetry,
 )
@@ -55,6 +56,7 @@ def start_scheduler():
         - Monthly reset on 1st at midnight UTC for monthly-limited providers
         - LiveLink: Session timeout check every minute
         - LiveLink: Device offline check every 5 minutes
+        - LiveLink: Pending offline finalization every 15 seconds
         - LiveLink: Daily summary generation at 1 AM UTC
         - LiveLink: Firmware check at 3 AM UTC
         - LiveLink: Telemetry pruning at 4 AM UTC
@@ -71,6 +73,9 @@ def start_scheduler():
 
     # Check for offline devices every 5 minutes
     scheduler.add_job(check_device_offline_status, "interval", minutes=5)
+
+    # Finalize pending offlines every 15 seconds (grace period check)
+    scheduler.add_job(finalize_pending_offlines, "interval", seconds=15)
 
     # Generate daily summaries at 1 AM UTC
     scheduler.add_job(generate_daily_summaries, "cron", hour=1, minute=0)

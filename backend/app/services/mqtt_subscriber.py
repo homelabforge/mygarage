@@ -17,6 +17,7 @@ from app.services.livelink_service import LiveLinkService
 from app.services.session_service import SessionService
 from app.services.settings_service import SettingsService
 from app.services.telemetry_service import TelemetryService
+from app.utils.autopid_normalizer import normalize_autopid_data
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,8 @@ class MQTTSubscriber:
         """Initialize MQTT subscriber."""
         self._running = False
         self._task: asyncio.Task[None] | None = None
+        self._client: Any | None = None  # aiomqtt.Client when connected
+        self._topic_prefix: str = "wican"
         self._reconnect_delay = 5  # seconds
         self._max_reconnect_delay = 60  # seconds
         self._connection_status = "disconnected"
@@ -56,6 +59,7 @@ class MQTTSubscriber:
     async def stop(self) -> None:
         """Stop the MQTT subscriber."""
         self._running = False
+        self._client = None
         self._connection_status = "disconnected"
 
         if self._task:
@@ -82,6 +86,41 @@ class MQTTSubscriber:
             "last_message_at": self._last_message_at.isoformat() if self._last_message_at else None,
             "messages_processed": self._messages_processed,
         }
+
+    @property
+    def is_connected(self) -> bool:
+        """Check if MQTT client is connected."""
+        return self._client is not None and self._connection_status == "connected"
+
+    async def publish(self, topic: str, payload: str) -> None:
+        """Publish a message to an MQTT topic.
+
+        Args:
+            topic: MQTT topic to publish to.
+            payload: JSON string payload.
+
+        Raises:
+            RuntimeError: If MQTT client is not connected.
+        """
+        if self._client is None:
+            raise RuntimeError("MQTT client is not connected")
+
+        await self._client.publish(topic, payload.encode("utf-8"))
+        logger.debug("Published MQTT message to %s", topic)
+
+    async def send_device_command(self, device_id: str, command: str) -> None:
+        """Send a command to a WiCAN device via MQTT.
+
+        Args:
+            device_id: Target device ID (12-char hex).
+            command: Command JSON string (e.g., '{"get_vbatt":""}').
+
+        Raises:
+            RuntimeError: If MQTT client is not connected.
+        """
+        topic = f"{self._topic_prefix}/{device_id}/cmd"
+        await self.publish(topic, command)
+        logger.info("Sent command to device %s: %s", device_id, command)
 
     async def _get_config(self) -> dict[str, Any] | None:
         """Get MQTT configuration from settings."""
@@ -153,6 +192,8 @@ class MQTTSubscriber:
                     password=config["password"],
                     tls_context=tls_context,
                 ) as client:
+                    self._client = client
+                    self._topic_prefix = config["topic_prefix"]
                     reconnect_delay = self._reconnect_delay  # Reset on successful connect
                     self._connection_status = "connected"
 
@@ -176,8 +217,10 @@ class MQTTSubscriber:
                             logger.error("Error processing MQTT message: %s", e)
 
             except asyncio.CancelledError:
+                self._client = None
                 raise
             except Exception as e:
+                self._client = None
                 logger.error("MQTT connection error: %s", e)
                 self._connection_status = "error"
 
@@ -264,17 +307,40 @@ class MQTTSubscriber:
         if is_new:
             logger.info("Auto-discovered new device via MQTT: %s", device_id)
 
-        # Map status to ecu_status
-        ecu_status = "online" if status == "online" else "offline"
+        # Map status to ecu_status — only explicit values, not coerced
+        if status == "online":
+            ecu_status = "online"
+        elif status == "offline":
+            ecu_status = "offline"
+        else:
+            ecu_status = "unknown"
 
-        # Handle session transitions BEFORE updating device status,
-        # so the transition detector sees the old ecu_status
-        if device.vin:
-            session_service = SessionService(db)
+        # Handle session transitions with grace period for WiFi drop resilience.
+        # Skip transitions for unknown status — only explicit online/offline matters.
+        if device.vin and ecu_status != "unknown":
+            grace_seconds = await livelink_service.get_session_grace_period_seconds()
             if ecu_status == "online":
-                await session_service.handle_ecu_online(device.vin, device_id)
+                # ECU came online — if pending offline, WiFi recovered (clear pending)
+                if device.pending_offline_at:
+                    await livelink_service.clear_pending_offline(device_id)
+                    logger.debug("Cleared pending offline for %s (WiFi recovered)", device_id)
+                else:
+                    # Not pending — genuine ECU online, start session
+                    session_service = SessionService(db)
+                    await session_service.handle_ecu_online(device.vin, device_id)
             else:
-                await session_service.handle_ecu_offline(device.vin, device_id)
+                # ECU offline — start grace period instead of immediate session end
+                if grace_seconds > 0:
+                    await livelink_service.set_pending_offline(device_id)
+                    logger.debug(
+                        "Set pending offline for %s (grace period: %ds)",
+                        device_id,
+                        grace_seconds,
+                    )
+                else:
+                    # Grace period disabled — immediate session end
+                    session_service = SessionService(db)
+                    await session_service.handle_ecu_offline(device.vin, device_id)
 
         # Update device status (after session detection has read old state)
         await livelink_service.update_device_status(
@@ -345,6 +411,11 @@ class MQTTSubscriber:
         if not device.enabled:
             return
 
+        # If device has a pending offline, receiving telemetry means WiFi recovered
+        if device.pending_offline_at:
+            await livelink_service.clear_pending_offline(device_id)
+            logger.debug("Cleared pending offline for %s (telemetry received)", device_id)
+
         # Infer ECU status from telemetry: if we're receiving data, ECU must be on
         # This handles WiCAN devices that don't send explicit can/status messages
         ecu_was_offline = device.ecu_status != "online"
@@ -366,22 +437,19 @@ class MQTTSubscriber:
             ecu_status="online",
         )
 
-        # Normalize parameter keys and filter numeric values
-        autopid_data: dict[str, float | int | None] = {}
-        for key, value in data.items():
-            if value is None:
-                continue
-            if isinstance(value, (int, float)):
-                # Normalize key: uppercase, replace spaces with underscores
-                normalized_key = key.upper().replace(" ", "_")
-                autopid_data[normalized_key] = float(value)
+        # Normalize parameter keys and filter values via normalizer
+        normalized = normalize_autopid_data(data)
+        # Uppercase keys with spaces replaced by underscores (MQTT convention)
+        autopid_data: dict[str, float | int | str | None] = {
+            k.upper().replace(" ", "_"): v for k, v in normalized.items()
+        }
 
         if not autopid_data:
             return
 
-        # Store telemetry using existing service
+        # Store telemetry using existing service (includes validation)
         telemetry_service = TelemetryService(db)
-        stored_count = await telemetry_service.store_telemetry(
+        store_result = await telemetry_service.store_telemetry(
             vin=device.vin,
             device_id=device_id,
             autopid_data=autopid_data,
@@ -389,9 +457,9 @@ class MQTTSubscriber:
             timestamp=datetime.now(UTC),
         )
 
-        # Check thresholds
-        for param_key, value in autopid_data.items():
-            if value is not None:
+        # Check thresholds on validated data only (not rejected garbage)
+        for param_key, value in store_result.validated_data.items():
+            if value is not None and isinstance(value, (int, float)):
                 await telemetry_service.check_thresholds(
                     vin=device.vin,
                     param_key=param_key,
@@ -400,7 +468,7 @@ class MQTTSubscriber:
 
         logger.debug(
             "Stored %d telemetry parameters for device %s",
-            stored_count,
+            store_result.stored_count,
             device_id,
         )
 

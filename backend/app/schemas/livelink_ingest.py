@@ -8,6 +8,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
+from app.utils.autopid_normalizer import normalize_autopid_data
+
 
 class WiCANConfigEntry(BaseModel):
     """Schema for a single parameter config entry from WiCAN.
@@ -90,7 +92,7 @@ class WiCANPayload(BaseModel):
         }
     """
 
-    autopid_data: dict[str, float | int | None] = Field(
+    autopid_data: dict[str, float | int | str | None] = Field(
         ..., description="Decoded OBD2 parameter values"
     )
     config: dict[str, WiCANConfigEntry] = Field(
@@ -105,20 +107,22 @@ class WiCANPayload(BaseModel):
         None, description="Optional device timestamp for replay support"
     )
 
-    @field_validator("autopid_data")
+    @field_validator("autopid_data", mode="before")
     @classmethod
-    def validate_autopid_data(cls, v: dict[str, Any]) -> dict[str, float | int | None]:
-        """Validate and normalize autopid_data values."""
-        result = {}
-        for key, value in v.items():
-            if value is None:
-                result[key] = None
-            elif isinstance(value, (int, float)):
-                result[key] = float(value)
-            else:
-                # Skip non-numeric values but log them
-                continue
-        return result
+    def validate_autopid_data(
+        cls,
+        v: Any,
+    ) -> dict[str, float | int | str | None]:
+        """Validate and normalize autopid_data values.
+
+        Accepts flat, grouped, and array-grouped formats.
+        Numeric values are preserved. String values are preserved
+        only for allowlisted keys (e.g., DIAGNOSTIC_TROUBLE_CODES).
+        All other non-numeric values are silently dropped.
+        """
+        if not isinstance(v, (dict, list)):
+            raise ValueError("autopid_data must be a dict or list")
+        return normalize_autopid_data(v)
 
 
 class IngestResult(BaseModel):

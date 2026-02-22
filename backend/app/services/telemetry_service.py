@@ -4,6 +4,7 @@ import hashlib
 import json
 import logging
 import re
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from datetime import date as date_type
 from typing import Any
@@ -22,7 +23,17 @@ from app.models.vehicle_telemetry import (
     VehicleTelemetryLatest,
 )
 from app.services.settings_service import SettingsService
+from app.services.telemetry_validator import TelemetryValidator
 from app.utils.units import UnitConverter
+
+
+@dataclass
+class StoreResult:
+    """Result from store_telemetry() with stored count and validated data."""
+
+    stored_count: int = 0
+    validated_data: dict[str, float | int | str | None] = field(default_factory=dict)
+
 
 # PIDs that represent odometer readings (case-insensitive matching)
 ODOMETER_PID_PATTERNS = [
@@ -258,10 +269,10 @@ class TelemetryService:
         self,
         vin: str,
         device_id: str,
-        autopid_data: dict[str, float | int | None],
+        autopid_data: dict[str, float | int | str | None],
         config: dict[str, dict[str, str | None]],
         timestamp: datetime | None = None,
-    ) -> int:
+    ) -> StoreResult:
         """Store telemetry data from a WiCAN payload.
 
         Args:
@@ -272,21 +283,41 @@ class TelemetryService:
             timestamp: Optional device timestamp (defaults to now)
 
         Returns:
-            Number of parameters stored to historical table
+            StoreResult with stored count and validated data
         """
         if timestamp is None:
             timestamp = datetime.now(UTC)
 
         received_at = datetime.now(UTC)
 
-        # Get all parameters to check storage intervals
+        # Get all parameters to check storage intervals and for validation
         parameters = await self.get_all_parameters()
+
+        # Auto-register any new parameters before validation (so validator has class info)
+        for param_key in autopid_data:
+            if param_key not in parameters:
+                param_config = config.get(param_key, {})
+                unit = param_config.get("unit") if param_config else None
+                param_class = param_config.get("class") if param_config else None
+                param = await self.auto_register_parameter(param_key, unit, param_class)
+                parameters[param_key] = param
+
+        # Validate telemetry values before storage
+        validator = TelemetryValidator(self.db)
+        valid_data, _rejected = await validator.validate_batch(vin, autopid_data, parameters)
 
         stored_count = 0
 
-        for param_key, value in autopid_data.items():
+        for param_key, value in valid_data.items():
             if value is None:
                 continue
+
+            # Skip non-numeric values (e.g., DTC strings handled by route)
+            if not isinstance(value, (int, float)):
+                continue
+
+            # Get parameter (already registered above)
+            param = parameters.get(param_key)
 
             # Auto-register parameter if not exists
             param_config = config.get(param_key, {})
@@ -336,12 +367,12 @@ class TelemetryService:
         # Check for odometer reading and sync
         await self._sync_odometer_from_telemetry(vin, autopid_data, timestamp)
 
-        return stored_count
+        return StoreResult(stored_count=stored_count, validated_data=valid_data)
 
     async def _sync_odometer_from_telemetry(
         self,
         vin: str,
-        autopid_data: dict[str, float | int | None],
+        autopid_data: dict[str, float | int | str | None],
         timestamp: datetime,
     ) -> None:
         """Sync odometer record from telemetry if odometer PID is present.
