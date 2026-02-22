@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.21.2] - 2026-02-22
+
 ### Added
 - DEF level auto-sync from fuel records — note DEF gauge level on fuel fill-ups to auto-create DEF observation records
 - **Redesigned Analytics PDF Reports** — branded layout with charts, KPI cards, and visual hierarchy replacing plain table-only reports
