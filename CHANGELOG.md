@@ -14,10 +14,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - LiveLink grouped PID format support — forward-compatible parsing for community firmware forks
 
 ### Fixed
+- Database startup crash on retry — migrations 002, 006, 022, 026, 030 now clean up stale temp tables before recreating them, preventing "table already exists" errors after a failed upgrade
 - Vehicle sharing modal crash — backend response unwrapping fixed in familyService
 - LiveLink token-bound device resolution — global token with multiple devices no longer attaches telemetry to wrong vehicle
 - LiveLink DTC ingestion — `DIAGNOSTIC_TROUBLE_CODES` string values now survive schema validation
 - LiveLink MQTT unknown status — malformed status messages no longer trigger false session transitions
+
+### Tests
+- Added migration test harness — 9 tests covering runner behavior (tracking table, discovery order, stop-on-failure, noop second run) and crash-recovery regression for migrations 002, 006, 022, 026, 030 (closes #35)
 
 ### Changed
 - Simplified top nav from 7 items to 5 — VIN Decoder moved to About page modal, Family merged into Settings

@@ -9,12 +9,16 @@ Since the TSB column is unused and the TSB feature has been removed,
 we drop it and ensure the service_category column has the correct constraint.
 """
 
+import os
 import sqlite3
 from pathlib import Path
 
 
 def get_db_path() -> Path:
-    """Get database file path."""
+    """Get database file path, preferring DATABASE_PATH env var."""
+    env_path = os.environ.get("DATABASE_PATH")
+    if env_path:
+        return Path(env_path)
     data_dir = Path("/data")
     if data_dir.exists():
         return data_dir / "mygarage.db"
@@ -49,6 +53,8 @@ def upgrade():
         # Create new table with updated schema
         # Drop TSB column, ensure service_category has Detailing
         print("→ Creating new service_records table with Detailing category...")
+        # Clean up any leftover temp table from a previous failed run
+        cursor.execute("DROP TABLE IF EXISTS service_records_new")
         cursor.execute("""
             CREATE TABLE service_records_new (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,

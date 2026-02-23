@@ -61,10 +61,12 @@ def upgrade():
 
         # Step 1: Create new attachments table with updated constraint
         print("  Updating attachments table constraint...")
+        # Clean up any leftover temp table from a previous failed run
+        conn.execute(text("DROP TABLE IF EXISTS attachments_new"))
         conn.execute(
             text(
                 """
-            CREATE TABLE IF NOT EXISTS attachments_new (
+            CREATE TABLE attachments_new (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 record_type VARCHAR(30) NOT NULL,
                 record_id INTEGER NOT NULL,

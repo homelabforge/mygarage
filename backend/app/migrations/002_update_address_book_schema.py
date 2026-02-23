@@ -23,6 +23,9 @@ def upgrade():
     with sync_engine.begin() as conn:
         # SQLite doesn't support ALTER COLUMN, so we need to recreate the table
 
+        # Clean up any leftover temp table from a previous failed run
+        conn.execute(text("DROP TABLE IF EXISTS address_book_new"))
+
         # 1. Create new table with updated schema
         conn.execute(
             text("""
@@ -86,6 +89,9 @@ def downgrade():
     sync_engine = create_engine(database_url)
 
     with sync_engine.begin() as conn:
+        # Clean up any leftover temp table from a previous failed run
+        conn.execute(text("DROP TABLE IF EXISTS address_book_new"))
+
         # Create old table structure
         conn.execute(
             text("""

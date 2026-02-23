@@ -1,16 +1,30 @@
 """Update service_type CHECK constraint to include Collision and Upgrades."""
 
+import os
 import sqlite3
 
 
-def upgrade(db_path: str = "/data/mygarage.db"):
+def upgrade():
     """Update the service_type check constraint."""
+    db_path = os.environ.get("DATABASE_PATH", "/data/mygarage.db")
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
     try:
+        # Check if constraint is already updated (idempotency guard)
+        cursor.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='service_records'"
+        )
+        row = cursor.fetchone()
+        if row and "'Collision'" in row[0]:
+            print("✓ service_type constraint already updated, skipping")
+            return
+
         # SQLite doesn't support ALTER TABLE to modify constraints
         # We need to recreate the table
+
+        # Clean up any leftover temp table from a previous failed run
+        cursor.execute("DROP TABLE IF EXISTS service_records_new")
 
         # 1. Create new table with updated constraint
         cursor.execute("""

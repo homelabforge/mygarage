@@ -14,11 +14,13 @@ Background:
 Created: 2025-12-29
 """
 
+import os
 import sqlite3
 
 
-def upgrade(db_path: str = "/data/mygarage.db"):
+def upgrade():
     """Redesign service_records schema with category/type separation."""
+    db_path = os.environ.get("DATABASE_PATH", "/data/mygarage.db")
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
@@ -50,6 +52,8 @@ def upgrade(db_path: str = "/data/mygarage.db"):
 
         # Step 4: Create new table with updated schema
         print("\n[4/8] Creating new table with updated schema...")
+        # Clean up any leftover temp table from a previous failed run
+        cursor.execute("DROP TABLE IF EXISTS service_records_new")
         cursor.execute("""
             CREATE TABLE service_records_new (
                 id INTEGER NOT NULL,
