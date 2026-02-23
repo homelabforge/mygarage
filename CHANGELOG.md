@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.22.0] - 2026-02-23
+
 ### Added
 - LiveLink session grace period — configurable delay (0-300s, default 60) before ending sessions after WiFi drops, preventing phantom micro-sessions
 - LiveLink MQTT command publishing — send `get_vbatt`, `get_autopid_data`, and `reboot` to WiCAN devices via MQTT
