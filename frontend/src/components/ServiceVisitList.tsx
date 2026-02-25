@@ -274,7 +274,7 @@ export default function ServiceVisitList({
                 placeholder="Search services..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 pr-4 py-2 border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text w-56"
+                className="pl-10 pr-4 py-2 border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text w-full sm:w-56"
               />
             </div>
           )}
@@ -340,7 +340,7 @@ export default function ServiceVisitList({
               >
                 {/* Visit header */}
                 <div
-                  className="flex items-center gap-4 p-4 cursor-pointer hover:bg-garage-bg/50"
+                  className="flex items-center flex-wrap gap-2 sm:gap-4 p-4 cursor-pointer hover:bg-garage-bg/50"
                   onClick={() => toggleExpanded(visit.id)}
                 >
                   {/* Expand/collapse */}
@@ -353,7 +353,7 @@ export default function ServiceVisitList({
                   </button>
 
                   {/* Date */}
-                  <div className="flex items-center gap-2 min-w-[120px]">
+                  <div className="flex items-center gap-2 min-w-[90px] sm:min-w-[120px]">
                     <Calendar className="w-4 h-4 text-garage-text-muted" />
                     <span className="text-sm text-garage-text font-medium">
                       {formatDate(visit.date)}

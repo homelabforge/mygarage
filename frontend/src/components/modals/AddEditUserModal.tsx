@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, type SyntheticEvent } from 'react'
 import { X, Eye, EyeOff } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '@/services/api'
@@ -63,7 +63,7 @@ export default function AddEditUserModal({ isOpen, onClose, user, onSave, curren
     setErrors({})
   }, [user, isOpen])
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault()
     setErrors({})
 

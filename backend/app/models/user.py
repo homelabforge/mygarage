@@ -42,6 +42,9 @@ class User(Base):
     )  # 'imperial' or 'metric'
     show_both_units: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
+    # Mobile experience
+    mobile_quick_entry_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
     # Family/relationship fields
     relationship: Mapped[str | None] = mapped_column(
         String(50), nullable=True

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, type SyntheticEvent } from 'react'
 import {
   Calendar,
   Gauge,
@@ -399,7 +399,7 @@ function ScheduleItemModal({ vin, item, onClose, onSuccess }: ScheduleItemModalP
     interval_miles: item?.interval_miles?.toString() || '',
   })
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault()
     setError(null)
 
@@ -473,7 +473,7 @@ function ScheduleItemModal({ vin, item, onClose, onSuccess }: ScheduleItemModalP
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-garage-text mb-1">Category</label>
               <select
@@ -504,7 +504,7 @@ function ScheduleItemModal({ vin, item, onClose, onSuccess }: ScheduleItemModalP
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-garage-text mb-1">
                 Interval (months)

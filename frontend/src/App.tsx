@@ -16,6 +16,7 @@ import OIDCSuccess from './pages/OIDCSuccess'
 import LinkAccount from './pages/LinkAccount'
 
 // Lazy load all other pages for performance
+const QuickEntry = lazy(() => import('./pages/QuickEntry'))
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const AddressBook = lazy(() => import('./pages/AddressBook'))
 const POIFinder = lazy(() => import('./pages/POIFinder'))
@@ -56,6 +57,9 @@ function App() {
 
                 {/* Protected routes */}
                 <Route element={<ProtectedRoute />}>
+                  {/* Quick Entry: protected but no Layout (mobile-optimized, minimal chrome) */}
+                  <Route path="/quick-entry" element={<QuickEntry />} />
+
                   <Route path="/" element={<Layout />}>
                     <Route index element={<Dashboard />} />
                     <Route path="analytics" element={<GarageAnalytics />} />

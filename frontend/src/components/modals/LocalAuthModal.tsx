@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type SyntheticEvent } from 'react'
 import { X, Shield, Info, AlertTriangle, Users, Key, CheckCircle, AlertCircle, Eye, EyeOff, Loader } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/services/api'
@@ -51,7 +51,7 @@ export default function LocalAuthModal({
   const [passwordChangeMessage, setPasswordChangeMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
 
   // Handle password change
-  const handlePasswordChange = async (e: React.FormEvent) => {
+  const handlePasswordChange = async (e: SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault()
     setPasswordChangeMessage(null)
 

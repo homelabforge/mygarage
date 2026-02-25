@@ -18,9 +18,7 @@ def test_tracking_table_created(migration_db):
 
     conn = sqlite3.connect(str(db_file))
     cursor = conn.cursor()
-    cursor.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='schema_migrations'"
-    )
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='schema_migrations'")
     assert cursor.fetchone() is not None, "schema_migrations table was not created"
     conn.close()
 
@@ -66,16 +64,12 @@ def test_second_run_is_noop(fake_migrations_success_dir):
 
     engine = create_engine(sync_url)
     with engine.connect() as conn:
-        count_after_first = conn.execute(
-            text("SELECT COUNT(*) FROM schema_migrations")
-        ).scalar()
+        count_after_first = conn.execute(text("SELECT COUNT(*) FROM schema_migrations")).scalar()
 
     run_migrations(sync_url, fake_dir)
 
     with engine.connect() as conn:
-        count_after_second = conn.execute(
-            text("SELECT COUNT(*) FROM schema_migrations")
-        ).scalar()
+        count_after_second = conn.execute(text("SELECT COUNT(*) FROM schema_migrations")).scalar()
 
     engine.dispose()
     assert count_after_first == count_after_second, (

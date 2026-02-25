@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { resolvePostLoginRoute } from '../utils/postLoginRedirect'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { LogIn, AlertCircle, Loader, Eye, EyeOff, Shield } from 'lucide-react'
@@ -46,8 +47,8 @@ export default function Login() {
     setError('')
 
     try {
-      await login(data.username, data.password)
-      navigate('/')
+      const user = await login(data.username, data.password)
+      navigate(resolvePostLoginRoute(user), { replace: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed. Please try again.')
     }

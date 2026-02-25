@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, type SyntheticEvent } from 'react'
 import { Upload, X, FileText } from 'lucide-react'
 import api from '../services/api'
 
@@ -70,7 +70,7 @@ export default function DocumentUpload({ vin, onSuccess, onClose }: DocumentUplo
     }
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!file) return
 

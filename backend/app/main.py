@@ -245,6 +245,7 @@ from app.routes.livelink_admin import router as livelink_admin_router
 from app.routes.livelink_vehicle import router as livelink_vehicle_router
 from app.routes.oidc import router as oidc_router
 from app.routes.poi import router as poi_router
+from app.routes.quick_entry import router as quick_entry_router
 
 app.include_router(auth_router)
 app.include_router(family_router)
@@ -287,6 +288,7 @@ app.include_router(maintenance_schedule_router)
 app.include_router(livelink_ingest_router)
 app.include_router(livelink_admin_router)
 app.include_router(livelink_vehicle_router)
+app.include_router(quick_entry_router)
 
 
 # Serve static files (frontend build) in production

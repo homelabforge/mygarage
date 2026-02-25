@@ -1,22 +1,42 @@
 import { useEffect } from 'react'
 import { Car, Loader, CheckCircle } from 'lucide-react'
-import { setCSRFToken } from '../services/api'
+import api, { setCSRFToken } from '../services/api'
+import { resolvePostLoginRoute } from '../utils/postLoginRedirect'
 
 export default function OIDCSuccess() {
   useEffect(() => {
-    // Extract CSRF token from URL parameter (Security Enhancement v2.10.0)
-    const params = new URLSearchParams(window.location.search)
-    const csrfToken = params.get('csrf_token')
+    const redirect = async () => {
+      // Extract CSRF token from URL parameter (Security Enhancement v2.10.0)
+      const params = new URLSearchParams(window.location.search)
+      const csrfToken = params.get('csrf_token')
 
-    if (csrfToken) {
-      setCSRFToken(csrfToken)
+      if (csrfToken) {
+        setCSRFToken(csrfToken)
+      }
+
+      // Cookie is already set by backend — fetch user to determine redirect target.
+      // Retry once if cookie hasn't propagated yet (same pattern as AuthContext login).
+      let user: { mobile_quick_entry_enabled?: boolean } = {}
+      try {
+        const response = await api.get('/auth/me')
+        user = response.data
+      } catch {
+        await new Promise(resolve => setTimeout(resolve, 50))
+        try {
+          const response = await api.get('/auth/me')
+          user = response.data
+        } catch {
+          // If still failing, fall back to dashboard
+        }
+      }
+
+      // Full-page navigate (not React Router) to ensure the JWT cookie is
+      // processed before the destination page loads.
+      window.location.href = resolvePostLoginRoute(user)
     }
 
-    // Cookie is already set by backend
-    // Just redirect to home page after brief delay
-    setTimeout(() => {
-      window.location.href = '/'
-    }, 1500)
+    // Brief delay lets the browser process the Set-Cookie before we fetch /auth/me
+    setTimeout(() => void redirect(), 300)
   }, [])
 
   return (
@@ -41,7 +61,7 @@ export default function OIDCSuccess() {
             Authentication Successful!
           </h2>
           <p className="text-garage-text-muted mb-4">
-            Redirecting to your dashboard...
+            Redirecting...
           </p>
 
           {/* Loading spinner */}

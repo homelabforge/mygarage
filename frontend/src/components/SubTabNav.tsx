@@ -32,7 +32,7 @@ export default function SubTabNav({ tabs, activeTab, onTabChange }: SubTabNavPro
               <button
                 key={tab.id}
                 onClick={() => onTabChange(tab.id)}
-                className={`flex items-center space-x-2 px-4 py-2.5 whitespace-nowrap border-b-2 transition-colors ${
+                className={`flex items-center space-x-2 px-3 sm:px-4 py-2.5 whitespace-nowrap border-b-2 transition-colors ${
                   isActive
                     ? 'border-primary text-primary bg-primary/5'
                     : 'border-transparent text-garage-text-muted hover:text-garage-text hover:bg-garage-surface'

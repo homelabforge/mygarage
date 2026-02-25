@@ -10,14 +10,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.odometer import OdometerRecord
 from app.models.user import User
-from app.models.vehicle import Vehicle
 from app.schemas.odometer import (
     OdometerRecordCreate,
     OdometerRecordListResponse,
     OdometerRecordResponse,
     OdometerRecordUpdate,
 )
-from app.services.auth import require_auth
+from app.services.auth import get_vehicle_or_403, require_auth
 from app.utils.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
@@ -49,12 +48,7 @@ async def list_odometer_records(
     vin = vin.upper().strip()
 
     try:
-        # Verify vehicle exists
-        result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-        vehicle = result.scalar_one_or_none()
-
-        if not vehicle:
-            raise HTTPException(status_code=404, detail=f"Vehicle with VIN {vin} not found")
+        await get_vehicle_or_403(vin, current_user, db)
 
         # Get odometer records
         result = await db.execute(
@@ -120,6 +114,8 @@ async def get_odometer_record(
     """
     vin = vin.upper().strip()
 
+    await get_vehicle_or_403(vin, current_user, db)
+
     result = await db.execute(
         select(OdometerRecord)
         .where(OdometerRecord.id == record_id)
@@ -159,12 +155,7 @@ async def create_odometer_record(
     vin = vin.upper().strip()
 
     try:
-        # Verify vehicle exists
-        result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-        vehicle = result.scalar_one_or_none()
-
-        if not vehicle:
-            raise HTTPException(status_code=404, detail=f"Vehicle with VIN {vin} not found")
+        await get_vehicle_or_403(vin, current_user, db, require_write=True)
 
         # Create odometer record
         record_dict = record_data.model_dump()
@@ -227,6 +218,8 @@ async def update_odometer_record(
     vin = vin.upper().strip()
 
     try:
+        await get_vehicle_or_403(vin, current_user, db, require_write=True)
+
         # Get existing record
         result = await db.execute(
             select(OdometerRecord)
@@ -293,6 +286,8 @@ async def delete_odometer_record(
     vin = vin.upper().strip()
 
     try:
+        await get_vehicle_or_403(vin, current_user, db, require_write=True)
+
         # Check if record exists
         result = await db.execute(
             select(OdometerRecord)

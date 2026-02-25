@@ -61,7 +61,6 @@ def fake_migrations_failing_dir(tmp_path, monkeypatch):
     _write_fake_migration(fake_dir / "001_create_foo.py", "foo")
     _write_fake_migration(fake_dir / "002_create_bar.py", "bar")
     (fake_dir / "003_fail.py").write_text(
-        "def upgrade():\n"
-        '    raise RuntimeError("forced failure for testing")\n'
+        'def upgrade():\n    raise RuntimeError("forced failure for testing")\n'
     )
     return fake_dir, db_file, f"sqlite:///{db_file}"

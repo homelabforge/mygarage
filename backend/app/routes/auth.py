@@ -302,6 +302,15 @@ async def update_current_user(
     if user_update.full_name is not None:
         current_user.full_name = user_update.full_name
 
+    if user_update.unit_preference is not None:
+        current_user.unit_preference = user_update.unit_preference
+
+    if user_update.show_both_units is not None:
+        current_user.show_both_units = user_update.show_both_units
+
+    if user_update.mobile_quick_entry_enabled is not None:
+        current_user.mobile_quick_entry_enabled = user_update.mobile_quick_entry_enabled
+
     # Users cannot change their own is_active or is_admin status
     current_user.updated_at = datetime.now(UTC)
 

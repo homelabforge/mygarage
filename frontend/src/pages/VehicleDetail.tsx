@@ -522,10 +522,11 @@ export default function VehicleDetail() {
       {/* Header */}
       <div className="bg-garage-surface border-b border-garage-border">
         <div className="container mx-auto px-4 py-6">
-          <div className="flex items-start justify-between">
-            <div className="flex items-start space-x-4">
+          {/* Header: relative container so mobile MoreVertical can be absolute-positioned */}
+          <div className="relative md:flex md:items-start md:justify-between">
+            <div className="flex items-start space-x-3 md:space-x-4 pr-12 md:pr-0">
               {/* Vehicle Photo */}
-              <div className="w-24 h-24 bg-garage-bg rounded-lg overflow-hidden flex-shrink-0">
+              <div className="w-16 h-16 md:w-24 md:h-24 bg-garage-bg rounded-lg overflow-hidden flex-shrink-0">
                 {photoUrl ? (
                   <img
                     src={photoUrl}
@@ -534,13 +535,13 @@ export default function VehicleDetail() {
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
-                    <Car className="w-12 h-12 text-garage-text-muted opacity-20" />
+                    <Car className="w-10 h-10 md:w-12 md:h-12 text-garage-text-muted opacity-20" />
                   </div>
                 )}
               </div>
 
               {/* Vehicle Info */}
-              <div>
+              <div className="min-w-0">
                 <Link
                   to="/"
                   className="inline-flex items-center space-x-1 text-sm text-garage-text-muted hover:text-garage-text transition-colors mb-2"
@@ -548,17 +549,17 @@ export default function VehicleDetail() {
                   <ArrowLeft className="w-3 h-3" />
                   <span>Back to Garage</span>
                 </Link>
-                <h1 className="text-3xl font-bold text-garage-text mb-1">{vehicle.nickname}</h1>
+                <h1 className="text-2xl md:text-3xl font-bold text-garage-text mb-1">{vehicle.nickname}</h1>
                 <p className="text-garage-text-muted mb-2">
                   {[vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(' ')}
                 </p>
-                <div className="flex items-center space-x-4 text-sm">
-                  <span className="text-garage-text-muted font-mono">{vehicle.vin}</span>
-                  <span className="px-2 py-1 bg-garage-bg text-garage-text text-xs font-medium rounded">
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <span className="text-garage-text-muted font-mono text-xs [overflow-wrap:anywhere]">{vehicle.vin}</span>
+                  <span className="px-2 py-1 bg-garage-bg text-garage-text text-xs font-medium rounded flex-shrink-0">
                     {vehicle.vehicle_type}
                   </span>
                   {vehicle.sold_date && (
-                    <span className="px-2 py-1 bg-warning/10 text-warning text-xs font-medium rounded">
+                    <span className="px-2 py-1 bg-warning/10 text-warning text-xs font-medium rounded flex-shrink-0">
                       Sold
                     </span>
                   )}
@@ -572,16 +573,14 @@ export default function VehicleDetail() {
               </div>
             </div>
 
-            {/* Actions - Desktop: horizontal buttons, Mobile: overflow menu */}
-            <div className="flex items-center space-x-2">
-              {/* Hidden file input for import */}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".json"
-                onChange={handleImportJSON}
-                className="hidden"
-              />
+            {/* Hidden file input for import */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".json"
+              onChange={handleImportJSON}
+              className="hidden"
+            />
 
               {/* Desktop buttons - hidden on mobile */}
               <div className="hidden md:flex items-center space-x-2">
@@ -645,28 +644,64 @@ export default function VehicleDetail() {
                 </button>
               </div>
 
-              {/* Mobile overflow menu button */}
-              <button
-                onClick={() => setShowMobileMenu(true)}
-                className="md:hidden flex items-center justify-center p-3 btn-primary"
-                title="More actions"
-              >
-                <MoreVertical className="w-5 h-5" />
-              </button>
-            </div>
+            {/* Mobile overflow menu button — absolute so it stays top-right without affecting layout */}
+            <button
+              onClick={() => setShowMobileMenu(true)}
+              className="md:hidden absolute top-0 right-0 p-2 text-garage-text-muted hover:text-garage-text rounded-lg transition-colors"
+              title="More actions"
+            >
+              <MoreVertical className="w-5 h-5" />
+            </button>
           </div>
 
-          {/* Primary Tabs */}
-          <div className="flex items-center space-x-1 mt-6 border-b border-garage-border -mb-px overflow-x-auto scrollbar-hide">
+          {/* Primary Tabs — Mobile: 3-column icon grid */}
+          <div
+            role="tablist"
+            aria-label="Vehicle sections"
+            className="md:hidden grid grid-cols-3 gap-2 mt-4"
+          >
             {primaryTabs.map((tab) => {
               const Icon = tab.icon
               const isActive = activePrimaryTab === tab.id
-
               return (
                 <button
                   key={tab.id}
+                  role="tab"
+                  aria-selected={isActive}
+                  aria-controls={isActive ? `panel-${tab.id}` : undefined}
+                  id={`tab-mobile-${tab.id}`}
                   onClick={() => handlePrimaryTabClick(tab.id)}
-                  className={`flex items-center space-x-2 px-4 py-3 border-b-2 transition-colors whitespace-nowrap ${
+                  className={`flex flex-col items-center justify-center gap-1 min-h-[60px] py-3 px-2 rounded-lg border text-center leading-tight transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-garage-bg ${
+                    isActive
+                      ? 'bg-primary/10 border-primary text-primary'
+                      : 'bg-garage-surface border-garage-border text-garage-text-muted hover:text-garage-text hover:bg-garage-surface-light'
+                  }`}
+                >
+                  <Icon className="w-5 h-5 flex-shrink-0" />
+                  <span className="text-xs font-medium leading-tight">{tab.label}</span>
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Primary Tabs — Desktop: horizontal scroll bar */}
+          <div
+            role="tablist"
+            aria-label="Vehicle sections"
+            className="hidden md:flex items-center space-x-1 mt-6 border-b border-garage-border -mb-px overflow-x-auto scrollbar-hide"
+          >
+            {primaryTabs.map((tab) => {
+              const Icon = tab.icon
+              const isActive = activePrimaryTab === tab.id
+              return (
+                <button
+                  key={tab.id}
+                  role="tab"
+                  aria-selected={isActive}
+                  aria-controls={isActive ? `panel-${tab.id}` : undefined}
+                  id={`tab-desktop-${tab.id}`}
+                  onClick={() => handlePrimaryTabClick(tab.id)}
+                  className={`flex items-center space-x-2 px-4 py-3 border-b-2 transition-colors whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 focus-visible:ring-offset-garage-surface ${
                     isActive
                       ? 'border-primary text-primary'
                       : 'border-transparent text-garage-text-muted hover:text-garage-text hover:border-garage-border'
@@ -691,9 +726,14 @@ export default function VehicleDetail() {
       )}
 
       {/* Tab Content */}
-      <div className="container mx-auto px-4 py-8">
+      <div
+        role="tabpanel"
+        id={`panel-${activePrimaryTab}`}
+        aria-labelledby={`tab-mobile-${activePrimaryTab} tab-desktop-${activePrimaryTab}`}
+        className="container mx-auto px-4 py-8"
+      >
         {activePrimaryTab === 'overview' && (
-          <div className="columns-1 lg:columns-2 gap-6 space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Basic Information */}
             <div className="bg-garage-surface rounded-lg border border-garage-border p-6 break-inside-avoid">
               <h2 className="text-xl font-semibold text-garage-text mb-4">Basic Information</h2>
@@ -947,7 +987,7 @@ export default function VehicleDetail() {
             {(vehicle.fuel_economy_city || vehicle.fuel_economy_highway || vehicle.fuel_economy_combined) && (
               <div className="bg-garage-surface rounded-lg border border-garage-border p-6 break-inside-avoid">
                 <h2 className="text-xl font-semibold text-garage-text mb-4">Fuel Economy</h2>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   {vehicle.fuel_economy_city && (
                     <div>
                       <p className="text-sm text-garage-text-muted">City</p>
@@ -1232,7 +1272,7 @@ export default function VehicleDetail() {
       {/* Mobile Actions Menu */}
       {showMobileMenu && (
         <div className="fixed inset-0 bg-black/50 flex items-end justify-center z-50 md:hidden" onClick={() => setShowMobileMenu(false)}>
-          <div className="bg-garage-surface rounded-t-2xl w-full max-w-lg pb-safe" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-garage-surface rounded-t-2xl w-full max-w-lg max-h-[70vh] overflow-y-auto pb-safe" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between p-4 border-b border-garage-border">
               <h3 className="text-lg font-semibold text-garage-text">Actions</h3>
               <button
@@ -1277,6 +1317,16 @@ export default function VehicleDetail() {
               </button>
               <button
                 onClick={() => {
+                  setShowMobileMenu(false)
+                  setOpenModal('sharing')
+                }}
+                className="w-full flex items-center space-x-3 px-4 py-3 text-left text-garage-text hover:bg-garage-bg rounded-lg transition-colors"
+              >
+                <Share2 className="w-5 h-5" />
+                <span>Share Vehicle</span>
+              </button>
+              <button
+                onClick={() => {
                   navigate(`/vehicles/${vin}/edit`)
                   setShowMobileMenu(false)
                 }}
@@ -1285,6 +1335,18 @@ export default function VehicleDetail() {
                 <Edit className="w-5 h-5" />
                 <span>Edit Vehicle</span>
               </button>
+              {isAdmin && (
+                <button
+                  onClick={() => {
+                    setShowMobileMenu(false)
+                    setOpenModal('transfer')
+                  }}
+                  className="w-full flex items-center space-x-3 px-4 py-3 text-left text-amber-400 hover:bg-amber-900/20 rounded-lg transition-colors"
+                >
+                  <ArrowRightLeft className="w-5 h-5" />
+                  <span>Transfer Vehicle</span>
+                </button>
+              )}
               <button
                 onClick={() => {
                   setShowMobileMenu(false)

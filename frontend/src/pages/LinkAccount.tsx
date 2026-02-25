@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, type SyntheticEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Car, Lock, AlertCircle, Loader } from 'lucide-react'
 import api, { setCSRFToken } from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
+import { resolvePostLoginRoute } from '../utils/postLoginRedirect'
 
 export default function LinkAccount() {
   const [password, setPassword] = useState('')
@@ -20,7 +21,7 @@ export default function LinkAccount() {
     }
   }, [token, navigate])
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault()
     setError('')
 
@@ -47,14 +48,19 @@ export default function LinkAccount() {
         setCSRFToken(response.data.csrf_token)
       }
 
-      // Refresh auth context to load user with JWT cookie
-      // This ensures the user is authenticated before navigation
+      // Refresh auth context so ProtectedRoute sees the user as authenticated
       await refreshUser()
 
-      // JWT is already set as httpOnly cookie by backend
-      // Navigate to redirect URL (default to dashboard)
-      const redirectUrl = response.data.redirect_url || '/'
-      navigate(redirectUrl)
+      // Fetch user to determine mobile redirect target
+      let user: { mobile_quick_entry_enabled?: boolean } = {}
+      try {
+        const userResponse = await api.get('/auth/me')
+        user = userResponse.data
+      } catch {
+        // Fall back to dashboard if user fetch fails
+      }
+
+      navigate(resolvePostLoginRoute(user), { replace: true })
     } catch (err) {
       // Display backend error message directly (contains specific errors)
       const error = err as { response?: { data?: { detail?: string } } }

@@ -152,7 +152,7 @@ class ServiceVisitService:
         vin = vin.upper().strip()
 
         try:
-            await get_vehicle_or_403(vin, current_user, self.db)
+            await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
 
             # Create visit
             visit = ServiceVisit(
@@ -285,7 +285,7 @@ class ServiceVisitService:
         vin = vin.upper().strip()
 
         try:
-            await get_vehicle_or_403(vin, current_user, self.db)
+            await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
             visit = await self.get_service_visit(vin, visit_id, current_user)
 
             update_data = visit_data.model_dump(exclude_unset=True)
@@ -386,7 +386,7 @@ class ServiceVisitService:
         vin = vin.upper().strip()
 
         try:
-            await get_vehicle_or_403(vin, current_user, self.db)
+            await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
             visit = await self.get_service_visit(vin, visit_id, current_user)
 
             await self.db.delete(visit)

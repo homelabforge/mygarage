@@ -208,12 +208,12 @@ export default function LiveLinkChartsTab({ vin }: LiveLinkChartsTabProps) {
         {/* Time Range Selector */}
         <div className="flex items-center gap-2">
           <Calendar className="w-5 h-5 text-garage-text-muted" />
-          <div className="flex gap-1">
+          <div className="flex flex-wrap gap-1">
             {TIME_RANGES.map((range) => (
               <button
                 key={range.value}
                 onClick={() => setTimeRange(range.value)}
-                className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                className={`px-2 sm:px-3 py-1.5 rounded text-sm font-medium transition-colors ${
                   timeRange === range.value
                     ? 'bg-primary text-white'
                     : 'bg-garage-surface text-garage-text-muted hover:text-garage-text border border-garage-border'
@@ -270,7 +270,8 @@ export default function LiveLinkChartsTab({ vin }: LiveLinkChartsTabProps) {
         </div>
       ) : chartData.length > 0 ? (
         <div className="bg-garage-surface rounded-lg border border-garage-border p-4">
-          <ResponsiveContainer width="100%" height={400}>
+          <div className="h-[250px] md:h-[400px]">
+          <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#3a4050" />
               <XAxis
@@ -312,11 +313,12 @@ export default function LiveLinkChartsTab({ vin }: LiveLinkChartsTabProps) {
               })}
             </LineChart>
           </ResponsiveContainer>
+          </div>
 
           {/* Stats Summary */}
           {telemetry && (
             <div className="mt-4 pt-4 border-t border-garage-border">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                 {telemetry.series.map((series, index) => (
                   <div
                     key={series.param_key}

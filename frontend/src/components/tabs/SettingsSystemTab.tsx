@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
-import { Server, CheckCircle, AlertCircle, Info, Shield, Users, AlertTriangle, Key, Wrench, Fuel, Bell, FileText, StickyNote, Camera, Sun, Moon, Ruler, Archive } from 'lucide-react'
+import { Server, CheckCircle, AlertCircle, Info, Shield, Users, AlertTriangle, Key, Wrench, Fuel, Bell, FileText, StickyNote, Camera, Sun, Moon, Ruler, Archive, Smartphone } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useSettings } from '@/contexts/SettingsContext'
 import { useTheme } from '@/contexts/ThemeContext'
@@ -16,7 +16,7 @@ type RawSetting = {
 }
 
 export default function SettingsSystemTab() {
-  const { isAuthenticated, isAdmin, user: currentUser } = useAuth()
+  const { isAuthenticated, isAdmin, user: currentUser, refreshUser } = useAuth()
   const { triggerSave, registerSaveHandler, unregisterSaveHandler } = useSettings()
   const { theme, setTheme } = useTheme()
   const [formData, setFormData] = useState({
@@ -50,6 +50,10 @@ export default function SettingsSystemTab() {
   const [unitPreference, setUnitPreference] = useState<'imperial' | 'metric'>('imperial')
   const [showBothUnits, setShowBothUnits] = useState(false)
   const [unitPreferenceSaving, setUnitPreferenceSaving] = useState(false)
+
+  // Mobile experience state
+  const [mobileQuickEntry, setMobileQuickEntry] = useState(true)
+  const [mobileQuickEntrySaving, setMobileQuickEntrySaving] = useState(false)
 
   // Common timezones
   const timezones = [
@@ -123,12 +127,13 @@ export default function SettingsSystemTab() {
     void loadSettings()
   }, [loadSettings])
 
-  // Load user's unit preferences
+  // Load user's unit preferences and mobile experience setting
   useEffect(() => {
     if (currentUser) {
       // If authenticated, load from user profile
       setUnitPreference(currentUser.unit_preference || 'imperial')
       setShowBothUnits(currentUser.show_both_units || false)
+      setMobileQuickEntry(currentUser.mobile_quick_entry_enabled ?? true)
     } else {
       // If not authenticated, load from localStorage
       const storedSystem = localStorage.getItem('unit_preference') as 'imperial' | 'metric' | null
@@ -190,9 +195,7 @@ export default function SettingsSystemTab() {
         await api.put('/auth/me', {
           unit_preference: system,
         })
-
-        // Refresh user to update AuthContext
-        await api.get('/auth/me')
+        await refreshUser()
       } else {
         // Save to localStorage if not authenticated
         localStorage.setItem('unit_preference', system)
@@ -225,9 +228,7 @@ export default function SettingsSystemTab() {
         await api.put('/auth/me', {
           show_both_units: showBoth,
         })
-
-        // Refresh user to update AuthContext
-        await api.get('/auth/me')
+        await refreshUser()
       } else {
         // Save to localStorage if not authenticated
         localStorage.setItem('show_both_units', showBoth.toString())
@@ -247,6 +248,22 @@ export default function SettingsSystemTab() {
       }
     } finally {
       setUnitPreferenceSaving(false)
+    }
+  }
+
+  const handleMobileQuickEntryChange = async (enabled: boolean) => {
+    setMobileQuickEntrySaving(true)
+    setMobileQuickEntry(enabled)
+
+    try {
+      await api.put('/auth/me', { mobile_quick_entry_enabled: enabled })
+      await refreshUser()
+      toast.success('Mobile preference saved!')
+    } catch {
+      toast.error('Failed to save mobile preference')
+      setMobileQuickEntry(currentUser?.mobile_quick_entry_enabled ?? true)
+    } finally {
+      setMobileQuickEntrySaving(false)
     }
   }
 
@@ -497,6 +514,37 @@ export default function SettingsSystemTab() {
           </div>
         )}
       </div>
+
+      {/* Mobile Experience Card */}
+      {isAuthenticated && (
+        <div className="bg-garage-surface rounded-lg border border-garage-border p-6 space-y-4">
+          <div className="flex items-start gap-3">
+            <Smartphone className="w-6 h-6 text-primary mt-1" />
+            <div className="flex-1">
+              <h2 className="text-xl font-semibold text-garage-text mb-1">Mobile Experience</h2>
+              <p className="text-sm text-garage-text-muted">
+                Customize how the app behaves on mobile devices.
+              </p>
+            </div>
+          </div>
+
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={mobileQuickEntry}
+              onChange={e => handleMobileQuickEntryChange(e.target.checked)}
+              disabled={mobileQuickEntrySaving}
+              className="w-4 h-4 mt-0.5 text-primary bg-garage-bg border-garage-border rounded focus:ring-primary focus:ring-2"
+            />
+            <div>
+              <span className="text-sm font-medium text-garage-text">Quick Entry on Mobile</span>
+              <p className="mt-0.5 text-sm text-garage-text-muted">
+                After signing in on a mobile device, go directly to Quick Entry instead of the dashboard
+              </p>
+            </div>
+          </label>
+        </div>
+      )}
 
       {/* Family Management Card */}
       {isAdmin && (formData.auth_mode === 'local' || formData.auth_mode === 'oidc') && (

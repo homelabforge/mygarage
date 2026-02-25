@@ -79,9 +79,7 @@ def test_006_retry_after_stale_service_records_new(migration_db):
 
     conn = sqlite3.connect(str(db_file))
     cursor = conn.cursor()
-    cursor.execute(
-        "SELECT sql FROM sqlite_master WHERE type='table' AND name='service_records'"
-    )
+    cursor.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='service_records'")
     table_sql = cursor.fetchone()[0]
     cursor.execute("SELECT COUNT(*) FROM service_records")
     row_count = cursor.fetchone()[0]
@@ -132,9 +130,7 @@ def test_022_retry_after_stale_service_records_new(migration_db):
 
     conn = sqlite3.connect(str(db_file))
     cursor = conn.cursor()
-    cursor.execute(
-        "SELECT sql FROM sqlite_master WHERE type='table' AND name='service_records'"
-    )
+    cursor.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='service_records'")
     table_sql = cursor.fetchone()[0]
     cursor.execute("SELECT COUNT(*) FROM service_records")
     row_count = cursor.fetchone()[0]
@@ -185,9 +181,7 @@ def test_026_retry_after_stale_service_records_new(migration_db):
 
     conn = sqlite3.connect(str(db_file))
     cursor = conn.cursor()
-    cursor.execute(
-        "SELECT sql FROM sqlite_master WHERE type='table' AND name='service_records'"
-    )
+    cursor.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='service_records'")
     table_sql = cursor.fetchone()[0]
     cursor.execute("SELECT COUNT(*) FROM service_records")
     row_count = cursor.fetchone()[0]
@@ -204,7 +198,8 @@ def test_002_retry_after_stale_address_book_new(migration_db):
 
     engine = create_engine(sync_url)
     with engine.begin() as conn:
-        conn.execute(text("""
+        conn.execute(
+            text("""
             CREATE TABLE address_book (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name VARCHAR(100) NOT NULL,
@@ -221,12 +216,15 @@ def test_002_retry_after_stale_address_book_new(migration_db):
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
-        """))
-        conn.execute(text("""
+        """)
+        )
+        conn.execute(
+            text("""
             INSERT INTO address_book (name, business_name) VALUES
                 ('Alice Smith', 'Acme Auto'),
                 ('Bob Jones', NULL)
-        """))
+        """)
+        )
         # Stale temp table from a previous failed run
         conn.execute(text("CREATE TABLE address_book_new (id INTEGER PRIMARY KEY)"))
     engine.dispose()
@@ -236,9 +234,7 @@ def test_002_retry_after_stale_address_book_new(migration_db):
 
     conn = sqlite3.connect(str(db_file))
     cursor = conn.cursor()
-    cursor.execute(
-        "SELECT sql FROM sqlite_master WHERE type='table' AND name='address_book'"
-    )
+    cursor.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='address_book'")
     table_sql = cursor.fetchone()[0]
     cursor.execute("SELECT COUNT(*) FROM address_book")
     row_count = cursor.fetchone()[0]
@@ -258,21 +254,26 @@ def test_030_retry_after_stale_attachments_new(migration_db):
     engine = create_engine(sync_url)
     with engine.begin() as conn:
         conn.execute(text("CREATE TABLE vehicles (vin VARCHAR(17) PRIMARY KEY)"))
-        conn.execute(text("""
+        conn.execute(
+            text("""
             CREATE TABLE service_records (
                 id INTEGER PRIMARY KEY,
                 vin VARCHAR(17) NOT NULL,
                 date TEXT NOT NULL
             )
-        """))
-        conn.execute(text("""
+        """)
+        )
+        conn.execute(
+            text("""
             CREATE TABLE service_visits (
                 id INTEGER PRIMARY KEY,
                 vin VARCHAR(17) NOT NULL,
                 date TEXT NOT NULL
             )
-        """))
-        conn.execute(text("""
+        """)
+        )
+        conn.execute(
+            text("""
             CREATE TABLE attachments (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 record_type VARCHAR(30) NOT NULL,
@@ -282,29 +283,26 @@ def test_030_retry_after_stale_attachments_new(migration_db):
                 file_size INTEGER,
                 uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
-        """))
+        """)
+        )
         conn.execute(text("INSERT INTO vehicles VALUES ('VIN1')"))
-        conn.execute(text(
-            "INSERT INTO service_records VALUES (1, 'VIN1', '2024-01-15')"
-        ))
-        conn.execute(text(
-            "INSERT INTO service_records VALUES (2, 'VIN1', '2024-02-20')"
-        ))
+        conn.execute(text("INSERT INTO service_records VALUES (1, 'VIN1', '2024-01-15')"))
+        conn.execute(text("INSERT INTO service_records VALUES (2, 'VIN1', '2024-02-20')"))
         # service_visits rows must match service_records by vin+date for JOIN mapping
-        conn.execute(text(
-            "INSERT INTO service_visits VALUES (10, 'VIN1', '2024-01-15')"
-        ))
-        conn.execute(text(
-            "INSERT INTO service_visits VALUES (11, 'VIN1', '2024-02-20')"
-        ))
-        conn.execute(text(
-            "INSERT INTO attachments (record_type, record_id, file_path) "
-            "VALUES ('service', 1, '/f1.pdf')"
-        ))
-        conn.execute(text(
-            "INSERT INTO attachments (record_type, record_id, file_path) "
-            "VALUES ('service', 2, '/f2.pdf')"
-        ))
+        conn.execute(text("INSERT INTO service_visits VALUES (10, 'VIN1', '2024-01-15')"))
+        conn.execute(text("INSERT INTO service_visits VALUES (11, 'VIN1', '2024-02-20')"))
+        conn.execute(
+            text(
+                "INSERT INTO attachments (record_type, record_id, file_path) "
+                "VALUES ('service', 1, '/f1.pdf')"
+            )
+        )
+        conn.execute(
+            text(
+                "INSERT INTO attachments (record_type, record_id, file_path) "
+                "VALUES ('service', 2, '/f2.pdf')"
+            )
+        )
         # Stale temp table from a previous failed run
         conn.execute(text("CREATE TABLE attachments_new (id INTEGER PRIMARY KEY)"))
     engine.dispose()
@@ -314,9 +312,7 @@ def test_030_retry_after_stale_attachments_new(migration_db):
 
     conn = sqlite3.connect(str(db_file))
     cursor = conn.cursor()
-    cursor.execute(
-        "SELECT sql FROM sqlite_master WHERE type='table' AND name='attachments'"
-    )
+    cursor.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='attachments'")
     table_sql = cursor.fetchone()[0]
     cursor.execute("SELECT COUNT(*) FROM attachments")
     row_count = cursor.fetchone()[0]

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, type SyntheticEvent } from 'react'
 import { X, Save, Plus, AlertTriangle, Paperclip } from 'lucide-react'
 import { toast } from 'sonner'
 import type { ServiceVisit, ServiceVisitCreate, ServiceVisitFormData, ServiceVisitFormLineItem } from '../types/serviceVisit'
@@ -169,7 +169,7 @@ export default function ServiceVisitForm({
     }))
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault()
     setError(null)
 

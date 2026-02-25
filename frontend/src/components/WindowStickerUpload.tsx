@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, type SyntheticEvent } from 'react'
 import { Upload, X, FileText, DollarSign, Fuel, Edit2, Save, Palette, Shield, Leaf, Cog, Car } from 'lucide-react'
 import api from '../services/api'
 
@@ -98,7 +98,7 @@ export default function WindowStickerUpload({ vin, onSuccess, onClose }: WindowS
     setError(null)
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!file) return
 

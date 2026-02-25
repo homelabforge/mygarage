@@ -246,8 +246,8 @@ describe('VehicleDetail', () => {
       expect(screen.getByText('Test Car')).toBeInTheDocument()
     })
 
-    // Click the Maintenance primary tab
-    fireEvent.click(screen.getByText('Maintenance'))
+    // Click the Maintenance primary tab (first match — mobile grid renders before desktop bar)
+    fireEvent.click(screen.getAllByText('Maintenance')[0])
 
     // SubTabNav should appear with Service as default sub-tab
     await waitFor(() => {
@@ -281,7 +281,8 @@ describe('VehicleDetail', () => {
     })
 
     await waitFor(() => {
-      expect(screen.getByText('LiveLink')).toBeInTheDocument()
+      // Both mobile grid and desktop bar render the tab, so multiple matches are expected
+      expect(screen.getAllByText('LiveLink').length).toBeGreaterThan(0)
     })
   })
 

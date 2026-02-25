@@ -85,6 +85,7 @@ class UserUpdate(BaseModel):
     is_admin: bool | None = None
     unit_preference: str | None = Field(None, pattern="^(imperial|metric)$")
     show_both_units: bool | None = None
+    mobile_quick_entry_enabled: bool | None = None
     # Family/relationship fields
     relationship: RelationshipType = None
     relationship_custom: str | None = Field(None, max_length=100)
@@ -145,6 +146,7 @@ class UserResponse(UserBase):
     is_admin: bool
     unit_preference: str = "imperial"
     show_both_units: bool = False
+    mobile_quick_entry_enabled: bool = True
     # Family/relationship fields
     relationship: str | None = None
     relationship_custom: str | None = None

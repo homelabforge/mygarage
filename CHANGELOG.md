@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Mobile Quick Entry — after signing in on a phone, users are redirected to a streamlined Quick Entry page for fast fuel, service, and mileage logging; toggle in Settings → Mobile Experience
+- Quick Entry page — vehicle selector (auto-selects if only one), three large action buttons (Fuel Up, Service, Mileage), success toast on submit, Dashboard escape link
+
+### Fixed
+- Service visit create/update/delete now enforce write permission on shared vehicles (403 for read-only shares)
+- Odometer read/write endpoints now enforce vehicle ownership and share permissions for all five operations
+
+### Changed
+- Vehicle detail page mobile UI overhaul — primary tabs replaced with a 3×2 icon grid (no horizontal scrolling), header resized for narrow screens with VIN overflow protection, Share and Transfer added to mobile action menu, overview section switched from CSS columns to grid, LiveLink charts use CSS-driven responsive height
+- Service tab mobile improvements — visit cards flex-wrap on narrow screens, search bar full-width on mobile, modal padding reduced, Maintenance Schedule form inputs stack on small screens, action sheet capped at 70vh for landscape usability
+
+### Fixed
+- Replaced deprecated `React.FormEvent` with `SyntheticEvent<HTMLFormElement>` across 9 components (React 19 type cleanup)
+
 ## [2.22.0] - 2026-02-23
 
 ### Added

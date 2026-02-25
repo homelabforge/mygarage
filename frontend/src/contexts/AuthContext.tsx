@@ -8,6 +8,7 @@ interface User {
   is_admin: boolean
   unit_preference?: 'imperial' | 'metric'
   show_both_units?: boolean
+  mobile_quick_entry_enabled?: boolean
 }
 
 interface AuthContextType {
@@ -17,7 +18,7 @@ interface AuthContextType {
   isAdmin: boolean
   loading: boolean
   authMode: string
-  login: (username: string, password: string) => Promise<void>
+  login: (username: string, password: string) => Promise<User>
   register: (username: string, email: string, password: string) => Promise<void>
   logout: () => void
   refreshUser: () => Promise<void>
@@ -81,7 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode}) {
     loadUser()
   }, [loadUser])
 
-  const login = async (username: string, password: string) => {
+  const login = async (username: string, password: string): Promise<User> => {
     try {
       const response = await api.post('/auth/login', { username, password })
       const newToken = response.data.access_token
@@ -104,15 +105,18 @@ export function AuthProvider({ children }: { children: ReactNode}) {
       setToken(newToken)
 
       // Load user info — retry once if cookie isn't available yet
+      let loadedUser: User
       try {
         const userResponse = await api.get('/auth/me')
-        setUser(userResponse.data)
+        loadedUser = userResponse.data
       } catch {
         // Browser may not have processed Set-Cookie yet; retry after a tick
         await new Promise(resolve => setTimeout(resolve, 50))
         const userResponse = await api.get('/auth/me')
-        setUser(userResponse.data)
+        loadedUser = userResponse.data
       }
+      setUser(loadedUser)
+      return loadedUser
     } catch (error: unknown) {
       const err = error as { response?: { data?: { detail?: string } }; message?: string }
       const errorMessage = err.response?.data?.detail || err.message || 'Login failed'

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, type SyntheticEvent } from 'react'
 import { Plus, Search, Edit, Trash2, X, Save, Building2, Phone, Mail, Globe, MapPin } from 'lucide-react'
 import type { AddressBookEntry, AddressBookEntryCreate } from '../../types/addressBook'
 import api from '@/services/api'
@@ -251,7 +251,7 @@ function AddressBookForm({ entry, onClose, onSuccess, categories }: AddressBookF
     notes: entry?.notes || '',
   })
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault()
     setSaving(true)
     setError(null)

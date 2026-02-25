@@ -107,7 +107,7 @@ export default function LiveLinkLiveTab({ vin }: LiveLinkLiveTabProps) {
     <div className="space-y-6">
       {/* Status Bar */}
       <div className="bg-garage-surface rounded-lg border border-garage-border p-4">
-        <div className="flex flex-wrap items-center gap-4">
+        <div className="flex flex-wrap items-center gap-2 md:gap-4">
           {/* Connection Status */}
           <div className="flex items-center gap-2">
             <div
@@ -151,7 +151,7 @@ export default function LiveLinkLiveTab({ vin }: LiveLinkLiveTabProps) {
 
       {/* Live Gauges Grid */}
       {status.latest_values.length > 0 ? (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {status.latest_values.map((value) => (
             <GaugeCard key={value.param_key} value={value} unitSystem={unitSystem} />
           ))}
