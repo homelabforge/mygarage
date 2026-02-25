@@ -27,6 +27,7 @@ class QuickEntryVehicle(BaseModel):
     year: int | None
     make: str | None
     model: str | None
+    vehicle_type: str
     thumbnail_url: str | None
 
     class Config:
@@ -96,6 +97,7 @@ async def list_quick_entry_vehicles(
                 year=vehicle.year,
                 make=vehicle.make,
                 model=vehicle.model,
+                vehicle_type=vehicle.vehicle_type,
                 thumbnail_url=thumbnail_url,
             )
         )

@@ -6,6 +6,7 @@ import api from '../services/api'
 import FuelRecordForm from '../components/FuelRecordForm'
 import ServiceVisitForm from '../components/ServiceVisitForm'
 import OdometerRecordForm from '../components/OdometerRecordForm'
+import type { VehicleType } from '../types/vehicle'
 
 interface QuickEntryVehicle {
   vin: string
@@ -13,6 +14,7 @@ interface QuickEntryVehicle {
   year: number | null
   make: string | null
   model: string | null
+  vehicle_type: string
   thumbnail_url: string | null
 }
 
@@ -208,6 +210,7 @@ export default function QuickEntry() {
       {entryType === 'service' && selectedVin && (
         <ServiceVisitForm
           vin={selectedVin}
+          vehicleType={selectedVehicle?.vehicle_type as VehicleType | undefined}
           onClose={() => setEntryType(null)}
           onSuccess={() => handleSuccess('service')}
         />

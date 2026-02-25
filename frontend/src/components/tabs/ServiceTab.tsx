@@ -16,6 +16,7 @@ interface ServiceTabProps {
 export default function ServiceTab({ vin }: ServiceTabProps) {
   // Vehicle state for templates
   const [vehicle, setVehicle] = useState<Vehicle | null>(null)
+  const [vehicleReady, setVehicleReady] = useState(false)
 
   // Service visit state
   const [showVisitForm, setShowVisitForm] = useState(false)
@@ -27,14 +28,17 @@ export default function ServiceTab({ vin }: ServiceTabProps) {
   const [showScheduleModal, setShowScheduleModal] = useState(false)
   const [scheduleRefreshKey, setScheduleRefreshKey] = useState(0)
 
-  // Fetch vehicle for template panel
+  // Fetch vehicle for template panel and service visit form
   useEffect(() => {
+    setVehicleReady(false)
     const fetchVehicle = async () => {
       try {
         const response = await api.get(`/vehicles/${vin}`)
         setVehicle(response.data)
       } catch (err) {
         console.error('Failed to fetch vehicle:', err)
+      } finally {
+        setVehicleReady(true)
       }
     }
     fetchVehicle()
@@ -102,10 +106,18 @@ export default function ServiceTab({ vin }: ServiceTabProps) {
         refreshTrigger={visitRefreshKey}
       />
 
-      {/* Service Visit Form Modal */}
-      {showVisitForm && (
+      {/* Service Visit Form Modal — show loading skeleton until vehicle type is known */}
+      {showVisitForm && !vehicleReady && (
+        <div className="fixed inset-0 modal-overlay backdrop-blur-xs flex items-center justify-center z-50">
+          <div className="bg-garage-surface rounded-lg border border-garage-border p-8">
+            <div className="text-garage-text-muted text-sm">Loading...</div>
+          </div>
+        </div>
+      )}
+      {showVisitForm && vehicleReady && (
         <ServiceVisitForm
           vin={vin}
+          vehicleType={vehicle?.vehicle_type}
           visit={editVisit}
           preselectedScheduleItem={preselectedScheduleItem}
           onClose={handleVisitFormClose}

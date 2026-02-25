@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import type { ServiceVisit, ServiceVisitCreate, ServiceVisitFormData, ServiceVisitFormLineItem } from '../types/serviceVisit'
 import type { MaintenanceScheduleItem } from '../types/maintenanceSchedule'
 import type { ServiceCategory } from '../types/serviceVisit'
+import type { VehicleType } from '../types/vehicle'
 import { SERVICE_CATEGORIES } from '../schemas/serviceVisit'
 import VendorSearch from './VendorSearch'
 import LineItemEditor from './LineItemEditor'
@@ -15,6 +16,7 @@ import { UnitConverter, UnitFormatter } from '../utils/units'
 
 interface ServiceVisitFormProps {
   vin: string
+  vehicleType?: VehicleType
   visit?: ServiceVisit
   preselectedScheduleItem?: MaintenanceScheduleItem
   onClose: () => void
@@ -32,8 +34,11 @@ const createEmptyLineItem = (): ServiceVisitFormLineItem => ({
   triggered_by_inspection_id: undefined,
 })
 
+const NON_MOTORIZED_TYPES: VehicleType[] = ['Trailer', 'FifthWheel', 'TravelTrailer']
+
 export default function ServiceVisitForm({
   vin,
+  vehicleType,
   visit,
   preselectedScheduleItem,
   onClose,
@@ -41,6 +46,7 @@ export default function ServiceVisitForm({
 }: ServiceVisitFormProps) {
   const isEdit = !!visit
   const { system } = useUnitPreference()
+  const isMotorized = !vehicleType || !NON_MOTORIZED_TYPES.includes(vehicleType)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [scheduleItems, setScheduleItems] = useState<MaintenanceScheduleItem[]>([])
@@ -262,7 +268,7 @@ export default function ServiceVisitForm({
               Visit Details
             </h3>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className={`grid grid-cols-1 ${isMotorized ? 'md:grid-cols-2' : ''} gap-4`}>
               <div>
                 <label className="block text-sm font-medium text-garage-text mb-1">
                   Date <span className="text-danger">*</span>
@@ -277,20 +283,22 @@ export default function ServiceVisitForm({
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-garage-text mb-1">
-                  Mileage ({UnitFormatter.getDistanceUnit(system)})
-                </label>
-                <input
-                  type="number"
-                  value={formData.mileage ?? ''}
-                  onChange={(e) => handleFieldChange('mileage', e.target.value ? parseFloat(e.target.value) : undefined)}
-                  min="0"
-                  placeholder={system === 'imperial' ? '45000' : '72420'}
-                  disabled={submitting}
-                  className="w-full px-3 py-2 border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text"
-                />
-              </div>
+              {isMotorized && (
+                <div>
+                  <label className="block text-sm font-medium text-garage-text mb-1">
+                    Mileage ({UnitFormatter.getDistanceUnit(system)})
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.mileage ?? ''}
+                    onChange={(e) => handleFieldChange('mileage', e.target.value ? parseFloat(e.target.value) : undefined)}
+                    min="0"
+                    placeholder={system === 'imperial' ? '45000' : '72420'}
+                    disabled={submitting}
+                    className="w-full px-3 py-2 border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text"
+                  />
+                </div>
+              )}
             </div>
 
             <div>

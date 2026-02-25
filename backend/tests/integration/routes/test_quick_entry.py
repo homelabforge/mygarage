@@ -357,13 +357,15 @@ class TestWriteAuthEnforcement:
                 await db_session.delete(u)
         await db_session.commit()
 
-    async def test_odometer_create_forbidden_for_read_share(
-        self, client: AsyncClient, db_session
-    ):
+    async def test_odometer_create_forbidden_for_read_share(self, client: AsyncClient, db_session):
         """Test that creating an odometer record on a read-only shared vehicle returns 403."""
-        vehicle_owner, vehicle, share, nonadmin_requester, nonadmin_headers = (
-            await self._setup_read_only_share(db_session)
-        )
+        (
+            vehicle_owner,
+            vehicle,
+            share,
+            nonadmin_requester,
+            nonadmin_headers,
+        ) = await self._setup_read_only_share(db_session)
         try:
             response = await client.post(
                 f"/api/vehicles/{vehicle.vin}/odometer",
@@ -374,13 +376,15 @@ class TestWriteAuthEnforcement:
         finally:
             await self._cleanup(db_session, share, vehicle, vehicle_owner, nonadmin_requester)
 
-    async def test_odometer_update_forbidden_for_read_share(
-        self, client: AsyncClient, db_session
-    ):
+    async def test_odometer_update_forbidden_for_read_share(self, client: AsyncClient, db_session):
         """Test that updating an odometer record on a read-only shared vehicle returns 403."""
-        vehicle_owner, vehicle, share, nonadmin_requester, nonadmin_headers = (
-            await self._setup_read_only_share(db_session)
-        )
+        (
+            vehicle_owner,
+            vehicle,
+            share,
+            nonadmin_requester,
+            nonadmin_headers,
+        ) = await self._setup_read_only_share(db_session)
         try:
             response = await client.put(
                 f"/api/vehicles/{vehicle.vin}/odometer/9999",
@@ -391,13 +395,15 @@ class TestWriteAuthEnforcement:
         finally:
             await self._cleanup(db_session, share, vehicle, vehicle_owner, nonadmin_requester)
 
-    async def test_odometer_delete_forbidden_for_read_share(
-        self, client: AsyncClient, db_session
-    ):
+    async def test_odometer_delete_forbidden_for_read_share(self, client: AsyncClient, db_session):
         """Test that deleting an odometer record on a read-only shared vehicle returns 403."""
-        vehicle_owner, vehicle, share, nonadmin_requester, nonadmin_headers = (
-            await self._setup_read_only_share(db_session)
-        )
+        (
+            vehicle_owner,
+            vehicle,
+            share,
+            nonadmin_requester,
+            nonadmin_headers,
+        ) = await self._setup_read_only_share(db_session)
         try:
             response = await client.delete(
                 f"/api/vehicles/{vehicle.vin}/odometer/9999",

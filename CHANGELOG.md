@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Quick Entry page — vehicle selector (auto-selects if only one), three large action buttons (Fuel Up, Service, Mileage), success toast on submit, Dashboard escape link
 
 ### Fixed
+- Mileage field hidden in service visit form for non-motorized vehicles (Fifth Wheel, Trailer, Travel Trailer)
+- Address Book contacts now appear in Vendor/Shop search on service visits; existing entries backfilled on next startup
 - Service visit create/update/delete now enforce write permission on shared vehicles (403 for read-only shares)
 - Odometer read/write endpoints now enforce vehicle ownership and share permissions for all five operations
 

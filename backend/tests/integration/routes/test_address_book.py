@@ -1,8 +1,10 @@
 """
 Integration tests for address book routes.
 
-Tests address book CRUD operations.
+Tests address book CRUD operations and vendor sync side-effects.
 """
+
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from httpx import AsyncClient
@@ -275,3 +277,100 @@ class TestAddressBookRoutes:
         )
 
         assert response.status_code == 404
+
+    # --- Vendor sync side-effect tests ---
+
+    async def test_create_syncs_to_vendor(self, client: AsyncClient, auth_headers):
+        """Creating an address book entry with a business_name should create a matching vendor."""
+        business_name = "B&T RV Repair Test Sync"
+        response = await client.post(
+            "/api/address-book",
+            json={
+                "business_name": business_name,
+                "address": "100 Repair Rd",
+                "city": "Camptown",
+                "state": "TX",
+                "zip_code": "77001",
+                "phone": "555-700-1234",
+            },
+            headers=auth_headers,
+        )
+        assert response.status_code == 201
+
+        # Vendor should now appear in vendor search
+        vendor_response = await client.get(
+            "/api/vendors",
+            params={"search": "B&T RV Repair Test Sync"},
+            headers=auth_headers,
+        )
+        assert vendor_response.status_code == 200
+        vendors = vendor_response.json()["vendors"]
+        assert any(v["name"] == business_name for v in vendors)
+
+    async def test_create_no_duplicate_vendor(self, client: AsyncClient, auth_headers):
+        """Creating address book entries with the same business_name should produce only one vendor."""
+        business_name = "Duplicate Shop Test"
+        for _ in range(2):
+            await client.post(
+                "/api/address-book",
+                json={"business_name": business_name, "city": "Anytown"},
+                headers=auth_headers,
+            )
+
+        vendor_response = await client.get(
+            "/api/vendors",
+            params={"search": business_name},
+            headers=auth_headers,
+        )
+        assert vendor_response.status_code == 200
+        vendors = [v for v in vendor_response.json()["vendors"] if v["name"] == business_name]
+        assert len(vendors) == 1, f"Expected 1 vendor, found {len(vendors)}"
+
+    async def test_create_vendor_sync_failure_does_not_fail_create(
+        self, client: AsyncClient, auth_headers
+    ):
+        """A failure in vendor sync (savepoint) must not abort the address book create."""
+        with patch(
+            "app.routes.address_book._sync_to_vendor",
+            new_callable=AsyncMock,
+            side_effect=Exception("simulated vendor sync failure"),
+        ):
+            response = await client.post(
+                "/api/address-book",
+                json={"business_name": "Sync Failure Shop", "city": "Failtown"},
+                headers=auth_headers,
+            )
+
+        # Address book entry must still be created despite sync failure
+        assert response.status_code == 201
+        assert response.json()["business_name"] == "Sync Failure Shop"
+
+    async def test_update_syncs_new_business_name_to_vendor(
+        self, client: AsyncClient, auth_headers
+    ):
+        """Updating an address book entry's business_name should create a vendor for the new name."""
+        # Create with initial name (will also create a vendor)
+        create_response = await client.post(
+            "/api/address-book",
+            json={"business_name": "Old Shop Name Test", "city": "Oldtown"},
+            headers=auth_headers,
+        )
+        entry_id = create_response.json()["id"]
+
+        # Update to a new name
+        new_name = "New Shop Name Test"
+        await client.put(
+            f"/api/address-book/{entry_id}",
+            json={"business_name": new_name},
+            headers=auth_headers,
+        )
+
+        # New name should appear as a vendor
+        vendor_response = await client.get(
+            "/api/vendors",
+            params={"search": new_name},
+            headers=auth_headers,
+        )
+        assert vendor_response.status_code == 200
+        vendors = vendor_response.json()["vendors"]
+        assert any(v["name"] == new_name for v in vendors)

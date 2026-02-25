@@ -1,5 +1,6 @@
 """Address book routes for MyGarage API."""
 
+import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -9,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models import AddressBookEntry
 from app.models.user import User
+from app.models.vendor import Vendor
 from app.schemas.address_book import (
     AddressBookEntryCreate,
     AddressBookEntryResponse,
@@ -17,7 +19,48 @@ from app.schemas.address_book import (
 )
 from app.services.auth import require_auth
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api/address-book", tags=["address-book"])
+
+
+async def _sync_to_vendor(
+    db: AsyncSession, business_name: str | None, entry: AddressBookEntry
+) -> None:
+    """Silently create a matching vendor when an address book entry has a business name.
+
+    Uses a nested transaction (SAVEPOINT) so any failure here cannot poison
+    the parent address-book write. Checks case-insensitively to prevent duplicates.
+    Updates to existing vendor fields are intentionally not performed here —
+    a vendor may already be linked to service visits.
+
+    Known limitation: concurrent creates with only case/whitespace differences
+    could produce duplicate vendors. Acceptable for single-user homelab use.
+    """
+    if not business_name or not business_name.strip():
+        return
+    name = business_name.strip()[:100]  # Enforce vendors.name VARCHAR(100) limit
+    try:
+        async with db.begin_nested():  # SAVEPOINT
+            result = await db.execute(select(Vendor).where(func.lower(Vendor.name) == name.lower()))
+            if result.scalar_one_or_none() is not None:
+                return  # Vendor already exists (case-insensitive match)
+            vendor = Vendor(
+                name=name,
+                address=entry.address,
+                city=entry.city,
+                state=entry.state,
+                zip_code=entry.zip_code,
+                phone=entry.phone,
+            )
+            db.add(vendor)
+            await (
+                db.flush()
+            )  # Force INSERT inside the savepoint boundary — critical for rollback isolation
+            # SAVEPOINT releases here
+    except Exception:
+        logger.exception("Failed to sync address book entry %r to vendors", name)
+        # SAVEPOINT was rolled back; parent transaction (address book write) unaffected
 
 
 @router.get("", response_model=AddressBookListResponse)
@@ -96,6 +139,10 @@ async def create_entry(
     )
 
     db.add(entry)
+    try:
+        await _sync_to_vendor(db, entry_data.business_name, entry)
+    except Exception:
+        logger.exception("Unexpected vendor sync error during address book create, continuing")
     await db.commit()
     await db.refresh(entry)
 
@@ -155,6 +202,10 @@ async def update_entry(
     if update_data.notes is not None:
         entry.notes = update_data.notes
 
+    try:
+        await _sync_to_vendor(db, entry.business_name, entry)
+    except Exception:
+        logger.exception("Unexpected vendor sync error during address book update, continuing")
     await db.commit()
     await db.refresh(entry)
 
