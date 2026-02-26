@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
 import { Car, Fuel, Wrench, Gauge, ChevronRight, LayoutDashboard } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '../services/api'
@@ -21,11 +22,19 @@ interface QuickEntryVehicle {
 type EntryType = 'fuel' | 'service' | 'odometer' | null
 
 export default function QuickEntry() {
+  const { user } = useAuth()
   const [vehicles, setVehicles] = useState<QuickEntryVehicle[]>([])
   const [selectedVin, setSelectedVin] = useState<string>('')
   const [entryType, setEntryType] = useState<EntryType>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // Set user-scoped session flag so returning to "/" renders Dashboard, not another redirect
+  useEffect(() => {
+    if (user?.id) {
+      sessionStorage.setItem(`qe_redirected:${user.id}`, '1')
+    }
+  }, [user?.id])
 
   useEffect(() => {
     const fetchVehicles = async () => {

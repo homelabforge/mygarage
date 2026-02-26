@@ -35,6 +35,10 @@ export function AuthProvider({ children }: { children: ReactNode}) {
 
   // Logout function - calls backend to clear cookie and CSRF token
   const logout = useCallback(async () => {
+    // Clear QE session flag before nulling user so user.id is still available
+    if (user?.id) {
+      sessionStorage.removeItem(`qe_redirected:${user.id}`)
+    }
     try {
       await api.post('/auth/logout')
     } catch (error) {
@@ -43,7 +47,7 @@ export function AuthProvider({ children }: { children: ReactNode}) {
     setToken(null)
     setUser(null)
     clearCSRFToken() // Clear CSRF token on logout (Security Enhancement v2.10.0)
-  }, [])
+  }, [user])
 
   // Load user info with proper dependencies (cookie-based auth)
   const loadUser = useCallback(async () => {
