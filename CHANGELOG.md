@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Dev Dependencies
+- **@tailwindcss/vite**: 4.2.0 → 4.2.1
+- **@typescript-eslint/eslint-plugin**: 8.56.0 → 8.56.1
+- **@typescript-eslint/parser**: 8.56.0 → 8.56.1
+- **autoprefixer**: 10.4.24 → 10.4.27
+- **eslint**: 10.0.1 → 10.0.2
+- **eslint-plugin-react-refresh**: 0.5.0 → 0.5.2
+- **ruff**: 0.15.2 → 0.15.4
+- **tailwindcss**: 4.2.0 → 4.2.1
+- **typescript-eslint**: 8.56.0 → 8.56.1
+
+### App Dependencies
+- **axios**: 1.13.5 → 1.13.6
+- **fastapi**: 0.129.2 → 0.134.0
+- **matplotlib**: 3.10.0 → 3.10.8
+- **pillow-heif**: 1.2.1 → 1.3.0
+- **react-router-dom**: 7.13.0 → 7.13.1
+- **sqlalchemy**: 2.0.46 → 2.0.47
+
+### Dockerfile Dependencies
+- **oven/bun**: 1.3.9-alpine → 1.3.10-alpine
+
+### HTTP Servers
+- **granian**: 2.7.1 → 2.7.2
+
 ### Added
 - Mobile Quick Entry — after signing in on a phone, users are redirected to a streamlined Quick Entry page for fast fuel, service, and mileage logging; toggle in Settings → Mobile Experience
 - Quick Entry page — vehicle selector (auto-selects if only one), three large action buttons (Fuel Up, Service, Mileage), success toast on submit, Dashboard escape link
