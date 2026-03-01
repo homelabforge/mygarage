@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.23.0] - 2026-02-28
+
 ### Dev Dependencies
 - **@tailwindcss/vite**: 4.2.0 → 4.2.1
 - **@typescript-eslint/eslint-plugin**: 8.56.0 → 8.56.1
