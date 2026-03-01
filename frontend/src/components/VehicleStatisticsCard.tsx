@@ -82,17 +82,17 @@ function VehicleStatisticsCard({ stats }: VehicleStatisticsCardProps) {
           </div>
         )}
 
-        {/* Reminder badges */}
-        {stats.overdue_reminders_count > 0 && (
+        {/* Maintenance badges */}
+        {stats.overdue_maintenance_count > 0 && (
           <div className="absolute top-3 right-3 bg-danger text-white px-2 py-1 rounded-md text-xs font-semibold flex items-center gap-1">
             <AlertCircle className="w-3 h-3" />
-            {stats.overdue_reminders_count} Overdue
+            {stats.overdue_maintenance_count} Overdue
           </div>
         )}
-        {stats.overdue_reminders_count === 0 && stats.upcoming_reminders_count > 0 && (
+        {stats.overdue_maintenance_count === 0 && stats.upcoming_maintenance_count > 0 && (
           <div className="absolute top-3 right-3 bg-warning text-white px-2 py-1 rounded-md text-xs font-semibold flex items-center gap-1">
             <Bell className="w-3 h-3" />
-            {stats.upcoming_reminders_count} Upcoming
+            {stats.upcoming_maintenance_count} Upcoming
           </div>
         )}
 
@@ -122,8 +122,8 @@ function VehicleStatisticsCard({ stats }: VehicleStatisticsCardProps) {
           />
           <StatBadge
             icon={<Bell className="w-3 h-3" />}
-            count={stats.total_reminders}
-            label="Reminders"
+            count={stats.total_maintenance_items}
+            label="Maintenance"
           />
           <StatBadge
             icon={<FileText className="w-3 h-3" />}

@@ -426,9 +426,15 @@ DEFAULT_SETTINGS = {
         "encrypted": False,
     },
     "notify_service_days": {
-        "value": "7",
+        "value": "30",
         "category": "notifications",
         "description": "Days before service due to notify",
+        "encrypted": False,
+    },
+    "notify_service_miles": {
+        "value": "500",
+        "category": "notifications",
+        "description": "Miles before service due to notify",
         "encrypted": False,
     },
     # CarComplaints Integration

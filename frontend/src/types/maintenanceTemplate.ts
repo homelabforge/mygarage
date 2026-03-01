@@ -6,7 +6,7 @@ export interface MaintenanceTemplate {
   template_data: MaintenanceTemplateData
   applied_at: string
   created_by: string
-  reminders_created: number
+  schedule_items_created: number
   created_at: string
   updated_at?: string
 }

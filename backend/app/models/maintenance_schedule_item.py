@@ -39,6 +39,8 @@ class MaintenanceScheduleItem(Base):
     last_service_line_item_id: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime | None] = mapped_column(DateTime, onupdate=func.now())
+    last_notified_at: Mapped[datetime | None] = mapped_column(DateTime)
+    last_notified_status: Mapped[str | None] = mapped_column(String(20))
 
     # Relationships
     vehicle: Mapped[Vehicle] = relationship("Vehicle", back_populates="schedule_items")

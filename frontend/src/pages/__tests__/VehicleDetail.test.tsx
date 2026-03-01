@@ -8,7 +8,6 @@ vi.mock('../../components/tabs/FuelTab', () => ({ default: () => <div>FuelTab</d
 vi.mock('../../components/tabs/OdometerTab', () => ({ default: () => <div>OdometerTab</div> }))
 vi.mock('../../components/tabs/PhotosTab', () => ({ default: () => <div>PhotosTab</div> }))
 vi.mock('../../components/tabs/DocumentsTab', () => ({ default: () => <div>DocumentsTab</div> }))
-vi.mock('../../components/tabs/RemindersTab', () => ({ default: () => <div>RemindersTab</div> }))
 vi.mock('../../components/tabs/NotesTab', () => ({ default: () => <div>NotesTab</div> }))
 vi.mock('../../components/tabs/WarrantiesTab', () => ({ default: () => <div>WarrantiesTab</div> }))
 vi.mock('../../components/tabs/InsuranceTab', () => ({ default: () => <div>InsuranceTab</div> }))

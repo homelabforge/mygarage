@@ -222,7 +222,6 @@ from app.routes import (
     odometer_router,
     photos_router,
     recalls_router,
-    reminders_router,
     reports_router,
     service_visits_router,
     settings_router,
@@ -257,7 +256,6 @@ app.include_router(fuel_router)
 app.include_router(def_router)
 app.include_router(odometer_router)
 app.include_router(documents_router)
-app.include_router(reminders_router)
 app.include_router(notes_router)
 app.include_router(dashboard_router)
 app.include_router(export_router)

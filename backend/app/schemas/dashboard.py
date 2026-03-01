@@ -8,16 +8,16 @@ class VehicleStatistics(BaseModel):
     """Statistics for a single vehicle"""
 
     vin: str
-    year: int
-    make: str
-    model: str
+    year: int | None = None
+    make: str | None = None
+    model: str | None = None
     main_photo_url: str | None = None
 
     # Counts
     total_service_records: int
     total_fuel_records: int
     total_odometer_records: int
-    total_reminders: int
+    total_maintenance_items: int
     total_documents: int
     total_notes: int
     total_photos: int
@@ -28,9 +28,9 @@ class VehicleStatistics(BaseModel):
     latest_odometer_reading: int | None = None
     latest_odometer_date: date_type | None = None
 
-    # Upcoming reminders
-    upcoming_reminders_count: int
-    overdue_reminders_count: int
+    # Upcoming maintenance
+    upcoming_maintenance_count: int
+    overdue_maintenance_count: int
 
     # Fuel statistics
     average_mpg: float | None = None
@@ -58,7 +58,7 @@ class DashboardResponse(BaseModel):
     # Garage-wide totals
     total_service_records: int
     total_fuel_records: int
-    total_reminders: int
+    total_maintenance_items: int
     total_documents: int
     total_notes: int
     total_photos: int

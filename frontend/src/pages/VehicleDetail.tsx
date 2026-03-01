@@ -1,6 +1,6 @@
 /**
  * Vehicle Detail Page - Tabbed interface for vehicle information
- * Tabs: Overview, Photos, Service, Fuel, Reminders, Notes
+ * Tabs: Overview, Photos, Service, Fuel, Notes
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react'
@@ -45,7 +45,6 @@ import FuelTab from '../components/tabs/FuelTab'
 import OdometerTab from '../components/tabs/OdometerTab'
 import PhotosTab from '../components/tabs/PhotosTab'
 import DocumentsTab from '../components/tabs/DocumentsTab'
-import RemindersTab from '../components/tabs/RemindersTab'
 import NotesTab from '../components/tabs/NotesTab'
 import WarrantiesTab from '../components/tabs/WarrantiesTab'
 import InsuranceTab from '../components/tabs/InsuranceTab'
@@ -100,7 +99,7 @@ const getApiErrorMessage = (error: unknown, fallback: string) => {
 
 type ModalType = 'remove' | 'transfer' | 'sharing' | 'windowSticker' | null
 type PrimaryTabType = 'overview' | 'media' | 'maintenance' | 'tracking' | 'financial' | 'livelink'
-type SubTabType = 'photos' | 'documents' | 'service' | 'fuel' | 'def' | 'propane' | 'odometer' | 'reminders' | 'notes' | 'warranties' | 'insurance' | 'tax' | 'tolls' | 'spotrentals' | 'recalls' | 'reports' | 'live' | 'dtcs' | 'sessions' | 'charts'
+type SubTabType = 'photos' | 'documents' | 'service' | 'fuel' | 'def' | 'propane' | 'odometer' | 'notes' | 'warranties' | 'insurance' | 'tax' | 'tolls' | 'spotrentals' | 'recalls' | 'reports' | 'live' | 'dtcs' | 'sessions' | 'charts'
 
 export default function VehicleDetail() {
   const { vin } = useParams<{ vin: string }>()
@@ -177,7 +176,6 @@ export default function VehicleDetail() {
 
     // Map calendar tab parameter to primary + sub tab
     const tabMapping: Record<string, { primary: PrimaryTabType; sub: SubTabType }> = {
-      'reminders': { primary: 'tracking', sub: 'reminders' },
       'insurance': { primary: 'financial', sub: 'insurance' },
       'propane': { primary: 'maintenance', sub: 'propane' },
       'def': { primary: 'maintenance', sub: 'def' },
@@ -303,7 +301,7 @@ export default function VehicleDetail() {
         }
       }
       if (result.reminders) {
-        message += `\nReminders: ✓ ${result.reminders.success_count} imported`
+        message += `\nMaintenance (from reminders): ✓ ${result.reminders.success_count} imported`
         if (result.reminders.skipped_count > 0) {
           message += `, ○ ${result.reminders.skipped_count} skipped`
         }
@@ -359,7 +357,7 @@ export default function VehicleDetail() {
         setActiveSubTab('service')
         break
       case 'tracking':
-        setActiveSubTab('reminders')
+        setActiveSubTab('notes')
         break
       case 'financial':
         setActiveSubTab('warranties')
@@ -468,7 +466,6 @@ export default function VehicleDetail() {
       { id: 'recalls' as const, label: 'Recalls', icon: AlertTriangle },
     ],
     tracking: [
-      { id: 'reminders' as const, label: 'Reminders', icon: Bell },
       { id: 'notes' as const, label: 'Notes', icon: FileText },
       { id: 'reports' as const, label: 'Reports', icon: BarChart3 },
     ],
@@ -1219,7 +1216,6 @@ export default function VehicleDetail() {
         {activePrimaryTab === 'maintenance' && activeSubTab === 'recalls' && vin && <SafetyTab vin={vin} />}
 
         {/* Tracking Sub-tabs */}
-        {activePrimaryTab === 'tracking' && activeSubTab === 'reminders' && vin && <RemindersTab vin={vin} />}
         {activePrimaryTab === 'tracking' && activeSubTab === 'notes' && vin && <NotesTab vin={vin} />}
         {activePrimaryTab === 'tracking' && activeSubTab === 'reports' && vin && <ReportsTab vin={vin} />}
 

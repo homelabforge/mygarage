@@ -43,7 +43,7 @@ const NOTIFICATION_SETTINGS_KEYS = [
   // Event toggles
   'notify_recalls', 'notify_service_due', 'notify_service_overdue',
   'notify_insurance_expiring', 'notify_warranty_expiring', 'notify_milestones',
-  'notify_insurance_days', 'notify_warranty_days', 'notify_service_days',
+  'notify_insurance_days', 'notify_warranty_days', 'notify_service_days', 'notify_service_miles',
   // Retry settings
   'notification_retry_attempts', 'notification_retry_delay',
 ]
@@ -83,7 +83,8 @@ const DEFAULT_SETTINGS: Record<string, string> = {
   notify_milestones: 'false',
   notify_insurance_days: '30',
   notify_warranty_days: '30',
-  notify_service_days: '7',
+  notify_service_days: '30',
+  notify_service_miles: '500',
   notification_retry_attempts: '3',
   notification_retry_delay: '2.0',
 }

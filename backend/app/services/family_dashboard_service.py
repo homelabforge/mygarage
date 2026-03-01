@@ -9,12 +9,13 @@ from datetime import date
 from pathlib import Path
 
 from fastapi import HTTPException
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.reminder import Reminder
+from app.models.maintenance_schedule_item import MaintenanceScheduleItem
+from app.models.odometer import OdometerRecord
 from app.models.service_visit import ServiceVisit
 from app.models.user import User
 from app.models.vehicle import Vehicle
@@ -88,15 +89,15 @@ class FamilyDashboardService:
                 member_data = await self._build_member_data(user)
                 members.append(member_data)
                 total_vehicles += member_data.vehicle_count
-                total_overdue += member_data.overdue_reminders
-                total_upcoming += member_data.upcoming_reminders
+                total_overdue += member_data.overdue_maintenance
+                total_upcoming += member_data.upcoming_maintenance
 
             return FamilyDashboardResponse(
                 members=members,
                 total_members=len(members),
                 total_vehicles=total_vehicles,
-                total_overdue_reminders=total_overdue,
-                total_upcoming_reminders=total_upcoming,
+                total_overdue_maintenance=total_overdue,
+                total_upcoming_maintenance=total_upcoming,
             )
 
         except OperationalError as e:
@@ -126,9 +127,9 @@ class FamilyDashboardService:
         for vehicle in vehicles:
             summary = await self._build_vehicle_summary(vehicle)
             vehicle_summaries.append(summary)
-            member_overdue += summary.overdue_reminders
-            # Count upcoming reminders (not overdue)
-            if summary.next_reminder_due is not None:
+            member_overdue += summary.overdue_maintenance
+            # Count upcoming maintenance (not overdue)
+            if summary.next_maintenance_due is not None:
                 member_upcoming += 1
 
         return FamilyMemberData(
@@ -139,14 +140,14 @@ class FamilyDashboardService:
             relationship_custom=user.relationship_custom,
             vehicle_count=len(vehicle_summaries),
             vehicles=vehicle_summaries,
-            overdue_reminders=member_overdue,
-            upcoming_reminders=member_upcoming,
+            overdue_maintenance=member_overdue,
+            upcoming_maintenance=member_upcoming,
             show_on_family_dashboard=user.show_on_family_dashboard,
             family_dashboard_order=user.family_dashboard_order,
         )
 
     async def _build_vehicle_summary(self, vehicle: Vehicle) -> FamilyVehicleSummary:
-        """Build a vehicle summary with service and reminder info."""
+        """Build a vehicle summary with service and maintenance schedule info."""
         today = date.today()
 
         # Get last service visit with line items
@@ -159,42 +160,45 @@ class FamilyDashboardService:
         )
         last_service = last_service_result.scalar_one_or_none()
 
-        # Get overdue reminders count (due_date in the past, not completed)
-        overdue_result = await self.db.execute(
-            select(func.count())
-            .select_from(Reminder)
-            .where(
-                Reminder.vin == vehicle.vin,
-                Reminder.is_completed == False,  # noqa: E712
-                Reminder.due_date.isnot(None),
-                Reminder.due_date < today,
-            )
-        )
-        overdue_count = overdue_result.scalar() or 0
-
-        # Get next upcoming reminder (not completed, due_date >= today, ordered by due_date)
-        next_reminder_result = await self.db.execute(
-            select(Reminder)
-            .where(
-                Reminder.vin == vehicle.vin,
-                Reminder.is_completed == False,  # noqa: E712
-                Reminder.due_date.isnot(None),
-                Reminder.due_date >= today,
-            )
-            .order_by(Reminder.due_date)
+        # Get current mileage for schedule status calculations
+        odometer_result = await self.db.execute(
+            select(OdometerRecord.mileage)
+            .where(OdometerRecord.vin == vehicle.vin)
+            .order_by(OdometerRecord.date.desc())
             .limit(1)
         )
-        next_reminder = next_reminder_result.scalar_one_or_none()
+        current_mileage = odometer_result.scalar_one_or_none()
 
-        # Format next reminder due info
-        next_reminder_description = None
-        next_reminder_due = None
-        if next_reminder:
-            next_reminder_description = next_reminder.description
-            if next_reminder.due_date:
-                next_reminder_due = next_reminder.due_date.isoformat()
-            elif next_reminder.due_mileage:
-                next_reminder_due = f"{next_reminder.due_mileage:,} miles"
+        # Get all maintenance schedule items for this vehicle
+        schedule_result = await self.db.execute(
+            select(MaintenanceScheduleItem).where(MaintenanceScheduleItem.vin == vehicle.vin)
+        )
+        schedule_items = list(schedule_result.scalars().all())
+
+        # Calculate overdue and upcoming counts from schedule items
+        overdue_count = 0
+        next_maintenance_description: str | None = None
+        next_maintenance_due: str | None = None
+        soonest_due_date: date | None = None
+
+        for item in schedule_items:
+            status = item.calculate_status(today, current_mileage)
+            if status == "overdue":
+                overdue_count += 1
+            elif status == "due_soon":
+                # Track the soonest due item for "next maintenance"
+                item_due_date = item.next_due_date
+                if item_due_date and (soonest_due_date is None or item_due_date < soonest_due_date):
+                    soonest_due_date = item_due_date
+                    next_maintenance_description = item.name
+                    next_maintenance_due = item_due_date.isoformat()
+            elif status == "on_track":
+                # Also consider on_track items for next upcoming
+                item_due_date = item.next_due_date
+                if item_due_date and (soonest_due_date is None or item_due_date < soonest_due_date):
+                    soonest_due_date = item_due_date
+                    next_maintenance_description = item.name
+                    next_maintenance_due = item_due_date.isoformat()
 
         # Build photo URL from raw DB path (e.g. "VIN/photo.jpg" -> "/api/vehicles/{vin}/photos/photo.jpg")
         main_photo_url: str | None = None
@@ -215,9 +219,9 @@ class FamilyDashboardService:
                 if last_service and last_service.line_items
                 else (last_service.notes if last_service else None)
             ),
-            next_reminder_description=next_reminder_description,
-            next_reminder_due=next_reminder_due,
-            overdue_reminders=overdue_count,
+            next_maintenance_description=next_maintenance_description,
+            next_maintenance_due=next_maintenance_due,
+            overdue_maintenance=overdue_count,
         )
 
     async def update_member_display(

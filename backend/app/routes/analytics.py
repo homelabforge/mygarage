@@ -30,7 +30,7 @@ from app.models import (
     SpotRentalBilling,
     Vehicle,
 )
-from app.models.reminder import Reminder
+from app.models.maintenance_schedule_item import MaintenanceScheduleItem
 from app.models.service_line_item import ServiceLineItem
 from app.models.spot_rental import SpotRental
 from app.models.user import User
@@ -490,11 +490,11 @@ async def get_maintenance_predictions(
     )
     visits = list(result.scalars().all())
 
-    # Get active reminders for this vehicle
-    reminder_result = await db.execute(
-        select(Reminder).where(Reminder.vin == vin, ~Reminder.is_completed)
+    # Get maintenance schedule items for this vehicle
+    schedule_result = await db.execute(
+        select(MaintenanceScheduleItem).where(MaintenanceScheduleItem.vin == vin)
     )
-    reminders = list(reminder_result.scalars().all())
+    schedule_items = list(schedule_result.scalars().all())
 
     # Get current mileage if not provided
     if not current_mileage:
@@ -513,15 +513,15 @@ async def get_maintenance_predictions(
             if li.description:
                 flat_items.append((visit.date, visit.mileage, li.description))
 
-    # Get all unique service types for reminder matching
+    # Get all unique service types for schedule item matching
     all_service_types = set(desc for _, _, desc in flat_items)
 
-    # Create mapping of service types to reminders (fuzzy match)
-    reminder_map: dict[str, Reminder] = {}
-    for reminder in reminders:
+    # Create mapping of service types to schedule items (fuzzy match)
+    schedule_map: dict[str, MaintenanceScheduleItem] = {}
+    for item in schedule_items:
         for service_type in all_service_types:
-            if service_type.lower() in reminder.description.lower():
-                reminder_map[service_type] = reminder
+            if service_type.lower() in item.name.lower():
+                schedule_map[service_type] = item
                 break
 
     # Group by description and calculate intervals
@@ -602,10 +602,12 @@ async def get_maintenance_predictions(
                 elif std_dev < avg_days * 0.4:
                     confidence = "medium"
 
-        # Check if there's a manual reminder for this service type
-        has_reminder = service_type in reminder_map
-        reminder_date = reminder_map[service_type].due_date if has_reminder else None
-        reminder_mileage = reminder_map[service_type].due_mileage if has_reminder else None
+        # Check if there's a schedule item for this service type
+        has_schedule = service_type in schedule_map
+        schedule_next_date = schedule_map[service_type].next_due_date if has_schedule else None
+        schedule_next_mileage = (
+            schedule_map[service_type].next_due_mileage if has_schedule else None
+        )
 
         predictions.append(
             MaintenancePrediction(
@@ -617,9 +619,9 @@ async def get_maintenance_predictions(
                 average_interval_days=avg_days,
                 average_interval_miles=avg_miles,
                 confidence=confidence,
-                has_manual_reminder=has_reminder,
-                manual_reminder_date=reminder_date,
-                manual_reminder_mileage=reminder_mileage,
+                has_schedule_item=has_schedule,
+                schedule_item_next_date=schedule_next_date,
+                schedule_item_next_mileage=schedule_next_mileage,
             )
         )
 
@@ -655,7 +657,7 @@ async def get_vehicle_analytics(
             average_mpg=None,
             best_mpg=None,
             worst_mpg=None,
-            recent_average=None,
+            recent_mpg=None,
             trend="stable",
         )
         fuel_alerts = []
@@ -706,7 +708,7 @@ async def get_vehicle_analytics(
         fuel_result = await db.execute(
             select(FuelRecord).where(FuelRecord.vin == vin).order_by(FuelRecord.date)
         )
-        all_fuel_records = fuel_result.scalars().all()
+        all_fuel_records = list(fuel_result.scalars().all())
         propane_analysis = analytics_service.calculate_propane_costs(all_fuel_records)
 
         # Get spot rental costs
@@ -1104,7 +1106,7 @@ async def get_seasonal_analytics(
         .where(FuelRecord.vin == vin, FuelRecord.cost.isnot(None))
         .order_by(FuelRecord.date)
     )
-    fuel_records = fuel_result.scalars().all()
+    fuel_records = list(fuel_result.scalars().all())
 
     # Get spot rental billings
     spot_rental_result = await db.execute(
@@ -1113,7 +1115,7 @@ async def get_seasonal_analytics(
         .where(SpotRental.vin == vin, SpotRentalBilling.total.isnot(None))
         .order_by(SpotRentalBilling.billing_date)
     )
-    spot_rental_billings = spot_rental_result.scalars().all()
+    spot_rental_billings = list(spot_rental_result.scalars().all())
 
     if not service_visits and not fuel_records and not spot_rental_billings:
         return SeasonalAnalyticsSummary()
@@ -1209,7 +1211,7 @@ async def compare_periods(
         .where(FuelRecord.vin == vin, FuelRecord.cost.isnot(None))
         .order_by(FuelRecord.date)
     )
-    fuel_records = fuel_result.scalars().all()
+    fuel_records = list(fuel_result.scalars().all())
 
     # Get spot rental billings
     spot_rental_result = await db.execute(
@@ -1218,7 +1220,7 @@ async def compare_periods(
         .where(SpotRental.vin == vin, SpotRentalBilling.total.isnot(None))
         .order_by(SpotRentalBilling.billing_date)
     )
-    spot_rental_billings = spot_rental_result.scalars().all()
+    spot_rental_billings = list(spot_rental_result.scalars().all())
 
     # Use visits_to_dataframe for financial period totals
     df = analytics_service.visits_to_dataframe(
@@ -1238,12 +1240,12 @@ async def compare_periods(
         period2_fuel = [r for r in fuel_records if period2_start <= r.date <= period2_end]
 
         if period1_fuel:
-            _p1_df, p1_stats = analytics_service.calculate_fuel_economy_with_pandas(period1_fuel)
+            _, p1_stats = analytics_service.calculate_fuel_economy_with_pandas(period1_fuel)
             if p1_stats:
                 period1_mpg = p1_stats.get("average_mpg")
 
         if period2_fuel:
-            _p2_df, p2_stats = analytics_service.calculate_fuel_economy_with_pandas(period2_fuel)
+            _, p2_stats = analytics_service.calculate_fuel_economy_with_pandas(period2_fuel)
             if p2_stats:
                 period2_mpg = p2_stats.get("average_mpg")
 

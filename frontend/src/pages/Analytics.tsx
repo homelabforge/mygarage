@@ -790,9 +790,9 @@ export default function Analytics() {
                   <div className="flex items-center gap-3 mb-2">
                     <h3 className="font-semibold text-garage-text text-lg">{prediction.service_type}</h3>
                     {getConfidenceBadge(prediction.confidence)}
-                    {prediction.has_manual_reminder && (
+                    {prediction.has_schedule_item && (
                       <span className="px-2 py-1 text-xs rounded bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200 border border-purple-300 dark:border-purple-700">
-                        REMINDER SET
+                        SCHEDULE SET
                       </span>
                     )}
                   </div>
@@ -807,15 +807,15 @@ export default function Analytics() {
                         <span className="text-garage-text-muted">@ {UnitFormatter.formatDistance(prediction.predicted_mileage, system, false)}</span>
                       )}
                     </div>
-                    {/* Manual Reminder if exists */}
-                    {prediction.has_manual_reminder && (
+                    {/* Scheduled Maintenance if exists */}
+                    {prediction.has_schedule_item && (
                       <div className="flex items-center gap-4 text-sm">
-                        <span className="font-medium text-purple-600 dark:text-purple-400">You set:</span>
-                        {prediction.manual_reminder_date && (
-                          <span className="text-garage-text-muted">{formatDate(prediction.manual_reminder_date)}</span>
+                        <span className="font-medium text-purple-600 dark:text-purple-400">Scheduled:</span>
+                        {prediction.schedule_item_next_date && (
+                          <span className="text-garage-text-muted">{formatDate(prediction.schedule_item_next_date)}</span>
                         )}
-                        {prediction.manual_reminder_mileage && (
-                          <span className="text-garage-text-muted">@ {UnitFormatter.formatDistance(prediction.manual_reminder_mileage, system, false)}</span>
+                        {prediction.schedule_item_next_mileage && (
+                          <span className="text-garage-text-muted">@ {UnitFormatter.formatDistance(prediction.schedule_item_next_mileage, system, false)}</span>
                         )}
                       </div>
                     )}

@@ -109,9 +109,9 @@ def test_044_idempotent(migration_db):
     migration.upgrade()
 
     conn = sqlite3.connect(str(db_file))
-    count = conn.execute(
-        "SELECT COUNT(*) FROM vendors WHERE name = 'Idempotent Shop'"
-    ).fetchone()[0]
+    count = conn.execute("SELECT COUNT(*) FROM vendors WHERE name = 'Idempotent Shop'").fetchone()[
+        0
+    ]
     conn.close()
 
     assert count == 1, f"Expected 1 vendor row, found {count}"
@@ -128,7 +128,7 @@ def test_044_skips_blank_business_names(migration_db):
         "INSERT INTO address_book (business_name, name) VALUES (?, ?)",
         [
             ("Valid Shop", "Jane Doe"),
-            ("   ", "John Smith"),   # whitespace-only — should be skipped
+            ("   ", "John Smith"),  # whitespace-only — should be skipped
         ],
     )
     conn.commit()
@@ -191,9 +191,7 @@ def test_044_does_not_overwrite_existing_vendor(migration_db):
     migration.upgrade()
 
     conn = sqlite3.connect(str(db_file))
-    vendor = conn.execute(
-        "SELECT city FROM vendors WHERE name = 'Existing Vendor'"
-    ).fetchone()
+    vendor = conn.execute("SELECT city FROM vendors WHERE name = 'Existing Vendor'").fetchone()
     conn.close()
 
     assert vendor is not None

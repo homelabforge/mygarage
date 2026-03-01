@@ -34,7 +34,6 @@ if TYPE_CHECKING:
     from app.models.odometer import OdometerRecord
     from app.models.photo import VehiclePhoto
     from app.models.recall import Recall
-    from app.models.reminder import Reminder
     from app.models.service_visit import ServiceVisit
     from app.models.spot_rental import SpotRental
     from app.models.tax import TaxRecord
@@ -117,6 +116,8 @@ class Vehicle(Base):
     archived_visible: Mapped[bool] = mapped_column(Boolean, server_default="1")
     # DEF tracking
     def_tank_capacity_gallons: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
+    # Milestone notification tracking
+    last_milestone_notified: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime | None] = mapped_column(DateTime, onupdate=func.now())
 
@@ -140,9 +141,6 @@ class Vehicle(Base):
     )
     odometer_records: Mapped[list[OdometerRecord]] = relationship(
         "OdometerRecord", back_populates="vehicle", cascade="all, delete-orphan"
-    )
-    reminders: Mapped[list[Reminder]] = relationship(
-        "Reminder", back_populates="vehicle", cascade="all, delete-orphan"
     )
     tax_records: Mapped[list[TaxRecord]] = relationship(
         "TaxRecord", back_populates="vehicle", cascade="all, delete-orphan"

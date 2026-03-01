@@ -6,7 +6,7 @@ import VehicleWizard from '../components/VehicleWizard'
 import type { DashboardResponse } from '../types/dashboard'
 import api from '../services/api'
 
-type SortOption = 'name' | 'year-new' | 'year-old' | 'reminders'
+type SortOption = 'name' | 'year-new' | 'year-old' | 'maintenance'
 type FilterOption = 'all' | 'owned' | 'shared'
 
 export default function Dashboard() {
@@ -67,12 +67,12 @@ export default function Dashboard() {
           return b.year - a.year
         case 'year-old':
           return a.year - b.year
-        case 'reminders':
+        case 'maintenance':
           // Sort by overdue count (desc), then upcoming count (desc)
-          if (b.overdue_reminders_count !== a.overdue_reminders_count) {
-            return b.overdue_reminders_count - a.overdue_reminders_count
+          if (b.overdue_maintenance_count !== a.overdue_maintenance_count) {
+            return b.overdue_maintenance_count - a.overdue_maintenance_count
           }
-          return b.upcoming_reminders_count - a.upcoming_reminders_count
+          return b.upcoming_maintenance_count - a.upcoming_maintenance_count
         default:
           return 0
       }
@@ -137,8 +137,8 @@ export default function Dashboard() {
                   <option value="year-old" className="bg-garage-bg text-garage-text">
                     Oldest First
                   </option>
-                  <option value="reminders" className="bg-garage-bg text-garage-text">
-                    By Reminders
+                  <option value="maintenance" className="bg-garage-bg text-garage-text">
+                    By Maintenance
                   </option>
                 </select>
                 <SlidersHorizontal className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-garage-text-muted pointer-events-none" />

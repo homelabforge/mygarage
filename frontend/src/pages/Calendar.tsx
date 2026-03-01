@@ -39,7 +39,7 @@ export default function CalendarPage() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedVehicles, setSelectedVehicles] = useState<string[]>([])
-  const [selectedTypes, setSelectedTypes] = useState<string[]>(['reminder', 'insurance', 'warranty'])
+  const [selectedTypes, setSelectedTypes] = useState<string[]>(['maintenance', 'insurance', 'warranty'])
   const [showHistory, setShowHistory] = useState(false)
   const [view, setView] = useState<View>('month')
   const [date, setDate] = useState(new Date())
@@ -182,8 +182,8 @@ export default function CalendarPage() {
 
     // Navigate to appropriate detail page
     switch (type) {
-      case 'reminder':
-        navigate(`/vehicles/${calendarEvent.vehicle_vin}?tab=reminders`)
+      case 'maintenance':
+        navigate(`/vehicles/${calendarEvent.vehicle_vin}?tab=maintenance`)
         break
       case 'insurance':
         navigate(`/vehicles/${calendarEvent.vehicle_vin}?tab=insurance`)
@@ -197,22 +197,24 @@ export default function CalendarPage() {
     }
   }
 
-  // Quick complete reminder
+  // Quick complete maintenance item
   const handleQuickComplete = async (eventId: string, e: React.MouseEvent) => {
     e.stopPropagation()
 
     const [type, id] = eventId.split('-')
-    if (type !== 'reminder') return
+    if (type !== 'maintenance') return
 
     const event = events.find(ev => ev.id === eventId)
     if (!event) return
 
     try {
-      await api.post(`/vehicles/${event.vehicle_vin}/reminders/${id}/complete`)
-      toast.success('Reminder marked as complete')
+      await api.patch(`/vehicles/${event.vehicle_vin}/maintenance-schedule/${id}`, {
+        last_performed_date: new Date().toISOString().split('T')[0],
+      })
+      toast.success('Maintenance item marked as complete')
       loadEvents()
     } catch {
-      toast.error('Failed to complete reminder')
+      toast.error('Failed to complete maintenance item')
     }
   }
 
@@ -242,14 +244,14 @@ export default function CalendarPage() {
     )
   }
 
-  // Phase 3: Bulk complete selected reminders
+  // Phase 3: Bulk complete selected maintenance items
   const handleBulkComplete = async () => {
-    const reminderIds = selectedEvents
-      .filter(id => id.startsWith('reminder-'))
+    const maintenanceIds = selectedEvents
+      .filter(id => id.startsWith('maintenance-'))
       .map(id => id.split('-')[1])
 
-    if (reminderIds.length === 0) {
-      toast.error('No reminders selected')
+    if (maintenanceIds.length === 0) {
+      toast.error('No maintenance items selected')
       return
     }
 
@@ -259,12 +261,14 @@ export default function CalendarPage() {
       let failed = 0
       const errors: string[] = []
 
-      for (const id of reminderIds) {
-        const event = events.find(e => e.id === `reminder-${id}`)
+      for (const id of maintenanceIds) {
+        const event = events.find(e => e.id === `maintenance-${id}`)
         if (!event || event.is_completed) continue
 
         try {
-          await api.post(`/vehicles/${event.vehicle_vin}/reminders/${id}/complete`)
+          await api.patch(`/vehicles/${event.vehicle_vin}/maintenance-schedule/${id}`, {
+            last_performed_date: new Date().toISOString().split('T')[0],
+          })
           completed++
         } catch (err: unknown) {
           failed++
@@ -281,18 +285,18 @@ export default function CalendarPage() {
 
       // Show appropriate toast message
       if (completed > 0 && failed === 0) {
-        toast.success(`Completed ${completed} reminder(s)`)
+        toast.success(`Completed ${completed} item(s)`)
       } else if (completed > 0 && failed > 0) {
-        toast.warning(`Completed ${completed} reminder(s), failed ${failed}`, {
+        toast.warning(`Completed ${completed} item(s), failed ${failed}`, {
           description: errors.slice(0, 3).join(', ')
         })
       } else {
-        toast.error(`Failed to complete ${failed} reminder(s)`, {
+        toast.error(`Failed to complete ${failed} item(s)`, {
           description: errors.slice(0, 3).join(', ')
         })
       }
     } catch {
-      toast.error('Failed to complete reminders')
+      toast.error('Failed to complete maintenance items')
     } finally {
       setBulkCompleting(false)
     }
@@ -321,7 +325,7 @@ export default function CalendarPage() {
         backgroundColor = '#f59e0b' // amber
         borderColor = '#f59e0b'
         break
-      case 'reminder':
+      case 'maintenance':
         backgroundColor = '#3b82f6' // blue
         borderColor = '#3b82f6'
         break
@@ -537,14 +541,14 @@ export default function CalendarPage() {
               <h3 className="text-sm font-medium text-garage-text-muted mb-2">Event Types</h3>
               <div className="flex flex-wrap gap-2">
                 <button
-                  onClick={() => toggleEventType('reminder')}
+                  onClick={() => toggleEventType('maintenance')}
                   className={`px-3 py-1 rounded-lg text-sm transition-colors ${
-                    selectedTypes.includes('reminder')
+                    selectedTypes.includes('maintenance')
                       ? 'bg-blue-600 text-white'
                       : 'bg-garage-bg text-garage-text-muted border border-garage-border'
                   }`}
                 >
-                  Reminders
+                  Maintenance
                 </button>
                 <button
                   onClick={() => toggleEventType('insurance')}
@@ -627,7 +631,7 @@ export default function CalendarPage() {
                         toggleEventSelection(event.id)
                       } else {
                         const [type] = event.id.split('-')
-                        const tab = type === 'reminder' ? 'reminders' : type === 'insurance' ? 'insurance' : type === 'warranty' ? 'warranties' : 'service'
+                        const tab = type === 'maintenance' ? 'maintenance' : type === 'insurance' ? 'insurance' : type === 'warranty' ? 'warranties' : 'service'
                         navigate(`/vehicles/${event.vehicle_vin}?tab=${tab}`)
                       }
                     }}
@@ -681,6 +685,34 @@ export default function CalendarPage() {
                         <p className="text-xs text-garage-text-muted mt-1">
                           {formatDate(event.date)} • {getDaysUntil(event.date)}
                         </p>
+                        {/* Maintenance detail fields */}
+                        {event.type === 'maintenance' && (event.status || event.miles_until_due !== undefined) && (
+                          <div className="flex flex-wrap gap-1.5 mt-1.5">
+                            {event.status && (
+                              <span className={`text-xs px-1.5 py-0.5 rounded ${
+                                event.status === 'overdue' ? 'bg-danger/20 text-danger' :
+                                event.status === 'due_soon' ? 'bg-warning/20 text-warning' :
+                                event.status === 'never_performed' ? 'bg-purple-500/20 text-purple-400' :
+                                'bg-success/20 text-success'
+                              }`}>
+                                {event.status === 'due_soon' ? 'Due Soon' :
+                                 event.status === 'never_performed' ? 'Never Done' :
+                                 event.status === 'overdue' ? 'Overdue' : 'On Track'}
+                              </span>
+                            )}
+                            {event.miles_until_due != null && (
+                              <span className={`text-xs px-1.5 py-0.5 rounded ${
+                                event.miles_until_due <= 0 ? 'bg-danger/20 text-danger' :
+                                event.miles_until_due <= 500 ? 'bg-warning/20 text-warning' :
+                                'bg-garage-bg text-garage-text-muted'
+                              }`}>
+                                {event.miles_until_due <= 0
+                                  ? `${Math.abs(event.miles_until_due).toLocaleString()} mi over`
+                                  : `${event.miles_until_due.toLocaleString()} mi left`}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
 
                       {!bulkMode && (
@@ -696,7 +728,7 @@ export default function CalendarPage() {
                             </button>
                           )}
                           {/* Quick complete button */}
-                          {event.type === 'reminder' && !event.is_completed && (
+                          {event.type === 'maintenance' && !event.is_completed && (
                             <button
                               onClick={(e) => handleQuickComplete(event.id, e)}
                               className="p-1 hover:bg-success/20 rounded transition-colors"
@@ -721,7 +753,7 @@ export default function CalendarPage() {
           <div className="flex flex-wrap gap-4">
             <div className="flex items-center gap-2">
               <div className="w-4 h-4 bg-blue-600 rounded"></div>
-              <span className="text-sm text-garage-text">Maintenance Reminders</span>
+              <span className="text-sm text-garage-text">Maintenance Schedule</span>
             </div>
             <div className="flex items-center gap-2">
               <div className="w-4 h-4 bg-red-600 rounded"></div>

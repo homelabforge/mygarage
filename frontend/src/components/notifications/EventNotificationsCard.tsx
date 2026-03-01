@@ -14,6 +14,7 @@ interface EventItem {
   label: string;
   description: string;
   daysKey?: string;
+  milesKey?: string;
 }
 
 interface EventGroup {
@@ -46,6 +47,7 @@ const eventGroups: EventGroup[] = [
         label: 'Service Due',
         description: 'Notify when scheduled service is coming due',
         daysKey: 'notify_service_days',
+        milesKey: 'notify_service_miles',
       },
       {
         key: 'notify_service_overdue',
@@ -180,18 +182,37 @@ export function EventNotificationsCard({
                         </label>
                         <p className="mt-1 ml-6 text-xs text-garage-text-muted">{event.description}</p>
                       </div>
-                      {event.daysKey && (
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="number"
-                            value={String(settings[event.daysKey] ?? '7')}
-                            onChange={(e) => onTextChange(event.daysKey!, e.target.value)}
-                            disabled={saving || settings[event.key] !== 'true'}
-                            min="1"
-                            max="90"
-                            className="w-16 px-2 py-1 text-sm bg-garage-bg border border-garage-border rounded text-garage-text disabled:opacity-50"
-                          />
-                          <span className="text-xs text-garage-text-muted whitespace-nowrap">days before</span>
+                      {(event.daysKey || event.milesKey) && (
+                        <div className="flex flex-col gap-1">
+                          {event.daysKey && (
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                value={String(settings[event.daysKey] ?? '30')}
+                                onChange={(e) => onTextChange(event.daysKey!, e.target.value)}
+                                disabled={saving || settings[event.key] !== 'true'}
+                                min="1"
+                                max="90"
+                                className="w-16 px-2 py-1 text-sm bg-garage-bg border border-garage-border rounded text-garage-text disabled:opacity-50"
+                              />
+                              <span className="text-xs text-garage-text-muted whitespace-nowrap">days before</span>
+                            </div>
+                          )}
+                          {event.milesKey && (
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                value={String(settings[event.milesKey] ?? '500')}
+                                onChange={(e) => onTextChange(event.milesKey!, e.target.value)}
+                                disabled={saving || settings[event.key] !== 'true'}
+                                min="100"
+                                max="5000"
+                                step="100"
+                                className="w-16 px-2 py-1 text-sm bg-garage-bg border border-garage-border rounded text-garage-text disabled:opacity-50"
+                              />
+                              <span className="text-xs text-garage-text-muted whitespace-nowrap">miles before</span>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

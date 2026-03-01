@@ -20,7 +20,6 @@ from app.models import (
     InsurancePolicy,
     Note,
     OdometerRecord,
-    Reminder,
     ServiceVisit,
     TaxRecord,
     WarrantyRecord,
@@ -415,18 +414,16 @@ async def export_tax_records_csv(
 
     # Get all tax records
     result = await db.execute(
-        select(TaxRecord).where(TaxRecord.vin == vin).order_by(TaxRecord.year.desc())
+        select(TaxRecord).where(TaxRecord.vin == vin).order_by(TaxRecord.date.desc())
     )
     records = result.scalars().all()
 
     # Generate CSV
     headers = [
-        "Year",
+        "Date",
         "Type",
         "Amount",
-        "Paid Date",
-        "Due Date",
-        "Jurisdiction",
+        "Renewal Date",
         "Notes",
     ]
 
@@ -434,12 +431,10 @@ async def export_tax_records_csv(
     for record in records:
         rows.append(
             [
-                record.year or "",
+                record.date.isoformat() if record.date else "",
                 record.tax_type or "",
                 f"{record.amount:.2f}" if record.amount else "",
-                record.paid_date.isoformat() if record.paid_date else "",
-                record.due_date.isoformat() if record.due_date else "",
-                record.jurisdiction or "",
+                record.renewal_date.isoformat() if record.renewal_date else "",
                 record.notes or "",
             ]
         )
@@ -532,11 +527,6 @@ async def export_vehicle_json(
     )
     odometer_records = odometer_result.scalars().all()
 
-    reminder_result = await db.execute(
-        select(Reminder).where(Reminder.vin == vin).order_by(Reminder.created_at.desc())
-    )
-    reminders = reminder_result.scalars().all()
-
     note_result = await db.execute(select(Note).where(Note.vin == vin).order_by(Note.date.desc()))
     notes = note_result.scalars().all()
 
@@ -608,20 +598,6 @@ async def export_vehicle_json(
                 "notes": r.notes,
             }
             for r in odometer_records
-        ],
-        "reminders": [
-            {
-                "description": r.description,
-                "due_date": r.due_date.isoformat() if r.due_date else None,
-                "due_mileage": r.due_mileage,
-                "is_completed": r.is_completed,
-                "completed_at": r.completed_at.isoformat() if r.completed_at else None,
-                "is_recurring": r.is_recurring,
-                "recurrence_days": r.recurrence_days,
-                "recurrence_miles": r.recurrence_miles,
-                "notes": r.notes,
-            }
-            for r in reminders
         ],
         "notes": [
             {

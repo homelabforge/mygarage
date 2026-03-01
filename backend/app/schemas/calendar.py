@@ -10,7 +10,7 @@ class CalendarEvent(BaseModel):
     """Schema for a calendar event."""
 
     id: str = Field(..., description="Unique identifier in format 'type-id'")
-    type: Literal["reminder", "insurance", "warranty", "service"] = Field(
+    type: Literal["maintenance", "insurance", "warranty", "service"] = Field(
         ..., description="Event type"
     )
     title: str = Field(..., description="Event title/description")
@@ -36,6 +36,9 @@ class CalendarEvent(BaseModel):
     due_mileage: int | None = Field(
         None, description="Due mileage for mileage-based reminders (Phase 3)"
     )
+    status: str | None = Field(None, description="Maintenance status (overdue, due_soon, etc.)")
+    days_until_due: int | None = Field(None, description="Days until due date")
+    miles_until_due: int | None = Field(None, description="Miles until due mileage")
 
 
 class CalendarSummary(BaseModel):

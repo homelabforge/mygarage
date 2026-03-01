@@ -47,10 +47,10 @@ export default function ServiceTab({ vin }: ServiceTabProps) {
     const handleTemplateRefresh = () => {
       setScheduleRefreshKey((prev) => prev + 1)
     }
-    window.addEventListener('reminders-refresh', handleTemplateRefresh)
+    window.addEventListener('maintenance-refresh', handleTemplateRefresh)
 
     return () => {
-      window.removeEventListener('reminders-refresh', handleTemplateRefresh)
+      window.removeEventListener('maintenance-refresh', handleTemplateRefresh)
     }
   }, [vin])
 

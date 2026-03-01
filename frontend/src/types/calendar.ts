@@ -2,7 +2,7 @@
  * Calendar event type definitions
  */
 
-export type EventType = 'reminder' | 'insurance' | 'warranty' | 'service'
+export type EventType = 'maintenance' | 'insurance' | 'warranty' | 'service'
 export type EventUrgency = 'overdue' | 'high' | 'medium' | 'low' | 'historical'
 export type EventCategory = 'maintenance' | 'legal' | 'financial' | 'history'
 
@@ -22,6 +22,9 @@ export interface CalendarEvent {
   category: EventCategory
   notes?: string // Phase 3: Event notes
   due_mileage?: number // Phase 3: Mileage-based reminders
+  status?: string
+  days_until_due?: number
+  miles_until_due?: number
 }
 
 export interface CalendarSummary {

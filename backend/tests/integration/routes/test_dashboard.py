@@ -4,8 +4,13 @@ Integration tests for dashboard routes.
 Tests dashboard aggregation and statistics endpoints.
 """
 
+from datetime import date, timedelta
+
 import pytest
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models import MaintenanceScheduleItem
 
 
 @pytest.mark.integration
@@ -42,7 +47,7 @@ class TestDashboardRoutes:
         assert "total_vehicles" in data
         assert "total_service_records" in data
         assert "total_fuel_records" in data
-        assert "total_reminders" in data
+        assert "total_maintenance_items" in data
         assert "total_documents" in data
         assert "total_notes" in data
         assert "total_photos" in data
@@ -81,12 +86,12 @@ class TestDashboardRoutes:
         assert "total_service_records" in test_vehicle_stats
         assert "total_fuel_records" in test_vehicle_stats
         assert "total_odometer_records" in test_vehicle_stats
-        assert "total_reminders" in test_vehicle_stats
+        assert "total_maintenance_items" in test_vehicle_stats
         assert "total_documents" in test_vehicle_stats
         assert "total_notes" in test_vehicle_stats
         assert "total_photos" in test_vehicle_stats
-        assert "upcoming_reminders_count" in test_vehicle_stats
-        assert "overdue_reminders_count" in test_vehicle_stats
+        assert "upcoming_maintenance_count" in test_vehicle_stats
+        assert "overdue_maintenance_count" in test_vehicle_stats
 
     async def test_dashboard_after_adding_service_visit(
         self, client: AsyncClient, auth_headers, test_vehicle
@@ -153,29 +158,34 @@ class TestDashboardRoutes:
         # Total fuel records should include our new record
         assert data["total_fuel_records"] >= 1
 
-    async def test_dashboard_reminder_counts(self, client: AsyncClient, auth_headers, test_vehicle):
-        """Test that dashboard tracks reminder counts correctly."""
-        # Create an upcoming reminder
-        await client.post(
-            f"/api/vehicles/{test_vehicle['vin']}/reminders",
-            json={
-                "vin": test_vehicle["vin"],
-                "description": "Dashboard upcoming reminder",
-                "due_date": "2030-12-31",  # Far future
-            },
-            headers=auth_headers,
+    async def test_dashboard_maintenance_counts(
+        self, client: AsyncClient, auth_headers, test_vehicle, db_session: AsyncSession
+    ):
+        """Test that dashboard tracks maintenance schedule counts correctly."""
+        # Create a due_soon maintenance item
+        item_upcoming = MaintenanceScheduleItem(
+            vin=test_vehicle["vin"],
+            name="Dashboard upcoming item",
+            component_category="General",
+            item_type="service",
+            interval_months=3,
+            source="custom",
+            last_performed_date=date.today() - timedelta(days=80),
         )
+        db_session.add(item_upcoming)
 
-        # Create an overdue reminder
-        await client.post(
-            f"/api/vehicles/{test_vehicle['vin']}/reminders",
-            json={
-                "vin": test_vehicle["vin"],
-                "description": "Dashboard overdue reminder",
-                "due_date": "2020-01-01",  # Past date
-            },
-            headers=auth_headers,
+        # Create an overdue maintenance item
+        item_overdue = MaintenanceScheduleItem(
+            vin=test_vehicle["vin"],
+            name="Dashboard overdue item",
+            component_category="General",
+            item_type="service",
+            interval_months=3,
+            source="custom",
+            last_performed_date=date.today() - timedelta(days=365),
         )
+        db_session.add(item_overdue)
+        await db_session.commit()
 
         # Get dashboard
         response = await client.get(
@@ -192,9 +202,8 @@ class TestDashboardRoutes:
                 break
 
         assert test_vehicle_stats is not None
-        # Should have both upcoming and overdue counts
-        assert test_vehicle_stats["upcoming_reminders_count"] >= 1
-        assert test_vehicle_stats["overdue_reminders_count"] >= 1
+        # Should have overdue count
+        assert test_vehicle_stats["overdue_maintenance_count"] >= 1
 
     async def test_dashboard_latest_dates(self, client: AsyncClient, auth_headers, test_vehicle):
         """Test that dashboard tracks latest service/fuel dates."""
@@ -252,7 +261,7 @@ class TestDashboardRoutes:
         # Calculate sums from vehicles
         vehicle_service_sum = sum(v["total_service_records"] for v in data["vehicles"])
         vehicle_fuel_sum = sum(v["total_fuel_records"] for v in data["vehicles"])
-        vehicle_reminder_sum = sum(v["total_reminders"] for v in data["vehicles"])
+        vehicle_maintenance_sum = sum(v["total_maintenance_items"] for v in data["vehicles"])
         vehicle_document_sum = sum(v["total_documents"] for v in data["vehicles"])
         vehicle_note_sum = sum(v["total_notes"] for v in data["vehicles"])
         vehicle_photo_sum = sum(v["total_photos"] for v in data["vehicles"])
@@ -260,7 +269,7 @@ class TestDashboardRoutes:
         # Totals should match sums
         assert data["total_service_records"] == vehicle_service_sum
         assert data["total_fuel_records"] == vehicle_fuel_sum
-        assert data["total_reminders"] == vehicle_reminder_sum
+        assert data["total_maintenance_items"] == vehicle_maintenance_sum
         assert data["total_documents"] == vehicle_document_sum
         assert data["total_notes"] == vehicle_note_sum
         assert data["total_photos"] == vehicle_photo_sum

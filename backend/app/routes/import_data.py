@@ -20,9 +20,9 @@ from app.models import (
     DEFRecord,
     FuelRecord,
     InsurancePolicy,
+    MaintenanceScheduleItem,
     Note,
     OdometerRecord,
-    Reminder,
     ServiceLineItem,
     ServiceVisit,
     TaxRecord,
@@ -935,30 +935,31 @@ async def import_vehicle_json(
             results["odometer_records"]["errors"] += 1
             results["errors"].append(f"Odometer record {idx}: {str(e)}")
 
-    # Import reminders
+    # Import reminders → map to MaintenanceScheduleItem (backward-compatible)
     for idx, reminder_data in enumerate(data.get("reminders", [])):
         try:
-            due_date = (
-                datetime.fromisoformat(reminder_data["due_date"]).date()
-                if reminder_data.get("due_date")
-                else None
-            )
+            # Parse last_performed_date from completed_at if present
+            last_performed_date = None
+            if reminder_data.get("completed_at"):
+                last_performed_date = datetime.fromisoformat(reminder_data["completed_at"]).date()
 
-            reminder = Reminder(
+            # Convert recurrence to interval fields
+            is_recurring = reminder_data.get("is_recurring", False)
+            recurrence_days = reminder_data.get("recurrence_days", 0)
+            interval_months = (recurrence_days // 30) if is_recurring and recurrence_days else None
+            interval_miles = reminder_data.get("recurrence_miles") if is_recurring else None
+
+            schedule_item = MaintenanceScheduleItem(
                 vin=vin,
-                description=reminder_data["description"],
-                due_date=due_date,
-                due_mileage=reminder_data.get("due_mileage"),
-                is_completed=reminder_data.get("is_completed", False),
-                completed_at=datetime.fromisoformat(reminder_data["completed_at"])
-                if reminder_data.get("completed_at")
-                else None,
-                is_recurring=reminder_data.get("is_recurring", False),
-                recurrence_days=reminder_data.get("recurrence_days"),
-                recurrence_miles=reminder_data.get("recurrence_miles"),
-                notes=reminder_data.get("notes"),
+                name=reminder_data["description"],
+                source="migrated_reminder",
+                component_category="General",
+                item_type="service",
+                interval_months=interval_months,
+                interval_miles=interval_miles,
+                last_performed_date=last_performed_date,
             )
-            db.add(reminder)
+            db.add(schedule_item)
             results["reminders"]["success"] += 1
         except Exception as e:
             results["reminders"]["errors"] += 1

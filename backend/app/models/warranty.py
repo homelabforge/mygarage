@@ -38,6 +38,7 @@ class WarrantyRecord(Base):
     policy_number: Mapped[str | None] = mapped_column(String(50))
     notes: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    last_notified_at: Mapped[datetime | None] = mapped_column(DateTime)
 
     # Relationships
     vehicle: Mapped[Vehicle] = relationship("Vehicle", back_populates="warranty_records")

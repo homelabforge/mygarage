@@ -118,9 +118,9 @@ export interface FamilyVehicleSummary {
   main_photo: string | null
   last_service_date: string | null
   last_service_description: string | null
-  next_reminder_description: string | null
-  next_reminder_due: string | null
-  overdue_reminders: number
+  next_maintenance_description: string | null
+  next_maintenance_due: string | null
+  overdue_maintenance: number
 }
 
 export interface FamilyMemberData {
@@ -131,8 +131,8 @@ export interface FamilyMemberData {
   relationship_custom: string | null
   vehicle_count: number
   vehicles: FamilyVehicleSummary[]
-  overdue_reminders: number
-  upcoming_reminders: number
+  overdue_maintenance: number
+  upcoming_maintenance: number
   // Dashboard management fields
   show_on_family_dashboard: boolean
   family_dashboard_order: number
@@ -142,8 +142,8 @@ export interface FamilyDashboardResponse {
   members: FamilyMemberData[]
   total_members: number
   total_vehicles: number
-  total_overdue_reminders: number
-  total_upcoming_reminders: number
+  total_overdue_maintenance: number
+  total_upcoming_maintenance: number
 }
 
 export interface FamilyMemberUpdateRequest {

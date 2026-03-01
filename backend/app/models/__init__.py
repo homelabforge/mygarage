@@ -18,7 +18,6 @@ from app.models.odometer import OdometerRecord
 from app.models.oidc_state import OIDCState
 from app.models.photo import VehiclePhoto
 from app.models.recall import Recall
-from app.models.reminder import Reminder
 from app.models.service_line_item import ServiceLineItem
 from app.models.service_visit import ServiceVisit
 from app.models.settings import Setting
@@ -48,7 +47,6 @@ __all__ = [
     "SpotRentalBilling",
     "FuelRecord",
     "OdometerRecord",
-    "Reminder",
     "TaxRecord",
     "Note",
     "Recall",

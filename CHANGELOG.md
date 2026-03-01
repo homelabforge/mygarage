@@ -35,6 +35,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Mobile Quick Entry — after signing in on a phone, users are redirected to a streamlined Quick Entry page for fast fuel, service, and mileage logging; toggle in Settings → Mobile Experience
 - Quick Entry page — vehicle selector (auto-selects if only one), three large action buttons (Fuel Up, Service, Mileage), success toast on submit, Dashboard escape link
+- Calendar now shows maintenance schedule items with status badges (overdue, due soon, never done) and miles-remaining indicators in the sidebar
+- Never-performed maintenance items with no intervals now appear on today's date as "needs attention" items in the calendar
+- Background scheduler for automated notifications — maintenance due/overdue, insurance/warranty expiration, NHTSA recall checks (weekly), and odometer milestone alerts (every 10k miles); enable with `SCHEDULER_ENABLED=true` environment variable
+- Configurable notification thresholds: `notify_service_days` (default 30) and `notify_service_miles` (default 500) in Settings → Notifications
+- Odometer milestone notifications — opt-in via Settings → Notifications → Milestones; triggers at every 10,000-mile boundary
 
 ### Fixed
 - Mileage field hidden in service visit form for non-motorized vehicles (Fifth Wheel, Trailer, Travel Trailer)
@@ -45,6 +50,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Vehicle detail page mobile UI overhaul — primary tabs replaced with a 3×2 icon grid (no horizontal scrolling), header resized for narrow screens with VIN overflow protection, Share and Transfer added to mobile action menu, overview section switched from CSS columns to grid, LiveLink charts use CSS-driven responsive height
 - Service tab mobile improvements — visit cards flex-wrap on narrow screens, search bar full-width on mobile, modal padding reduced, Maintenance Schedule form inputs stack on small screens, action sheet capped at 70vh for landscape usability
+
+### Removed
+- Reminders system — replaced entirely by maintenance schedule items; completed reminders archived as service visits via migration 045, reminder table dropped
 
 ### Fixed
 - Replaced deprecated `React.FormEvent` with `SyntheticEvent<HTMLFormElement>` across 9 components (React 19 type cleanup)

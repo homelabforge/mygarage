@@ -57,8 +57,8 @@ export default function FamilyManagementModal({ isOpen, onClose }: FamilyManagem
   // Stats (active users only, computed from allMembers)
   const totalMembers = allMembers.length
   const totalVehicles = allMembers.reduce((sum, m) => sum + m.vehicle_count, 0)
-  const totalUpcoming = allMembers.reduce((sum, m) => sum + m.upcoming_reminders, 0)
-  const totalOverdue = allMembers.reduce((sum, m) => sum + m.overdue_reminders, 0)
+  const totalUpcoming = allMembers.reduce((sum, m) => sum + m.upcoming_maintenance, 0)
+  const totalOverdue = allMembers.reduce((sum, m) => sum + m.overdue_maintenance, 0)
 
   // View model: merge users[] (authoritative) with allMembers (vehicle data)
   const memberById = new Map(allMembers.map(m => [m.id, m]))
@@ -356,8 +356,8 @@ export default function FamilyManagementModal({ isOpen, onClose }: FamilyManagem
     relationship_custom: u.relationship_custom,
     vehicle_count: 0,
     vehicles: [],
-    overdue_reminders: 0,
-    upcoming_reminders: 0,
+    overdue_maintenance: 0,
+    upcoming_maintenance: 0,
     show_on_family_dashboard: false,
     family_dashboard_order: 999,
   })

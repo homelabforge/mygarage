@@ -301,8 +301,8 @@ export default function SettingsSystemTab() {
           />
           <StatCard
             icon={<Bell className="w-5 h-5" />}
-            label="Reminders"
-            value={dashboardStats.total_reminders}
+            label="Maintenance Items"
+            value={dashboardStats.total_maintenance_items}
             color="text-warning"
           />
           <StatCard

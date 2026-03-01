@@ -309,7 +309,7 @@ export default function VehicleSharingModal({
                   <div className="flex items-start gap-2">
                     <span className="font-medium text-garage-text">Read:</span>
                     <span className="text-garage-text-muted">
-                      View vehicle details, service history, and reminders
+                      View vehicle details, service history, and maintenance schedule
                     </span>
                   </div>
                   <div className="flex items-start gap-2">

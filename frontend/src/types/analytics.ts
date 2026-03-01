@@ -58,9 +58,9 @@ export interface MaintenancePrediction {
   average_interval_days: number | null
   average_interval_miles: number | null
   confidence: 'high' | 'medium' | 'low'
-  has_manual_reminder: boolean
-  manual_reminder_date: string | null
-  manual_reminder_mileage: number | null
+  has_schedule_item: boolean
+  schedule_item_next_date: string | null
+  schedule_item_next_mileage: number | null
 }
 
 export interface CostAnalysis {

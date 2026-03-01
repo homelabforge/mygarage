@@ -9,7 +9,7 @@ Includes schemas for:
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -57,7 +57,7 @@ class VehicleTransferRequest(BaseModel):
             "service_records": True,
             "fuel_logs": True,
             "documents": True,
-            "reminders": True,
+            "maintenance": True,
             "notes": True,
             "expenses": True,
             "photos": True,
@@ -166,11 +166,11 @@ class FamilyVehicleSummary(BaseModel):
     make: str | None = None
     model: str | None = None
     main_photo: str | None = None
-    last_service_date: datetime | None = None
+    last_service_date: date | None = None
     last_service_description: str | None = None
-    next_reminder_description: str | None = None
-    next_reminder_due: str | None = None  # Could be date or mileage
-    overdue_reminders: int = 0
+    next_maintenance_description: str | None = None
+    next_maintenance_due: str | None = None  # Could be date or mileage
+    overdue_maintenance: int = 0
 
 
 class FamilyMemberData(BaseModel):
@@ -183,8 +183,8 @@ class FamilyMemberData(BaseModel):
     relationship_custom: str | None = None
     vehicle_count: int = 0
     vehicles: list[FamilyVehicleSummary] = Field(default_factory=list)
-    overdue_reminders: int = 0
-    upcoming_reminders: int = 0
+    overdue_maintenance: int = 0
+    upcoming_maintenance: int = 0
     # Dashboard management fields
     show_on_family_dashboard: bool = True
     family_dashboard_order: int = 0
@@ -196,8 +196,8 @@ class FamilyDashboardResponse(BaseModel):
     members: list[FamilyMemberData]
     total_members: int
     total_vehicles: int
-    total_overdue_reminders: int
-    total_upcoming_reminders: int
+    total_overdue_maintenance: int
+    total_upcoming_maintenance: int
 
 
 class FamilyMemberUpdateRequest(BaseModel):

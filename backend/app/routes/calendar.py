@@ -2,7 +2,7 @@
 
 from datetime import date, timedelta
 from io import StringIO
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import Response
@@ -13,8 +13,8 @@ from sqlalchemy.orm import selectinload
 from app.database import get_db
 from app.models import (
     InsurancePolicy,
+    MaintenanceScheduleItem,
     OdometerRecord,
-    Reminder,
     ServiceVisit,
     Vehicle,
     WarrantyRecord,
@@ -26,7 +26,10 @@ from app.services.auth import require_auth
 router = APIRouter(prefix="/api", tags=["calendar"])
 
 
-def calculate_urgency(event_date: date, is_overdue: bool) -> str:
+UrgencyLevel = Literal["overdue", "high", "medium", "low", "historical"]
+
+
+def calculate_urgency(event_date: date, is_overdue: bool) -> UrgencyLevel:
     """Calculate urgency level based on date."""
     if is_overdue:
         return "overdue"
@@ -47,12 +50,12 @@ async def get_calendar_events(
     end_date: date | None = Query(None, description="End date filter (default: 1 year ahead)"),
     vehicle_vins: str | None = Query(None, description="Comma-separated VINs to filter by"),
     event_types: str | None = Query(
-        None, description="Comma-separated event types (reminder,insurance,warranty)"
+        None, description="Comma-separated event types (maintenance,insurance,warranty,service)"
     ),
     db: Annotated[AsyncSession, Depends(get_db)] = None,
     current_user: User | None = Depends(require_auth),
 ) -> CalendarResponse:
-    """Get calendar events aggregated from reminders, insurance, and warranties."""
+    """Get calendar events aggregated from maintenance schedule, insurance, and warranties."""
 
     # Set default date range if not provided
     if start_date is None:
@@ -63,7 +66,9 @@ async def get_calendar_events(
     # Parse filters
     vin_list = vehicle_vins.split(",") if vehicle_vins else None
     type_list = (
-        event_types.split(",") if event_types else ["reminder", "insurance", "warranty", "service"]
+        event_types.split(",")
+        if event_types
+        else ["maintenance", "insurance", "warranty", "service"]
     )
 
     # Get all vehicles for nickname lookup
@@ -73,89 +78,97 @@ async def get_calendar_events(
     events = []
     today = date.today()
 
-    # Fetch reminders with due_date
-    if "reminder" in type_list:
-        # Fetch date-based reminders
-        reminder_query = select(Reminder).where(
-            Reminder.due_date.isnot(None),
-            Reminder.due_date >= start_date,
-            Reminder.due_date <= end_date,
-        )
+    # Fetch maintenance schedule items
+    if "maintenance" in type_list:
+        schedule_query = select(MaintenanceScheduleItem)
 
         if vin_list:
-            reminder_query = reminder_query.where(Reminder.vin.in_(vin_list))
+            schedule_query = schedule_query.where(MaintenanceScheduleItem.vin.in_(vin_list))
 
-        reminders_result = await db.execute(reminder_query)
-        reminders = reminders_result.scalars().all()
+        schedule_result = await db.execute(schedule_query)
+        schedule_items = schedule_result.scalars().all()
 
-        for reminder in reminders:
-            vehicle = vehicles_dict.get(reminder.vin)
-            is_overdue = bool(
-                reminder.due_date and reminder.due_date < today and not reminder.is_completed
-            )
+        # Get current mileage per vehicle for status calculation
+        vehicle_mileage: dict[str, int | None] = {}
+        for item in schedule_items:
+            if item.vin not in vehicle_mileage:
+                odo_result = await db.execute(
+                    select(OdometerRecord.mileage)
+                    .where(OdometerRecord.vin == item.vin)
+                    .order_by(OdometerRecord.date.desc())
+                    .limit(1)
+                )
+                vehicle_mileage[item.vin] = odo_result.scalar_one_or_none()
+
+        for item in schedule_items:
+            vehicle = vehicles_dict.get(item.vin)
+            current_mileage = vehicle_mileage.get(item.vin)
+            status = item.calculate_status(today, current_mileage)
+
+            # Determine the event date
+            event_date = item.next_due_date
+            is_estimated = False
+            due_mileage = item.next_due_mileage
+
+            # If no date-based interval but has mileage interval, estimate from mileage
+            if event_date is None and due_mileage is not None:
+                event_date = await estimate_date_from_mileage(item.vin, due_mileage, db)
+                is_estimated = event_date is not None
+
+            # If still no date, use today for never_performed items (needs attention)
+            if event_date is None:
+                if status == "never_performed":
+                    event_date = today
+                else:
+                    continue
+
+            # Filter by date range
+            if event_date < start_date or event_date > end_date:
+                continue
+
+            # Map status to urgency
+            urgency: UrgencyLevel
+            if status == "overdue":
+                urgency = "overdue"
+            elif status == "due_soon":
+                days_until = (event_date - today).days
+                urgency = "high" if days_until <= 7 else "medium"
+            elif status == "never_performed":
+                urgency = "medium"
+            else:
+                urgency = "low"
+
+            # Determine if recurring (has intervals)
+            is_recurring = bool(item.interval_months or item.interval_miles)
+
+            # Calculate days/miles until due
+            days_until_due = (event_date - today).days
+            miles_until_due = None
+            if due_mileage is not None and current_mileage is not None:
+                miles_until_due = due_mileage - current_mileage
 
             events.append(
                 CalendarEvent(
-                    id=f"reminder-{reminder.id}",
-                    type="reminder",
-                    title=reminder.description,
-                    description=reminder.notes,
-                    date=reminder.due_date,
-                    vehicle_vin=reminder.vin,
+                    id=f"maintenance-{item.id}",
+                    type="maintenance",
+                    title=item.name,
+                    description=f"{item.component_category} - {item.item_type}",
+                    date=event_date,
+                    vehicle_vin=item.vin,
                     vehicle_nickname=vehicle.nickname if vehicle else None,
-                    vehicle_color=None,  # Will be added in vehicle color feature
-                    urgency=calculate_urgency(reminder.due_date, is_overdue),
-                    is_recurring=reminder.is_recurring,
-                    is_completed=reminder.is_completed,
-                    is_estimated=False,
+                    vehicle_color=None,
+                    urgency=urgency,
+                    is_recurring=is_recurring,
+                    is_completed=False,
+                    is_estimated=is_estimated,
                     category="maintenance",
-                    notes=reminder.notes,
-                    due_mileage=reminder.due_mileage,
+                    notes=None,
+                    due_mileage=due_mileage,
+                    status=status,
+                    days_until_due=days_until_due,
+                    miles_until_due=miles_until_due,
                 )
             )
-
-        # Fetch mileage-based reminders and estimate dates
-        mileage_reminder_query = select(Reminder).where(
-            Reminder.due_mileage.isnot(None),
-            Reminder.due_date.is_(None),  # Only mileage-based (no date set)
-        )
-
-        if vin_list:
-            mileage_reminder_query = mileage_reminder_query.where(Reminder.vin.in_(vin_list))
-
-        mileage_reminders_result = await db.execute(mileage_reminder_query)
-        mileage_reminders = mileage_reminders_result.scalars().all()
-
-        for reminder in mileage_reminders:
-            vehicle = vehicles_dict.get(reminder.vin)
-
-            # Estimate date from mileage
-            estimated_date = await estimate_date_from_mileage(
-                reminder.vin, reminder.due_mileage, db
-            )
-
-            if estimated_date and start_date <= estimated_date <= end_date:
-                is_overdue = estimated_date < today and not reminder.is_completed
-
-                events.append(
-                    CalendarEvent(
-                        id=f"reminder-{reminder.id}",
-                        type="reminder",
-                        title=f"{reminder.description} (est.)",
-                        description=reminder.notes,
-                        date=estimated_date,
-                        vehicle_vin=reminder.vin,
-                        vehicle_nickname=vehicle.nickname if vehicle else None,
-                        vehicle_color=None,
-                        urgency=calculate_urgency(estimated_date, is_overdue),
-                        is_recurring=reminder.is_recurring,
-                        is_completed=reminder.is_completed,
-                        is_estimated=True,  # Mark as estimated
-                        category="maintenance",
-                        notes=reminder.notes,
-                        due_mileage=reminder.due_mileage,
-                    )
-                )
 
     # Fetch insurance policies
     if "insurance" in type_list:

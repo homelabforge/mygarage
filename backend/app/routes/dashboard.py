@@ -9,9 +9,9 @@ from app.database import get_db
 from app.models import (
     Document,
     FuelRecord,
+    MaintenanceScheduleItem,
     Note,
     OdometerRecord,
-    Reminder,
     ServiceVisit,
     Vehicle,
 )
@@ -47,8 +47,10 @@ async def calculate_vehicle_stats(
     odometer_count = await db.scalar(
         select(func.count(OdometerRecord.id)).where(OdometerRecord.vin == vehicle.vin)
     )
-    reminder_count = await db.scalar(
-        select(func.count(Reminder.id)).where(Reminder.vin == vehicle.vin)
+    maintenance_count = await db.scalar(
+        select(func.count(MaintenanceScheduleItem.id)).where(
+            MaintenanceScheduleItem.vin == vehicle.vin
+        )
     )
     document_count = await db.scalar(
         select(func.count(Document.id)).where(Document.vin == vehicle.vin)
@@ -95,22 +97,30 @@ async def calculate_vehicle_stats(
         latest_odometer_reading = latest_odometer[0]
         latest_odometer_date = latest_odometer[1]
 
-    # Count upcoming and overdue reminders
+    # Count upcoming and overdue maintenance schedule items
     today = date_type.today()
-    upcoming_count = await db.scalar(
-        select(func.count(Reminder.id)).where(
-            Reminder.vin == vehicle.vin,
-            Reminder.is_completed.is_(False),
-            Reminder.due_date >= today,
-        )
+    schedule_items_result = await db.execute(
+        select(MaintenanceScheduleItem).where(MaintenanceScheduleItem.vin == vehicle.vin)
     )
-    overdue_count = await db.scalar(
-        select(func.count(Reminder.id)).where(
-            Reminder.vin == vehicle.vin,
-            Reminder.is_completed.is_(False),
-            Reminder.due_date < today,
-        )
+    schedule_items = schedule_items_result.scalars().all()
+
+    # Get current mileage for status calculation
+    current_mileage_record = await db.execute(
+        select(OdometerRecord.mileage)
+        .where(OdometerRecord.vin == vehicle.vin)
+        .order_by(OdometerRecord.date.desc())
+        .limit(1)
     )
+    current_mileage = current_mileage_record.scalar_one_or_none()
+
+    upcoming_count = 0
+    overdue_count = 0
+    for item in schedule_items:
+        status = item.calculate_status(today, current_mileage)
+        if status == "due_soon":
+            upcoming_count += 1
+        elif status == "overdue":
+            overdue_count += 1
 
     # Calculate average MPG from fuel records
     fuel_records_result = await db.execute(
@@ -151,7 +161,7 @@ async def calculate_vehicle_stats(
         total_service_records=service_count or 0,
         total_fuel_records=fuel_count or 0,
         total_odometer_records=odometer_count or 0,
-        total_reminders=reminder_count or 0,
+        total_maintenance_items=maintenance_count or 0,
         total_documents=document_count or 0,
         total_notes=note_count or 0,
         total_photos=photo_count or 0,
@@ -159,8 +169,8 @@ async def calculate_vehicle_stats(
         latest_fuel_date=latest_fuel,
         latest_odometer_reading=latest_odometer_reading,
         latest_odometer_date=latest_odometer_date,
-        upcoming_reminders_count=upcoming_count or 0,
-        overdue_reminders_count=overdue_count or 0,
+        upcoming_maintenance_count=upcoming_count or 0,
+        overdue_maintenance_count=overdue_count or 0,
         average_mpg=average_mpg,
         recent_mpg=recent_mpg,
         archived_at=vehicle.archived_at,
@@ -242,7 +252,7 @@ async def get_dashboard(
     # Calculate garage-wide totals
     total_service = sum(v.total_service_records for v in vehicle_stats)
     total_fuel = sum(v.total_fuel_records for v in vehicle_stats)
-    total_reminders = sum(v.total_reminders for v in vehicle_stats)
+    total_maintenance_items = sum(v.total_maintenance_items for v in vehicle_stats)
     total_documents = sum(v.total_documents for v in vehicle_stats)
     total_notes = sum(v.total_notes for v in vehicle_stats)
     total_photos = sum(v.total_photos for v in vehicle_stats)
@@ -252,7 +262,7 @@ async def get_dashboard(
         vehicles=vehicle_stats,
         total_service_records=total_service,
         total_fuel_records=total_fuel,
-        total_reminders=total_reminders,
+        total_maintenance_items=total_maintenance_items,
         total_documents=total_documents,
         total_notes=total_notes,
         total_photos=total_photos,

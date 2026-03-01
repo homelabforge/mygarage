@@ -42,8 +42,8 @@ export default function MaintenanceTemplatePanel({ vin, vehicle }: MaintenanceTe
       const response = await api.post('/maintenance-templates/apply', {
         vin: vin,
         duty_type: 'normal'
-        // Note: current_mileage is optional - template will create time-based reminders only
-        // Mileage-based reminders require manual setup
+        // Note: current_mileage is optional - template will create time-based schedule items only
+        // Mileage-based schedule items require manual setup
       })
       const data: TemplateApplyResponse = response.data
 
@@ -51,7 +51,7 @@ export default function MaintenanceTemplatePanel({ vin, vehicle }: MaintenanceTe
         toast.success(`Successfully applied template! Created ${data.items_created} schedule items.`)
         await fetchTemplates()
         // Trigger schedule refresh
-        window.dispatchEvent(new Event('reminders-refresh'))
+        window.dispatchEvent(new Event('maintenance-refresh'))
       } else {
         toast.error(data.error || 'Failed to apply template')
       }
@@ -144,7 +144,7 @@ export default function MaintenanceTemplatePanel({ vin, vehicle }: MaintenanceTe
                 </div>
                 <div className="text-sm text-garage-text-muted space-y-1">
                   <p>Applied: {formatDate(template.applied_at)}</p>
-                  <p>Created {template.reminders_created} schedule item{template.reminders_created !== 1 ? 's' : ''}</p>
+                  <p>Created {template.schedule_items_created} schedule item{template.schedule_items_created !== 1 ? 's' : ''}</p>
                   {template.template_data?.metadata?.duty_type && (
                     <p className="capitalize">{template.template_data.metadata.duty_type} duty schedule</p>
                   )}

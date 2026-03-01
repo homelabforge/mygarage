@@ -328,8 +328,8 @@ class TestFamilyDashboard:
         assert "members" in data
         assert "total_members" in data
         assert "total_vehicles" in data
-        assert "total_upcoming_reminders" in data
-        assert "total_overdue_reminders" in data
+        assert "total_upcoming_maintenance" in data
+        assert "total_overdue_maintenance" in data
 
     async def test_get_family_dashboard_non_admin(self, client: AsyncClient, family_member):
         """Test that non-admin cannot access family dashboard."""

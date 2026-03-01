@@ -9,7 +9,7 @@ export interface VehicleStatistics {
   total_service_records: number
   total_fuel_records: number
   total_odometer_records: number
-  total_reminders: number
+  total_maintenance_items: number
   total_documents: number
   total_notes: number
   total_photos: number
@@ -20,9 +20,9 @@ export interface VehicleStatistics {
   latest_odometer_reading?: number
   latest_odometer_date?: string
 
-  // Upcoming reminders
-  upcoming_reminders_count: number
-  overdue_reminders_count: number
+  // Upcoming maintenance
+  upcoming_maintenance_count: number
+  overdue_maintenance_count: number
 
   // Fuel statistics
   average_mpg?: number
@@ -45,7 +45,7 @@ export interface DashboardResponse {
   // Garage-wide totals
   total_service_records: number
   total_fuel_records: number
-  total_reminders: number
+  total_maintenance_items: number
   total_documents: number
   total_notes: number
   total_photos: number

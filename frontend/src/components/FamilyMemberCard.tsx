@@ -1,5 +1,5 @@
 /**
- * Family Member Card - Collapsible card showing member's vehicles and reminders.
+ * Family Member Card - Collapsible card showing member's vehicles and maintenance.
  * Optionally shows admin action icons when showActions is true.
  */
 
@@ -79,23 +79,23 @@ function VehicleSummaryRow({ vehicle }: { vehicle: FamilyVehicleSummary }) {
         )}
       </div>
 
-      {/* Next Reminder */}
+      {/* Next Maintenance */}
       <div className="hidden lg:block text-right min-w-32">
-        {vehicle.next_reminder_description ? (
+        {vehicle.next_maintenance_description ? (
           <>
-            <p className="text-sm text-garage-text truncate">{vehicle.next_reminder_description}</p>
-            <p className="text-xs text-garage-text-muted">{vehicle.next_reminder_due}</p>
+            <p className="text-sm text-garage-text truncate">{vehicle.next_maintenance_description}</p>
+            <p className="text-xs text-garage-text-muted">{vehicle.next_maintenance_due}</p>
           </>
         ) : (
-          <p className="text-sm text-garage-text-muted">No reminders</p>
+          <p className="text-sm text-garage-text-muted">No maintenance scheduled</p>
         )}
       </div>
 
       {/* Overdue Badge */}
-      {vehicle.overdue_reminders > 0 && (
+      {vehicle.overdue_maintenance > 0 && (
         <div className="flex items-center gap-1 px-2 py-1 bg-danger/20 text-danger rounded-full">
           <AlertTriangle className="w-3 h-3" />
-          <span className="text-xs font-medium">{vehicle.overdue_reminders}</span>
+          <span className="text-xs font-medium">{vehicle.overdue_maintenance}</span>
         </div>
       )}
     </Link>
@@ -204,16 +204,16 @@ export default function FamilyMemberCard({
             <Car className="w-4 h-4" />
             <span className="text-sm">{member.vehicle_count}</span>
           </div>
-          {member.upcoming_reminders > 0 && (
+          {member.upcoming_maintenance > 0 && (
             <div className="flex items-center gap-1.5 text-info">
               <Bell className="w-4 h-4" />
-              <span className="text-sm">{member.upcoming_reminders}</span>
+              <span className="text-sm">{member.upcoming_maintenance}</span>
             </div>
           )}
-          {member.overdue_reminders > 0 && (
+          {member.overdue_maintenance > 0 && (
             <div className="flex items-center gap-1.5 text-danger">
               <AlertTriangle className="w-4 h-4" />
-              <span className="text-sm font-medium">{member.overdue_reminders}</span>
+              <span className="text-sm font-medium">{member.overdue_maintenance}</span>
             </div>
           )}
         </div>
@@ -339,7 +339,7 @@ export default function FamilyMemberCard({
               <div className="hidden md:grid grid-cols-[1fr_auto_auto_auto] gap-4 px-4 py-2 text-xs font-medium text-garage-text-muted uppercase bg-garage-bg">
                 <span>Vehicle</span>
                 <span className="text-right min-w-32">Last Service</span>
-                <span className="hidden lg:block text-right min-w-32">Next Reminder</span>
+                <span className="hidden lg:block text-right min-w-32">Next Maintenance</span>
                 <span className="w-16"></span>
               </div>
 
