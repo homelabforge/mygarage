@@ -54,7 +54,7 @@ jobs:
       - name: Install dependencies
         run: |
           cd frontend
-          bun install --frozen-lockfile
+          if [ "${{ github.actor }}" = "dependabot[bot]" ]; then bun install; else bun install --frozen-lockfile; fi
 
       - name: Run TypeScript type checking
         run: |
@@ -101,7 +101,7 @@ jobs:
       - name: Install frontend dependencies
         run: |
           cd frontend
-          bun install --frozen-lockfile
+          if [ "${{ github.actor }}" = "dependabot[bot]" ]; then bun install; else bun install --frozen-lockfile; fi
 
       - name: Install Playwright browsers
         run: |
