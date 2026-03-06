@@ -5,64 +5,78 @@ updates:
   - package-ecosystem: "pip"
     directory: "/backend"
     schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "06:00"
-    open-pull-requests-limit: 5
+      interval: "monthly"
+    open-pull-requests-limit: 10
     labels:
       - "dependencies"
       - "backend"
     commit-message:
       prefix: "chore(deps)"
-      include: "scope"
+    groups:
+      python-patch-minor:
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   # Frontend npm dependencies
   - package-ecosystem: "npm"
     directory: "/frontend"
     schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "06:00"
-    open-pull-requests-limit: 5
+      interval: "monthly"
+    open-pull-requests-limit: 10
     labels:
       - "dependencies"
       - "frontend"
     commit-message:
       prefix: "chore(deps)"
-      include: "scope"
+    groups:
+      npm-patch-minor:
+        update-types:
+          - "minor"
+          - "patch"
     ignore:
-      # Ignore major version updates for these packages
-      - dependency-name: "react"
-        update-types: ["version-update:semver-major"]
-      - dependency-name: "react-dom"
+      - dependency-name: "*"
         update-types: ["version-update:semver-major"]
 
   # GitHub Actions
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "06:00"
-    open-pull-requests-limit: 3
+      interval: "monthly"
+    open-pull-requests-limit: 5
     labels:
       - "dependencies"
       - "github-actions"
     commit-message:
       prefix: "chore(deps)"
-      include: "scope"
+    groups:
+      actions-patch-minor:
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   # Docker base images
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "06:00"
-    open-pull-requests-limit: 3
+      interval: "monthly"
+    open-pull-requests-limit: 5
     labels:
       - "dependencies"
       - "docker"
     commit-message:
       prefix: "chore(deps)"
-      include: "scope"
+    groups:
+      docker-patch-minor:
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
