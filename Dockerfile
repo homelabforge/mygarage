@@ -36,8 +36,7 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1
 
 # Upgrade pip to latest version and clean up old metadata
-RUN pip install --no-cache-dir --upgrade pip==26.0.1 && \
-    rm -rf /usr/local/lib/python3.14/site-packages/pip-25.3.dist-info 2>/dev/null || true
+RUN pip install --no-cache-dir --upgrade pip
 
 # Copy backend code and install with dependencies (production only)
 COPY backend/ ./
@@ -58,13 +57,16 @@ LABEL org.opencontainers.image.frontend.builder="bun-1.3.9"
 
 WORKDIR /app
 
-# Install runtime dependencies
+# Install runtime dependencies, create non-root user, and set up directories
 RUN apt-get update && \
+    apt-get upgrade -y && \
     apt-get install -y --no-install-recommends \
         curl \
         libmagic1t64 \
         file && \
-    rm -rf /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/* && \
+    useradd --uid 1000 --user-group --system --create-home --no-log-init mygarage && \
+    mkdir -p /data /data/attachments /data/photos
 
 # Copy Python dependencies from builder
 COPY --from=backend-builder /usr/local/lib/python3.14/site-packages /usr/local/lib/python3.14/site-packages
@@ -77,12 +79,8 @@ COPY --from=backend-builder /app/pyproject.toml ./pyproject.toml
 # Copy frontend build
 COPY --from=frontend-builder /app/frontend/dist ./static
 
-# Create non-root user for security
-RUN useradd --uid 1000 --user-group --system --create-home --no-log-init mygarage
-
-# Create data directory and set proper permissions
-RUN mkdir -p /data /data/attachments /data/photos && \
-    chown -R mygarage:mygarage /app /data && \
+# Set ownership and permissions
+RUN chown -R mygarage:mygarage /app /data && \
     chmod -R 755 /app && \
     chmod -R 755 /data
 
