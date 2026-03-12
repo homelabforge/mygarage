@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.23.1] - 2026-03-11
+
 ### Fixed
 - Fix local auth login failing over plain HTTP due to cookie `Secure` flag being unconditionally set in production ([#35](https://github.com/homelabforge/mygarage/issues/35))
 
