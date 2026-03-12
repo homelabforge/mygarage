@@ -11,6 +11,7 @@ Self-hosted vehicle maintenance tracking with VIN decoding, service records, fue
 [![React 19](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev)
 [![Bun 1.3.10](https://img.shields.io/badge/Bun-1.3.10-000000?logo=bun&logoColor=white)](https://bun.sh)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Discord](https://img.shields.io/badge/Discord-Community-5865F2?logo=discord&logoColor=white)](https://discord.gg/6XttnVgG)
 
 ![MyGarage Dashboard](docs/screenshots/dashboard.png)
 
