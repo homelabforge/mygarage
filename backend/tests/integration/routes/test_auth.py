@@ -6,7 +6,7 @@ Tests user registration, login, logout, and protected endpoints.
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import delete  # noqa: F401
+from sqlalchemy import delete, select  # noqa: F401
 
 from app.config import settings
 from app.models.user import User
@@ -319,3 +319,101 @@ class TestRateLimiting:
 
         # Either 401 (auth failed) or 429 (rate limited) is acceptable
         assert response.status_code in [401, 429]
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+@pytest.mark.asyncio
+class TestCookieSecureFlag:
+    """Test cookie Secure flag behavior based on request scheme.
+
+    Regression tests for GitHub issue #35: Local auth login fails over HTTP
+    because the Secure flag causes browsers to silently drop the cookie.
+
+    These tests run with rate limiting disabled to avoid interference from
+    earlier test classes that exhaust the auth rate limit.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _reset_rate_limits(self):
+        """Reset auth route's rate limiter storage to avoid 429s from earlier tests."""
+        from app.routes.auth import limiter as auth_limiter
+
+        storage = auth_limiter._storage
+        storage.storage.clear()
+        storage.expirations.clear()
+        if hasattr(storage, "events"):
+            storage.events.clear()
+
+    @pytest.fixture(autouse=True)
+    async def _ensure_local_auth(self, db_session):
+        """Ensure auth_mode is 'local' for all tests in this class."""
+        from app.models.settings import Setting
+
+        result = await db_session.execute(select(Setting).where(Setting.key == "auth_mode"))
+        auth_setting = result.scalar_one_or_none()
+        if auth_setting:
+            auth_setting.value = "local"
+        else:
+            db_session.add(Setting(key="auth_mode", value="local"))
+        await db_session.commit()
+
+    async def test_login_over_http_no_secure_flag(
+        self, client: AsyncClient, test_user, monkeypatch
+    ):
+        """Login over HTTP must NOT set Secure flag on cookie.
+
+        This is the core regression test for #35. The same AsyncClient is used
+        for login and /auth/me — the client's cookie jar decides whether to
+        retain the cookie, mirroring browser behavior.
+        """
+        # Ensure auto-detection mode (no explicit override)
+        monkeypatch.delenv("JWT_COOKIE_SECURE", raising=False)
+
+        # Login — test client runs over http://test (conftest.py:135)
+        login_response = await client.post(
+            "/api/auth/login",
+            json={
+                "username": test_user["username"],
+                "password": "testpassword123",
+            },
+        )
+        assert login_response.status_code == 200
+
+        # Verify Set-Cookie does NOT contain Secure flag
+        cookie_header = login_response.headers.get("set-cookie", "")
+        assert settings.jwt_cookie_name in cookie_header
+        # The Secure flag should NOT be present for HTTP connections
+        assert "; secure" not in cookie_header.lower()
+
+        # Use the SAME client to call /auth/me — cookie jar handles retention
+        me_response = await client.get("/api/auth/me")
+        assert me_response.status_code == 200
+        assert me_response.json()["username"] == test_user["username"]
+
+    async def test_login_with_forwarded_proto_https_sets_secure(
+        self, client: AsyncClient, test_user, monkeypatch
+    ):
+        """Login behind a TLS-terminating proxy must set Secure flag on cookie.
+
+        When X-Forwarded-Proto: https is present, the cookie should include
+        the Secure flag since the browser-to-proxy connection is HTTPS.
+        """
+        # Ensure auto-detection mode
+        monkeypatch.delenv("JWT_COOKIE_SECURE", raising=False)
+
+        # Login with X-Forwarded-Proto: https header
+        login_response = await client.post(
+            "/api/auth/login",
+            json={
+                "username": test_user["username"],
+                "password": "testpassword123",
+            },
+            headers={"X-Forwarded-Proto": "https"},
+        )
+        assert login_response.status_code == 200
+
+        # Verify Set-Cookie DOES contain Secure flag
+        cookie_header = login_response.headers.get("set-cookie", "")
+        assert settings.jwt_cookie_name in cookie_header
+        assert "; secure" in cookie_header.lower()

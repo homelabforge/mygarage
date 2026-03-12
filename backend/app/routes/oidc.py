@@ -28,6 +28,7 @@ from app.models.csrf_token import CSRFToken
 from app.models.user import User
 from app.services import oidc as oidc_service
 from app.services.auth import create_access_token, get_current_user
+from app.utils.request_scheme import get_cookie_secure, get_request_scheme
 
 logger = logging.getLogger(__name__)
 
@@ -125,11 +126,11 @@ async def oidc_login(
 
     # Determine base URL for redirect URI
     base_url = str(request.base_url).rstrip("/")
-    # Handle reverse proxy headers
-    if request.headers.get("x-forwarded-proto"):
-        scheme = request.headers.get("x-forwarded-proto")
-        host = request.headers.get("x-forwarded-host", request.headers.get("host"))
-        base_url = f"{scheme}://{host}"
+    # Handle reverse proxy headers (scheme centralized, host preserved as-is)
+    scheme = get_request_scheme(request)
+    forwarded_host = request.headers.get("x-forwarded-host", request.headers.get("host"))
+    if forwarded_host:
+        base_url = f"{scheme}://{forwarded_host}"
 
     # Create authorization URL
     try:
@@ -244,8 +245,7 @@ async def oidc_callback(
             )
 
             # Redirect to link account page with token
-            # Respect X-Forwarded-Proto header from reverse proxy (Traefik)
-            scheme = request.headers.get("x-forwarded-proto", request.url.scheme)
+            scheme = get_request_scheme(request)
             host = request.headers.get("host", str(request.base_url.hostname))
             frontend_url = f"{scheme}://{host}"
             redirect_url = f"{frontend_url}/auth/link-account?token={pending_token}"
@@ -297,8 +297,7 @@ async def oidc_callback(
 
     # Set httpOnly cookie and redirect with CSRF token (Security Enhancement v2.10.0)
     # Frontend needs CSRF token for state-changing requests
-    # Respect X-Forwarded-Proto header from reverse proxy (Traefik)
-    scheme = request.headers.get("x-forwarded-proto", request.url.scheme)
+    scheme = get_request_scheme(request)
     host = request.headers.get("host", str(request.base_url.hostname))
     frontend_url = f"{scheme}://{host}"
     redirect_url = f"{frontend_url}/auth/oidc/success?csrf_token={csrf_token_value}"
@@ -308,7 +307,7 @@ async def oidc_callback(
         key=settings.jwt_cookie_name,
         value=jwt_token,
         httponly=settings.jwt_cookie_httponly,
-        secure=settings.jwt_cookie_secure,
+        secure=get_cookie_secure(request),
         samesite=settings.jwt_cookie_samesite,
         max_age=settings.jwt_cookie_max_age,
     )
@@ -461,7 +460,7 @@ async def link_oidc_account(
         key=settings.jwt_cookie_name,
         value=jwt_token,
         httponly=settings.jwt_cookie_httponly,
-        secure=settings.jwt_cookie_secure,
+        secure=get_cookie_secure(request),
         samesite=settings.jwt_cookie_samesite,
         max_age=settings.jwt_cookie_max_age,
     )

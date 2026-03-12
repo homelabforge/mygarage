@@ -34,6 +34,7 @@ from app.services.auth import (
     optional_auth,
     verify_password,
 )
+from app.utils.request_scheme import get_cookie_secure
 
 logger = logging.getLogger(__name__)
 
@@ -162,7 +163,7 @@ async def login(
         key=settings.jwt_cookie_name,
         value=access_token,
         httponly=settings.jwt_cookie_httponly,
-        secure=settings.jwt_cookie_secure,
+        secure=get_cookie_secure(request),
         samesite=settings.jwt_cookie_samesite,
         max_age=settings.jwt_cookie_max_age,
     )
@@ -180,6 +181,7 @@ async def login(
 
 @router.post("/logout")
 async def logout(
+    request: Request,
     response: Response,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -193,7 +195,7 @@ async def logout(
     response.delete_cookie(
         key=settings.jwt_cookie_name,
         httponly=settings.jwt_cookie_httponly,
-        secure=settings.jwt_cookie_secure,
+        secure=get_cookie_secure(request),
         samesite=settings.jwt_cookie_samesite,
     )
     logger.info("User logged out: %s", current_user.username)
