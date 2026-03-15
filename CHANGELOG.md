@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.24.0] - 2026-03-15
+
 ### Security
 - Enforce vehicle ownership checks on all VIN-scoped routes (65+ routes across 13 files)
 - Add bounded `Query()` validation to all pagination parameters to prevent DoS
