@@ -26,7 +26,6 @@ from app.models import (
     ServiceLineItem,
     ServiceVisit,
     TaxRecord,
-    Vehicle,
     WarrantyRecord,
 )
 from app.models.user import User
@@ -141,11 +140,7 @@ async def import_service_csv(
     current_user: User | None = Depends(require_auth),
 ):
     """Import service records from CSV file (creates ServiceVisit + ServiceLineItem)."""
-    # Verify vehicle exists
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    await get_vehicle_or_403(vin, current_user, db, require_write=True)
 
     # Validate and parse CSV
     csv_data = await validate_csv_upload(file)
@@ -252,11 +247,7 @@ async def import_fuel_csv(
     current_user: User | None = Depends(require_auth),
 ):
     """Import fuel records from CSV file."""
-    # Verify vehicle exists
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    await get_vehicle_or_403(vin, current_user, db, require_write=True)
 
     # Validate and parse CSV
     csv_data = await validate_csv_upload(file)
@@ -401,11 +392,7 @@ async def import_odometer_csv(
     current_user: User | None = Depends(require_auth),
 ):
     """Import odometer records from CSV file."""
-    # Verify vehicle exists
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    await get_vehicle_or_403(vin, current_user, db, require_write=True)
 
     # Validate and parse CSV
     csv_data = await validate_csv_upload(file)
@@ -466,11 +453,7 @@ async def import_warranties_csv(
     current_user: User | None = Depends(require_auth),
 ):
     """Import warranties from CSV file."""
-    # Verify vehicle exists
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    await get_vehicle_or_403(vin, current_user, db, require_write=True)
 
     # Validate and parse CSV
     csv_data = await validate_csv_upload(file)
@@ -541,11 +524,7 @@ async def import_insurance_csv(
     current_user: User | None = Depends(require_auth),
 ):
     """Import insurance records from CSV file."""
-    # Verify vehicle exists
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    await get_vehicle_or_403(vin, current_user, db, require_write=True)
 
     # Validate and parse CSV
     csv_data = await validate_csv_upload(file)
@@ -613,11 +592,7 @@ async def import_tax_csv(
     current_user: User | None = Depends(require_auth),
 ):
     """Import tax records from CSV file."""
-    # Verify vehicle exists
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    await get_vehicle_or_403(vin, current_user, db, require_write=True)
 
     # Validate and parse CSV
     csv_data = await validate_csv_upload(file)
@@ -682,11 +657,7 @@ async def import_notes_csv(
     current_user: User | None = Depends(require_auth),
 ):
     """Import notes from CSV file."""
-    # Verify vehicle exists
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    await get_vehicle_or_403(vin, current_user, db, require_write=True)
 
     # Validate and parse CSV
     csv_data = await validate_csv_upload(file)
@@ -732,11 +703,7 @@ async def import_vehicle_json(
     current_user: User | None = Depends(require_auth),
 ):
     """Import complete vehicle data from JSON file."""
-    # Verify vehicle exists
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    await get_vehicle_or_403(vin, current_user, db, require_write=True)
 
     # Check file size BEFORE reading into memory to prevent DoS
     max_import_size = 50 * 1024 * 1024  # 50MB max for import files

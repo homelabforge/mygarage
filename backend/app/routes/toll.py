@@ -13,7 +13,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.toll import TollTag, TollTransaction
 from app.models.user import User
-from app.models.vehicle import Vehicle
 from app.schemas.toll import (
     TollTagCreate,
     TollTagListResponse,
@@ -25,7 +24,7 @@ from app.schemas.toll import (
     TollTransactionSummary,
     TollTransactionUpdate,
 )
-from app.services.auth import require_auth
+from app.services.auth import get_vehicle_or_403, require_auth
 
 logger = logging.getLogger(__name__)
 
@@ -41,11 +40,7 @@ async def list_toll_tags(
     current_user: User | None = Depends(require_auth),
 ):
     """Get all toll tags for a vehicle."""
-    # Verify vehicle exists
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    await get_vehicle_or_403(vin, current_user, db)
 
     # Get toll tags
     result = await db.execute(
@@ -67,11 +62,7 @@ async def create_toll_tag(
     current_user: User | None = Depends(require_auth),
 ):
     """Create a new toll tag for a vehicle."""
-    # Verify vehicle exists
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    await get_vehicle_or_403(vin, current_user, db)
 
     # Create toll tag
     db_toll_tag = TollTag(
@@ -97,6 +88,8 @@ async def get_toll_tag(
     current_user: User | None = Depends(require_auth),
 ):
     """Get a specific toll tag."""
+    await get_vehicle_or_403(vin, current_user, db)
+
     result = await db.execute(select(TollTag).where(TollTag.id == tag_id, TollTag.vin == vin))
     toll_tag = result.scalar_one_or_none()
     if not toll_tag:
@@ -114,6 +107,8 @@ async def update_toll_tag(
     current_user: User | None = Depends(require_auth),
 ):
     """Update a toll tag."""
+    await get_vehicle_or_403(vin, current_user, db)
+
     result = await db.execute(select(TollTag).where(TollTag.id == tag_id, TollTag.vin == vin))
     toll_tag = result.scalar_one_or_none()
     if not toll_tag:
@@ -139,6 +134,8 @@ async def delete_toll_tag(
     current_user: User | None = Depends(require_auth),
 ):
     """Delete a toll tag."""
+    await get_vehicle_or_403(vin, current_user, db)
+
     result = await db.execute(select(TollTag).where(TollTag.id == tag_id, TollTag.vin == vin))
     toll_tag = result.scalar_one_or_none()
     if not toll_tag:
@@ -167,11 +164,7 @@ async def list_toll_transactions(
     current_user: User | None = Depends(require_auth),
 ):
     """Get all toll transactions for a vehicle with optional filtering."""
-    # Verify vehicle exists
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    await get_vehicle_or_403(vin, current_user, db)
 
     # Build query
     query = select(TollTransaction).where(TollTransaction.vin == vin)
@@ -203,11 +196,7 @@ async def create_toll_transaction(
     current_user: User | None = Depends(require_auth),
 ):
     """Create a new toll transaction for a vehicle."""
-    # Verify vehicle exists
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    await get_vehicle_or_403(vin, current_user, db)
 
     # Verify toll tag exists if provided
     if transaction.toll_tag_id:
@@ -243,6 +232,8 @@ async def get_toll_transaction(
     current_user: User | None = Depends(require_auth),
 ):
     """Get a specific toll transaction."""
+    await get_vehicle_or_403(vin, current_user, db)
+
     result = await db.execute(
         select(TollTransaction).where(
             TollTransaction.id == transaction_id, TollTransaction.vin == vin
@@ -264,6 +255,8 @@ async def update_toll_transaction(
     current_user: User | None = Depends(require_auth),
 ):
     """Update a toll transaction."""
+    await get_vehicle_or_403(vin, current_user, db)
+
     result = await db.execute(
         select(TollTransaction).where(
             TollTransaction.id == transaction_id, TollTransaction.vin == vin
@@ -302,6 +295,8 @@ async def delete_toll_transaction(
     current_user: User | None = Depends(require_auth),
 ):
     """Delete a toll transaction."""
+    await get_vehicle_or_403(vin, current_user, db)
+
     result = await db.execute(
         select(TollTransaction).where(
             TollTransaction.id == transaction_id, TollTransaction.vin == vin
@@ -325,11 +320,7 @@ async def get_toll_transaction_summary(
     current_user: User | None = Depends(require_auth),
 ):
     """Get toll transaction summary and monthly statistics."""
-    # Verify vehicle exists
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    await get_vehicle_or_403(vin, current_user, db)
 
     # Get total count and amount
     result = await db.execute(
@@ -378,11 +369,7 @@ async def export_toll_transactions_csv(
     current_user: User | None = Depends(require_auth),
 ):
     """Export toll transactions as CSV."""
-    # Verify vehicle exists
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    vehicle = await get_vehicle_or_403(vin, current_user, db)
 
     # Build query
     query = (

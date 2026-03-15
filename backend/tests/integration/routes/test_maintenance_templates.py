@@ -209,3 +209,14 @@ class TestMaintenanceTemplateRoutes:
         assert response.status_code == 200
         data = response.json()
         assert "success" in data
+
+    async def test_templates_forbidden_non_owner(
+        self, client: AsyncClient, non_admin_headers, test_vehicle
+    ):
+        """Test that non-owner users cannot access another user's maintenance templates."""
+        vin = test_vehicle["vin"]
+        response = await client.get(
+            f"/api/maintenance-templates/vehicles/{vin}",
+            headers=non_admin_headers,
+        )
+        assert response.status_code == 403

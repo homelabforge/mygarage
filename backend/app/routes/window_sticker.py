@@ -10,14 +10,12 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.database import get_db
-from app.models import Vehicle
 from app.models.user import User
-from app.services.auth import require_auth
+from app.services.auth import get_vehicle_or_403, require_auth
 from app.services.window_sticker_ocr import WindowStickerOCRService
 from app.utils.datetime_utils import utc_now
 from app.utils.vin import validate_vin
@@ -139,11 +137,7 @@ async def get_window_sticker(
     current_user: User = Depends(require_auth),
 ) -> WindowStickerResponse:
     """Get window sticker data for a vehicle."""
-    # Get vehicle
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    vehicle = await get_vehicle_or_403(vin, current_user, db)
 
     return WindowStickerResponse.model_validate(vehicle)
 
@@ -165,11 +159,7 @@ async def upload_window_sticker(
     The file will be saved and OCR extraction will be attempted.
     Extracted data can be edited via the PATCH endpoint.
     """
-    # Verify vehicle exists
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    vehicle = await get_vehicle_or_403(vin, current_user, db)
 
     # Validate file
     validate_sticker_file(file)
@@ -294,11 +284,7 @@ async def test_window_sticker_extraction(
     Returns detailed extraction results including raw text,
     parsed data, validation warnings, and debug information.
     """
-    # Verify vehicle exists
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    vehicle = await get_vehicle_or_403(vin, current_user, db)
 
     # Validate file
     validate_sticker_file(file)
@@ -358,11 +344,7 @@ async def update_window_sticker_data(
 
     Use this endpoint to manually correct or add data that was not extracted by OCR.
     """
-    # Get vehicle
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    vehicle = await get_vehicle_or_403(vin, current_user, db)
 
     # Update fields (only update non-None values)
     update_dict = update_data.model_dump(exclude_unset=True)
@@ -383,11 +365,7 @@ async def delete_window_sticker(
     current_user: User = Depends(require_auth),
 ) -> None:
     """Delete window sticker file and clear all extracted data."""
-    # Get vehicle
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    vehicle = await get_vehicle_or_403(vin, current_user, db)
 
     if not vehicle.window_sticker_file_path:
         raise HTTPException(status_code=404, detail="No window sticker found for this vehicle")
@@ -446,11 +424,7 @@ async def download_window_sticker_file(
     current_user: User = Depends(require_auth),
 ) -> FileResponse:
     """Download the window sticker file."""
-    # Get vehicle
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    vehicle = await get_vehicle_or_403(vin, current_user, db)
 
     if not vehicle.window_sticker_file_path:
         raise HTTPException(status_code=404, detail="No window sticker found for this vehicle")

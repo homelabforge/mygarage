@@ -12,14 +12,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.recall import Recall
 from app.models.user import User
-from app.models.vehicle import Vehicle
 from app.schemas.recall import (
     RecallCreate,
     RecallListResponse,
     RecallResponse,
     RecallUpdate,
 )
-from app.services.auth import require_auth
+from app.services.auth import get_vehicle_or_403, require_auth
 from app.services.nhtsa import NHTSAService
 from app.utils.logging_utils import sanitize_for_log
 
@@ -36,11 +35,7 @@ async def list_recalls(
     current_user: User | None = Depends(require_auth),
 ):
     """Get all recalls for a vehicle with optional status filtering."""
-    # Verify vehicle exists
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    await get_vehicle_or_403(vin, current_user, db)
 
     # Build query
     query = select(Recall).where(Recall.vin == vin)
@@ -75,11 +70,7 @@ async def check_nhtsa_recalls(
     current_user: User | None = Depends(require_auth),
 ):
     """Fetch recalls from NHTSA API and store new ones in database."""
-    # Verify vehicle exists
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    await get_vehicle_or_403(vin, current_user, db)
 
     try:
         # Fetch recalls from NHTSA
@@ -182,11 +173,7 @@ async def create_recall(
     current_user: User | None = Depends(require_auth),
 ):
     """Create a new recall manually."""
-    # Verify vehicle exists
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    await get_vehicle_or_403(vin, current_user, db)
 
     # Create recall
     db_recall = Recall(
@@ -220,6 +207,8 @@ async def get_recall(
     current_user: User | None = Depends(require_auth),
 ):
     """Get a specific recall."""
+    await get_vehicle_or_403(vin, current_user, db)
+
     result = await db.execute(select(Recall).where(Recall.id == recall_id, Recall.vin == vin))
     recall = result.scalar_one_or_none()
     if not recall:
@@ -237,6 +226,8 @@ async def update_recall(
     current_user: User | None = Depends(require_auth),
 ):
     """Update a recall."""
+    await get_vehicle_or_403(vin, current_user, db)
+
     result = await db.execute(select(Recall).where(Recall.id == recall_id, Recall.vin == vin))
     recall = result.scalar_one_or_none()
     if not recall:
@@ -275,6 +266,8 @@ async def delete_recall(
     current_user: User | None = Depends(require_auth),
 ):
     """Delete a recall."""
+    await get_vehicle_or_403(vin, current_user, db)
+
     result = await db.execute(select(Recall).where(Recall.id == recall_id, Recall.vin == vin))
     recall = result.scalar_one_or_none()
     if not recall:

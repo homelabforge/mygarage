@@ -266,3 +266,14 @@ class TestReportRoutes:
             )
             assert response.status_code == 200
             assert response.content[:4] == b"%PDF"
+
+    async def test_reports_forbidden_non_owner(
+        self, client: AsyncClient, non_admin_headers, test_vehicle
+    ):
+        """Test that non-owner users cannot access another user's reports."""
+        vin = test_vehicle["vin"]
+        response = await client.get(
+            f"/api/vehicles/{vin}/reports/service-history-csv",
+            headers=non_admin_headers,
+        )
+        assert response.status_code == 403

@@ -322,3 +322,56 @@ def auth_headers(test_user: dict[str, object]) -> dict[str, str]:
         data={"sub": str(test_user["id"]), "username": str(test_user["username"])}
     )
     return {"Authorization": f"Bearer {token}"}
+
+
+@pytest_asyncio.fixture
+async def non_admin_user(db_session: AsyncSession) -> dict[str, object]:
+    """Create a non-admin test user for authorization testing.
+
+    Unlike test_user (which is admin), this user has no admin privileges.
+    Used to verify that non-owners get 403 when accessing other users' vehicles.
+    """
+    from sqlalchemy import or_
+
+    result = await db_session.execute(
+        select(User).where(
+            or_(User.username == "nonadminuser", User.email == "nonadminuser@example.com")
+        )
+    )
+    user = result.scalar_one_or_none()
+
+    if not user:
+        user = User(
+            username="nonadminuser",
+            email="nonadminuser@example.com",
+            hashed_password="$argon2id$v=19$m=102400,t=2,p=8$NNbLa8SMLODWY2Es68EvLw$hiGLA+DtO213EMAMi8D8gXvvyjP8EVMFIHWp7SlUVnI",
+            is_active=True,
+            is_admin=False,
+        )
+        db_session.add(user)
+        await db_session.commit()
+        await db_session.refresh(user)
+    else:
+        user.is_active = True
+        user.is_admin = False
+        await db_session.commit()
+        await db_session.refresh(user)
+
+    return {
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "is_active": user.is_active,
+        "is_admin": user.is_admin,
+    }
+
+
+@pytest.fixture
+def non_admin_headers(non_admin_user: dict[str, object]) -> dict[str, str]:
+    """Auth headers for the non-admin user. Used for 403 authorization tests."""
+    from app.services.auth import create_access_token
+
+    token = create_access_token(
+        data={"sub": str(non_admin_user["id"]), "username": str(non_admin_user["username"])}
+    )
+    return {"Authorization": f"Bearer {token}"}

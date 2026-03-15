@@ -296,3 +296,18 @@ class TestWindowStickerRoutes:
         data = response.json()
         assert "pymupdf_available" in data
         assert "tesseract_available" in data
+
+    # -------------------------------------------------------------------------
+    # Authorization tests
+    # -------------------------------------------------------------------------
+
+    async def test_window_sticker_forbidden_non_owner(
+        self, client: AsyncClient, non_admin_headers, test_vehicle
+    ):
+        """Test that non-owner users cannot access another user's window sticker."""
+        vin = test_vehicle["vin"]
+        response = await client.get(
+            f"/api/vehicles/{vin}/window-sticker",
+            headers=non_admin_headers,
+        )
+        assert response.status_code == 403

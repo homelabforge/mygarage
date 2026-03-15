@@ -195,6 +195,17 @@ class TestTollTagRoutes:
 
         assert response.status_code == 401
 
+    async def test_toll_tags_forbidden_non_owner(
+        self, client: AsyncClient, non_admin_headers, test_vehicle
+    ):
+        """Test that non-owner users cannot access another user's toll tags."""
+        vin = test_vehicle["vin"]
+        response = await client.get(
+            f"/api/vehicles/{vin}/toll-tags",
+            headers=non_admin_headers,
+        )
+        assert response.status_code == 403
+
 
 @pytest.mark.integration
 @pytest.mark.asyncio
@@ -582,6 +593,17 @@ class TestTollTransactionRoutes:
         response = await client.get(f"/api/vehicles/{test_vehicle['vin']}/toll-transactions")
 
         assert response.status_code == 401
+
+    async def test_toll_transactions_forbidden_non_owner(
+        self, client: AsyncClient, non_admin_headers, test_vehicle
+    ):
+        """Test that non-owner users cannot access another user's toll transactions."""
+        vin = test_vehicle["vin"]
+        response = await client.get(
+            f"/api/vehicles/{vin}/toll-transactions",
+            headers=non_admin_headers,
+        )
+        assert response.status_code == 403
 
     async def test_toll_transaction_negative_amount(
         self, client: AsyncClient, auth_headers, test_vehicle

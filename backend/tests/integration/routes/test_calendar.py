@@ -395,3 +395,16 @@ class TestCalendarRoutes:
         data = response.json()
         assert data["events"] == []
         assert data["summary"]["total"] == 0
+
+    async def test_calendar_excludes_non_owned_vehicles(
+        self, client: AsyncClient, non_admin_headers
+    ):
+        """Test that calendar only shows events for owned/shared vehicles."""
+        response = await client.get(
+            "/api/calendar",
+            headers=non_admin_headers,
+        )
+        assert response.status_code == 200
+        data = response.json()
+        # Non-admin user with no vehicles should get empty events
+        assert data["summary"]["total"] == 0

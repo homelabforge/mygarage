@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
-from app.models import SpotRental, Vehicle
+from app.models import SpotRental
 from app.models.spot_rental_billing import SpotRentalBilling
 from app.models.user import User
 from app.schemas.spot_rental import (
@@ -17,7 +17,7 @@ from app.schemas.spot_rental import (
     SpotRentalResponse,
     SpotRentalUpdate,
 )
-from app.services.auth import require_auth
+from app.services.auth import get_vehicle_or_403, require_auth
 
 router = APIRouter(prefix="/api/vehicles", tags=["spot-rentals"])
 
@@ -29,11 +29,7 @@ async def list_spot_rentals(
     current_user: User | None = Depends(require_auth),
 ) -> SpotRentalListResponse:
     """List all spot rentals for a vehicle."""
-    # Verify vehicle exists
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    await get_vehicle_or_403(vin, current_user, db)
 
     # Get spot rentals ordered by check-in date descending
     # Eager-load billings to avoid N+1 queries
@@ -66,11 +62,7 @@ async def create_spot_rental(
     current_user: User | None = Depends(require_auth),
 ) -> SpotRentalResponse:
     """Create a new spot rental record."""
-    # Verify vehicle exists
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    vehicle = await get_vehicle_or_403(vin, current_user, db)
 
     # Verify vehicle is RV or Fifth Wheel (case-insensitive to match schema)
     vehicle_type = (vehicle.vehicle_type or "").replace(" ", "").lower()
@@ -139,6 +131,8 @@ async def get_spot_rental(
     current_user: User | None = Depends(require_auth),
 ) -> SpotRentalResponse:
     """Get a specific spot rental record."""
+    await get_vehicle_or_403(vin, current_user, db)
+
     result = await db.execute(
         select(SpotRental)
         .where(SpotRental.id == rental_id, SpotRental.vin == vin)
@@ -160,6 +154,8 @@ async def update_spot_rental(
     current_user: User | None = Depends(require_auth),
 ) -> SpotRentalResponse:
     """Update a spot rental record."""
+    await get_vehicle_or_403(vin, current_user, db)
+
     # Get rental
     result = await db.execute(
         select(SpotRental)
@@ -212,6 +208,8 @@ async def delete_spot_rental(
     current_user: User | None = Depends(require_auth),
 ) -> None:
     """Delete a spot rental record."""
+    await get_vehicle_or_403(vin, current_user, db)
+
     # Verify rental exists
     result = await db.execute(
         select(SpotRental).where(SpotRental.id == rental_id, SpotRental.vin == vin)

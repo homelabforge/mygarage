@@ -9,7 +9,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.maintenance_template import MaintenanceTemplate
 from app.models.user import User
-from app.models.vehicle import Vehicle
 from app.schemas.maintenance_template import (
     MaintenanceTemplateListResponse,
     MaintenanceTemplateResponse,
@@ -17,7 +16,7 @@ from app.schemas.maintenance_template import (
     TemplateApplyResponse,
     TemplateSearchResponse,
 )
-from app.services.auth import require_auth
+from app.services.auth import get_vehicle_or_403, require_auth
 from app.services.maintenance_template_service import MaintenanceTemplateService
 from app.utils.logging_utils import sanitize_for_log
 
@@ -96,11 +95,7 @@ async def apply_template(
     - duty_type: "normal" or "severe" (default: "normal")
     - current_mileage: Current vehicle mileage (optional)
     """
-    # Verify vehicle exists
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == request.vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    vehicle = await get_vehicle_or_403(request.vin, current_user, db)
 
     # Check if template already applied
     result = await db.execute(
@@ -169,11 +164,7 @@ async def get_vehicle_templates(
     current_user: User | None = Depends(require_auth),
 ):
     """Get all templates that have been applied to a vehicle."""
-    # Verify vehicle exists
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    await get_vehicle_or_403(vin, current_user, db)
 
     # Get applied templates
     service = MaintenanceTemplateService()
@@ -198,6 +189,8 @@ async def delete_template_record(
     Note: This does NOT delete the reminders that were created from the template.
     It only removes the record of the template being applied.
     """
+    await get_vehicle_or_403(vin, current_user, db)
+
     result = await db.execute(
         select(MaintenanceTemplate).where(
             MaintenanceTemplate.id == template_id, MaintenanceTemplate.vin == vin

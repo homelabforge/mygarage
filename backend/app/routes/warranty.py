@@ -5,7 +5,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models import Vehicle
 from app.models import WarrantyRecord as WarrantyRecordModel
 from app.models.user import User
 from app.schemas.warranty import (
@@ -13,7 +12,7 @@ from app.schemas.warranty import (
     WarrantyRecordCreate,
     WarrantyRecordUpdate,
 )
-from app.services.auth import require_auth
+from app.services.auth import get_vehicle_or_403, require_auth
 
 router = APIRouter(prefix="/api", tags=["Warranties"])
 
@@ -25,11 +24,7 @@ async def get_warranties(
     current_user: User | None = Depends(require_auth),
 ):
     """Get all warranty records for a vehicle."""
-    # Verify vehicle exists
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    await get_vehicle_or_403(vin, current_user, db)
 
     # Get warranty records
     result = await db.execute(
@@ -49,11 +44,7 @@ async def create_warranty(
     current_user: User | None = Depends(require_auth),
 ):
     """Create a new warranty record."""
-    # Verify vehicle exists
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    await get_vehicle_or_403(vin, current_user, db)
 
     # Create warranty record
     db_warranty = WarrantyRecordModel(vin=vin, **warranty.model_dump())
@@ -71,6 +62,8 @@ async def get_warranty(
     current_user: User | None = Depends(require_auth),
 ):
     """Get a specific warranty record."""
+    await get_vehicle_or_403(vin, current_user, db)
+
     result = await db.execute(
         select(WarrantyRecordModel).where(
             WarrantyRecordModel.vin == vin, WarrantyRecordModel.id == warranty_id
@@ -91,6 +84,8 @@ async def update_warranty(
     current_user: User | None = Depends(require_auth),
 ):
     """Update a warranty record."""
+    await get_vehicle_or_403(vin, current_user, db)
+
     result = await db.execute(
         select(WarrantyRecordModel).where(
             WarrantyRecordModel.vin == vin, WarrantyRecordModel.id == warranty_id
@@ -118,6 +113,8 @@ async def delete_warranty(
     current_user: User | None = Depends(require_auth),
 ):
     """Delete a warranty record."""
+    await get_vehicle_or_403(vin, current_user, db)
+
     result = await db.execute(
         select(WarrantyRecordModel).where(
             WarrantyRecordModel.vin == vin, WarrantyRecordModel.id == warranty_id

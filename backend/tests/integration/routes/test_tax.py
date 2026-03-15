@@ -185,6 +185,17 @@ class TestTaxRecordRoutes:
 
         assert response.status_code == 404
 
+    async def test_tax_forbidden_non_owner(
+        self, client: AsyncClient, non_admin_headers, test_vehicle
+    ):
+        """Test that non-owner users cannot access another user's tax records."""
+        vin = test_vehicle["vin"]
+        response = await client.get(
+            f"/api/vehicles/{vin}/tax-records",
+            headers=non_admin_headers,
+        )
+        assert response.status_code == 403
+
     async def test_create_tax_record_with_renewal_date(
         self, client: AsyncClient, auth_headers, test_vehicle
     ):

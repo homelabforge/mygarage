@@ -6,7 +6,7 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import Response
-from sqlalchemy import desc, select
+from sqlalchemy import desc, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -20,6 +20,7 @@ from app.models import (
     WarrantyRecord,
 )
 from app.models.user import User
+from app.models.vehicle_share import VehicleShare
 from app.schemas.calendar import CalendarEvent, CalendarResponse, CalendarSummary
 from app.services.auth import require_auth
 
@@ -71,9 +72,25 @@ async def get_calendar_events(
         else ["maintenance", "insurance", "warranty", "service"]
     )
 
-    # Get all vehicles for nickname lookup
-    vehicles_result = await db.execute(select(Vehicle))
+    # Get vehicles scoped to current user (owned + shared), or all for admins
+    vehicle_query = select(Vehicle)
+    if current_user is not None and not current_user.is_admin:
+        shared_vins = (
+            select(VehicleShare.vehicle_vin)
+            .where(VehicleShare.user_id == current_user.id)
+            .scalar_subquery()
+        )
+        vehicle_query = vehicle_query.where(
+            or_(Vehicle.user_id == current_user.id, Vehicle.vin.in_(shared_vins))
+        )
+    vehicles_result = await db.execute(vehicle_query)
     vehicles_dict = {v.vin: v for v in vehicles_result.scalars().all()}
+
+    # Restrict all downstream queries to only the user's accessible vehicles
+    allowed_vins = set(vehicles_dict.keys())
+    if vin_list:
+        # Further restrict by user-provided VIN filter
+        allowed_vins = allowed_vins & set(vin_list)
 
     events = []
     today = date.today()
@@ -82,8 +99,10 @@ async def get_calendar_events(
     if "maintenance" in type_list:
         schedule_query = select(MaintenanceScheduleItem)
 
-        if vin_list:
-            schedule_query = schedule_query.where(MaintenanceScheduleItem.vin.in_(vin_list))
+        if allowed_vins:
+            schedule_query = schedule_query.where(MaintenanceScheduleItem.vin.in_(allowed_vins))
+        else:
+            schedule_query = schedule_query.where(MaintenanceScheduleItem.vin.in_([]))
 
         schedule_result = await db.execute(schedule_query)
         schedule_items = schedule_result.scalars().all()
@@ -177,8 +196,10 @@ async def get_calendar_events(
             InsurancePolicy.end_date <= end_date,
         )
 
-        if vin_list:
-            insurance_query = insurance_query.where(InsurancePolicy.vin.in_(vin_list))
+        if allowed_vins:
+            insurance_query = insurance_query.where(InsurancePolicy.vin.in_(allowed_vins))
+        else:
+            insurance_query = insurance_query.where(InsurancePolicy.vin.in_([]))
 
         insurance_result = await db.execute(insurance_query)
         insurance_policies = insurance_result.scalars().all()
@@ -215,8 +236,10 @@ async def get_calendar_events(
             WarrantyRecord.end_date <= end_date,
         )
 
-        if vin_list:
-            warranty_query = warranty_query.where(WarrantyRecord.vin.in_(vin_list))
+        if allowed_vins:
+            warranty_query = warranty_query.where(WarrantyRecord.vin.in_(allowed_vins))
+        else:
+            warranty_query = warranty_query.where(WarrantyRecord.vin.in_([]))
 
         warranty_result = await db.execute(warranty_query)
         warranties = warranty_result.scalars().all()
@@ -258,8 +281,10 @@ async def get_calendar_events(
             )
         )
 
-        if vin_list:
-            service_query = service_query.where(ServiceVisit.vin.in_(vin_list))
+        if allowed_vins:
+            service_query = service_query.where(ServiceVisit.vin.in_(allowed_vins))
+        else:
+            service_query = service_query.where(ServiceVisit.vin.in_([]))
 
         service_result = await db.execute(service_query)
         visits = service_result.scalars().all()
@@ -407,6 +432,7 @@ async def export_calendar_ical(
         vehicle_vins=vehicle_vins,
         event_types=event_types,
         db=db,
+        current_user=current_user,
     )
 
     # Generate iCal format

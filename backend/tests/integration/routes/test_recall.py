@@ -153,6 +153,17 @@ class TestRecallRoutes:
 
         assert response.status_code == 401
 
+    async def test_recall_forbidden_non_owner(
+        self, client: AsyncClient, non_admin_headers, test_vehicle
+    ):
+        """Test that non-owner users cannot access another user's recalls."""
+        vin = test_vehicle["vin"]
+        response = await client.get(
+            f"/api/vehicles/{vin}/recalls",
+            headers=non_admin_headers,
+        )
+        assert response.status_code == 403
+
     async def test_recall_vehicle_not_found(self, client: AsyncClient, auth_headers):
         """Test recalls with non-existent vehicle."""
         response = await client.get(

@@ -256,6 +256,17 @@ class TestSpotRentalRoutes:
 
         assert response.status_code == 401
 
+    async def test_spot_rental_forbidden_non_owner(
+        self, client: AsyncClient, non_admin_headers, test_vehicle
+    ):
+        """Test that non-owner users cannot access another user's spot rentals."""
+        vin = test_vehicle["vin"]
+        response = await client.get(
+            f"/api/vehicles/{vin}/spot-rentals",
+            headers=non_admin_headers,
+        )
+        assert response.status_code == 403
+
     async def test_create_spot_rental_no_auto_billing(
         self, client: AsyncClient, auth_headers, rv_vehicle
     ):

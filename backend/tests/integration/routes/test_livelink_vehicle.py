@@ -29,6 +29,17 @@ class TestVehicleLiveLinkStatus:
         )
         assert response.status_code == 404
 
+    async def test_livelink_forbidden_non_owner(
+        self, client: AsyncClient, non_admin_headers, test_vehicle
+    ):
+        """Test that non-owner users cannot access another user's livelink data."""
+        vin = test_vehicle["vin"]
+        response = await client.get(
+            f"/api/vehicles/{vin}/livelink/status",
+            headers=non_admin_headers,
+        )
+        assert response.status_code == 403
+
     async def test_get_status_no_device(self, client: AsyncClient, auth_headers, test_vehicle):
         """Test getting status when no device is linked."""
         with (

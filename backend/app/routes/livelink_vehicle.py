@@ -32,7 +32,7 @@ from app.schemas.telemetry import (
     TelemetrySeriesResponse,
     VehicleLiveLinkStatus,
 )
-from app.services.auth import require_auth
+from app.services.auth import get_vehicle_or_403, require_auth
 from app.services.dtc_service import DTCService
 from app.services.livelink_service import LiveLinkService
 from app.services.session_service import SessionService
@@ -43,14 +43,10 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/vehicles/{vin}/livelink", tags=["Vehicle LiveLink"])
 
 
-async def verify_vehicle_exists(db: AsyncSession, vin: str) -> Vehicle:
-    """Verify vehicle exists and return it."""
+async def verify_vehicle_access(db: AsyncSession, vin: str, current_user: User | None) -> Vehicle:
+    """Verify vehicle exists and user has access, return it."""
     vin = vin.upper().strip()
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail=f"Vehicle with VIN {vin} not found")
-    return vehicle
+    return await get_vehicle_or_403(vin, current_user, db)
 
 
 # =============================================================================
@@ -82,7 +78,7 @@ async def get_vehicle_livelink_status(
     **Security:**
     - Requires authentication
     """
-    await verify_vehicle_exists(db, vin)
+    await verify_vehicle_access(db, vin, current_user)
     vin = vin.upper().strip()
 
     livelink_service = LiveLinkService(db)
@@ -188,7 +184,7 @@ async def get_vehicle_telemetry(
     **Security:**
     - Requires authentication
     """
-    await verify_vehicle_exists(db, vin)
+    await verify_vehicle_access(db, vin, current_user)
     vin = vin.upper().strip()
 
     telemetry_service = TelemetryService(db)
@@ -275,7 +271,7 @@ async def list_vehicle_sessions(
     **Security:**
     - Requires authentication
     """
-    await verify_vehicle_exists(db, vin)
+    await verify_vehicle_access(db, vin, current_user)
     vin = vin.upper().strip()
 
     session_service = SessionService(db)
@@ -312,7 +308,7 @@ async def get_session_detail(
     **Security:**
     - Requires authentication
     """
-    await verify_vehicle_exists(db, vin)
+    await verify_vehicle_access(db, vin, current_user)
     vin = vin.upper().strip()
 
     session_service = SessionService(db)
@@ -404,7 +400,7 @@ async def list_vehicle_dtcs(
     **Security:**
     - Requires authentication
     """
-    await verify_vehicle_exists(db, vin)
+    await verify_vehicle_access(db, vin, current_user)
     vin = vin.upper().strip()
 
     dtc_service = DTCService(db)
@@ -443,7 +439,7 @@ async def get_dtc_detail(
     **Security:**
     - Requires authentication
     """
-    await verify_vehicle_exists(db, vin)
+    await verify_vehicle_access(db, vin, current_user)
 
     dtc_service = DTCService(db)
 
@@ -477,7 +473,7 @@ async def update_dtc(
     **Security:**
     - Requires authentication
     """
-    await verify_vehicle_exists(db, vin)
+    await verify_vehicle_access(db, vin, current_user)
 
     dtc_service = DTCService(db)
 
@@ -516,7 +512,7 @@ async def clear_dtc(
     **Security:**
     - Requires authentication
     """
-    await verify_vehicle_exists(db, vin)
+    await verify_vehicle_access(db, vin, current_user)
 
     # Verify DTC belongs to vehicle
     from app.models.vehicle_dtc import VehicleDTC
@@ -568,7 +564,7 @@ async def export_telemetry(
     **Security:**
     - Requires authentication
     """
-    await verify_vehicle_exists(db, vin)
+    await verify_vehicle_access(db, vin, current_user)
     vin = vin.upper().strip()
 
     telemetry_service = TelemetryService(db)
@@ -642,7 +638,7 @@ async def export_sessions(
     **Security:**
     - Requires authentication
     """
-    await verify_vehicle_exists(db, vin)
+    await verify_vehicle_access(db, vin, current_user)
     vin = vin.upper().strip()
 
     session_service = SessionService(db)

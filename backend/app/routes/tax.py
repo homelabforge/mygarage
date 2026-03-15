@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models import TaxRecord, Vehicle
+from app.models import TaxRecord
 from app.models.user import User
 from app.schemas.tax import (
     TaxRecordCreate,
@@ -15,7 +15,7 @@ from app.schemas.tax import (
     TaxRecordResponse,
     TaxRecordUpdate,
 )
-from app.services.auth import require_auth
+from app.services.auth import get_vehicle_or_403, require_auth
 
 router = APIRouter(prefix="/api/vehicles", tags=["tax-records"])
 
@@ -27,11 +27,7 @@ async def list_tax_records(
     current_user: User | None = Depends(require_auth),
 ) -> TaxRecordListResponse:
     """List all tax/registration records for a vehicle."""
-    # Verify vehicle exists
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    await get_vehicle_or_403(vin, current_user, db)
 
     # Get tax records ordered by date descending
     query = select(TaxRecord).where(TaxRecord.vin == vin).order_by(TaxRecord.date.desc())
@@ -58,11 +54,7 @@ async def create_tax_record(
     current_user: User | None = Depends(require_auth),
 ) -> TaxRecordResponse:
     """Create a new tax/registration record."""
-    # Verify vehicle exists
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    await get_vehicle_or_403(vin, current_user, db)
 
     # Verify VIN matches
     if record_data.vin != vin:
@@ -93,6 +85,8 @@ async def get_tax_record(
     current_user: User | None = Depends(require_auth),
 ) -> TaxRecordResponse:
     """Get a specific tax/registration record."""
+    await get_vehicle_or_403(vin, current_user, db)
+
     result = await db.execute(
         select(TaxRecord).where(TaxRecord.id == record_id, TaxRecord.vin == vin)
     )
@@ -112,6 +106,8 @@ async def update_tax_record(
     current_user: User | None = Depends(require_auth),
 ) -> TaxRecordResponse:
     """Update a tax/registration record."""
+    await get_vehicle_or_403(vin, current_user, db)
+
     # Get record
     result = await db.execute(
         select(TaxRecord).where(TaxRecord.id == record_id, TaxRecord.vin == vin)
@@ -146,6 +142,8 @@ async def delete_tax_record(
     current_user: User | None = Depends(require_auth),
 ) -> None:
     """Delete a tax/registration record."""
+    await get_vehicle_or_403(vin, current_user, db)
+
     # Verify record exists
     result = await db.execute(
         select(TaxRecord).where(TaxRecord.id == record_id, TaxRecord.vin == vin)

@@ -442,3 +442,17 @@ Property Tax,75.00,2024-01-15,2024-01-31,Travis County,Vehicle tax"""
         assert response.status_code == 200
         data = response.json()
         assert data["success_count"] == 1
+
+    async def test_import_forbidden_non_owner(
+        self, client: AsyncClient, non_admin_headers, test_vehicle
+    ):
+        """Test that non-owner users cannot import data for another user's vehicle."""
+        vin = test_vehicle["vin"]
+        # Create minimal CSV content
+        csv_content = b"date,mileage,gallons,cost\n2024-01-01,50000,10.5,35.00\n"
+        response = await client.post(
+            f"/api/import/vehicles/{vin}/fuel/csv",
+            headers=non_admin_headers,
+            files={"file": ("test.csv", BytesIO(csv_content), "text/csv")},
+        )
+        assert response.status_code == 403

@@ -187,6 +187,17 @@ class TestWarrantyRecordRoutes:
 
         assert response.status_code == 404
 
+    async def test_warranty_forbidden_non_owner(
+        self, client: AsyncClient, non_admin_headers, test_vehicle
+    ):
+        """Test that non-owner users cannot access another user's warranties."""
+        vin = test_vehicle["vin"]
+        response = await client.get(
+            f"/api/vehicles/{vin}/warranties",
+            headers=non_admin_headers,
+        )
+        assert response.status_code == 403
+
     async def test_create_warranty_minimal(self, client: AsyncClient, auth_headers, test_vehicle):
         """Test creating a warranty with minimal required fields."""
         payload = {

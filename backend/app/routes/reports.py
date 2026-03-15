@@ -4,7 +4,7 @@ import csv
 from datetime import datetime
 from io import StringIO
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy import extract, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,12 +14,9 @@ from app.database import get_db
 from app.models import (
     FuelRecord as FuelRecordModel,
 )
-from app.models import (
-    Vehicle,
-)
 from app.models.service_visit import ServiceVisit
 from app.models.user import User
-from app.services.auth import require_auth
+from app.services.auth import get_vehicle_or_403, require_auth
 from app.utils.pdf_generator import PDFReportGenerator
 
 router = APIRouter(prefix="/api/vehicles", tags=["Reports"])
@@ -44,11 +41,7 @@ async def download_service_history_pdf(
     current_user: User | None = Depends(require_auth),
 ):
     """Generate and download service history PDF report."""
-    # Verify vehicle exists
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    vehicle = await get_vehicle_or_403(vin, current_user, db)
 
     # Parse dates
     start_dt = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else None
@@ -124,11 +117,7 @@ async def download_cost_summary_pdf(
     current_user: User | None = Depends(require_auth),
 ):
     """Generate and download annual cost summary PDF."""
-    # Verify vehicle exists
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    vehicle = await get_vehicle_or_403(vin, current_user, db)
 
     # Check if vehicle is motorized (not a trailer or fifth wheel)
     is_motorized = vehicle.vehicle_type not in ["Trailer", "FifthWheel"]
@@ -224,11 +213,7 @@ async def download_tax_deduction_pdf(
     current_user: User | None = Depends(require_auth),
 ):
     """Generate and download tax deduction report PDF."""
-    # Verify vehicle exists
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    vehicle = await get_vehicle_or_403(vin, current_user, db)
 
     # Prepare vehicle info
     vehicle_info = {
@@ -282,11 +267,7 @@ async def download_service_history_csv(
     current_user: User | None = Depends(require_auth),
 ):
     """Export service history to CSV."""
-    # Verify vehicle exists
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    await get_vehicle_or_403(vin, current_user, db)
 
     # Parse dates
     start_dt = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else None
@@ -354,11 +335,7 @@ async def download_all_records_csv(
     current_user: User | None = Depends(require_auth),
 ):
     """Export all maintenance records to CSV."""
-    # Verify vehicle exists
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    await get_vehicle_or_403(vin, current_user, db)
 
     # Create CSV
     output = StringIO()

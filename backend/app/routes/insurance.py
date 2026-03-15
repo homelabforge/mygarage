@@ -9,14 +9,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models import InsurancePolicy as InsurancePolicyModel
-from app.models import Vehicle
 from app.models.user import User
 from app.schemas.insurance import (
     InsurancePolicy,
     InsurancePolicyCreate,
     InsurancePolicyUpdate,
 )
-from app.services.auth import require_auth
+from app.services.auth import get_vehicle_or_403, require_auth
 from app.services.document_ocr import document_ocr_service
 from app.utils.logging_utils import sanitize_for_log
 
@@ -31,11 +30,7 @@ async def get_insurance_policies(
     current_user: User | None = Depends(require_auth),
 ):
     """Get all insurance policies for a vehicle."""
-    # Verify vehicle exists
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    await get_vehicle_or_403(vin, current_user, db)
 
     # Get insurance policies
     result = await db.execute(
@@ -55,11 +50,7 @@ async def create_insurance_policy(
     current_user: User | None = Depends(require_auth),
 ):
     """Create a new insurance policy."""
-    # Verify vehicle exists
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    await get_vehicle_or_403(vin, current_user, db)
 
     # Create insurance policy
     db_policy = InsurancePolicyModel(vin=vin, **policy.model_dump())
@@ -77,6 +68,8 @@ async def get_insurance_policy(
     current_user: User | None = Depends(require_auth),
 ):
     """Get a specific insurance policy."""
+    await get_vehicle_or_403(vin, current_user, db)
+
     result = await db.execute(
         select(InsurancePolicyModel).where(
             InsurancePolicyModel.vin == vin, InsurancePolicyModel.id == policy_id
@@ -97,6 +90,8 @@ async def update_insurance_policy(
     current_user: User | None = Depends(require_auth),
 ):
     """Update an insurance policy."""
+    await get_vehicle_or_403(vin, current_user, db)
+
     result = await db.execute(
         select(InsurancePolicyModel).where(
             InsurancePolicyModel.vin == vin, InsurancePolicyModel.id == policy_id
@@ -124,6 +119,8 @@ async def delete_insurance_policy(
     current_user: User | None = Depends(require_auth),
 ):
     """Delete an insurance policy."""
+    await get_vehicle_or_403(vin, current_user, db)
+
     result = await db.execute(
         select(InsurancePolicyModel).where(
             InsurancePolicyModel.vin == vin, InsurancePolicyModel.id == policy_id
@@ -159,11 +156,7 @@ async def parse_insurance_pdf(
     Returns extracted data without saving to database.
     User can review and edit before creating the policy.
     """
-    # Verify vehicle exists
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    await get_vehicle_or_403(vin, current_user, db)
 
     # Validate file type - now supports images too
     allowed_extensions = {".pdf", ".jpg", ".jpeg", ".png"}
@@ -284,11 +277,7 @@ async def test_parse_insurance_pdf(
 
     Useful for troubleshooting parsing issues.
     """
-    # Verify vehicle exists
-    result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    await get_vehicle_or_403(vin, current_user, db)
 
     # Validate file
     allowed_extensions = {".pdf", ".jpg", ".jpeg", ".png"}
