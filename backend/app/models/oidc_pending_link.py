@@ -7,6 +7,7 @@ from typing import Any
 
 from sqlalchemy import JSON, DateTime, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.sql import func
 
 from app.database import Base
 
@@ -40,7 +41,7 @@ class OIDCPendingLink(Base):
         Integer, default=0, nullable=False
     )  # Failed password attempts
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=lambda: datetime.now(UTC), nullable=False
+        DateTime, server_default=func.now(), nullable=False
     )
     expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
 

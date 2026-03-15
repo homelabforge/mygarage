@@ -8,6 +8,11 @@ from pathlib import Path
 # Enable test mode BEFORE importing app (disables CSRF validation in middleware)
 os.environ["MYGARAGE_TEST_MODE"] = "true"
 
+# If TEST_DATABASE_URL is set (e.g. for PostgreSQL), propagate it to the app's
+# database URL so the app engine matches the test engine. Must happen before imports.
+if "TEST_DATABASE_URL" in os.environ:
+    os.environ["MYGARAGE_DATABASE_URL"] = os.environ["TEST_DATABASE_URL"]
+
 from collections.abc import AsyncGenerator
 from typing import NoReturn
 
@@ -16,6 +21,7 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 
 from app.config import settings
 from app.database import Base, get_db
@@ -39,8 +45,15 @@ TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "sqlite+aiosqlite:///./test_m
 
 @pytest_asyncio.fixture(scope="session", loop_scope="session")
 async def test_engine():
-    """Create async engine for tests."""
-    engine = create_async_engine(TEST_DATABASE_URL, echo=False)
+    """Create async engine for tests.
+
+    Uses NullPool for PostgreSQL/asyncpg to avoid event loop binding issues
+    with starlette middleware sub-tasks in pytest.
+    """
+    pool_kwargs = {}
+    if "asyncpg" in TEST_DATABASE_URL:
+        pool_kwargs["poolclass"] = NullPool
+    engine = create_async_engine(TEST_DATABASE_URL, echo=False, **pool_kwargs)
     yield engine
     await engine.dispose()
 
