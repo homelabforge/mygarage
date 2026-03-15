@@ -4,10 +4,9 @@ import csv
 import datetime as dt
 import io
 import logging
-from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException, Response
-from sqlalchemy import delete, func, select
+from fastapi import APIRouter, Depends, Response
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -25,6 +24,7 @@ from app.schemas.toll import (
     TollTransactionUpdate,
 )
 from app.services.auth import get_vehicle_or_403, require_auth
+from app.services.toll_service import TollService
 
 logger = logging.getLogger(__name__)
 
@@ -37,21 +37,11 @@ toll_tags_router = APIRouter(prefix="/api/vehicles/{vin}/toll-tags", tags=["Toll
 async def list_toll_tags(
     vin: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User | None = Depends(require_auth),
-):
+    current_user: User = Depends(require_auth),
+) -> TollTagListResponse:
     """Get all toll tags for a vehicle."""
-    await get_vehicle_or_403(vin, current_user, db)
-
-    # Get toll tags
-    result = await db.execute(
-        select(TollTag).where(TollTag.vin == vin).order_by(TollTag.created_at.desc())
-    )
-    toll_tags = result.scalars().all()
-
-    return TollTagListResponse(
-        toll_tags=[TollTagResponse.model_validate(tag) for tag in toll_tags],
-        total=len(toll_tags),
-    )
+    service = TollService(db)
+    return await service.list_tags(vin, current_user)
 
 
 @toll_tags_router.post("", response_model=TollTagResponse, status_code=201)
@@ -59,25 +49,11 @@ async def create_toll_tag(
     vin: str,
     toll_tag: TollTagCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User | None = Depends(require_auth),
-):
+    current_user: User = Depends(require_auth),
+) -> TollTagResponse:
     """Create a new toll tag for a vehicle."""
-    await get_vehicle_or_403(vin, current_user, db)
-
-    # Create toll tag
-    db_toll_tag = TollTag(
-        vin=vin,
-        toll_system=toll_tag.toll_system,
-        tag_number=toll_tag.tag_number,
-        status=toll_tag.status,
-        notes=toll_tag.notes,
-    )
-    db.add(db_toll_tag)
-    await db.commit()
-    await db.refresh(db_toll_tag)
-
-    logger.info("Created toll tag %s for vehicle %s", db_toll_tag.id, vin)
-    return TollTagResponse.model_validate(db_toll_tag)
+    service = TollService(db)
+    return await service.create_tag(vin, toll_tag, current_user)
 
 
 @toll_tags_router.get("/{tag_id}", response_model=TollTagResponse)
@@ -85,17 +61,11 @@ async def get_toll_tag(
     vin: str,
     tag_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User | None = Depends(require_auth),
-):
+    current_user: User = Depends(require_auth),
+) -> TollTagResponse:
     """Get a specific toll tag."""
-    await get_vehicle_or_403(vin, current_user, db)
-
-    result = await db.execute(select(TollTag).where(TollTag.id == tag_id, TollTag.vin == vin))
-    toll_tag = result.scalar_one_or_none()
-    if not toll_tag:
-        raise HTTPException(status_code=404, detail="Toll tag not found")
-
-    return TollTagResponse.model_validate(toll_tag)
+    service = TollService(db)
+    return await service.get_tag(vin, tag_id, current_user)
 
 
 @toll_tags_router.put("/{tag_id}", response_model=TollTagResponse)
@@ -104,26 +74,11 @@ async def update_toll_tag(
     tag_id: int,
     toll_tag_update: TollTagUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User | None = Depends(require_auth),
-):
+    current_user: User = Depends(require_auth),
+) -> TollTagResponse:
     """Update a toll tag."""
-    await get_vehicle_or_403(vin, current_user, db)
-
-    result = await db.execute(select(TollTag).where(TollTag.id == tag_id, TollTag.vin == vin))
-    toll_tag = result.scalar_one_or_none()
-    if not toll_tag:
-        raise HTTPException(status_code=404, detail="Toll tag not found")
-
-    # Update fields
-    update_data = toll_tag_update.model_dump(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(toll_tag, field, value)
-
-    await db.commit()
-    await db.refresh(toll_tag)
-
-    logger.info("Updated toll tag %s for vehicle %s", tag_id, vin)
-    return TollTagResponse.model_validate(toll_tag)
+    service = TollService(db)
+    return await service.update_tag(vin, tag_id, toll_tag_update, current_user)
 
 
 @toll_tags_router.delete("/{tag_id}", status_code=204)
@@ -131,21 +86,11 @@ async def delete_toll_tag(
     vin: str,
     tag_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User | None = Depends(require_auth),
-):
+    current_user: User = Depends(require_auth),
+) -> None:
     """Delete a toll tag."""
-    await get_vehicle_or_403(vin, current_user, db)
-
-    result = await db.execute(select(TollTag).where(TollTag.id == tag_id, TollTag.vin == vin))
-    toll_tag = result.scalar_one_or_none()
-    if not toll_tag:
-        raise HTTPException(status_code=404, detail="Toll tag not found")
-
-    await db.execute(delete(TollTag).where(TollTag.id == tag_id))
-    await db.commit()
-
-    logger.info("Deleted toll tag %s for vehicle %s", tag_id, vin)
-    return Response(status_code=204)
+    service = TollService(db)
+    await service.delete_tag(vin, tag_id, current_user)
 
 
 # Toll Transactions Router
@@ -161,31 +106,11 @@ async def list_toll_transactions(
     end_date: dt.date | None = None,
     toll_tag_id: int | None = None,
     db: AsyncSession = Depends(get_db),
-    current_user: User | None = Depends(require_auth),
-):
+    current_user: User = Depends(require_auth),
+) -> TollTransactionListResponse:
     """Get all toll transactions for a vehicle with optional filtering."""
-    await get_vehicle_or_403(vin, current_user, db)
-
-    # Build query
-    query = select(TollTransaction).where(TollTransaction.vin == vin)
-
-    if start_date:
-        query = query.where(TollTransaction.date >= start_date)
-    if end_date:
-        query = query.where(TollTransaction.date <= end_date)
-    if toll_tag_id:
-        query = query.where(TollTransaction.toll_tag_id == toll_tag_id)
-
-    query = query.order_by(TollTransaction.date.desc())
-
-    # Execute query
-    result = await db.execute(query)
-    transactions = result.scalars().all()
-
-    return TollTransactionListResponse(
-        transactions=[TollTransactionResponse.model_validate(txn) for txn in transactions],
-        total=len(transactions),
-    )
+    service = TollService(db)
+    return await service.list_transactions(vin, current_user, start_date, end_date, toll_tag_id)
 
 
 @toll_transactions_router.post("", response_model=TollTransactionResponse, status_code=201)
@@ -193,35 +118,11 @@ async def create_toll_transaction(
     vin: str,
     transaction: TollTransactionCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User | None = Depends(require_auth),
-):
+    current_user: User = Depends(require_auth),
+) -> TollTransactionResponse:
     """Create a new toll transaction for a vehicle."""
-    await get_vehicle_or_403(vin, current_user, db)
-
-    # Verify toll tag exists if provided
-    if transaction.toll_tag_id:
-        result = await db.execute(
-            select(TollTag).where(TollTag.id == transaction.toll_tag_id, TollTag.vin == vin)
-        )
-        toll_tag = result.scalar_one_or_none()
-        if not toll_tag:
-            raise HTTPException(status_code=404, detail="Toll tag not found")
-
-    # Create transaction
-    db_transaction = TollTransaction(
-        vin=vin,
-        toll_tag_id=transaction.toll_tag_id,
-        date=transaction.transaction_date,
-        amount=transaction.amount,
-        location=transaction.location,
-        notes=transaction.notes,
-    )
-    db.add(db_transaction)
-    await db.commit()
-    await db.refresh(db_transaction)
-
-    logger.info("Created toll transaction %s for vehicle %s", db_transaction.id, vin)
-    return TollTransactionResponse.model_validate(db_transaction)
+    service = TollService(db)
+    return await service.create_transaction(vin, transaction, current_user)
 
 
 @toll_transactions_router.get("/{transaction_id}", response_model=TollTransactionResponse)
@@ -229,21 +130,11 @@ async def get_toll_transaction(
     vin: str,
     transaction_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User | None = Depends(require_auth),
-):
+    current_user: User = Depends(require_auth),
+) -> TollTransactionResponse:
     """Get a specific toll transaction."""
-    await get_vehicle_or_403(vin, current_user, db)
-
-    result = await db.execute(
-        select(TollTransaction).where(
-            TollTransaction.id == transaction_id, TollTransaction.vin == vin
-        )
-    )
-    transaction = result.scalar_one_or_none()
-    if not transaction:
-        raise HTTPException(status_code=404, detail="Toll transaction not found")
-
-    return TollTransactionResponse.model_validate(transaction)
+    service = TollService(db)
+    return await service.get_transaction(vin, transaction_id, current_user)
 
 
 @toll_transactions_router.put("/{transaction_id}", response_model=TollTransactionResponse)
@@ -252,39 +143,11 @@ async def update_toll_transaction(
     transaction_id: int,
     transaction_update: TollTransactionUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User | None = Depends(require_auth),
-):
+    current_user: User = Depends(require_auth),
+) -> TollTransactionResponse:
     """Update a toll transaction."""
-    await get_vehicle_or_403(vin, current_user, db)
-
-    result = await db.execute(
-        select(TollTransaction).where(
-            TollTransaction.id == transaction_id, TollTransaction.vin == vin
-        )
-    )
-    transaction = result.scalar_one_or_none()
-    if not transaction:
-        raise HTTPException(status_code=404, detail="Toll transaction not found")
-
-    # Verify toll tag exists if provided
-    if transaction_update.toll_tag_id:
-        result = await db.execute(
-            select(TollTag).where(TollTag.id == transaction_update.toll_tag_id, TollTag.vin == vin)
-        )
-        toll_tag = result.scalar_one_or_none()
-        if not toll_tag:
-            raise HTTPException(status_code=404, detail="Toll tag not found")
-
-    # Update fields
-    update_data = transaction_update.model_dump(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(transaction, field, value)
-
-    await db.commit()
-    await db.refresh(transaction)
-
-    logger.info("Updated toll transaction %s for vehicle %s", transaction_id, vin)
-    return TollTransactionResponse.model_validate(transaction)
+    service = TollService(db)
+    return await service.update_transaction(vin, transaction_id, transaction_update, current_user)
 
 
 @toll_transactions_router.delete("/{transaction_id}", status_code=204)
@@ -292,72 +155,22 @@ async def delete_toll_transaction(
     vin: str,
     transaction_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User | None = Depends(require_auth),
-):
+    current_user: User = Depends(require_auth),
+) -> None:
     """Delete a toll transaction."""
-    await get_vehicle_or_403(vin, current_user, db)
-
-    result = await db.execute(
-        select(TollTransaction).where(
-            TollTransaction.id == transaction_id, TollTransaction.vin == vin
-        )
-    )
-    transaction = result.scalar_one_or_none()
-    if not transaction:
-        raise HTTPException(status_code=404, detail="Toll transaction not found")
-
-    await db.execute(delete(TollTransaction).where(TollTransaction.id == transaction_id))
-    await db.commit()
-
-    logger.info("Deleted toll transaction %s for vehicle %s", transaction_id, vin)
-    return Response(status_code=204)
+    service = TollService(db)
+    await service.delete_transaction(vin, transaction_id, current_user)
 
 
 @toll_transactions_router.get("/summary/statistics", response_model=TollTransactionSummary)
 async def get_toll_transaction_summary(
     vin: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User | None = Depends(require_auth),
-):
+    current_user: User = Depends(require_auth),
+) -> TollTransactionSummary:
     """Get toll transaction summary and monthly statistics."""
-    await get_vehicle_or_403(vin, current_user, db)
-
-    # Get total count and amount
-    result = await db.execute(
-        select(func.count(TollTransaction.id), func.sum(TollTransaction.amount)).where(
-            TollTransaction.vin == vin
-        )
-    )
-    total_count, total_amount = result.one()
-
-    # Get monthly totals
-    month_col = func.strftime("%Y-%m", TollTransaction.date).label("month")
-    result = await db.execute(
-        select(
-            month_col,
-            func.count(TollTransaction.id).label("count"),
-            func.sum(TollTransaction.amount).label("amount"),
-        )
-        .where(TollTransaction.vin == vin)
-        .group_by(month_col)
-        .order_by(month_col.desc())
-    )
-    monthly_data = result.all()
-
-    monthly_totals = [
-        {
-            "month": row.month,
-            "count": row.count,
-            "amount": float(row.amount) if row.amount else 0.0,
-        }
-        for row in monthly_data
-    ]
-
-    return TollTransactionSummary(
-        total_transactions=total_count or 0,
-        total_amount=total_amount or Decimal("0.00"),
-        monthly_totals=monthly_totals,
-    )
+    service = TollService(db)
+    return await service.get_summary(vin, current_user)
 
 
 @toll_transactions_router.get("/export/csv")
@@ -366,7 +179,7 @@ async def export_toll_transactions_csv(
     start_date: dt.date | None = None,
     end_date: dt.date | None = None,
     db: AsyncSession = Depends(get_db),
-    current_user: User | None = Depends(require_auth),
+    current_user: User = Depends(require_auth),
 ):
     """Export toll transactions as CSV."""
     vehicle = await get_vehicle_or_403(vin, current_user, db)

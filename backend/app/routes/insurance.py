@@ -4,11 +4,9 @@ import logging
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models import InsurancePolicy as InsurancePolicyModel
 from app.models.user import User
 from app.schemas.insurance import (
     InsurancePolicy,
@@ -17,6 +15,7 @@ from app.schemas.insurance import (
 )
 from app.services.auth import get_vehicle_or_403, require_auth
 from app.services.document_ocr import document_ocr_service
+from app.services.insurance_service import InsuranceService
 from app.utils.logging_utils import sanitize_for_log
 
 router = APIRouter(prefix="/api", tags=["Insurance"])
@@ -30,16 +29,8 @@ async def get_insurance_policies(
     current_user: User | None = Depends(require_auth),
 ):
     """Get all insurance policies for a vehicle."""
-    await get_vehicle_or_403(vin, current_user, db)
-
-    # Get insurance policies
-    result = await db.execute(
-        select(InsurancePolicyModel)
-        .where(InsurancePolicyModel.vin == vin)
-        .order_by(InsurancePolicyModel.end_date.desc())
-    )
-    policies = result.scalars().all()
-    return policies
+    service = InsuranceService(db)
+    return await service.list_policies(vin, current_user)
 
 
 @router.post("/vehicles/{vin}/insurance", response_model=InsurancePolicy, status_code=201)
@@ -50,14 +41,8 @@ async def create_insurance_policy(
     current_user: User | None = Depends(require_auth),
 ):
     """Create a new insurance policy."""
-    await get_vehicle_or_403(vin, current_user, db)
-
-    # Create insurance policy
-    db_policy = InsurancePolicyModel(vin=vin, **policy.model_dump())
-    db.add(db_policy)
-    await db.commit()
-    await db.refresh(db_policy)
-    return db_policy
+    service = InsuranceService(db)
+    return await service.create_policy(vin, policy, current_user)
 
 
 @router.get("/vehicles/{vin}/insurance/{policy_id}", response_model=InsurancePolicy)
@@ -68,17 +53,8 @@ async def get_insurance_policy(
     current_user: User | None = Depends(require_auth),
 ):
     """Get a specific insurance policy."""
-    await get_vehicle_or_403(vin, current_user, db)
-
-    result = await db.execute(
-        select(InsurancePolicyModel).where(
-            InsurancePolicyModel.vin == vin, InsurancePolicyModel.id == policy_id
-        )
-    )
-    policy = result.scalar_one_or_none()
-    if not policy:
-        raise HTTPException(status_code=404, detail="Insurance policy not found")
-    return policy
+    service = InsuranceService(db)
+    return await service.get_policy(vin, policy_id, current_user)
 
 
 @router.put("/vehicles/{vin}/insurance/{policy_id}", response_model=InsurancePolicy)
@@ -90,25 +66,8 @@ async def update_insurance_policy(
     current_user: User | None = Depends(require_auth),
 ):
     """Update an insurance policy."""
-    await get_vehicle_or_403(vin, current_user, db)
-
-    result = await db.execute(
-        select(InsurancePolicyModel).where(
-            InsurancePolicyModel.vin == vin, InsurancePolicyModel.id == policy_id
-        )
-    )
-    db_policy = result.scalar_one_or_none()
-    if not db_policy:
-        raise HTTPException(status_code=404, detail="Insurance policy not found")
-
-    # Update fields
-    update_data = policy_update.model_dump(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(db_policy, field, value)
-
-    await db.commit()
-    await db.refresh(db_policy)
-    return db_policy
+    service = InsuranceService(db)
+    return await service.update_policy(vin, policy_id, policy_update, current_user)
 
 
 @router.delete("/vehicles/{vin}/insurance/{policy_id}", status_code=204)
@@ -119,19 +78,8 @@ async def delete_insurance_policy(
     current_user: User | None = Depends(require_auth),
 ):
     """Delete an insurance policy."""
-    await get_vehicle_or_403(vin, current_user, db)
-
-    result = await db.execute(
-        select(InsurancePolicyModel).where(
-            InsurancePolicyModel.vin == vin, InsurancePolicyModel.id == policy_id
-        )
-    )
-    db_policy = result.scalar_one_or_none()
-    if not db_policy:
-        raise HTTPException(status_code=404, detail="Insurance policy not found")
-
-    await db.delete(db_policy)
-    await db.commit()
+    service = InsuranceService(db)
+    await service.delete_policy(vin, policy_id, current_user)
     return None
 
 

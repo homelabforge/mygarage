@@ -1,18 +1,17 @@
 """Warranty record API routes."""
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models import WarrantyRecord as WarrantyRecordModel
 from app.models.user import User
 from app.schemas.warranty import (
     WarrantyRecord,
     WarrantyRecordCreate,
     WarrantyRecordUpdate,
 )
-from app.services.auth import get_vehicle_or_403, require_auth
+from app.services.auth import require_auth
+from app.services.warranty_service import WarrantyService
 
 router = APIRouter(prefix="/api", tags=["Warranties"])
 
@@ -24,16 +23,8 @@ async def get_warranties(
     current_user: User | None = Depends(require_auth),
 ):
     """Get all warranty records for a vehicle."""
-    await get_vehicle_or_403(vin, current_user, db)
-
-    # Get warranty records
-    result = await db.execute(
-        select(WarrantyRecordModel)
-        .where(WarrantyRecordModel.vin == vin)
-        .order_by(WarrantyRecordModel.start_date.desc())
-    )
-    warranties = result.scalars().all()
-    return warranties
+    service = WarrantyService(db)
+    return await service.list_warranties(vin, current_user)
 
 
 @router.post("/vehicles/{vin}/warranties", response_model=WarrantyRecord, status_code=201)
@@ -44,14 +35,8 @@ async def create_warranty(
     current_user: User | None = Depends(require_auth),
 ):
     """Create a new warranty record."""
-    await get_vehicle_or_403(vin, current_user, db)
-
-    # Create warranty record
-    db_warranty = WarrantyRecordModel(vin=vin, **warranty.model_dump())
-    db.add(db_warranty)
-    await db.commit()
-    await db.refresh(db_warranty)
-    return db_warranty
+    service = WarrantyService(db)
+    return await service.create_warranty(vin, warranty, current_user)
 
 
 @router.get("/vehicles/{vin}/warranties/{warranty_id}", response_model=WarrantyRecord)
@@ -62,17 +47,8 @@ async def get_warranty(
     current_user: User | None = Depends(require_auth),
 ):
     """Get a specific warranty record."""
-    await get_vehicle_or_403(vin, current_user, db)
-
-    result = await db.execute(
-        select(WarrantyRecordModel).where(
-            WarrantyRecordModel.vin == vin, WarrantyRecordModel.id == warranty_id
-        )
-    )
-    warranty = result.scalar_one_or_none()
-    if not warranty:
-        raise HTTPException(status_code=404, detail="Warranty record not found")
-    return warranty
+    service = WarrantyService(db)
+    return await service.get_warranty(vin, warranty_id, current_user)
 
 
 @router.put("/vehicles/{vin}/warranties/{warranty_id}", response_model=WarrantyRecord)
@@ -84,25 +60,8 @@ async def update_warranty(
     current_user: User | None = Depends(require_auth),
 ):
     """Update a warranty record."""
-    await get_vehicle_or_403(vin, current_user, db)
-
-    result = await db.execute(
-        select(WarrantyRecordModel).where(
-            WarrantyRecordModel.vin == vin, WarrantyRecordModel.id == warranty_id
-        )
-    )
-    db_warranty = result.scalar_one_or_none()
-    if not db_warranty:
-        raise HTTPException(status_code=404, detail="Warranty record not found")
-
-    # Update fields
-    update_data = warranty_update.model_dump(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(db_warranty, field, value)
-
-    await db.commit()
-    await db.refresh(db_warranty)
-    return db_warranty
+    service = WarrantyService(db)
+    return await service.update_warranty(vin, warranty_id, warranty_update, current_user)
 
 
 @router.delete("/vehicles/{vin}/warranties/{warranty_id}", status_code=204)
@@ -113,17 +72,6 @@ async def delete_warranty(
     current_user: User | None = Depends(require_auth),
 ):
     """Delete a warranty record."""
-    await get_vehicle_or_403(vin, current_user, db)
-
-    result = await db.execute(
-        select(WarrantyRecordModel).where(
-            WarrantyRecordModel.vin == vin, WarrantyRecordModel.id == warranty_id
-        )
-    )
-    db_warranty = result.scalar_one_or_none()
-    if not db_warranty:
-        raise HTTPException(status_code=404, detail="Warranty record not found")
-
-    await db.delete(db_warranty)
-    await db.commit()
+    service = WarrantyService(db)
+    await service.delete_warranty(vin, warranty_id, current_user)
     return None
