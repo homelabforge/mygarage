@@ -19,7 +19,7 @@ Migration also:
 import os
 from pathlib import Path
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, inspect, text
 
 
 def _get_fallback_engine():
@@ -39,47 +39,30 @@ def upgrade(engine=None):
     with engine.begin() as conn:
         print("Adding OIDC authentication fields to users table...")
 
+        # Check existing columns using inspect (works on both SQLite and PostgreSQL)
+        inspector = inspect(engine)
+        existing_columns = {col["name"] for col in inspector.get_columns("users")}
+
         # Add oidc_subject column (nullable, will be unique when set)
-        try:
-            conn.execute(
-                text("""
-                ALTER TABLE users ADD COLUMN oidc_subject TEXT
-            """)
-            )
+        if "oidc_subject" in existing_columns:
+            print("  → oidc_subject column already exists")
+        else:
+            conn.execute(text("ALTER TABLE users ADD COLUMN oidc_subject TEXT"))
             print("  ✓ Added oidc_subject column")
-        except Exception as e:
-            if "duplicate column" in str(e).lower():
-                print("  → oidc_subject column already exists")
-            else:
-                raise
 
         # Add oidc_provider column
-        try:
-            conn.execute(
-                text("""
-                ALTER TABLE users ADD COLUMN oidc_provider TEXT
-            """)
-            )
+        if "oidc_provider" in existing_columns:
+            print("  → oidc_provider column already exists")
+        else:
+            conn.execute(text("ALTER TABLE users ADD COLUMN oidc_provider TEXT"))
             print("  ✓ Added oidc_provider column")
-        except Exception as e:
-            if "duplicate column" in str(e).lower():
-                print("  → oidc_provider column already exists")
-            else:
-                raise
 
         # Add auth_method column (defaults to 'local')
-        try:
-            conn.execute(
-                text("""
-                ALTER TABLE users ADD COLUMN auth_method TEXT DEFAULT 'local'
-            """)
-            )
+        if "auth_method" in existing_columns:
+            print("  → auth_method column already exists")
+        else:
+            conn.execute(text("ALTER TABLE users ADD COLUMN auth_method TEXT DEFAULT 'local'"))
             print("  ✓ Added auth_method column")
-        except Exception as e:
-            if "duplicate column" in str(e).lower():
-                print("  → auth_method column already exists")
-            else:
-                raise
 
         # Backfill auth_method for existing users
         result = conn.execute(
@@ -93,52 +76,38 @@ def upgrade(engine=None):
         if rows_updated > 0:
             print(f"  ✓ Backfilled auth_method='local' for {rows_updated} existing user(s)")
 
+        # Create indexes using inspect to check existence first
+        # (try/except breaks PostgreSQL transactions on duplicate errors)
+        existing_indexes = {idx["name"] for idx in inspector.get_indexes("users")}
+
         # Create unique index on oidc_subject (only where not null)
-        try:
-            conn.execute(
-                text("""
-                CREATE UNIQUE INDEX idx_users_oidc_subject
-                ON users(oidc_subject)
-                WHERE oidc_subject IS NOT NULL
-            """)
-            )
+        if "idx_users_oidc_subject" in existing_indexes:
+            print("  → oidc_subject index already exists")
+        else:
+            conn.execute(text(
+                "CREATE UNIQUE INDEX idx_users_oidc_subject "
+                "ON users(oidc_subject) WHERE oidc_subject IS NOT NULL"
+            ))
             print("  ✓ Created unique index on oidc_subject")
-        except Exception as e:
-            if "already exists" in str(e).lower():
-                print("  → oidc_subject index already exists")
-            else:
-                raise
 
         # Create index on oidc_provider for faster lookups
-        try:
-            conn.execute(
-                text("""
-                CREATE INDEX idx_users_oidc_provider
-                ON users(oidc_provider)
-                WHERE oidc_provider IS NOT NULL
-            """)
-            )
+        if "idx_users_oidc_provider" in existing_indexes:
+            print("  → oidc_provider index already exists")
+        else:
+            conn.execute(text(
+                "CREATE INDEX idx_users_oidc_provider "
+                "ON users(oidc_provider) WHERE oidc_provider IS NOT NULL"
+            ))
             print("  ✓ Created index on oidc_provider")
-        except Exception as e:
-            if "already exists" in str(e).lower():
-                print("  → oidc_provider index already exists")
-            else:
-                raise
 
         # Create index on auth_method for faster auth mode filtering
-        try:
-            conn.execute(
-                text("""
-                CREATE INDEX idx_users_auth_method
-                ON users(auth_method)
-            """)
-            )
+        if "idx_users_auth_method" in existing_indexes:
+            print("  → auth_method index already exists")
+        else:
+            conn.execute(text(
+                "CREATE INDEX idx_users_auth_method ON users(auth_method)"
+            ))
             print("  ✓ Created index on auth_method")
-        except Exception as e:
-            if "already exists" in str(e).lower():
-                print("  → auth_method index already exists")
-            else:
-                raise
 
         # Check current user auth methods
         result = conn.execute(

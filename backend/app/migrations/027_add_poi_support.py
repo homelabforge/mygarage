@@ -80,9 +80,9 @@ def upgrade(engine=None):
                 conn.execute(
                     text("""
                         INSERT INTO settings (key, value, category, encrypted)
-                        VALUES (:key, :value, 'integrations', 0)
+                        VALUES (:key, :value, 'integrations', :encrypted)
                     """),
-                    {"key": key, "value": value},
+                    {"key": key, "value": value, "encrypted": False},
                 )
                 print(f"  ✓ Added setting: {key}")
 

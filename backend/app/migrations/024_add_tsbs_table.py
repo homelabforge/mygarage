@@ -47,7 +47,7 @@ def upgrade(engine=None):
                 created_at {ts_type} DEFAULT CURRENT_TIMESTAMP,
                 updated_at {ts_type},
                 FOREIGN KEY (vin) REFERENCES vehicles(vin) ON DELETE CASCADE,
-                FOREIGN KEY (related_service_id) REFERENCES service_records(id) ON DELETE SET NULL
+                FOREIGN KEY (related_service_id) REFERENCES service_visits(id) ON DELETE SET NULL
             )
         """)
         )

@@ -94,7 +94,7 @@ def upgrade(engine=None):
                     "value": value,
                     "category": category,
                     "description": description,
-                    "encrypted": 1 if encrypted else 0,
+                    "encrypted": encrypted,
                 },
             )
             print(f"  Added setting: {key}")

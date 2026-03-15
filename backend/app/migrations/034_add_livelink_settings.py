@@ -128,13 +128,14 @@ def upgrade(engine=None):
             conn.execute(
                 text("""
                     INSERT INTO settings (key, value, category, description, encrypted)
-                    VALUES (:key, :value, :category, :description, 0)
+                    VALUES (:key, :value, :category, :description, :encrypted)
                 """),
                 {
                     "key": setting["key"],
                     "value": setting["value"],
                     "category": setting["category"],
                     "description": setting["description"],
+                    "encrypted": False,
                 },
             )
             print(f"  Added setting: {setting['key']}")

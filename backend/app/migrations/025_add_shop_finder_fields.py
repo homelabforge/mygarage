@@ -62,27 +62,30 @@ def upgrade(engine=None):
             conn.execute(text("ALTER TABLE address_book ADD COLUMN last_used DATETIME"))
             print("  ✓ Added last_used column")
 
-        # Check if address_book_id exists in service_records
+        # Check if address_book_id exists in service_records (legacy table)
         inspector = inspect(engine)
-        existing_columns = {col["name"] for col in inspector.get_columns("service_records")}
+        if not inspector.has_table("service_records"):
+            print("  service_records table does not exist, skipping address_book_id column")
+        else:
+            existing_columns = {col["name"] for col in inspector.get_columns("service_records")}
 
-        if "address_book_id" not in existing_columns:
-            conn.execute(
-                text("""
-                ALTER TABLE service_records
-                ADD COLUMN address_book_id INTEGER
-                REFERENCES address_book(id) ON DELETE SET NULL
-                """)
-            )
-            print("  ✓ Added address_book_id to service_records")
-
-            # Create index on the new foreign key
-            conn.execute(
-                text(
-                    "CREATE INDEX idx_service_records_address_book_id ON service_records(address_book_id)"
+            if "address_book_id" not in existing_columns:
+                conn.execute(
+                    text("""
+                    ALTER TABLE service_records
+                    ADD COLUMN address_book_id INTEGER
+                    REFERENCES address_book(id) ON DELETE SET NULL
+                    """)
                 )
-            )
-            print("  ✓ Created index on address_book_id")
+                print("  ✓ Added address_book_id to service_records")
+
+                # Create index on the new foreign key
+                conn.execute(
+                    text(
+                        "CREATE INDEX idx_service_records_address_book_id ON service_records(address_book_id)"
+                    )
+                )
+                print("  ✓ Created index on address_book_id")
 
         print("✓ Successfully added shop finder fields")
 

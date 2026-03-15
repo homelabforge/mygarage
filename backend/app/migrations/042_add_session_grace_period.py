@@ -59,7 +59,7 @@ def upgrade(engine=None):
                     "category": "livelink",
                     "description": "Seconds to wait before ending a session after ECU offline "
                     "(prevents phantom sessions from WiFi drops)",
-                    "encrypted": 0,
+                    "encrypted": False,
                 },
             )
             print("  Added setting: livelink_session_grace_period_seconds")
