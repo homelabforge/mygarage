@@ -6,10 +6,11 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.database import get_db
+from app.database import get_db, is_sqlite
 from app.models.user import User
 from app.services.auth import require_auth
 from app.services.backup_service import BackupService
@@ -19,18 +20,28 @@ logger = logging.getLogger(__name__)
 
 # Backup directory configuration
 BACKUP_DIR = settings.data_dir / "backups"
-DATABASE_PATH = Path(settings.database_url.replace("sqlite+aiosqlite:///", ""))
+
+# SQLite: derive database file path; PostgreSQL: no file path needed
+if is_sqlite:
+    DATABASE_PATH: Path | None = Path(settings.database_url.replace("sqlite+aiosqlite:///", ""))
+else:
+    DATABASE_PATH = None
 
 
 def get_backup_service() -> BackupService:
     """Get backup service instance."""
     return BackupService(
-        backup_dir=BACKUP_DIR, database_path=DATABASE_PATH, data_dir=settings.data_dir
+        backup_dir=BACKUP_DIR,
+        database_path=DATABASE_PATH,
+        data_dir=settings.data_dir,
+        database_url=settings.database_url,
+        is_sqlite=is_sqlite,
     )
 
 
 @router.get("/stats")
 async def get_stats(
+    db: AsyncSession = Depends(get_db),
     current_user: User | None = Depends(require_auth),
 ) -> dict[str, Any]:
     """Get database and backup statistics.
@@ -40,7 +51,14 @@ async def get_stats(
     """
     try:
         backup_service = get_backup_service()
-        db_stats = backup_service.get_database_stats()
+
+        # For PostgreSQL, query DB size via SQL and pass it in
+        db_size_bytes: int | None = None
+        if not is_sqlite:
+            size_result = await db.execute(text("SELECT pg_database_size(current_database())"))
+            db_size_bytes = size_result.scalar() or 0
+
+        db_stats = backup_service.get_database_stats(db_size_bytes=db_size_bytes)
 
         settings_backups = backup_service.get_backup_files("settings")
         full_backups = backup_service.get_backup_files("full")
@@ -59,7 +77,7 @@ async def get_stats(
                 "total_size_mb": round(full_backup_size / 1024 / 1024, 2),
             },
             "backup_directory": str(BACKUP_DIR),
-            "wal_mode_enabled": Path(f"{DATABASE_PATH}-wal").exists(),
+            "wal_mode_enabled": (Path(f"{DATABASE_PATH}-wal").exists() if DATABASE_PATH else False),
         }
     except OSError as e:
         logger.error("File system error getting stats: %s", e)
@@ -146,6 +164,9 @@ async def create_full_backup(
             status_code=403,
             detail="Permission denied: cannot write to backup directory",
         )
+    except RuntimeError as e:
+        logger.error("Backup creation error: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
     except OSError as e:
         logger.error("File system error creating full backup: %s", e)
         raise HTTPException(status_code=500, detail="Error creating backup archive")
@@ -203,6 +224,7 @@ async def restore_backup(
     """Restore settings from a backup file.
 
     This creates a safety backup before restoring.
+    Full backup restore is only supported for SQLite databases.
 
     Args:
         filename: Name of the backup file to restore from
@@ -216,7 +238,7 @@ async def restore_backup(
 
         # Determine backup type from filename
         if filename.endswith(".json"):
-            # Settings backup
+            # Settings backup (works on all backends)
             details = await backup_service.restore_settings_backup(filename, db)
 
             return {
@@ -225,7 +247,18 @@ async def restore_backup(
                 "details": details,
             }
         elif filename.endswith(".tar.gz"):
-            # Full backup
+            # Full backup restore — guard PostgreSQL
+            if not is_sqlite:
+                raise HTTPException(
+                    status_code=501,
+                    detail=(
+                        "PostgreSQL restore is not supported via the API. "
+                        "To restore, stop the application and run: "
+                        "pg_restore --clean --if-exists --no-owner --no-privileges "
+                        "-d <dbname> mygarage.pgdump"
+                    ),
+                )
+
             details = await backup_service.restore_full_backup(filename)
 
             return {
@@ -237,6 +270,8 @@ async def restore_backup(
         else:
             raise HTTPException(status_code=400, detail="Invalid backup file type")
 
+    except HTTPException:
+        raise
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except ValueError as e:

@@ -4,10 +4,13 @@ import json
 import logging
 import os
 import shutil
+import subprocess
 import tarfile
+import tempfile
 from datetime import datetime
 from pathlib import Path, PurePosixPath
 from typing import Any
+from urllib.parse import unquote, urlparse
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,54 +22,145 @@ logger = logging.getLogger(__name__)
 class BackupService:
     """Service for creating and managing backups."""
 
-    _SAFE_FILE_ENTRIES = {"mygarage.db", "mygarage.db-wal", "mygarage.db-shm"}
+    _SAFE_FILE_ENTRIES = {"mygarage.db", "mygarage.db-wal", "mygarage.db-shm", "mygarage.pgdump"}
     _SAFE_DIR_ROOTS = {"photos", "documents", "attachments"}
 
-    def __init__(self, backup_dir: Path, database_path: Path, data_dir: Path):
+    def __init__(
+        self,
+        backup_dir: Path,
+        database_path: Path | None,
+        data_dir: Path,
+        database_url: str | None = None,
+        is_sqlite: bool = True,
+    ):
         """Initialize backup service.
 
         Args:
             backup_dir: Directory to store backups
-            database_path: Path to SQLite database file
+            database_path: Path to SQLite database file (None for PostgreSQL)
             data_dir: Path to data directory containing photos, documents, etc.
+            database_url: Database connection URL (needed for pg_dump)
+            is_sqlite: Whether the database is SQLite
         """
         self.backup_dir = backup_dir
         self.database_path = database_path
         self.data_dir = data_dir
+        self.database_url = database_url
+        self.is_sqlite = is_sqlite
 
     def ensure_backup_dir(self):
         """Ensure backup directory exists."""
         self.backup_dir.mkdir(parents=True, exist_ok=True)
 
-    def get_database_stats(self) -> dict[str, Any]:
-        """Get database file statistics.
+    def _parse_pg_url(self) -> dict[str, str]:
+        """Parse PostgreSQL connection parameters from the database URL.
+
+        Returns:
+            Dictionary with host, port, user, password, dbname
+        """
+        if not self.database_url:
+            raise RuntimeError("No database URL configured for PostgreSQL backup")
+
+        # Convert asyncpg URL to standard format for parsing
+        url = self.database_url.replace("postgresql+asyncpg://", "postgresql://")
+        parsed = urlparse(url)
+
+        return {
+            "host": parsed.hostname or "localhost",
+            "port": str(parsed.port or 5432),
+            "user": unquote(parsed.username or "postgres"),
+            "password": unquote(parsed.password or ""),
+            "dbname": parsed.path.lstrip("/") or "mygarage",
+        }
+
+    def _pg_dump(self, output_path: Path) -> None:
+        """Run pg_dump to create a PostgreSQL database dump.
+
+        Args:
+            output_path: Path to write the dump file
+
+        Raises:
+            RuntimeError: If pg_dump fails
+        """
+        pg = self._parse_pg_url()
+        env = {**os.environ, "PGPASSWORD": pg["password"]}
+
+        try:
+            subprocess.run(
+                [
+                    "pg_dump",
+                    "-h",
+                    pg["host"],
+                    "-p",
+                    pg["port"],
+                    "-U",
+                    pg["user"],
+                    "-d",
+                    pg["dbname"],
+                    "--format=custom",
+                    "-f",
+                    str(output_path),
+                ],
+                env=env,
+                check=True,
+                capture_output=True,
+                timeout=300,
+            )
+            logger.info("pg_dump completed successfully: %s", output_path)
+        except FileNotFoundError:
+            raise RuntimeError(
+                "pg_dump not found. Ensure postgresql-client is installed in the container."
+            )
+        except subprocess.CalledProcessError as e:
+            stderr = e.stderr.decode("utf-8", errors="replace")
+            logger.error("pg_dump failed: %s", stderr)
+            raise RuntimeError(f"Database backup failed: {stderr[:500]}")
+        except subprocess.TimeoutExpired:
+            raise RuntimeError("Database backup timed out after 5 minutes")
+
+    def get_database_stats(self, db_size_bytes: int | None = None) -> dict[str, Any]:
+        """Get database statistics.
+
+        Args:
+            db_size_bytes: Pre-queried database size in bytes (for PostgreSQL,
+                          queried via SQL in the route handler)
 
         Returns:
             Dictionary with database statistics
         """
-        try:
-            if self.database_path.exists():
-                stat = self.database_path.stat()
+        if self.is_sqlite and self.database_path:
+            try:
+                if self.database_path.exists():
+                    stat = self.database_path.stat()
+                    return {
+                        "path": str(self.database_path),
+                        "size_mb": round(stat.st_size / 1024 / 1024, 2),
+                        "last_modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                        "exists": True,
+                    }
                 return {
                     "path": str(self.database_path),
-                    "size_mb": round(stat.st_size / 1024 / 1024, 2),
-                    "last_modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
-                    "exists": True,
+                    "size_mb": 0,
+                    "last_modified": None,
+                    "exists": False,
                 }
+            except Exception as e:
+                logger.error("Error getting database stats: %s", e)
+                return {
+                    "path": str(self.database_path),
+                    "size_mb": 0,
+                    "last_modified": None,
+                    "exists": False,
+                    "error": str(e),
+                }
+        else:
+            # PostgreSQL: use pre-queried size from route handler
+            size_mb = round(db_size_bytes / (1024 * 1024), 2) if db_size_bytes else 0.0
             return {
-                "path": str(self.database_path),
-                "size_mb": 0,
+                "path": "PostgreSQL",
+                "size_mb": size_mb,
                 "last_modified": None,
-                "exists": False,
-            }
-        except Exception as e:
-            logger.error("Error getting database stats: %s", e)
-            return {
-                "path": str(self.database_path),
-                "size_mb": 0,
-                "last_modified": None,
-                "exists": False,
-                "error": str(e),
+                "exists": True,
             }
 
     def get_backup_files(self, backup_type: str = "all") -> list[dict[str, Any]]:
@@ -174,6 +268,9 @@ class BackupService:
     async def create_full_backup(self) -> dict[str, Any]:
         """Create a full backup including database and all uploaded files.
 
+        For SQLite: archives the .db, -wal, and -shm files.
+        For PostgreSQL: runs pg_dump and archives the dump file.
+
         Returns:
             Metadata about created backup
         """
@@ -188,22 +285,30 @@ class BackupService:
 
         # Create tar.gz archive
         with tarfile.open(backup_path, "w:gz") as tar:
-            # Add database file
-            if self.database_path.exists():
-                tar.add(self.database_path, arcname="mygarage.db")
-                logger.info("Added database to backup: %s", self.database_path)
+            if self.is_sqlite and self.database_path:
+                # SQLite: add database files directly
+                if self.database_path.exists():
+                    tar.add(self.database_path, arcname="mygarage.db")
+                    logger.info("Added database to backup: %s", self.database_path)
 
-            # Add WAL file if it exists (for SQLite WAL mode)
-            wal_path = Path(str(self.database_path) + "-wal")
-            if wal_path.exists():
-                tar.add(wal_path, arcname="mygarage.db-wal")
-                logger.info("Added WAL file to backup: %s", wal_path)
+                # Add WAL file if it exists (for SQLite WAL mode)
+                wal_path = Path(str(self.database_path) + "-wal")
+                if wal_path.exists():
+                    tar.add(wal_path, arcname="mygarage.db-wal")
+                    logger.info("Added WAL file to backup: %s", wal_path)
 
-            # Add SHM file if it exists (for SQLite WAL mode)
-            shm_path = Path(str(self.database_path) + "-shm")
-            if shm_path.exists():
-                tar.add(shm_path, arcname="mygarage.db-shm")
-                logger.info("Added SHM file to backup: %s", shm_path)
+                # Add SHM file if it exists (for SQLite WAL mode)
+                shm_path = Path(str(self.database_path) + "-shm")
+                if shm_path.exists():
+                    tar.add(shm_path, arcname="mygarage.db-shm")
+                    logger.info("Added SHM file to backup: %s", shm_path)
+            else:
+                # PostgreSQL: run pg_dump to temp file, add to archive
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    dump_path = Path(tmpdir) / "mygarage.pgdump"
+                    self._pg_dump(dump_path)
+                    tar.add(dump_path, arcname="mygarage.pgdump")
+                    logger.info("Added PostgreSQL dump to backup")
 
             # Add photos directory if it exists
             photos_dir = self.data_dir / "photos"
@@ -334,9 +439,10 @@ class BackupService:
     async def restore_full_backup(
         self, filename: str, create_safety: bool = True
     ) -> dict[str, Any]:
-        """Restore from a full backup file.
+        """Restore from a full backup file (SQLite only).
 
         WARNING: This will overwrite the current database and all files!
+        PostgreSQL restore is not supported via API — use pg_restore directly.
 
         Args:
             filename: Name of backup file to restore
@@ -344,7 +450,16 @@ class BackupService:
 
         Returns:
             Details about restore operation
+
+        Raises:
+            RuntimeError: If called on a PostgreSQL database
         """
+        if not self.is_sqlite:
+            raise RuntimeError(
+                "PostgreSQL restore is not supported via the API. "
+                "Use pg_restore during a maintenance window."
+            )
+
         backup_path = self.backup_dir / filename
 
         if not backup_path.exists():
@@ -352,7 +467,7 @@ class BackupService:
 
         # Create safety backup of current database first if requested
         safety_filename = None
-        if create_safety:
+        if create_safety and self.database_path:
             timestamp = datetime.now().strftime("%Y-%m-%d-%H%M%S")
             safety_filename = f"mygarage-full-safety-{timestamp}.tar.gz"
             safety_path = self.backup_dir / safety_filename
@@ -394,7 +509,9 @@ class BackupService:
                 root = normalized_parts[0]
 
                 if normalized_name in self._SAFE_FILE_ENTRIES:
-                    destination_root = self.database_path.parent
+                    destination_root = (
+                        self.database_path.parent if self.database_path else self.data_dir
+                    )
                 elif root in self._SAFE_DIR_ROOTS:
                     destination_root = self.data_dir
                 else:

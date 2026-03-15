@@ -36,6 +36,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Delete unused `ServiceAttachmentUpload.tsx` (dead code, zero imports)
 
 ### Fixed
+- Fix PostgreSQL `strftime()` error on toll transaction monthly summary ([#48](https://github.com/homelabforge/mygarage/issues/48))
+- Fix fuel log edit not saving on diesel/DEF-enabled vehicles due to NaN validation ([#49](https://github.com/homelabforge/mygarage/issues/49))
+- Fix DEF tracking toggle not persisting when disabled ([#50](https://github.com/homelabforge/mygarage/issues/50))
+- Fix PostgreSQL crash on telemetry upsert (hardcoded SQLite dialect import)
+- Fix system-info endpoint returning wrong DB size and unredacted URL on PostgreSQL
+- Fix backup/restore assuming SQLite file paths on PostgreSQL
 - Fix toll transaction response type mismatch (`transaction_date` vs `date` alias from backend)
 
 ### App Dependencies

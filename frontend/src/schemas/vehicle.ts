@@ -114,7 +114,7 @@ export const vehicleEditSchema = z.object({
     .or(z.nan())
     .nullable()
     .optional()
-    .transform(val => (val === null || (typeof val === 'number' && isNaN(val))) ? undefined : val),
+    .transform(val => (typeof val === 'number' && isNaN(val)) ? null : val),
 })
 
 // Use z.output for Zod v4 compatibility with z.coerce fields

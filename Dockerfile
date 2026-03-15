@@ -63,7 +63,8 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         curl \
         libmagic1t64 \
-        file && \
+        file \
+        postgresql-client && \
     rm -rf /var/lib/apt/lists/* && \
     useradd --uid 1000 --user-group --system --create-home --no-log-init mygarage && \
     mkdir -p /data /data/attachments /data/photos

@@ -117,10 +117,7 @@ def test_runner_handles_legacy_upgrade_no_args(tmp_path, monkeypatch):
     (fake_dir / "__init__.py").write_text("")
 
     # Create a legacy-style migration (no engine param)
-    (fake_dir / "001_legacy.py").write_text(
-        "def upgrade():\n"
-        "    pass  # no-op legacy migration\n"
-    )
+    (fake_dir / "001_legacy.py").write_text("def upgrade():\n    pass  # no-op legacy migration\n")
 
     db_file = tmp_path / "legacy_test.db"
     monkeypatch.setenv("DATABASE_PATH", str(db_file))

@@ -9,6 +9,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.database import is_sqlite
 from app.models.toll import TollTag, TollTransaction
 from app.models.user import User
 from app.schemas.toll import (
@@ -559,8 +560,11 @@ class TollService:
             )
             total_count, total_amount = result.one()
 
-            # Get monthly totals
-            month_col = func.strftime("%Y-%m", TollTransaction.date).label("month")
+            # Get monthly totals (dialect-aware date formatting)
+            if is_sqlite:
+                month_col = func.strftime("%Y-%m", TollTransaction.date).label("month")
+            else:
+                month_col = func.to_char(TollTransaction.date, "YYYY-MM").label("month")
             result = await self.db.execute(
                 select(
                     month_col,

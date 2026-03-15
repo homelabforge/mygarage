@@ -2,16 +2,17 @@
 
 import datetime as dt
 import logging
+import re
 import sys
 import time
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Response
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings as app_settings
-from app.database import engine, get_db
+from app.database import engine, get_db, is_sqlite
 from app.models.settings import Setting
 from app.models.user import User
 from app.models.vehicle import Vehicle
@@ -617,11 +618,22 @@ async def get_system_info(
     result = await db.execute(select(func.count(Vehicle.vin)))
     total_vehicles = result.scalar() or 0
 
-    # Get database size
-    database_path = Path(str(engine.url).replace("sqlite+aiosqlite:///", ""))
-    database_size_mb = 0.0
-    if database_path.exists():
-        database_size_mb = database_path.stat().st_size / (1024 * 1024)
+    # Get database size and redacted URL (dialect-aware)
+    if is_sqlite:
+        database_path = Path(str(engine.url).replace("sqlite+aiosqlite:///", ""))
+        database_size_mb = (
+            round(database_path.stat().st_size / (1024 * 1024), 2)
+            if database_path.exists()
+            else 0.0
+        )
+        redacted_url = str(engine.url).replace(str(database_path), "***")
+    else:
+        # PostgreSQL: query database size via existing connection
+        size_result = await db.execute(text("SELECT pg_database_size(current_database())"))
+        size_bytes = size_result.scalar() or 0
+        database_size_mb = round(size_bytes / (1024 * 1024), 2)
+        # Redact credentials from PostgreSQL URL
+        redacted_url = re.sub(r"://[^:]+:[^@]+@", "://***:***@", str(engine.url))
 
     # Calculate uptime
     uptime_seconds = time.time() - START_TIME
@@ -630,9 +642,9 @@ async def get_system_info(
         app_name=app_settings.app_name,
         app_version=app_settings.app_version,
         python_version=sys.version.split()[0],
-        database_url=str(engine.url).replace(str(database_path), "***"),
+        database_url=redacted_url,
         data_directory=str(app_settings.data_dir),
         total_vehicles=total_vehicles,
-        database_size_mb=round(database_size_mb, 2),
+        database_size_mb=database_size_mb,
         uptime_seconds=round(uptime_seconds, 0),
     )

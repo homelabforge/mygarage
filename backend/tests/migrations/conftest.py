@@ -33,7 +33,7 @@ def _write_fake_migration(path: Path, table_name: str) -> None:
         "def upgrade(engine=None):\n"
         "    if engine is None:\n"
         "        import os\n"
-        '        engine = create_engine(f"sqlite:///{os.environ[\'DATABASE_PATH\']}")\n'
+        "        engine = create_engine(f\"sqlite:///{os.environ['DATABASE_PATH']}\")\n"
         "    with engine.begin() as conn:\n"
         f'        conn.execute(text("CREATE TABLE IF NOT EXISTS {table_name} (id INTEGER PRIMARY KEY)"))\n'
     )

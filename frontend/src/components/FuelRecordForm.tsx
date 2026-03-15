@@ -191,7 +191,10 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
 
   return (
     <FormModalWrapper title={isEdit ? 'Edit Fuel Record' : 'Add Fuel Record'} onClose={onClose}>
-        <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit(onSubmit, (validationErrors) => {
+          const fields = Object.keys(validationErrors).join(', ')
+          setError(`Please check the following fields: ${fields}`)
+        })} className="p-6 space-y-4">
           {error && (
             <div className="bg-danger/10 border border-danger rounded-lg p-3">
               <p className="text-sm text-danger">{error}</p>

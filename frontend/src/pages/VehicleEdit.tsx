@@ -98,9 +98,9 @@ export default function VehicleEdit() {
     if (defEnabled && (!data.def_tank_capacity_gallons || data.def_tank_capacity_gallons <= 0)) {
       data.def_tank_capacity_gallons = 0.01
     }
-    // If DEF tracking is disabled, clear the tank capacity
+    // If DEF tracking is disabled, send null to explicitly clear the field
     if (!defEnabled) {
-      data.def_tank_capacity_gallons = undefined
+      data.def_tank_capacity_gallons = null
     }
 
     try {

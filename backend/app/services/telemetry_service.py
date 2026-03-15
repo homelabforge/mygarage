@@ -10,9 +10,15 @@ from datetime import date as date_type
 from typing import Any
 
 from sqlalchemy import delete, func, select, text
-from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.database import is_sqlite
+
+if is_sqlite:
+    from sqlalchemy.dialects.sqlite import insert as dialect_insert
+else:
+    from sqlalchemy.dialects.postgresql import insert as dialect_insert
 
 from app.models import OdometerRecord
 from app.models.livelink_device import LiveLinkDevice
@@ -496,7 +502,7 @@ class TelemetryService:
     ) -> None:
         """Upsert a value into the latest values cache table."""
         # Use SQLite's INSERT OR REPLACE
-        stmt = sqlite_insert(VehicleTelemetryLatest).values(
+        stmt = dialect_insert(VehicleTelemetryLatest).values(
             vin=vin,
             param_key=param_key,
             value=value,
@@ -685,7 +691,7 @@ class TelemetryService:
 
         count = 0
         for row in rows:
-            stmt = sqlite_insert(TelemetryDailySummary).values(
+            stmt = dialect_insert(TelemetryDailySummary).values(
                 vin=row[0],
                 param_key=row[1],
                 date=day_start,
