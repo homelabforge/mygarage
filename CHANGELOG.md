@@ -43,6 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix system-info endpoint returning wrong DB size and unredacted URL on PostgreSQL
 - Fix backup/restore assuming SQLite file paths on PostgreSQL
 - Fix toll transaction response type mismatch (`transaction_date` vs `date` alias from backend)
+- Fix 4 PostgreSQL migration failures: transaction-aborting try/except in 011, stale FK in 024, missing table guard in 025, boolean/integer mismatch in 027/034/036/042 ([#42](https://github.com/homelabforge/mygarage/issues/42))
 
 ### App Dependencies
 - **@tanstack/react-query**: added (5.90.21)
