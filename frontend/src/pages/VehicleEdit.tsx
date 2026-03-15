@@ -59,10 +59,10 @@ export default function VehicleEdit() {
         def_tank_capacity_gallons: data.def_tank_capacity_gallons != null ? Number(data.def_tank_capacity_gallons) : undefined,
       }
 
-      // Initialize DEF enabled state
-      const isDiesel = data.fuel_type?.toLowerCase().includes('diesel') ?? false
+      // Initialize DEF enabled state from stored value (not fuel type)
+      // Diesel hint message handles the suggestion if DEF tracking is off
       const hasTankCap = data.def_tank_capacity_gallons != null && Number(data.def_tank_capacity_gallons) > 0
-      setDefEnabled(isDiesel || hasTankCap)
+      setDefEnabled(hasTankCap)
 
       // Only include VIN decoded and engine fields for motorized vehicles
       if (vehicleIsMotorized) {
