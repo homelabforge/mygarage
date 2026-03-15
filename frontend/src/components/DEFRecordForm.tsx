@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { X, Save } from 'lucide-react'
+import { Save } from 'lucide-react'
+import FormModalWrapper from './FormModalWrapper'
 import type { DEFRecord } from '../types/def'
 import { defRecordSchema, type DefRecordFormData } from '../schemas/def'
 import { FormError } from './FormError'
@@ -149,17 +150,7 @@ export default function DEFRecordForm({
   }
 
   return (
-    <div className="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
-      <div className="bg-garage-surface rounded-lg shadow-2xl max-w-lg w-full border border-garage-border max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-garage-surface border-b border-garage-border px-6 py-4 flex justify-between items-center rounded-t-lg">
-          <h2 className="text-xl font-semibold text-garage-text">
-            {isEdit ? 'Edit DEF Record' : 'Add DEF Record'}
-          </h2>
-          <button onClick={onClose} className="text-garage-text-muted hover:text-garage-text">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
+    <FormModalWrapper title={isEdit ? 'Edit DEF Record' : 'Add DEF Record'} onClose={onClose} maxWidth="max-w-lg">
         <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
           {error && (
             <div className="bg-danger/10 border border-danger rounded-lg p-3">
@@ -409,7 +400,6 @@ export default function DEFRecordForm({
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </FormModalWrapper>
   )
 }

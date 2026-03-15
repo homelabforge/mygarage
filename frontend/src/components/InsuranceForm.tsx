@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { X, Save, FileUp } from 'lucide-react'
+import { Save, FileUp } from 'lucide-react'
+import FormModalWrapper from './FormModalWrapper'
 import { toast } from 'sonner'
 import api from '../services/api'
 import type { InsurancePolicy, InsurancePolicyCreate, InsurancePolicyUpdate } from '../types/insurance'
@@ -99,20 +100,8 @@ export default function InsuranceForm({ vin, record, onClose, onSuccess }: Insur
   }
 
   return (
-    <div className="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
-      <div className="bg-garage-surface rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-garage-border">
-        <div className="sticky top-0 bg-garage-surface border-b border-garage-border px-6 py-4 flex justify-between items-center rounded-t-lg">
-          <h2 className="text-xl font-semibold text-garage-text">
-            {isEdit ? 'Edit Insurance Policy' : 'Add Insurance Policy'}
-          </h2>
-          <button
-            onClick={onClose}
-            className="text-garage-text-muted hover:text-garage-text"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
+    <>
+    <FormModalWrapper title={isEdit ? 'Edit Insurance Policy' : 'Add Insurance Policy'} onClose={onClose}>
         <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
 
           {/* PDF Import Button - Only show on create */}
@@ -309,7 +298,7 @@ export default function InsuranceForm({ vin, record, onClose, onSuccess }: Insur
             </button>
           </div>
         </form>
-      </div>
+    </FormModalWrapper>
 
       {/* PDF Upload Modal */}
       {showPDFUpload && (
@@ -319,6 +308,6 @@ export default function InsuranceForm({ vin, record, onClose, onSuccess }: Insur
           onClose={() => setShowPDFUpload(false)}
         />
       )}
-    </div>
+    </>
   )
 }

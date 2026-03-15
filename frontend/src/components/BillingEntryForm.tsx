@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { X, Save } from 'lucide-react'
+import { Save } from 'lucide-react'
+import FormModalWrapper from './FormModalWrapper'
 import type {
   SpotRentalBilling,
   SpotRentalBillingCreate,
@@ -118,21 +119,7 @@ export default function BillingEntryForm({
   }
 
   return (
-    <div className="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
-      <div className="bg-garage-surface rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-garage-border">
-        <div className="sticky top-0 bg-garage-surface border-b border-garage-border px-6 py-4 flex items-center justify-between rounded-t-lg">
-          <h2 className="text-xl font-semibold text-garage-text">
-            {isEdit ? 'Edit Billing Entry' : 'Add Billing Entry'}
-          </h2>
-          <button
-            onClick={onClose}
-            className="text-garage-text-muted hover:text-garage-text transition-colors"
-            aria-label="Close"
-          >
-            <X className="h-6 w-6" />
-          </button>
-        </div>
-
+    <FormModalWrapper title={isEdit ? 'Edit Billing Entry' : 'Add Billing Entry'} onClose={onClose}>
         <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-6">
           {error && (
             <div className="bg-danger/10 border border-danger rounded-lg p-3">
@@ -318,7 +305,6 @@ export default function BillingEntryForm({
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </FormModalWrapper>
   )
 }
