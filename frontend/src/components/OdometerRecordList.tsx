@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useRef } from 'react'
 import { formatDateForDisplay } from '../utils/dateUtils'
 import { Gauge, Plus, Edit, Trash2, Calendar, Download, Upload, Radio } from 'lucide-react'
 import { toast } from 'sonner'
@@ -6,6 +6,7 @@ import type { OdometerRecord } from '../types/odometer'
 import api from '../services/api'
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { UnitFormatter } from '../utils/units'
+import { useOdometerRecords, useDeleteOdometerRecord, useImportOdometerCSV } from '../hooks/queries/useOdometerRecords'
 
 interface OdometerRecordListProps {
   vin: string
@@ -14,38 +15,17 @@ interface OdometerRecordListProps {
   onRefresh?: () => void
 }
 
-export default function OdometerRecordList({ vin, onAddClick, onEditClick, onRefresh }: OdometerRecordListProps) {
-  const [records, setRecords] = useState<OdometerRecord[]>([])
-  const [latestMileage, setLatestMileage] = useState<number | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [deleting, setDeleting] = useState<number | null>(null)
+export default function OdometerRecordList({ vin, onAddClick, onEditClick }: OdometerRecordListProps) {
   const [exporting, setExporting] = useState(false)
-  const [importing, setImporting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { system, showBoth } = useUnitPreference()
 
-  const fetchRecords = useCallback(async () => {
-    try {
-      const response = await api.get(`/vehicles/${vin}/odometer`)
-      setRecords(response.data.records)
-      setLatestMileage(response.data.latest_mileage)
-      setError(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
-    }
-  }, [vin])
+  const { data, isLoading, error } = useOdometerRecords(vin)
+  const deleteMutation = useDeleteOdometerRecord(vin)
+  const importMutation = useImportOdometerCSV(vin)
 
-  useEffect(() => {
-    setLoading(true)
-    fetchRecords().finally(() => setLoading(false))
-  }, [fetchRecords])
-
-  useEffect(() => {
-    if (onRefresh) {
-      fetchRecords()
-    }
-  }, [onRefresh, fetchRecords])
+  const records = data?.records ?? []
+  const latestMileage = data?.latest_mileage ?? null
 
   const handleExportCSV = async () => {
     setExporting(true)
@@ -80,69 +60,54 @@ export default function OdometerRecordList({ vin, onAddClick, onEditClick, onRef
     fileInputRef.current?.click()
   }
 
-  const handleImportCSV = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImportCSV = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
 
-    setImporting(true)
-    try {
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('skip_duplicates', 'true')
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('skip_duplicates', 'true')
 
-      const response = await api.post(`/import/vehicles/${vin}/odometer/csv`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      })
+    importMutation.mutate(formData, {
+      onSuccess: (result) => {
+        // Show results
+        const message = `Import completed: ${result.success_count} records imported${result.skipped_count > 0 ? `, ${result.skipped_count} duplicates skipped` : ''}${result.error_count > 0 ? `, ${result.error_count} errors` : ''}`
 
-      const result = response.data
-
-      // Show results
-      const message = `Import completed:\n✓ ${result.success_count} records imported\n${result.skipped_count > 0 ? `○ ${result.skipped_count} duplicates skipped\n` : ''}${result.error_count > 0 ? `✗ ${result.error_count} errors\n` : ''}`
-
-      if (result.errors && result.errors.length > 0) {
-        toast.error(message + '\nErrors:\n' + result.errors.join('\n'))
-      } else {
-        toast.success(message)
-      }
-
-      // Refresh the list
-      await fetchRecords()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to import data')
-    } finally {
-      setImporting(false)
-      // Reset file input
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ''
-      }
-    }
+        if (result.errors && result.errors.length > 0) {
+          toast.error(message + ' - Errors: ' + result.errors.join(', '))
+        } else {
+          toast.success(message)
+        }
+      },
+      onError: (err) => {
+        toast.error(err instanceof Error ? err.message : 'Failed to import data')
+      },
+      onSettled: () => {
+        // Reset file input
+        if (fileInputRef.current) {
+          fileInputRef.current.value = ''
+        }
+      },
+    })
   }
 
-  const handleDelete = async (recordId: number) => {
+  const handleDelete = (recordId: number) => {
     if (!confirm('Are you sure you want to delete this odometer record?')) {
       return
     }
 
-    setDeleting(recordId)
-    try {
-      await api.delete(`/vehicles/${vin}/odometer/${recordId}`)
-
-      // Refresh the list
-      await fetchRecords()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to delete record')
-    } finally {
-      setDeleting(null)
-    }
+    deleteMutation.mutate(recordId, {
+      onError: (err) => {
+        toast.error(err instanceof Error ? err.message : 'Failed to delete record')
+      },
+    })
   }
 
   const formatDate = (dateString: string) => {
     return formatDateForDisplay(dateString)
   }
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex justify-center items-center min-h-[200px]">
         <div className="text-garage-text-muted">Loading odometer records...</div>
@@ -153,7 +118,7 @@ export default function OdometerRecordList({ vin, onAddClick, onEditClick, onRef
   if (error) {
     return (
       <div className="bg-danger/10 border border-danger rounded-lg p-4">
-        <p className="text-danger">{error}</p>
+        <p className="text-danger">{error.message}</p>
       </div>
     )
   }
@@ -179,12 +144,12 @@ export default function OdometerRecordList({ vin, onAddClick, onEditClick, onRef
           />
           <button
             onClick={handleImportClick}
-            disabled={importing}
+            disabled={importMutation.isPending}
             className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors disabled:opacity-50"
             title="Import from CSV"
           >
             <Upload className="w-4 h-4" />
-            <span>{importing ? 'Importing...' : 'Import CSV'}</span>
+            <span>{importMutation.isPending ? 'Importing...' : 'Import CSV'}</span>
           </button>
           {/* Export button */}
           {records.length > 0 && (
@@ -297,7 +262,7 @@ export default function OdometerRecordList({ vin, onAddClick, onEditClick, onRef
                         </button>
                         <button
                           onClick={() => handleDelete(record.id)}
-                          disabled={deleting === record.id}
+                          disabled={deleteMutation.isPending && deleteMutation.variables === record.id}
                           className="text-danger hover:text-danger/80 disabled:opacity-50"
                           title="Delete"
                         >

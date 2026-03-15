@@ -26,3 +26,31 @@ export function useDeleteOdometerRecord(vin: string) {
     },
   })
 }
+
+interface ImportCSVResult {
+  success_count: number
+  skipped_count: number
+  error_count: number
+  errors: string[]
+}
+
+export function useImportOdometerCSV(vin: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (formData: FormData) => {
+      const { data } = await api.post<ImportCSVResult>(
+        `/import/vehicles/${vin}/odometer/csv`,
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        }
+      )
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['odometerRecords', vin] })
+    },
+  })
+}

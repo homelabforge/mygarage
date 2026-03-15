@@ -1,9 +1,11 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState } from 'react'
 import { formatDateForDisplay } from '../utils/dateUtils'
 import { FileText, Plus, Trash2, Download, Edit3, Save, X } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '../services/api'
 import type { Document } from '../types/document'
+import { useDocuments, useDeleteDocument } from '../hooks/queries/useDocuments'
+import { useQueryClient } from '@tanstack/react-query'
 
 interface DocumentListProps {
   vin: string
@@ -11,10 +13,6 @@ interface DocumentListProps {
 }
 
 export default function DocumentList({ vin, onAddClick }: DocumentListProps) {
-  const [documents, setDocuments] = useState<Document[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [deletingId, setDeletingId] = useState<number | null>(null)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editData, setEditData] = useState<{
     title: string
@@ -22,35 +20,22 @@ export default function DocumentList({ vin, onAddClick }: DocumentListProps) {
     description: string
   }>({ title: '', document_type: '', description: '' })
 
-  const fetchDocuments = useCallback(async () => {
-    try {
-      const response = await api.get(`/vehicles/${vin}/documents`)
-      setDocuments(response.data.documents)
-      setError(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
-    }
-  }, [vin])
+  const { data, isLoading, error } = useDocuments(vin)
+  const deleteMutation = useDeleteDocument(vin)
+  const queryClient = useQueryClient()
 
-  useEffect(() => {
-    setLoading(true)
-    fetchDocuments().finally(() => setLoading(false))
-  }, [fetchDocuments])
+  const documents = data?.documents ?? []
 
-  const handleDelete = async (documentId: number) => {
+  const handleDelete = (documentId: number) => {
     if (!confirm('Are you sure you want to delete this document?')) {
       return
     }
 
-    setDeletingId(documentId)
-    try {
-      await api.delete(`/vehicles/${vin}/documents/${documentId}`)
-      await fetchDocuments()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to delete document')
-    } finally {
-      setDeletingId(null)
-    }
+    deleteMutation.mutate(documentId, {
+      onError: (err) => {
+        toast.error(err instanceof Error ? err.message : 'Failed to delete document')
+      },
+    })
   }
 
   const handleDownload = async (documentId: number, fileName: string) => {
@@ -89,7 +74,7 @@ export default function DocumentList({ vin, onAddClick }: DocumentListProps) {
   const saveEdit = async (documentId: number) => {
     try {
       await api.put(`/vehicles/${vin}/documents/${documentId}`, editData)
-      await fetchDocuments()
+      queryClient.invalidateQueries({ queryKey: ['documents', vin] })
       setEditingId(null)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to update document')
@@ -110,18 +95,18 @@ export default function DocumentList({ vin, onAddClick }: DocumentListProps) {
 
   const getFileIcon = (mimeType: string) => {
     if (mimeType.startsWith('image/')) {
-      return '🖼️'
+      return '\u{1F5BC}\u{FE0F}'
     } else if (mimeType === 'application/pdf') {
-      return '📄'
+      return '\u{1F4C4}'
     } else if (mimeType.includes('word')) {
-      return '📝'
+      return '\u{1F4DD}'
     } else if (mimeType.includes('excel') || mimeType.includes('spreadsheet')) {
-      return '📊'
+      return '\u{1F4CA}'
     }
-    return '📎'
+    return '\u{1F4CE}'
   }
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex justify-center items-center min-h-[200px]">
         <div className="text-garage-text-muted">Loading documents...</div>
@@ -132,7 +117,7 @@ export default function DocumentList({ vin, onAddClick }: DocumentListProps) {
   if (error) {
     return (
       <div className="bg-danger/10 border border-danger rounded-lg p-4">
-        <p className="text-danger">{error}</p>
+        <p className="text-danger">{error.message}</p>
       </div>
     )
   }
@@ -279,7 +264,7 @@ export default function DocumentList({ vin, onAddClick }: DocumentListProps) {
                     </button>
                     <button
                       onClick={() => handleDelete(doc.id)}
-                      disabled={deletingId === doc.id}
+                      disabled={deleteMutation.isPending && deleteMutation.variables === doc.id}
                       className="p-2 text-danger hover:bg-danger/10 rounded-full disabled:opacity-50"
                       title="Delete"
                     >

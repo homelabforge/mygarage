@@ -1,9 +1,11 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { AlertTriangle, Plus, Trash2, Edit, CheckCircle, RefreshCw, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
-import type { Recall, RecallListResponse } from '../types/recall'
+import type { Recall } from '../types/recall'
 import type { Vehicle } from '../types/vehicle'
 import api from '../services/api'
+import { useRecallRecords, useDeleteRecallRecord, useCheckNHTSA, useToggleRecallResolved } from '../hooks/queries/useRecallRecords'
+import { useQueryClient } from '@tanstack/react-query'
 
 interface RecallListProps {
   vin: string
@@ -13,45 +15,33 @@ interface RecallListProps {
 }
 
 export default function RecallList({ vin, onAddClick, onEditClick, onRefresh }: RecallListProps) {
-  const [recalls, setRecalls] = useState<Recall[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [deletingId, setDeletingId] = useState<number | null>(null)
-  const [checkingNHTSA, setCheckingNHTSA] = useState(false)
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'resolved'>('all')
-  const [stats, setStats] = useState({ total: 0, active_count: 0, resolved_count: 0 })
   const [vehicle, setVehicle] = useState<Vehicle | null>(null)
   const [carComplaintsEnabled, setCarComplaintsEnabled] = useState(false)
 
-  const fetchRecalls = useCallback(async () => {
-    try {
-      const params = statusFilter !== 'all' ? `?status=${statusFilter}` : ''
-      const response = await api.get(`/vehicles/${vin}/recalls${params}`)
-      const data: RecallListResponse = response.data
-      setRecalls(data.recalls || [])
-      setStats({
-        total: data.total,
-        active_count: data.active_count,
-        resolved_count: data.resolved_count
-      })
-      setError(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
-    }
-  }, [statusFilter, vin])
+  const { data, isLoading, error } = useRecallRecords(vin, statusFilter)
+  const deleteMutation = useDeleteRecallRecord(vin)
+  const nhtsaMutation = useCheckNHTSA(vin)
+  const toggleResolvedMutation = useToggleRecallResolved(vin)
+  const queryClient = useQueryClient()
 
-  useEffect(() => {
-    setLoading(true)
-    fetchRecalls().finally(() => setLoading(false))
-  }, [fetchRecalls])
+  const recalls = data?.recalls ?? []
+  const stats = {
+    total: data?.total ?? 0,
+    active_count: data?.active_count ?? 0,
+    resolved_count: data?.resolved_count ?? 0,
+  }
 
+  // Listen for external refresh events
   useEffect(() => {
     if (onRefresh) {
-      const refreshHandler = () => fetchRecalls()
+      const refreshHandler = () => {
+        queryClient.invalidateQueries({ queryKey: ['recalls', vin] })
+      }
       window.addEventListener('recalls-refresh', refreshHandler)
       return () => window.removeEventListener('recalls-refresh', refreshHandler)
     }
-  }, [onRefresh, fetchRecalls])
+  }, [onRefresh, vin, queryClient])
 
   // Fetch vehicle data and settings for CarComplaints integration
   useEffect(() => {
@@ -73,44 +63,38 @@ export default function RecallList({ vin, onAddClick, onEditClick, onRefresh }: 
     fetchVehicleAndSettings()
   }, [vin])
 
-  const handleCheckNHTSA = async () => {
-    setCheckingNHTSA(true)
-    try {
-      await api.post(`/vehicles/${vin}/recalls/check-nhtsa`)
-      await fetchRecalls()
-      toast.success('Successfully checked NHTSA for recalls')
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to check NHTSA')
-    } finally {
-      setCheckingNHTSA(false)
-    }
+  const handleCheckNHTSA = () => {
+    nhtsaMutation.mutate(undefined, {
+      onSuccess: () => {
+        toast.success('Successfully checked NHTSA for recalls')
+      },
+      onError: (err) => {
+        toast.error(err instanceof Error ? err.message : 'Failed to check NHTSA')
+      },
+    })
   }
 
-  const handleDelete = async (recallId: number) => {
+  const handleDelete = (recallId: number) => {
     if (!confirm('Are you sure you want to delete this recall?')) {
       return
     }
 
-    setDeletingId(recallId)
-    try {
-      await api.delete(`/vehicles/${vin}/recalls/${recallId}`)
-      await fetchRecalls()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to delete recall')
-    } finally {
-      setDeletingId(null)
-    }
+    deleteMutation.mutate(recallId, {
+      onError: (err) => {
+        toast.error(err instanceof Error ? err.message : 'Failed to delete recall')
+      },
+    })
   }
 
-  const handleMarkResolved = async (recall: Recall) => {
-    try {
-      await api.put(`/vehicles/${vin}/recalls/${recall.id}`, {
-        is_resolved: !recall.is_resolved,
-      })
-      await fetchRecalls()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to update recall status')
-    }
+  const handleMarkResolved = (recall: Recall) => {
+    toggleResolvedMutation.mutate(
+      { recallId: recall.id, isResolved: !recall.is_resolved },
+      {
+        onError: (err) => {
+          toast.error(err instanceof Error ? err.message : 'Failed to update recall status')
+        },
+      }
+    )
   }
 
   const formatDate = (dateString?: string): string => {
@@ -123,7 +107,7 @@ export default function RecallList({ vin, onAddClick, onEditClick, onRefresh }: 
     })
   }
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex justify-center items-center min-h-[200px]">
         <div className="text-garage-text-muted">Loading recalls...</div>
@@ -134,7 +118,7 @@ export default function RecallList({ vin, onAddClick, onEditClick, onRefresh }: 
   if (error) {
     return (
       <div className="bg-danger/10 border border-danger rounded-lg p-4">
-        <p className="text-danger">{error}</p>
+        <p className="text-danger">{error.message}</p>
       </div>
     )
   }
@@ -160,12 +144,12 @@ export default function RecallList({ vin, onAddClick, onEditClick, onRefresh }: 
           </select>
           <button
             onClick={handleCheckNHTSA}
-            disabled={checkingNHTSA}
+            disabled={nhtsaMutation.isPending}
             className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors disabled:opacity-50"
             title="Check NHTSA for recalls"
           >
-            <RefreshCw size={16} className={checkingNHTSA ? 'animate-spin' : ''} />
-            {checkingNHTSA ? 'Checking...' : 'Check NHTSA'}
+            <RefreshCw size={16} className={nhtsaMutation.isPending ? 'animate-spin' : ''} />
+            {nhtsaMutation.isPending ? 'Checking...' : 'Check NHTSA'}
           </button>
           <button
             onClick={onAddClick}
@@ -184,11 +168,11 @@ export default function RecallList({ vin, onAddClick, onEditClick, onRefresh }: 
           <div className="flex gap-2 justify-center">
             <button
               onClick={handleCheckNHTSA}
-              disabled={checkingNHTSA}
+              disabled={nhtsaMutation.isPending}
               className="inline-flex items-center gap-2 btn btn-primary rounded-lg transition-colors disabled:opacity-50"
             >
-              <RefreshCw size={16} className={checkingNHTSA ? 'animate-spin' : ''} />
-              {checkingNHTSA ? 'Checking...' : 'Check NHTSA'}
+              <RefreshCw size={16} className={nhtsaMutation.isPending ? 'animate-spin' : ''} />
+              {nhtsaMutation.isPending ? 'Checking...' : 'Check NHTSA'}
             </button>
             <button
               onClick={onAddClick}
@@ -254,10 +238,10 @@ export default function RecallList({ vin, onAddClick, onEditClick, onRefresh }: 
                   <button
                     onClick={() => handleDelete(recall.id)}
                     className="btn btn-ghost btn-sm text-danger"
-                    disabled={deletingId === recall.id}
+                    disabled={deleteMutation.isPending && deleteMutation.variables === recall.id}
                     title="Delete"
                   >
-                    {deletingId === recall.id ? '...' : <Trash2 size={16} />}
+                    {deleteMutation.isPending && deleteMutation.variables === recall.id ? '...' : <Trash2 size={16} />}
                   </button>
                 </div>
               </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { formatDateForDisplay } from '../utils/dateUtils'
 import { formatCurrency } from '../utils/formatUtils'
 import {
@@ -25,6 +25,7 @@ import type { Attachment } from '../types/attachment'
 import api from '../services/api'
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { UnitFormatter } from '../utils/units'
+import { useServiceVisits, useDeleteServiceVisit } from '../hooks/queries/useServiceVisits'
 
 interface ServiceVisitListProps {
   vin: string
@@ -37,31 +38,17 @@ export default function ServiceVisitList({
   vin,
   onAddClick,
   onEditClick,
-  refreshTrigger,
+  refreshTrigger: _refreshTrigger,
 }: ServiceVisitListProps) {
-  const [visits, setVisits] = useState<ServiceVisit[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [deleting, setDeleting] = useState<number | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [expandedVisits, setExpandedVisits] = useState<Set<number>>(new Set())
   const [visitAttachments, setVisitAttachments] = useState<Record<number, Attachment[]>>({})
   const { system, showBoth } = useUnitPreference()
 
-  const fetchVisits = useCallback(async () => {
-    try {
-      const response = await api.get(`/vehicles/${vin}/service-visits`)
-      setVisits(response.data.visits || [])
-      setError(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
-    }
-  }, [vin])
+  const { data, isLoading, error } = useServiceVisits(vin)
+  const deleteMutation = useDeleteServiceVisit(vin)
 
-  useEffect(() => {
-    setLoading(true)
-    fetchVisits().finally(() => setLoading(false))
-  }, [fetchVisits, refreshTrigger])
+  const visits = useMemo(() => data?.visits ?? [], [data?.visits])
 
   // Fetch attachments when a visit is expanded
   const fetchAttachmentsForVisit = useCallback(async (visitId: number) => {
@@ -96,23 +83,21 @@ export default function ServiceVisitList({
     })
   }, [visits, searchQuery])
 
-  const handleDelete = async (visitId: number) => {
+  const handleDelete = (visitId: number) => {
     if (!confirm('Are you sure you want to delete this service visit and all its line items?')) {
       return
     }
 
-    setDeleting(visitId)
-    try {
-      await api.delete(`/vehicles/${vin}/service-visits/${visitId}`)
-      await fetchVisits()
-      toast.success('Service visit deleted')
-    } catch (err) {
-      toast.error('Delete failed', {
-        description: err instanceof Error ? err.message : 'Failed to delete visit',
-      })
-    } finally {
-      setDeleting(null)
-    }
+    deleteMutation.mutate(visitId, {
+      onSuccess: () => {
+        toast.success('Service visit deleted')
+      },
+      onError: (err) => {
+        toast.error('Delete failed', {
+          description: err instanceof Error ? err.message : 'Failed to delete visit',
+        })
+      },
+    })
   }
 
   const toggleExpanded = (visitId: number) => {
@@ -239,7 +224,7 @@ export default function ServiceVisitList({
     )
   }
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex justify-center items-center min-h-[200px]">
         <div className="text-garage-text-muted">Loading service history...</div>
@@ -250,7 +235,7 @@ export default function ServiceVisitList({
   if (error) {
     return (
       <div className="bg-danger/10 border border-danger rounded-lg p-4">
-        <p className="text-danger">{error}</p>
+        <p className="text-danger">{error.message}</p>
       </div>
     )
   }
@@ -417,7 +402,7 @@ export default function ServiceVisitList({
                     </button>
                     <button
                       onClick={() => handleDelete(visit.id)}
-                      disabled={deleting === visit.id}
+                      disabled={deleteMutation.isPending && deleteMutation.variables === visit.id}
                       className="p-2 text-garage-text-muted hover:text-danger hover:bg-danger/10 rounded-full transition-colors disabled:opacity-50"
                       title="Delete"
                     >

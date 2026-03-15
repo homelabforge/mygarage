@@ -1,46 +1,30 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useMemo } from 'react'
 import { Edit, Trash2, Plus, AlertCircle, Droplets, TrendingDown, DollarSign } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateForDisplay } from '../utils/dateUtils'
 import { formatCurrency } from '../utils/formatUtils'
-import type { DEFRecord, DEFAnalytics } from '../types/def'
+import type { DEFRecord } from '../types/def'
 import DEFRecordForm from './DEFRecordForm'
-import api from '../services/api'
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { UnitConverter, UnitFormatter } from '../utils/units'
+import { useDEFRecords, useDEFAnalytics, useDeleteDEFRecord } from '../hooks/queries/useDEFRecords'
+import { useQueryClient } from '@tanstack/react-query'
 
 interface DEFRecordListProps {
   vin: string
 }
 
 export default function DEFRecordList({ vin }: DEFRecordListProps) {
-  const [records, setRecords] = useState<DEFRecord[]>([])
-  const [analytics, setAnalytics] = useState<DEFAnalytics | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [editingRecord, setEditingRecord] = useState<DEFRecord | undefined>()
-  const [deletingId, setDeletingId] = useState<number | null>(null)
   const { system } = useUnitPreference()
 
-  const fetchData = useCallback(async () => {
-    try {
-      const [recordsRes, analyticsRes] = await Promise.all([
-        api.get(`/vehicles/${vin}/def`),
-        api.get(`/vehicles/${vin}/def/analytics`),
-      ])
-      setRecords(recordsRes.data.records || [])
-      setAnalytics(analyticsRes.data)
-      setError(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
-    }
-  }, [vin])
+  const { data: recordsData, isLoading, error } = useDEFRecords(vin)
+  const { data: analytics } = useDEFAnalytics(vin)
+  const deleteMutation = useDeleteDEFRecord(vin)
+  const queryClient = useQueryClient()
 
-  useEffect(() => {
-    setLoading(true)
-    fetchData().finally(() => setLoading(false))
-  }, [fetchData])
+  const records = useMemo(() => recordsData?.records ?? [], [recordsData?.records])
 
   const handleAdd = () => {
     setEditingRecord(undefined)
@@ -52,25 +36,24 @@ export default function DEFRecordList({ vin }: DEFRecordListProps) {
     setShowForm(true)
   }
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = (id: number) => {
     if (!confirm('Are you sure you want to delete this DEF record?')) {
       return
     }
 
-    setDeletingId(id)
-    try {
-      await api.delete(`/vehicles/${vin}/def/${id}`)
-      await fetchData()
-      toast.success('DEF record deleted')
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to delete DEF record')
-    } finally {
-      setDeletingId(null)
-    }
+    deleteMutation.mutate(id, {
+      onSuccess: () => {
+        toast.success('DEF record deleted')
+      },
+      onError: (err) => {
+        toast.error(err instanceof Error ? err.message : 'Failed to delete DEF record')
+      },
+    })
   }
 
   const handleSuccess = () => {
-    fetchData()
+    queryClient.invalidateQueries({ queryKey: ['defRecords', vin] })
+    queryClient.invalidateQueries({ queryKey: ['defAnalytics', vin] })
     setShowForm(false)
   }
 
@@ -110,7 +93,7 @@ export default function DEFRecordList({ vin }: DEFRecordListProps) {
     return 'text-danger'
   }
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="text-center py-8 text-garage-text-muted">
         Loading DEF records...
@@ -235,7 +218,7 @@ export default function DEFRecordList({ vin }: DEFRecordListProps) {
       {error && (
         <div className="flex items-start gap-2 p-3 bg-danger/10 border border-danger/20 rounded-md mb-4">
           <AlertCircle className="w-4 h-4 text-danger flex-shrink-0 mt-0.5" />
-          <p className="text-sm text-danger">{error}</p>
+          <p className="text-sm text-danger">{error.message}</p>
         </div>
       )}
 
@@ -332,7 +315,7 @@ export default function DEFRecordList({ vin }: DEFRecordListProps) {
                           </button>
                           <button
                             onClick={() => handleDelete(record.id)}
-                            disabled={deletingId === record.id}
+                            disabled={deleteMutation.isPending && deleteMutation.variables === record.id}
                             className="p-1.5 text-danger hover:bg-danger/10 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             aria-label="Delete"
                             title="Delete"

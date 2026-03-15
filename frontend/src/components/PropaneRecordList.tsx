@@ -1,50 +1,29 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useMemo } from 'react'
 import { Edit, Trash2, Plus, AlertCircle, Fuel, DollarSign, Droplets } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateForDisplay } from '../utils/dateUtils'
 import { formatCurrency } from '../utils/formatUtils'
 import type { FuelRecord } from '../types/fuel'
 import PropaneRecordForm from './PropaneRecordForm'
-import api from '../services/api'
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { UnitConverter, UnitFormatter } from '../utils/units'
+import { usePropaneRecords, useDeletePropaneRecord } from '../hooks/queries/usePropaneRecords'
+import { useQueryClient } from '@tanstack/react-query'
 
 interface PropaneRecordListProps {
   vin: string
 }
 
 export default function PropaneRecordList({ vin }: PropaneRecordListProps) {
-  const [records, setRecords] = useState<FuelRecord[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [editingRecord, setEditingRecord] = useState<FuelRecord | undefined>()
-  const [deletingId, setDeletingId] = useState<number | null>(null)
   const { system } = useUnitPreference()
 
-  const fetchRecords = useCallback(async () => {
-    try {
-      // Get ALL fuel records, then filter for propane-only on frontend
-      const response = await api.get(`/vehicles/${vin}/fuel`)
-      const allRecords = response.data.records || []
+  const { data, isLoading, error } = usePropaneRecords(vin)
+  const deleteMutation = useDeletePropaneRecord(vin)
+  const queryClient = useQueryClient()
 
-      // Filter to only records with propane_gallons and no regular gallons
-      const propaneRecords = allRecords.filter((r: FuelRecord) => {
-        const propaneGallons = typeof r.propane_gallons === 'string' ? parseFloat(r.propane_gallons) : r.propane_gallons
-        return propaneGallons && propaneGallons > 0 && !r.gallons
-      })
-
-      setRecords(propaneRecords)
-      setError(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
-    }
-  }, [vin])
-
-  useEffect(() => {
-    setLoading(true)
-    fetchRecords().finally(() => setLoading(false))
-  }, [fetchRecords])
+  const records = useMemo(() => data?.records ?? [], [data?.records])
 
   const handleAdd = () => {
     setEditingRecord(undefined)
@@ -56,25 +35,24 @@ export default function PropaneRecordList({ vin }: PropaneRecordListProps) {
     setShowForm(true)
   }
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = (id: number) => {
     if (!confirm('Are you sure you want to delete this propane record?')) {
       return
     }
 
-    setDeletingId(id)
-    try {
-      await api.delete(`/vehicles/${vin}/fuel/${id}`)
-      await fetchRecords()
-      toast.success('Propane record deleted')
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to delete propane record')
-    } finally {
-      setDeletingId(null)
-    }
+    deleteMutation.mutate(id, {
+      onSuccess: () => {
+        toast.success('Propane record deleted')
+      },
+      onError: (err) => {
+        toast.error(err instanceof Error ? err.message : 'Failed to delete propane record')
+      },
+    })
   }
 
   const handleSuccess = () => {
-    fetchRecords()
+    queryClient.invalidateQueries({ queryKey: ['propaneRecords', vin] })
+    queryClient.invalidateQueries({ queryKey: ['fuelRecords', vin] })
     setShowForm(false)
   }
 
@@ -96,7 +74,7 @@ export default function PropaneRecordList({ vin }: PropaneRecordListProps) {
     return match ? match[1] : '-'
   }
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="text-center py-8 text-garage-text-muted">
         Loading propane records...
@@ -183,7 +161,7 @@ export default function PropaneRecordList({ vin }: PropaneRecordListProps) {
       {error && (
         <div className="flex items-start gap-2 p-3 bg-danger/10 border border-danger/20 rounded-md mb-4">
           <AlertCircle className="w-4 h-4 text-danger flex-shrink-0 mt-0.5" />
-          <p className="text-sm text-danger">{error}</p>
+          <p className="text-sm text-danger">{error.message}</p>
         </div>
       )}
 
@@ -246,7 +224,7 @@ export default function PropaneRecordList({ vin }: PropaneRecordListProps) {
                         </button>
                         <button
                           onClick={() => handleDelete(record.id)}
-                          disabled={deletingId === record.id}
+                          disabled={deleteMutation.isPending && deleteMutation.variables === record.id}
                           className="p-1.5 text-danger hover:bg-danger/10 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                           aria-label="Delete"
                           title="Delete"
