@@ -1,16 +1,11 @@
 """Sync existing address book entries to the vendors table.
 
 For every address_book entry that has a business_name, inserts a matching
-vendor row if one with that name does not already exist. Uses INSERT OR IGNORE
-because vendors.name has a UNIQUE constraint (SQLite-specific syntax).
+vendor row if one with that name does not already exist. Uses
+INSERT ... ON CONFLICT DO NOTHING for cross-database compatibility.
 
-Row selection for duplicate business names (by normalized name) is
-nondeterministic — SQLite GROUP BY picks an arbitrary row per group.
-This is acceptable for a one-time backfill where the important field is
-the name itself.
-
-SUBSTR(TRIM(business_name), 1, 100) enforces the vendors.name VARCHAR(100)
-limit (address_book.business_name allows 150 chars).
+Uses DISTINCT ON (PostgreSQL) or GROUP BY (SQLite) to deduplicate by
+normalized name, picking one representative row per business name.
 """
 
 import os
@@ -19,27 +14,50 @@ from pathlib import Path
 from sqlalchemy import create_engine, text
 
 
-def upgrade() -> None:
-    """Insert address book business names into vendors where not already present."""
+def _get_fallback_engine():
+    """Build a SQLite engine from environment for standalone execution."""
+    db_path = os.environ.get("DATABASE_PATH")
+    if db_path:
+        return create_engine(f"sqlite:///{db_path}")
     data_dir = Path(os.getenv("DATA_DIR", "/data"))
-    database_path = data_dir / "mygarage.db"
-    database_url = f"sqlite:///{database_path}"
+    return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}")
 
-    engine = create_engine(database_url)
+
+def upgrade(engine=None) -> None:
+    """Insert address book business names into vendors where not already present."""
+    if engine is None:
+        engine = _get_fallback_engine()
+
+    is_postgres = engine.dialect.name == "postgresql"
 
     with engine.begin() as conn:
-        result = conn.execute(
-            text(
-                """
-                INSERT OR IGNORE INTO vendors (name, address, city, state, zip_code, phone)
-                SELECT TRIM(SUBSTR(business_name, 1, 100)),
-                       address, city, state, zip_code, phone
-                FROM address_book
-                WHERE business_name IS NOT NULL AND TRIM(business_name) != ''
-                GROUP BY LOWER(TRIM(business_name))
-                """
+        if is_postgres:
+            # PostgreSQL: use DISTINCT ON for dedup (stricter GROUP BY rules)
+            result = conn.execute(
+                text("""
+                    INSERT INTO vendors (name, address, city, state, zip_code, phone)
+                    SELECT DISTINCT ON (LOWER(TRIM(business_name)))
+                           TRIM(SUBSTRING(business_name FROM 1 FOR 100)),
+                           address, city, state, zip_code, phone
+                    FROM address_book
+                    WHERE business_name IS NOT NULL AND TRIM(business_name) != ''
+                    ON CONFLICT (name) DO NOTHING
+                """)
             )
-        )
+        else:
+            # SQLite: GROUP BY picks an arbitrary row per group (acceptable here)
+            result = conn.execute(
+                text("""
+                    INSERT INTO vendors (name, address, city, state, zip_code, phone)
+                    SELECT TRIM(SUBSTR(business_name, 1, 100)),
+                           address, city, state, zip_code, phone
+                    FROM address_book
+                    WHERE business_name IS NOT NULL AND TRIM(business_name) != ''
+                    GROUP BY LOWER(TRIM(business_name))
+                    ON CONFLICT (name) DO NOTHING
+                """)
+            )
+
         count = result.rowcount
         if count > 0:
             print(f"  Synced {count} address book entries to vendors table")

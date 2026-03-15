@@ -5,12 +5,21 @@ import os
 from pathlib import Path
 
 from PIL import Image, ImageOps, UnidentifiedImageError
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
 THUMBNAIL_SIZE = (512, 512)
+
+
+def _get_fallback_engine():
+    """Build a SQLite engine from environment for standalone execution."""
+    db_path = os.environ.get("DATABASE_PATH")
+    if db_path:
+        return create_engine(f"sqlite:///{db_path}")
+    data_dir = Path(os.getenv("DATA_DIR", "/data"))
+    return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}")
 
 
 def _generate_thumbnail_for_existing(file_path: Path, photo_dir: Path) -> str | None:
@@ -92,31 +101,29 @@ def _hydrate_legacy_photos_for_vin(
     return new_count
 
 
-def upgrade():
+def upgrade(engine=None):
     """Hydrate VehiclePhoto entries for existing filesystem photos."""
+    if engine is None:
+        engine = _get_fallback_engine()
+
     data_dir = Path(os.getenv("DATA_DIR", "/data"))
-    database_path = data_dir / "mygarage.db"
-    database_url = f"sqlite:///{database_path}"
 
     # Get photo directory from environment or use default
     photo_dir = Path(os.getenv("PHOTOS_DIR", str(data_dir / "photos")))
 
     if not photo_dir.exists():
-        print("ℹ No photos directory found, skipping photo hydration")
+        print("No photos directory found, skipping photo hydration")
         return
 
     # Get allowed photo extensions from settings (default set)
     allowed_extensions = {".jpg", ".jpeg", ".png", ".webp", ".heic"}
 
-    engine = create_engine(database_url)
-
     with engine.begin() as conn:
+        inspector = inspect(engine)
+
         # Check if vehicle_photos table exists
-        result = conn.execute(
-            text("SELECT name FROM sqlite_master WHERE type='table' AND name='vehicle_photos'")
-        )
-        if not result.fetchone():
-            print("ℹ vehicle_photos table does not exist, skipping photo hydration")
+        if not inspector.has_table("vehicle_photos"):
+            print("vehicle_photos table does not exist, skipping photo hydration")
             return
 
         # Get all VINs from vehicles table
@@ -124,7 +131,7 @@ def upgrade():
         vins = [row[0] for row in result.fetchall()]
 
         if not vins:
-            print("ℹ No vehicles found, skipping photo hydration")
+            print("No vehicles found, skipping photo hydration")
             return
 
         total_photos = 0
@@ -137,20 +144,17 @@ def upgrade():
                     print(f"✓ Hydrated {count} photo(s) for vehicle {vin}")
             except Exception as e:
                 logger.error("Error hydrating photos for VIN %s: %s", vin, e)
-                print(f"✗ Error hydrating photos for VIN {vin}: {e}")
+                print(f"Error hydrating photos for VIN {vin}: {e}")
 
         if total_photos > 0:
             print(f"✓ Total: Hydrated {total_photos} legacy photos across {len(vins)} vehicles")
         else:
-            print("ℹ No legacy photos found to hydrate")
+            print("No legacy photos found to hydrate")
 
 
 def downgrade():
-    """
-    This migration is idempotent and doesn't modify existing data.
-    Downgrade is a no-op.
-    """
-    print("ℹ Downgrade not needed (migration is idempotent)")
+    """Migration is idempotent - downgrade is a no-op."""
+    print("Downgrade not needed (migration is idempotent)")
 
 
 if __name__ == "__main__":

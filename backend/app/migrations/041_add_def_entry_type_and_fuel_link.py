@@ -14,17 +14,22 @@ Schema changes:
 import os
 from pathlib import Path
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, inspect, text
 
 
-def upgrade():
-    """Add entry_type and origin_fuel_record_id to def_records."""
-    # Get database path from environment
+def _get_fallback_engine():
+    """Build a SQLite engine from environment for standalone execution."""
+    db_path = os.environ.get("DATABASE_PATH")
+    if db_path:
+        return create_engine(f"sqlite:///{db_path}")
     data_dir = Path(os.getenv("DATA_DIR", "/data"))
-    database_path = data_dir / "mygarage.db"
-    database_url = f"sqlite:///{database_path}"
+    return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}")
 
-    engine = create_engine(database_url)
+
+def upgrade(engine=None):
+    """Add entry_type and origin_fuel_record_id to def_records."""
+    if engine is None:
+        engine = _get_fallback_engine()
 
     with engine.begin() as conn:
         print("Adding DEF entry_type and fuel record link...")
@@ -32,8 +37,8 @@ def upgrade():
         # =========================================================================
         # 1. Add entry_type column to def_records
         # =========================================================================
-        result = conn.execute(text("PRAGMA table_info(def_records)"))
-        existing_columns = {row[1] for row in result.fetchall()}
+        inspector = inspect(engine)
+        existing_columns = {col["name"] for col in inspector.get_columns("def_records")}
 
         if "entry_type" in existing_columns:
             print("  → entry_type column already exists, skipping")
@@ -64,10 +69,7 @@ def upgrade():
         # =========================================================================
         # 3. Create indexes
         # =========================================================================
-        result = conn.execute(
-            text("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='def_records'")
-        )
-        existing_indexes = {row[0] for row in result.fetchall()}
+        existing_indexes = {idx["name"] for idx in inspect(engine).get_indexes("def_records")}
 
         if "idx_def_entry_type" in existing_indexes:
             print("  → idx_def_entry_type already exists, skipping")

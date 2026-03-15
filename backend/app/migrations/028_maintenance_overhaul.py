@@ -3,42 +3,49 @@
 import os
 from pathlib import Path
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, inspect, text
 
 
-def upgrade():
-    """Create new maintenance system tables and migrate existing data."""
-    # Get database path from environment
+def _get_fallback_engine():
+    """Build a SQLite engine from environment for standalone execution."""
+    db_path = os.environ.get("DATABASE_PATH")
+    if db_path:
+        return create_engine(f"sqlite:///{db_path}")
     data_dir = Path(os.getenv("DATA_DIR", "/data"))
-    database_path = data_dir / "mygarage.db"
-    database_url = f"sqlite:///{database_path}"
+    return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}")
 
-    # Create engine
-    engine = create_engine(database_url)
+
+def upgrade(engine=None):
+    """Create new maintenance system tables and migrate existing data."""
+    if engine is None:
+        engine = _get_fallback_engine()
+
+    is_postgres = engine.dialect.name == "postgresql"
+    pk_type = "SERIAL PRIMARY KEY" if is_postgres else "INTEGER PRIMARY KEY AUTOINCREMENT"
+    ts_type = "TIMESTAMP" if is_postgres else "DATETIME"
 
     with engine.begin() as conn:
+        inspector = inspect(engine)
+
         # =================================================================
         # PHASE 1: Create new tables
         # =================================================================
 
         # 1. Create vendors table
-        result = conn.execute(
-            text("SELECT name FROM sqlite_master WHERE type='table' AND name='vendors'")
-        )
-        if not result.fetchone():
+        if not inspector.has_table("vendors"):
             print("Creating vendors table...")
             conn.execute(
-                text("""
+                text(f"""
                 CREATE TABLE vendors (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    id {pk_type},
                     name VARCHAR(100) NOT NULL UNIQUE,
                     address TEXT,
                     city VARCHAR(100),
                     state VARCHAR(50),
                     zip_code VARCHAR(20),
                     phone VARCHAR(20),
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    updated_at DATETIME
+                    created_at {ts_type} DEFAULT CURRENT_TIMESTAMP,
+                    updated_at {ts_type}
                 )
             """)
             )
@@ -48,17 +55,12 @@ def upgrade():
             print("  vendors table already exists")
 
         # 2. Create maintenance_schedule_items table
-        result = conn.execute(
-            text(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name='maintenance_schedule_items'"
-            )
-        )
-        if not result.fetchone():
+        if not inspector.has_table("maintenance_schedule_items"):
             print("Creating maintenance_schedule_items table...")
             conn.execute(
-                text("""
+                text(f"""
                 CREATE TABLE maintenance_schedule_items (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    id {pk_type},
                     vin VARCHAR(17) NOT NULL,
                     name VARCHAR(100) NOT NULL,
                     component_category VARCHAR(50) NOT NULL,
@@ -70,8 +72,8 @@ def upgrade():
                     last_performed_date DATE,
                     last_performed_mileage INTEGER,
                     last_service_line_item_id INTEGER,
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    updated_at DATETIME,
+                    created_at {ts_type} DEFAULT CURRENT_TIMESTAMP,
+                    updated_at {ts_type},
                     FOREIGN KEY (vin) REFERENCES vehicles(vin) ON DELETE CASCADE
                 )
             """)
@@ -94,15 +96,12 @@ def upgrade():
             print("  maintenance_schedule_items table already exists")
 
         # 3. Create service_visits table
-        result = conn.execute(
-            text("SELECT name FROM sqlite_master WHERE type='table' AND name='service_visits'")
-        )
-        if not result.fetchone():
+        if not inspector.has_table("service_visits"):
             print("Creating service_visits table...")
             conn.execute(
-                text("""
+                text(f"""
                 CREATE TABLE service_visits (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    id {pk_type},
                     vin VARCHAR(17) NOT NULL,
                     vendor_id INTEGER,
                     date DATE NOT NULL,
@@ -111,8 +110,8 @@ def upgrade():
                     notes TEXT,
                     service_category VARCHAR(30),
                     insurance_claim_number VARCHAR(50),
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    updated_at DATETIME,
+                    created_at {ts_type} DEFAULT CURRENT_TIMESTAMP,
+                    updated_at {ts_type},
                     FOREIGN KEY (vin) REFERENCES vehicles(vin) ON DELETE CASCADE,
                     FOREIGN KEY (vendor_id) REFERENCES vendors(id)
                 )
@@ -131,25 +130,22 @@ def upgrade():
             print("  service_visits table already exists")
 
         # 4. Create service_line_items table
-        result = conn.execute(
-            text("SELECT name FROM sqlite_master WHERE type='table' AND name='service_line_items'")
-        )
-        if not result.fetchone():
+        if not inspector.has_table("service_line_items"):
             print("Creating service_line_items table...")
             conn.execute(
-                text("""
+                text(f"""
                 CREATE TABLE service_line_items (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    id {pk_type},
                     visit_id INTEGER NOT NULL,
                     schedule_item_id INTEGER,
                     description VARCHAR(200) NOT NULL,
                     cost DECIMAL(10,2),
                     notes TEXT,
-                    is_inspection BOOLEAN DEFAULT 0,
+                    is_inspection BOOLEAN DEFAULT false,
                     inspection_result VARCHAR(20),
                     inspection_severity VARCHAR(10),
                     triggered_by_inspection_id INTEGER,
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    created_at {ts_type} DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (visit_id) REFERENCES service_visits(id) ON DELETE CASCADE,
                     FOREIGN KEY (schedule_item_id) REFERENCES maintenance_schedule_items(id),
                     FOREIGN KEY (triggered_by_inspection_id) REFERENCES service_line_items(id)
@@ -169,17 +165,12 @@ def upgrade():
             print("  service_line_items table already exists")
 
         # 5. Create vendor_price_history table
-        result = conn.execute(
-            text(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name='vendor_price_history'"
-            )
-        )
-        if not result.fetchone():
+        if not inspector.has_table("vendor_price_history"):
             print("Creating vendor_price_history table...")
             conn.execute(
-                text("""
+                text(f"""
                 CREATE TABLE vendor_price_history (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    id {pk_type},
                     vendor_id INTEGER NOT NULL,
                     schedule_item_id INTEGER NOT NULL,
                     service_line_item_id INTEGER NOT NULL,
@@ -213,10 +204,7 @@ def upgrade():
         # =================================================================
 
         # Check if service_records table exists and has data
-        result = conn.execute(
-            text("SELECT name FROM sqlite_master WHERE type='table' AND name='service_records'")
-        )
-        if result.fetchone():
+        if inspector.has_table("service_records"):
             # Check if migration already ran (look for migrated visits)
             result = conn.execute(text("SELECT COUNT(*) FROM service_visits"))
             existing_visits = result.scalar()
@@ -248,11 +236,12 @@ def upgrade():
                         elif len(parts) == 1:
                             city = parts[0].strip()
 
-                    # Insert vendor
+                    # Insert vendor (skip on conflict)
                     conn.execute(
                         text("""
-                        INSERT OR IGNORE INTO vendors (name, city, state)
+                        INSERT INTO vendors (name, city, state)
                         VALUES (:name, :city, :state)
+                        ON CONFLICT (name) DO NOTHING
                     """),
                         {"name": vendor_name, "city": city, "state": state},
                     )
@@ -299,37 +288,60 @@ def upgrade():
                     # Get vendor_id if exists
                     vendor_id = vendor_map.get(vendor_name) if vendor_name else None
 
-                    # Create service_visit
-                    conn.execute(
-                        text("""
-                        INSERT INTO service_visits
-                        (vin, vendor_id, date, mileage, total_cost, notes,
-                         service_category, insurance_claim_number, created_at)
-                        VALUES (:vin, :vendor_id, :date, :mileage, :cost, :notes,
-                                :category, :insurance, :created_at)
-                    """),
-                        {
-                            "vin": vin,
-                            "vendor_id": vendor_id,
-                            "date": date,
-                            "mileage": mileage,
-                            "cost": cost,
-                            "notes": notes,
-                            "category": service_category,
-                            "insurance": insurance_claim,
-                            "created_at": created_at,
-                        },
-                    )
-
-                    # Get the visit ID
-                    result = conn.execute(text("SELECT last_insert_rowid()"))
-                    visit_id = result.scalar()
-
                     # Determine if this is an inspection based on service type
                     is_inspection = (
                         service_category == "Inspection"
                         or "inspection" in (service_type or "").lower()
                     )
+
+                    if is_postgres:
+                        # PostgreSQL: use RETURNING to get inserted ID
+                        result = conn.execute(
+                            text("""
+                            INSERT INTO service_visits
+                            (vin, vendor_id, date, mileage, total_cost, notes,
+                             service_category, insurance_claim_number, created_at)
+                            VALUES (:vin, :vendor_id, :date, :mileage, :cost, :notes,
+                                    :category, :insurance, :created_at)
+                            RETURNING id
+                        """),
+                            {
+                                "vin": vin,
+                                "vendor_id": vendor_id,
+                                "date": date,
+                                "mileage": mileage,
+                                "cost": cost,
+                                "notes": notes,
+                                "category": service_category,
+                                "insurance": insurance_claim,
+                                "created_at": created_at,
+                            },
+                        )
+                        visit_id = result.scalar()
+                    else:
+                        # SQLite: use last_insert_rowid()
+                        conn.execute(
+                            text("""
+                            INSERT INTO service_visits
+                            (vin, vendor_id, date, mileage, total_cost, notes,
+                             service_category, insurance_claim_number, created_at)
+                            VALUES (:vin, :vendor_id, :date, :mileage, :cost, :notes,
+                                    :category, :insurance, :created_at)
+                        """),
+                            {
+                                "vin": vin,
+                                "vendor_id": vendor_id,
+                                "date": date,
+                                "mileage": mileage,
+                                "cost": cost,
+                                "notes": notes,
+                                "category": service_category,
+                                "insurance": insurance_claim,
+                                "created_at": created_at,
+                            },
+                        )
+                        result = conn.execute(text("SELECT last_insert_rowid()"))
+                        visit_id = result.scalar()
 
                     # Create service_line_item
                     conn.execute(
@@ -342,7 +354,7 @@ def upgrade():
                             "visit_id": visit_id,
                             "description": service_type or "General Service",
                             "cost": cost,
-                            "is_inspection": 1 if is_inspection else 0,
+                            "is_inspection": is_inspection,
                             "created_at": created_at,
                         },
                     )
@@ -354,10 +366,7 @@ def upgrade():
                 print(f"\n  Service records already migrated ({existing_visits} visits exist)")
 
         # 2c. Convert reminders to maintenance_schedule_items
-        result = conn.execute(
-            text("SELECT name FROM sqlite_master WHERE type='table' AND name='reminders'")
-        )
-        if result.fetchone():
+        if inspector.has_table("reminders"):
             # Check if schedule items already exist for this vehicle
             result = conn.execute(text("SELECT COUNT(*) FROM maintenance_schedule_items"))
             existing_items = result.scalar()

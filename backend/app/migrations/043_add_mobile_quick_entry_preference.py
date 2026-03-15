@@ -11,13 +11,19 @@ from pathlib import Path
 from sqlalchemy import create_engine, inspect, text
 
 
-def upgrade():
-    """Add mobile_quick_entry_enabled column to users table."""
+def _get_fallback_engine():
+    """Build a SQLite engine from environment for standalone execution."""
+    db_path = os.environ.get("DATABASE_PATH")
+    if db_path:
+        return create_engine(f"sqlite:///{db_path}")
     data_dir = Path(os.getenv("DATA_DIR", "/data"))
-    database_path = data_dir / "mygarage.db"
-    database_url = f"sqlite:///{database_path}"
+    return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}")
 
-    engine = create_engine(database_url)
+
+def upgrade(engine=None):
+    """Add mobile_quick_entry_enabled column to users table."""
+    if engine is None:
+        engine = _get_fallback_engine()
 
     with engine.begin() as conn:
         inspector = inspect(engine)

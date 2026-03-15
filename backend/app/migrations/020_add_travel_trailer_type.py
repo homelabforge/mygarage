@@ -21,15 +21,19 @@ from pathlib import Path
 from sqlalchemy import create_engine
 
 
-def upgrade():
-    """Add TravelTrailer to vehicle_type validation."""
-    # Get database path from environment
+def _get_fallback_engine():
+    """Build a SQLite engine from environment for standalone execution."""
+    db_path = os.environ.get("DATABASE_PATH")
+    if db_path:
+        return create_engine(f"sqlite:///{db_path}")
     data_dir = Path(os.getenv("DATA_DIR", "/data"))
-    database_path = data_dir / "mygarage.db"
-    database_url = f"sqlite:///{database_path}"
+    return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}")
 
-    # Create engine
-    engine = create_engine(database_url)
+
+def upgrade(engine=None):
+    """Add TravelTrailer to vehicle_type validation."""
+    if engine is None:
+        engine = _get_fallback_engine()
 
     with engine.begin():
         # Note: SQLite doesn't support modifying CHECK constraints directly

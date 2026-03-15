@@ -15,36 +15,42 @@ This migration creates the core LiveLink infrastructure:
 import os
 from pathlib import Path
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, inspect, text
 
 
-def upgrade():
-    """Create all LiveLink tables."""
-    # Get database path from environment
+def _get_fallback_engine():
+    """Build a SQLite engine from environment for standalone execution."""
+    db_path = os.environ.get("DATABASE_PATH")
+    if db_path:
+        return create_engine(f"sqlite:///{db_path}")
     data_dir = Path(os.getenv("DATA_DIR", "/data"))
-    database_path = data_dir / "mygarage.db"
-    database_url = f"sqlite:///{database_path}"
+    return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}")
 
-    engine = create_engine(database_url)
+
+def upgrade(engine=None):
+    """Create all LiveLink tables."""
+    if engine is None:
+        engine = _get_fallback_engine()
+
+    is_postgres = engine.dialect.name == "postgresql"
+    pk_type = "SERIAL PRIMARY KEY" if is_postgres else "INTEGER PRIMARY KEY AUTOINCREMENT"
+    ts_type = "TIMESTAMP" if is_postgres else "DATETIME"
 
     with engine.begin() as conn:
         # =========================================================================
         # 1. drive_sessions (created first because livelink_devices references it)
         # =========================================================================
-        result = conn.execute(
-            text("SELECT name FROM sqlite_master WHERE type='table' AND name='drive_sessions'")
-        )
-        if result.fetchone():
+        if inspect(engine).has_table("drive_sessions"):
             print("  drive_sessions table already exists, skipping")
         else:
             conn.execute(
-                text("""
+                text(f"""
                     CREATE TABLE drive_sessions (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        id {pk_type},
                         vin VARCHAR(17) NOT NULL REFERENCES vehicles(vin) ON DELETE CASCADE,
                         device_id VARCHAR(20) NOT NULL,
-                        started_at DATETIME NOT NULL,
-                        ended_at DATETIME,
+                        started_at {ts_type} NOT NULL,
+                        ended_at {ts_type},
                         duration_seconds INTEGER,
                         start_odometer FLOAT,
                         end_odometer FLOAT,
@@ -59,7 +65,7 @@ def upgrade():
                         max_throttle FLOAT,
                         avg_fuel_level FLOAT,
                         fuel_used_estimate FLOAT,
-                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                        created_at {ts_type} DEFAULT CURRENT_TIMESTAMP
                     )
                 """)
             )
@@ -75,16 +81,13 @@ def upgrade():
         # =========================================================================
         # 2. livelink_devices
         # =========================================================================
-        result = conn.execute(
-            text("SELECT name FROM sqlite_master WHERE type='table' AND name='livelink_devices'")
-        )
-        if result.fetchone():
+        if inspect(engine).has_table("livelink_devices"):
             print("  livelink_devices table already exists, skipping")
         else:
             conn.execute(
-                text("""
+                text(f"""
                     CREATE TABLE livelink_devices (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        id {pk_type},
                         device_id VARCHAR(20) NOT NULL UNIQUE,
                         vin VARCHAR(17) REFERENCES vehicles(vin) ON DELETE SET NULL,
                         label VARCHAR(100),
@@ -100,9 +103,9 @@ def upgrade():
                         last_payload_hash VARCHAR(64),
                         current_session_id INTEGER REFERENCES drive_sessions(id) ON DELETE SET NULL,
                         enabled BOOLEAN DEFAULT 1,
-                        last_seen DATETIME,
-                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                        updated_at DATETIME
+                        last_seen {ts_type},
+                        created_at {ts_type} DEFAULT CURRENT_TIMESTAMP,
+                        updated_at {ts_type}
                     )
                 """)
             )
@@ -123,16 +126,13 @@ def upgrade():
         # =========================================================================
         # 3. livelink_parameters
         # =========================================================================
-        result = conn.execute(
-            text("SELECT name FROM sqlite_master WHERE type='table' AND name='livelink_parameters'")
-        )
-        if result.fetchone():
+        if inspect(engine).has_table("livelink_parameters"):
             print("  livelink_parameters table already exists, skipping")
         else:
             conn.execute(
-                text("""
+                text(f"""
                     CREATE TABLE livelink_parameters (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        id {pk_type},
                         param_key VARCHAR(100) NOT NULL UNIQUE,
                         display_name VARCHAR(100),
                         unit VARCHAR(20),
@@ -145,8 +145,8 @@ def upgrade():
                         show_on_dashboard BOOLEAN DEFAULT 1,
                         archive_only BOOLEAN DEFAULT 0,
                         storage_interval_seconds INTEGER DEFAULT 0,
-                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                        updated_at DATETIME
+                        created_at {ts_type} DEFAULT CURRENT_TIMESTAMP,
+                        updated_at {ts_type}
                     )
                 """)
             )
@@ -169,22 +169,19 @@ def upgrade():
         # =========================================================================
         # 4. vehicle_telemetry (historical time-series)
         # =========================================================================
-        result = conn.execute(
-            text("SELECT name FROM sqlite_master WHERE type='table' AND name='vehicle_telemetry'")
-        )
-        if result.fetchone():
+        if inspect(engine).has_table("vehicle_telemetry"):
             print("  vehicle_telemetry table already exists, skipping")
         else:
             conn.execute(
-                text("""
+                text(f"""
                     CREATE TABLE vehicle_telemetry (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        id {pk_type},
                         vin VARCHAR(17) NOT NULL REFERENCES vehicles(vin) ON DELETE CASCADE,
                         device_id VARCHAR(20) NOT NULL,
                         param_key VARCHAR(100) NOT NULL,
                         value FLOAT NOT NULL,
-                        timestamp DATETIME NOT NULL,
-                        received_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                        timestamp {ts_type} NOT NULL,
+                        received_at {ts_type} NOT NULL DEFAULT CURRENT_TIMESTAMP
                     )
                 """)
             )
@@ -209,23 +206,18 @@ def upgrade():
         # =========================================================================
         # 5. vehicle_telemetry_latest (live dashboard cache)
         # =========================================================================
-        result = conn.execute(
-            text(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name='vehicle_telemetry_latest'"
-            )
-        )
-        if result.fetchone():
+        if inspect(engine).has_table("vehicle_telemetry_latest"):
             print("  vehicle_telemetry_latest table already exists, skipping")
         else:
             conn.execute(
-                text("""
+                text(f"""
                     CREATE TABLE vehicle_telemetry_latest (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        id {pk_type},
                         vin VARCHAR(17) NOT NULL REFERENCES vehicles(vin) ON DELETE CASCADE,
                         param_key VARCHAR(100) NOT NULL,
                         value FLOAT NOT NULL,
-                        timestamp DATETIME NOT NULL,
-                        received_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        timestamp {ts_type} NOT NULL,
+                        received_at {ts_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
                         UNIQUE(vin, param_key)
                     )
                 """)
@@ -238,10 +230,7 @@ def upgrade():
         # =========================================================================
         # 6. dtc_definitions (SAE J2012 lookup, seeded in 033)
         # =========================================================================
-        result = conn.execute(
-            text("SELECT name FROM sqlite_master WHERE type='table' AND name='dtc_definitions'")
-        )
-        if result.fetchone():
+        if inspect(engine).has_table("dtc_definitions"):
             print("  dtc_definitions table already exists, skipping")
         else:
             conn.execute(
@@ -267,27 +256,24 @@ def upgrade():
         # =========================================================================
         # 7. vehicle_dtcs (active/historical per vehicle)
         # =========================================================================
-        result = conn.execute(
-            text("SELECT name FROM sqlite_master WHERE type='table' AND name='vehicle_dtcs'")
-        )
-        if result.fetchone():
+        if inspect(engine).has_table("vehicle_dtcs"):
             print("  vehicle_dtcs table already exists, skipping")
         else:
             conn.execute(
-                text("""
+                text(f"""
                     CREATE TABLE vehicle_dtcs (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        id {pk_type},
                         vin VARCHAR(17) NOT NULL REFERENCES vehicles(vin) ON DELETE CASCADE,
                         device_id VARCHAR(20) NOT NULL,
                         code VARCHAR(10) NOT NULL,
                         description TEXT,
                         severity VARCHAR(20) DEFAULT 'warning',
                         user_notes TEXT,
-                        first_seen DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                        last_seen DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                        cleared_at DATETIME,
+                        first_seen {ts_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        last_seen {ts_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        cleared_at {ts_type},
                         is_active BOOLEAN DEFAULT 1,
-                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                        created_at {ts_type} DEFAULT CURRENT_TIMESTAMP
                     )
                 """)
             )
@@ -302,21 +288,16 @@ def upgrade():
         # =========================================================================
         # 8. telemetry_daily_summary (aggregates for long-term charts)
         # =========================================================================
-        result = conn.execute(
-            text(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name='telemetry_daily_summary'"
-            )
-        )
-        if result.fetchone():
+        if inspect(engine).has_table("telemetry_daily_summary"):
             print("  telemetry_daily_summary table already exists, skipping")
         else:
             conn.execute(
-                text("""
+                text(f"""
                     CREATE TABLE telemetry_daily_summary (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        id {pk_type},
                         vin VARCHAR(17) NOT NULL REFERENCES vehicles(vin) ON DELETE CASCADE,
                         param_key VARCHAR(100) NOT NULL,
-                        date DATETIME NOT NULL,
+                        date {ts_type} NOT NULL,
                         min_value FLOAT,
                         max_value FLOAT,
                         avg_value FLOAT,
@@ -340,23 +321,18 @@ def upgrade():
         # =========================================================================
         # 9. livelink_firmware_cache (GitHub release cache)
         # =========================================================================
-        result = conn.execute(
-            text(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name='livelink_firmware_cache'"
-            )
-        )
-        if result.fetchone():
+        if inspect(engine).has_table("livelink_firmware_cache"):
             print("  livelink_firmware_cache table already exists, skipping")
         else:
             conn.execute(
-                text("""
+                text(f"""
                     CREATE TABLE livelink_firmware_cache (
                         id INTEGER PRIMARY KEY DEFAULT 1,
                         latest_version VARCHAR(20),
                         latest_tag VARCHAR(20),
                         release_url TEXT,
                         release_notes TEXT,
-                        checked_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                        checked_at {ts_type} DEFAULT CURRENT_TIMESTAMP
                     )
                 """)
             )

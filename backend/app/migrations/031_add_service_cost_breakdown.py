@@ -12,31 +12,32 @@ additional charges beyond just parts and labor.
 import os
 from pathlib import Path
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, inspect, text
 
 
-def upgrade():
-    """Add tax_amount, shop_supplies, and misc_fees columns to service_visits."""
-    # Get database path from environment
+def _get_fallback_engine():
+    """Build a SQLite engine from environment for standalone execution."""
+    db_path = os.environ.get("DATABASE_PATH")
+    if db_path:
+        return create_engine(f"sqlite:///{db_path}")
     data_dir = Path(os.getenv("DATA_DIR", "/data"))
-    database_path = data_dir / "mygarage.db"
-    database_url = f"sqlite:///{database_path}"
+    return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}")
 
-    # Create engine
-    engine = create_engine(database_url)
+
+def upgrade(engine=None):
+    """Add tax_amount, shop_supplies, and misc_fees columns to service_visits."""
+    if engine is None:
+        engine = _get_fallback_engine()
 
     with engine.begin() as conn:
         # Check if service_visits table exists
-        result = conn.execute(
-            text("SELECT name FROM sqlite_master WHERE type='table' AND name='service_visits'")
-        )
-        if not result.fetchone():
+        if not inspect(engine).has_table("service_visits"):
             print("  service_visits table does not exist, skipping")
             return
 
         # Check if columns already exist
-        result = conn.execute(text("PRAGMA table_info(service_visits)"))
-        existing_columns = {row[1] for row in result.fetchall()}
+        inspector = inspect(engine)
+        existing_columns = {col["name"] for col in inspector.get_columns("service_visits")}
 
         columns_to_add = [
             ("tax_amount", "DECIMAL(10,2)"),

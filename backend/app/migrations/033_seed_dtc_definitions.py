@@ -14,17 +14,22 @@ import json
 import os
 from pathlib import Path
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, inspect, text
 
 
-def upgrade():
-    """Seed DTC definitions from bundled JSON file."""
-    # Get database path from environment
+def _get_fallback_engine():
+    """Build a SQLite engine from environment for standalone execution."""
+    db_path = os.environ.get("DATABASE_PATH")
+    if db_path:
+        return create_engine(f"sqlite:///{db_path}")
     data_dir = Path(os.getenv("DATA_DIR", "/data"))
-    database_path = data_dir / "mygarage.db"
-    database_url = f"sqlite:///{database_path}"
+    return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}")
 
-    engine = create_engine(database_url)
+
+def upgrade(engine=None):
+    """Seed DTC definitions from bundled JSON file."""
+    if engine is None:
+        engine = _get_fallback_engine()
 
     # Find the JSON file relative to this migration file
     migration_dir = Path(__file__).parent
@@ -42,10 +47,7 @@ def upgrade():
 
     with engine.begin() as conn:
         # Check if table exists
-        result = conn.execute(
-            text("SELECT name FROM sqlite_master WHERE type='table' AND name='dtc_definitions'")
-        )
-        if not result.fetchone():
+        if not inspect(engine).has_table("dtc_definitions"):
             print("  dtc_definitions table does not exist, skipping seed")
             return
 

@@ -15,17 +15,26 @@ Schema changes:
 import os
 from pathlib import Path
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, inspect, text
 
 
-def upgrade():
-    """Add family multi-user system schema."""
-    # Get database path from environment
+def _get_fallback_engine():
+    """Build a SQLite engine from environment for standalone execution."""
+    db_path = os.environ.get("DATABASE_PATH")
+    if db_path:
+        return create_engine(f"sqlite:///{db_path}")
     data_dir = Path(os.getenv("DATA_DIR", "/data"))
-    database_path = data_dir / "mygarage.db"
-    database_url = f"sqlite:///{database_path}"
+    return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}")
 
-    engine = create_engine(database_url)
+
+def upgrade(engine=None):
+    """Add family multi-user system schema."""
+    if engine is None:
+        engine = _get_fallback_engine()
+
+    is_postgres = engine.dialect.name == "postgresql"
+    pk_type = "SERIAL PRIMARY KEY" if is_postgres else "INTEGER PRIMARY KEY AUTOINCREMENT"
+    ts_type = "TIMESTAMP" if is_postgres else "DATETIME"
 
     with engine.begin() as conn:
         print("Adding Family Multi-User System schema...")
@@ -33,8 +42,8 @@ def upgrade():
         # =========================================================================
         # 1. Add columns to users table
         # =========================================================================
-        result = conn.execute(text("PRAGMA table_info(users)"))
-        existing_columns = {row[1] for row in result.fetchall()}
+        inspector = inspect(engine)
+        existing_columns = {col["name"] for col in inspector.get_columns("users")}
 
         # Add relationship column
         if "relationship" in existing_columns:
@@ -71,20 +80,17 @@ def upgrade():
         # =========================================================================
         # 2. Create vehicle_transfers audit table
         # =========================================================================
-        result = conn.execute(
-            text("SELECT name FROM sqlite_master WHERE type='table' AND name='vehicle_transfers'")
-        )
-        if result.fetchone():
+        if inspect(engine).has_table("vehicle_transfers"):
             print("  → vehicle_transfers table already exists, skipping")
         else:
             conn.execute(
-                text("""
+                text(f"""
                     CREATE TABLE vehicle_transfers (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        id {pk_type},
                         vehicle_vin VARCHAR(17) NOT NULL,
                         from_user_id INTEGER NOT NULL,
                         to_user_id INTEGER NOT NULL,
-                        transferred_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        transferred_at {ts_type} DEFAULT CURRENT_TIMESTAMP,
                         transferred_by INTEGER NOT NULL,
                         transfer_notes TEXT,
                         data_included TEXT,
@@ -112,21 +118,18 @@ def upgrade():
         # =========================================================================
         # 3. Create vehicle_shares junction table
         # =========================================================================
-        result = conn.execute(
-            text("SELECT name FROM sqlite_master WHERE type='table' AND name='vehicle_shares'")
-        )
-        if result.fetchone():
+        if inspect(engine).has_table("vehicle_shares"):
             print("  → vehicle_shares table already exists, skipping")
         else:
             conn.execute(
-                text("""
+                text(f"""
                     CREATE TABLE vehicle_shares (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        id {pk_type},
                         vehicle_vin VARCHAR(17) NOT NULL,
                         user_id INTEGER NOT NULL,
                         permission VARCHAR(10) NOT NULL DEFAULT 'read',
                         shared_by INTEGER NOT NULL,
-                        shared_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        shared_at {ts_type} DEFAULT CURRENT_TIMESTAMP,
                         FOREIGN KEY (vehicle_vin) REFERENCES vehicles(vin) ON DELETE CASCADE,
                         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
                         FOREIGN KEY (shared_by) REFERENCES users(id),

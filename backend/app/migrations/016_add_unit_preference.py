@@ -2,34 +2,33 @@
 
 This migration adds support for per-user unit system preferences (imperial vs metric).
 All data remains stored in imperial units; this setting controls display conversion only.
-
-Default behavior:
-- Existing users: imperial (maintains current behavior)
-- New users: Auto-detect from timezone (US timezones → imperial, others → metric)
 """
 
 import os
 from pathlib import Path
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, inspect, text
 
 
-def upgrade():
-    """Add user_unit_preference column to users table."""
-    # Get database path from environment
+def _get_fallback_engine():
+    """Build a SQLite engine from environment for standalone execution."""
+    db_path = os.environ.get("DATABASE_PATH")
+    if db_path:
+        return create_engine(f"sqlite:///{db_path}")
     data_dir = Path(os.getenv("DATA_DIR", "/data"))
-    database_path = data_dir / "mygarage.db"
-    database_url = f"sqlite:///{database_path}"
+    return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}")
 
-    # Create engine
-    engine = create_engine(database_url)
+
+def upgrade(engine=None):
+    """Add user_unit_preference column to users table."""
+    if engine is None:
+        engine = _get_fallback_engine()
 
     with engine.begin() as conn:
+        inspector = inspect(engine)
         print("Adding unit preference support...")
 
-        # Check if column already exists
-        result = conn.execute(text("PRAGMA table_info(users)"))
-        existing_columns = {row[1] for row in result}
+        existing_columns = {col["name"] for col in inspector.get_columns("users")}
 
         if "unit_preference" in existing_columns:
             print("  → unit_preference column already exists, skipping migration")
@@ -37,54 +36,34 @@ def upgrade():
 
         # Add unit_preference column (default: imperial)
         conn.execute(
-            text("""
-            ALTER TABLE users
-            ADD COLUMN unit_preference VARCHAR(20) DEFAULT 'imperial'
-        """)
+            text("ALTER TABLE users ADD COLUMN unit_preference VARCHAR(20) DEFAULT 'imperial'")
         )
         print("  ✓ Added unit_preference column to users table")
 
         # Add show_both_units column (default: false)
-        conn.execute(
-            text("""
-            ALTER TABLE users
-            ADD COLUMN show_both_units BOOLEAN DEFAULT 0
-        """)
-        )
+        conn.execute(text("ALTER TABLE users ADD COLUMN show_both_units BOOLEAN DEFAULT false"))
         print("  ✓ Added show_both_units column to users table")
 
-        # Set all existing users to imperial (maintains current behavior)
+        # Set all existing users to imperial
         result = conn.execute(
-            text("""
-            UPDATE users
-            SET unit_preference = 'imperial', show_both_units = 0
-            WHERE unit_preference IS NULL
-        """)
+            text(
+                "UPDATE users SET unit_preference = 'imperial', show_both_units = false WHERE unit_preference IS NULL"
+            )
         )
+        print(f"  ✓ Set {result.rowcount} existing user(s) to imperial units")
 
-        users_updated = result.rowcount
-        print(f"  ✓ Set {users_updated} existing user(s) to imperial units")
-
-        # Create index for faster lookups
+        # Create index
         conn.execute(
-            text("""
-            CREATE INDEX IF NOT EXISTS idx_users_unit_preference
-            ON users(unit_preference)
-        """)
+            text("CREATE INDEX IF NOT EXISTS idx_users_unit_preference ON users(unit_preference)")
         )
         print("  ✓ Created index on users.unit_preference")
 
         print("\n✓ Unit preference migration completed successfully")
-        print("\nFeatures enabled:")
-        print("  • Per-user unit system selection (imperial/metric)")
-        print("  • Optional dual-unit display")
-        print("  • Smart timezone-based defaults for new users")
 
 
 def downgrade():
-    """Rollback not supported for SQLite ALTER TABLE ADD COLUMN."""
-    print("ℹ Downgrade not supported for SQLite ALTER TABLE ADD COLUMN")
-    print("  The unit_preference columns will remain in the table.")
+    """Rollback not supported."""
+    print("Downgrade not supported for ALTER TABLE ADD COLUMN")
 
 
 if __name__ == "__main__":

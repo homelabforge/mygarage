@@ -16,17 +16,22 @@ This migration adds the default LiveLink configuration settings:
 import os
 from pathlib import Path
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, inspect, text
 
 
-def upgrade():
-    """Add LiveLink settings to settings table."""
-    # Get database path from environment
+def _get_fallback_engine():
+    """Build a SQLite engine from environment for standalone execution."""
+    db_path = os.environ.get("DATABASE_PATH")
+    if db_path:
+        return create_engine(f"sqlite:///{db_path}")
     data_dir = Path(os.getenv("DATA_DIR", "/data"))
-    database_path = data_dir / "mygarage.db"
-    database_url = f"sqlite:///{database_path}"
+    return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}")
 
-    engine = create_engine(database_url)
+
+def upgrade(engine=None):
+    """Add LiveLink settings to settings table."""
+    if engine is None:
+        engine = _get_fallback_engine()
 
     # LiveLink settings to add with defaults
     livelink_settings = [
@@ -106,10 +111,7 @@ def upgrade():
 
     with engine.begin() as conn:
         # Check if settings table exists
-        result = conn.execute(
-            text("SELECT name FROM sqlite_master WHERE type='table' AND name='settings'")
-        )
-        if not result.fetchone():
+        if not inspect(engine).has_table("settings"):
             print("  settings table does not exist, skipping")
             return
 

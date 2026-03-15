@@ -9,32 +9,32 @@ now-unused table.
 import os
 from pathlib import Path
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, inspect, text
 
 
-def upgrade():
-    """Drop the service_records table if it exists."""
+def _get_fallback_engine():
+    """Build a SQLite engine from environment for standalone execution."""
+    db_path = os.environ.get("DATABASE_PATH")
+    if db_path:
+        return create_engine(f"sqlite:///{db_path}")
     data_dir = Path(os.getenv("DATA_DIR", "/data"))
-    database_path = data_dir / "mygarage.db"
-    database_url = f"sqlite:///{database_path}"
+    return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}")
 
-    engine = create_engine(database_url)
+
+def upgrade(engine=None):
+    """Drop the service_records table if it exists."""
+    if engine is None:
+        engine = _get_fallback_engine()
 
     with engine.begin() as conn:
         # Check if the table exists before dropping
-        result = conn.execute(
-            text("SELECT name FROM sqlite_master WHERE type='table' AND name='service_records'")
-        )
-        if not result.fetchone():
+        if not inspect(engine).has_table("service_records"):
             print("  service_records table does not exist, skipping")
             return
 
         # Also migrate any remaining attachments with record_type='service'
         # to 'service_visit' before dropping
-        result = conn.execute(
-            text("SELECT name FROM sqlite_master WHERE type='table' AND name='attachments'")
-        )
-        if result.fetchone():
+        if inspect(engine).has_table("attachments"):
             updated = conn.execute(
                 text(
                     "UPDATE attachments SET record_type = 'service_visit' WHERE record_type = 'service'"

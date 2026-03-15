@@ -3,45 +3,48 @@
 import os
 from pathlib import Path
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, inspect, text
 
 
-def upgrade():
-    """Create maintenance_templates table."""
-    # Get database path from environment
+def _get_fallback_engine():
+    """Build a SQLite engine from environment for standalone execution."""
+    db_path = os.environ.get("DATABASE_PATH")
+    if db_path:
+        return create_engine(f"sqlite:///{db_path}")
     data_dir = Path(os.getenv("DATA_DIR", "/data"))
-    database_path = data_dir / "mygarage.db"
-    database_url = f"sqlite:///{database_path}"
+    return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}")
 
-    # Create engine
-    engine = create_engine(database_url)
+
+def upgrade(engine=None):
+    """Create maintenance_templates table."""
+    if engine is None:
+        engine = _get_fallback_engine()
+
+    is_postgres = engine.dialect.name == "postgresql"
+    pk_type = "SERIAL PRIMARY KEY" if is_postgres else "INTEGER PRIMARY KEY AUTOINCREMENT"
+    ts_type = "TIMESTAMP" if is_postgres else "DATETIME"
 
     with engine.begin() as conn:
         # Check if table already exists
-        result = conn.execute(
-            text(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name='maintenance_templates'"
-            )
-        )
-        if result.fetchone():
+        if inspect(engine).has_table("maintenance_templates"):
             print("✓ maintenance_templates table already exists")
             return
 
         # Create maintenance_templates table
         print("Creating maintenance_templates table...")
         conn.execute(
-            text("""
+            text(f"""
             CREATE TABLE maintenance_templates (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id {pk_type},
                 vin VARCHAR(17) NOT NULL,
                 template_source VARCHAR(200) NOT NULL,
                 template_version VARCHAR(50),
                 template_data JSON NOT NULL,
-                applied_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                applied_at {ts_type} DEFAULT CURRENT_TIMESTAMP,
                 created_by VARCHAR(20) DEFAULT 'auto',
                 reminders_created INTEGER DEFAULT 0,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME,
+                created_at {ts_type} DEFAULT CURRENT_TIMESTAMP,
+                updated_at {ts_type},
                 FOREIGN KEY (vin) REFERENCES vehicles(vin) ON DELETE CASCADE
             )
         """)

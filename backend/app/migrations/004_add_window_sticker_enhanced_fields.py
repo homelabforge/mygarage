@@ -3,45 +3,42 @@
 import os
 from pathlib import Path
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, inspect, text
 
 
-def upgrade():
-    """Add enhanced window sticker columns if they do not exist."""
+def _get_fallback_engine():
+    """Build a SQLite engine from environment for standalone execution."""
+    db_path = os.environ.get("DATABASE_PATH")
+    if db_path:
+        return create_engine(f"sqlite:///{db_path}")
     data_dir = Path(os.getenv("DATA_DIR", "/data"))
-    database_path = data_dir / "mygarage.db"
-    database_url = f"sqlite:///{database_path}"
+    return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}")
 
-    engine = create_engine(database_url)
+
+def upgrade(engine=None):
+    """Add enhanced window sticker columns if they do not exist."""
+    if engine is None:
+        engine = _get_fallback_engine()
 
     with engine.begin() as conn:
-        result = conn.execute(text("PRAGMA table_info(vehicles)"))
-        existing_columns = {row[1] for row in result}
+        inspector = inspect(engine)
+        existing_columns = {col["name"] for col in inspector.get_columns("vehicles")}
 
         columns_to_add = [
-            # Destination charge (separate from options)
             ("destination_charge", "NUMERIC(10, 2)"),
-            # Individual options with pricing (JSON: {"option_name": price, ...})
             ("window_sticker_options_detail", "JSON"),
-            # Package contents (JSON: {"Package Name": ["item1", "item2"], ...})
             ("window_sticker_packages", "JSON"),
-            # Colors as dedicated fields
             ("exterior_color", "VARCHAR(100)"),
             ("interior_color", "VARCHAR(100)"),
-            # Engine/transmission from sticker (may differ from VIN decode)
             ("sticker_engine_description", "VARCHAR(150)"),
             ("sticker_transmission_description", "VARCHAR(150)"),
             ("sticker_drivetrain", "VARCHAR(50)"),
-            # Wheel and tire specs
             ("wheel_specs", "VARCHAR(100)"),
             ("tire_specs", "VARCHAR(100)"),
-            # Warranty information
             ("warranty_powertrain", "VARCHAR(100)"),
             ("warranty_basic", "VARCHAR(100)"),
-            # Environmental ratings (CARB/EPA)
             ("environmental_rating_ghg", "VARCHAR(10)"),
             ("environmental_rating_smog", "VARCHAR(10)"),
-            # Parser metadata
             ("window_sticker_parser_used", "VARCHAR(50)"),
             ("window_sticker_confidence_score", "NUMERIC(5, 2)"),
             ("window_sticker_extracted_vin", "VARCHAR(17)"),
@@ -56,11 +53,8 @@ def upgrade():
 
 
 def downgrade():
-    """
-    SQLite cannot drop columns easily without recreating the table.
-    For now, this downgrade is a no-op to avoid data loss.
-    """
-    print("ℹ downgrade skipped (enhanced window sticker columns will remain)")
+    """Downgrade is a no-op to avoid data loss."""
+    print("downgrade skipped (enhanced window sticker columns will remain)")
 
 
 if __name__ == "__main__":

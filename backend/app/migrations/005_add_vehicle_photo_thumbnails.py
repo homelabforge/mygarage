@@ -3,20 +3,26 @@
 import os
 from pathlib import Path
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, inspect, text
 
 
-def upgrade():
-    """Add thumbnail_path column if it does not exist."""
+def _get_fallback_engine():
+    """Build a SQLite engine from environment for standalone execution."""
+    db_path = os.environ.get("DATABASE_PATH")
+    if db_path:
+        return create_engine(f"sqlite:///{db_path}")
     data_dir = Path(os.getenv("DATA_DIR", "/data"))
-    database_path = data_dir / "mygarage.db"
-    database_url = f"sqlite:///{database_path}"
+    return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}")
 
-    engine = create_engine(database_url)
+
+def upgrade(engine=None):
+    """Add thumbnail_path column if it does not exist."""
+    if engine is None:
+        engine = _get_fallback_engine()
 
     with engine.begin() as conn:
-        result = conn.execute(text("PRAGMA table_info(vehicle_photos)"))
-        existing_columns = {row[1] for row in result}
+        inspector = inspect(engine)
+        existing_columns = {col["name"] for col in inspector.get_columns("vehicle_photos")}
 
         if "thumbnail_path" in existing_columns:
             print("✓ vehicle_photos.thumbnail_path already exists")
@@ -27,11 +33,8 @@ def upgrade():
 
 
 def downgrade():
-    """
-    SQLite cannot drop columns easily without recreating the table.
-    For now, this downgrade is a no-op to avoid data loss.
-    """
-    print("ℹ downgrade skipped (thumbnail_path column will remain)")
+    """Downgrade is a no-op to avoid data loss."""
+    print("downgrade skipped (thumbnail_path column will remain)")
 
 
 if __name__ == "__main__":

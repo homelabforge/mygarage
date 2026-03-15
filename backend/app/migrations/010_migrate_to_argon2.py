@@ -17,23 +17,40 @@ dependency can be removed from pyproject.toml.
 import os
 from pathlib import Path
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, inspect, text
 
 
-def upgrade():
+def _get_fallback_engine():
+    """Build a SQLite engine from environment for standalone execution."""
+    db_path = os.environ.get("DATABASE_PATH")
+    if db_path:
+        return create_engine(f"sqlite:///{db_path}")
+    data_dir = Path(os.getenv("DATA_DIR", "/data"))
+    return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}")
+
+
+def upgrade(engine=None):
     """Mark the Argon2 migration as applied.
 
     This is a code-level migration, not a schema migration.
     The actual password rehashing happens automatically in auth.py
     when users log in.
     """
-    # Get database path from environment
-    data_dir = Path(os.getenv("DATA_DIR", "/data"))
-    database_path = data_dir / "mygarage.db"
-    database_url = f"sqlite:///{database_path}"
+    if engine is None:
+        engine = _get_fallback_engine()
 
-    # Create engine
-    engine = create_engine(database_url)
+    inspector = inspect(engine)
+
+    # Guard: users table must exist
+    if not inspector.has_table("users"):
+        print("  users table does not exist, skipping Argon2 migration info")
+        return
+
+    # Guard: hashed_password column must exist
+    columns = {col["name"] for col in inspector.get_columns("users")}
+    if "hashed_password" not in columns:
+        print("  hashed_password column not found in users table, skipping Argon2 migration info")
+        return
 
     with engine.begin() as conn:
         # Check current password hash types for informational purposes

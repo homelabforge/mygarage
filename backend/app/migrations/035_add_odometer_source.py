@@ -12,30 +12,33 @@ This allows the UI to distinguish automatic LiveLink entries from manual ones.
 import os
 from pathlib import Path
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, inspect, text
 
 
-def upgrade():
-    """Add source column to odometer_records."""
-    # Get database path from environment
+def _get_fallback_engine():
+    """Build a SQLite engine from environment for standalone execution."""
+    db_path = os.environ.get("DATABASE_PATH")
+    if db_path:
+        return create_engine(f"sqlite:///{db_path}")
     data_dir = Path(os.getenv("DATA_DIR", "/data"))
-    database_path = data_dir / "mygarage.db"
-    database_url = f"sqlite:///{database_path}"
+    return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}")
 
-    engine = create_engine(database_url)
+
+def upgrade(engine=None):
+    """Add source column to odometer_records."""
+    if engine is None:
+        engine = _get_fallback_engine()
 
     with engine.begin() as conn:
+        inspector = inspect(engine)
+
         # Check if odometer_records table exists
-        result = conn.execute(
-            text("SELECT name FROM sqlite_master WHERE type='table' AND name='odometer_records'")
-        )
-        if not result.fetchone():
+        if not inspector.has_table("odometer_records"):
             print("  odometer_records table does not exist, skipping")
             return
 
         # Check if source column already exists
-        result = conn.execute(text("PRAGMA table_info(odometer_records)"))
-        existing_columns = {row[1] for row in result.fetchall()}
+        existing_columns = {col["name"] for col in inspector.get_columns("odometer_records")}
 
         if "source" in existing_columns:
             print("  source column already exists, skipping")
@@ -50,10 +53,8 @@ def upgrade():
             print("  Added source column to odometer_records")
 
         # Create index on source column if it doesn't exist
-        result = conn.execute(
-            text("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_odometer_source'")
-        )
-        if not result.fetchone():
+        existing_indexes = {idx["name"] for idx in inspector.get_indexes("odometer_records")}
+        if "idx_odometer_source" not in existing_indexes:
             conn.execute(text("CREATE INDEX idx_odometer_source ON odometer_records(source)"))
             print("  Created idx_odometer_source index")
 

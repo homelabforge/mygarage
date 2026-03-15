@@ -12,23 +12,28 @@ import os
 from datetime import datetime
 from pathlib import Path
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, inspect, text
 
 
-def upgrade() -> None:
-    """Archive completed reminders as service visits, then drop reminders table."""
+def _get_fallback_engine():
+    """Build a SQLite engine from environment for standalone execution."""
+    db_path = os.environ.get("DATABASE_PATH")
+    if db_path:
+        return create_engine(f"sqlite:///{db_path}")
     data_dir = Path(os.getenv("DATA_DIR", "/data"))
-    database_path = data_dir / "mygarage.db"
-    database_url = f"sqlite:///{database_path}"
+    return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}")
 
-    engine = create_engine(database_url)
+
+def upgrade(engine=None) -> None:
+    """Archive completed reminders as service visits, then drop reminders table."""
+    if engine is None:
+        engine = _get_fallback_engine()
+
+    is_postgres = engine.dialect.name == "postgresql"
 
     with engine.begin() as conn:
         # Check if reminders table exists
-        result = conn.execute(
-            text("SELECT name FROM sqlite_master WHERE type='table' AND name='reminders'")
-        )
-        if not result.fetchone():
+        if not inspect(engine).has_table("reminders"):
             print("  reminders table does not exist — nothing to do")
             return
 
@@ -69,28 +74,34 @@ def upgrade() -> None:
 
             notes = f"{marker} {description}"
 
-            # Insert service visit
-            conn.execute(
-                text(
-                    """
-                    INSERT INTO service_visits (vin, date, service_category, notes, total_cost)
-                    VALUES (:vin, :date, 'Maintenance', :notes, 0)
-                    """
-                ),
-                {"vin": vin, "date": visit_date, "notes": notes},
-            )
-
-            # Get the visit ID we just created
-            visit_id = conn.execute(text("SELECT last_insert_rowid()")).scalar()
+            if is_postgres:
+                # PostgreSQL: use RETURNING id
+                result = conn.execute(
+                    text("""
+                        INSERT INTO service_visits (vin, date, service_category, notes, total_cost)
+                        VALUES (:vin, :date, 'Maintenance', :notes, 0)
+                        RETURNING id
+                    """),
+                    {"vin": vin, "date": visit_date, "notes": notes},
+                )
+                visit_id = result.scalar()
+            else:
+                # SQLite: use last_insert_rowid()
+                conn.execute(
+                    text("""
+                        INSERT INTO service_visits (vin, date, service_category, notes, total_cost)
+                        VALUES (:vin, :date, 'Maintenance', :notes, 0)
+                    """),
+                    {"vin": vin, "date": visit_date, "notes": notes},
+                )
+                visit_id = conn.execute(text("SELECT last_insert_rowid()")).scalar()
 
             # Insert a service line item for the archived reminder
             conn.execute(
-                text(
-                    """
+                text("""
                     INSERT INTO service_line_items (visit_id, description, cost)
                     VALUES (:visit_id, :description, 0)
-                    """
-                ),
+                """),
                 {"visit_id": visit_id, "description": description},
             )
 

@@ -7,34 +7,30 @@ due to the delete logic being added after the initial migration run.
 import os
 from pathlib import Path
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, inspect, text
 
 
-def upgrade():
-    """Delete non-completed reminders that have corresponding schedule items."""
-    # Get database path from environment
+def _get_fallback_engine():
+    """Build a SQLite engine from environment for standalone execution."""
+    db_path = os.environ.get("DATABASE_PATH")
+    if db_path:
+        return create_engine(f"sqlite:///{db_path}")
     data_dir = Path(os.getenv("DATA_DIR", "/data"))
-    database_path = data_dir / "mygarage.db"
-    database_url = f"sqlite:///{database_path}"
+    return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}")
 
-    # Create engine
-    engine = create_engine(database_url)
+
+def upgrade(engine=None):
+    """Delete non-completed reminders that have corresponding schedule items."""
+    if engine is None:
+        engine = _get_fallback_engine()
 
     with engine.begin() as conn:
         # Check if both tables exist
-        result = conn.execute(
-            text("SELECT name FROM sqlite_master WHERE type='table' AND name='reminders'")
-        )
-        if not result.fetchone():
+        if not inspect(engine).has_table("reminders"):
             print("  reminders table does not exist, skipping")
             return
 
-        result = conn.execute(
-            text(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name='maintenance_schedule_items'"
-            )
-        )
-        if not result.fetchone():
+        if not inspect(engine).has_table("maintenance_schedule_items"):
             print("  maintenance_schedule_items table does not exist, skipping")
             return
 

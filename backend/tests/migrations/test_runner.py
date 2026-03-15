@@ -1,4 +1,4 @@
-"""Tests for migration runner behavior: tracking, order, stop-on-failure, noop."""
+"""Tests for migration runner behavior: tracking, order, stop-on-failure, noop, engine passing."""
 
 import sqlite3
 from pathlib import Path
@@ -75,3 +75,64 @@ def test_second_run_is_noop(fake_migrations_success_dir):
     assert count_after_first == count_after_second, (
         f"Second run applied migrations: count went from {count_after_first} to {count_after_second}"
     )
+
+
+@pytest.mark.migrations
+def test_runner_passes_engine_to_upgrade(tmp_path, monkeypatch):
+    """Runner passes its engine to upgrade(engine) when the signature accepts it."""
+    fake_dir = tmp_path / "fake_engine_test"
+    fake_dir.mkdir()
+    (fake_dir / "__init__.py").write_text("")
+
+    # Create a migration that records whether engine was passed
+    (fake_dir / "001_check_engine.py").write_text(
+        "received_engine = None\n"
+        "def upgrade(engine=None):\n"
+        "    global received_engine\n"
+        "    received_engine = engine\n"
+    )
+
+    db_file = tmp_path / "engine_test.db"
+    monkeypatch.setenv("DATABASE_PATH", str(db_file))
+    sync_url = f"sqlite:///{db_file}"
+
+    runner = MigrationRunner(sync_url, fake_dir)
+    runner.run_pending_migrations()
+
+    # Verify the migration was applied (engine was passed successfully)
+    conn = sqlite3.connect(str(db_file))
+    cursor = conn.cursor()
+    cursor.execute("SELECT migration_name FROM schema_migrations")
+    applied = [row[0] for row in cursor.fetchall()]
+    conn.close()
+
+    assert "001_check_engine" in applied
+
+
+@pytest.mark.migrations
+def test_runner_handles_legacy_upgrade_no_args(tmp_path, monkeypatch):
+    """Runner calls upgrade() without args when the signature doesn't accept engine."""
+    fake_dir = tmp_path / "fake_legacy_test"
+    fake_dir.mkdir()
+    (fake_dir / "__init__.py").write_text("")
+
+    # Create a legacy-style migration (no engine param)
+    (fake_dir / "001_legacy.py").write_text(
+        "def upgrade():\n"
+        "    pass  # no-op legacy migration\n"
+    )
+
+    db_file = tmp_path / "legacy_test.db"
+    monkeypatch.setenv("DATABASE_PATH", str(db_file))
+    sync_url = f"sqlite:///{db_file}"
+
+    runner = MigrationRunner(sync_url, fake_dir)
+    runner.run_pending_migrations()
+
+    conn = sqlite3.connect(str(db_file))
+    cursor = conn.cursor()
+    cursor.execute("SELECT migration_name FROM schema_migrations")
+    applied = [row[0] for row in cursor.fetchall()]
+    conn.close()
+
+    assert "001_legacy" in applied

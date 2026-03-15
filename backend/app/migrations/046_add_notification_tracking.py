@@ -14,13 +14,22 @@ from pathlib import Path
 from sqlalchemy import create_engine, inspect, text
 
 
-def upgrade() -> None:
-    """Add notification tracking columns."""
+def _get_fallback_engine():
+    """Build a SQLite engine from environment for standalone execution."""
+    db_path = os.environ.get("DATABASE_PATH")
+    if db_path:
+        return create_engine(f"sqlite:///{db_path}")
     data_dir = Path(os.getenv("DATA_DIR", "/data"))
-    database_path = data_dir / "mygarage.db"
-    database_url = f"sqlite:///{database_path}"
+    return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}")
 
-    engine = create_engine(database_url)
+
+def upgrade(engine=None) -> None:
+    """Add notification tracking columns."""
+    if engine is None:
+        engine = _get_fallback_engine()
+
+    is_postgres = engine.dialect.name == "postgresql"
+    dt_type = "TIMESTAMP" if is_postgres else "DATETIME"
 
     with engine.begin() as conn:
         inspector = inspect(engine)
@@ -30,7 +39,9 @@ def upgrade() -> None:
 
         if "last_notified_at" not in columns:
             conn.execute(
-                text("ALTER TABLE maintenance_schedule_items ADD COLUMN last_notified_at DATETIME")
+                text(
+                    f"ALTER TABLE maintenance_schedule_items ADD COLUMN last_notified_at {dt_type}"
+                )
             )
             print("  Added column: maintenance_schedule_items.last_notified_at")
 
@@ -47,7 +58,7 @@ def upgrade() -> None:
 
         if "last_notified_at" not in columns:
             conn.execute(
-                text("ALTER TABLE insurance_policies ADD COLUMN last_notified_at DATETIME")
+                text(f"ALTER TABLE insurance_policies ADD COLUMN last_notified_at {dt_type}")
             )
             print("  Added column: insurance_policies.last_notified_at")
 
@@ -55,7 +66,9 @@ def upgrade() -> None:
         columns = [col["name"] for col in inspector.get_columns("warranty_records")]
 
         if "last_notified_at" not in columns:
-            conn.execute(text("ALTER TABLE warranty_records ADD COLUMN last_notified_at DATETIME"))
+            conn.execute(
+                text(f"ALTER TABLE warranty_records ADD COLUMN last_notified_at {dt_type}")
+            )
             print("  Added column: warranty_records.last_notified_at")
 
     print("  Migration 046 complete: notification tracking columns added")

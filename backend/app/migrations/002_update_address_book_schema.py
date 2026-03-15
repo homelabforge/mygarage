@@ -8,135 +8,146 @@ Changes:
 import os
 from pathlib import Path
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, inspect, text
 
 
-def upgrade():
+def _get_fallback_engine():
+    """Build a SQLite engine from environment for standalone execution."""
+    db_path = os.environ.get("DATABASE_PATH")
+    if db_path:
+        return create_engine(f"sqlite:///{db_path}")
+    data_dir = Path(os.getenv("DATA_DIR", "/data"))
+    return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}")
+
+
+def upgrade(engine=None):
     """Update address_book table to make business_name required and name optional."""
-    # Create a synchronous engine for migrations
-    data_dir = Path(os.getenv("DATA_DIR", "/data"))
-    database_path = data_dir / "mygarage.db"
-    database_url = f"sqlite:///{database_path}"
+    if engine is None:
+        engine = _get_fallback_engine()
 
-    sync_engine = create_engine(database_url)
+    dialect = engine.dialect.name
 
-    with sync_engine.begin() as conn:
-        # SQLite doesn't support ALTER COLUMN, so we need to recreate the table
+    with engine.begin() as conn:
+        inspector = inspect(engine)
 
-        # Clean up any leftover temp table from a previous failed run
-        conn.execute(text("DROP TABLE IF EXISTS address_book_new"))
+        if not inspector.has_table("address_book"):
+            print("  address_book table does not exist, skipping")
+            return
 
-        # 1. Create new table with updated schema
-        conn.execute(
-            text("""
-            CREATE TABLE address_book_new (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                business_name VARCHAR(150) NOT NULL,
-                name VARCHAR(100),
-                address TEXT,
-                city VARCHAR(100),
-                state VARCHAR(50),
-                zip_code VARCHAR(20),
-                phone VARCHAR(20),
-                email VARCHAR(100),
-                website VARCHAR(200),
-                category VARCHAR(50),
-                notes TEXT,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        if dialect == "postgresql":
+            # PostgreSQL: can ALTER COLUMN directly
+            # Backfill business_name where NULL
+            conn.execute(
+                text("UPDATE address_book SET business_name = name WHERE business_name IS NULL")
             )
-        """)
-        )
+            conn.execute(text("ALTER TABLE address_book ALTER COLUMN business_name SET NOT NULL"))
+            conn.execute(text("ALTER TABLE address_book ALTER COLUMN name DROP NOT NULL"))
+            # Set name to NULL where it was same as business_name
+            conn.execute(text("UPDATE address_book SET name = NULL WHERE name = business_name"))
+            print("✓ Successfully updated address_book table schema on PostgreSQL")
+        else:
+            # SQLite: must rebuild table
+            conn.execute(text("DROP TABLE IF EXISTS address_book_new"))
 
-        # 2. Copy data from old table to new table
-        # Set business_name to name if business_name is empty, and name to NULL if it was the same
-        conn.execute(
-            text("""
-            INSERT INTO address_book_new (
-                id, business_name, name, address, city, state, zip_code,
-                phone, email, website, category, notes, created_at, updated_at
+            conn.execute(
+                text("""
+                CREATE TABLE address_book_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    business_name VARCHAR(150) NOT NULL,
+                    name VARCHAR(100),
+                    address TEXT,
+                    city VARCHAR(100),
+                    state VARCHAR(50),
+                    zip_code VARCHAR(20),
+                    phone VARCHAR(20),
+                    email VARCHAR(100),
+                    website VARCHAR(200),
+                    category VARCHAR(50),
+                    notes TEXT,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
             )
-            SELECT
-                id,
-                COALESCE(business_name, name) as business_name,
-                CASE WHEN business_name IS NOT NULL THEN name ELSE NULL END as name,
-                address, city, state, zip_code,
-                phone, email, website, category, notes, created_at, updated_at
-            FROM address_book
-        """)
-        )
 
-        # 3. Drop old table
-        conn.execute(text("DROP TABLE address_book"))
+            conn.execute(
+                text("""
+                INSERT INTO address_book_new (
+                    id, business_name, name, address, city, state, zip_code,
+                    phone, email, website, category, notes, created_at, updated_at
+                )
+                SELECT
+                    id,
+                    COALESCE(business_name, name) as business_name,
+                    CASE WHEN business_name IS NOT NULL THEN name ELSE NULL END as name,
+                    address, city, state, zip_code,
+                    phone, email, website, category, notes, created_at, updated_at
+                FROM address_book
+            """)
+            )
 
-        # 4. Rename new table to old table name
-        conn.execute(text("ALTER TABLE address_book_new RENAME TO address_book"))
-
-        # 5. Recreate indexes
-        conn.execute(text("CREATE INDEX idx_address_book_name ON address_book(name)"))
-        conn.execute(text("CREATE INDEX idx_address_book_category ON address_book(category)"))
-
-        print("✓ Successfully updated address_book table schema")
+            conn.execute(text("DROP TABLE address_book"))
+            conn.execute(text("ALTER TABLE address_book_new RENAME TO address_book"))
+            conn.execute(text("CREATE INDEX idx_address_book_name ON address_book(name)"))
+            conn.execute(text("CREATE INDEX idx_address_book_category ON address_book(category)"))
+            print("✓ Successfully updated address_book table schema on SQLite")
 
 
-def downgrade():
+def downgrade(engine=None):
     """Revert address_book table changes."""
-    # Create a synchronous engine for migrations
-    data_dir = Path(os.getenv("DATA_DIR", "/data"))
-    database_path = data_dir / "mygarage.db"
-    database_url = f"sqlite:///{database_path}"
+    if engine is None:
+        engine = _get_fallback_engine()
 
-    sync_engine = create_engine(database_url)
+    dialect = engine.dialect.name
 
-    with sync_engine.begin() as conn:
-        # Clean up any leftover temp table from a previous failed run
-        conn.execute(text("DROP TABLE IF EXISTS address_book_new"))
-
-        # Create old table structure
-        conn.execute(
-            text("""
-            CREATE TABLE address_book_new (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name VARCHAR(100) NOT NULL,
-                business_name VARCHAR(150),
-                address TEXT,
-                city VARCHAR(100),
-                state VARCHAR(50),
-                zip_code VARCHAR(20),
-                phone VARCHAR(20),
-                email VARCHAR(100),
-                website VARCHAR(200),
-                category VARCHAR(50),
-                notes TEXT,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    with engine.begin() as conn:
+        if dialect == "postgresql":
+            conn.execute(text("UPDATE address_book SET name = business_name WHERE name IS NULL"))
+            conn.execute(text("ALTER TABLE address_book ALTER COLUMN name SET NOT NULL"))
+            conn.execute(text("ALTER TABLE address_book ALTER COLUMN business_name DROP NOT NULL"))
+            print("✓ Successfully reverted address_book table schema on PostgreSQL")
+        else:
+            conn.execute(text("DROP TABLE IF EXISTS address_book_new"))
+            conn.execute(
+                text("""
+                CREATE TABLE address_book_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name VARCHAR(100) NOT NULL,
+                    business_name VARCHAR(150),
+                    address TEXT,
+                    city VARCHAR(100),
+                    state VARCHAR(50),
+                    zip_code VARCHAR(20),
+                    phone VARCHAR(20),
+                    email VARCHAR(100),
+                    website VARCHAR(200),
+                    category VARCHAR(50),
+                    notes TEXT,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
             )
-        """)
-        )
-
-        # Copy data back
-        conn.execute(
-            text("""
-            INSERT INTO address_book_new (
-                id, name, business_name, address, city, state, zip_code,
-                phone, email, website, category, notes, created_at, updated_at
+            conn.execute(
+                text("""
+                INSERT INTO address_book_new (
+                    id, name, business_name, address, city, state, zip_code,
+                    phone, email, website, category, notes, created_at, updated_at
+                )
+                SELECT
+                    id,
+                    COALESCE(name, business_name) as name,
+                    business_name,
+                    address, city, state, zip_code,
+                    phone, email, website, category, notes, created_at, updated_at
+                FROM address_book
+            """)
             )
-            SELECT
-                id,
-                COALESCE(name, business_name) as name,
-                business_name,
-                address, city, state, zip_code,
-                phone, email, website, category, notes, created_at, updated_at
-            FROM address_book
-        """)
-        )
-
-        conn.execute(text("DROP TABLE address_book"))
-        conn.execute(text("ALTER TABLE address_book_new RENAME TO address_book"))
-        conn.execute(text("CREATE INDEX idx_address_book_name ON address_book(name)"))
-        conn.execute(text("CREATE INDEX idx_address_book_category ON address_book(category)"))
-
-        print("✓ Successfully reverted address_book table schema")
+            conn.execute(text("DROP TABLE address_book"))
+            conn.execute(text("ALTER TABLE address_book_new RENAME TO address_book"))
+            conn.execute(text("CREATE INDEX idx_address_book_name ON address_book(name)"))
+            conn.execute(text("CREATE INDEX idx_address_book_category ON address_book(category)"))
+            print("✓ Successfully reverted address_book table schema on SQLite")
 
 
 if __name__ == "__main__":

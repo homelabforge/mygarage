@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Fix PostgreSQL migrations failing with `UndefinedColumnError` after container upgrade ([#42](https://github.com/homelabforge/mygarage/issues/42))
+
+### App Dependencies
+- **aiomqtt**: 2.5.0 → 2.5.1
+- **authlib**: 1.6.8 → 1.6.9
+- **fastapi**: 0.134.0 → 0.135.1
+- **lucide-react**: 0.575.0 → 0.577.0
+- **pymupdf**: 1.27.1 → 1.27.2
+- **recharts**: 3.7.0 → 3.8.0
+- **sqlalchemy**: 2.0.47 → 2.0.48
+
 ## [2.23.1] - 2026-03-11
 
 ### Fixed

@@ -3,32 +3,30 @@
 import os
 from pathlib import Path
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, inspect, text
 
 
-def upgrade():
-    """Add propane_gallons column if it does not exist."""
-    # Get database path from environment
+def _get_fallback_engine():
+    """Build a SQLite engine from environment for standalone execution."""
+    db_path = os.environ.get("DATABASE_PATH")
+    if db_path:
+        return create_engine(f"sqlite:///{db_path}")
     data_dir = Path(os.getenv("DATA_DIR", "/data"))
-    database_path = data_dir / "mygarage.db"
-    database_url = f"sqlite:///{database_path}"
+    return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}")
 
-    # Create engine
-    engine = create_engine(database_url)
+
+def upgrade(engine=None):
+    """Add propane_gallons column if it does not exist."""
+    if engine is None:
+        engine = _get_fallback_engine()
 
     with engine.begin() as conn:
-        # Check if column exists via PRAGMA table_info
-        result = conn.execute(text("PRAGMA table_info(fuel_records)"))
-        columns = {row[1]: row for row in result}
+        inspector = inspect(engine)
+        existing_columns = {col["name"] for col in inspector.get_columns("fuel_records")}
 
-        if "propane_gallons" not in columns:
+        if "propane_gallons" not in existing_columns:
             print("Adding propane_gallons column to fuel_records table...")
-            conn.execute(
-                text("""
-                ALTER TABLE fuel_records
-                ADD COLUMN propane_gallons NUMERIC(8, 3)
-            """)
-            )
+            conn.execute(text("ALTER TABLE fuel_records ADD COLUMN propane_gallons NUMERIC(8, 3)"))
             print("✓ Successfully added propane_gallons to fuel_records")
         else:
             print("✓ fuel_records.propane_gallons already exists")

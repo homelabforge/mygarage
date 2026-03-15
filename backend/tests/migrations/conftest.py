@@ -29,11 +29,13 @@ def migration_db(tmp_path, monkeypatch):
 def _write_fake_migration(path: Path, table_name: str) -> None:
     """Write a minimal synthetic migration that creates a table."""
     path.write_text(
-        "import os, sqlite3\n"
-        "def upgrade():\n"
-        '    conn = sqlite3.connect(os.environ["DATABASE_PATH"])\n'
-        f'    conn.execute("CREATE TABLE IF NOT EXISTS {table_name} (id INTEGER PRIMARY KEY)")\n'
-        "    conn.commit(); conn.close()\n"
+        "from sqlalchemy import create_engine, text\n"
+        "def upgrade(engine=None):\n"
+        "    if engine is None:\n"
+        "        import os\n"
+        '        engine = create_engine(f"sqlite:///{os.environ[\'DATABASE_PATH\']}")\n'
+        "    with engine.begin() as conn:\n"
+        f'        conn.execute(text("CREATE TABLE IF NOT EXISTS {table_name} (id INTEGER PRIMARY KEY)"))\n'
     )
 
 
@@ -61,6 +63,6 @@ def fake_migrations_failing_dir(tmp_path, monkeypatch):
     _write_fake_migration(fake_dir / "001_create_foo.py", "foo")
     _write_fake_migration(fake_dir / "002_create_bar.py", "bar")
     (fake_dir / "003_fail.py").write_text(
-        'def upgrade():\n    raise RuntimeError("forced failure for testing")\n'
+        'def upgrade(engine=None):\n    raise RuntimeError("forced failure for testing")\n'
     )
     return fake_dir, db_file, f"sqlite:///{db_file}"

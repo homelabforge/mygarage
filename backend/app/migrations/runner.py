@@ -1,6 +1,7 @@
 """Database migration runner with automatic discovery and tracking."""
 
 import importlib.util
+import inspect as python_inspect
 import logging
 from pathlib import Path
 
@@ -127,7 +128,13 @@ class MigrationRunner:
             raise AttributeError(f"Migration {name} missing upgrade() function")
 
         logger.info("Running migration: %s", name)
-        module.upgrade()
+
+        # Pass engine if the migration accepts it, otherwise call without args
+        sig = python_inspect.signature(module.upgrade)
+        if "engine" in sig.parameters:
+            module.upgrade(engine=self.engine)
+        else:
+            module.upgrade()
 
     def run_pending_migrations(self) -> None:
         """

@@ -8,9 +8,9 @@ version = "2.23.1"
 description = "Self-hosted vehicle maintenance tracking application"
 requires-python = ">=3.13"
 dependencies = [
-    "fastapi>=0.134.0",
+    "fastapi>=0.135.1",
     "granian>=2.7.2",
-    "sqlalchemy>=2.0.47",
+    "sqlalchemy>=2.0.48",
     "aiosqlite>=0.22.1",
     "asyncpg>=0.31.0",  # PostgreSQL async driver
     "psycopg2-binary>=2.9.11",  # PostgreSQL sync driver for migrations
@@ -28,12 +28,12 @@ dependencies = [
     "python-magic>=0.4.27",
     "slowapi>=0.1.9",
     "argon2-cffi>=25.1.0",
-    "authlib>=1.6.8",  # OIDC/OAuth2 authentication
-    "pymupdf>=1.27.1",
+    "authlib>=1.6.9",  # OIDC/OAuth2 authentication
+    "pymupdf>=1.27.2",
     "pytesseract>=0.3.13",
     "aiosmtplib>=5.1.0",  # Async SMTP for email notifications
     "pyyaml>=6.0.3",  # YAML parsing for maintenance templates
-    "aiomqtt>=2.5.0",  # Async MQTT client for LiveLink WiCAN support
+    "aiomqtt>=2.5.1",  # Async MQTT client for LiveLink WiCAN support
     "matplotlib>=3.10.8",  # Chart generation for PDF analytics reports
 ]
 

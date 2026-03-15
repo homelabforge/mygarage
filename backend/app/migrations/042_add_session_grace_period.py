@@ -11,13 +11,19 @@ from pathlib import Path
 from sqlalchemy import create_engine, inspect, text
 
 
-def upgrade():
-    """Add grace period column and setting."""
+def _get_fallback_engine():
+    """Build a SQLite engine from environment for standalone execution."""
+    db_path = os.environ.get("DATABASE_PATH")
+    if db_path:
+        return create_engine(f"sqlite:///{db_path}")
     data_dir = Path(os.getenv("DATA_DIR", "/data"))
-    database_path = data_dir / "mygarage.db"
-    database_url = f"sqlite:///{database_path}"
+    return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}")
 
-    engine = create_engine(database_url)
+
+def upgrade(engine=None):
+    """Add grace period column and setting."""
+    if engine is None:
+        engine = _get_fallback_engine()
 
     with engine.begin() as conn:
         # Add pending_offline_at column to livelink_devices
@@ -25,8 +31,10 @@ def upgrade():
         columns = [col["name"] for col in inspector.get_columns("livelink_devices")]
 
         if "pending_offline_at" not in columns:
+            is_postgres = engine.dialect.name == "postgresql"
+            col_type = "TIMESTAMP" if is_postgres else "DATETIME"
             conn.execute(
-                text("ALTER TABLE livelink_devices ADD COLUMN pending_offline_at DATETIME")
+                text(f"ALTER TABLE livelink_devices ADD COLUMN pending_offline_at {col_type}")
             )
             print("  Added column: livelink_devices.pending_offline_at")
         else:

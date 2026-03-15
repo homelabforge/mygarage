@@ -13,26 +13,31 @@ Schema changes:
 import os
 from pathlib import Path
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, inspect, text
 
 
-def upgrade():
-    """Add DEF tracking schema."""
-    # Get database path from environment
+def _get_fallback_engine():
+    """Build a SQLite engine from environment for standalone execution."""
+    db_path = os.environ.get("DATABASE_PATH")
+    if db_path:
+        return create_engine(f"sqlite:///{db_path}")
     data_dir = Path(os.getenv("DATA_DIR", "/data"))
-    database_path = data_dir / "mygarage.db"
-    database_url = f"sqlite:///{database_path}"
+    return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}")
 
-    engine = create_engine(database_url)
+
+def upgrade(engine=None):
+    """Add DEF tracking schema."""
+    if engine is None:
+        engine = _get_fallback_engine()
 
     with engine.begin() as conn:
+        inspector = inspect(engine)
         print("Adding DEF tracking schema...")
 
         # =========================================================================
         # 1. Add def_tank_capacity_gallons column to vehicles table
         # =========================================================================
-        result = conn.execute(text("PRAGMA table_info(vehicles)"))
-        existing_columns = {row[1] for row in result.fetchall()}
+        existing_columns = {col["name"] for col in inspector.get_columns("vehicles")}
 
         if "def_tank_capacity_gallons" in existing_columns:
             print("  → def_tank_capacity_gallons column already exists, skipping")
@@ -45,64 +50,75 @@ def upgrade():
         # =========================================================================
         # 2. Create def_records table
         # =========================================================================
-        result = conn.execute(
-            text("SELECT name FROM sqlite_master WHERE type='table' AND name='def_records'")
-        )
-        if result.fetchone():
+        if inspector.has_table("def_records"):
             print("  → def_records table already exists, skipping")
         else:
-            conn.execute(
-                text("""
-                    CREATE TABLE def_records (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        vin VARCHAR(17) NOT NULL REFERENCES vehicles(vin) ON DELETE CASCADE,
-                        date DATE NOT NULL,
-                        mileage INTEGER CHECK (mileage IS NULL OR (mileage >= 0 AND mileage <= 9999999)),
-                        gallons NUMERIC(8,3) CHECK (gallons IS NULL OR gallons >= 0),
-                        cost NUMERIC(8,2) CHECK (cost IS NULL OR cost >= 0),
-                        price_per_unit NUMERIC(6,3),
-                        fill_level NUMERIC(3,2) CHECK (fill_level IS NULL OR (fill_level >= 0.00 AND fill_level <= 1.00)),
-                        source VARCHAR(100),
-                        brand VARCHAR(100),
-                        notes TEXT,
-                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-                    )
-                """)
-            )
+            is_postgres = engine.dialect.name == "postgresql"
+            if is_postgres:
+                conn.execute(
+                    text("""
+                        CREATE TABLE def_records (
+                            id SERIAL PRIMARY KEY,
+                            vin VARCHAR(17) NOT NULL REFERENCES vehicles(vin) ON DELETE CASCADE,
+                            date DATE NOT NULL,
+                            mileage INTEGER CHECK (mileage IS NULL OR (mileage >= 0 AND mileage <= 9999999)),
+                            gallons NUMERIC(8,3) CHECK (gallons IS NULL OR gallons >= 0),
+                            cost NUMERIC(8,2) CHECK (cost IS NULL OR cost >= 0),
+                            price_per_unit NUMERIC(6,3),
+                            fill_level NUMERIC(3,2) CHECK (fill_level IS NULL OR (fill_level >= 0.00 AND fill_level <= 1.00)),
+                            source VARCHAR(100),
+                            brand VARCHAR(100),
+                            notes TEXT,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        )
+                    """)
+                )
+            else:
+                conn.execute(
+                    text("""
+                        CREATE TABLE def_records (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            vin VARCHAR(17) NOT NULL REFERENCES vehicles(vin) ON DELETE CASCADE,
+                            date DATE NOT NULL,
+                            mileage INTEGER CHECK (mileage IS NULL OR (mileage >= 0 AND mileage <= 9999999)),
+                            gallons NUMERIC(8,3) CHECK (gallons IS NULL OR gallons >= 0),
+                            cost NUMERIC(8,2) CHECK (cost IS NULL OR cost >= 0),
+                            price_per_unit NUMERIC(6,3),
+                            fill_level NUMERIC(3,2) CHECK (fill_level IS NULL OR (fill_level >= 0.00 AND fill_level <= 1.00)),
+                            source VARCHAR(100),
+                            brand VARCHAR(100),
+                            notes TEXT,
+                            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                        )
+                    """)
+                )
             print("  Created def_records table")
 
         # =========================================================================
         # 3. Create indexes on def_records
         # =========================================================================
-        # Check existing indexes
-        result = conn.execute(
-            text("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='def_records'")
-        )
-        existing_indexes = {row[0] for row in result.fetchall()}
+        # Refresh inspector after table creation
+        inspector = inspect(engine)
+        if inspector.has_table("def_records"):
+            existing_indexes = {idx["name"] for idx in inspector.get_indexes("def_records")}
 
-        if "idx_def_records_vin" in existing_indexes:
-            print("  → idx_def_records_vin already exists, skipping")
-        else:
-            conn.execute(text("CREATE INDEX idx_def_records_vin ON def_records(vin)"))
-            print("  Created index idx_def_records_vin")
+            if "idx_def_records_vin" not in existing_indexes:
+                conn.execute(text("CREATE INDEX idx_def_records_vin ON def_records(vin)"))
+                print("  Created index idx_def_records_vin")
 
-        if "idx_def_records_date" in existing_indexes:
-            print("  → idx_def_records_date already exists, skipping")
-        else:
-            conn.execute(text("CREATE INDEX idx_def_records_date ON def_records(date)"))
-            print("  Created index idx_def_records_date")
+            if "idx_def_records_date" not in existing_indexes:
+                conn.execute(text("CREATE INDEX idx_def_records_date ON def_records(date)"))
+                print("  Created index idx_def_records_date")
 
-        if "idx_def_records_vin_date" in existing_indexes:
-            print("  → idx_def_records_vin_date already exists, skipping")
-        else:
-            conn.execute(text("CREATE INDEX idx_def_records_vin_date ON def_records(vin, date)"))
-            print("  Created index idx_def_records_vin_date")
+            if "idx_def_records_vin_date" not in existing_indexes:
+                conn.execute(
+                    text("CREATE INDEX idx_def_records_vin_date ON def_records(vin, date)")
+                )
+                print("  Created index idx_def_records_vin_date")
 
-        if "idx_def_records_mileage" in existing_indexes:
-            print("  → idx_def_records_mileage already exists, skipping")
-        else:
-            conn.execute(text("CREATE INDEX idx_def_records_mileage ON def_records(mileage)"))
-            print("  Created index idx_def_records_mileage")
+            if "idx_def_records_mileage" not in existing_indexes:
+                conn.execute(text("CREATE INDEX idx_def_records_mileage ON def_records(mileage)"))
+                print("  Created index idx_def_records_mileage")
 
         print("DEF tracking schema migration complete.")
 

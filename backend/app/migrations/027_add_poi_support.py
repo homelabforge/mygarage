@@ -3,25 +3,29 @@
 import os
 from pathlib import Path
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, inspect, text
 
 
-def upgrade():
-    """Add POI category and metadata fields to address_book."""
-    # Get database path from environment
+def _get_fallback_engine():
+    """Build a SQLite engine from environment for standalone execution."""
+    db_path = os.environ.get("DATABASE_PATH")
+    if db_path:
+        return create_engine(f"sqlite:///{db_path}")
     data_dir = Path(os.getenv("DATA_DIR", "/data"))
-    database_path = data_dir / "mygarage.db"
-    database_url = f"sqlite:///{database_path}"
+    return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}")
 
-    # Create engine
-    engine = create_engine(database_url)
+
+def upgrade(engine=None):
+    """Add POI category and metadata fields to address_book."""
+    if engine is None:
+        engine = _get_fallback_engine()
 
     with engine.begin() as conn:
         print("Adding POI fields to address_book...")
 
         # Check if columns already exist
-        result = conn.execute(text("PRAGMA table_info(address_book)"))
-        existing_columns = {row[1] for row in result}
+        inspector = inspect(engine)
+        existing_columns = {col["name"] for col in inspector.get_columns("address_book")}
 
         # Add poi_category column
         if "poi_category" not in existing_columns:

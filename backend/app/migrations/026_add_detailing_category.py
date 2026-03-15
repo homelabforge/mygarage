@@ -10,201 +10,239 @@ we drop it and ensure the service_category column has the correct constraint.
 """
 
 import os
-import sqlite3
 from pathlib import Path
 
-
-def get_db_path() -> Path:
-    """Get database file path, preferring DATABASE_PATH env var."""
-    env_path = os.environ.get("DATABASE_PATH")
-    if env_path:
-        return Path(env_path)
-    data_dir = Path("/data")
-    if data_dir.exists():
-        return data_dir / "mygarage.db"
-    return Path("mygarage.db")
+from sqlalchemy import create_engine, inspect, text
 
 
-def upgrade():
+def _get_fallback_engine():
+    """Build a SQLite engine from environment for standalone execution."""
+    db_path = os.environ.get("DATABASE_PATH")
+    if db_path:
+        return create_engine(f"sqlite:///{db_path}")
+    data_dir = Path(os.getenv("DATA_DIR", "/data"))
+    return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}")
+
+
+def upgrade(engine=None):
     """Run migration 026."""
-    db_path = get_db_path()
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
+    if engine is None:
+        engine = _get_fallback_engine()
 
-    try:
+    dialect = engine.dialect.name
+
+    with engine.begin() as conn:
+        inspector = inspect(engine)
+
+        if not inspector.has_table("service_records"):
+            print("  service_records table does not exist, skipping")
+            return
+
+        existing_columns = {col["name"] for col in inspector.get_columns("service_records")}
+        has_tsb_column = "tsb_id" in existing_columns
+
         print("\n=== Migration 026: Add Detailing Category ===\n")
 
-        # Check if TSB column exists
-        cursor.execute("PRAGMA table_info(service_records)")
-        columns = {row[1]: row for row in cursor.fetchall()}
-        has_tsb_column = "tsb_id" in columns
-
         if has_tsb_column:
-            print("ℹ Found unused TSB column - will be dropped during table recreation")
+            print("Found unused TSB column - will be dropped")
 
-        # Get current table schema
-        cursor.execute(
-            "SELECT sql FROM sqlite_master WHERE type='table' AND name='service_records'"
-        )
-        result = cursor.fetchone()
-        if not result:
-            raise Exception("service_records table not found")
+        if dialect == "postgresql":
+            # PostgreSQL: can alter constraints and drop columns directly
 
-        # Create new table with updated schema
-        # Drop TSB column, ensure service_category has Detailing
-        print("→ Creating new service_records table with Detailing category...")
-        # Clean up any leftover temp table from a previous failed run
-        cursor.execute("DROP TABLE IF EXISTS service_records_new")
-        cursor.execute("""
-            CREATE TABLE service_records_new (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                vin TEXT NOT NULL,
-                date TEXT NOT NULL,
-                mileage INTEGER,
-                service_type TEXT NOT NULL,
-                cost REAL,
-                notes TEXT,
-                vendor_name TEXT,
-                vendor_location TEXT,
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                service_category TEXT,
-                insurance_claim TEXT,
-                FOREIGN KEY (vin) REFERENCES vehicles (vin) ON DELETE CASCADE,
-                CONSTRAINT check_service_category CHECK (service_category IN ('Maintenance', 'Inspection', 'Collision', 'Upgrades', 'Detailing'))
+            # Drop TSB column if it exists
+            if has_tsb_column:
+                conn.execute(text("ALTER TABLE service_records DROP COLUMN tsb_id"))
+                print("✓ TSB column dropped")
+
+            # Update CHECK constraint to include 'Detailing'
+            # First check if 'Detailing' is already there
+            result = conn.execute(
+                text("""
+                    SELECT conname, pg_get_constraintdef(oid)
+                    FROM pg_constraint
+                    WHERE conrelid = 'service_records'::regclass
+                    AND contype = 'c'
+                    AND conname = 'check_service_category'
+                """)
             )
-        """)
+            row = result.fetchone()
+            if row and "Detailing" in row[1]:
+                print("✓ CHECK constraint already includes 'Detailing', skipping")
+            else:
+                # Drop old constraint if it exists
+                if row:
+                    conn.execute(
+                        text("ALTER TABLE service_records DROP CONSTRAINT check_service_category")
+                    )
+                conn.execute(
+                    text("""
+                        ALTER TABLE service_records ADD CONSTRAINT check_service_category
+                        CHECK (service_category IN ('Maintenance', 'Inspection', 'Collision', 'Upgrades', 'Detailing'))
+                    """)
+                )
+                print("✓ CHECK constraint updated to include 'Detailing'")
 
-        # Copy data from old table (excluding tsb_id column)
-        print("→ Migrating existing service records...")
-        cursor.execute("""
-            INSERT INTO service_records_new (
-                id, vin, date, mileage, service_type, cost, notes,
-                vendor_name, vendor_location, created_at, service_category, insurance_claim
+        else:
+            # SQLite: must rebuild the table
+
+            # Check if Detailing is already in the constraint
+            result = conn.execute(
+                text("SELECT sql FROM sqlite_master WHERE type='table' AND name='service_records'")
             )
-            SELECT
-                id, vin, date, mileage, service_type, cost, notes,
-                vendor_name, vendor_location, created_at, service_category, insurance_claim
-            FROM service_records
-        """)
+            table_sql_row = result.fetchone()
+            if table_sql_row and "Detailing" in table_sql_row[0] and not has_tsb_column:
+                print("✓ Already migrated, skipping")
+                return
 
-        migrated_count = cursor.rowcount
-        print(f"✓ Migrated {migrated_count} service records")
+            # Create new table with updated schema
+            print("→ Creating new service_records table with Detailing category...")
+            conn.execute(text("DROP TABLE IF EXISTS service_records_new"))
+            conn.execute(
+                text("""
+                    CREATE TABLE service_records_new (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        vin TEXT NOT NULL,
+                        date TEXT NOT NULL,
+                        mileage INTEGER,
+                        service_type TEXT NOT NULL,
+                        cost REAL,
+                        notes TEXT,
+                        vendor_name TEXT,
+                        vendor_location TEXT,
+                        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                        service_category TEXT,
+                        insurance_claim TEXT,
+                        FOREIGN KEY (vin) REFERENCES vehicles (vin) ON DELETE CASCADE,
+                        CONSTRAINT check_service_category CHECK (service_category IN ('Maintenance', 'Inspection', 'Collision', 'Upgrades', 'Detailing'))
+                    )
+                """)
+            )
 
-        # Drop old table and rename new one
-        print("→ Replacing old table...")
-        cursor.execute("DROP TABLE service_records")
-        cursor.execute("ALTER TABLE service_records_new RENAME TO service_records")
+            # Copy data from old table (excluding tsb_id column)
+            print("→ Migrating existing service records...")
+            conn.execute(
+                text("""
+                    INSERT INTO service_records_new (
+                        id, vin, date, mileage, service_type, cost, notes,
+                        vendor_name, vendor_location, created_at, service_category, insurance_claim
+                    )
+                    SELECT
+                        id, vin, date, mileage, service_type, cost, notes,
+                        vendor_name, vendor_location, created_at, service_category, insurance_claim
+                    FROM service_records
+                """)
+            )
 
-        # Recreate indexes
-        print("→ Recreating indexes...")
-        cursor.execute("CREATE INDEX idx_service_records_vin ON service_records (vin)")
-        cursor.execute("CREATE INDEX idx_service_records_date ON service_records (date)")
+            migrated_count = conn.execute(text("SELECT COUNT(*) FROM service_records_new")).scalar()
+            print(f"✓ Migrated {migrated_count} service records")
 
-        # Verify the new constraint
-        cursor.execute(
-            "SELECT sql FROM sqlite_master WHERE type='table' AND name='service_records'"
-        )
-        table_sql = cursor.fetchone()[0]
+            # Drop old table and rename new one
+            print("→ Replacing old table...")
+            conn.execute(text("DROP TABLE service_records"))
+            conn.execute(text("ALTER TABLE service_records_new RENAME TO service_records"))
 
-        if "Detailing" in table_sql and "check_service_category" in table_sql:
-            print("✓ CHECK constraint verified: includes 'Detailing'")
-        else:
-            raise Exception("CHECK constraint verification failed - 'Detailing' not found")
+            # Recreate indexes
+            print("→ Recreating indexes...")
+            conn.execute(text("CREATE INDEX idx_service_records_vin ON service_records (vin)"))
+            conn.execute(text("CREATE INDEX idx_service_records_date ON service_records (date)"))
 
-        # Verify no TSB column exists
-        cursor.execute("PRAGMA table_info(service_records)")
-        new_columns = {row[1]: row for row in cursor.fetchall()}
-        if "tsb_id" not in new_columns:
-            print("✓ TSB column successfully removed")
-        else:
-            raise Exception("TSB column still exists after migration")
+        # Verify
+        inspector = inspect(engine)
+        final_columns = {col["name"] for col in inspector.get_columns("service_records")}
+        if "tsb_id" not in final_columns:
+            print("✓ TSB column verified removed")
 
-        conn.commit()
-        print("\n✅ Migration 026 completed successfully\n")
-        print(f"   - Service records migrated: {migrated_count}")
-        print("   - TSB column removed")
-        print("   - Detailing category added to constraint")
-
-    except Exception as e:
-        conn.rollback()
-        print(f"\n❌ Migration 026 failed: {e}\n")
-        raise
-
-    finally:
-        conn.close()
+        print("\nMigration 026 completed successfully")
 
 
-def rollback():
+def rollback(engine=None):
     """Rollback migration 026.
 
     WARNING: This will restore the TSB column but all data will be lost.
     Service category 'Detailing' will be removed from constraint.
     """
-    db_path = get_db_path()
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
+    if engine is None:
+        engine = _get_fallback_engine()
 
-    try:
+    dialect = engine.dialect.name
+
+    with engine.begin() as conn:
         print("\n=== Rolling back Migration 026 ===\n")
 
-        # Create table with old schema (including TSB column)
-        print("→ Recreating table with TSB column...")
-        cursor.execute("""
-            CREATE TABLE service_records_old (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                vin TEXT NOT NULL,
-                date TEXT NOT NULL,
-                mileage INTEGER,
-                service_type TEXT NOT NULL,
-                cost REAL,
-                notes TEXT,
-                vendor_name TEXT,
-                vendor_location TEXT,
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                service_category TEXT,
-                insurance_claim TEXT,
-                tsb_id INTEGER,
-                FOREIGN KEY (vin) REFERENCES vehicles (vin) ON DELETE CASCADE,
-                FOREIGN KEY (tsb_id) REFERENCES tsbs (id) ON DELETE SET NULL,
-                CONSTRAINT check_service_category CHECK (service_category IN ('Maintenance', 'Inspection', 'Collision', 'Upgrades'))
+        if dialect == "postgresql":
+            # Add TSB column back
+            conn.execute(text("ALTER TABLE service_records ADD COLUMN tsb_id INTEGER"))
+            # Update constraint
+            result = conn.execute(
+                text("""
+                    SELECT conname FROM pg_constraint
+                    WHERE conrelid = 'service_records'::regclass
+                    AND contype = 'c' AND conname = 'check_service_category'
+                """)
             )
-        """)
-
-        # Copy data back
-        print("→ Restoring service records...")
-        cursor.execute("""
-            INSERT INTO service_records_old (
-                id, vin, date, mileage, service_type, cost, notes,
-                vendor_name, vendor_location, created_at, service_category, insurance_claim, tsb_id
+            if result.fetchone():
+                conn.execute(
+                    text("ALTER TABLE service_records DROP CONSTRAINT check_service_category")
+                )
+            conn.execute(
+                text("""
+                    ALTER TABLE service_records ADD CONSTRAINT check_service_category
+                    CHECK (service_category IN ('Maintenance', 'Inspection', 'Collision', 'Upgrades'))
+                """)
             )
-            SELECT
-                id, vin, date, mileage, service_type, cost, notes,
-                vendor_name, vendor_location, created_at,
-                CASE WHEN service_category = 'Detailing' THEN NULL ELSE service_category END,
-                insurance_claim,
-                NULL
-            FROM service_records
-        """)
+            # Null out any Detailing categories
+            conn.execute(
+                text(
+                    "UPDATE service_records SET service_category = NULL WHERE service_category = 'Detailing'"
+                )
+            )
+            print("✓ Migration 026 rolled back on PostgreSQL")
+        else:
+            # SQLite: rebuild table
+            conn.execute(
+                text("""
+                    CREATE TABLE service_records_old (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        vin TEXT NOT NULL,
+                        date TEXT NOT NULL,
+                        mileage INTEGER,
+                        service_type TEXT NOT NULL,
+                        cost REAL,
+                        notes TEXT,
+                        vendor_name TEXT,
+                        vendor_location TEXT,
+                        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                        service_category TEXT,
+                        insurance_claim TEXT,
+                        tsb_id INTEGER,
+                        FOREIGN KEY (vin) REFERENCES vehicles (vin) ON DELETE CASCADE,
+                        FOREIGN KEY (tsb_id) REFERENCES tsbs (id) ON DELETE SET NULL,
+                        CONSTRAINT check_service_category CHECK (service_category IN ('Maintenance', 'Inspection', 'Collision', 'Upgrades'))
+                    )
+                """)
+            )
+            conn.execute(
+                text("""
+                    INSERT INTO service_records_old (
+                        id, vin, date, mileage, service_type, cost, notes,
+                        vendor_name, vendor_location, created_at, service_category, insurance_claim, tsb_id
+                    )
+                    SELECT
+                        id, vin, date, mileage, service_type, cost, notes,
+                        vendor_name, vendor_location, created_at,
+                        CASE WHEN service_category = 'Detailing' THEN NULL ELSE service_category END,
+                        insurance_claim,
+                        NULL
+                    FROM service_records
+                """)
+            )
+            conn.execute(text("DROP TABLE service_records"))
+            conn.execute(text("ALTER TABLE service_records_old RENAME TO service_records"))
+            conn.execute(text("CREATE INDEX idx_service_records_vin ON service_records (vin)"))
+            conn.execute(text("CREATE INDEX idx_service_records_date ON service_records (date)"))
+            print("✓ Migration 026 rolled back on SQLite")
 
-        # Drop new table and rename old one
-        cursor.execute("DROP TABLE service_records")
-        cursor.execute("ALTER TABLE service_records_old RENAME TO service_records")
-
-        # Recreate indexes
-        cursor.execute("CREATE INDEX idx_service_records_vin ON service_records (vin)")
-        cursor.execute("CREATE INDEX idx_service_records_date ON service_records (date)")
-
-        conn.commit()
-        print("\n✅ Migration 026 rolled back successfully\n")
         print("   WARNING: Any records with 'Detailing' category have been set to NULL")
-
-    except Exception as e:
-        conn.rollback()
-        print(f"\n❌ Rollback failed: {e}\n")
-        raise
-
-    finally:
-        conn.close()
 
 
 if __name__ == "__main__":

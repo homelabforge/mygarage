@@ -3,48 +3,43 @@
 import os
 from pathlib import Path
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, inspect, text
 
 
-def upgrade():
-    """Add is_hauling column if it does not exist."""
-    # Get database path from environment
+def _get_fallback_engine():
+    """Build a SQLite engine from environment for standalone execution."""
+    db_path = os.environ.get("DATABASE_PATH")
+    if db_path:
+        return create_engine(f"sqlite:///{db_path}")
     data_dir = Path(os.getenv("DATA_DIR", "/data"))
-    database_path = data_dir / "mygarage.db"
-    database_url = f"sqlite:///{database_path}"
+    return create_engine(f"sqlite:///{data_dir / 'mygarage.db'}")
 
-    # Create engine
-    engine = create_engine(database_url)
+
+def upgrade(engine=None):
+    """Add is_hauling column if it does not exist."""
+    if engine is None:
+        engine = _get_fallback_engine()
 
     with engine.begin() as conn:
-        # Check if column exists via PRAGMA table_info
-        result = conn.execute(text("PRAGMA table_info(fuel_records)"))
-        columns = {row[1]: row for row in result}
+        inspector = inspect(engine)
+        existing_columns = {col["name"] for col in inspector.get_columns("fuel_records")}
 
-        if "is_hauling" not in columns:
+        if "is_hauling" not in existing_columns:
             print("Adding is_hauling column to fuel_records table...")
 
-            # Add column with default value
             conn.execute(
                 text("""
                 ALTER TABLE fuel_records
-                ADD COLUMN is_hauling BOOLEAN DEFAULT 0 NOT NULL
+                ADD COLUMN is_hauling BOOLEAN DEFAULT false NOT NULL
             """)
             )
 
             # Create indexes for better query performance
+            conn.execute(text("CREATE INDEX idx_fuel_hauling ON fuel_records(is_hauling)"))
             conn.execute(
-                text("""
-                CREATE INDEX idx_fuel_hauling
-                ON fuel_records(is_hauling)
-            """)
-            )
-
-            conn.execute(
-                text("""
-                CREATE INDEX idx_fuel_normal_mpg
-                ON fuel_records(vin, is_full_tank, is_hauling)
-            """)
+                text(
+                    "CREATE INDEX idx_fuel_normal_mpg ON fuel_records(vin, is_full_tank, is_hauling)"
+                )
             )
 
             print("✓ Successfully added is_hauling to fuel_records")
