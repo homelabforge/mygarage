@@ -44,8 +44,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts'
-import type { PieLabelRenderProps, TooltipContentProps } from 'recharts'
-import type { Payload } from 'recharts/types/component/DefaultTooltipContent'
+import type { PieLabelRenderProps } from 'recharts'
 import type {
   FuelAlertSeverity,
   VehicleAnalytics,
@@ -693,13 +692,13 @@ export default function Analytics() {
                 <Tooltip
                   cursor={false}
                   wrapperStyle={{ outline: 'none' }}
-                  content={(tooltipProps: TooltipContentProps<number, string>) => {
+                  content={(tooltipProps) => {
                     const { active, payload, label } = tooltipProps
                     if (active && payload && payload.length) {
                       return (
                         <div style={{ backgroundColor: '#1a1f28', border: '1px solid #3a4050', borderRadius: '8px', padding: '12px', color: '#e4e6eb' }}>
                           <p style={{ fontWeight: '600', marginBottom: '8px' }}>{label}</p>
-                          {payload.map((entry: Payload<number, string>, index: number) => {
+                          {payload.map((entry, index) => {
                             const entryName = entry.name?.toString() ?? entry.dataKey?.toString() ?? 'Value'
                             const rawValue = Array.isArray(entry.value) ? entry.value[0] : entry.value
                             const numericValue = typeof rawValue === 'number' ? rawValue : Number(rawValue ?? 0)
@@ -886,7 +885,7 @@ export default function Analytics() {
                 <Tooltip
                   cursor={false}
                   wrapperStyle={{ outline: 'none' }}
-                  content={(tooltipProps: TooltipContentProps<number, string>) => {
+                  content={(tooltipProps) => {
                     const { active, payload } = tooltipProps
                     if (active && payload && payload.length) {
                       const dataPoint = payload[0]
@@ -961,13 +960,13 @@ export default function Analytics() {
                 <Tooltip
                   cursor={false}
                   wrapperStyle={{ outline: 'none' }}
-                  content={(tooltipProps: TooltipContentProps<number, string>) => {
+                  content={(tooltipProps) => {
                     const { active, payload, label } = tooltipProps
                     if (active && payload && payload.length) {
                       return (
                         <div style={{ backgroundColor: '#1a1f28', border: '1px solid #3a4050', borderRadius: '8px', padding: '12px', color: '#e4e6eb' }}>
                           <p style={{ fontWeight: '600', marginBottom: '8px' }}>{label}</p>
-                          {payload.map((entry: Payload<number, string>, index: number) => {
+                          {payload.map((entry, index) => {
                             const entryName = entry.name?.toString() ?? entry.dataKey?.toString() ?? 'Value'
                             const rawValue = Array.isArray(entry.value) ? entry.value[0] : entry.value
                             const numericValue = typeof rawValue === 'number' ? rawValue : Number(rawValue ?? 0)
@@ -1427,7 +1426,7 @@ export default function Analytics() {
                 <Tooltip
                   cursor={false}
                   wrapperStyle={{ outline: 'none' }}
-                  content={(tooltipProps: TooltipContentProps<number, string>) => {
+                  content={(tooltipProps) => {
                     const { active, payload } = tooltipProps
                     if (active && payload && payload.length) {
                       const data = payload[0].payload
@@ -1552,7 +1551,7 @@ export default function Analytics() {
                 />
                 <Tooltip
                   wrapperStyle={{ outline: 'none' }}
-                  content={(tooltipProps: TooltipContentProps<number, string>) => {
+                  content={(tooltipProps) => {
                     const { active, payload } = tooltipProps
                     if (active && payload && payload.length) {
                       const data = payload[0].payload

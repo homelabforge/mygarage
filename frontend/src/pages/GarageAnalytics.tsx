@@ -387,7 +387,7 @@ export default function GarageAnalytics() {
                           <div style={customTooltipStyle}>
                             <p style={{ fontWeight: '600', marginBottom: '4px' }}>{data.name}</p>
                             <p style={{ fontSize: '14px', color: '#9ca3af' }}>
-                              {formatCurrency(data.value)}
+                              {formatCurrency(data.value as number)}
                             </p>
                           </div>
                         )
@@ -456,7 +456,7 @@ export default function GarageAnalytics() {
                               {data.payload.name}
                             </p>
                             <p style={{ fontSize: '14px', color: '#9ca3af' }}>
-                              Running Costs: {formatCurrency(data.value)}
+                              Running Costs: {formatCurrency(data.value as number)}
                             </p>
                           </div>
                         )
@@ -572,12 +572,12 @@ export default function GarageAnalytics() {
                         <p style={{ fontWeight: '600', marginBottom: '8px' }}>
                           {payload[0].payload.month}
                         </p>
-                        {payload.map((entry: { name: string; value: number }, index: number) => (
+                        {payload.map((entry, index) => (
                           <p
                             key={index}
                             style={{ fontSize: '14px', color: '#9ca3af', marginBottom: '4px' }}
                           >
-                            {entry.name}: {formatCurrency(entry.value)}
+                            {entry.name}: {formatCurrency(entry.value as number)}
                           </p>
                         ))}
                       </div>
