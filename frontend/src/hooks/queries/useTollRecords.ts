@@ -57,3 +57,15 @@ export function useDeleteTollTransaction(vin: string) {
     },
   })
 }
+
+export function useDeleteTollTag(vin: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (tagId: number) => {
+      await api.delete(`/vehicles/${vin}/toll-tags/${tagId}`)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tollTags', vin] })
+    },
+  })
+}

@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useMemo } from 'react'
 import { formatDateForDisplay } from '../utils/dateUtils'
 import { FileText, Plus, Trash2, Edit3, Calendar } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Note } from '../types/note'
-import api from '../services/api'
+import { useNotes, useDeleteNote } from '../hooks/queries/useNotes'
 
 interface NoteListProps {
   vin: string
@@ -12,40 +12,21 @@ interface NoteListProps {
 }
 
 export default function NoteList({ vin, onAddClick, onEditClick }: NoteListProps) {
-  const [notes, setNotes] = useState<Note[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [deletingId, setDeletingId] = useState<number | null>(null)
+  const { data, isLoading, error } = useNotes(vin)
+  const deleteMutation = useDeleteNote(vin)
 
-  const fetchNotes = useCallback(async () => {
-    try {
-      const response = await api.get(`/vehicles/${vin}/notes`)
-      setNotes(response.data.notes)
-      setError(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
-    }
-  }, [vin])
+  const notes = useMemo(() => data?.notes ?? [], [data?.notes])
 
-  useEffect(() => {
-    setLoading(true)
-    fetchNotes().finally(() => setLoading(false))
-  }, [fetchNotes])
-
-  const handleDelete = async (noteId: number) => {
+  const handleDelete = (noteId: number) => {
     if (!confirm('Are you sure you want to delete this note?')) {
       return
     }
 
-    setDeletingId(noteId)
-    try {
-      await api.delete(`/vehicles/${vin}/notes/${noteId}`)
-      await fetchNotes()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to delete note')
-    } finally {
-      setDeletingId(null)
-    }
+    deleteMutation.mutate(noteId, {
+      onError: (err) => {
+        toast.error(err instanceof Error ? err.message : 'Failed to delete note')
+      },
+    })
   }
 
   const formatDate = (dateString: string): string => {
@@ -56,7 +37,7 @@ export default function NoteList({ vin, onAddClick, onEditClick }: NoteListProps
     return formatDateForDisplay(dateString)
   }
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex justify-center items-center min-h-[200px]">
         <div className="text-garage-text-muted">Loading notes...</div>
@@ -67,7 +48,7 @@ export default function NoteList({ vin, onAddClick, onEditClick }: NoteListProps
   if (error) {
     return (
       <div className="bg-danger/10 border border-danger rounded-lg p-4">
-        <p className="text-danger">{error}</p>
+        <p className="text-danger">{error.message}</p>
       </div>
     )
   }
@@ -135,7 +116,7 @@ export default function NoteList({ vin, onAddClick, onEditClick }: NoteListProps
                   </button>
                   <button
                     onClick={() => handleDelete(note.id)}
-                    disabled={deletingId === note.id}
+                    disabled={deleteMutation.isPending && deleteMutation.variables === note.id}
                     className="p-2 text-danger hover:bg-danger/10 rounded-full disabled:opacity-50"
                     title="Delete"
                   >

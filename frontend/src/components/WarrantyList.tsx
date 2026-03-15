@@ -1,8 +1,7 @@
-import { useState, useEffect, useCallback } from 'react'
 import { Shield, Plus, Trash2, Edit3, Calendar } from 'lucide-react'
 import { toast } from 'sonner'
 import type { WarrantyRecord } from '../types/warranty'
-import api from '../services/api'
+import { useWarrantyRecords, useDeleteWarrantyRecord } from '../hooks/queries/useWarrantyRecords'
 
 interface WarrantyListProps {
   vin: string
@@ -11,40 +10,19 @@ interface WarrantyListProps {
 }
 
 export default function WarrantyList({ vin, onAddClick, onEditClick }: WarrantyListProps) {
-  const [warranties, setWarranties] = useState<WarrantyRecord[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [deletingId, setDeletingId] = useState<number | null>(null)
+  const { data: warranties = [], isLoading, error } = useWarrantyRecords(vin)
+  const deleteMutation = useDeleteWarrantyRecord(vin)
 
-  const fetchWarranties = useCallback(async () => {
-    try {
-      const response = await api.get(`/vehicles/${vin}/warranties`)
-      setWarranties(response.data)
-      setError(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
-    }
-  }, [vin])
-
-  useEffect(() => {
-    setLoading(true)
-    fetchWarranties().finally(() => setLoading(false))
-  }, [fetchWarranties])
-
-  const handleDelete = async (warrantyId: number) => {
+  const handleDelete = (warrantyId: number) => {
     if (!confirm('Are you sure you want to delete this warranty?')) {
       return
     }
 
-    setDeletingId(warrantyId)
-    try {
-      await api.delete(`/vehicles/${vin}/warranties/${warrantyId}`)
-      await fetchWarranties()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to delete warranty')
-    } finally {
-      setDeletingId(null)
-    }
+    deleteMutation.mutate(warrantyId, {
+      onError: (err) => {
+        toast.error(err instanceof Error ? err.message : 'Failed to delete warranty')
+      },
+    })
   }
 
   const formatDate = (dateString: string): string => {
@@ -61,7 +39,7 @@ export default function WarrantyList({ vin, onAddClick, onEditClick }: WarrantyL
     return new Date(endDate) < new Date()
   }
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex justify-center items-center min-h-[200px]">
         <div className="text-garage-text-muted">Loading warranties...</div>
@@ -72,7 +50,7 @@ export default function WarrantyList({ vin, onAddClick, onEditClick }: WarrantyL
   if (error) {
     return (
       <div className="bg-danger/10 border border-danger rounded-lg p-4">
-        <p className="text-danger">{error}</p>
+        <p className="text-danger">{error.message}</p>
       </div>
     )
   }
@@ -142,10 +120,10 @@ export default function WarrantyList({ vin, onAddClick, onEditClick }: WarrantyL
                   <button
                     onClick={() => handleDelete(warranty.id)}
                     className="btn btn-ghost btn-sm text-danger"
-                    disabled={deletingId === warranty.id}
+                    disabled={deleteMutation.isPending && deleteMutation.variables === warranty.id}
                     title="Delete"
                   >
-                    {deletingId === warranty.id ? '...' : <Trash2 size={16} />}
+                    {deleteMutation.isPending && deleteMutation.variables === warranty.id ? '...' : <Trash2 size={16} />}
                   </button>
                 </div>
               </div>

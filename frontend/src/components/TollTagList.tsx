@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useMemo } from 'react'
 import { CreditCard, Plus, Trash2, Edit3, CheckCircle, XCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import type { TollTag } from '../types/toll'
-import api from '../services/api'
+import { useTollTags, useDeleteTollTag } from '../hooks/queries/useTollRecords'
 
 interface TollTagListProps {
   vin: string
@@ -11,43 +11,24 @@ interface TollTagListProps {
 }
 
 export default function TollTagList({ vin, onAddClick, onEditClick }: TollTagListProps) {
-  const [tollTags, setTollTags] = useState<TollTag[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [deletingId, setDeletingId] = useState<number | null>(null)
+  const { data, isLoading, error } = useTollTags(vin)
+  const deleteMutation = useDeleteTollTag(vin)
 
-  const fetchTollTags = useCallback(async () => {
-    try {
-      const response = await api.get(`/vehicles/${vin}/toll-tags`)
-      setTollTags(response.data.toll_tags || [])
-      setError(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
-    }
-  }, [vin])
+  const tollTags = useMemo(() => data?.toll_tags ?? [], [data?.toll_tags])
 
-  useEffect(() => {
-    setLoading(true)
-    fetchTollTags().finally(() => setLoading(false))
-  }, [fetchTollTags])
-
-  const handleDelete = async (tagId: number) => {
+  const handleDelete = (tagId: number) => {
     if (!confirm('Are you sure you want to delete this toll tag?')) {
       return
     }
 
-    setDeletingId(tagId)
-    try {
-      await api.delete(`/vehicles/${vin}/toll-tags/${tagId}`)
-      await fetchTollTags()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to delete toll tag')
-    } finally {
-      setDeletingId(null)
-    }
+    deleteMutation.mutate(tagId, {
+      onError: (err) => {
+        toast.error(err instanceof Error ? err.message : 'Failed to delete toll tag')
+      },
+    })
   }
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex justify-center items-center min-h-[200px]">
         <div className="text-garage-text-muted">Loading toll tags...</div>
@@ -58,7 +39,7 @@ export default function TollTagList({ vin, onAddClick, onEditClick }: TollTagLis
   if (error) {
     return (
       <div className="bg-danger/10 border border-danger rounded-lg p-4">
-        <p className="text-danger">{error}</p>
+        <p className="text-danger">{error.message}</p>
       </div>
     )
   }
@@ -120,10 +101,10 @@ export default function TollTagList({ vin, onAddClick, onEditClick }: TollTagLis
                   <button
                     onClick={() => handleDelete(tag.id)}
                     className="btn btn-ghost btn-sm text-danger"
-                    disabled={deletingId === tag.id}
+                    disabled={deleteMutation.isPending && deleteMutation.variables === tag.id}
                     title="Delete"
                   >
-                    {deletingId === tag.id ? '...' : <Trash2 size={16} />}
+                    {deleteMutation.isPending && deleteMutation.variables === tag.id ? '...' : <Trash2 size={16} />}
                   </button>
                 </div>
               </div>

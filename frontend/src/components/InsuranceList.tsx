@@ -1,8 +1,7 @@
-import { useState, useEffect, useCallback } from 'react'
 import { Shield, Plus, Trash2, Edit3, Calendar } from 'lucide-react'
 import { toast } from 'sonner'
-import api from '../services/api'
 import type { InsurancePolicy } from '../types/insurance'
+import { useInsuranceRecords, useDeleteInsuranceRecord } from '../hooks/queries/useInsuranceRecords'
 
 interface InsuranceListProps {
   vin: string
@@ -11,40 +10,19 @@ interface InsuranceListProps {
 }
 
 export default function InsuranceList({ vin, onAddClick, onEditClick }: InsuranceListProps) {
-  const [policies, setPolicies] = useState<InsurancePolicy[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [deletingId, setDeletingId] = useState<number | null>(null)
+  const { data: policies = [], isLoading, error } = useInsuranceRecords(vin)
+  const deleteMutation = useDeleteInsuranceRecord(vin)
 
-  const fetchPolicies = useCallback(async () => {
-    try {
-      const response = await api.get(`/vehicles/${vin}/insurance`)
-      setPolicies(response.data)
-      setError(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
-    }
-  }, [vin])
-
-  useEffect(() => {
-    setLoading(true)
-    fetchPolicies().finally(() => setLoading(false))
-  }, [fetchPolicies])
-
-  const handleDelete = async (policyId: number) => {
+  const handleDelete = (policyId: number) => {
     if (!confirm('Are you sure you want to delete this insurance policy?')) {
       return
     }
 
-    setDeletingId(policyId)
-    try {
-      await api.delete(`/vehicles/${vin}/insurance/${policyId}`)
-      await fetchPolicies()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to delete insurance policy')
-    } finally {
-      setDeletingId(null)
-    }
+    deleteMutation.mutate(policyId, {
+      onError: (err) => {
+        toast.error(err instanceof Error ? err.message : 'Failed to delete insurance policy')
+      },
+    })
   }
 
   const formatDate = (dateString: string): string => {
@@ -60,7 +38,7 @@ export default function InsuranceList({ vin, onAddClick, onEditClick }: Insuranc
     return new Date(endDate) < new Date()
   }
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex justify-center items-center min-h-[200px]">
         <div className="text-garage-text-muted">Loading insurance policies...</div>
@@ -71,7 +49,7 @@ export default function InsuranceList({ vin, onAddClick, onEditClick }: Insuranc
   if (error) {
     return (
       <div className="bg-danger/10 border border-danger rounded-lg p-4">
-        <p className="text-danger">{error}</p>
+        <p className="text-danger">{error.message}</p>
       </div>
     )
   }
@@ -139,10 +117,10 @@ export default function InsuranceList({ vin, onAddClick, onEditClick }: Insuranc
                   <button
                     onClick={() => handleDelete(policy.id)}
                     className="btn btn-ghost btn-sm text-danger"
-                    disabled={deletingId === policy.id}
+                    disabled={deleteMutation.isPending && deleteMutation.variables === policy.id}
                     title="Delete"
                   >
-                    {deletingId === policy.id ? '...' : <Trash2 size={16} />}
+                    {deleteMutation.isPending && deleteMutation.variables === policy.id ? '...' : <Trash2 size={16} />}
                   </button>
                 </div>
               </div>
