@@ -71,6 +71,8 @@ def compare_time_periods(
             "cost_change_pct": Decimal("0.00"),
             "period1_count": 0,
             "period2_count": 0,
+            "period1_service_count": 0,
+            "period2_service_count": 0,
         }
 
     # Filter by periods
