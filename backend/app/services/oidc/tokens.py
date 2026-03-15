@@ -83,8 +83,6 @@ async def exchange_code_for_tokens(
     try:
         async with httpx.AsyncClient() as client:
             logger.info("Exchanging authorization code for tokens")
-            # codeql[py/clear-text-logging-sensitive-data] - client_secret is masked via mask_secret()
-            logger.debug("Using client_secret: %s", mask_secret(client_secret))
 
             # codeql[py/partial-ssrf] - URL validated by validate_oidc_url above
             response = await client.post(
