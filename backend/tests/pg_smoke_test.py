@@ -18,7 +18,7 @@ PG_URL = os.getenv("TEST_DATABASE_URL", "")
 pytestmark = pytest.mark.skipif("asyncpg" not in PG_URL, reason="PostgreSQL-only tests")
 
 
-@pytest_asyncio.fixture(scope="module", loop_scope="session")
+@pytest_asyncio.fixture(scope="session", loop_scope="session")
 async def pg_engine():
     """Create a PostgreSQL engine for smoke tests."""
     engine = create_async_engine(PG_URL, echo=False, poolclass=NullPool)
@@ -30,13 +30,16 @@ async def pg_engine():
     await engine.dispose()
 
 
-@pytest_asyncio.fixture
+@pytest_asyncio.fixture(loop_scope="session")
 async def pg_session(pg_engine):
     """Provide a PostgreSQL session."""
     session_factory = async_sessionmaker(pg_engine, class_=AsyncSession, expire_on_commit=False)
     async with session_factory() as session:
         yield session
-        await session.rollback()
+        try:
+            await session.rollback()
+        except Exception:
+            pass  # Suppress event loop teardown errors with asyncpg
 
 
 class TestTollSummaryDialect:
@@ -79,8 +82,7 @@ class TestTollSummaryDialect:
                     vin=vehicle.vin,
                     date=date(2026, month, 15),
                     amount=Decimal(amount),
-                    tag_number="TEST123",
-                    agency="TestAgency",
+                    location="Test Plaza",
                 )
             )
         await pg_session.flush()
