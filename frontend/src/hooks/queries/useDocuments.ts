@@ -15,6 +15,21 @@ export function useDocuments(vin: string) {
   })
 }
 
+export function useUploadDocument(vin: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (formData: FormData) => {
+      const { data } = await api.post(`/vehicles/${vin}/documents`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['documents', vin] })
+    },
+  })
+}
+
 export function useDeleteDocument(vin: string) {
   const queryClient = useQueryClient()
   return useMutation({

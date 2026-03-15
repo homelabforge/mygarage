@@ -20,7 +20,7 @@ describe('Maintenance Schedule Item Schema', () => {
   })
 
   it('requires name', () => {
-    const { name, ...missing } = validItem
+    const { name: _name, ...missing } = validItem
     const result = maintenanceScheduleItemSchema.safeParse(missing)
     expect(result.success).toBe(false)
   })

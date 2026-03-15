@@ -28,31 +28,31 @@ describe('Insurance Schema', () => {
   })
 
   it('requires provider', () => {
-    const { provider, ...missing } = validInsurance
+    const { provider: _provider, ...missing } = validInsurance
     const result = insuranceSchema.safeParse(missing)
     expect(result.success).toBe(false)
   })
 
   it('requires policy_number', () => {
-    const { policy_number, ...missing } = validInsurance
+    const { policy_number: _policy_number, ...missing } = validInsurance
     const result = insuranceSchema.safeParse(missing)
     expect(result.success).toBe(false)
   })
 
   it('requires policy_type', () => {
-    const { policy_type, ...missing } = validInsurance
+    const { policy_type: _policy_type, ...missing } = validInsurance
     const result = insuranceSchema.safeParse(missing)
     expect(result.success).toBe(false)
   })
 
   it('requires start_date', () => {
-    const { start_date, ...missing } = validInsurance
+    const { start_date: _start_date, ...missing } = validInsurance
     const result = insuranceSchema.safeParse(missing)
     expect(result.success).toBe(false)
   })
 
   it('requires end_date', () => {
-    const { end_date, ...missing } = validInsurance
+    const { end_date: _end_date, ...missing } = validInsurance
     const result = insuranceSchema.safeParse(missing)
     expect(result.success).toBe(false)
   })

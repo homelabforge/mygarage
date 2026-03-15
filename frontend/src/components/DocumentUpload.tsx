@@ -1,6 +1,6 @@
 import { useState, useRef, type SyntheticEvent } from 'react'
 import { Upload, X, FileText } from 'lucide-react'
-import api from '../services/api'
+import { useUploadDocument } from '../hooks/queries/useDocuments'
 
 interface DocumentUploadProps {
   vin: string
@@ -9,6 +9,7 @@ interface DocumentUploadProps {
 }
 
 export default function DocumentUpload({ vin, onSuccess, onClose }: DocumentUploadProps) {
+  const uploadMutation = useUploadDocument(vin)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [file, setFile] = useState<File | null>(null)
@@ -84,11 +85,7 @@ export default function DocumentUpload({ vin, onSuccess, onClose }: DocumentUplo
       if (documentType) formData.append('document_type', documentType)
       if (description) formData.append('description', description)
 
-      await api.post(`/vehicles/${vin}/documents`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      })
+      await uploadMutation.mutateAsync(formData)
 
       onSuccess()
       onClose()

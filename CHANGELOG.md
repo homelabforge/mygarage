@@ -28,7 +28,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Migrate all 14 list components from manual useState/useEffect to TanStack Query hooks
 - Migrate 14 form components from raw `api.post`/`api.put` to TanStack Query mutation hooks for automatic cache invalidation
 - Adopt `FormModalWrapper` in 5 more form components (NoteForm, RecallForm, TollTagForm, TollTransactionForm, ServiceVisitForm)
+- Expand `FormModalWrapper` with icon, footer, isOpen, and zIndex props; adopt in OIDCModal and LocalAuthModal
+- Migrate document upload to TanStack Query mutation hook for automatic cache invalidation
 - Consolidate `formatDateForInput` from 9 local copies to shared `dateUtils.ts` import
+
+### Removed
+- Delete unused `ServiceAttachmentUpload.tsx` (dead code, zero imports)
 
 ### Fixed
 - Fix toll transaction response type mismatch (`transaction_date` vs `date` alias from backend)

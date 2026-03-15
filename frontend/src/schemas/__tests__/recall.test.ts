@@ -26,19 +26,19 @@ describe('Recall Schema', () => {
   })
 
   it('requires component', () => {
-    const { component, ...missing } = validRecall
+    const { component: _component, ...missing } = validRecall
     const result = recallSchema.safeParse(missing)
     expect(result.success).toBe(false)
   })
 
   it('requires summary', () => {
-    const { summary, ...missing } = validRecall
+    const { summary: _summary, ...missing } = validRecall
     const result = recallSchema.safeParse(missing)
     expect(result.success).toBe(false)
   })
 
   it('requires is_resolved boolean', () => {
-    const { is_resolved, ...missing } = validRecall
+    const { is_resolved: _is_resolved, ...missing } = validRecall
     const result = recallSchema.safeParse(missing)
     expect(result.success).toBe(false)
   })

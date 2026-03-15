@@ -1,8 +1,9 @@
 import { useState, type SyntheticEvent } from 'react'
-import { X, Shield, Info, AlertTriangle, Users, Key, CheckCircle, AlertCircle, Eye, EyeOff, Loader } from 'lucide-react'
+import { Shield, Info, AlertTriangle, Users, Key, CheckCircle, AlertCircle, Eye, EyeOff, Loader } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/services/api'
 import { passwordSchema, getPasswordStrength } from '@/schemas/auth'
+import FormModalWrapper from '../FormModalWrapper'
 
 interface User {
   id: number
@@ -121,26 +122,27 @@ export default function LocalAuthModal({
     onClose()
   }
 
-  if (!isOpen) return null
-
   return (
-    <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-garage-surface border border-garage-border rounded-lg max-w-lg w-full max-h-[90vh] flex flex-col">
-        {/* Header */}
-        <div className="p-6 border-b border-garage-border flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Shield className="w-6 h-6 text-primary" />
-            <h2 className="text-xl font-bold text-garage-text">Local Authentication</h2>
-          </div>
-          <button onClick={handleClose} className="p-2 hover:bg-garage-muted rounded-lg transition-colors">
-            <X className="w-5 h-5 text-garage-text-muted" />
+    <FormModalWrapper
+      title="Local Authentication"
+      onClose={handleClose}
+      isOpen={isOpen}
+      maxWidth="max-w-lg"
+      icon={<Shield className="w-6 h-6 text-primary" />}
+      footer={
+        <div className="flex justify-end">
+          <button
+            onClick={handleClose}
+            className="px-4 py-2 text-sm font-medium text-garage-text bg-garage-bg border border-garage-border rounded-lg hover:bg-garage-muted transition-colors"
+          >
+            Close
           </button>
         </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-4">
-          {/* Case 1: Auth never enabled - show registration option */}
-          {!authEverEnabled && (
+      }
+    >
+      <div className="p-6 space-y-4">
+        {/* Case 1: Auth never enabled - show registration option */}
+        {!authEverEnabled && (
             <div className="p-4 bg-primary/10 border border-primary/30 rounded-lg">
               <div className="flex items-start gap-3">
                 <Info className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
@@ -583,18 +585,7 @@ export default function LocalAuthModal({
               </div>
             </div>
           )}
-        </div>
-
-        {/* Footer */}
-        <div className="p-4 border-t border-garage-border flex justify-end">
-          <button
-            onClick={handleClose}
-            className="px-4 py-2 text-sm font-medium text-garage-text bg-garage-bg border border-garage-border rounded-lg hover:bg-garage-muted transition-colors"
-          >
-            Close
-          </button>
-        </div>
       </div>
-    </div>
+    </FormModalWrapper>
   )
 }
