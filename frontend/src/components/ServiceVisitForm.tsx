@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, type SyntheticEvent } from 'react'
-import { X, Save, Plus, AlertTriangle, Paperclip } from 'lucide-react'
+import { Save, Plus, AlertTriangle, Paperclip } from 'lucide-react'
+import FormModalWrapper from './FormModalWrapper'
 import { toast } from 'sonner'
 import type { ServiceVisit, ServiceVisitCreate, ServiceVisitFormData, ServiceVisitFormLineItem } from '../types/serviceVisit'
 import type { MaintenanceScheduleItem } from '../types/maintenanceSchedule'
@@ -11,6 +12,7 @@ import LineItemEditor from './LineItemEditor'
 import ServiceVisitAttachmentUpload from './ServiceVisitAttachmentUpload'
 import ServiceVisitAttachmentList from './ServiceVisitAttachmentList'
 import api from '../services/api'
+import { useCreateServiceVisit, useUpdateServiceVisit } from '../hooks/queries/useServiceVisits'
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { UnitConverter, UnitFormatter } from '../utils/units'
 
@@ -46,6 +48,8 @@ export default function ServiceVisitForm({
 }: ServiceVisitFormProps) {
   const isEdit = !!visit
   const { system } = useUnitPreference()
+  const createMutation = useCreateServiceVisit(vin)
+  const updateMutation = useUpdateServiceVisit(vin)
   const isMotorized = !vehicleType || !NON_MOTORIZED_TYPES.includes(vehicleType)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -226,10 +230,10 @@ export default function ServiceVisitForm({
       }
 
       if (isEdit && visit) {
-        await api.put(`/vehicles/${vin}/service-visits/${visit.id}`, payload)
+        await updateMutation.mutateAsync({ id: visit.id, ...payload })
         toast.success('Service visit updated')
       } else {
-        await api.post(`/vehicles/${vin}/service-visits`, payload)
+        await createMutation.mutateAsync(payload as ServiceVisitCreate)
         toast.success('Service visit created')
       }
 
@@ -243,17 +247,7 @@ export default function ServiceVisitForm({
   }
 
   return (
-    <div className="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
-      <div className="bg-garage-surface rounded-lg shadow-2xl max-w-full sm:max-w-3xl w-full max-h-[90vh] overflow-y-auto border border-garage-border">
-        <div className="sticky top-0 bg-garage-surface border-b border-garage-border px-6 py-4 flex justify-between items-center rounded-t-lg z-10">
-          <h2 className="text-xl font-semibold text-garage-text">
-            {isEdit ? 'Edit Service Visit' : 'Log Service Visit'}
-          </h2>
-          <button onClick={onClose} className="text-garage-text-muted hover:text-garage-text">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
+    <FormModalWrapper title={isEdit ? 'Edit Service Visit' : 'Log Service Visit'} onClose={onClose} maxWidth="max-w-full sm:max-w-3xl">
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
           {error && (
             <div className="bg-danger/10 border border-danger rounded-lg p-3 flex items-center gap-2">
@@ -536,7 +530,6 @@ export default function ServiceVisitForm({
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </FormModalWrapper>
   )
 }

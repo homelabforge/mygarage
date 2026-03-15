@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '@/services/api'
-import type { InsurancePolicy } from '@/types/insurance'
+import type { InsurancePolicy, InsurancePolicyCreate, InsurancePolicyUpdate } from '@/types/insurance'
 
 export function useInsuranceRecords(vin: string) {
   return useQuery({
@@ -12,6 +12,32 @@ export function useInsuranceRecords(vin: string) {
       return data
     },
     enabled: !!vin,
+  })
+}
+
+export function useCreateInsuranceRecord(vin: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: InsurancePolicyCreate) => {
+      const { data } = await api.post(`/vehicles/${vin}/insurance`, payload)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['insurance', vin] })
+    },
+  })
+}
+
+export function useUpdateInsuranceRecord(vin: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, ...payload }: InsurancePolicyUpdate & { id: number }) => {
+      const { data } = await api.put(`/vehicles/${vin}/insurance/${id}`, payload)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['insurance', vin] })
+    },
   })
 }
 

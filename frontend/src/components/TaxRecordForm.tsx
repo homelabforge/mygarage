@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useState } from 'react'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Save } from 'lucide-react'
@@ -6,9 +6,8 @@ import FormModalWrapper from './FormModalWrapper'
 import type { TaxRecord, TaxRecordCreate, TaxRecordUpdate } from '../types/tax'
 import { taxRecordSchema, type TaxRecordFormData, TAX_TYPES } from '../schemas/tax'
 import { FormError } from './FormError'
-import api from '../services/api'
+import { useCreateTaxRecord, useUpdateTaxRecord } from '../hooks/queries/useTaxRecords'
 import { formatDateForInput } from '../utils/dateUtils'
-import { useFormSubmit } from '../hooks/useFormSubmit'
 
 interface TaxRecordFormProps {
   vin: string
@@ -19,26 +18,36 @@ interface TaxRecordFormProps {
 
 export default function TaxRecordForm({ vin, record, onClose, onSuccess }: TaxRecordFormProps) {
   const isEdit = !!record
+  const [error, setError] = useState<string | null>(null)
+  const createMutation = useCreateTaxRecord(vin)
+  const updateMutation = useUpdateTaxRecord(vin)
 
-  const submitFn = useCallback(async (data: TaxRecordFormData) => {
-    // Zod has already validated amount - no parseFloat/isNaN needed!
-    const payload: TaxRecordCreate | TaxRecordUpdate = {
-      vin,
-      date: data.date,
-      tax_type: data.tax_type,
-      amount: data.amount,
-      renewal_date: data.renewal_date,
-      notes: data.notes,
+  const onSubmit = async (data: TaxRecordFormData) => {
+    setError(null)
+
+    try {
+      // Zod has already validated amount - no parseFloat/isNaN needed!
+      const payload: TaxRecordCreate | TaxRecordUpdate = {
+        vin,
+        date: data.date,
+        tax_type: data.tax_type,
+        amount: data.amount,
+        renewal_date: data.renewal_date,
+        notes: data.notes,
+      }
+
+      if (isEdit) {
+        await updateMutation.mutateAsync({ id: record.id, ...payload })
+      } else {
+        await createMutation.mutateAsync(payload as TaxRecordCreate)
+      }
+
+      onSuccess()
+      onClose()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred')
     }
-
-    if (isEdit) {
-      await api.put(`/vehicles/${vin}/tax-records/${record.id}`, payload)
-    } else {
-      await api.post(`/vehicles/${vin}/tax-records`, payload)
-    }
-  }, [isEdit, vin, record])
-
-  const { error, handleSubmit: onSubmit } = useFormSubmit(submitFn, { onSuccess, onClose })
+  }
 
   const {
     register,

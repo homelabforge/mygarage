@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '@/services/api'
-import type { FuelRecord, FuelRecordListResponse } from '@/types/fuel'
+import type { FuelRecord, FuelRecordListResponse, FuelRecordCreate, FuelRecordUpdate } from '@/types/fuel'
 
 export function usePropaneRecords(vin: string) {
   return useQuery({
@@ -17,6 +17,34 @@ export function usePropaneRecords(vin: string) {
       return { records: propaneRecords, total: propaneRecords.length }
     },
     enabled: !!vin,
+  })
+}
+
+export function useCreatePropaneRecord(vin: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: FuelRecordCreate) => {
+      const { data } = await api.post(`/vehicles/${vin}/fuel`, payload)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['propaneRecords', vin] })
+      queryClient.invalidateQueries({ queryKey: ['fuelRecords', vin] })
+    },
+  })
+}
+
+export function useUpdatePropaneRecord(vin: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, ...payload }: FuelRecordUpdate & { id: number }) => {
+      const { data } = await api.put(`/vehicles/${vin}/fuel/${id}`, payload)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['propaneRecords', vin] })
+      queryClient.invalidateQueries({ queryKey: ['fuelRecords', vin] })
+    },
   })
 }
 

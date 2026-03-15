@@ -4,6 +4,10 @@ import type {
   TollTransactionListResponse,
   TollTagListResponse,
   TollTransactionSummary,
+  TollTagCreate,
+  TollTagUpdate,
+  TollTransactionCreate,
+  TollTransactionUpdate,
 } from '@/types/toll'
 
 export function useTollTransactions(vin: string) {
@@ -42,6 +46,60 @@ export function useTollTags(vin: string) {
       return data
     },
     enabled: !!vin,
+  })
+}
+
+export function useCreateTollTag(vin: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: TollTagCreate) => {
+      const { data } = await api.post(`/vehicles/${vin}/toll-tags`, payload)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tollTags', vin] })
+    },
+  })
+}
+
+export function useUpdateTollTag(vin: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, ...payload }: TollTagUpdate & { id: number }) => {
+      const { data } = await api.put(`/vehicles/${vin}/toll-tags/${id}`, payload)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tollTags', vin] })
+    },
+  })
+}
+
+export function useCreateTollTransaction(vin: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: TollTransactionCreate) => {
+      const { data } = await api.post(`/vehicles/${vin}/toll-transactions`, payload)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tollTransactions', vin] })
+      queryClient.invalidateQueries({ queryKey: ['tollTransactionSummary', vin] })
+    },
+  })
+}
+
+export function useUpdateTollTransaction(vin: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, ...payload }: TollTransactionUpdate & { id: number }) => {
+      const { data } = await api.put(`/vehicles/${vin}/toll-transactions/${id}`, payload)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tollTransactions', vin] })
+      queryClient.invalidateQueries({ queryKey: ['tollTransactionSummary', vin] })
+    },
   })
 }
 

@@ -6,7 +6,7 @@ import FormModalWrapper from './FormModalWrapper'
 import type { WarrantyRecord, WarrantyRecordCreate, WarrantyRecordUpdate } from '../types/warranty'
 import { warrantySchema, type WarrantyFormData, WARRANTY_TYPES } from '../schemas/warranty'
 import { FormError } from './FormError'
-import api from '../services/api'
+import { useCreateWarrantyRecord, useUpdateWarrantyRecord } from '../hooks/queries/useWarrantyRecords'
 import { formatDateForInput } from '../utils/dateUtils'
 import { useFormSubmit } from '../hooks/useFormSubmit'
 
@@ -19,6 +19,8 @@ interface WarrantyFormProps {
 
 export default function WarrantyForm({ vin, record, onClose, onSuccess }: WarrantyFormProps) {
   const isEdit = !!record
+  const createMutation = useCreateWarrantyRecord(vin)
+  const updateMutation = useUpdateWarrantyRecord(vin)
 
   const submitFn = useCallback(async (data: WarrantyFormData) => {
     // Zod has already validated and coerced mileage_limit - no parseInt/isNaN needed!
@@ -33,16 +35,12 @@ export default function WarrantyForm({ vin, record, onClose, onSuccess }: Warran
       notes: data.notes,
     }
 
-    const url = isEdit
-      ? `/vehicles/${vin}/warranties/${record.id}`
-      : `/vehicles/${vin}/warranties`
-
     if (isEdit) {
-      await api.put(url, payload)
+      await updateMutation.mutateAsync({ id: record.id, ...payload })
     } else {
-      await api.post(url, payload)
+      await createMutation.mutateAsync(payload as WarrantyRecordCreate)
     }
-  }, [isEdit, vin, record])
+  }, [isEdit, record, createMutation, updateMutation])
 
   const { error, handleSubmit: onSubmit } = useFormSubmit(submitFn, { onSuccess, onClose })
 

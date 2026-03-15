@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '@/services/api'
-import type { OdometerRecordListResponse } from '@/types/odometer'
+import type { OdometerRecordListResponse, OdometerRecordCreate, OdometerRecordUpdate } from '@/types/odometer'
 
 export function useOdometerRecords(vin: string) {
   return useQuery({
@@ -12,6 +12,32 @@ export function useOdometerRecords(vin: string) {
       return data
     },
     enabled: !!vin,
+  })
+}
+
+export function useCreateOdometerRecord(vin: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: OdometerRecordCreate) => {
+      const { data } = await api.post(`/vehicles/${vin}/odometer`, payload)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['odometerRecords', vin] })
+    },
+  })
+}
+
+export function useUpdateOdometerRecord(vin: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, ...payload }: OdometerRecordUpdate & { id: number }) => {
+      const { data } = await api.put(`/vehicles/${vin}/odometer/${id}`, payload)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['odometerRecords', vin] })
+    },
   })
 }
 

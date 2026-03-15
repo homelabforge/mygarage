@@ -26,7 +26,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Split `services/oidc.py` (939 lines) into 7-file package
 - Split `services/analytics_service.py` (826 lines) into 7-file package
 - Migrate all 14 list components from manual useState/useEffect to TanStack Query hooks
+- Migrate 14 form components from raw `api.post`/`api.put` to TanStack Query mutation hooks for automatic cache invalidation
+- Adopt `FormModalWrapper` in 5 more form components (NoteForm, RecallForm, TollTagForm, TollTransactionForm, ServiceVisitForm)
 - Consolidate `formatDateForInput` from 9 local copies to shared `dateUtils.ts` import
+
+### Fixed
+- Fix toll transaction response type mismatch (`transaction_date` vs `date` alias from backend)
 
 ### App Dependencies
 - **@tanstack/react-query**: added (5.90.21)

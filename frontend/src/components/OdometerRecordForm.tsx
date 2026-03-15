@@ -6,7 +6,7 @@ import FormModalWrapper from './FormModalWrapper'
 import type { OdometerRecord, OdometerRecordCreate, OdometerRecordUpdate } from '../types/odometer'
 import { odometerRecordSchema, type OdometerRecordFormData } from '../schemas/odometer'
 import { FormError } from './FormError'
-import api from '../services/api'
+import { useCreateOdometerRecord, useUpdateOdometerRecord } from '../hooks/queries/useOdometerRecords'
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { UnitConverter, UnitFormatter } from '../utils/units'
 import { formatDateForInput } from '../utils/dateUtils'
@@ -21,6 +21,8 @@ interface OdometerRecordFormProps {
 
 export default function OdometerRecordForm({ vin, record, onClose, onSuccess }: OdometerRecordFormProps) {
   const isEdit = !!record
+  const createMutation = useCreateOdometerRecord(vin)
+  const updateMutation = useUpdateOdometerRecord(vin)
   const { system } = useUnitPreference()
 
   const submitFn = useCallback(async (data: OdometerRecordFormData) => {
@@ -37,11 +39,11 @@ export default function OdometerRecordForm({ vin, record, onClose, onSuccess }: 
     }
 
     if (isEdit) {
-      await api.put(`/vehicles/${vin}/odometer/${record.id}`, payload)
+      await updateMutation.mutateAsync({ id: record.id, ...payload })
     } else {
-      await api.post(`/vehicles/${vin}/odometer`, payload)
+      await createMutation.mutateAsync(payload as OdometerRecordCreate)
     }
-  }, [isEdit, vin, record, system])
+  }, [isEdit, vin, record, system, createMutation, updateMutation])
 
   const { error, handleSubmit: onSubmit } = useFormSubmit(submitFn, { onSuccess, onClose })
 

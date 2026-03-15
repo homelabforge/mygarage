@@ -3,10 +3,10 @@ import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Save } from 'lucide-react'
 import FormModalWrapper from './FormModalWrapper'
-import type { DEFRecord } from '../types/def'
+import type { DEFRecord, DEFRecordCreate } from '../types/def'
 import { defRecordSchema, type DefRecordFormData } from '../schemas/def'
 import { FormError } from './FormError'
-import api from '../services/api'
+import { useCreateDEFRecord, useUpdateDEFRecord } from '../hooks/queries/useDEFRecords'
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { UnitConverter, UnitFormatter } from '../utils/units'
 import { formatDateForInput } from '../utils/dateUtils'
@@ -49,6 +49,8 @@ export default function DEFRecordForm({
 }: DEFRecordFormProps) {
   const isEdit = !!record
   const [error, setError] = useState<string | null>(null)
+  const createMutation = useCreateDEFRecord(vin)
+  const updateMutation = useUpdateDEFRecord(vin)
   const { system } = useUnitPreference()
 
   const parseDecimal = (val?: number | string): number | undefined => {
@@ -137,9 +139,9 @@ export default function DEFRecordForm({
       }
 
       if (isEdit && record) {
-        await api.put(`/vehicles/${vin}/def/${record.id}`, payload)
+        await updateMutation.mutateAsync({ id: record.id, ...payload })
       } else {
-        await api.post(`/vehicles/${vin}/def`, payload)
+        await createMutation.mutateAsync(payload as DEFRecordCreate)
       }
 
       onSuccess()

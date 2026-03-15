@@ -6,7 +6,7 @@ import FormModalWrapper from './FormModalWrapper'
 import type { FuelRecord, FuelRecordCreate, FuelRecordUpdate } from '../types/fuel'
 import { propaneRecordSchema, type PropaneRecordFormData } from '../schemas/propane'
 import { FormError } from './FormError'
-import api from '../services/api'
+import { useCreatePropaneRecord, useUpdatePropaneRecord } from '../hooks/queries/usePropaneRecords'
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { UnitConverter, UnitFormatter } from '../utils/units'
 import { formatDateForInput } from '../utils/dateUtils'
@@ -33,6 +33,8 @@ export default function PropaneRecordForm({
 }: PropaneRecordFormProps) {
   const isEdit = !!record
   const [error, setError] = useState<string | null>(null)
+  const createMutation = useCreatePropaneRecord(vin)
+  const updateMutation = useUpdatePropaneRecord(vin)
   const { system } = useUnitPreference()
 
   // Extract vendor from notes if it was stored there
@@ -154,9 +156,9 @@ export default function PropaneRecordForm({
       }
 
       if (isEdit && record) {
-        await api.put(`/vehicles/${vin}/fuel/${record.id}`, payload)
+        await updateMutation.mutateAsync({ id: record.id, ...payload })
       } else {
-        await api.post(`/vehicles/${vin}/fuel`, payload)
+        await createMutation.mutateAsync(payload as FuelRecordCreate)
       }
 
       onSuccess()

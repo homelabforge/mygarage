@@ -204,7 +204,7 @@ export default function TollTransactionList({ vin, onAddClick, onEditClick }: To
                     <MapPin className="text-primary mt-1" size={18} />
                     <div className="flex-1">
                       <h3 className="text-lg font-semibold text-garage-text">{transaction.location}</h3>
-                      <p className="text-sm text-garage-text-muted">{formatDate(transaction.transaction_date)}</p>
+                      <p className="text-sm text-garage-text-muted">{formatDate(transaction.date)}</p>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-3 ml-9">

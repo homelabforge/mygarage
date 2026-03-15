@@ -8,6 +8,7 @@ import type { Vehicle } from '../types/vehicle'
 import { fuelRecordSchema, type FuelRecordFormData } from '../schemas/fuel'
 import { FormError } from './FormError'
 import api from '../services/api'
+import { useCreateFuelRecord, useUpdateFuelRecord } from '../hooks/queries/useFuelRecords'
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { UnitConverter, UnitFormatter } from '../utils/units'
 import { formatDateForInput } from '../utils/dateUtils'
@@ -22,6 +23,8 @@ interface FuelRecordFormProps {
 export default function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps) {
   const isEdit = !!record
   const [error, setError] = useState<string | null>(null)
+  const createMutation = useCreateFuelRecord(vin)
+  const updateMutation = useUpdateFuelRecord(vin)
   const [vehicleFuelType, setVehicleFuelType] = useState<string>('')
   const [defTankCapacity, setDefTankCapacity] = useState<number>(0)
   const { system } = useUnitPreference()
@@ -158,9 +161,9 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
       }
 
       if (isEdit) {
-        await api.put(`/vehicles/${vin}/fuel/${record.id}`, payload)
+        await updateMutation.mutateAsync({ id: record.id, ...payload })
       } else {
-        await api.post(`/vehicles/${vin}/fuel`, payload)
+        await createMutation.mutateAsync(payload as FuelRecordCreate)
       }
 
       onSuccess()

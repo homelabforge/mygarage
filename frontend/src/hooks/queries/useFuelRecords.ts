@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '@/services/api'
-import type { FuelRecordListResponse } from '@/types/fuel'
+import type { FuelRecordListResponse, FuelRecordCreate, FuelRecordUpdate } from '@/types/fuel'
 
 export function useFuelRecords(vin: string, includeHauling: boolean) {
   return useQuery({
@@ -32,6 +32,32 @@ interface ImportCSVResult {
   skipped_count: number
   error_count: number
   errors: string[]
+}
+
+export function useCreateFuelRecord(vin: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: FuelRecordCreate) => {
+      const { data } = await api.post(`/vehicles/${vin}/fuel`, payload)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['fuelRecords', vin] })
+    },
+  })
+}
+
+export function useUpdateFuelRecord(vin: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, ...payload }: FuelRecordUpdate & { id: number }) => {
+      const { data } = await api.put(`/vehicles/${vin}/fuel/${id}`, payload)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['fuelRecords', vin] })
+    },
+  })
 }
 
 export function useImportFuelCSV(vin: string) {

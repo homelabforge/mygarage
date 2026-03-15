@@ -4,11 +4,11 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { Save, FileUp } from 'lucide-react'
 import FormModalWrapper from './FormModalWrapper'
 import { toast } from 'sonner'
-import api from '../services/api'
 import type { InsurancePolicy, InsurancePolicyCreate, InsurancePolicyUpdate } from '../types/insurance'
 import { insuranceSchema, type InsuranceFormData, POLICY_TYPES, PREMIUM_FREQUENCIES } from '../schemas/insurance'
 import { FormError } from './FormError'
 import InsurancePDFUpload from './InsurancePDFUpload'
+import { useCreateInsuranceRecord, useUpdateInsuranceRecord } from '../hooks/queries/useInsuranceRecords'
 import { formatDateForInput } from '../utils/dateUtils'
 
 interface InsuranceFormProps {
@@ -20,6 +20,8 @@ interface InsuranceFormProps {
 
 export default function InsuranceForm({ vin, record, onClose, onSuccess }: InsuranceFormProps) {
   const isEdit = !!record
+  const createMutation = useCreateInsuranceRecord(vin)
+  const updateMutation = useUpdateInsuranceRecord(vin)
   const [showPDFUpload, setShowPDFUpload] = useState(false)
   const [autoFilledFields, setAutoFilledFields] = useState<Set<string>>(new Set())
 
@@ -82,14 +84,10 @@ export default function InsuranceForm({ vin, record, onClose, onSuccess }: Insur
         notes: data.notes,
       }
 
-      const url = isEdit
-        ? `/vehicles/${vin}/insurance/${record.id}`
-        : `/vehicles/${vin}/insurance`
-
       if (isEdit) {
-        await api.put(url, payload)
+        await updateMutation.mutateAsync({ id: record.id, ...payload })
       } else {
-        await api.post(url, payload)
+        await createMutation.mutateAsync(payload as InsurancePolicyCreate)
       }
 
       onSuccess()

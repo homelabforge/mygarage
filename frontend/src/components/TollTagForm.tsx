@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { X, Save } from 'lucide-react'
+import { Save } from 'lucide-react'
+import FormModalWrapper from './FormModalWrapper'
 import type { TollTag, TollTagCreate, TollTagUpdate } from '../types/toll'
 import { tollTagSchema, type TollTagFormData, TOLL_SYSTEMS } from '../schemas/tollTag'
 import { FormError } from './FormError'
-import api from '../services/api'
+import { useCreateTollTag, useUpdateTollTag } from '../hooks/queries/useTollRecords'
 
 interface TollTagFormProps {
   vin: string
@@ -17,6 +18,8 @@ interface TollTagFormProps {
 export default function TollTagForm({ vin, tag, onClose, onSuccess }: TollTagFormProps) {
   const isEdit = !!tag
   const [error, setError] = useState<string | null>(null)
+  const createMutation = useCreateTollTag(vin)
+  const updateMutation = useUpdateTollTag(vin)
 
   const {
     register,
@@ -48,9 +51,9 @@ export default function TollTagForm({ vin, tag, onClose, onSuccess }: TollTagFor
       }
 
       if (isEdit) {
-        await api.put(`/vehicles/${vin}/toll-tags/${tag.id}`, payload)
+        await updateMutation.mutateAsync({ id: tag.id, ...payload })
       } else {
-        await api.post(`/vehicles/${vin}/toll-tags`, payload)
+        await createMutation.mutateAsync(payload as TollTagCreate)
       }
 
       onSuccess()
@@ -61,20 +64,7 @@ export default function TollTagForm({ vin, tag, onClose, onSuccess }: TollTagFor
   }
 
   return (
-    <div className="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
-      <div className="bg-garage-surface rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-garage-border">
-        <div className="sticky top-0 bg-garage-surface border-b border-garage-border px-6 py-4 flex justify-between items-center rounded-t-lg">
-          <h2 className="text-xl font-semibold text-garage-text">
-            {isEdit ? 'Edit Toll Tag' : 'Add Toll Tag'}
-          </h2>
-          <button
-            onClick={onClose}
-            className="text-garage-text-muted hover:text-garage-text"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
+    <FormModalWrapper title={isEdit ? 'Edit Toll Tag' : 'Add Toll Tag'} onClose={onClose}>
         <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
           {error && (
             <div className="bg-danger/10 border border-danger rounded-lg p-3">
@@ -175,7 +165,6 @@ export default function TollTagForm({ vin, tag, onClose, onSuccess }: TollTagFor
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </FormModalWrapper>
   )
 }

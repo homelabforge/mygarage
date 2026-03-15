@@ -12,7 +12,7 @@ import {
   spotRentalBillingSchema,
   type SpotRentalBillingFormData
 } from '../schemas/spotRentalBilling'
-import api from '../services/api'
+import { useCreateBillingEntry, useUpdateBillingEntry } from '../hooks/queries/useSpotRentals'
 import { formatDateForInput } from '../utils/dateUtils'
 
 interface BillingEntryFormProps {
@@ -32,6 +32,8 @@ export default function BillingEntryForm({
 }: BillingEntryFormProps) {
   const isEdit = !!billing
   const [error, setError] = useState<string | null>(null)
+  const createMutation = useCreateBillingEntry(vin, rentalId)
+  const updateMutation = useUpdateBillingEntry(vin, rentalId)
 
   const {
     register,
@@ -86,15 +88,9 @@ export default function BillingEntryForm({
       }
 
       if (isEdit && billing) {
-        await api.put(
-          `/vehicles/${vin}/spot-rentals/${rentalId}/billings/${billing.id}`,
-          payload
-        )
+        await updateMutation.mutateAsync({ id: billing.id, ...payload })
       } else {
-        await api.post(
-          `/vehicles/${vin}/spot-rentals/${rentalId}/billings`,
-          payload
-        )
+        await createMutation.mutateAsync(payload as SpotRentalBillingCreate)
       }
 
       onSuccess()

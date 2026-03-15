@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '@/services/api'
-import type { DEFRecordListResponse, DEFAnalytics } from '@/types/def'
+import type { DEFRecordListResponse, DEFAnalytics, DEFRecordCreate, DEFRecordUpdate } from '@/types/def'
 
 export function useDEFRecords(vin: string) {
   return useQuery({
@@ -25,6 +25,34 @@ export function useDEFAnalytics(vin: string) {
       return data
     },
     enabled: !!vin,
+  })
+}
+
+export function useCreateDEFRecord(vin: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: DEFRecordCreate) => {
+      const { data } = await api.post(`/vehicles/${vin}/def`, payload)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['defRecords', vin] })
+      queryClient.invalidateQueries({ queryKey: ['defAnalytics', vin] })
+    },
+  })
+}
+
+export function useUpdateDEFRecord(vin: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, ...payload }: DEFRecordUpdate & { id: number }) => {
+      const { data } = await api.put(`/vehicles/${vin}/def/${id}`, payload)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['defRecords', vin] })
+      queryClient.invalidateQueries({ queryKey: ['defAnalytics', vin] })
+    },
   })
 }
 

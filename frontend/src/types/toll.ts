@@ -37,7 +37,7 @@ export interface TollTransaction {
   id: number
   vin: string
   toll_tag_id?: number
-  transaction_date: string
+  date: string
   amount: number
   location: string
   notes?: string

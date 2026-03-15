@@ -9,6 +9,7 @@ import { spotRentalSchema, type SpotRentalFormData } from '../schemas/spotRental
 import { FormError } from './FormError'
 import AddressBookAutocomplete from './AddressBookAutocomplete'
 import api from '../services/api'
+import { useCreateSpotRental, useUpdateSpotRental } from '../hooks/queries/useSpotRentals'
 import { toast } from 'sonner'
 import { formatDateForInput } from '../utils/dateUtils'
 
@@ -22,6 +23,8 @@ interface SpotRentalFormProps {
 export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: SpotRentalFormProps) {
   const isEdit = !!rental
   const [error, setError] = useState<string | null>(null)
+  const createMutation = useCreateSpotRental(vin)
+  const updateMutation = useUpdateSpotRental(vin)
   const [selectedAddressEntry, setSelectedAddressEntry] = useState<AddressBookEntry | null>(null)
   const [showSaveToAddressBook, setShowSaveToAddressBook] = useState(false)
   const [pendingLocationData, setPendingLocationData] = useState<{name: string, address: string} | null>(null)
@@ -149,11 +152,11 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
       }
 
       if (isEdit) {
-        await api.put(`/vehicles/${vin}/spot-rentals/${rental.id}`, payload)
+        await updateMutation.mutateAsync({ id: rental.id, ...payload })
         onSuccess()
         onClose()
       } else {
-        await api.post(`/vehicles/${vin}/spot-rentals`, payload)
+        await createMutation.mutateAsync(payload as SpotRentalCreate)
 
         // Check if this is a new location (not from address book)
         if (data.location_name && !selectedAddressEntry) {
