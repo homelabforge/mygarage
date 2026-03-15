@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback } from 'react'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Save } from 'lucide-react'
@@ -8,6 +8,7 @@ import { warrantySchema, type WarrantyFormData, WARRANTY_TYPES } from '../schema
 import { FormError } from './FormError'
 import api from '../services/api'
 import { formatDateForInput } from '../utils/dateUtils'
+import { useFormSubmit } from '../hooks/useFormSubmit'
 
 interface WarrantyFormProps {
   vin: string
@@ -18,7 +19,32 @@ interface WarrantyFormProps {
 
 export default function WarrantyForm({ vin, record, onClose, onSuccess }: WarrantyFormProps) {
   const isEdit = !!record
-  const [error, setError] = useState<string | null>(null)
+
+  const submitFn = useCallback(async (data: WarrantyFormData) => {
+    // Zod has already validated and coerced mileage_limit - no parseInt/isNaN needed!
+    const payload: WarrantyRecordCreate | WarrantyRecordUpdate = {
+      warranty_type: data.warranty_type,
+      provider: data.provider,
+      start_date: data.start_date,
+      end_date: data.end_date,
+      mileage_limit: data.mileage_limit,
+      coverage_details: data.coverage_details,
+      policy_number: data.policy_number,
+      notes: data.notes,
+    }
+
+    const url = isEdit
+      ? `/vehicles/${vin}/warranties/${record.id}`
+      : `/vehicles/${vin}/warranties`
+
+    if (isEdit) {
+      await api.put(url, payload)
+    } else {
+      await api.post(url, payload)
+    }
+  }, [isEdit, vin, record])
+
+  const { error, handleSubmit: onSubmit } = useFormSubmit(submitFn, { onSuccess, onClose })
 
   const {
     register,
@@ -37,39 +63,6 @@ export default function WarrantyForm({ vin, record, onClose, onSuccess }: Warran
       notes: record?.notes || '',
     },
   })
-
-  const onSubmit = async (data: WarrantyFormData) => {
-    setError(null)
-
-    try {
-      // Zod has already validated and coerced mileage_limit - no parseInt/isNaN needed!
-      const payload: WarrantyRecordCreate | WarrantyRecordUpdate = {
-        warranty_type: data.warranty_type,
-        provider: data.provider,
-        start_date: data.start_date,
-        end_date: data.end_date,
-        mileage_limit: data.mileage_limit,
-        coverage_details: data.coverage_details,
-        policy_number: data.policy_number,
-        notes: data.notes,
-      }
-
-      const url = isEdit
-        ? `/vehicles/${vin}/warranties/${record.id}`
-        : `/vehicles/${vin}/warranties`
-
-      if (isEdit) {
-        await api.put(url, payload)
-      } else {
-        await api.post(url, payload)
-      }
-
-      onSuccess()
-      onClose()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
-    }
-  }
 
   return (
     <FormModalWrapper title={isEdit ? 'Edit Warranty' : 'Add Warranty'} onClose={onClose}>

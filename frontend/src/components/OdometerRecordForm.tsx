@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback } from 'react'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Save } from 'lucide-react'
@@ -10,6 +10,7 @@ import api from '../services/api'
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { UnitConverter, UnitFormatter } from '../utils/units'
 import { formatDateForInput } from '../utils/dateUtils'
+import { useFormSubmit } from '../hooks/useFormSubmit'
 
 interface OdometerRecordFormProps {
   vin: string
@@ -20,8 +21,29 @@ interface OdometerRecordFormProps {
 
 export default function OdometerRecordForm({ vin, record, onClose, onSuccess }: OdometerRecordFormProps) {
   const isEdit = !!record
-  const [error, setError] = useState<string | null>(null)
   const { system } = useUnitPreference()
+
+  const submitFn = useCallback(async (data: OdometerRecordFormData) => {
+    // Convert from user's unit system to imperial (canonical storage format)
+    // Mileage must be rounded to integer - backend stores as INT
+    const convertedMileage = system === 'metric' && data.mileage
+      ? UnitConverter.kmToMiles(data.mileage)
+      : data.mileage
+    const payload: OdometerRecordCreate | OdometerRecordUpdate = {
+      vin,
+      date: data.date,
+      mileage: convertedMileage != null ? Math.round(convertedMileage) : undefined,
+      notes: data.notes,
+    }
+
+    if (isEdit) {
+      await api.put(`/vehicles/${vin}/odometer/${record.id}`, payload)
+    } else {
+      await api.post(`/vehicles/${vin}/odometer`, payload)
+    }
+  }, [isEdit, vin, record, system])
+
+  const { error, handleSubmit: onSubmit } = useFormSubmit(submitFn, { onSuccess, onClose })
 
   const {
     register,
@@ -40,35 +62,6 @@ export default function OdometerRecordForm({ vin, record, onClose, onSuccess }: 
       notes: record?.notes || '',
     },
   })
-
-  const onSubmit = async (data: OdometerRecordFormData) => {
-    setError(null)
-
-    try {
-      // Convert from user's unit system to imperial (canonical storage format)
-      // Mileage must be rounded to integer - backend stores as INT
-      const convertedMileage = system === 'metric' && data.mileage
-        ? UnitConverter.kmToMiles(data.mileage)
-        : data.mileage
-      const payload: OdometerRecordCreate | OdometerRecordUpdate = {
-        vin,
-        date: data.date,
-        mileage: convertedMileage != null ? Math.round(convertedMileage) : undefined,
-        notes: data.notes,
-      }
-
-      if (isEdit) {
-        await api.put(`/vehicles/${vin}/odometer/${record.id}`, payload)
-      } else {
-        await api.post(`/vehicles/${vin}/odometer`, payload)
-      }
-
-      onSuccess()
-      onClose()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
-    }
-  }
 
   return (
     <FormModalWrapper title={isEdit ? 'Edit Odometer Reading' : 'Add Odometer Reading'} onClose={onClose} maxWidth="max-w-lg">

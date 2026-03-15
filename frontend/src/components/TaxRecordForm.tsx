@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback } from 'react'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Save } from 'lucide-react'
@@ -8,6 +8,7 @@ import { taxRecordSchema, type TaxRecordFormData, TAX_TYPES } from '../schemas/t
 import { FormError } from './FormError'
 import api from '../services/api'
 import { formatDateForInput } from '../utils/dateUtils'
+import { useFormSubmit } from '../hooks/useFormSubmit'
 
 interface TaxRecordFormProps {
   vin: string
@@ -18,7 +19,26 @@ interface TaxRecordFormProps {
 
 export default function TaxRecordForm({ vin, record, onClose, onSuccess }: TaxRecordFormProps) {
   const isEdit = !!record
-  const [error, setError] = useState<string | null>(null)
+
+  const submitFn = useCallback(async (data: TaxRecordFormData) => {
+    // Zod has already validated amount - no parseFloat/isNaN needed!
+    const payload: TaxRecordCreate | TaxRecordUpdate = {
+      vin,
+      date: data.date,
+      tax_type: data.tax_type,
+      amount: data.amount,
+      renewal_date: data.renewal_date,
+      notes: data.notes,
+    }
+
+    if (isEdit) {
+      await api.put(`/vehicles/${vin}/tax-records/${record.id}`, payload)
+    } else {
+      await api.post(`/vehicles/${vin}/tax-records`, payload)
+    }
+  }, [isEdit, vin, record])
+
+  const { error, handleSubmit: onSubmit } = useFormSubmit(submitFn, { onSuccess, onClose })
 
   const {
     register,
@@ -34,33 +54,6 @@ export default function TaxRecordForm({ vin, record, onClose, onSuccess }: TaxRe
       notes: record?.notes || '',
     },
   })
-
-  const onSubmit = async (data: TaxRecordFormData) => {
-    setError(null)
-
-    try {
-      // Zod has already validated amount - no parseFloat/isNaN needed!
-      const payload: TaxRecordCreate | TaxRecordUpdate = {
-        vin,
-        date: data.date,
-        tax_type: data.tax_type,
-        amount: data.amount,
-        renewal_date: data.renewal_date,
-        notes: data.notes,
-      }
-
-      if (isEdit) {
-        await api.put(`/vehicles/${vin}/tax-records/${record.id}`, payload)
-      } else {
-        await api.post(`/vehicles/${vin}/tax-records`, payload)
-      }
-
-      onSuccess()
-      onClose()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
-    }
-  }
 
   return (
     <FormModalWrapper title={isEdit ? 'Edit Tax/Registration Record' : 'Add Tax/Registration Record'} onClose={onClose}>

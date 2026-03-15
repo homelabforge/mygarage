@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { X, Save } from 'lucide-react'
@@ -6,6 +6,7 @@ import type { Note, NoteCreate, NoteUpdate } from '../types/note'
 import { noteSchema, type NoteFormData } from '../schemas/note'
 import { FormError } from './FormError'
 import api from '../services/api'
+import { useFormSubmit } from '../hooks/useFormSubmit'
 
 interface NoteFormProps {
   vin: string
@@ -16,7 +17,27 @@ interface NoteFormProps {
 
 export default function NoteForm({ vin, note, onClose, onSuccess }: NoteFormProps) {
   const isEdit = !!note
-  const [error, setError] = useState<string | null>(null)
+
+  const submitFn = useCallback(async (data: NoteFormData) => {
+    const payload: NoteCreate | NoteUpdate = {
+      vin,
+      date: data.date,
+      title: data.title,
+      content: data.content,
+    }
+
+    const url = isEdit
+      ? `/vehicles/${vin}/notes/${note.id}`
+      : `/vehicles/${vin}/notes`
+
+    if (isEdit) {
+      await api.put(url, payload)
+    } else {
+      await api.post(url, payload)
+    }
+  }, [isEdit, vin, note])
+
+  const { error, handleSubmit: onSubmit } = useFormSubmit(submitFn, { onSuccess, onClose })
 
   const {
     register,
@@ -33,34 +54,6 @@ export default function NoteForm({ vin, note, onClose, onSuccess }: NoteFormProp
   })
 
   const title = watch('title', '')
-
-  const onSubmit = async (data: NoteFormData) => {
-    setError(null)
-
-    try {
-      const payload: NoteCreate | NoteUpdate = {
-        vin,
-        date: data.date,
-        title: data.title,
-        content: data.content,
-      }
-
-      const url = isEdit
-        ? `/vehicles/${vin}/notes/${note.id}`
-        : `/vehicles/${vin}/notes`
-
-      if (isEdit) {
-        await api.put(url, payload)
-      } else {
-        await api.post(url, payload)
-      }
-
-      onSuccess()
-      onClose()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
-    }
-  }
 
   return (
     <div className="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
