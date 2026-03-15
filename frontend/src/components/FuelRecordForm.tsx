@@ -36,9 +36,9 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
     { label: '1/4', value: 25 },
   ] as const
 
-  // Helper to convert string | number to number
-  const toNumber = (val: number | string | undefined): number | undefined => {
-    if (val === undefined) return undefined
+  // Helper to convert string | number to number (handles null from PostgreSQL API responses)
+  const toNumber = (val: number | string | null | undefined): number | undefined => {
+    if (val == null) return undefined
     const num = typeof val === 'string' ? parseFloat(val) : val
     return isNaN(num) ? undefined : num
   }
