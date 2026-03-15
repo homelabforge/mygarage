@@ -83,7 +83,12 @@ export default function DEFRecordForm({
     resolver: zodResolver(defRecordSchema) as Resolver<DefRecordFormData>,
     defaultValues: {
       date: formatDateForInput(record?.date),
-      mileage: record?.mileage ?? undefined,
+      mileage: system === 'metric' && record?.mileage
+        ? (() => {
+            const km = UnitConverter.milesToKm(record.mileage)
+            return km != null ? Math.round(km) : undefined
+          })()
+        : record?.mileage ?? undefined,
       gallons: (() => {
         const g = parseDecimal(record?.gallons)
         if (g === undefined) return undefined
@@ -128,10 +133,14 @@ export default function DEFRecordForm({
     setError(null)
 
     try {
+      const convertedMileage = system === 'metric' && data.mileage
+        ? UnitConverter.kmToMiles(data.mileage)
+        : data.mileage
+
       const payload = {
         vin,
         date: data.date,
-        mileage: data.mileage,
+        mileage: convertedMileage != null ? Math.round(convertedMileage) : undefined,
         gallons: system === 'metric' && data.gallons
           ? UnitConverter.litersToGallons(data.gallons) ?? data.gallons
           : data.gallons,
@@ -194,7 +203,7 @@ export default function DEFRecordForm({
 
             <div>
               <label htmlFor="mileage" className="block text-sm font-medium text-garage-text mb-1">
-                Mileage
+                Mileage ({UnitFormatter.getDistanceUnit(system)})
               </label>
               <input
                 type="number"

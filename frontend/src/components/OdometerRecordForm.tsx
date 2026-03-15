@@ -49,7 +49,10 @@ export default function OdometerRecordForm({ vin, record, onClose, onSuccess }: 
     defaultValues: {
       date: formatDateForInput(record?.date),
       mileage: system === 'metric' && record?.mileage
-        ? UnitConverter.milesToKm(record.mileage) ?? undefined
+        ? (() => {
+            const km = UnitConverter.milesToKm(record.mileage)
+            return km != null ? Math.round(km) : undefined
+          })()
         : record?.mileage ?? undefined,
       notes: record?.notes || '',
     },

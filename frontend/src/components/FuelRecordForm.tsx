@@ -70,7 +70,10 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
     defaultValues: {
       date: formatDateForInput(record?.date),
       mileage: system === 'metric' && record?.mileage
-        ? UnitConverter.milesToKm(toNumber(record.mileage)!) ?? undefined
+        ? (() => {
+            const km = UnitConverter.milesToKm(toNumber(record.mileage)!)
+            return km != null ? Math.round(km) : undefined
+          })()
         : toNumber(record?.mileage),
       gallons: system === 'metric' && record?.gallons
         ? UnitConverter.gallonsToLiters(toNumber(record.gallons)!) ?? undefined
