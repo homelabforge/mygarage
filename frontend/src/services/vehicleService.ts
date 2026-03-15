@@ -118,7 +118,7 @@ export const vehicleService = {
    * Set main photo for a vehicle
    */
   async setMainPhoto(vin: string, filename: string): Promise<Vehicle> {
-    const response = await api.put<Vehicle>(`/vehicles/${vin}/main-photo`, null, {
+    const response = await api.put<Vehicle>(`/vehicles/${vin}/photos/main`, null, {
       params: { filename },
     })
     return response.data
