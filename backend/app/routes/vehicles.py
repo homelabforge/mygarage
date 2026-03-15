@@ -2,7 +2,7 @@
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -31,8 +31,8 @@ router = APIRouter(prefix="/api/vehicles", tags=["Vehicles"])
 
 @router.get("", response_model=VehicleListResponse)
 async def list_vehicles(
-    skip: int = 0,
-    limit: int = 100,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_auth),
 ):
@@ -436,8 +436,8 @@ async def unarchive_vehicle(
 
 @router.get("/archived/list", response_model=VehicleListResponse)
 async def list_archived_vehicles(
-    skip: int = 0,
-    limit: int = 100,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
     db: AsyncSession = Depends(get_db),
     current_user: User | None = Depends(optional_auth),
 ):

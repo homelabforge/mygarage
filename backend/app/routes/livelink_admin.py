@@ -3,7 +3,7 @@
 import logging
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -599,7 +599,7 @@ async def lookup_dtc_definition(
 @router.get("/dtc-definitions", response_model=DTCSearchResponse)
 async def search_dtc_definitions(
     q: str,
-    limit: int = 50,
+    limit: int = Query(50, ge=1, le=1000),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_auth),
 ):

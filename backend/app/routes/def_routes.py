@@ -2,7 +2,7 @@
 
 import logging
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -25,8 +25,8 @@ router = APIRouter(prefix="/api/vehicles/{vin}/def", tags=["DEF Records"])
 @router.get("", response_model=DEFRecordListResponse)
 async def list_def_records(
     vin: str,
-    skip: int = 0,
-    limit: int = 100,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_auth),
 ):

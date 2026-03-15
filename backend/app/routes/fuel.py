@@ -2,7 +2,7 @@
 
 import logging
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -24,8 +24,8 @@ router = APIRouter(prefix="/api/vehicles/{vin}/fuel", tags=["Fuel Records"])
 @router.get("", response_model=FuelRecordListResponse)
 async def list_fuel_records(
     vin: str,
-    skip: int = 0,
-    limit: int = 100,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
     include_hauling: bool = False,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_auth),

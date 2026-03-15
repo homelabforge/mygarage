@@ -3,7 +3,7 @@
 import logging
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -108,7 +108,7 @@ async def save_discovered_shop(
 
 @router.get("/recommendations", response_model=ShopRecommendationsResponse)
 async def get_shop_recommendations(
-    limit: int = 5,
+    limit: int = Query(5, ge=1, le=50),
     db: AsyncSession = Depends(get_db),
     current_user: User | None = Depends(require_auth),
 ):

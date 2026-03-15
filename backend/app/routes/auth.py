@@ -5,7 +5,7 @@ import secrets
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy import delete, func, select
@@ -354,8 +354,8 @@ async def update_password(
 
 @router.get("/users", response_model=list[UserResponse])
 async def list_users(
-    skip: int = 0,
-    limit: int = 100,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
     current_user: User = Depends(get_current_admin_user),
     db: AsyncSession = Depends(get_db),
 ):
