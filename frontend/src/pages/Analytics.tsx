@@ -6,7 +6,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import api from '../services/api'
 import { useUnitPreference } from '../hooks/useUnitPreference'
-import { UnitFormatter } from '../utils/units'
+import { UnitConverter, UnitFormatter } from '../utils/units'
 import {
   ArrowLeft,
   TrendingUp,
@@ -1049,11 +1049,17 @@ export default function Analytics() {
             <h3 className="text-sm font-medium text-garage-text-muted mb-4">Fuel Economy Trend Over Time</h3>
             <ResponsiveContainer width="100%" height={300}>
               <RechartsLineChart
-                data={fuel_economy.data_points.map(point => ({
-                  date: new Date(point.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-                  mpg: parseFloat(point.mpg),
-                  mileage: point.mileage,
-                }))}
+                data={fuel_economy.data_points.map(point => {
+                  const rawMpg = parseFloat(point.mpg);
+                  return {
+                    date: new Date(point.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+                    mpg: rawMpg,
+                    displayFuelEconomy: !isNaN(rawMpg) && rawMpg > 0
+                      ? (system === 'metric' ? UnitConverter.mpgToL100km(rawMpg) : rawMpg)
+                      : null,
+                    mileage: point.mileage,
+                  };
+                })}
                 margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
               >
                 <CartesianGrid strokeDasharray="3 3" stroke="#333" />
@@ -1076,7 +1082,7 @@ export default function Analytics() {
                         <div style={{ backgroundColor: '#1a1f28', border: '1px solid #3a4050', borderRadius: '8px', padding: '12px', color: '#e4e6eb' }}>
                           <p style={{ fontWeight: '600', marginBottom: '8px' }}>{label}</p>
                           <p style={{ fontSize: '14px', color: '#9ca3af' }}>
-                            {UnitFormatter.formatFuelEconomy(payload[0].value as number, system, showBoth)}
+                            {UnitFormatter.formatFuelEconomy(payload[0].payload.mpg as number, system, showBoth)}
                           </p>
                           {payload[0].payload.mileage && (
                             <p style={{ fontSize: '12px', color: '#9ca3af', marginTop: '4px' }}>
@@ -1094,12 +1100,13 @@ export default function Analytics() {
                 />
                 <Line
                   type="monotone"
-                  dataKey="mpg"
+                  dataKey="displayFuelEconomy"
                   stroke="#3B82F6"
                   strokeWidth={2}
                   dot={{ fill: '#3B82F6', r: 4 }}
                   activeDot={{ r: 6 }}
-                  name="Miles Per Gallon"
+                  name={`Fuel Economy (${UnitFormatter.getFuelEconomyUnit(system)})`}
+                  connectNulls
                 />
               </RechartsLineChart>
             </ResponsiveContainer>
