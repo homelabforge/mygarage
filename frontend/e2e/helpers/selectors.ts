@@ -23,3 +23,12 @@ export const ADMIN = {
   username: 'e2e-admin',
   password: 'E2eTest!ng123',
 }
+
+/** Seeded test vehicle — matches the one created in global.setup.ts */
+export const TEST_VEHICLE = {
+  vin: 'TEST0000000000001',
+  nickname: 'E2E Test Car',
+  year: 2022,
+  make: 'TestMake',
+  model: 'TestModel',
+}

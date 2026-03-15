@@ -10,6 +10,17 @@ const ADMIN = {
   full_name: 'E2E Test Admin',
 }
 
+/** Seeded test vehicle used by workflow specs (records, tabs, archive). */
+export const TEST_VEHICLE = {
+  vin: 'TEST0000000000001',
+  nickname: 'E2E Test Car',
+  vehicle_type: 'Car' as const,
+  year: 2022,
+  make: 'TestMake',
+  model: 'TestModel',
+  color: 'Blue',
+}
+
 setup('create admin account and authenticate', async ({ page, request }) => {
   // Step 1: Register first user (auto-admin)
   const regResp = await request.post(`${API_BASE}/auth/register`, {
@@ -33,17 +44,30 @@ setup('create admin account and authenticate', async ({ page, request }) => {
   expect(loginResp.ok(), `Login failed: ${loginResp.status()}`).toBeTruthy()
   const loginData = await loginResp.json()
 
+  const authHeaders = {
+    Cookie: `mygarage_token=${loginData.access_token}`,
+    'X-CSRF-Token': loginData.csrf_token,
+  }
+
   // Step 3: Enable local auth mode (fresh DB defaults to "none")
   const authModeResp = await request.put(`${API_BASE}/settings/auth_mode`, {
     data: { value: 'local' },
-    headers: {
-      Cookie: `mygarage_token=${loginData.access_token}`,
-      'X-CSRF-Token': loginData.csrf_token,
-    },
+    headers: authHeaders,
   })
   expect(authModeResp.ok(), `Set auth_mode failed: ${authModeResp.status()}`).toBeTruthy()
 
-  // Step 4: Set JWT cookie on browser context
+  // Step 4: Seed a test vehicle (idempotent — skip if already exists)
+  const vehicleResp = await request.post(`${API_BASE}/vehicles`, {
+    data: TEST_VEHICLE,
+    headers: authHeaders,
+  })
+  // 201 = created, 409/422 = already exists (rerun)
+  expect(
+    [201, 409, 422].includes(vehicleResp.status()),
+    `Seed vehicle failed: ${vehicleResp.status()} ${await vehicleResp.text()}`
+  ).toBeTruthy()
+
+  // Step 5: Set JWT cookie on browser context
   await page.context().addCookies([
     {
       name: 'mygarage_token',
@@ -56,13 +80,13 @@ setup('create admin account and authenticate', async ({ page, request }) => {
     },
   ])
 
-  // Step 5: Set CSRF token in sessionStorage
+  // Step 6: Set CSRF token in sessionStorage
   await page.goto('/')
   await page.evaluate((token: string) => {
     sessionStorage.setItem('csrf_token', token)
   }, loginData.csrf_token)
 
-  // Step 6: Verify authentication works
+  // Step 7: Verify authentication works
   await page.goto('/')
   await expect(page.getByRole('link', { name: 'Dashboard' })).toBeVisible({
     timeout: 15000,
