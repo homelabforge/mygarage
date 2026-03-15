@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- Enforce vehicle ownership checks on all VIN-scoped routes (65+ routes across 13 files)
+- Add bounded `Query()` validation to all pagination parameters to prevent DoS
+
+### Added
+- TanStack Query v5 for frontend data fetching with automatic caching and cache invalidation
+- 9 query/mutation hook files for all vehicle-scoped record types
+- `FormModalWrapper` shared component for consistent modal UI
+- `useFormSubmit` hook for standardized form error handling
+- 167 new unit tests (16 Zod schema suites, vehicle archive routes, analytics routes)
+- 18 new E2E Playwright tests (vehicle lifecycle, fuel records, tab navigation)
+- Non-admin user test fixture for multi-user authorization testing
+- CI tripwire to catch raw vehicle existence checks in route files
+
+### Changed
+- Extract 6 backend service classes (warranty, insurance, tax, toll, recall, spot rental)
+- Split `services/oidc.py` (939 lines) into 7-file package
+- Split `services/analytics_service.py` (826 lines) into 7-file package
+- Migrate all 14 list components from manual useState/useEffect to TanStack Query hooks
+- Consolidate `formatDateForInput` from 9 local copies to shared `dateUtils.ts` import
+
+### App Dependencies
+- **@tanstack/react-query**: added (5.90.21)
+- **@tanstack/react-query-devtools**: added (5.91.3)
+
 ## [2.23.2] - 2026-03-14
 
 ### Fixed
