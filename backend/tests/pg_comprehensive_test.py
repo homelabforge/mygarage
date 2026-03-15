@@ -155,16 +155,16 @@ class TestTollDialect:
             ))
         await pg_session.flush()
 
-        from app.models.toll import TollTransaction as TT
+        from app.models.toll import TollTransaction
 
-        month_col = func.to_char(TT.date, "YYYY-MM").label("month")
+        month_col = func.to_char(TollTransaction.date, "YYYY-MM").label("month")
         result = await pg_session.execute(
             select(
                 month_col,
-                func.count(TT.id).label("count"),
-                func.sum(TT.amount).label("total"),
+                func.count(TollTransaction.id).label("count"),
+                func.sum(TollTransaction.amount).label("total"),
             )
-            .where(TT.vin == vehicle.vin)
+            .where(TollTransaction.vin == vehicle.vin)
             .group_by(month_col)
             .order_by(month_col)
         )

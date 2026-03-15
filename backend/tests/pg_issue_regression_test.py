@@ -18,7 +18,7 @@ Run with:
 """
 
 import os
-from datetime import date, datetime
+from datetime import date
 from decimal import Decimal
 
 import pytest

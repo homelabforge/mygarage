@@ -91,20 +91,20 @@ class TestTollSummaryDialect:
         from sqlalchemy import func, select
 
         from app.database import is_sqlite
-        from app.models.toll import TollTransaction as TT
+        from app.models.toll import TollTransaction
 
         if is_sqlite:
-            month_col = func.strftime("%Y-%m", TT.date).label("month")
+            month_col = func.strftime("%Y-%m", TollTransaction.date).label("month")
         else:
-            month_col = func.to_char(TT.date, "YYYY-MM").label("month")
+            month_col = func.to_char(TollTransaction.date, "YYYY-MM").label("month")
 
         result = await pg_session.execute(
             select(
                 month_col,
-                func.count(TT.id).label("count"),
-                func.sum(TT.amount).label("amount"),
+                func.count(TollTransaction.id).label("count"),
+                func.sum(TollTransaction.amount).label("amount"),
             )
-            .where(TT.vin == vehicle.vin)
+            .where(TollTransaction.vin == vehicle.vin)
             .group_by(month_col)
             .order_by(month_col.desc())
         )
