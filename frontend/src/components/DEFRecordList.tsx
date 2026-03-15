@@ -137,10 +137,12 @@ export default function DEFRecordList({ vin }: DEFRecordListProps) {
             <div className="bg-garage-surface border border-garage-border rounded-lg p-3">
               <div className="flex items-center gap-1 text-xs text-garage-text-muted mb-1">
                 <TrendingDown className="w-3 h-3" />
-                <span>Est. Miles Left</span>
+                <span>Est. {UnitFormatter.getDistanceUnit(system)} Left</span>
               </div>
               <div className={`text-lg font-semibold ${milesRemainingColor(analytics.estimated_miles_remaining)}`}>
-                {analytics.estimated_miles_remaining.toLocaleString()}
+                {system === 'metric'
+                  ? Math.round(UnitConverter.milesToKm(analytics.estimated_miles_remaining) ?? 0).toLocaleString()
+                  : analytics.estimated_miles_remaining.toLocaleString()}
               </div>
               {analytics.estimated_days_remaining !== null && (
                 <p className="text-xs text-garage-text-muted">
@@ -158,9 +160,10 @@ export default function DEFRecordList({ vin }: DEFRecordListProps) {
                 <span>Consumption</span>
               </div>
               <div className="text-lg font-semibold text-garage-text">
-                {parseNum(analytics.gallons_per_1000_miles)?.toFixed(1)}
+                {analytics.gallons_per_1000_miles !== null &&
+                  UnitFormatter.formatVolumePerDistance(parseNum(analytics.gallons_per_1000_miles) ?? 0, system)}
               </div>
-              <p className="text-xs text-garage-text-muted">gal/1,000 mi</p>
+              <p className="text-xs text-garage-text-muted">{UnitFormatter.getVolumePerDistanceLabel(system)}</p>
             </div>
           )}
 
@@ -169,10 +172,10 @@ export default function DEFRecordList({ vin }: DEFRecordListProps) {
             <div className="bg-garage-surface border border-garage-border rounded-lg p-3">
               <div className="flex items-center gap-1 text-xs text-garage-text-muted mb-1">
                 <DollarSign className="w-3 h-3" />
-                <span>Avg Cost/Gal</span>
+                <span>{UnitFormatter.getCostPerVolumeLabel(system)}</span>
               </div>
               <div className="text-lg font-semibold text-garage-text">
-                {formatCurrency(analytics.avg_cost_per_gallon)}
+                {UnitFormatter.formatCostPerVolume(parseNum(analytics.avg_cost_per_gallon) ?? 0, system)}
               </div>
             </div>
           )}
@@ -188,7 +191,7 @@ export default function DEFRecordList({ vin }: DEFRecordListProps) {
                 {formatCurrency(analytics.total_cost)}
               </div>
               <p className="text-xs text-garage-text-muted">
-                {parseNum(analytics.total_gallons)?.toFixed(1)} gal total
+                {UnitFormatter.formatVolumeTotal(parseNum(analytics.total_gallons) ?? 0, system)}
               </p>
             </div>
           )}

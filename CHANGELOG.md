@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix PostgreSQL migrations failing with `UndefinedColumnError` after container upgrade ([#42](https://github.com/homelabforge/mygarage/issues/42))
 - Fix metric mileage validation error when editing fuel, odometer, and DEF records ([#43](https://github.com/homelabforge/mygarage/issues/43))
 - Fix setting vehicle main photo returning 404 ([#44](https://github.com/homelabforge/mygarage/issues/44))
+- Fix metric units showing imperial labels and values in fuel, DEF, and propane summary cards ([#45](https://github.com/homelabforge/mygarage/issues/45))
 
 ### App Dependencies
 - **aiomqtt**: 2.5.0 → 2.5.1

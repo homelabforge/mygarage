@@ -159,20 +159,20 @@ export default function PropaneRecordList({ vin }: PropaneRecordListProps) {
             <div className="bg-garage-surface border border-garage-border rounded-lg p-3">
               <div className="flex items-center gap-1 text-xs text-garage-text-muted mb-1">
                 <Droplets className="w-3 h-3" />
-                <span>Total Gallons</span>
+                <span>{system === 'metric' ? 'Total Liters' : 'Total Gallons'}</span>
               </div>
               <div className="text-lg font-semibold text-garage-text">
-                {totalGallons.toFixed(1)} gal
+                {UnitFormatter.formatVolumeTotal(totalGallons, system).replace(' total', '')}
               </div>
             </div>
             {avgCostPerGallon !== null && (
               <div className="bg-garage-surface border border-garage-border rounded-lg p-3">
                 <div className="flex items-center gap-1 text-xs text-garage-text-muted mb-1">
                   <DollarSign className="w-3 h-3" />
-                  <span>Avg Cost/Gal</span>
+                  <span>{UnitFormatter.getCostPerVolumeLabel(system)}</span>
                 </div>
                 <div className="text-lg font-semibold text-garage-text">
-                  {formatCurrency(avgCostPerGallon)}
+                  {avgCostPerGallon !== null && UnitFormatter.formatCostPerVolume(avgCostPerGallon, system)}
                 </div>
               </div>
             )}

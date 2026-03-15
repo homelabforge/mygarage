@@ -1147,16 +1147,16 @@ export default function Analytics() {
               </p>
             </div>
             <div className="text-center p-4 bg-garage-bg rounded-lg">
-              <p className="text-sm text-garage-text-muted mb-1">Total Gallons</p>
+              <p className="text-sm text-garage-text-muted mb-1">{system === 'metric' ? 'Total Liters' : 'Total Gallons'}</p>
               <p className="text-2xl font-bold text-garage-text">
-                {analytics.propane_analysis.total_gallons} gal
+                {UnitFormatter.formatVolumeTotal(parseFloat(analytics.propane_analysis.total_gallons), system).replace(' total', '')}
               </p>
             </div>
             <div className="text-center p-4 bg-garage-bg rounded-lg">
-              <p className="text-sm text-garage-text-muted mb-1">Avg Price/Gallon</p>
+              <p className="text-sm text-garage-text-muted mb-1">Avg Price/{UnitFormatter.getVolumeUnit(system)}</p>
               <p className="text-2xl font-bold text-primary">
                 {analytics.propane_analysis.avg_price_per_gallon
-                  ? formatCurrency(analytics.propane_analysis.avg_price_per_gallon)
+                  ? UnitFormatter.formatCostPerVolume(parseFloat(analytics.propane_analysis.avg_price_per_gallon), system)
                   : 'N/A'}
               </p>
             </div>
@@ -1289,16 +1289,16 @@ export default function Analytics() {
               </p>
             </div>
             <div className="text-center p-4 bg-garage-bg rounded-lg">
-              <p className="text-sm text-garage-text-muted mb-1">Total Gallons</p>
+              <p className="text-sm text-garage-text-muted mb-1">{system === 'metric' ? 'Total Liters' : 'Total Gallons'}</p>
               <p className="text-2xl font-bold text-garage-text">
-                {parseFloat(analytics.def_analysis.total_gallons).toFixed(1)} gal
+                {UnitFormatter.formatVolumeTotal(parseFloat(analytics.def_analysis.total_gallons), system).replace(' total', '')}
               </p>
             </div>
             <div className="text-center p-4 bg-garage-bg rounded-lg">
-              <p className="text-sm text-garage-text-muted mb-1">Avg Cost/Gallon</p>
+              <p className="text-sm text-garage-text-muted mb-1">{UnitFormatter.getCostPerVolumeLabel(system)}</p>
               <p className="text-2xl font-bold text-garage-text">
                 {analytics.def_analysis.avg_cost_per_gallon
-                  ? formatCurrency(analytics.def_analysis.avg_cost_per_gallon)
+                  ? UnitFormatter.formatCostPerVolume(parseFloat(analytics.def_analysis.avg_cost_per_gallon), system)
                   : '-'}
               </p>
             </div>
@@ -1306,7 +1306,7 @@ export default function Analytics() {
               <p className="text-sm text-garage-text-muted mb-1">Consumption Rate</p>
               <p className="text-2xl font-bold text-primary">
                 {analytics.def_analysis.gallons_per_1000_miles
-                  ? `${analytics.def_analysis.gallons_per_1000_miles} gal/1k mi`
+                  ? `${UnitFormatter.formatVolumePerDistance(parseFloat(analytics.def_analysis.gallons_per_1000_miles), system)} ${UnitFormatter.getVolumePerDistanceLabel(system)}`
                   : '-'}
               </p>
             </div>

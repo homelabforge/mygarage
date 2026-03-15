@@ -489,6 +489,87 @@ export class UnitFormatter {
   static getTorqueUnit(system: UnitSystem): string {
     return system === 'imperial' ? 'lb-ft' : 'Nm';
   }
+
+  // ========== SUMMARY CARD HELPERS ==========
+  // All accept imperial-base values and convert at render time.
+
+  /**
+   * Format a volume total for summary cards.
+   * Input: gallons (imperial-base). Output: "12.5 gal total" or "47.3 L total".
+   */
+  static formatVolumeTotal(gallons: number, system: UnitSystem): string {
+    if (system === 'metric') {
+      const liters = UnitConverter.gallonsToLiters(gallons);
+      return `${(liters ?? 0).toFixed(1)} L total`;
+    }
+    return `${gallons.toFixed(1)} gal total`;
+  }
+
+  /**
+   * Format cost per volume for summary cards.
+   * Input: cost per gallon (imperial-base $/gal). Output: "$3.45/gal" or "$0.91/L".
+   */
+  static formatCostPerVolume(costPerGallon: number, system: UnitSystem): string {
+    if (system === 'metric') {
+      // $/gal → $/L: divide by liters-per-gallon
+      const costPerLiter = costPerGallon / 3.78541;
+      return `$${costPerLiter.toFixed(2)}`;
+    }
+    return `$${costPerGallon.toFixed(2)}`;
+  }
+
+  /**
+   * Get the label for cost-per-volume cards.
+   * Returns "Avg Cost/gal" or "Avg Cost/L".
+   */
+  static getCostPerVolumeLabel(system: UnitSystem): string {
+    return `Avg Cost/${UnitFormatter.getVolumeUnit(system)}`;
+  }
+
+  /**
+   * Format cost per distance for summary cards.
+   * Input: cost per 1,000 miles (imperial-base $/1k mi).
+   * Output: "$45.20/1k mi" or "$8.45/100 km".
+   * Metric uses $/100 km (standard convention).
+   */
+  static formatCostPerDistance(costPer1kMiles: number, system: UnitSystem): string {
+    if (system === 'metric') {
+      // $/1000mi → $/100km: costPer1kMiles / (1000 * 1.60934) * 100
+      const costPer100km = (costPer1kMiles / 1.60934) / 10;
+      return `$${costPer100km.toFixed(2)}`;
+    }
+    return `$${costPer1kMiles.toFixed(2)}`;
+  }
+
+  /**
+   * Get the label for cost-per-distance cards.
+   * Returns "Cost/1k Miles" or "Cost/100 km".
+   */
+  static getCostPerDistanceLabel(system: UnitSystem): string {
+    return system === 'imperial' ? 'Cost/1k Miles' : 'Cost/100 km';
+  }
+
+  /**
+   * Format volume consumption per distance for summary cards.
+   * Input: gallons per 1,000 miles (imperial-base gal/1k mi).
+   * Output: "2.1 gal/1,000 mi" or "3.4 L/1,000 km".
+   */
+  static formatVolumePerDistance(galPer1kMi: number, system: UnitSystem): string {
+    if (system === 'metric') {
+      // gal/1000mi → L/1000km: (gal * 3.78541) / (1000mi * 1.60934) * 1000
+      const litersPer1kKm = (galPer1kMi * 3.78541) / 1.60934;
+      return `${litersPer1kKm.toFixed(1)}`;
+    }
+    return `${galPer1kMi.toFixed(1)}`;
+  }
+
+  /**
+   * Get the sub-label for volume-per-distance cards.
+   * Returns "gal/1,000 mi" or "L/1,000 km".
+   */
+  static getVolumePerDistanceLabel(system: UnitSystem): string {
+    return system === 'imperial' ? 'gal/1,000 mi' : 'L/1,000 km';
+  }
 }
 
 /**

@@ -306,7 +306,7 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick, onRefresh
                   {formatCurrency(totalCost)}
                 </div>
                 <p className="text-xs text-garage-text-muted">
-                  {totalGallons.toFixed(1)} gal total
+                  {UnitFormatter.formatVolumeTotal(totalGallons, system)}
                 </p>
               </div>
             )}
@@ -314,10 +314,10 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick, onRefresh
               <div className="bg-garage-surface border border-garage-border rounded-lg p-3">
                 <div className="flex items-center gap-1 text-xs text-garage-text-muted mb-1">
                   <Gauge className="w-3 h-3" />
-                  <span>Avg Cost/Gal</span>
+                  <span>{UnitFormatter.getCostPerVolumeLabel(system)}</span>
                 </div>
                 <div className="text-lg font-semibold text-garage-text">
-                  {formatCurrency(avgCostPerGallon)}
+                  {avgCostPerGallon !== null && UnitFormatter.formatCostPerVolume(avgCostPerGallon, system)}
                 </div>
               </div>
             )}
@@ -325,10 +325,10 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick, onRefresh
               <div className="bg-garage-surface border border-garage-border rounded-lg p-3">
                 <div className="flex items-center gap-1 text-xs text-garage-text-muted mb-1">
                   <Truck className="w-3 h-3" />
-                  <span>Cost/1k Miles</span>
+                  <span>{UnitFormatter.getCostPerDistanceLabel(system)}</span>
                 </div>
                 <div className="text-lg font-semibold text-garage-text">
-                  {formatCurrency(costPer1kMiles)}
+                  {costPer1kMiles !== null && UnitFormatter.formatCostPerDistance(costPer1kMiles, system)}
                 </div>
               </div>
             )}
