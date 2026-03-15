@@ -6,6 +6,7 @@ import type { WarrantyRecord, WarrantyRecordCreate, WarrantyRecordUpdate } from 
 import { warrantySchema, type WarrantyFormData, WARRANTY_TYPES } from '../schemas/warranty'
 import { FormError } from './FormError'
 import api from '../services/api'
+import { formatDateForInput } from '../utils/dateUtils'
 
 interface WarrantyFormProps {
   vin: string
@@ -17,27 +18,6 @@ interface WarrantyFormProps {
 export default function WarrantyForm({ vin, record, onClose, onSuccess }: WarrantyFormProps) {
   const isEdit = !!record
   const [error, setError] = useState<string | null>(null)
-
-  // Helper to format date for input[type="date"] without timezone issues
-  const formatDateForInput = (dateString?: string): string => {
-    if (!dateString) {
-      const now = new Date()
-      const year = now.getFullYear()
-      const month = String(now.getMonth() + 1).padStart(2, '0')
-      const day = String(now.getDate()).padStart(2, '0')
-      return `${year}-${month}-${day}`
-    }
-    // If it's already in YYYY-MM-DD format, return as-is
-    if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
-      return dateString
-    }
-    // Otherwise parse and format without timezone conversion
-    const date = new Date(dateString + 'T00:00:00')
-    const year = date.getFullYear()
-    const month = String(date.getMonth() + 1).padStart(2, '0')
-    const day = String(date.getDate()).padStart(2, '0')
-    return `${year}-${month}-${day}`
-  }
 
   const {
     register,

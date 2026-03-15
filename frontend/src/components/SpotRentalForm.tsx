@@ -9,6 +9,7 @@ import { FormError } from './FormError'
 import AddressBookAutocomplete from './AddressBookAutocomplete'
 import api from '../services/api'
 import { toast } from 'sonner'
+import { formatDateForInput } from '../utils/dateUtils'
 
 interface SpotRentalFormProps {
   vin: string
@@ -28,25 +29,6 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
     if (rental?.weekly_rate) return 'weekly'
     return 'nightly'
   })
-
-  // Helper to format date for input[type="date"]
-  const formatDateForInput = (dateString?: string): string => {
-    if (!dateString) {
-      const now = new Date()
-      const year = now.getFullYear()
-      const month = String(now.getMonth() + 1).padStart(2, '0')
-      const day = String(now.getDate()).padStart(2, '0')
-      return `${year}-${month}-${day}`
-    }
-    if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
-      return dateString
-    }
-    const date = new Date(dateString + 'T00:00:00')
-    const year = date.getFullYear()
-    const month = String(date.getMonth() + 1).padStart(2, '0')
-    const day = String(date.getDate()).padStart(2, '0')
-    return `${year}-${month}-${day}`
-  }
 
   const {
     register,

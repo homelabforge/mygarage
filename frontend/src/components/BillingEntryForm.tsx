@@ -12,6 +12,7 @@ import {
   type SpotRentalBillingFormData
 } from '../schemas/spotRentalBilling'
 import api from '../services/api'
+import { formatDateForInput } from '../utils/dateUtils'
 
 interface BillingEntryFormProps {
   vin: string
@@ -30,24 +31,6 @@ export default function BillingEntryForm({
 }: BillingEntryFormProps) {
   const isEdit = !!billing
   const [error, setError] = useState<string | null>(null)
-
-  const formatDateForInput = (dateString?: string): string => {
-    if (!dateString) {
-      const now = new Date()
-      const year = now.getFullYear()
-      const month = String(now.getMonth() + 1).padStart(2, '0')
-      const day = String(now.getDate()).padStart(2, '0')
-      return `${year}-${month}-${day}`
-    }
-    if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
-      return dateString
-    }
-    const date = new Date(dateString + 'T00:00:00')
-    const year = date.getFullYear()
-    const month = String(date.getMonth() + 1).padStart(2, '0')
-    const day = String(date.getDate()).padStart(2, '0')
-    return `${year}-${month}-${day}`
-  }
 
   const {
     register,

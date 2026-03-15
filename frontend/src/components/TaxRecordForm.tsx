@@ -6,6 +6,7 @@ import type { TaxRecord, TaxRecordCreate, TaxRecordUpdate } from '../types/tax'
 import { taxRecordSchema, type TaxRecordFormData, TAX_TYPES } from '../schemas/tax'
 import { FormError } from './FormError'
 import api from '../services/api'
+import { formatDateForInput } from '../utils/dateUtils'
 
 interface TaxRecordFormProps {
   vin: string
@@ -17,25 +18,6 @@ interface TaxRecordFormProps {
 export default function TaxRecordForm({ vin, record, onClose, onSuccess }: TaxRecordFormProps) {
   const isEdit = !!record
   const [error, setError] = useState<string | null>(null)
-
-  // Helper to format date for input[type="date"]
-  const formatDateForInput = (dateString?: string): string => {
-    if (!dateString) {
-      const now = new Date()
-      const year = now.getFullYear()
-      const month = String(now.getMonth() + 1).padStart(2, '0')
-      const day = String(now.getDate()).padStart(2, '0')
-      return `${year}-${month}-${day}`
-    }
-    if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
-      return dateString
-    }
-    const date = new Date(dateString + 'T00:00:00')
-    const year = date.getFullYear()
-    const month = String(date.getMonth() + 1).padStart(2, '0')
-    const day = String(date.getDate()).padStart(2, '0')
-    return `${year}-${month}-${day}`
-  }
 
   const {
     register,

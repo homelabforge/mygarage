@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react'
-import api from '../../services/api'
+import { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { useTollTags } from '../../hooks/queries/useTollRecords'
 import TollTagList from '../TollTagList'
 import TollTagForm from '../TollTagForm'
 import TollTransactionList from '../TollTransactionList'
@@ -11,26 +12,13 @@ interface TollsTabProps {
 }
 
 export default function TollsTab({ vin }: TollsTabProps) {
+  const queryClient = useQueryClient()
+  const { data: tagsData } = useTollTags(vin)
+  const tollTags = tagsData?.toll_tags ?? []
   const [showTagForm, setShowTagForm] = useState(false)
   const [showTransactionForm, setShowTransactionForm] = useState(false)
   const [editTag, setEditTag] = useState<TollTag | undefined>()
   const [editTransaction, setEditTransaction] = useState<TollTransaction | undefined>()
-  const [tollTags, setTollTags] = useState<TollTag[]>([])
-  const [refreshTagsKey, setRefreshTagsKey] = useState(0)
-  const [refreshTransactionsKey, setRefreshTransactionsKey] = useState(0)
-
-  // Fetch toll tags
-  useEffect(() => {
-    const fetchTollTags = async () => {
-      try {
-        const response = await api.get(`/vehicles/${vin}/toll-tags`)
-        setTollTags(response.data.toll_tags || [])
-      } catch {
-        // Removed console.error
-      }
-    }
-    fetchTollTags()
-  }, [vin, refreshTagsKey])
 
   // Toll Tag handlers
   const handleAddTagClick = () => {
@@ -49,7 +37,7 @@ export default function TollsTab({ vin }: TollsTabProps) {
   }
 
   const handleTagSuccess = () => {
-    setRefreshTagsKey(k => k + 1)
+    queryClient.invalidateQueries({ queryKey: ['tollTags', vin] })
     handleCloseTagForm()
   }
 
@@ -70,7 +58,8 @@ export default function TollsTab({ vin }: TollsTabProps) {
   }
 
   const handleTransactionSuccess = () => {
-    setRefreshTransactionsKey(k => k + 1)
+    queryClient.invalidateQueries({ queryKey: ['tollTransactions', vin] })
+    queryClient.invalidateQueries({ queryKey: ['tollTransactionSummary', vin] })
     handleCloseTransactionForm()
   }
 
@@ -82,7 +71,6 @@ export default function TollsTab({ vin }: TollsTabProps) {
           vin={vin}
           onAddClick={handleAddTagClick}
           onEditClick={handleEditTagClick}
-          key={refreshTagsKey}
         />
       </section>
 
@@ -93,10 +81,8 @@ export default function TollsTab({ vin }: TollsTabProps) {
       <section>
         <TollTransactionList
           vin={vin}
-          tollTags={tollTags}
           onAddClick={handleAddTransactionClick}
           onEditClick={handleEditTransactionClick}
-          key={refreshTransactionsKey}
         />
       </section>
 

@@ -1,5 +1,7 @@
 import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { Toaster } from 'sonner'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { AuthProvider } from './contexts/AuthContext'
@@ -42,11 +44,22 @@ function FamilyRedirect() {
   return <Navigate to={isAdmin ? '/settings' : '/'} replace />
 }
 
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000,
+      retry: 1,
+      refetchOnWindowFocus: true,
+    },
+  },
+})
+
 function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider>
         <AuthProvider>
+          <QueryClientProvider client={queryClient}>
           <BrowserRouter>
             <Suspense fallback={<LoadingFallback />}>
               <Routes>
@@ -85,6 +98,8 @@ function App() {
             <InstallPrompt />
             <Toaster position="bottom-right" richColors />
           </BrowserRouter>
+          <ReactQueryDevtools initialIsOpen={false} />
+          </QueryClientProvider>
         </AuthProvider>
       </ThemeProvider>
     </ErrorBoundary>

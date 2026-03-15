@@ -1,78 +1,55 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useMemo } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { DollarSign, Plus, Edit, Trash2, MapPin, Calendar, Download, CreditCard } from 'lucide-react'
 import { toast } from 'sonner'
-import type { TollTransaction, TollTag, TollTransactionSummary } from '../types/toll'
+import type { TollTransaction } from '../types/toll'
 import { formatCurrency } from '../utils/formatUtils'
+import { useTollTransactions, useTollTags, useTollTransactionSummary, useDeleteTollTransaction } from '../hooks/queries/useTollRecords'
 import api from '../services/api'
 
 interface TollTransactionListProps {
   vin: string
-  tollTags: TollTag[]
   onAddClick: () => void
   onEditClick: (transaction: TollTransaction) => void
-  onRefresh?: () => void
 }
 
-export default function TollTransactionList({ vin, tollTags, onAddClick, onEditClick, onRefresh }: TollTransactionListProps) {
-  const [transactions, setTransactions] = useState<TollTransaction[]>([])
-  const [summary, setSummary] = useState<TollTransactionSummary | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [deleting, setDeleting] = useState<number | null>(null)
+export default function TollTransactionList({ vin, onAddClick, onEditClick }: TollTransactionListProps) {
+  const queryClient = useQueryClient()
   const [exporting, setExporting] = useState(false)
   const [selectedTagFilter, setSelectedTagFilter] = useState<number | ''>('')
 
-  const fetchTransactions = useCallback(async () => {
-    try {
-      const params = selectedTagFilter ? `?toll_tag_id=${selectedTagFilter}` : ''
-      const response = await api.get(`/vehicles/${vin}/toll-transactions${params}`)
-      setTransactions(response.data.transactions || [])
-      setError(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
-    }
-  }, [selectedTagFilter, vin])
+  const { data: transactionsData, isLoading: loadingTransactions, error: transactionsError } = useTollTransactions(vin)
+  const { data: tagsData, isLoading: loadingTags } = useTollTags(vin)
+  const { data: summary } = useTollTransactionSummary(vin)
+  const deleteMutation = useDeleteTollTransaction(vin)
 
-  const fetchSummary = useCallback(async () => {
-    try {
-      const response = await api.get(`/vehicles/${vin}/toll-transactions/summary/statistics`)
-      setSummary(response.data)
-    } catch {
-      // Removed console.error
-    }
-  }, [vin])
+  const tollTags = tagsData?.toll_tags ?? []
 
-  useEffect(() => {
-    setLoading(true)
-    fetchTransactions().finally(() => setLoading(false))
-    fetchSummary()
-  }, [fetchTransactions, fetchSummary])
+  const transactions = useMemo(() => {
+    const all = transactionsData?.transactions ?? []
+    if (!selectedTagFilter) return all
+    return all.filter(t => t.toll_tag_id === selectedTagFilter)
+  }, [transactionsData, selectedTagFilter])
 
-  useEffect(() => {
-    if (onRefresh) {
-      fetchTransactions()
-      fetchSummary()
-    }
-  }, [onRefresh, fetchTransactions, fetchSummary])
+  const loading = loadingTransactions || loadingTags
 
-  const handleDelete = async (transactionId: number) => {
+  const handleDelete = async (transactionId: number): Promise<void> => {
     if (!confirm('Are you sure you want to delete this toll transaction?')) {
       return
     }
 
-    setDeleting(transactionId)
-    try {
-      await api.delete(`/vehicles/${vin}/toll-transactions/${transactionId}`)
-      await fetchTransactions()
-      await fetchSummary()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to delete toll transaction')
-    } finally {
-      setDeleting(null)
-    }
+    deleteMutation.mutate(transactionId, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['tollTransactions', vin] })
+        queryClient.invalidateQueries({ queryKey: ['tollTransactionSummary', vin] })
+      },
+      onError: (err) => {
+        toast.error(err instanceof Error ? err.message : 'Failed to delete toll transaction')
+      },
+    })
   }
 
-  const handleExportCSV = async () => {
+  const handleExportCSV = async (): Promise<void> => {
     setExporting(true)
     try {
       const response = await api.get(`/vehicles/${vin}/toll-transactions/export/csv`, {
@@ -122,10 +99,10 @@ export default function TollTransactionList({ vin, tollTags, onAddClick, onEditC
     )
   }
 
-  if (error) {
+  if (transactionsError) {
     return (
       <div className="bg-danger/10 border border-danger rounded-lg p-4">
-        <p className="text-danger">{error}</p>
+        <p className="text-danger">{transactionsError instanceof Error ? transactionsError.message : 'An error occurred'}</p>
       </div>
     )
   }
@@ -258,10 +235,10 @@ export default function TollTransactionList({ vin, tollTags, onAddClick, onEditC
                   <button
                     onClick={() => handleDelete(transaction.id)}
                     className="btn btn-ghost btn-sm text-danger"
-                    disabled={deleting === transaction.id}
+                    disabled={deleteMutation.isPending && deleteMutation.variables === transaction.id}
                     title="Delete"
                   >
-                    {deleting === transaction.id ? '...' : <Trash2 size={16} />}
+                    {deleteMutation.isPending && deleteMutation.variables === transaction.id ? '...' : <Trash2 size={16} />}
                   </button>
                 </div>
               </div>

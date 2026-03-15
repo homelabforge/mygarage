@@ -1,39 +1,25 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { Edit, Trash2, Plus, AlertCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateForDisplay } from '../utils/dateUtils'
 import { formatCurrency } from '../utils/formatUtils'
-import type { TaxRecord, TaxRecordListResponse } from '../types/tax'
+import type { TaxRecord } from '../types/tax'
 import TaxRecordForm from './TaxRecordForm'
-import api from '../services/api'
+import { useTaxRecords, useDeleteTaxRecord } from '../hooks/queries/useTaxRecords'
 
 interface TaxRecordListProps {
   vin: string
 }
 
 export default function TaxRecordList({ vin }: TaxRecordListProps) {
-  const [records, setRecords] = useState<TaxRecord[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const queryClient = useQueryClient()
+  const { data, isLoading, error } = useTaxRecords(vin)
+  const deleteMutation = useDeleteTaxRecord(vin)
   const [showForm, setShowForm] = useState(false)
   const [editingRecord, setEditingRecord] = useState<TaxRecord | undefined>()
-  const [deletingId, setDeletingId] = useState<number | null>(null)
 
-  const fetchRecords = useCallback(async () => {
-    try {
-      const response = await api.get(`/vehicles/${vin}/tax-records`)
-      const data: TaxRecordListResponse = response.data
-      setRecords(data.records)
-      setError(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
-    }
-  }, [vin])
-
-  useEffect(() => {
-    setLoading(true)
-    fetchRecords().finally(() => setLoading(false))
-  }, [fetchRecords])
+  const records = data?.records ?? []
 
   const handleAdd = () => {
     setEditingRecord(undefined)
@@ -45,25 +31,20 @@ export default function TaxRecordList({ vin }: TaxRecordListProps) {
     setShowForm(true)
   }
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = (id: number) => {
     if (!confirm('Are you sure you want to delete this tax record?')) {
       return
     }
 
-    setDeletingId(id)
-    try {
-      await api.delete(`/vehicles/${vin}/tax-records/${id}`)
-
-      await fetchRecords()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to delete tax record')
-    } finally {
-      setDeletingId(null)
-    }
+    deleteMutation.mutate(id, {
+      onError: (err) => {
+        toast.error(err instanceof Error ? err.message : 'Failed to delete tax record')
+      },
+    })
   }
 
   const handleSuccess = () => {
-    fetchRecords()
+    queryClient.invalidateQueries({ queryKey: ['taxRecords', vin] })
     setShowForm(false)
   }
 
@@ -71,7 +52,7 @@ export default function TaxRecordList({ vin }: TaxRecordListProps) {
     return records.reduce((sum, record) => sum + record.amount, 0)
   }
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="text-center py-8 text-garage-text-muted">
         Loading tax records...
@@ -111,7 +92,7 @@ export default function TaxRecordList({ vin }: TaxRecordListProps) {
       {error && (
         <div className="flex items-start gap-2 p-3 bg-danger/10 border border-danger/20 rounded-md mb-4">
           <AlertCircle className="w-4 h-4 text-danger flex-shrink-0 mt-0.5" />
-          <p className="text-sm text-danger">{error}</p>
+          <p className="text-sm text-danger">{error.message}</p>
         </div>
       )}
 
@@ -181,7 +162,7 @@ export default function TaxRecordList({ vin }: TaxRecordListProps) {
                       </button>
                       <button
                         onClick={() => handleDelete(record.id)}
-                        disabled={deletingId === record.id}
+                        disabled={deleteMutation.isPending && deleteMutation.variables === record.id}
                         className="p-2 text-danger hover:bg-danger/10 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         aria-label="Delete"
                         title="Delete"

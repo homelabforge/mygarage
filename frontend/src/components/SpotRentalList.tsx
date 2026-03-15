@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { Edit, Trash2, Plus, AlertCircle, MapPin, Calendar, ChevronDown, ChevronUp, DollarSign } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateForDisplay } from '../utils/dateUtils'
@@ -7,43 +8,24 @@ import type { SpotRental, SpotRentalBilling } from '../types/spotRental'
 import SpotRentalForm from './SpotRentalForm'
 import BillingEntryForm from './BillingEntryForm'
 import api from '../services/api'
+import { useSpotRentals, useDeleteSpotRental } from '../hooks/queries/useSpotRentals'
 
 interface SpotRentalListProps {
   vin: string
 }
 
-interface SpotRentalListResponse {
-  spot_rentals: SpotRental[]
-  total: number
-}
-
 export default function SpotRentalList({ vin }: SpotRentalListProps) {
-  const [rentals, setRentals] = useState<SpotRental[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const queryClient = useQueryClient()
+  const { data, isLoading, error } = useSpotRentals(vin)
+  const deleteRental = useDeleteSpotRental(vin)
+  const rentals = data?.spot_rentals ?? []
+
   const [showForm, setShowForm] = useState(false)
   const [editingRental, setEditingRental] = useState<SpotRental | undefined>()
-  const [deletingId, setDeletingId] = useState<number | null>(null)
   const [expandedRentals, setExpandedRentals] = useState<Set<number>>(new Set())
   const [showBillingForm, setShowBillingForm] = useState(false)
   const [editingBilling, setEditingBilling] = useState<SpotRentalBilling | undefined>()
   const [currentRentalId, setCurrentRentalId] = useState<number | null>(null)
-
-  const fetchRentals = useCallback(async () => {
-    try {
-      const response = await api.get(`/vehicles/${vin}/spot-rentals`)
-      const data: SpotRentalListResponse = response.data
-      setRentals(data.spot_rentals)
-      setError(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
-    }
-  }, [vin])
-
-  useEffect(() => {
-    setLoading(true)
-    fetchRentals().finally(() => setLoading(false))
-  }, [fetchRentals])
 
   const handleAdd = () => {
     setEditingRental(undefined)
@@ -60,25 +42,20 @@ export default function SpotRentalList({ vin }: SpotRentalListProps) {
       return
     }
 
-    setDeletingId(id)
-    try {
-      await api.delete(`/vehicles/${vin}/spot-rentals/${id}`)
-
-      await fetchRentals()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to delete spot rental')
-    } finally {
-      setDeletingId(null)
-    }
+    deleteRental.mutate(id, {
+      onError: (err) => {
+        toast.error(err instanceof Error ? err.message : 'Failed to delete spot rental')
+      },
+    })
   }
 
   const handleSuccess = () => {
-    fetchRentals()
+    queryClient.invalidateQueries({ queryKey: ['spotRentals', vin] })
     setShowForm(false)
   }
 
   const handleBillingSuccess = () => {
-    fetchRentals()
+    queryClient.invalidateQueries({ queryKey: ['spotRentals', vin] })
     setShowBillingForm(false)
     setEditingBilling(undefined)
     setCurrentRentalId(null)
@@ -103,7 +80,7 @@ export default function SpotRentalList({ vin }: SpotRentalListProps) {
 
     try {
       await api.delete(`/vehicles/${vin}/spot-rentals/${rentalId}/billings/${billingId}`)
-      await fetchRentals()
+      queryClient.invalidateQueries({ queryKey: ['spotRentals', vin] })
       toast.success('Billing entry deleted')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to delete billing entry')
@@ -146,7 +123,7 @@ export default function SpotRentalList({ vin }: SpotRentalListProps) {
     return rentals.filter(r => !r.check_out_date).length
   }
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="text-center py-8 text-garage-text-muted">
         Loading spot rentals...
@@ -202,7 +179,7 @@ export default function SpotRentalList({ vin }: SpotRentalListProps) {
       {error && (
         <div className="flex items-start gap-2 p-3 bg-danger/10 border border-danger/20 rounded-md mb-4">
           <AlertCircle className="w-4 h-4 text-danger flex-shrink-0 mt-0.5" />
-          <p className="text-sm text-danger">{error}</p>
+          <p className="text-sm text-danger">{error.message}</p>
         </div>
       )}
 
@@ -266,7 +243,7 @@ export default function SpotRentalList({ vin }: SpotRentalListProps) {
                     </button>
                     <button
                       onClick={() => handleDelete(rental.id)}
-                      disabled={deletingId === rental.id}
+                      disabled={deleteRental.isPending && deleteRental.variables === rental.id}
                       className="p-1.5 text-danger hover:bg-danger/10 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       aria-label="Delete Rental"
                       title="Delete Rental"

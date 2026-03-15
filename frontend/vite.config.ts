@@ -41,6 +41,7 @@ export default defineConfig({
           'calendar': ['react-big-calendar', 'date-fns'],
           'ui': ['lucide-react', 'sonner'],
           'forms': ['react-hook-form', 'zod', '@hookform/resolvers'],
+          'query': ['@tanstack/react-query'],
           'utils': ['axios'],
         },
       },

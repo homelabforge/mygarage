@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { Fuel, Plus, Edit, Trash2, DollarSign, Calendar, Gauge, TrendingUp, Search, Download, Upload, Truck } from 'lucide-react'
 import { toast } from 'sonner'
 import type { FuelRecord } from '../types/fuel'
@@ -8,38 +8,28 @@ import { formatCurrency } from '../utils/formatUtils'
 import api from '../services/api'
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { UnitFormatter } from '../utils/units'
+import { useFuelRecords, useDeleteFuelRecord, useImportFuelCSV } from '../hooks/queries/useFuelRecords'
 
 interface FuelRecordListProps {
   vin: string
   onAddClick: () => void
   onEditClick: (record: FuelRecord) => void
-  onRefresh?: () => void
 }
 
-export default function FuelRecordList({ vin, onAddClick, onEditClick, onRefresh }: FuelRecordListProps) {
-  const [records, setRecords] = useState<FuelRecord[]>([])
-  const [averageMpg, setAverageMpg] = useState<number | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [deleting, setDeleting] = useState<number | null>(null)
+export default function FuelRecordList({ vin, onAddClick, onEditClick }: FuelRecordListProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [exporting, setExporting] = useState(false)
-  const [importing, setImporting] = useState(false)
   const [includeHauling, setIncludeHauling] = useState(false)
   const [vehicleFuelType, setVehicleFuelType] = useState<string>('')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { system, showBoth } = useUnitPreference()
 
-  const fetchRecords = useCallback(async () => {
-    try {
-      const response = await api.get(`/vehicles/${vin}/fuel?include_hauling=${includeHauling}`)
-      setRecords(response.data.records)
-      setAverageMpg(response.data.average_mpg ? parseFloat(response.data.average_mpg) : null)
-      setError(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
-    }
-  }, [vin, includeHauling])
+  const { data, isLoading, error } = useFuelRecords(vin, includeHauling)
+  const deleteMutation = useDeleteFuelRecord(vin)
+  const importMutation = useImportFuelCSV(vin)
+
+  const records = useMemo(() => data?.records ?? [], [data?.records])
+  const averageMpg = data?.average_mpg != null ? parseFloat(String(data.average_mpg)) : null
 
   // Fetch vehicle data to determine fuel type
   useEffect(() => {
@@ -54,17 +44,6 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick, onRefresh
     }
     fetchVehicle()
   }, [vin])
-
-  useEffect(() => {
-    setLoading(true)
-    fetchRecords().finally(() => setLoading(false))
-  }, [fetchRecords])
-
-  useEffect(() => {
-    if (onRefresh) {
-      fetchRecords()
-    }
-  }, [onRefresh, fetchRecords])
 
   // Filter records based on search query
   const filteredRecords = useMemo(() => {
@@ -110,62 +89,46 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick, onRefresh
     fileInputRef.current?.click()
   }
 
-  const handleImportCSV = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImportCSV = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
 
-    setImporting(true)
-    try {
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('skip_duplicates', 'true')
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('skip_duplicates', 'true')
 
-      const response = await api.post(`/import/vehicles/${vin}/fuel/csv`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      })
+    importMutation.mutate(formData, {
+      onSuccess: (result) => {
+        const message = `Import completed: ${result.success_count} records imported${result.skipped_count > 0 ? `, ${result.skipped_count} duplicates skipped` : ''}${result.error_count > 0 ? `, ${result.error_count} errors` : ''}`
 
-      const result = response.data
-
-      // Show results
-      const message = `Import completed: ${result.success_count} records imported${result.skipped_count > 0 ? `, ${result.skipped_count} duplicates skipped` : ''}${result.error_count > 0 ? `, ${result.error_count} errors` : ''}`
-
-      if (result.errors && result.errors.length > 0) {
-        toast.error(message + ' - Errors: ' + result.errors.join(', '))
-      } else {
-        toast.success(message)
-      }
-
-      // Refresh the list
-      await fetchRecords()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to import data')
-    } finally {
-      setImporting(false)
-      // Reset file input
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ''
-      }
-    }
+        if (result.errors && result.errors.length > 0) {
+          toast.error(message + ' - Errors: ' + result.errors.join(', '))
+        } else {
+          toast.success(message)
+        }
+      },
+      onError: (err) => {
+        toast.error(err instanceof Error ? err.message : 'Failed to import data')
+      },
+      onSettled: () => {
+        // Reset file input
+        if (fileInputRef.current) {
+          fileInputRef.current.value = ''
+        }
+      },
+    })
   }
 
-  const handleDelete = async (recordId: number) => {
+  const handleDelete = (recordId: number) => {
     if (!confirm('Are you sure you want to delete this fuel record?')) {
       return
     }
 
-    setDeleting(recordId)
-    try {
-      await api.delete(`/vehicles/${vin}/fuel/${recordId}`)
-
-      // Refresh the list
-      await fetchRecords()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to delete record')
-    } finally {
-      setDeleting(null)
-    }
+    deleteMutation.mutate(recordId, {
+      onError: (err) => {
+        toast.error(err instanceof Error ? err.message : 'Failed to delete record')
+      },
+    })
   }
 
   const formatDate = (dateString: string) => {
@@ -176,7 +139,7 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick, onRefresh
   const isPropane = vehicleFuelType?.toLowerCase().includes('propane')
   const showPropaneColumn = isPropane
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex justify-center items-center min-h-[200px]">
         <div className="text-garage-text-muted">Loading fuel records...</div>
@@ -187,7 +150,7 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick, onRefresh
   if (error) {
     return (
       <div className="bg-danger/10 border border-danger rounded-lg p-4">
-        <p className="text-danger">{error}</p>
+        <p className="text-danger">{error.message}</p>
       </div>
     )
   }
@@ -226,12 +189,12 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick, onRefresh
           />
           <button
             onClick={handleImportClick}
-            disabled={importing}
+            disabled={importMutation.isPending}
             className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors disabled:opacity-50"
             title="Import from CSV"
           >
             <Upload className="w-4 h-4" />
-            <span>{importing ? 'Importing...' : 'Import CSV'}</span>
+            <span>{importMutation.isPending ? 'Importing...' : 'Import CSV'}</span>
           </button>
           {/* Export button */}
           {records.length > 0 && (
@@ -480,7 +443,7 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick, onRefresh
                         </button>
                         <button
                           onClick={() => handleDelete(record.id)}
-                          disabled={deleting === record.id}
+                          disabled={deleteMutation.isPending && deleteMutation.variables === record.id}
                           className="text-danger hover:text-danger/80 disabled:opacity-50"
                           title="Delete"
                         >
