@@ -1,13 +1,14 @@
 """DTC service for diagnostic trouble code lookup and tracking."""
 
 import logging
-from datetime import UTC, datetime
+from datetime import datetime
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.dtc_definition import DTCDefinition
 from app.models.vehicle_dtc import VehicleDTC
+from app.utils.datetime_utils import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -105,7 +106,7 @@ class DTCService:
         Returns:
             List of active VehicleDTC records
         """
-        now = datetime.now(UTC)
+        now = utc_now()
         processed = []
 
         for code in dtc_codes:
@@ -188,7 +189,7 @@ class DTCService:
             return None
 
         dtc.is_active = False
-        dtc.cleared_at = datetime.now(UTC)
+        dtc.cleared_at = utc_now()
         if notes:
             # Append to existing notes if any
             if dtc.user_notes:

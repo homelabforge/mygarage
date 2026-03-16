@@ -2,7 +2,7 @@ from __future__ import annotations
 
 """CSRF token model for cross-site request forgery protection."""
 
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, ForeignKey, Index, Integer, String
@@ -10,6 +10,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
 from app.database import Base
+from app.utils.datetime_utils import utc_now
 
 if TYPE_CHECKING:
     from app.models.user import User
@@ -30,7 +31,7 @@ class CSRFToken(Base):
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now(), nullable=False
+        DateTime, server_default=func.now(), default=utc_now, nullable=False
     )
     expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
 
@@ -45,9 +46,9 @@ class CSRFToken(Base):
 
     def is_expired(self) -> bool:
         """Check if the CSRF token has expired."""
-        return datetime.now(UTC) > self.expires_at
+        return utc_now() > self.expires_at
 
     @classmethod
     def get_expiry_time(cls, hours: int = 24) -> datetime:
         """Get expiry timestamp for a new token (default 24 hours)."""
-        return datetime.now(UTC) + timedelta(hours=hours)
+        return utc_now() + timedelta(hours=hours)

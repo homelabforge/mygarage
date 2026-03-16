@@ -1,7 +1,7 @@
 """LiveLink scheduled background tasks."""
 
 import logging
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,6 +12,7 @@ from app.services.notifications.dispatcher import NotificationDispatcher
 from app.services.session_service import SessionService
 from app.services.settings_service import SettingsService
 from app.services.telemetry_service import TelemetryService
+from app.utils.datetime_utils import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +61,7 @@ async def check_device_offline_status():
 
             # Get timeout setting
             offline_timeout = await livelink_service.get_device_offline_timeout_minutes()
-            cutoff = datetime.now(UTC) - timedelta(minutes=offline_timeout)
+            cutoff = utc_now() - timedelta(minutes=offline_timeout)
 
             # Check notification setting
             notify_enabled = await _get_bool_setting(db, "livelink_notify_device_offline", True)
@@ -96,11 +97,9 @@ async def check_device_offline_status():
                             vehicle_name = vehicle_name_map.get(device.vin) if device.vin else None
 
                             last_seen = device.last_seen
-                            if last_seen.tzinfo is None:
-                                last_seen = last_seen.replace(tzinfo=UTC)
-                            offline_minutes = int(
-                                (datetime.now(UTC) - last_seen).total_seconds() / 60
-                            )
+                            if last_seen.tzinfo is not None:
+                                last_seen = last_seen.replace(tzinfo=None)
+                            offline_minutes = int((utc_now() - last_seen).total_seconds() / 60)
                             await dispatcher.notify_livelink_device_offline(
                                 device_id=device.device_id,
                                 vehicle_name=vehicle_name,
@@ -220,7 +219,7 @@ async def generate_daily_summaries():
                 return
 
             # Generate summaries for yesterday
-            yesterday = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+            yesterday = utc_now().replace(hour=0, minute=0, second=0, microsecond=0)
             yesterday -= timedelta(days=1)
 
             telemetry_service = TelemetryService(db)
@@ -258,7 +257,7 @@ async def finalize_pending_offlines():
             if not devices:
                 return
 
-            cutoff = datetime.now(UTC) - timedelta(seconds=grace_seconds)
+            cutoff = utc_now() - timedelta(seconds=grace_seconds)
             session_service = SessionService(db)
             finalized = 0
 
@@ -267,9 +266,9 @@ async def finalize_pending_offlines():
                 if not pending_at:
                     continue
 
-                # Ensure timezone-aware comparison
-                if pending_at.tzinfo is None:
-                    pending_at = pending_at.replace(tzinfo=UTC)
+                # Ensure naive UTC comparison (SQLite stores naive datetimes)
+                if pending_at.tzinfo is not None:
+                    pending_at = pending_at.replace(tzinfo=None)
 
                 if pending_at <= cutoff:
                     # Grace period expired — finalize the offline transition

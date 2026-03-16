@@ -5,7 +5,6 @@
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
 
 from fastapi import HTTPException
 from sqlalchemy import delete, select
@@ -21,6 +20,7 @@ from app.schemas.family import (
     VehicleShareResponse,
     VehicleShareUpdate,
 )
+from app.utils.datetime_utils import utc_now
 from app.utils.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
@@ -118,7 +118,7 @@ class SharingService:
                 user_id=recipient.id,
                 permission=share_request.permission,
                 shared_by=current_user.id,
-                shared_at=datetime.now(UTC),
+                shared_at=utc_now(),
             )
             self.db.add(share)
 

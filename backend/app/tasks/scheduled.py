@@ -9,7 +9,7 @@
 import asyncio
 import logging
 import os
-from datetime import UTC, date, datetime, timedelta
+from datetime import date, timedelta
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sqlalchemy import select
@@ -34,6 +34,7 @@ from app.tasks.livelink_tasks import (
     generate_daily_summaries,
     prune_old_telemetry,
 )
+from app.utils.datetime_utils import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +100,7 @@ async def check_maintenance_notifications() -> None:
             vehicles_result = await db.execute(select(Vehicle).where(Vehicle.archived_at.is_(None)))
             vehicles = vehicles_result.scalars().all()
 
-            now = datetime.now(UTC).replace(tzinfo=None)
+            now = utc_now()
             today = date.today()
 
             for vehicle in vehicles:
@@ -215,7 +216,7 @@ async def check_expiring_documents() -> None:
             notify_warranty_days = int(await _get_setting(db, "notify_warranty_days", "30"))
 
             today = date.today()
-            now = datetime.now(UTC).replace(tzinfo=None)
+            now = utc_now()
 
             # Get all vehicles for name lookup
             vehicles_result = await db.execute(select(Vehicle))
@@ -456,9 +457,7 @@ async def check_recalls_all_vehicles() -> None:
                     )
 
             # Update last check timestamp
-            await SettingsService.set(
-                db, "nhtsa_last_check", datetime.now(UTC).replace(tzinfo=None).isoformat()
-            )
+            await SettingsService.set(db, "nhtsa_last_check", utc_now().isoformat())
             await db.commit()
 
             logger.info(

@@ -1,7 +1,6 @@
 """LiveLink ingestion endpoint for WiCAN device data."""
 
 import logging
-from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,6 +11,7 @@ from app.services.dtc_service import DTCService
 from app.services.livelink_service import LiveLinkService
 from app.services.session_service import SessionService
 from app.services.telemetry_service import TelemetryService
+from app.utils.datetime_utils import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -126,7 +126,7 @@ async def ingest_wican_payload(
     # Initialize response
     results: dict[str, str | bool | int | None] = {
         "status": "accepted",
-        "timestamp": datetime.now(UTC).isoformat(),
+        "timestamp": utc_now().isoformat() + "Z",
         "device_id": device_id,
     }
 

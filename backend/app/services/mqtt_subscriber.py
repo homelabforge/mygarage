@@ -9,7 +9,7 @@ import asyncio
 import json
 import logging
 import ssl
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Any
 
 from app.database import AsyncSessionLocal
@@ -18,6 +18,7 @@ from app.services.session_service import SessionService
 from app.services.settings_service import SettingsService
 from app.services.telemetry_service import TelemetryService
 from app.utils.autopid_normalizer import normalize_autopid_data
+from app.utils.datetime_utils import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -284,7 +285,7 @@ class MQTTSubscriber:
 
                 await db.commit()
                 self._messages_processed += 1
-                self._last_message_at = datetime.now(UTC)
+                self._last_message_at = utc_now()
 
             except Exception as e:
                 await db.rollback()
@@ -384,7 +385,7 @@ class MQTTSubscriber:
                 device_id=device_id,
                 autopid_data={"BATTERY_VOLTAGE": float(battery_voltage)},
                 config={"BATTERY_VOLTAGE": {"unit": "V", "class": "voltage"}},
-                timestamp=datetime.now(UTC),
+                timestamp=utc_now(),
             )
 
     async def _handle_telemetry(
@@ -454,7 +455,7 @@ class MQTTSubscriber:
             device_id=device_id,
             autopid_data=autopid_data,
             config={},  # No config metadata from MQTT
-            timestamp=datetime.now(UTC),
+            timestamp=utc_now(),
         )
 
         # Check thresholds on validated data only (not rejected garbage)

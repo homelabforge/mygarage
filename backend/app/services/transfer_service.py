@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import UTC, datetime
 
 from fastapi import HTTPException
 from sqlalchemy import delete, select
@@ -22,6 +21,7 @@ from app.schemas.family import (
     VehicleTransferRequest,
     VehicleTransferResponse,
 )
+from app.utils.datetime_utils import utc_now
 from app.utils.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
@@ -110,7 +110,7 @@ class TransferService:
 
             # Update vehicle ownership
             vehicle.user_id = to_user.id
-            vehicle.updated_at = datetime.now(UTC)
+            vehicle.updated_at = utc_now()
 
             # Remove any existing share for the new owner (they now own it)
             await self.db.execute(
@@ -125,7 +125,7 @@ class TransferService:
                 vehicle_vin=vin,
                 from_user_id=from_user_id,
                 to_user_id=to_user.id,
-                transferred_at=datetime.now(UTC),
+                transferred_at=utc_now(),
                 transferred_by=current_user.id,
                 transfer_notes=transfer_request.transfer_notes,
                 data_included=json.dumps(transfer_request.data_included),

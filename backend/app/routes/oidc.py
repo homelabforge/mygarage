@@ -9,7 +9,7 @@ Provides endpoints for OIDC/OpenID Connect authentication flow:
 
 import logging
 import secrets
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 
 import httpx
 from authlib.jose import JoseError
@@ -28,6 +28,7 @@ from app.models.csrf_token import CSRFToken
 from app.models.user import User
 from app.services import oidc as oidc_service
 from app.services.auth import create_access_token, get_current_user
+from app.utils.datetime_utils import utc_now
 from app.utils.request_scheme import get_cookie_secure, get_request_scheme
 
 logger = logging.getLogger(__name__)
@@ -272,7 +273,7 @@ async def oidc_callback(
     await db.execute(
         delete(CSRFToken).where(
             CSRFToken.user_id == user.id,
-            CSRFToken.expires_at <= datetime.now(UTC),
+            CSRFToken.expires_at <= utc_now(),
         )
     )
 
@@ -398,7 +399,7 @@ async def link_oidc_account(
             details=error_message,
             ip_address=request.client.host if request.client else None,
             user_agent=request.headers.get("user-agent", ""),
-            timestamp=datetime.now(UTC),
+            timestamp=utc_now(),
         )
         db.add(audit_log)
         await db.commit()
@@ -424,7 +425,7 @@ async def link_oidc_account(
         details=f"Linked OIDC account to username: {user.username}, provider: {user.oidc_provider}, oidc_subject: {user.oidc_subject}",
         ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent", ""),
-        timestamp=datetime.now(UTC),
+        timestamp=utc_now(),
     )
     db.add(audit_log)
 
@@ -432,7 +433,7 @@ async def link_oidc_account(
     await db.execute(
         delete(CSRFToken).where(
             CSRFToken.user_id == user.id,
-            CSRFToken.expires_at <= datetime.now(UTC),
+            CSRFToken.expires_at <= utc_now(),
         )
     )
 

@@ -1,7 +1,7 @@
 """Session service for drive session detection and management."""
 
 import logging
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.drive_session import DriveSession
 from app.models.livelink_device import LiveLinkDevice
 from app.models.vehicle_telemetry import VehicleTelemetry
+from app.utils.datetime_utils import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +74,7 @@ class SessionService:
         return await self.handle_ecu_status_change(
             device=device,
             new_ecu_status="online",
-            timestamp=datetime.now(UTC),
+            timestamp=utc_now(),
         )
 
     async def handle_ecu_offline(self, vin: str, device_id: str) -> DriveSession | None:
@@ -93,7 +94,7 @@ class SessionService:
         return await self.handle_ecu_status_change(
             device=device,
             new_ecu_status="offline",
-            timestamp=datetime.now(UTC),
+            timestamp=utc_now(),
         )
 
     async def _get_device(self, device_id: str) -> LiveLinkDevice | None:
@@ -179,14 +180,13 @@ class SessionService:
         # Calculate session duration
         session.ended_at = timestamp
         if session.started_at:
-            # Ensure both datetimes are timezone-aware for subtraction
-            # (SQLite stores without tz info, so DB reads may be naive)
+            # Ensure both datetimes are naive UTC for subtraction
             started = session.started_at
-            if started.tzinfo is None:
-                started = started.replace(tzinfo=UTC)
+            if started.tzinfo is not None:
+                started = started.replace(tzinfo=None)
             ended = timestamp
-            if ended.tzinfo is None:
-                ended = ended.replace(tzinfo=UTC)
+            if ended.tzinfo is not None:
+                ended = ended.replace(tzinfo=None)
             duration = (ended - started).total_seconds()
             session.duration_seconds = int(duration)
 
@@ -317,7 +317,7 @@ class SessionService:
         Returns:
             List of sessions that were closed due to timeout
         """
-        cutoff = datetime.now(UTC) - timedelta(minutes=timeout_minutes)
+        cutoff = utc_now().replace(tzinfo=None) - timedelta(minutes=timeout_minutes)
         closed_sessions = []
 
         # Find devices with active sessions that haven't been seen recently
@@ -330,7 +330,7 @@ class SessionService:
 
         for device in stale_devices:
             # End the session at the last seen time
-            last_seen = device.last_seen or datetime.now(UTC)
+            last_seen = device.last_seen or utc_now().replace(tzinfo=None)
             session = await self.end_session(device, last_seen)
             if session:
                 closed_sessions.append(session)

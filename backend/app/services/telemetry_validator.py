@@ -5,12 +5,12 @@ Based on WiCAN Discussion #198 findings about partial ECU wakes producing garbag
 """
 
 import logging
-from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.vehicle_telemetry import VehicleTelemetryLatest
+from app.utils.datetime_utils import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -111,10 +111,10 @@ class TelemetryValidator:
             return True, None  # No previous value to compare
 
         # Calculate time delta
-        now = datetime.now(UTC)
+        now = utc_now()
         prev_timestamp = latest.timestamp
-        if prev_timestamp.tzinfo is None:
-            prev_timestamp = prev_timestamp.replace(tzinfo=UTC)
+        if prev_timestamp.tzinfo is not None:
+            prev_timestamp = prev_timestamp.replace(tzinfo=None)
         time_delta = (now - prev_timestamp).total_seconds()
 
         if time_delta <= 0 or time_delta > RATE_CHECK_MAX_AGE_SECONDS:

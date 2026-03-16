@@ -2,7 +2,6 @@
 
 import os
 import uuid
-from datetime import UTC, datetime
 
 from sqlalchemy import select
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
@@ -11,6 +10,7 @@ from starlette.responses import JSONResponse, Response
 
 from app.database import get_db_context
 from app.models.csrf_token import CSRFToken
+from app.utils.datetime_utils import utc_now
 
 
 def is_test_mode() -> bool:
@@ -150,7 +150,7 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
                 result = await db.execute(
                     select(CSRFToken).where(
                         CSRFToken.token == csrf_token,
-                        CSRFToken.expires_at > datetime.now(UTC),
+                        CSRFToken.expires_at > utc_now(),
                     )
                 )
                 token_record = result.scalar_one_or_none()

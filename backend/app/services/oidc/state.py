@@ -5,13 +5,13 @@ used to prevent CSRF attacks during the OAuth2/OIDC authorization flow.
 """
 
 import logging
-from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.oidc_state import OIDCState
+from app.utils.datetime_utils import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ async def _cleanup_expired_states(db: AsyncSession) -> None:
     Args:
         db: Database session
     """
-    cutoff = datetime.now(UTC)
+    cutoff = utc_now()
     await db.execute(delete(OIDCState).where(OIDCState.expires_at <= cutoff))
     await db.commit()
 
@@ -45,7 +45,7 @@ async def store_oidc_state(db: AsyncSession, state: str, redirect_uri: str, nonc
         state=state,
         nonce=nonce,
         redirect_uri=redirect_uri,
-        created_at=datetime.now(UTC),
+        created_at=utc_now(),
         expires_at=OIDCState.get_expiry_time(minutes=10),
     )
     db.add(oidc_state)

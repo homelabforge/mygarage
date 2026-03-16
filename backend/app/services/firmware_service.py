@@ -2,7 +2,6 @@
 
 import logging
 import re
-from datetime import UTC, datetime
 
 import httpx
 from sqlalchemy import select
@@ -10,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.livelink_device import LiveLinkDevice
 from app.models.livelink_firmware_cache import LiveLinkFirmwareCache
+from app.utils.datetime_utils import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -111,7 +111,7 @@ class FirmwareService:
             cache.latest_tag = latest_tag
             cache.release_url = release_url
             cache.release_notes = release_notes
-            cache.checked_at = datetime.now(UTC)
+            cache.checked_at = utc_now()
         else:
             cache = LiveLinkFirmwareCache(
                 id=1,
@@ -119,7 +119,7 @@ class FirmwareService:
                 latest_tag=latest_tag,
                 release_url=release_url,
                 release_notes=release_notes,
-                checked_at=datetime.now(UTC),
+                checked_at=utc_now(),
             )
             self.db.add(cache)
 

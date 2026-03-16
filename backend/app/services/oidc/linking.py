@@ -8,7 +8,6 @@ when only username (not email) matches.
 import json
 import logging
 import secrets
-from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import delete, select
@@ -18,6 +17,7 @@ from app.models.oidc_pending_link import OIDCPendingLink
 from app.models.settings import Setting
 from app.models.user import User
 from app.services.auth import verify_password
+from app.utils.datetime_utils import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ async def _cleanup_expired_pending_links(db: AsyncSession) -> None:
     Args:
         db: Database session
     """
-    cutoff = datetime.now(UTC)
+    cutoff = utc_now()
     await db.execute(delete(OIDCPendingLink).where(OIDCPendingLink.expires_at <= cutoff))
     await db.commit()
 
@@ -80,7 +80,7 @@ async def create_pending_link_token(
         userinfo_claims=userinfo_claims_json,
         provider_name=provider_name,
         attempt_count=0,
-        created_at=datetime.now(UTC),
+        created_at=utc_now(),
         expires_at=expires_at,
     )
 
@@ -233,7 +233,7 @@ async def validate_and_consume_pending_link(
     user.auth_method = "oidc"  # Primary auth method is now OIDC
     if full_name:
         user.full_name = full_name
-    user.last_login = datetime.now(UTC)
+    user.last_login = utc_now()
 
     # Delete pending link token (one-time use)
     await db.delete(pending_link)

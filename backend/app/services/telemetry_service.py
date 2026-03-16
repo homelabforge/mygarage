@@ -5,8 +5,8 @@ import json
 import logging
 import re
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta
 from datetime import date as date_type
+from datetime import datetime, timedelta
 from typing import Any
 
 from sqlalchemy import delete, func, select, text
@@ -14,6 +14,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import is_sqlite
+from app.utils.datetime_utils import utc_now
 
 if is_sqlite:
     from sqlalchemy.dialects.sqlite import insert as dialect_insert
@@ -292,9 +293,9 @@ class TelemetryService:
             StoreResult with stored count and validated data
         """
         if timestamp is None:
-            timestamp = datetime.now(UTC)
+            timestamp = utc_now()
 
-        received_at = datetime.now(UTC)
+        received_at = utc_now()
 
         # Get all parameters to check storage intervals and for validation
         parameters = await self.get_all_parameters()
@@ -541,10 +542,10 @@ class TelemetryService:
         if not last_timestamp:
             return True
 
-        # Ensure both are timezone-aware for comparison
-        now = datetime.now(UTC)
-        if last_timestamp.tzinfo is None:
-            last_timestamp = last_timestamp.replace(tzinfo=UTC)
+        # Ensure both are naive UTC for comparison
+        now = utc_now()
+        if last_timestamp.tzinfo is not None:
+            last_timestamp = last_timestamp.replace(tzinfo=None)
 
         seconds_since_last = (now - last_timestamp).total_seconds()
         return seconds_since_last >= interval_seconds
@@ -626,7 +627,7 @@ class TelemetryService:
 
         Returns count of deleted rows.
         """
-        cutoff = datetime.now(UTC) - timedelta(days=retention_days)
+        cutoff = utc_now() - timedelta(days=retention_days)
 
         # Count first for logging
         count_result = await self.db.execute(
@@ -731,7 +732,7 @@ class TelemetryService:
         Returns True if stored to historical table, False if skipped due to interval.
         Always updates the latest value cache.
         """
-        timestamp = datetime.now(UTC)
+        timestamp = utc_now()
         received_at = timestamp
 
         # Get parameter for storage interval check

@@ -2,13 +2,14 @@ from __future__ import annotations
 
 """User model for authentication."""
 
-from datetime import UTC, datetime
+from datetime import datetime
 
 from sqlalchemy import Boolean, DateTime, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 
 from app.database import Base
+from app.utils.datetime_utils import utc_now
 
 
 class User(Base):
@@ -62,7 +63,7 @@ class User(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
         server_default=func.now(),
-        onupdate=lambda: datetime.now(UTC).replace(tzinfo=None),
+        onupdate=utc_now,
         nullable=False,
     )
     last_login: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

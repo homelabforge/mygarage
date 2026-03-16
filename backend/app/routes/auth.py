@@ -2,7 +2,7 @@
 
 import logging
 import secrets
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
@@ -34,6 +34,7 @@ from app.services.auth import (
     optional_auth,
     verify_password,
 )
+from app.utils.datetime_utils import utc_now
 from app.utils.request_scheme import get_cookie_secure
 
 logger = logging.getLogger(__name__)
@@ -130,13 +131,13 @@ async def login(
         )
 
     # Update last login
-    user.last_login = datetime.now(UTC)
+    user.last_login = utc_now()
 
     # Clean up expired CSRF tokens for this user
     await db.execute(
         delete(CSRFToken).where(
             CSRFToken.user_id == user.id,
-            CSRFToken.expires_at <= datetime.now(UTC),
+            CSRFToken.expires_at <= utc_now(),
         )
     )
 
@@ -254,7 +255,7 @@ async def refresh_csrf_token(
     await db.execute(
         delete(CSRFToken).where(
             CSRFToken.user_id == current_user.id,
-            CSRFToken.expires_at <= datetime.now(UTC),
+            CSRFToken.expires_at <= utc_now(),
         )
     )
 
@@ -314,7 +315,7 @@ async def update_current_user(
         current_user.mobile_quick_entry_enabled = user_update.mobile_quick_entry_enabled
 
     # Users cannot change their own is_active or is_admin status
-    current_user.updated_at = datetime.now(UTC)
+    current_user.updated_at = utc_now()
 
     await db.commit()
     await db.refresh(current_user)
@@ -342,7 +343,7 @@ async def update_password(
 
     # Update password
     current_user.hashed_password = hash_password(password_update.new_password)
-    current_user.updated_at = datetime.now(UTC)
+    current_user.updated_at = utc_now()
 
     await db.commit()
 
@@ -530,7 +531,7 @@ async def update_user(
     if user_update.family_dashboard_order is not None:
         user.family_dashboard_order = user_update.family_dashboard_order
 
-    user.updated_at = datetime.now(UTC)
+    user.updated_at = utc_now()
 
     await db.commit()
     await db.refresh(user)
@@ -627,7 +628,7 @@ async def admin_reset_user_password(
 
     # Update password
     user.hashed_password = hash_password(new_password)
-    user.updated_at = datetime.now(UTC)
+    user.updated_at = utc_now()
 
     await db.commit()
 

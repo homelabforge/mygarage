@@ -84,29 +84,31 @@ def upgrade(engine=None):
         if "idx_users_oidc_subject" in existing_indexes:
             print("  → oidc_subject index already exists")
         else:
-            conn.execute(text(
-                "CREATE UNIQUE INDEX idx_users_oidc_subject "
-                "ON users(oidc_subject) WHERE oidc_subject IS NOT NULL"
-            ))
+            conn.execute(
+                text(
+                    "CREATE UNIQUE INDEX idx_users_oidc_subject "
+                    "ON users(oidc_subject) WHERE oidc_subject IS NOT NULL"
+                )
+            )
             print("  ✓ Created unique index on oidc_subject")
 
         # Create index on oidc_provider for faster lookups
         if "idx_users_oidc_provider" in existing_indexes:
             print("  → oidc_provider index already exists")
         else:
-            conn.execute(text(
-                "CREATE INDEX idx_users_oidc_provider "
-                "ON users(oidc_provider) WHERE oidc_provider IS NOT NULL"
-            ))
+            conn.execute(
+                text(
+                    "CREATE INDEX idx_users_oidc_provider "
+                    "ON users(oidc_provider) WHERE oidc_provider IS NOT NULL"
+                )
+            )
             print("  ✓ Created index on oidc_provider")
 
         # Create index on auth_method for faster auth mode filtering
         if "idx_users_auth_method" in existing_indexes:
             print("  → auth_method index already exists")
         else:
-            conn.execute(text(
-                "CREATE INDEX idx_users_auth_method ON users(auth_method)"
-            ))
+            conn.execute(text("CREATE INDEX idx_users_auth_method ON users(auth_method)"))
             print("  ✓ Created index on auth_method")
 
         # Check current user auth methods

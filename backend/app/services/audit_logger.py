@@ -1,7 +1,6 @@
 """Audit logging service for tracking sensitive operations."""
 
 import logging
-from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import Request
@@ -9,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.audit_log import AuditLog
 from app.models.user import User
+from app.utils.datetime_utils import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +56,7 @@ class AuditLogger:
             user_agent = request.headers.get("user-agent")
 
         audit_entry = AuditLog(
-            timestamp=datetime.now(UTC),
+            timestamp=utc_now(),
             user_id=user.id if user else None,
             username=user.username if user else "system",
             action=action,

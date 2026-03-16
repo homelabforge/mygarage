@@ -3,13 +3,13 @@
 import hashlib
 import logging
 import secrets
-from datetime import UTC, datetime
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.livelink_device import LiveLinkDevice
 from app.services.settings_service import SettingsService
+from app.utils.datetime_utils import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -101,7 +101,7 @@ class LiveLinkService:
         token_hash = self.hash_token(token)
 
         device.device_token_hash = token_hash
-        device.updated_at = datetime.now(UTC)
+        device.updated_at = utc_now()
         await self.db.commit()
 
         logger.info("Generated new device token for device %s", device_id)
@@ -117,7 +117,7 @@ class LiveLinkService:
             return False
 
         device.device_token_hash = None
-        device.updated_at = datetime.now(UTC)
+        device.updated_at = utc_now()
         await self.db.commit()
 
         logger.info("Revoked device token for device %s", device_id)
@@ -244,7 +244,7 @@ class LiveLinkService:
             existing.fw_version = fw_version or existing.fw_version
             existing.git_version = git_version or existing.git_version
             existing.sta_ip = sta_ip or existing.sta_ip
-            existing.updated_at = datetime.now(UTC)
+            existing.updated_at = utc_now()
             return existing, False
 
         # Create new unlinked device
@@ -258,7 +258,7 @@ class LiveLinkService:
             device_status="online",
             ecu_status="unknown",
             enabled=True,
-            last_seen=datetime.now(UTC),
+            last_seen=utc_now(),
         )
         self.db.add(device)
         await self.db.flush()
@@ -276,7 +276,7 @@ class LiveLinkService:
             return False
 
         device.vin = vin
-        device.updated_at = datetime.now(UTC)
+        device.updated_at = utc_now()
         await self.db.commit()
 
         logger.info("Linked device %s to vehicle %s", device_id, vin)
@@ -295,7 +295,7 @@ class LiveLinkService:
         old_vin = device.vin
         device.vin = None
         device.current_session_id = None  # Clear any active session
-        device.updated_at = datetime.now(UTC)
+        device.updated_at = utc_now()
         await self.db.commit()
 
         logger.info("Unlinked device %s from vehicle %s", device_id, old_vin)
@@ -320,7 +320,7 @@ class LiveLinkService:
         if enabled is not None:
             device.enabled = enabled
 
-        device.updated_at = datetime.now(UTC)
+        device.updated_at = utc_now()
         await self.db.commit()
 
         return device
@@ -362,8 +362,8 @@ class LiveLinkService:
                 if battery_voltage is not None
                 else LiveLinkDevice.battery_voltage,
                 sta_ip=sta_ip or LiveLinkDevice.sta_ip,
-                last_seen=datetime.now(UTC),
-                updated_at=datetime.now(UTC),
+                last_seen=utc_now(),
+                updated_at=utc_now(),
             )
         )
 
@@ -375,7 +375,7 @@ class LiveLinkService:
             .values(
                 device_status="offline",
                 ecu_status="offline",
-                updated_at=datetime.now(UTC),
+                updated_at=utc_now(),
             )
         )
 
@@ -419,8 +419,8 @@ class LiveLinkService:
             update(LiveLinkDevice)
             .where(LiveLinkDevice.device_id == device_id)
             .values(
-                pending_offline_at=datetime.now(UTC),
-                updated_at=datetime.now(UTC),
+                pending_offline_at=utc_now(),
+                updated_at=utc_now(),
             )
         )
 
@@ -431,7 +431,7 @@ class LiveLinkService:
             .where(LiveLinkDevice.device_id == device_id)
             .values(
                 pending_offline_at=None,
-                updated_at=datetime.now(UTC),
+                updated_at=utc_now(),
             )
         )
 

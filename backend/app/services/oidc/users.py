@@ -7,7 +7,6 @@ the OIDC authorization URL for initiating the login flow.
 
 import logging
 import secrets
-from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import urlencode
 
@@ -15,6 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
+from app.utils.datetime_utils import utc_now
 
 from .state import store_oidc_state
 
@@ -144,7 +144,7 @@ async def create_or_update_user_from_oidc(
         # Update existing OIDC user
         logger.info("Found existing OIDC user: %s", user.username)
         user.full_name = full_name or user.full_name
-        user.last_login = datetime.now(UTC)
+        user.last_login = utc_now()
         user.oidc_provider = provider_name
         await db.commit()
         await db.refresh(user)
@@ -161,7 +161,7 @@ async def create_or_update_user_from_oidc(
         user.oidc_provider = provider_name
         user.auth_method = "oidc"  # Primary auth method is now OIDC
         user.full_name = full_name or user.full_name
-        user.last_login = datetime.now(UTC)
+        user.last_login = utc_now()
         await db.commit()
         await db.refresh(user)
         return user
@@ -242,7 +242,7 @@ async def create_or_update_user_from_oidc(
         oidc_subject=sub,
         oidc_provider=provider_name,
         auth_method="oidc",
-        last_login=datetime.now(UTC),
+        last_login=utc_now(),
     )
 
     db.add(user)
