@@ -130,17 +130,23 @@ export default function ServiceTab({ vin }: ServiceTabProps) {
         <div className="fixed inset-0 modal-overlay backdrop-blur-xs flex items-center justify-center z-50 p-4">
           <div className="bg-garage-surface rounded-lg border border-garage-border w-full max-w-5xl max-h-[90vh] flex flex-col">
             {/* Modal Header */}
-            <div className="sticky top-0 bg-garage-surface border-b border-garage-border px-6 py-4 flex items-center justify-between rounded-t-lg">
-              <div className="flex items-center gap-2">
-                <CalendarClock className="w-5 h-5 text-primary" />
-                <h2 className="text-xl font-semibold text-garage-text">Maintenance Schedule</h2>
+            <div className="sticky top-0 bg-garage-surface border-b border-garage-border px-6 py-4 flex flex-col gap-2 rounded-t-lg">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <CalendarClock className="w-5 h-5 text-primary" />
+                  <h2 className="text-xl font-semibold text-garage-text">Maintenance Schedule</h2>
+                </div>
+                <button
+                  onClick={() => setShowScheduleModal(false)}
+                  className="text-garage-text-muted hover:text-garage-text transition-colors"
+                >
+                  <X size={24} />
+                </button>
               </div>
-              <button
-                onClick={() => setShowScheduleModal(false)}
-                className="text-garage-text-muted hover:text-garage-text transition-colors"
-              >
-                <X size={24} />
-              </button>
+              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-md px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
+                Maintenance Schedule is being replaced by the new Reminders system.
+                Existing items still work, but new reminders should be created when logging a service or from the Tracking tab.
+              </div>
             </div>
 
             {/* Modal Content */}

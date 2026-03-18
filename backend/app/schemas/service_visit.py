@@ -1,11 +1,15 @@
 """Pydantic schemas for Service Visit operations."""
 
+from __future__ import annotations
+
 from datetime import date as date_type
 from datetime import datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+from app.schemas.reminder import ReminderCreate  # noqa: F401 — used in type annotations
 
 # Service category type (same as existing)
 ServiceCategory = Literal["Maintenance", "Inspection", "Collision", "Upgrades", "Detailing"]
@@ -19,6 +23,7 @@ class ServiceLineItemBase(BaseModel):
     """Base service line item schema."""
 
     description: str = Field(..., description="Service description", min_length=1, max_length=200)
+    category: ServiceCategory | None = Field(None, description="Service category")
     cost: Decimal | None = Field(None, description="Cost for this line item", ge=0)
     notes: str | None = Field(None, description="Additional notes", max_length=5000)
     is_inspection: bool = Field(default=False, description="Is this an inspection item")
@@ -59,6 +64,18 @@ class ServiceLineItemBase(BaseModel):
 class ServiceLineItemCreate(ServiceLineItemBase):
     """Schema for creating a service line item."""
 
+    reminder: ReminderCreate | None = Field(
+        None, description="Optional reminder to create after flush"
+    )
+    temp_id: int | None = Field(None, description="Transient client temp ID; not persisted to DB")
+
+    @model_validator(mode="after")
+    def validate_temp_id(self) -> ServiceLineItemCreate:
+        """temp_id must be a negative integer if provided."""
+        if self.temp_id is not None and self.temp_id >= 0:
+            raise ValueError("temp_id must be a negative integer")
+        return self
+
     model_config = {
         "json_schema_extra": {
             "examples": [
@@ -75,21 +92,34 @@ class ServiceLineItemCreate(ServiceLineItemBase):
 
 
 class ServiceLineItemUpdate(BaseModel):
-    """Schema for updating a service line item."""
+    """Line item shape for diff-based visit updates.
 
-    description: str | None = Field(
-        None, description="Service description", min_length=1, max_length=200
-    )
-    cost: Decimal | None = Field(None, description="Cost for this line item", ge=0)
-    notes: str | None = Field(None, description="Additional notes", max_length=5000)
-    is_inspection: bool | None = Field(None, description="Is this an inspection item")
-    inspection_result: InspectionResult | None = Field(
-        None, description="Inspection result (if inspection)"
-    )
-    inspection_severity: InspectionSeverity | None = Field(
-        None, description="Inspection severity (if inspection)"
-    )
-    schedule_item_id: int | None = Field(None, description="Link to maintenance schedule item")
+    schedule_item_id: immutable on existing items (id present); honored for
+    new items (id absent) — keeps Phase 1 schedule-linked edit flows alive.
+
+    temp_id: negative int assigned by client for new items so other new items
+    can reference them via triggered_by_inspection_id before flush.
+    """
+
+    id: int | None = Field(None, description="Existing item id; omit for new items")
+    temp_id: int | None = Field(None, description="Client temp ID; must be negative; not persisted")
+    schedule_item_id: int | None = None
+    description: str = Field(..., min_length=1, max_length=200)
+    category: ServiceCategory | None = None
+    cost: Decimal | None = Field(None, ge=0)
+    notes: str | None = Field(None, max_length=5000)
+    is_inspection: bool = False
+    inspection_result: InspectionResult | None = None
+    inspection_severity: InspectionSeverity | None = None
+    triggered_by_inspection_id: int | None = None
+    reminder: ReminderCreate | None = None
+
+    @model_validator(mode="after")
+    def validate_temp_id(self) -> ServiceLineItemUpdate:
+        """temp_id must be a negative integer if provided."""
+        if self.temp_id is not None and self.temp_id >= 0:
+            raise ValueError("temp_id must be a negative integer")
+        return self
 
 
 class ServiceLineItemResponse(ServiceLineItemBase):
@@ -172,6 +202,22 @@ class ServiceVisitCreate(ServiceVisitBase):
         None, description="Override total cost (otherwise calculated from line items)"
     )
 
+    @model_validator(mode="after")
+    def validate_line_item_temp_ids(self) -> ServiceVisitCreate:
+        """Enforce temp_id payload contract."""
+        if not self.line_items:
+            return self
+        temp_ids = [i.temp_id for i in self.line_items if i.temp_id is not None]
+        if len(temp_ids) != len(set(temp_ids)):
+            raise ValueError("temp_id values must be unique within a payload")
+        temp_id_set = set(temp_ids)
+        for item in self.line_items:
+            if item.triggered_by_inspection_id is not None:
+                ref = item.triggered_by_inspection_id
+                if ref < 0 and ref not in temp_id_set:
+                    raise ValueError(f"triggered_by_inspection_id {ref} references unknown temp_id")
+        return self
+
     model_config = {
         "json_schema_extra": {
             "examples": [
@@ -215,9 +261,30 @@ class ServiceVisitUpdate(BaseModel):
     tax_amount: Decimal | None = Field(None, description="Sales tax", ge=0)
     shop_supplies: Decimal | None = Field(None, description="Shop supplies/environmental fee", ge=0)
     misc_fees: Decimal | None = Field(None, description="Miscellaneous fees (disposal, etc.)", ge=0)
-    line_items: list[ServiceLineItemCreate] | None = Field(
-        None, description="Replace all line items (if provided)"
+    line_items: list[ServiceLineItemUpdate] | None = Field(
+        None, description="Diff-based line items (if provided)"
     )
+
+    @model_validator(mode="after")
+    def validate_line_item_temp_ids(self) -> ServiceVisitUpdate:
+        """Enforce temp_id payload contract."""
+        if not self.line_items:
+            return self
+        temp_ids = [i.temp_id for i in self.line_items if i.temp_id is not None]
+        if len(temp_ids) != len(set(temp_ids)):
+            raise ValueError("temp_id values must be unique within a payload")
+        temp_id_set = set(temp_ids)
+        existing_ids = {i.id for i in self.line_items if i.id}
+        for item in self.line_items:
+            if item.triggered_by_inspection_id is not None:
+                ref = item.triggered_by_inspection_id
+                if ref < 0 and ref not in temp_id_set:
+                    raise ValueError(f"triggered_by_inspection_id {ref} references unknown temp_id")
+                if ref > 0 and item.id and ref not in existing_ids:
+                    # Positive ref to a real ID that's not in this payload is fine —
+                    # it could be an existing DB ID not being edited in this payload.
+                    pass
+        return self
 
     model_config = {
         "json_schema_extra": {

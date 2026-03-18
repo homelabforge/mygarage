@@ -20,11 +20,13 @@ from app.models.vendor_price_history import VendorPriceHistory
 from app.schemas.service_visit import (
     ServiceLineItemCreate,
     ServiceLineItemResponse,
+    ServiceLineItemUpdate,
     ServiceVisitCreate,
     ServiceVisitResponse,
     ServiceVisitUpdate,
     VendorSummary,
 )
+from app.services import reminder_service
 from app.utils.cache import invalidate_cache_for_vehicle
 from app.utils.logging_utils import sanitize_for_log
 from app.utils.odometer_sync import sync_odometer_from_record
@@ -154,6 +156,9 @@ class ServiceVisitService:
         try:
             await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
 
+            # Auto-derive service_category from first line item's category
+            first_cat = next((i.category for i in visit_data.line_items if i.category), None)
+
             # Create visit
             visit = ServiceVisit(
                 vin=vin,
@@ -165,16 +170,20 @@ class ServiceVisitService:
                 shop_supplies=visit_data.shop_supplies,
                 misc_fees=visit_data.misc_fees,
                 notes=visit_data.notes,
-                service_category=visit_data.service_category,
+                service_category=first_cat or visit_data.service_category,
                 insurance_claim_number=visit_data.insurance_claim_number,
             )
             self.db.add(visit)
             await self.db.flush()  # Get visit ID
 
-            # Create line items
+            # Pass 1: Create all line items, build temp_id → real_id map
+            temp_id_map: dict[int, int] = {}
+            created_items: list[tuple[ServiceLineItemCreate, ServiceLineItem]] = []
+
             for item_data in visit_data.line_items:
                 line_item = ServiceLineItem(
                     visit_id=visit.id,
+                    category=item_data.category,
                     schedule_item_id=item_data.schedule_item_id,
                     description=item_data.description,
                     cost=item_data.cost,
@@ -182,12 +191,31 @@ class ServiceVisitService:
                     is_inspection=item_data.is_inspection,
                     inspection_result=item_data.inspection_result,
                     inspection_severity=item_data.inspection_severity,
-                    triggered_by_inspection_id=item_data.triggered_by_inspection_id,
+                    triggered_by_inspection_id=None,  # resolved in Pass 2
                 )
                 self.db.add(line_item)
                 await self.db.flush()
+                if item_data.temp_id is not None:
+                    temp_id_map[item_data.temp_id] = line_item.id
+                created_items.append((item_data, line_item))
 
-                # Update schedule item if linked
+            # Pass 2: Resolve triggered_by_inspection_id and create reminders
+            for item_data, line_item in created_items:
+                if item_data.triggered_by_inspection_id is not None:
+                    ref = item_data.triggered_by_inspection_id
+                    line_item.triggered_by_inspection_id = temp_id_map.get(
+                        ref, ref if ref > 0 else None
+                    )
+
+                if item_data.reminder:
+                    await reminder_service.create_reminder(
+                        vin=vin,
+                        data=item_data.reminder,
+                        db=self.db,
+                        line_item_id=line_item.id,
+                    )
+
+                # Update schedule item if linked (KEEP — Phase 2 removes)
                 if item_data.schedule_item_id:
                     await self._update_schedule_item(
                         item_data.schedule_item_id,
@@ -290,32 +318,96 @@ class ServiceVisitService:
 
             update_data = visit_data.model_dump(exclude_unset=True)
 
-            # Handle line_items separately - replace all if provided
+            # Handle line_items separately - diff-based update
             new_line_items = update_data.pop("line_items", None)
 
             for field, value in update_data.items():
                 setattr(visit, field, value)
 
-            # If line_items provided, delete existing and create new ones
+            # Diff-based line item update
             if new_line_items is not None:
-                # Delete existing line items
-                for item in list(visit.line_items):
-                    await self.db.delete(item)
+                submitted = visit_data.line_items or []
+                existing = {item.id: item for item in visit.line_items}
+                submitted_ids = {item.id for item in submitted if item.id}
 
-                # Create new line items
-                for item_data in new_line_items:
-                    line_item = ServiceLineItem(
-                        visit_id=visit.id,
-                        description=item_data["description"],
-                        cost=item_data.get("cost"),
-                        notes=item_data.get("notes"),
-                        is_inspection=item_data.get("is_inspection", False),
-                        inspection_result=item_data.get("inspection_result"),
-                        inspection_severity=item_data.get("inspection_severity"),
-                        schedule_item_id=item_data.get("schedule_item_id"),
-                        triggered_by_inspection_id=item_data.get("triggered_by_inspection_id"),
-                    )
-                    self.db.add(line_item)
+                # Reject unknown IDs — fail fast
+                for item_data in submitted:
+                    if item_data.id is not None and item_data.id not in existing:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Line item {item_data.id} does not belong to this service visit",
+                        )
+
+                # Delete removed items (ON DELETE SET NULL detaches reminders)
+                for item_id, item in existing.items():
+                    if item_id not in submitted_ids:
+                        await self.db.delete(item)
+
+                # Pass 1: Update existing, create new — build temp_id map
+                temp_id_map: dict[int, int] = {}
+                new_items: list[tuple[ServiceLineItemUpdate, ServiceLineItem]] = []
+
+                for item_data in submitted:
+                    if item_data.id and item_data.id in existing:
+                        # Update in place — schedule_item_id immutable on edit
+                        row = existing[item_data.id]
+                        row.category = item_data.category
+                        row.description = item_data.description
+                        row.cost = item_data.cost
+                        row.notes = item_data.notes
+                        row.is_inspection = item_data.is_inspection
+                        row.inspection_result = item_data.inspection_result
+                        row.inspection_severity = item_data.inspection_severity
+                        row.triggered_by_inspection_id = item_data.triggered_by_inspection_id
+                        # reminder ignored for existing items
+                    else:
+                        # New item added during edit
+                        line_item = ServiceLineItem(
+                            visit_id=visit.id,
+                            category=item_data.category,
+                            schedule_item_id=item_data.schedule_item_id,
+                            description=item_data.description,
+                            cost=item_data.cost,
+                            notes=item_data.notes,
+                            is_inspection=item_data.is_inspection,
+                            inspection_result=item_data.inspection_result,
+                            inspection_severity=item_data.inspection_severity,
+                            triggered_by_inspection_id=None,  # resolved in Pass 2
+                        )
+                        self.db.add(line_item)
+                        await self.db.flush()
+                        if item_data.temp_id is not None:
+                            temp_id_map[item_data.temp_id] = line_item.id
+                        new_items.append((item_data, line_item))
+
+                        # Schedule item sync for new items
+                        if item_data.schedule_item_id:
+                            await self._update_schedule_item(
+                                item_data.schedule_item_id,
+                                visit.date,
+                                visit.mileage,
+                                line_item.id,
+                            )
+
+                # Pass 2: Resolve triggered_by_inspection_id for new items
+                for item_data, line_item in new_items:
+                    if item_data.triggered_by_inspection_id is not None:
+                        ref = item_data.triggered_by_inspection_id
+                        line_item.triggered_by_inspection_id = temp_id_map.get(
+                            ref, ref if ref > 0 else None
+                        )
+                    if item_data.reminder:
+                        await reminder_service.create_reminder(
+                            vin=vin,
+                            data=item_data.reminder,
+                            db=self.db,
+                            line_item_id=line_item.id,
+                        )
+
+                # Auto-derive service_category from submitted items
+                submitted_cats = [i.category for i in submitted if i.category]
+                if submitted_cats:
+                    visit.service_category = submitted_cats[0]
 
             # Always recompute total_cost from line items + fees (denormalized cache)
             await self.db.flush()
@@ -440,11 +532,12 @@ class ServiceVisitService:
         vin = vin.upper().strip()
 
         try:
-            await get_vehicle_or_403(vin, current_user, self.db)
+            await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
             visit = await self.get_service_visit(vin, visit_id, current_user)
 
             line_item = ServiceLineItem(
                 visit_id=visit.id,
+                category=item_data.category,
                 schedule_item_id=item_data.schedule_item_id,
                 description=item_data.description,
                 cost=item_data.cost,
@@ -530,7 +623,7 @@ class ServiceVisitService:
         vin = vin.upper().strip()
 
         try:
-            await get_vehicle_or_403(vin, current_user, self.db)
+            await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
             await self.get_service_visit(vin, visit_id, current_user)
 
             result = await self.db.execute(
@@ -625,10 +718,11 @@ class ServiceVisitService:
             )
 
         line_item_responses = [
-            ServiceLineItemResponse(
+            ServiceLineItemResponse(  # type: ignore[arg-type]
                 id=item.id,
                 visit_id=item.visit_id,
                 description=item.description,
+                category=item.category,
                 cost=item.cost,
                 notes=item.notes,
                 is_inspection=item.is_inspection,
@@ -643,7 +737,7 @@ class ServiceVisitService:
             for item in visit.line_items
         ]
 
-        return ServiceVisitResponse(
+        return ServiceVisitResponse(  # type: ignore[arg-type]
             id=visit.id,
             vin=visit.vin,
             vendor_id=visit.vendor_id,

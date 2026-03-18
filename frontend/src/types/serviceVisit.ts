@@ -3,6 +3,7 @@
  */
 
 import type { Vendor } from './vendor'
+import type { ReminderCreate, ReminderDraft } from './reminder'
 
 // Service categories matching backend Literal type
 export type ServiceCategory = 'Maintenance' | 'Inspection' | 'Collision' | 'Upgrades' | 'Detailing'
@@ -16,6 +17,7 @@ export interface ServiceLineItem {
   id: number
   visit_id: number
   description: string
+  category?: ServiceCategory
   cost?: number
   notes?: string
   is_inspection: boolean
@@ -30,6 +32,7 @@ export interface ServiceLineItem {
 
 export interface ServiceLineItemCreate {
   description: string
+  category?: ServiceCategory
   cost?: number
   notes?: string
   is_inspection?: boolean
@@ -37,6 +40,24 @@ export interface ServiceLineItemCreate {
   inspection_severity?: InspectionSeverity
   schedule_item_id?: number
   triggered_by_inspection_id?: number
+  reminder?: ReminderCreate
+  temp_id?: number
+}
+
+// Diff-based line item for visit updates (id present = existing, absent = new)
+export interface ServiceLineItemUpdate {
+  id?: number
+  temp_id?: number
+  description: string
+  category?: ServiceCategory
+  cost?: number
+  notes?: string
+  is_inspection?: boolean
+  inspection_result?: InspectionResult
+  inspection_severity?: InspectionSeverity
+  triggered_by_inspection_id?: number
+  schedule_item_id?: number
+  reminder?: ReminderCreate
 }
 
 // Service visit (container for line items)
@@ -87,6 +108,7 @@ export interface ServiceVisitUpdate {
   notes?: string
   service_category?: ServiceCategory
   insurance_claim_number?: string
+  line_items?: ServiceLineItemUpdate[]
 }
 
 export interface ServiceVisitListResponse {
@@ -96,7 +118,10 @@ export interface ServiceVisitListResponse {
 
 // Form data types for creating visits with inline line items
 export interface ServiceVisitFormLineItem {
+  id?: number
+  tempId?: number
   description: string
+  category: ServiceCategory | ''
   cost: number | undefined
   notes: string
   is_inspection: boolean
@@ -104,6 +129,7 @@ export interface ServiceVisitFormLineItem {
   inspection_severity: InspectionSeverity | ''
   schedule_item_id: number | undefined
   triggered_by_inspection_id: number | undefined
+  reminderDraft?: ReminderDraft
 }
 
 export interface ServiceVisitFormData {
@@ -111,7 +137,6 @@ export interface ServiceVisitFormData {
   date: string
   mileage: number | undefined
   notes: string
-  service_category: ServiceCategory | ''
   insurance_claim_number: string
   tax_amount: number | undefined
   shop_supplies: number | undefined

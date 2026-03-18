@@ -188,10 +188,11 @@ async def add_line_item(
     """
     service = ServiceVisitService(db)
     line_item = await service.add_line_item(vin, visit_id, item_data, current_user)
-    return ServiceLineItemResponse(
+    return ServiceLineItemResponse(  # type: ignore[arg-type]
         id=line_item.id,
         visit_id=line_item.visit_id,
         description=line_item.description,
+        category=line_item.category,
         cost=line_item.cost,
         notes=line_item.notes,
         is_inspection=line_item.is_inspection,

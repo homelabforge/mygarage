@@ -59,6 +59,7 @@ import LiveLinkLiveTab from '../components/tabs/LiveLinkLiveTab'
 import LiveLinkDTCsTab from '../components/tabs/LiveLinkDTCsTab'
 import LiveLinkSessionsTab from '../components/tabs/LiveLinkSessionsTab'
 import LiveLinkChartsTab from '../components/tabs/LiveLinkChartsTab'
+import ReminderList from '../components/ReminderList'
 import SubTabNav from '../components/SubTabNav'
 import { livelinkService } from '../services/livelinkService'
 import WindowStickerUpload from '../components/WindowStickerUpload'
@@ -99,7 +100,7 @@ const getApiErrorMessage = (error: unknown, fallback: string) => {
 
 type ModalType = 'remove' | 'transfer' | 'sharing' | 'windowSticker' | null
 type PrimaryTabType = 'overview' | 'media' | 'maintenance' | 'tracking' | 'financial' | 'livelink'
-type SubTabType = 'photos' | 'documents' | 'service' | 'fuel' | 'def' | 'propane' | 'odometer' | 'notes' | 'warranties' | 'insurance' | 'tax' | 'tolls' | 'spotrentals' | 'recalls' | 'reports' | 'live' | 'dtcs' | 'sessions' | 'charts'
+type SubTabType = 'photos' | 'documents' | 'service' | 'fuel' | 'def' | 'propane' | 'odometer' | 'notes' | 'warranties' | 'insurance' | 'tax' | 'tolls' | 'spotrentals' | 'recalls' | 'reports' | 'reminders' | 'live' | 'dtcs' | 'sessions' | 'charts'
 
 export default function VehicleDetail() {
   const { vin } = useParams<{ vin: string }>()
@@ -191,6 +192,7 @@ export default function VehicleDetail() {
       'spotrentals': { primary: 'financial', sub: 'spotrentals' },
       'recalls': { primary: 'maintenance', sub: 'recalls' },
       'reports': { primary: 'tracking', sub: 'reports' },
+      'reminders': { primary: 'tracking', sub: 'reminders' },
       'live': { primary: 'livelink', sub: 'live' },
       'dtcs': { primary: 'livelink', sub: 'dtcs' },
       'sessions': { primary: 'livelink', sub: 'sessions' },
@@ -467,6 +469,7 @@ export default function VehicleDetail() {
     ],
     tracking: [
       { id: 'notes' as const, label: 'Notes', icon: FileText },
+      { id: 'reminders' as const, label: 'Reminders', icon: Bell },
       { id: 'reports' as const, label: 'Reports', icon: BarChart3 },
     ],
     financial: [
@@ -1217,6 +1220,7 @@ export default function VehicleDetail() {
 
         {/* Tracking Sub-tabs */}
         {activePrimaryTab === 'tracking' && activeSubTab === 'notes' && vin && <NotesTab vin={vin} />}
+        {activePrimaryTab === 'tracking' && activeSubTab === 'reminders' && vin && <ReminderList vin={vin} />}
         {activePrimaryTab === 'tracking' && activeSubTab === 'reports' && vin && <ReportsTab vin={vin} />}
 
         {/* Financial Sub-tabs */}

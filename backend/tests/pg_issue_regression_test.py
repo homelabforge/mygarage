@@ -98,6 +98,7 @@ async def _create_vehicle(session: AsyncSession, user_id: int, suffix: str, **kw
 # Fix: Migration runner passes engine; migrations use inspect() not PRAGMA.
 # ===========================================================================
 
+
 class TestIssue42MigrationsApplied:
     """#42: Verify all columns that were reported missing actually exist in PG."""
 
@@ -107,55 +108,64 @@ class TestIssue42MigrationsApplied:
             cols = await conn.run_sync(
                 lambda sync_conn: {c["name"] for c in inspect(sync_conn).get_columns("vehicles")}
             )
-        assert "def_tank_capacity_gallons" in cols, \
+        assert "def_tank_capacity_gallons" in cols, (
             "vehicles.def_tank_capacity_gallons missing — migration 038 not applied"
+        )
 
     async def test_odometer_records_source(self, pg_engine):
         """Column odometer_records.source must exist."""
         async with pg_engine.connect() as conn:
             cols = await conn.run_sync(
-                lambda sync_conn: {c["name"] for c in inspect(sync_conn).get_columns("odometer_records")}
+                lambda sync_conn: {
+                    c["name"] for c in inspect(sync_conn).get_columns("odometer_records")
+                }
             )
-        assert "source" in cols, \
-            "odometer_records.source missing — migration not applied"
+        assert "source" in cols, "odometer_records.source missing — migration not applied"
 
     async def test_livelink_devices_pending_offline_at(self, pg_engine):
         """Column livelink_devices.pending_offline_at must exist."""
         async with pg_engine.connect() as conn:
             cols = await conn.run_sync(
-                lambda sync_conn: {c["name"] for c in inspect(sync_conn).get_columns("livelink_devices")}
+                lambda sync_conn: {
+                    c["name"] for c in inspect(sync_conn).get_columns("livelink_devices")
+                }
             )
-        assert "pending_offline_at" in cols, \
+        assert "pending_offline_at" in cols, (
             "livelink_devices.pending_offline_at missing — migration not applied"
+        )
 
     async def test_maintenance_schedule_items_notification_cols(self, pg_engine):
         """Columns last_notified_at and last_notified_status must exist."""
         async with pg_engine.connect() as conn:
             cols = await conn.run_sync(
-                lambda sync_conn: {c["name"] for c in inspect(sync_conn).get_columns("maintenance_schedule_items")}
+                lambda sync_conn: {
+                    c["name"] for c in inspect(sync_conn).get_columns("maintenance_schedule_items")
+                }
             )
-        assert "last_notified_at" in cols, \
-            "maintenance_schedule_items.last_notified_at missing"
-        assert "last_notified_status" in cols, \
+        assert "last_notified_at" in cols, "maintenance_schedule_items.last_notified_at missing"
+        assert "last_notified_status" in cols, (
             "maintenance_schedule_items.last_notified_status missing"
+        )
 
     async def test_insurance_policies_last_notified_at(self, pg_engine):
         """Column insurance_policies.last_notified_at must exist."""
         async with pg_engine.connect() as conn:
             cols = await conn.run_sync(
-                lambda sync_conn: {c["name"] for c in inspect(sync_conn).get_columns("insurance_policies")}
+                lambda sync_conn: {
+                    c["name"] for c in inspect(sync_conn).get_columns("insurance_policies")
+                }
             )
-        assert "last_notified_at" in cols, \
-            "insurance_policies.last_notified_at missing"
+        assert "last_notified_at" in cols, "insurance_policies.last_notified_at missing"
 
     async def test_warranty_records_last_notified_at(self, pg_engine):
         """Column warranty_records.last_notified_at must exist."""
         async with pg_engine.connect() as conn:
             cols = await conn.run_sync(
-                lambda sync_conn: {c["name"] for c in inspect(sync_conn).get_columns("warranty_records")}
+                lambda sync_conn: {
+                    c["name"] for c in inspect(sync_conn).get_columns("warranty_records")
+                }
             )
-        assert "last_notified_at" in cols, \
-            "warranty_records.last_notified_at missing"
+        assert "last_notified_at" in cols, "warranty_records.last_notified_at missing"
 
     async def test_all_expected_tables_exist(self, pg_engine):
         """Every model table must exist after create_all on PostgreSQL."""
@@ -176,6 +186,7 @@ class TestIssue42MigrationsApplied:
 # Fix: Dialect check: strftime() on SQLite, to_char() on PostgreSQL.
 # ===========================================================================
 
+
 class TestIssue48StrftimeOnPG:
     """#48: Verify toll summary uses to_char() not strftime() on PostgreSQL."""
 
@@ -188,12 +199,14 @@ class TestIssue48StrftimeOnPG:
 
         # Add some toll data
         for month in (1, 2, 3):
-            pg_session.add(TollTransaction(
-                vin=vehicle.vin,
-                date=date(2026, month, 15),
-                amount=Decimal("5.00"),
-                location="Test Toll Plaza",
-            ))
+            pg_session.add(
+                TollTransaction(
+                    vin=vehicle.vin,
+                    date=date(2026, month, 15),
+                    amount=Decimal("5.00"),
+                    location="Test Toll Plaza",
+                )
+            )
         await pg_session.flush()
 
         # This is the exact query pattern from toll_service.py lines 564-577
@@ -218,10 +231,7 @@ class TestIssue48StrftimeOnPG:
         from app.models.toll import TollTransaction
 
         with pytest.raises(Exception, match="(strftime|UndefinedFunction)"):
-            await pg_session.execute(
-                select(func.strftime("%Y-%m", TollTransaction.date))
-                .limit(1)
-            )
+            await pg_session.execute(select(func.strftime("%Y-%m", TollTransaction.date)).limit(1))
         # Roll back the failed transaction so session is usable
         await pg_session.rollback()
 
@@ -240,6 +250,7 @@ class TestIssue48StrftimeOnPG:
 #
 # Backend test: verify null optional fields round-trip correctly.
 # ===========================================================================
+
 
 class TestIssue49FuelEditNulls:
     """#49: Verify fuel records with NULL optional fields work on PostgreSQL."""
@@ -288,26 +299,31 @@ class TestIssue49FuelEditNulls:
         user = await _create_user(pg_session, "i49raw")
         vehicle = await _create_vehicle(pg_session, user.id, "i49raw")
 
-        pg_session.add(FuelRecord(
-            vin=vehicle.vin,
-            date=date(2026, 3, 2),
-            gallons=Decimal("8.0"),
-            cost=Decimal("28.00"),
-            fuel_type="Regular",
-            propane_gallons=None,
-            kwh=None,
-            price_per_unit=None,
-        ))
+        pg_session.add(
+            FuelRecord(
+                vin=vehicle.vin,
+                date=date(2026, 3, 2),
+                gallons=Decimal("8.0"),
+                cost=Decimal("28.00"),
+                fuel_type="Regular",
+                propane_gallons=None,
+                kwh=None,
+                price_per_unit=None,
+            )
+        )
         await pg_session.flush()
 
-        result = await pg_session.execute(text("""
+        result = await pg_session.execute(
+            text("""
             SELECT propane_gallons, kwh, price_per_unit
             FROM fuel_records
             WHERE vin = :vin
             AND propane_gallons IS NULL
             AND kwh IS NULL
             AND price_per_unit IS NULL
-        """), {"vin": vehicle.vin})
+        """),
+            {"vin": vehicle.vin},
+        )
         row = result.first()
         assert row is not None, "Should find record with NULL fields"
         assert row[0] is None  # propane_gallons
@@ -336,19 +352,14 @@ class TestIssue49FuelEditNulls:
 
         # Update to NULL (simulates user clearing the field)
         await pg_session.execute(
-            update(FuelRecord)
-            .where(FuelRecord.id == record_id)
-            .values(price_per_unit=None)
+            update(FuelRecord).where(FuelRecord.id == record_id).values(price_per_unit=None)
         )
         await pg_session.flush()
 
         # Re-read and verify NULL
-        result = await pg_session.execute(
-            select(FuelRecord).where(FuelRecord.id == record_id)
-        )
+        result = await pg_session.execute(select(FuelRecord).where(FuelRecord.id == record_id))
         updated = result.scalar_one()
-        assert updated.price_per_unit is None, \
-            "price_per_unit should be NULL after update"
+        assert updated.price_per_unit is None, "price_per_unit should be NULL after update"
 
 
 # ===========================================================================
@@ -363,6 +374,7 @@ class TestIssue49FuelEditNulls:
 # Backend test: verify def_tank_capacity_gallons can be set and cleared.
 # ===========================================================================
 
+
 class TestIssue50DefTrackingToggle:
     """#50: Verify DEF tracking can be enabled and disabled on PostgreSQL."""
 
@@ -372,7 +384,9 @@ class TestIssue50DefTrackingToggle:
 
         user = await _create_user(pg_session, "i50a")
         vehicle = await _create_vehicle(
-            pg_session, user.id, "i50a",
+            pg_session,
+            user.id,
+            "i50a",
             fuel_type="Diesel",
         )
 
@@ -384,9 +398,7 @@ class TestIssue50DefTrackingToggle:
         )
         await pg_session.flush()
 
-        result = await pg_session.execute(
-            select(Vehicle).where(Vehicle.vin == vehicle.vin)
-        )
+        result = await pg_session.execute(select(Vehicle).where(Vehicle.vin == vehicle.vin))
         v = result.scalar_one()
         assert v.def_tank_capacity_gallons == Decimal("5.5")
 
@@ -396,35 +408,32 @@ class TestIssue50DefTrackingToggle:
 
         user = await _create_user(pg_session, "i50b")
         vehicle = await _create_vehicle(
-            pg_session, user.id, "i50b",
+            pg_session,
+            user.id,
+            "i50b",
             fuel_type="Diesel",
             def_tank_capacity_gallons=Decimal("5.5"),
         )
 
         # Verify it's set
         result = await pg_session.execute(
-            select(Vehicle.def_tank_capacity_gallons)
-            .where(Vehicle.vin == vehicle.vin)
+            select(Vehicle.def_tank_capacity_gallons).where(Vehicle.vin == vehicle.vin)
         )
         assert result.scalar() == Decimal("5.5")
 
         # Disable DEF tracking by setting to NULL
         # This is what the frontend now sends when the toggle is off
         await pg_session.execute(
-            update(Vehicle)
-            .where(Vehicle.vin == vehicle.vin)
-            .values(def_tank_capacity_gallons=None)
+            update(Vehicle).where(Vehicle.vin == vehicle.vin).values(def_tank_capacity_gallons=None)
         )
         await pg_session.flush()
 
         # Verify it's NULL
         result = await pg_session.execute(
-            select(Vehicle.def_tank_capacity_gallons)
-            .where(Vehicle.vin == vehicle.vin)
+            select(Vehicle.def_tank_capacity_gallons).where(Vehicle.vin == vehicle.vin)
         )
         val = result.scalar()
-        assert val is None, \
-            f"def_tank_capacity_gallons should be NULL after disabling, got {val}"
+        assert val is None, f"def_tank_capacity_gallons should be NULL after disabling, got {val}"
 
     async def test_null_def_stays_null_on_reread(self, pg_session):
         """After clearing DEF, re-reading the vehicle should still show NULL."""
@@ -432,24 +441,22 @@ class TestIssue50DefTrackingToggle:
 
         user = await _create_user(pg_session, "i50c")
         vehicle = await _create_vehicle(
-            pg_session, user.id, "i50c",
+            pg_session,
+            user.id,
+            "i50c",
             fuel_type="Diesel",
             def_tank_capacity_gallons=None,
         )
 
         # Simulate the "reopen vehicle settings" that was reverting the toggle
-        result = await pg_session.execute(
-            select(Vehicle).where(Vehicle.vin == vehicle.vin)
-        )
+        result = await pg_session.execute(select(Vehicle).where(Vehicle.vin == vehicle.vin))
         v = result.scalar_one()
 
         # The fix: DEF enabled state should derive ONLY from the stored value
-        has_tank_cap = (
-            v.def_tank_capacity_gallons is not None
-            and v.def_tank_capacity_gallons > 0
-        )
-        assert has_tank_cap is False, \
+        has_tank_cap = v.def_tank_capacity_gallons is not None and v.def_tank_capacity_gallons > 0
+        assert has_tank_cap is False, (
             "DEF should be disabled when def_tank_capacity_gallons is NULL"
+        )
 
     async def test_diesel_without_def_stays_disabled(self, pg_session):
         """A diesel vehicle with no DEF capacity should NOT auto-enable DEF.
@@ -462,22 +469,19 @@ class TestIssue50DefTrackingToggle:
 
         user = await _create_user(pg_session, "i50d")
         vehicle = await _create_vehicle(
-            pg_session, user.id, "i50d",
+            pg_session,
+            user.id,
+            "i50d",
             fuel_type="Diesel",
             def_tank_capacity_gallons=None,  # DEF explicitly disabled
         )
 
-        result = await pg_session.execute(
-            select(Vehicle).where(Vehicle.vin == vehicle.vin)
-        )
+        result = await pg_session.execute(select(Vehicle).where(Vehicle.vin == vehicle.vin))
         v = result.scalar_one()
 
         # Reproduce the old buggy logic
         is_diesel = v.fuel_type and v.fuel_type.lower() == "diesel"
-        has_tank_cap = (
-            v.def_tank_capacity_gallons is not None
-            and v.def_tank_capacity_gallons > 0
-        )
+        has_tank_cap = v.def_tank_capacity_gallons is not None and v.def_tank_capacity_gallons > 0
 
         # Old buggy logic: def_enabled = is_diesel or has_tank_cap → True (WRONG)
         old_logic = is_diesel or has_tank_cap
@@ -485,5 +489,6 @@ class TestIssue50DefTrackingToggle:
 
         # New fixed logic: def_enabled = has_tank_cap only → False (CORRECT)
         new_logic = has_tank_cap
-        assert new_logic is False, \
+        assert new_logic is False, (
             "Fixed logic should NOT auto-enable DEF for diesel without capacity"
+        )

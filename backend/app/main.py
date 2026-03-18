@@ -222,6 +222,7 @@ from app.routes import (
     odometer_router,
     photos_router,
     recalls_router,
+    reminders_router,
     reports_router,
     service_visits_router,
     settings_router,
@@ -282,6 +283,7 @@ app.include_router(poi_router)  # New POI router
 app.include_router(shop_discovery_router)  # Backward compatibility (deprecated)
 app.include_router(vendors_router)
 app.include_router(service_visits_router)
+app.include_router(reminders_router)
 app.include_router(maintenance_schedule_router)
 app.include_router(livelink_ingest_router)
 app.include_router(livelink_admin_router)

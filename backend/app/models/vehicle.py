@@ -34,6 +34,7 @@ if TYPE_CHECKING:
     from app.models.odometer import OdometerRecord
     from app.models.photo import VehiclePhoto
     from app.models.recall import Recall
+    from app.models.reminder import Reminder
     from app.models.service_visit import ServiceVisit
     from app.models.spot_rental import SpotRental
     from app.models.tax import TaxRecord
@@ -179,6 +180,9 @@ class Vehicle(Base):
         "MaintenanceScheduleItem",
         back_populates="vehicle",
         cascade="all, delete-orphan",
+    )
+    reminders: Mapped[list[Reminder]] = relationship(
+        "Reminder", back_populates="vehicle", cascade="all, delete-orphan"
     )
 
     __table_args__ = (

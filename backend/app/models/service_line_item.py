@@ -40,6 +40,7 @@ class ServiceLineItem(Base):
         Integer, ForeignKey("maintenance_schedule_items.id")
     )
     description: Mapped[str] = mapped_column(String(200), nullable=False)
+    category: Mapped[str | None] = mapped_column(String(30), nullable=True)
     cost: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
     notes: Mapped[str | None] = mapped_column(Text)
     is_inspection: Mapped[bool] = mapped_column(Boolean, default=False)

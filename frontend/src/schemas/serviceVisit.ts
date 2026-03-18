@@ -22,6 +22,7 @@ export const serviceLineItemSchema = z.object({
     .string()
     .min(1, 'Description is required')
     .max(200, 'Description too long (max 200 characters)'),
+  category: z.enum(SERVICE_CATEGORIES).optional().or(z.literal('')),
   cost: optionalCurrencySchema,
   notes: z.string().max(1000, 'Notes too long (max 1000 characters)').optional(),
   is_inspection: z.boolean().default(false),
@@ -43,7 +44,6 @@ export const serviceLineItemSchema = z.object({
   triggered_by_inspection_id: z
     .number()
     .int()
-    .positive()
     .optional()
     .or(z.nan())
     .transform(val => (typeof val === 'number' && isNaN(val) ? undefined : val)),
@@ -61,10 +61,6 @@ export const serviceVisitSchema = z.object({
   date: dateSchema,
   mileage: optionalMileageSchema,
   notes: z.string().max(5000, 'Notes too long (max 5000 characters)').optional(),
-  service_category: z
-    .enum(SERVICE_CATEGORIES, { message: 'Please select a valid service category' })
-    .optional()
-    .or(z.literal('')),
   insurance_claim_number: z
     .string()
     .max(50, 'Insurance claim number too long (max 50 characters)')

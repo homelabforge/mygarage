@@ -64,6 +64,7 @@ def _get_all_tables(engine) -> set[str]:
 # Flow: create_all → run_migrations → verify everything exists
 # ===========================================================================
 
+
 class TestFreshInstallPath:
     """Simulate a fresh PostgreSQL install: create_all + all migrations."""
 
@@ -156,6 +157,7 @@ class TestFreshInstallPath:
 # Flow: create baseline → mark old migrations as applied → run pending → verify
 # ===========================================================================
 
+
 class TestUpgradeFromV221:
     """Simulate upgrading from v2.21 to current version on PostgreSQL."""
 
@@ -199,13 +201,15 @@ class TestUpgradeFromV221:
 
             # Mark migrations up through ~037 as "already applied"
             # (simulating that the user's v2.21 DB had these already run)
-            conn.execute(text("""
+            conn.execute(
+                text("""
                 CREATE TABLE IF NOT EXISTS schema_migrations (
                     id SERIAL PRIMARY KEY,
                     migration_name VARCHAR(255) NOT NULL UNIQUE,
                     applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
                 )
-            """))
+            """)
+            )
 
             # Mark first 37 migrations as applied (v2.21 baseline)
             runner = MigrationRunner(PG_SYNC_URL, MIGRATIONS_DIR)
@@ -230,8 +234,7 @@ class TestUpgradeFromV221:
         for table, columns in self.ISSUE_42_COLUMNS.items():
             existing = _get_all_columns(sync_engine, table)
             for col in columns:
-                assert col not in existing, \
-                    f"{table}.{col} should NOT exist in v2.21 baseline"
+                assert col not in existing, f"{table}.{col} should NOT exist in v2.21 baseline"
 
         print("  -> v2.21 baseline confirmed: all Issue #42 columns are missing")
         sync_engine.dispose()
@@ -249,8 +252,9 @@ class TestUpgradeFromV221:
         for table, columns in self.ISSUE_42_COLUMNS.items():
             existing = _get_all_columns(sync_engine, table)
             for col in columns:
-                assert col in existing, \
+                assert col in existing, (
                     f"{table}.{col} still missing after migration — Issue #42 not fixed"
+                )
 
         print("  -> All Issue #42 columns present after running pending migrations")
         sync_engine.dispose()
@@ -266,15 +270,15 @@ class TestUpgradeFromV221:
         pending = [n for n, _ in all_migrations if n not in applied_before]
 
         print(f"  -> {len(pending)} pending migrations: {pending[0]} .. {pending[-1]}")
-        assert len(pending) >= 10, \
-            f"Expected 10+ pending migrations from v2.21, got {len(pending)}"
+        assert len(pending) >= 10, f"Expected 10+ pending migrations from v2.21, got {len(pending)}"
 
         runner.run_pending_migrations()
 
         applied_after = runner._get_applied_migrations()
         newly_applied = applied_after - applied_before
-        assert len(newly_applied) == len(pending), \
+        assert len(newly_applied) == len(pending), (
             f"Applied {len(newly_applied)} but expected {len(pending)}"
+        )
 
         runner.engine.dispose()
 
@@ -285,6 +289,7 @@ class TestUpgradeFromV221:
 # Simulates: User restarts container (migrations run again on every startup).
 # All migrations should be safe to run twice without errors.
 # ===========================================================================
+
 
 class TestMigrationIdempotency:
     """Verify migrations are safe to run multiple times."""
@@ -315,8 +320,9 @@ class TestMigrationIdempotency:
         second_count = len(runner2._get_applied_migrations())
         runner2.engine.dispose()
 
-        assert first_count == second_count, \
+        assert first_count == second_count, (
             f"Migration count changed: {first_count} -> {second_count}"
+        )
         print(f"  -> Idempotent: {second_count} migrations, no duplicates")
 
     def test_create_all_then_migrations_idempotent(self):
@@ -365,6 +371,7 @@ class TestMigrationIdempotency:
 # Verify the runner itself works correctly with PostgreSQL.
 # ===========================================================================
 
+
 class TestMigrationRunnerOnPG:
     """Verify migration runner mechanics work on PostgreSQL."""
 
@@ -377,12 +384,14 @@ class TestMigrationRunnerOnPG:
 
         with runner.engine.begin() as conn:
             # Verify the table exists and has correct structure
-            result = conn.execute(text("""
+            result = conn.execute(
+                text("""
                 SELECT column_name, data_type
                 FROM information_schema.columns
                 WHERE table_name = 'schema_migrations'
                 ORDER BY ordinal_position
-            """))
+            """)
+            )
             cols = {row[0]: row[1] for row in result}
 
         assert "id" in cols, "schema_migrations missing id column"
@@ -421,8 +430,7 @@ class TestMigrationRunnerOnPG:
         spec.loader.exec_module(module)
 
         sig = python_inspect.signature(module.upgrade)
-        assert "engine" in sig.parameters, \
-            "Migration 038 should accept engine= parameter"
+        assert "engine" in sig.parameters, "Migration 038 should accept engine= parameter"
         print(f"  -> {mig_038[0]} correctly accepts engine parameter")
         runner.engine.dispose()
 
@@ -444,9 +452,7 @@ class TestMigrationRunnerOnPG:
         runner.run_pending_migrations()
 
         with runner.engine.begin() as conn:
-            result = conn.execute(text(
-                "SELECT migration_name FROM schema_migrations ORDER BY id"
-            ))
+            result = conn.execute(text("SELECT migration_name FROM schema_migrations ORDER BY id"))
             applied = [row[0] for row in result]
 
         # Should be sorted by filename (numeric prefix)

@@ -1,8 +1,8 @@
-import { useState, useEffect, useMemo, type SyntheticEvent } from 'react'
+import { useState, useEffect, useMemo, useRef, type SyntheticEvent } from 'react'
 import { Save, Plus, AlertTriangle, Paperclip } from 'lucide-react'
 import FormModalWrapper from './FormModalWrapper'
 import { toast } from 'sonner'
-import type { ServiceVisit, ServiceVisitCreate, ServiceVisitFormData, ServiceVisitFormLineItem } from '../types/serviceVisit'
+import type { ServiceVisit, ServiceVisitCreate, ServiceVisitFormData, ServiceVisitFormLineItem, ServiceLineItemCreate, ServiceLineItemUpdate } from '../types/serviceVisit'
 import type { MaintenanceScheduleItem } from '../types/maintenanceSchedule'
 import type { ServiceCategory } from '../types/serviceVisit'
 import type { VehicleType } from '../types/vehicle'
@@ -25,8 +25,10 @@ interface ServiceVisitFormProps {
   onSuccess: () => void
 }
 
-const createEmptyLineItem = (): ServiceVisitFormLineItem => ({
+const createEmptyLineItem = (tempId: number): ServiceVisitFormLineItem => ({
+  tempId,
   description: '',
+  category: '',
   cost: undefined,
   notes: '',
   is_inspection: false,
@@ -55,6 +57,13 @@ export default function ServiceVisitForm({
   const [submitting, setSubmitting] = useState(false)
   const [scheduleItems, setScheduleItems] = useState<MaintenanceScheduleItem[]>([])
   const [attachmentRefreshKey, setAttachmentRefreshKey] = useState(0)
+  const nextTempIdRef = useRef(-1)
+
+  const assignTempId = () => {
+    const id = nextTempIdRef.current
+    nextTempIdRef.current--
+    return id
+  }
 
   // Form state
   const [formData, setFormData] = useState<ServiceVisitFormData>(() => {
@@ -67,13 +76,15 @@ export default function ServiceVisitForm({
         date: visit.date.split('T')[0],
         mileage: system === 'metric' && visit.mileage ? UnitConverter.milesToKm(Number(visit.mileage)) ?? Number(visit.mileage) : visit.mileage ? Number(visit.mileage) : undefined,
         notes: visit.notes || '',
-        service_category: visit.service_category || '',
         insurance_claim_number: visit.insurance_claim_number || '',
         tax_amount: visit.tax_amount !== undefined && visit.tax_amount !== null ? Number(visit.tax_amount) : undefined,
         shop_supplies: visit.shop_supplies !== undefined && visit.shop_supplies !== null ? Number(visit.shop_supplies) : undefined,
         misc_fees: visit.misc_fees !== undefined && visit.misc_fees !== null ? Number(visit.misc_fees) : undefined,
         line_items: visit.line_items.map((item) => ({
+          id: item.id,
+          tempId: undefined,
           description: item.description,
+          category: (item.category as ServiceCategory) || '',
           cost: item.cost !== undefined && item.cost !== null ? Number(item.cost) : undefined,
           notes: item.notes || '',
           is_inspection: item.is_inspection,
@@ -86,7 +97,8 @@ export default function ServiceVisitForm({
     }
 
     // New visit with preselected schedule item
-    const initialLineItem = createEmptyLineItem()
+    const initialTempId = assignTempId()
+    const initialLineItem = createEmptyLineItem(initialTempId)
     if (preselectedScheduleItem) {
       initialLineItem.description = preselectedScheduleItem.name
       initialLineItem.schedule_item_id = preselectedScheduleItem.id
@@ -98,7 +110,6 @@ export default function ServiceVisitForm({
       date: dateStr,
       mileage: undefined,
       notes: '',
-      service_category: '',
       insurance_claim_number: '',
       tax_amount: undefined,
       shop_supplies: undefined,
@@ -129,10 +140,11 @@ export default function ServiceVisitForm({
   }, [subtotal, formData.tax_amount, formData.shop_supplies, formData.misc_fees])
 
   // Get failed inspections from current line items (for linking repairs)
+  // Use tempId or id as the identifier — NOT array index
   const failedInspections = useMemo(() => {
     return formData.line_items
-      .map((item, idx) => ({
-        id: idx,
+      .map((item) => ({
+        refId: item.id ?? item.tempId ?? 0,
         description: item.description,
         failed: item.is_inspection && (item.inspection_result === 'failed' || item.inspection_result === 'needs_attention'),
       }))
@@ -151,9 +163,10 @@ export default function ServiceVisitForm({
   }
 
   const handleAddLineItem = () => {
+    const tempId = assignTempId()
     setFormData((prev) => ({
       ...prev,
-      line_items: [...prev.line_items, createEmptyLineItem()],
+      line_items: [...prev.line_items, createEmptyLineItem(tempId)],
     }))
   }
 
@@ -170,9 +183,12 @@ export default function ServiceVisitForm({
 
   const handleAddRepairFromInspection = (inspectionIndex: number) => {
     const inspection = formData.line_items[inspectionIndex]
-    const repairItem = createEmptyLineItem()
+    const tempId = assignTempId()
+    const repairItem = createEmptyLineItem(tempId)
     repairItem.description = `Repair: ${inspection.description}`
-    repairItem.triggered_by_inspection_id = inspectionIndex
+    repairItem.category = inspection.category
+    // Reference by id if saved, tempId if unsaved
+    repairItem.triggered_by_inspection_id = inspection.id ?? inspection.tempId
     setFormData((prev) => ({
       ...prev,
       line_items: [...prev.line_items, repairItem],
@@ -207,18 +223,48 @@ export default function ServiceVisitForm({
         : formData.mileage
       const mileage = convertedMileage != null ? Math.round(convertedMileage) : undefined
 
-      const payload: ServiceVisitCreate = {
-        vendor_id: formData.vendor_id,
-        date: formData.date,
-        mileage,
-        notes: formData.notes || undefined,
-        service_category: (formData.service_category as ServiceCategory) || undefined,
-        insurance_claim_number: formData.insurance_claim_number || undefined,
-        tax_amount: formData.tax_amount,
-        shop_supplies: formData.shop_supplies,
-        misc_fees: formData.misc_fees,
-        line_items: formData.line_items.map((item) => ({
+      if (isEdit && visit) {
+        // Diff-based update — include id for existing items, temp_id for new
+        const updateLineItems: ServiceLineItemUpdate[] = formData.line_items.map((item) => ({
+          id: item.id,
+          temp_id: item.id ? undefined : item.tempId,
           description: item.description,
+          category: (item.category as ServiceCategory) || undefined,
+          cost: item.cost,
+          notes: item.notes || undefined,
+          is_inspection: item.is_inspection,
+          inspection_result: item.inspection_result || undefined,
+          inspection_severity: item.inspection_severity || undefined,
+          triggered_by_inspection_id: item.triggered_by_inspection_id,
+          schedule_item_id: item.id ? undefined : item.schedule_item_id,
+          // Reminder only for new items (no id) that have an enabled draft
+          reminder: !item.id && item.reminderDraft?.enabled ? {
+            title: item.reminderDraft.title,
+            reminder_type: item.reminderDraft.reminder_type,
+            due_date: item.reminderDraft.due_date,
+            due_mileage: item.reminderDraft.due_mileage,
+            notes: item.reminderDraft.notes,
+          } : undefined,
+        }))
+
+        await updateMutation.mutateAsync({
+          id: visit.id,
+          vendor_id: formData.vendor_id,
+          date: formData.date,
+          mileage,
+          notes: formData.notes || undefined,
+          insurance_claim_number: formData.insurance_claim_number || undefined,
+          tax_amount: formData.tax_amount,
+          shop_supplies: formData.shop_supplies,
+          misc_fees: formData.misc_fees,
+          line_items: updateLineItems,
+        })
+        toast.success('Service visit updated')
+      } else {
+        // Create — map to ServiceLineItemCreate with temp_id + reminder
+        const createLineItems: ServiceLineItemCreate[] = formData.line_items.map((item) => ({
+          description: item.description,
+          category: (item.category as ServiceCategory) || undefined,
           cost: item.cost,
           notes: item.notes || undefined,
           is_inspection: item.is_inspection,
@@ -226,16 +272,34 @@ export default function ServiceVisitForm({
           inspection_severity: item.inspection_severity || undefined,
           schedule_item_id: item.schedule_item_id,
           triggered_by_inspection_id: item.triggered_by_inspection_id,
-        })),
-      }
+          temp_id: item.tempId,
+          reminder: item.reminderDraft?.enabled ? {
+            title: item.reminderDraft.title,
+            reminder_type: item.reminderDraft.reminder_type,
+            due_date: item.reminderDraft.due_date,
+            due_mileage: item.reminderDraft.due_mileage,
+            notes: item.reminderDraft.notes,
+          } : undefined,
+        }))
 
-      if (isEdit && visit) {
-        await updateMutation.mutateAsync({ id: visit.id, ...payload })
-        toast.success('Service visit updated')
-      } else {
-        await createMutation.mutateAsync(payload as ServiceVisitCreate)
+        const payload: ServiceVisitCreate = {
+          vendor_id: formData.vendor_id,
+          date: formData.date,
+          mileage,
+          notes: formData.notes || undefined,
+          insurance_claim_number: formData.insurance_claim_number || undefined,
+          tax_amount: formData.tax_amount,
+          shop_supplies: formData.shop_supplies,
+          misc_fees: formData.misc_fees,
+          line_items: createLineItems,
+        }
+
+        await createMutation.mutateAsync(payload)
         toast.success('Service visit created')
       }
+
+      // Reset temp ID counter after successful submit
+      nextTempIdRef.current = -1
 
       onSuccess()
       onClose()
@@ -304,37 +368,18 @@ export default function ServiceVisitForm({
               />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-garage-text mb-1">Category</label>
-                <select
-                  value={formData.service_category}
-                  onChange={(e) => handleFieldChange('service_category', e.target.value)}
-                  disabled={submitting}
-                  className="w-full px-3 py-2 border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text"
-                >
-                  <option value="">Select category...</option>
-                  {SERVICE_CATEGORIES.map((category) => (
-                    <option key={category} value={category}>
-                      {category}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-garage-text mb-1">
-                  Insurance Claim #
-                </label>
-                <input
-                  type="text"
-                  value={formData.insurance_claim_number}
-                  onChange={(e) => handleFieldChange('insurance_claim_number', e.target.value)}
-                  placeholder="Claim #12345"
-                  disabled={submitting}
-                  className="w-full px-3 py-2 border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text"
-                />
-              </div>
+            <div>
+              <label className="block text-sm font-medium text-garage-text mb-1">
+                Insurance Claim #
+              </label>
+              <input
+                type="text"
+                value={formData.insurance_claim_number}
+                onChange={(e) => handleFieldChange('insurance_claim_number', e.target.value)}
+                placeholder="Claim #12345"
+                disabled={submitting}
+                className="w-full px-3 py-2 border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text"
+              />
             </div>
 
             <div>
@@ -369,15 +414,17 @@ export default function ServiceVisitForm({
 
             <div className="space-y-3">
               {formData.line_items.map((item, index) => (
-                <div key={index}>
+                <div key={item.id ?? item.tempId ?? index}>
                   <LineItemEditor
                     item={item}
                     index={index}
                     scheduleItems={scheduleItems}
-                    failedInspections={failedInspections.filter((fi) => fi.id !== index)}
+                    failedInspections={failedInspections.filter((fi) => fi.refId !== (item.id ?? item.tempId ?? 0))}
                     onChange={handleLineItemChange}
                     onRemove={handleRemoveLineItem}
                     disabled={submitting}
+                    categories={SERVICE_CATEGORIES as unknown as string[]}
+                    isNewItem={!item.id}
                   />
                   {/* Quick action to add repair from failed inspection */}
                   {item.is_inspection &&

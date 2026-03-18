@@ -35,6 +35,7 @@ pytestmark = pytest.mark.skipif("asyncpg" not in PG_URL, reason="PostgreSQL-only
 # Fixtures — each test gets its own session to avoid asyncpg state conflicts
 # ---------------------------------------------------------------------------
 
+
 @pytest_asyncio.fixture(scope="session", loop_scope="session")
 async def pg_engine():
     """Create a PostgreSQL engine and initialize all tables."""
@@ -89,6 +90,7 @@ async def _make_user_and_vehicle(session: AsyncSession, suffix: str):
 # 1. DIALECT DETECTION
 # ===========================================================================
 
+
 class TestDialectDetection:
     """Verify is_sqlite flag is False when using PostgreSQL."""
 
@@ -100,6 +102,7 @@ class TestDialectDetection:
 # 2. SCHEMA CREATION — All tables created without errors
 # ===========================================================================
 
+
 class TestSchemaCreation:
     """Verify all SQLAlchemy models create valid PostgreSQL tables."""
 
@@ -107,10 +110,9 @@ class TestSchemaCreation:
         """Every table in Base.metadata should exist in the database."""
         expected = set(Base.metadata.tables.keys())
         async with pg_engine.connect() as conn:
-            result = await conn.execute(text(
-                "SELECT tablename FROM pg_catalog.pg_tables "
-                "WHERE schemaname = 'public'"
-            ))
+            result = await conn.execute(
+                text("SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = 'public'")
+            )
             actual = {row[0] for row in result}
 
         missing = expected - actual
@@ -119,10 +121,9 @@ class TestSchemaCreation:
     async def test_table_count(self, pg_engine):
         """Sanity check — we should have a reasonable number of tables."""
         async with pg_engine.connect() as conn:
-            result = await conn.execute(text(
-                "SELECT count(*) FROM pg_catalog.pg_tables "
-                "WHERE schemaname = 'public'"
-            ))
+            result = await conn.execute(
+                text("SELECT count(*) FROM pg_catalog.pg_tables WHERE schemaname = 'public'")
+            )
             count = result.scalar()
 
         assert count >= 20, f"Expected 20+ tables, got {count}"
@@ -132,6 +133,7 @@ class TestSchemaCreation:
 # ===========================================================================
 # 3. TOLL SERVICE — to_char() dialect switch (ceb2d04)
 # ===========================================================================
+
 
 class TestTollDialect:
     """Verify toll summary monthly grouping uses to_char() on PostgreSQL."""
@@ -143,16 +145,21 @@ class TestTollDialect:
         _, vehicle = await _make_user_and_vehicle(pg_session, "toll")
 
         for month, day, amount in [
-            (1, 5, "4.50"), (1, 20, "3.00"),
+            (1, 5, "4.50"),
+            (1, 20, "3.00"),
             (2, 10, "6.75"),
-            (3, 1, "2.25"), (3, 15, "5.00"), (3, 28, "1.50"),
+            (3, 1, "2.25"),
+            (3, 15, "5.00"),
+            (3, 28, "1.50"),
         ]:
-            pg_session.add(TollTransaction(
-                vin=vehicle.vin,
-                date=date(2026, month, day),
-                amount=Decimal(amount),
-                location=f"Plaza M{month}",
-            ))
+            pg_session.add(
+                TollTransaction(
+                    vin=vehicle.vin,
+                    date=date(2026, month, day),
+                    amount=Decimal(amount),
+                    location=f"Plaza M{month}",
+                )
+            )
         await pg_session.flush()
 
         from app.models.toll import TollTransaction
@@ -185,6 +192,7 @@ class TestTollDialect:
 # 4. TELEMETRY SERVICE — dialect-aware upsert (ceb2d04)
 # ===========================================================================
 
+
 class TestTelemetryUpsert:
     """Verify telemetry upsert uses PostgreSQL ON CONFLICT."""
 
@@ -199,39 +207,60 @@ class TestTelemetryUpsert:
         vin = vehicle.vin
 
         # First insert
-        stmt = pg_insert(VehicleTelemetryLatest).values(
-            vin=vin, param_key="0C-EngineRPM",
-            value=800.0, timestamp=now, received_at=now,
-        ).on_conflict_do_update(
-            index_elements=["vin", "param_key"],
-            set_={"value": 800.0, "timestamp": now, "received_at": now},
+        stmt = (
+            pg_insert(VehicleTelemetryLatest)
+            .values(
+                vin=vin,
+                param_key="0C-EngineRPM",
+                value=800.0,
+                timestamp=now,
+                received_at=now,
+            )
+            .on_conflict_do_update(
+                index_elements=["vin", "param_key"],
+                set_={"value": 800.0, "timestamp": now, "received_at": now},
+            )
         )
         await pg_session.execute(stmt)
         await pg_session.flush()
 
         # Verify initial value
-        row = (await pg_session.execute(text(
-            "SELECT value FROM vehicle_telemetry_latest "
-            "WHERE vin = :vin AND param_key = :key"
-        ), {"vin": vin, "key": "0C-EngineRPM"})).one()
+        row = (
+            await pg_session.execute(
+                text(
+                    "SELECT value FROM vehicle_telemetry_latest "
+                    "WHERE vin = :vin AND param_key = :key"
+                ),
+                {"vin": vin, "key": "0C-EngineRPM"},
+            )
+        ).one()
         assert float(row[0]) == 800.0
 
         # Upsert with new value
-        stmt = pg_insert(VehicleTelemetryLatest).values(
-            vin=vin, param_key="0C-EngineRPM",
-            value=3500.0, timestamp=now, received_at=now,
-        ).on_conflict_do_update(
-            index_elements=["vin", "param_key"],
-            set_={"value": 3500.0, "timestamp": now, "received_at": now},
+        stmt = (
+            pg_insert(VehicleTelemetryLatest)
+            .values(
+                vin=vin,
+                param_key="0C-EngineRPM",
+                value=3500.0,
+                timestamp=now,
+                received_at=now,
+            )
+            .on_conflict_do_update(
+                index_elements=["vin", "param_key"],
+                set_={"value": 3500.0, "timestamp": now, "received_at": now},
+            )
         )
         await pg_session.execute(stmt)
         await pg_session.flush()
 
         # Verify updated, not duplicated
-        result = await pg_session.execute(text(
-            "SELECT value FROM vehicle_telemetry_latest "
-            "WHERE vin = :vin AND param_key = :key"
-        ), {"vin": vin, "key": "0C-EngineRPM"})
+        result = await pg_session.execute(
+            text(
+                "SELECT value FROM vehicle_telemetry_latest WHERE vin = :vin AND param_key = :key"
+            ),
+            {"vin": vin, "key": "0C-EngineRPM"},
+        )
         rows = result.all()
         assert len(rows) == 1, "Upsert should not create duplicates"
         assert float(rows[0][0]) == 3500.0
@@ -246,20 +275,32 @@ class TestTelemetryUpsert:
         now = datetime.now()
         vin = vehicle.vin
 
-        for key, val in [("0D-VehicleSpeed", 65.0), ("05-EngineCoolantTemp", 92.0),
-                         ("2F-FuelTankLevel", 75.0), ("11-ThrottlePosition", 15.5)]:
-            stmt = pg_insert(VehicleTelemetryLatest).values(
-                vin=vin, param_key=key, value=val, timestamp=now, received_at=now,
-            ).on_conflict_do_update(
-                index_elements=["vin", "param_key"],
-                set_={"value": val, "timestamp": now, "received_at": now},
+        for key, val in [
+            ("0D-VehicleSpeed", 65.0),
+            ("05-EngineCoolantTemp", 92.0),
+            ("2F-FuelTankLevel", 75.0),
+            ("11-ThrottlePosition", 15.5),
+        ]:
+            stmt = (
+                pg_insert(VehicleTelemetryLatest)
+                .values(
+                    vin=vin,
+                    param_key=key,
+                    value=val,
+                    timestamp=now,
+                    received_at=now,
+                )
+                .on_conflict_do_update(
+                    index_elements=["vin", "param_key"],
+                    set_={"value": val, "timestamp": now, "received_at": now},
+                )
             )
             await pg_session.execute(stmt)
         await pg_session.flush()
 
-        result = await pg_session.execute(text(
-            "SELECT count(*) FROM vehicle_telemetry_latest WHERE vin = :vin"
-        ), {"vin": vin})
+        result = await pg_session.execute(
+            text("SELECT count(*) FROM vehicle_telemetry_latest WHERE vin = :vin"), {"vin": vin}
+        )
         count = result.scalar()
         assert count == 4, f"Expected 4 telemetry params, got {count}"
 
@@ -268,6 +309,7 @@ class TestTelemetryUpsert:
 # 5. BACKUP SERVICE — pg_dump URL parsing (ceb2d04)
 # ===========================================================================
 
+
 class TestBackupService:
     """Verify backup service handles PostgreSQL correctly."""
 
@@ -275,7 +317,9 @@ class TestBackupService:
         from app.services.backup_service import BackupService
 
         svc = BackupService(
-            backup_dir=Path("/tmp"), database_path=None, data_dir=Path("/tmp"),
+            backup_dir=Path("/tmp"),
+            database_path=None,
+            data_dir=Path("/tmp"),
             database_url="postgresql+asyncpg://myuser:mypass@dbhost:5432/mydb",
             is_sqlite=False,
         )
@@ -290,7 +334,9 @@ class TestBackupService:
         from app.services.backup_service import BackupService
 
         svc = BackupService(
-            backup_dir=Path("/tmp"), database_path=None, data_dir=Path("/tmp"),
+            backup_dir=Path("/tmp"),
+            database_path=None,
+            data_dir=Path("/tmp"),
             database_url="postgresql+asyncpg://admin:p%40ss%23w0rd@db.host:5433/production",
             is_sqlite=False,
         )
@@ -303,7 +349,9 @@ class TestBackupService:
         from app.services.backup_service import BackupService
 
         svc = BackupService(
-            backup_dir=Path("/tmp"), database_path=None, data_dir=Path("/tmp"),
+            backup_dir=Path("/tmp"),
+            database_path=None,
+            data_dir=Path("/tmp"),
             database_url="postgresql+asyncpg://user:pass@host/db",
             is_sqlite=False,
         )
@@ -315,13 +363,12 @@ class TestBackupService:
 # 6. SYSTEM INFO — pg_database_size() (ceb2d04)
 # ===========================================================================
 
+
 class TestSystemInfo:
     """Verify system info queries work on PostgreSQL."""
 
     async def test_pg_database_size(self, pg_session):
-        result = await pg_session.execute(
-            text("SELECT pg_database_size(current_database())")
-        )
+        result = await pg_session.execute(text("SELECT pg_database_size(current_database())"))
         size = result.scalar()
         assert size is not None
         assert isinstance(size, int)
@@ -339,6 +386,7 @@ class TestSystemInfo:
 #    These 5 models had datetime.now(UTC) which asyncpg rejects on
 #    timezone-naive DateTime columns.
 # ===========================================================================
+
 
 class TestTimestampModels:
     """Verify all models that had datetime.now(UTC) -> server_default fix."""
@@ -455,6 +503,7 @@ class TestTimestampModels:
 # 8. GENERAL CRUD — Basic operations on core models
 # ===========================================================================
 
+
 class TestCrudOperations:
     """Verify basic CRUD works on PostgreSQL for core models."""
 
@@ -476,9 +525,7 @@ class TestCrudOperations:
         pg_session.add(v)
         await pg_session.flush()
 
-        result = await pg_session.execute(
-            select(Vehicle).where(Vehicle.vin == "PGCRUD00000000001")
-        )
+        result = await pg_session.execute(select(Vehicle).where(Vehicle.vin == "PGCRUD00000000001"))
         found = result.scalar_one()
         assert found.nickname == "CRUD Test Car"
         assert found.year == 2024
@@ -500,9 +547,7 @@ class TestCrudOperations:
         pg_session.add(record)
         await pg_session.flush()
 
-        result = await pg_session.execute(
-            select(FuelRecord).where(FuelRecord.vin == vehicle.vin)
-        )
+        result = await pg_session.execute(select(FuelRecord).where(FuelRecord.vin == vehicle.vin))
         found = result.scalar_one()
         assert found.gallons == Decimal("12.345")
         assert found.cost == Decimal("45.67")
@@ -556,15 +601,16 @@ class TestCrudOperations:
 # 9. POSTGRESQL-SPECIFIC FEATURES
 # ===========================================================================
 
+
 class TestPgSpecificFeatures:
     """Verify PostgreSQL-specific schema features."""
 
     async def test_indexes_created(self, pg_engine):
         """Indexes should exist in PG schema."""
         async with pg_engine.connect() as conn:
-            result = await conn.execute(text(
-                "SELECT count(*) FROM pg_indexes WHERE schemaname = 'public'"
-            ))
+            result = await conn.execute(
+                text("SELECT count(*) FROM pg_indexes WHERE schemaname = 'public'")
+            )
             idx_count = result.scalar()
             assert idx_count > 0
             print(f"  -> {idx_count} indexes created")
@@ -572,10 +618,12 @@ class TestPgSpecificFeatures:
     async def test_foreign_keys_enforced(self, pg_engine):
         """Foreign key constraints should exist."""
         async with pg_engine.connect() as conn:
-            result = await conn.execute(text(
-                "SELECT count(*) FROM information_schema.table_constraints "
-                "WHERE constraint_type = 'FOREIGN KEY' AND table_schema = 'public'"
-            ))
+            result = await conn.execute(
+                text(
+                    "SELECT count(*) FROM information_schema.table_constraints "
+                    "WHERE constraint_type = 'FOREIGN KEY' AND table_schema = 'public'"
+                )
+            )
             fk_count = result.scalar()
             assert fk_count > 0
             print(f"  -> {fk_count} foreign key constraints")
@@ -586,16 +634,18 @@ class TestPgSpecificFeatures:
 
         _, vehicle = await _make_user_and_vehicle(pg_session, "prec1")
 
-        pg_session.add(TollTransaction(
-            vin=vehicle.vin,
-            date=date(2026, 6, 15),
-            amount=Decimal("123.45"),
-            location="Precision Test",
-        ))
+        pg_session.add(
+            TollTransaction(
+                vin=vehicle.vin,
+                date=date(2026, 6, 15),
+                amount=Decimal("123.45"),
+                location="Precision Test",
+            )
+        )
         await pg_session.flush()
 
-        result = await pg_session.execute(text(
-            "SELECT amount FROM toll_transactions WHERE location = 'Precision Test'"
-        ))
+        result = await pg_session.execute(
+            text("SELECT amount FROM toll_transactions WHERE location = 'Precision Test'")
+        )
         val = result.scalar()
         assert val == Decimal("123.45"), f"Expected 123.45, got {val}"

@@ -470,6 +470,19 @@ async def check_recalls_all_vehicles() -> None:
             logger.error("NHTSA recall check failed: %s", str(e))
 
 
+async def check_reminder_notifications() -> None:
+    """Check pending vehicle reminders and send notifications for due items."""
+    logger.info("Running reminder notification check...")
+    try:
+        async with AsyncSessionLocal() as db:
+            from app.services.reminder_service import check_due_reminders
+
+            await check_due_reminders(db)
+        logger.info("Reminder notification check completed")
+    except Exception as e:
+        logger.error("Reminder notification check failed: %s", str(e))
+
+
 def start_scheduler() -> None:
     """Start the scheduled tasks.
 
@@ -526,6 +539,16 @@ def start_scheduler() -> None:
         hour=8,
         minute=0,
         id="check_maintenance_notifications",
+        replace_existing=True,
+    )
+
+    # Reminder notification check at 8:15 AM UTC (offset from maintenance check)
+    scheduler.add_job(
+        check_reminder_notifications,
+        "cron",
+        hour=8,
+        minute=15,
+        id="check_reminder_notifications",
         replace_existing=True,
     )
 
