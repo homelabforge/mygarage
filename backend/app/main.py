@@ -215,7 +215,6 @@ from app.routes import (
     fuel_router,
     import_router,
     insurance_router,
-    maintenance_schedule_router,
     maintenance_templates_router,
     notes_router,
     notifications_router,
@@ -284,7 +283,6 @@ app.include_router(shop_discovery_router)  # Backward compatibility (deprecated)
 app.include_router(vendors_router)
 app.include_router(service_visits_router)
 app.include_router(reminders_router)
-app.include_router(maintenance_schedule_router)
 app.include_router(livelink_ingest_router)
 app.include_router(livelink_admin_router)
 app.include_router(livelink_vehicle_router)

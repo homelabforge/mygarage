@@ -5,7 +5,7 @@ import io
 import json
 import logging
 from datetime import date as date_type
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
@@ -20,9 +20,9 @@ from app.models import (
     DEFRecord,
     FuelRecord,
     InsurancePolicy,
-    MaintenanceScheduleItem,
     Note,
     OdometerRecord,
+    Reminder,
     ServiceLineItem,
     ServiceVisit,
     TaxRecord,
@@ -902,31 +902,39 @@ async def import_vehicle_json(
             results["odometer_records"]["errors"] += 1
             results["errors"].append(f"Odometer record {idx}: {str(e)}")
 
-    # Import reminders → map to MaintenanceScheduleItem (backward-compatible)
+    # Import reminders → map to vehicle_reminders
     for idx, reminder_data in enumerate(data.get("reminders", [])):
         try:
-            # Parse last_performed_date from completed_at if present
-            last_performed_date = None
-            if reminder_data.get("completed_at"):
-                last_performed_date = datetime.fromisoformat(reminder_data["completed_at"]).date()
-
-            # Convert recurrence to interval fields
+            # Determine reminder type from recurrence fields
             is_recurring = reminder_data.get("is_recurring", False)
             recurrence_days = reminder_data.get("recurrence_days", 0)
-            interval_months = (recurrence_days // 30) if is_recurring and recurrence_days else None
-            interval_miles = reminder_data.get("recurrence_miles") if is_recurring else None
+            recurrence_miles = reminder_data.get("recurrence_miles")
 
-            schedule_item = MaintenanceScheduleItem(
+            has_date = bool(is_recurring and recurrence_days)
+            has_miles = bool(is_recurring and recurrence_miles)
+
+            if has_date and has_miles:
+                reminder_type = "both"
+            elif has_miles:
+                reminder_type = "mileage"
+            else:
+                reminder_type = "date"
+
+            # Calculate due_date from recurrence_days
+            due_date = None
+            if has_date and recurrence_days:
+                due_date = (date_type.today() + timedelta(days=recurrence_days)).isoformat()
+
+            reminder = Reminder(
                 vin=vin,
-                name=reminder_data["description"],
-                source="migrated_reminder",
-                component_category="General",
-                item_type="service",
-                interval_months=interval_months,
-                interval_miles=interval_miles,
-                last_performed_date=last_performed_date,
+                title=reminder_data["description"],
+                reminder_type=reminder_type,
+                due_date=due_date,
+                due_mileage=recurrence_miles if has_miles else None,
+                status="pending",
+                notes=reminder_data.get("notes"),
             )
-            db.add(schedule_item)
+            db.add(reminder)
             results["reminders"]["success"] += 1
         except Exception as e:
             results["reminders"]["errors"] += 1

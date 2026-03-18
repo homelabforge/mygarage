@@ -9,9 +9,9 @@ from app.database import get_db
 from app.models import (
     Document,
     FuelRecord,
-    MaintenanceScheduleItem,
     Note,
     OdometerRecord,
+    Reminder,
     ServiceVisit,
     Vehicle,
 )
@@ -48,9 +48,7 @@ async def calculate_vehicle_stats(
         select(func.count(OdometerRecord.id)).where(OdometerRecord.vin == vehicle.vin)
     )
     maintenance_count = await db.scalar(
-        select(func.count(MaintenanceScheduleItem.id)).where(
-            MaintenanceScheduleItem.vin == vehicle.vin
-        )
+        select(func.count(Reminder.id)).where(Reminder.vin == vehicle.vin)
     )
     document_count = await db.scalar(
         select(func.count(Document.id)).where(Document.vin == vehicle.vin)
@@ -97,14 +95,14 @@ async def calculate_vehicle_stats(
         latest_odometer_reading = latest_odometer[0]
         latest_odometer_date = latest_odometer[1]
 
-    # Count upcoming and overdue maintenance schedule items
+    # Count upcoming and overdue reminders
     today = date_type.today()
-    schedule_items_result = await db.execute(
-        select(MaintenanceScheduleItem).where(MaintenanceScheduleItem.vin == vehicle.vin)
+    pending_reminders_result = await db.execute(
+        select(Reminder).where(Reminder.vin == vehicle.vin, Reminder.status == "pending")
     )
-    schedule_items = schedule_items_result.scalars().all()
+    pending_reminders = pending_reminders_result.scalars().all()
 
-    # Get current mileage for status calculation
+    # Get current mileage for overdue check
     current_mileage_record = await db.execute(
         select(OdometerRecord.mileage)
         .where(OdometerRecord.vin == vehicle.vin)
@@ -115,12 +113,16 @@ async def calculate_vehicle_stats(
 
     upcoming_count = 0
     overdue_count = 0
-    for item in schedule_items:
-        status = item.calculate_status(today, current_mileage)
-        if status == "due_soon":
-            upcoming_count += 1
-        elif status == "overdue":
+    for reminder in pending_reminders:
+        is_overdue = False
+        if reminder.due_date and reminder.due_date <= today:
+            is_overdue = True
+        if reminder.due_mileage and current_mileage and current_mileage >= reminder.due_mileage:
+            is_overdue = True
+        if is_overdue:
             overdue_count += 1
+        else:
+            upcoming_count += 1
 
     # Calculate average MPG from fuel records
     fuel_records_result = await db.execute(

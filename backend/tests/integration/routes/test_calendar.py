@@ -10,7 +10,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import MaintenanceScheduleItem
+from app.models import Reminder
 
 
 @pytest.mark.integration
@@ -63,7 +63,6 @@ class TestCalendarRoutes:
         assert response.status_code == 200
         data = response.json()
         assert "events" in data
-        # All events should be within the date range
         for event in data["events"]:
             assert "2024-01-01" <= event["date"] <= "2024-12-31"
 
@@ -79,7 +78,6 @@ class TestCalendarRoutes:
 
         assert response.status_code == 200
         data = response.json()
-        # All events should be for the specified vehicle
         for event in data["events"]:
             assert event["vehicle_vin"] == test_vehicle["vin"]
 
@@ -93,29 +91,24 @@ class TestCalendarRoutes:
 
         assert response.status_code == 200
         data = response.json()
-        # All events should be of the specified types
         for event in data["events"]:
             assert event["type"] in ["maintenance", "insurance"]
 
-    async def test_calendar_includes_maintenance_events(
+    async def test_calendar_includes_reminder_events(
         self, client: AsyncClient, auth_headers, test_vehicle, db_session: AsyncSession
     ):
-        """Test that maintenance schedule items appear as calendar events."""
-        # Create a maintenance schedule item with a due date in the future
+        """Test that reminders appear as calendar events."""
         due_date = date.today() + timedelta(days=15)
-        item = MaintenanceScheduleItem(
+        item = Reminder(
             vin=test_vehicle["vin"],
-            name="Oil Change Test",
-            component_category="Engine",
-            item_type="service",
-            interval_months=6,
-            source="custom",
-            last_performed_date=due_date - timedelta(days=180),
+            title="Oil Change Test",
+            reminder_type="date",
+            due_date=due_date,
+            status="pending",
         )
         db_session.add(item)
         await db_session.commit()
 
-        # Get calendar events
         response = await client.get(
             "/api/calendar",
             params={
@@ -129,7 +122,6 @@ class TestCalendarRoutes:
         assert response.status_code == 200
         data = response.json()
 
-        # Find our test maintenance event
         test_events = [e for e in data["events"] if "Oil Change Test" in e.get("title", "")]
         assert len(test_events) >= 1
 
@@ -138,21 +130,18 @@ class TestCalendarRoutes:
         assert event["category"] == "maintenance"
         assert event["vehicle_vin"] == test_vehicle["vin"]
         assert "id" in event
-        assert event["id"].startswith("maintenance-")
+        assert event["id"].startswith("reminder-")
 
-    async def test_calendar_maintenance_overdue_urgency(
+    async def test_calendar_reminder_overdue_urgency(
         self, client: AsyncClient, auth_headers, test_vehicle, db_session: AsyncSession
     ):
-        """Test that overdue maintenance items show correct urgency."""
-        # Create an overdue maintenance item (last performed long ago)
-        item = MaintenanceScheduleItem(
+        """Test that overdue reminders show correct urgency."""
+        item = Reminder(
             vin=test_vehicle["vin"],
-            name="Overdue Brake Check",
-            component_category="Brakes",
-            item_type="inspection",
-            interval_months=3,
-            source="custom",
-            last_performed_date=date.today() - timedelta(days=365),
+            title="Overdue Brake Check",
+            reminder_type="date",
+            due_date=date.today() - timedelta(days=30),
+            status="pending",
         )
         db_session.add(item)
         await db_session.commit()
@@ -178,15 +167,12 @@ class TestCalendarRoutes:
         self, client: AsyncClient, auth_headers, test_vehicle, db_session: AsyncSession
     ):
         """Test that calendar events have correct structure."""
-        # Create a maintenance item to ensure we have an event
-        item = MaintenanceScheduleItem(
+        item = Reminder(
             vin=test_vehicle["vin"],
-            name="Structure Test Item",
-            component_category="General",
-            item_type="service",
-            interval_months=6,
-            source="custom",
-            last_performed_date=date.today() - timedelta(days=150),
+            title="Structure Test Item",
+            reminder_type="date",
+            due_date=date.today() + timedelta(days=30),
+            status="pending",
         )
         db_session.add(item)
         await db_session.commit()
@@ -208,7 +194,6 @@ class TestCalendarRoutes:
         assert len(test_events) >= 1
 
         event = test_events[0]
-        # Verify event structure
         assert "id" in event
         assert "type" in event
         assert "title" in event
@@ -230,7 +215,6 @@ class TestCalendarRoutes:
         assert response.status_code == 200
         assert "text/calendar" in response.headers.get("content-type", "")
 
-        # Verify it's valid iCal format
         content = response.content.decode("utf-8")
         assert "BEGIN:VCALENDAR" in content
         assert "VERSION:2.0" in content
@@ -253,7 +237,6 @@ class TestCalendarRoutes:
         assert response.status_code == 200
         assert "text/calendar" in response.headers.get("content-type", "")
 
-        # Check content disposition
         content_disp = response.headers.get("content-disposition", "")
         assert "attachment" in content_disp
         assert ".ics" in content_disp
@@ -262,20 +245,16 @@ class TestCalendarRoutes:
         self, client: AsyncClient, auth_headers, test_vehicle, db_session: AsyncSession
     ):
         """Test that iCal export has proper structure."""
-        # Create a maintenance item
-        item = MaintenanceScheduleItem(
+        item = Reminder(
             vin=test_vehicle["vin"],
-            name="Export Test Item",
-            component_category="General",
-            item_type="service",
-            interval_months=6,
-            source="custom",
-            last_performed_date=date.today() - timedelta(days=150),
+            title="Export Test Item",
+            reminder_type="date",
+            due_date=date.today() + timedelta(days=30),
+            status="pending",
         )
         db_session.add(item)
         await db_session.commit()
 
-        # Export calendar
         response = await client.get(
             "/api/calendar/export",
             params={
@@ -289,12 +268,10 @@ class TestCalendarRoutes:
         assert response.status_code == 200
         content = response.content.decode("utf-8")
 
-        # Verify iCal structure
         assert "PRODID:-//MyGarage//Vehicle Maintenance Calendar//EN" in content
         assert "CALSCALE:GREGORIAN" in content
         assert "X-WR-CALNAME:MyGarage Maintenance" in content
 
-        # If we have events, verify event structure
         if "BEGIN:VEVENT" in content:
             assert "UID:" in content
             assert "DTSTART" in content
@@ -311,77 +288,8 @@ class TestCalendarRoutes:
         response = await client.get("/api/calendar/export")
         assert response.status_code == 401
 
-    async def test_calendar_multiple_event_types(
-        self, client: AsyncClient, auth_headers, test_vehicle, db_session: AsyncSession
-    ):
-        """Test calendar with multiple event sources."""
-        # Create a maintenance item
-        item = MaintenanceScheduleItem(
-            vin=test_vehicle["vin"],
-            name="Multi-type test item",
-            component_category="General",
-            item_type="service",
-            interval_months=6,
-            source="custom",
-            last_performed_date=date.today() - timedelta(days=150),
-        )
-        db_session.add(item)
-        await db_session.commit()
-
-        # Get calendar with all types
-        response = await client.get(
-            "/api/calendar",
-            params={
-                "start_date": (date.today() - timedelta(days=365)).isoformat(),
-                "end_date": (date.today() + timedelta(days=365)).isoformat(),
-            },
-            headers=auth_headers,
-        )
-
-        assert response.status_code == 200
-        data = response.json()
-
-        # Should have events
-        assert data["summary"]["total"] >= 0
-
-    async def test_calendar_maintenance_filter(
-        self, client: AsyncClient, auth_headers, test_vehicle, db_session: AsyncSession
-    ):
-        """Test that maintenance filter correctly includes/excludes events."""
-        # Create a maintenance item
-        item = MaintenanceScheduleItem(
-            vin=test_vehicle["vin"],
-            name="Filter Test Item",
-            component_category="Engine",
-            item_type="service",
-            interval_months=3,
-            source="custom",
-            last_performed_date=date.today() - timedelta(days=60),
-        )
-        db_session.add(item)
-        await db_session.commit()
-
-        # Request only insurance events (maintenance should be excluded)
-        response = await client.get(
-            "/api/calendar",
-            params={
-                "event_types": "insurance",
-                "start_date": (date.today() - timedelta(days=30)).isoformat(),
-                "end_date": (date.today() + timedelta(days=365)).isoformat(),
-            },
-            headers=auth_headers,
-        )
-
-        assert response.status_code == 200
-        data = response.json()
-
-        # No maintenance events should appear
-        maintenance_events = [e for e in data["events"] if e["type"] == "maintenance"]
-        assert len(maintenance_events) == 0
-
     async def test_calendar_empty_response(self, client: AsyncClient, auth_headers):
         """Test calendar response when no events in range."""
-        # Use a very narrow date range unlikely to have events
         response = await client.get(
             "/api/calendar",
             params={
@@ -406,5 +314,4 @@ class TestCalendarRoutes:
         )
         assert response.status_code == 200
         data = response.json()
-        # Non-admin user with no vehicles should get empty events
         assert data["summary"]["total"] == 0

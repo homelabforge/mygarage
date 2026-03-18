@@ -28,7 +28,6 @@ if TYPE_CHECKING:
     from app.models.document import Document
     from app.models.fuel import FuelRecord
     from app.models.insurance import InsurancePolicy
-    from app.models.maintenance_schedule_item import MaintenanceScheduleItem
     from app.models.maintenance_template import MaintenanceTemplate
     from app.models.note import Note
     from app.models.odometer import OdometerRecord
@@ -175,11 +174,6 @@ class Vehicle(Base):
     )
     service_visits: Mapped[list[ServiceVisit]] = relationship(
         "ServiceVisit", back_populates="vehicle", cascade="all, delete-orphan"
-    )
-    schedule_items: Mapped[list[MaintenanceScheduleItem]] = relationship(
-        "MaintenanceScheduleItem",
-        back_populates="vehicle",
-        cascade="all, delete-orphan",
     )
     reminders: Mapped[list[Reminder]] = relationship(
         "Reminder", back_populates="vehicle", cascade="all, delete-orphan"

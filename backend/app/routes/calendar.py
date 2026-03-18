@@ -13,8 +13,8 @@ from sqlalchemy.orm import selectinload
 from app.database import get_db
 from app.models import (
     InsurancePolicy,
-    MaintenanceScheduleItem,
     OdometerRecord,
+    Reminder,
     ServiceVisit,
     Vehicle,
     WarrantyRecord,
@@ -95,93 +95,83 @@ async def get_calendar_events(
     events = []
     today = date.today()
 
-    # Fetch maintenance schedule items
+    # Fetch pending reminders for calendar
     if "maintenance" in type_list:
-        schedule_query = select(MaintenanceScheduleItem)
+        reminder_query = select(Reminder).where(Reminder.status == "pending")
 
         if allowed_vins:
-            schedule_query = schedule_query.where(MaintenanceScheduleItem.vin.in_(allowed_vins))
+            reminder_query = reminder_query.where(Reminder.vin.in_(allowed_vins))
         else:
-            schedule_query = schedule_query.where(MaintenanceScheduleItem.vin.in_([]))
+            reminder_query = reminder_query.where(Reminder.vin.in_([]))
 
-        schedule_result = await db.execute(schedule_query)
-        schedule_items = schedule_result.scalars().all()
+        reminder_result = await db.execute(reminder_query)
+        reminders = reminder_result.scalars().all()
 
-        # Get current mileage per vehicle for status calculation
-        vehicle_mileage: dict[str, int | None] = {}
-        for item in schedule_items:
-            if item.vin not in vehicle_mileage:
-                odo_result = await db.execute(
-                    select(OdometerRecord.mileage)
-                    .where(OdometerRecord.vin == item.vin)
-                    .order_by(OdometerRecord.date.desc())
-                    .limit(1)
-                )
-                vehicle_mileage[item.vin] = odo_result.scalar_one_or_none()
+        for reminder in reminders:
+            vehicle = vehicles_dict.get(reminder.vin)
 
-        for item in schedule_items:
-            vehicle = vehicles_dict.get(item.vin)
-            current_mileage = vehicle_mileage.get(item.vin)
-            status = item.calculate_status(today, current_mileage)
-
-            # Determine the event date
-            event_date = item.next_due_date
+            # Determine the event date from reminder fields
+            event_date = reminder.due_date
             is_estimated = False
-            due_mileage = item.next_due_mileage
+            due_mileage = reminder.due_mileage
 
-            # If no date-based interval but has mileage interval, estimate from mileage
+            # For mileage-only reminders, estimate date
             if event_date is None and due_mileage is not None:
-                event_date = await estimate_date_from_mileage(item.vin, due_mileage, db)
+                event_date = await estimate_date_from_mileage(reminder.vin, due_mileage, db)
                 is_estimated = event_date is not None
 
-            # If still no date, use today for never_performed items (needs attention)
+            # Skip if no date can be determined
             if event_date is None:
-                if status == "never_performed":
-                    event_date = today
-                else:
-                    continue
+                continue
 
             # Filter by date range
             if event_date < start_date or event_date > end_date:
                 continue
 
-            # Map status to urgency
+            # Map to urgency
+            days_until_due = (event_date - today).days
             urgency: UrgencyLevel
-            if status == "overdue":
+            if days_until_due < 0:
                 urgency = "overdue"
-            elif status == "due_soon":
-                days_until = (event_date - today).days
-                urgency = "high" if days_until <= 7 else "medium"
-            elif status == "never_performed":
+                status = "overdue"
+            elif days_until_due <= 7:
+                urgency = "high"
+                status = "due_soon"
+            elif days_until_due <= 30:
                 urgency = "medium"
+                status = "due_soon"
             else:
                 urgency = "low"
+                status = "on_track"
 
-            # Determine if recurring (has intervals)
-            is_recurring = bool(item.interval_months or item.interval_miles)
-
-            # Calculate days/miles until due
-            days_until_due = (event_date - today).days
             miles_until_due = None
-            if due_mileage is not None and current_mileage is not None:
-                miles_until_due = due_mileage - current_mileage
+            if due_mileage is not None:
+                odo_result = await db.execute(
+                    select(OdometerRecord.mileage)
+                    .where(OdometerRecord.vin == reminder.vin)
+                    .order_by(OdometerRecord.date.desc())
+                    .limit(1)
+                )
+                current_mileage = odo_result.scalar_one_or_none()
+                if current_mileage is not None:
+                    miles_until_due = due_mileage - current_mileage
 
             events.append(
                 CalendarEvent(
-                    id=f"maintenance-{item.id}",
+                    id=f"reminder-{reminder.id}",
                     type="maintenance",
-                    title=item.name,
-                    description=f"{item.component_category} - {item.item_type}",
+                    title=reminder.title,
+                    description=f"Reminder ({reminder.reminder_type})",
                     date=event_date,
-                    vehicle_vin=item.vin,
+                    vehicle_vin=reminder.vin,
                     vehicle_nickname=vehicle.nickname if vehicle else None,
                     vehicle_color=None,
                     urgency=urgency,
-                    is_recurring=is_recurring,
+                    is_recurring=False,
                     is_completed=False,
                     is_estimated=is_estimated,
                     category="maintenance",
-                    notes=None,
+                    notes=reminder.notes,
                     due_mileage=due_mileage,
                     status=status,
                     days_until_due=days_until_due,

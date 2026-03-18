@@ -33,7 +33,6 @@ class ServiceLineItemBase(BaseModel):
     inspection_severity: InspectionSeverity | None = Field(
         None, description="Inspection severity (if inspection)"
     )
-    schedule_item_id: int | None = Field(None, description="Link to maintenance schedule item")
     triggered_by_inspection_id: int | None = Field(
         None, description="ID of inspection that triggered this repair"
     )
@@ -84,7 +83,7 @@ class ServiceLineItemCreate(ServiceLineItemBase):
                     "cost": 112.23,
                     "notes": "Used SAE 0W-20 synthetic",
                     "is_inspection": False,
-                    "schedule_item_id": 5,
+                    "category": "Maintenance",
                 }
             ]
         }
@@ -94,16 +93,12 @@ class ServiceLineItemCreate(ServiceLineItemBase):
 class ServiceLineItemUpdate(BaseModel):
     """Line item shape for diff-based visit updates.
 
-    schedule_item_id: immutable on existing items (id present); honored for
-    new items (id absent) — keeps Phase 1 schedule-linked edit flows alive.
-
     temp_id: negative int assigned by client for new items so other new items
     can reference them via triggered_by_inspection_id before flush.
     """
 
     id: int | None = Field(None, description="Existing item id; omit for new items")
     temp_id: int | None = Field(None, description="Client temp ID; must be negative; not persisted")
-    schedule_item_id: int | None = None
     description: str = Field(..., min_length=1, max_length=200)
     category: ServiceCategory | None = None
     cost: Decimal | None = Field(None, ge=0)
@@ -148,7 +143,7 @@ class ServiceLineItemResponse(ServiceLineItemBase):
                     "is_inspection": False,
                     "inspection_result": None,
                     "inspection_severity": None,
-                    "schedule_item_id": 5,
+                    "category": "Maintenance",
                     "triggered_by_inspection_id": None,
                     "created_at": "2026-01-15T10:30:00",
                     "is_failed_inspection": False,
@@ -231,13 +226,13 @@ class ServiceVisitCreate(ServiceVisitBase):
                         {
                             "description": "Engine Oil & Filter Change",
                             "cost": 112.23,
-                            "schedule_item_id": 5,
+                            "category": "Maintenance",
                         },
                         {
                             "description": "Tire Rotation",
                             "cost": 0,
                             "notes": "Included with oil change",
-                            "schedule_item_id": 8,
+                            "category": "Maintenance",
                         },
                     ],
                 }

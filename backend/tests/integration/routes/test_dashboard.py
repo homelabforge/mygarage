@@ -10,7 +10,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import MaintenanceScheduleItem
+from app.models import Reminder
 
 
 @pytest.mark.integration
@@ -162,27 +162,23 @@ class TestDashboardRoutes:
         self, client: AsyncClient, auth_headers, test_vehicle, db_session: AsyncSession
     ):
         """Test that dashboard tracks maintenance schedule counts correctly."""
-        # Create a due_soon maintenance item
-        item_upcoming = MaintenanceScheduleItem(
+        # Create an upcoming reminder
+        item_upcoming = Reminder(
             vin=test_vehicle["vin"],
-            name="Dashboard upcoming item",
-            component_category="General",
-            item_type="service",
-            interval_months=3,
-            source="custom",
-            last_performed_date=date.today() - timedelta(days=80),
+            title="Dashboard upcoming item",
+            reminder_type="date",
+            due_date=date.today() + timedelta(days=15),
+            status="pending",
         )
         db_session.add(item_upcoming)
 
-        # Create an overdue maintenance item
-        item_overdue = MaintenanceScheduleItem(
+        # Create an overdue reminder
+        item_overdue = Reminder(
             vin=test_vehicle["vin"],
-            name="Dashboard overdue item",
-            component_category="General",
-            item_type="service",
-            interval_months=3,
-            source="custom",
-            last_performed_date=date.today() - timedelta(days=365),
+            title="Dashboard overdue item",
+            reminder_type="date",
+            due_date=date.today() - timedelta(days=30),
+            status="pending",
         )
         db_session.add(item_overdue)
         await db_session.commit()

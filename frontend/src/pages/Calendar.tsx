@@ -197,24 +197,22 @@ export default function CalendarPage() {
     }
   }
 
-  // Quick complete maintenance item
+  // Quick complete reminder
   const handleQuickComplete = async (eventId: string, e: React.MouseEvent) => {
     e.stopPropagation()
 
     const [type, id] = eventId.split('-')
-    if (type !== 'maintenance') return
+    if (type !== 'reminder') return
 
     const event = events.find(ev => ev.id === eventId)
     if (!event) return
 
     try {
-      await api.patch(`/vehicles/${event.vehicle_vin}/maintenance-schedule/${id}`, {
-        last_performed_date: new Date().toISOString().split('T')[0],
-      })
-      toast.success('Maintenance item marked as complete')
+      await api.post(`/vehicles/${event.vehicle_vin}/reminders/${id}/done`)
+      toast.success('Reminder marked as done')
       loadEvents()
     } catch {
-      toast.error('Failed to complete maintenance item')
+      toast.error('Failed to complete reminder')
     }
   }
 
@@ -244,14 +242,14 @@ export default function CalendarPage() {
     )
   }
 
-  // Phase 3: Bulk complete selected maintenance items
+  // Phase 3: Bulk complete selected reminder items
   const handleBulkComplete = async () => {
-    const maintenanceIds = selectedEvents
-      .filter(id => id.startsWith('maintenance-'))
+    const reminderIds = selectedEvents
+      .filter(id => id.startsWith('reminder-'))
       .map(id => id.split('-')[1])
 
-    if (maintenanceIds.length === 0) {
-      toast.error('No maintenance items selected')
+    if (reminderIds.length === 0) {
+      toast.error('No reminder items selected')
       return
     }
 
@@ -261,14 +259,12 @@ export default function CalendarPage() {
       let failed = 0
       const errors: string[] = []
 
-      for (const id of maintenanceIds) {
-        const event = events.find(e => e.id === `maintenance-${id}`)
+      for (const id of reminderIds) {
+        const event = events.find(e => e.id === `reminder-${id}`)
         if (!event || event.is_completed) continue
 
         try {
-          await api.patch(`/vehicles/${event.vehicle_vin}/maintenance-schedule/${id}`, {
-            last_performed_date: new Date().toISOString().split('T')[0],
-          })
+          await api.post(`/vehicles/${event.vehicle_vin}/reminders/${id}/done`)
           completed++
         } catch (err: unknown) {
           failed++

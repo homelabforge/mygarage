@@ -34,13 +34,6 @@ export const serviceLineItemSchema = z.object({
     .enum(INSPECTION_SEVERITIES, { message: 'Invalid inspection severity' })
     .optional()
     .or(z.literal('')),
-  schedule_item_id: z
-    .number()
-    .int()
-    .positive()
-    .optional()
-    .or(z.nan())
-    .transform(val => (typeof val === 'number' && isNaN(val) ? undefined : val)),
   triggered_by_inspection_id: z
     .number()
     .int()

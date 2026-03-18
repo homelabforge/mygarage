@@ -18,7 +18,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import AsyncSessionLocal
 from app.models import (
     InsurancePolicy,
-    MaintenanceScheduleItem,
     OdometerRecord,
     Recall,
     Vehicle,
@@ -76,128 +75,6 @@ async def reset_monthly_limits() -> None:
                 logger.info("Reset monthly usage for provider: %s", provider)
             except Exception as e:
                 logger.error("Failed to reset usage for %s: %s", provider, str(e))
-
-
-async def check_maintenance_notifications() -> None:
-    """Check maintenance schedule items and send notifications.
-
-    Runs daily at 8 AM UTC. Reads notify_service_days and notify_service_miles
-    settings to determine thresholds. Uses 24-hour cooldown per status to
-    prevent duplicate notifications.
-    """
-    async with AsyncSessionLocal() as db:
-        try:
-            # Check if service notifications are enabled
-            dispatcher = NotificationDispatcher(db)
-            if not await dispatcher._has_any_service_enabled():
-                return
-
-            # Read threshold settings
-            notify_service_days = int(await _get_setting(db, "notify_service_days", "30"))
-            notify_service_miles = int(await _get_setting(db, "notify_service_miles", "500"))
-
-            # Get all vehicles
-            vehicles_result = await db.execute(select(Vehicle).where(Vehicle.archived_at.is_(None)))
-            vehicles = vehicles_result.scalars().all()
-
-            now = utc_now()
-            today = date.today()
-
-            for vehicle in vehicles:
-                try:
-                    vehicle_name = (
-                        vehicle.nickname or f"{vehicle.year} {vehicle.make} {vehicle.model}"
-                    )
-
-                    # Get current mileage
-                    odo_result = await db.execute(
-                        select(OdometerRecord.mileage)
-                        .where(OdometerRecord.vin == vehicle.vin)
-                        .order_by(OdometerRecord.date.desc())
-                        .limit(1)
-                    )
-                    current_mileage = odo_result.scalar_one_or_none()
-
-                    # Get schedule items
-                    items_result = await db.execute(
-                        select(MaintenanceScheduleItem).where(
-                            MaintenanceScheduleItem.vin == vehicle.vin
-                        )
-                    )
-                    items = items_result.scalars().all()
-
-                    for item in items:
-                        status = item.calculate_status(today, current_mileage)
-
-                        # Skip items that are on_track or never_performed with no intervals
-                        if status == "on_track":
-                            continue
-                        if (
-                            status == "never_performed"
-                            and not item.interval_months
-                            and not item.interval_miles
-                        ):
-                            continue
-
-                        # Dedup check: skip if same status notified within cooldown
-                        if (
-                            item.last_notified_status == status
-                            and item.last_notified_at
-                            and (now - item.last_notified_at) < NOTIFICATION_COOLDOWN
-                        ):
-                            continue
-
-                        # Calculate days/miles for message
-                        next_date = item.next_due_date
-                        days_until = (next_date - today).days if next_date else None
-
-                        if status == "overdue":
-                            days_overdue = abs(days_until) if days_until is not None else 0
-                            await dispatcher.notify_service_overdue(
-                                vehicle_name=vehicle_name,
-                                service_type=item.name,
-                                days_overdue=days_overdue,
-                            )
-                        elif status in ("due_soon", "never_performed"):
-                            days_left = (
-                                days_until if days_until is not None else notify_service_days
-                            )
-                            # Only notify if within threshold
-                            if days_left <= notify_service_days:
-                                await dispatcher.notify_service_due(
-                                    vehicle_name=vehicle_name,
-                                    service_type=item.name,
-                                    days_until_due=days_left,
-                                )
-                            elif current_mileage and item.next_due_mileage:
-                                miles_left = item.next_due_mileage - current_mileage
-                                if 0 < miles_left <= notify_service_miles:
-                                    await dispatcher.notify_service_due(
-                                        vehicle_name=vehicle_name,
-                                        service_type=item.name,
-                                        days_until_due=days_left,
-                                    )
-                                else:
-                                    continue
-                            else:
-                                continue
-
-                        # Update notification tracking
-                        item.last_notified_at = now
-                        item.last_notified_status = status
-
-                except Exception as e:
-                    logger.error(
-                        "Error checking maintenance for vehicle %s: %s",
-                        vehicle.vin,
-                        str(e),
-                    )
-
-            await db.commit()
-            logger.info("Maintenance notification check complete")
-
-        except Exception as e:
-            logger.error("Maintenance notification check failed: %s", str(e))
 
 
 async def check_expiring_documents() -> None:
@@ -532,22 +409,12 @@ def start_scheduler() -> None:
         replace_existing=True,
     )
 
-    # Maintenance notification check at 8 AM UTC
-    scheduler.add_job(
-        check_maintenance_notifications,
-        "cron",
-        hour=8,
-        minute=0,
-        id="check_maintenance_notifications",
-        replace_existing=True,
-    )
-
-    # Reminder notification check at 8:15 AM UTC (offset from maintenance check)
+    # Reminder notification check at 8:00 AM UTC
     scheduler.add_job(
         check_reminder_notifications,
         "cron",
         hour=8,
-        minute=15,
+        minute=0,
         id="check_reminder_notifications",
         replace_existing=True,
     )

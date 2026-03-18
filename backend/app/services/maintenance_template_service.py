@@ -14,7 +14,6 @@ import yaml
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.maintenance_schedule_item import MaintenanceScheduleItem
 from app.models.maintenance_template import MaintenanceTemplate
 from app.models.vehicle import Vehicle
 from app.utils.logging_utils import sanitize_for_log
@@ -381,62 +380,14 @@ class MaintenanceTemplateService:
         if not vehicle:
             raise ValueError(f"Vehicle with VIN {vin} not found")
 
-        # Extract maintenance items
-        maintenance_items = template_data.get("maintenance_items", [])
-        if not maintenance_items:
-            logger.warning("No maintenance items in template %s", sanitize_for_log(template_path))
-            return 0
-
-        # Get existing template_item_ids for this VIN to avoid duplicates
-        existing_result = await db.execute(
-            select(MaintenanceScheduleItem.template_item_id).where(
-                MaintenanceScheduleItem.vin == vin,
-                MaintenanceScheduleItem.template_item_id.isnot(None),
-            )
+        # Maintenance schedule system removed in Phase 2. Template application is a no-op.
+        logger.warning(
+            "Template application deprecated — maintenance schedule removed. "
+            "Use the Reminders system instead. Template: %s, VIN: %s",
+            sanitize_for_log(template_path),
+            sanitize_for_log(vin),
         )
-        existing_ids = {row[0] for row in existing_result}
-
         items_created = 0
-
-        for item in maintenance_items:
-            try:
-                description = item.get("description")
-                if not description:
-                    continue
-
-                template_item_id = self._slugify_description(description)
-
-                # Skip duplicates
-                if template_item_id in existing_ids:
-                    logger.info(
-                        "Skipping duplicate template item %s for %s",
-                        sanitize_for_log(template_item_id),
-                        sanitize_for_log(vin),
-                    )
-                    continue
-
-                schedule_item = MaintenanceScheduleItem(
-                    vin=vin,
-                    name=description,
-                    component_category=item.get("category", "Other"),
-                    item_type=self._infer_item_type(description),
-                    interval_months=item.get("interval_months"),
-                    interval_miles=item.get("interval_miles"),
-                    source="template",
-                    template_item_id=template_item_id,
-                )
-
-                db.add(schedule_item)
-                existing_ids.add(template_item_id)
-                items_created += 1
-
-            except Exception as e:
-                logger.error(
-                    "Error creating schedule item for %s: %s",
-                    sanitize_for_log(item),
-                    sanitize_for_log(e),
-                )
-                continue
 
         # Save template application record
         template_record = MaintenanceTemplate(

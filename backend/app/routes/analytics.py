@@ -30,7 +30,6 @@ from app.models import (
     SpotRentalBilling,
     Vehicle,
 )
-from app.models.maintenance_schedule_item import MaintenanceScheduleItem
 from app.models.service_line_item import ServiceLineItem
 from app.models.spot_rental import SpotRental
 from app.models.user import User
@@ -490,12 +489,6 @@ async def get_maintenance_predictions(
     )
     visits = list(result.scalars().all())
 
-    # Get maintenance schedule items for this vehicle
-    schedule_result = await db.execute(
-        select(MaintenanceScheduleItem).where(MaintenanceScheduleItem.vin == vin)
-    )
-    schedule_items = list(schedule_result.scalars().all())
-
     # Get current mileage if not provided
     if not current_mileage:
         odometer_result = await db.execute(
@@ -512,17 +505,6 @@ async def get_maintenance_predictions(
         for li in visit.line_items:
             if li.description:
                 flat_items.append((visit.date, visit.mileage, li.description))
-
-    # Get all unique service types for schedule item matching
-    all_service_types = set(desc for _, _, desc in flat_items)
-
-    # Create mapping of service types to schedule items (fuzzy match)
-    schedule_map: dict[str, MaintenanceScheduleItem] = {}
-    for item in schedule_items:
-        for service_type in all_service_types:
-            if service_type.lower() in item.name.lower():
-                schedule_map[service_type] = item
-                break
 
     # Group by description and calculate intervals
     service_intervals: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -602,13 +584,6 @@ async def get_maintenance_predictions(
                 elif std_dev < avg_days * 0.4:
                     confidence = "medium"
 
-        # Check if there's a schedule item for this service type
-        has_schedule = service_type in schedule_map
-        schedule_next_date = schedule_map[service_type].next_due_date if has_schedule else None
-        schedule_next_mileage = (
-            schedule_map[service_type].next_due_mileage if has_schedule else None
-        )
-
         predictions.append(
             MaintenancePrediction(
                 service_type=service_type,
@@ -619,9 +594,9 @@ async def get_maintenance_predictions(
                 average_interval_days=avg_days,
                 average_interval_miles=avg_miles,
                 confidence=confidence,
-                has_schedule_item=has_schedule,
-                schedule_item_next_date=schedule_next_date,
-                schedule_item_next_mileage=schedule_next_mileage,
+                has_schedule_item=False,
+                schedule_item_next_date=None,
+                schedule_item_next_mileage=None,
             )
         )
 

@@ -23,7 +23,7 @@ export interface ServiceLineItem {
   is_inspection: boolean
   inspection_result?: InspectionResult
   inspection_severity?: InspectionSeverity
-  schedule_item_id?: number
+
   triggered_by_inspection_id?: number
   created_at: string
   is_failed_inspection: boolean
@@ -38,7 +38,7 @@ export interface ServiceLineItemCreate {
   is_inspection?: boolean
   inspection_result?: InspectionResult
   inspection_severity?: InspectionSeverity
-  schedule_item_id?: number
+
   triggered_by_inspection_id?: number
   reminder?: ReminderCreate
   temp_id?: number
@@ -56,7 +56,7 @@ export interface ServiceLineItemUpdate {
   inspection_result?: InspectionResult
   inspection_severity?: InspectionSeverity
   triggered_by_inspection_id?: number
-  schedule_item_id?: number
+
   reminder?: ReminderCreate
 }
 
@@ -127,7 +127,6 @@ export interface ServiceVisitFormLineItem {
   is_inspection: boolean
   inspection_result: InspectionResult | ''
   inspection_severity: InspectionSeverity | ''
-  schedule_item_id: number | undefined
   triggered_by_inspection_id: number | undefined
   reminderDraft?: ReminderDraft
 }

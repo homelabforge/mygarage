@@ -38,19 +38,3 @@ export interface VendorListResponse {
   total: number
 }
 
-export interface VendorPriceEntry {
-  date: string
-  cost: number
-  service_line_item_id: number
-}
-
-export interface VendorPriceHistoryResponse {
-  vendor_id: number
-  vendor_name: string
-  schedule_item_id?: number
-  schedule_item_name?: string
-  entries: VendorPriceEntry[]
-  average_cost?: number
-  min_cost?: number
-  max_cost?: number
-}

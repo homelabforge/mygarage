@@ -3,8 +3,6 @@
 # pyright: reportReturnType=false
 
 import logging
-from datetime import date
-from decimal import Decimal
 
 from fastapi import HTTPException
 from sqlalchemy import func, select
@@ -12,11 +10,9 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.maintenance_schedule_item import MaintenanceScheduleItem
 from app.models.service_line_item import ServiceLineItem
 from app.models.service_visit import ServiceVisit
 from app.models.user import User
-from app.models.vendor_price_history import VendorPriceHistory
 from app.schemas.service_visit import (
     ServiceLineItemCreate,
     ServiceLineItemResponse,
@@ -184,7 +180,6 @@ class ServiceVisitService:
                 line_item = ServiceLineItem(
                     visit_id=visit.id,
                     category=item_data.category,
-                    schedule_item_id=item_data.schedule_item_id,
                     description=item_data.description,
                     cost=item_data.cost,
                     notes=item_data.notes,
@@ -213,25 +208,6 @@ class ServiceVisitService:
                         data=item_data.reminder,
                         db=self.db,
                         line_item_id=line_item.id,
-                    )
-
-                # Update schedule item if linked (KEEP — Phase 2 removes)
-                if item_data.schedule_item_id:
-                    await self._update_schedule_item(
-                        item_data.schedule_item_id,
-                        visit.date,
-                        visit.mileage,
-                        line_item.id,
-                    )
-
-                # Record price history if vendor and schedule item
-                if visit_data.vendor_id and item_data.schedule_item_id and item_data.cost:
-                    await self._record_price_history(
-                        visit_data.vendor_id,
-                        item_data.schedule_item_id,
-                        line_item.id,
-                        visit.date,
-                        item_data.cost,
                     )
 
             # Always recompute total_cost from line items + fees (denormalized cache)
@@ -349,7 +325,7 @@ class ServiceVisitService:
 
                 for item_data in submitted:
                     if item_data.id and item_data.id in existing:
-                        # Update in place — schedule_item_id immutable on edit
+                        # Update in place
                         row = existing[item_data.id]
                         row.category = item_data.category
                         row.description = item_data.description
@@ -365,7 +341,6 @@ class ServiceVisitService:
                         line_item = ServiceLineItem(
                             visit_id=visit.id,
                             category=item_data.category,
-                            schedule_item_id=item_data.schedule_item_id,
                             description=item_data.description,
                             cost=item_data.cost,
                             notes=item_data.notes,
@@ -379,15 +354,6 @@ class ServiceVisitService:
                         if item_data.temp_id is not None:
                             temp_id_map[item_data.temp_id] = line_item.id
                         new_items.append((item_data, line_item))
-
-                        # Schedule item sync for new items
-                        if item_data.schedule_item_id:
-                            await self._update_schedule_item(
-                                item_data.schedule_item_id,
-                                visit.date,
-                                visit.mileage,
-                                line_item.id,
-                            )
 
                 # Pass 2: Resolve triggered_by_inspection_id for new items
                 for item_data, line_item in new_items:
@@ -538,7 +504,6 @@ class ServiceVisitService:
             line_item = ServiceLineItem(
                 visit_id=visit.id,
                 category=item_data.category,
-                schedule_item_id=item_data.schedule_item_id,
                 description=item_data.description,
                 cost=item_data.cost,
                 notes=item_data.notes,
@@ -549,25 +514,6 @@ class ServiceVisitService:
             )
             self.db.add(line_item)
             await self.db.flush()
-
-            # Update schedule item if linked
-            if item_data.schedule_item_id:
-                await self._update_schedule_item(
-                    item_data.schedule_item_id,
-                    visit.date,
-                    visit.mileage,
-                    line_item.id,
-                )
-
-            # Record price history
-            if visit.vendor_id and item_data.schedule_item_id and item_data.cost:
-                await self._record_price_history(
-                    visit.vendor_id,
-                    item_data.schedule_item_id,
-                    line_item.id,
-                    visit.date,
-                    item_data.cost,
-                )
 
             # Recompute total_cost (denormalized cache)
             await self.db.flush()
@@ -672,40 +618,6 @@ class ServiceVisitService:
             )
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
-    async def _update_schedule_item(
-        self,
-        schedule_item_id: int,
-        service_date: date,
-        mileage: int | None,
-        line_item_id: int,
-    ) -> None:
-        """Update a maintenance schedule item with service completion."""
-        result = await self.db.execute(
-            select(MaintenanceScheduleItem).where(MaintenanceScheduleItem.id == schedule_item_id)
-        )
-        schedule_item = result.scalar_one_or_none()
-
-        if schedule_item:
-            schedule_item.update_from_service(service_date, mileage, line_item_id)
-
-    async def _record_price_history(
-        self,
-        vendor_id: int,
-        schedule_item_id: int,
-        line_item_id: int,
-        service_date: date,
-        cost: Decimal,
-    ) -> None:
-        """Record price history for vendor comparison."""
-        price_history = VendorPriceHistory(
-            vendor_id=vendor_id,
-            schedule_item_id=schedule_item_id,
-            service_line_item_id=line_item_id,
-            date=service_date,
-            cost=cost,
-        )
-        self.db.add(price_history)
-
     def _visit_to_response(self, visit: ServiceVisit) -> ServiceVisitResponse:
         """Convert ServiceVisit model to response schema."""
         vendor_summary = None
@@ -728,7 +640,6 @@ class ServiceVisitService:
                 is_inspection=item.is_inspection,
                 inspection_result=item.inspection_result,
                 inspection_severity=item.inspection_severity,
-                schedule_item_id=item.schedule_item_id,
                 triggered_by_inspection_id=item.triggered_by_inspection_id,
                 created_at=item.created_at,
                 is_failed_inspection=item.is_failed_inspection,

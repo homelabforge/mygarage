@@ -13,7 +13,6 @@ from app.database import Base
 
 if TYPE_CHECKING:
     from app.models.service_visit import ServiceVisit
-    from app.models.vendor_price_history import VendorPriceHistory
 
 
 class Vendor(Base):
@@ -34,9 +33,6 @@ class Vendor(Base):
     # Relationships
     service_visits: Mapped[list[ServiceVisit]] = relationship(
         "ServiceVisit", back_populates="vendor"
-    )
-    price_history: Mapped[list[VendorPriceHistory]] = relationship(
-        "VendorPriceHistory", back_populates="vendor"
     )
 
     __table_args__ = (Index("idx_vendors_name", "name"),)

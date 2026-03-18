@@ -23,7 +23,6 @@ from sqlalchemy.sql import func
 from app.database import Base
 
 if TYPE_CHECKING:
-    from app.models.maintenance_schedule_item import MaintenanceScheduleItem
     from app.models.service_visit import ServiceVisit
 
 
@@ -35,9 +34,6 @@ class ServiceLineItem(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     visit_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("service_visits.id", ondelete="CASCADE"), nullable=False
-    )
-    schedule_item_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("maintenance_schedule_items.id")
     )
     description: Mapped[str] = mapped_column(String(200), nullable=False)
     category: Mapped[str | None] = mapped_column(String(30), nullable=True)
@@ -55,9 +51,6 @@ class ServiceLineItem(Base):
 
     # Relationships
     visit: Mapped[ServiceVisit] = relationship("ServiceVisit", back_populates="line_items")
-    schedule_item: Mapped[MaintenanceScheduleItem | None] = relationship(
-        "MaintenanceScheduleItem", back_populates="service_line_items"
-    )
     triggered_repairs: Mapped[list[ServiceLineItem]] = relationship(
         "ServiceLineItem",
         foreign_keys=[triggered_by_inspection_id],
@@ -75,7 +68,6 @@ class ServiceLineItem(Base):
             name="check_inspection_severity",
         ),
         Index("idx_service_line_items_visit", "visit_id"),
-        Index("idx_service_line_items_schedule", "schedule_item_id"),
     )
 
     @property

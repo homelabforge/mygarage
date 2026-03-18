@@ -12,7 +12,6 @@ from app.models.insurance import InsurancePolicy
 from app.models.livelink_device import LiveLinkDevice
 from app.models.livelink_firmware_cache import LiveLinkFirmwareCache
 from app.models.livelink_parameter import LiveLinkParameter
-from app.models.maintenance_schedule_item import MaintenanceScheduleItem
 from app.models.note import Note
 from app.models.odometer import OdometerRecord
 from app.models.oidc_state import OIDCState
@@ -35,7 +34,6 @@ from app.models.vehicle_telemetry import (
 )
 from app.models.vehicle_transfer import VehicleTransfer
 from app.models.vendor import Vendor
-from app.models.vendor_price_history import VendorPriceHistory
 from app.models.warranty import WarrantyRecord
 
 __all__ = [
@@ -75,9 +73,7 @@ __all__ = [
     "CSRFToken",
     "OIDCState",
     "Vendor",
-    "MaintenanceScheduleItem",
     "Reminder",
     "ServiceVisit",
     "ServiceLineItem",
-    "VendorPriceHistory",
 ]

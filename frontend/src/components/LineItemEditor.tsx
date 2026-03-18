@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { Trash2, ChevronDown, ChevronUp, Clipboard, Wrench, Bell } from 'lucide-react'
 import type { ServiceVisitFormLineItem } from '../types/serviceVisit'
-import type { MaintenanceScheduleItem } from '../types/maintenanceSchedule'
 import type { ReminderDraft } from '../types/reminder'
 import InspectionResult from './InspectionResult'
 
@@ -17,7 +16,6 @@ const SERVICE_SUGGESTIONS: Record<string, string[]> = {
 interface LineItemEditorProps {
   item: ServiceVisitFormLineItem
   index: number
-  scheduleItems: MaintenanceScheduleItem[]
   failedInspections: { refId: number; description: string }[]
   onChange: (index: number, field: keyof ServiceVisitFormLineItem, value: unknown) => void
   onRemove: (index: number) => void
@@ -29,7 +27,6 @@ interface LineItemEditorProps {
 export default function LineItemEditor({
   item,
   index,
-  scheduleItems,
   failedInspections,
   onChange,
   onRemove,
@@ -186,29 +183,6 @@ export default function LineItemEditor({
                 />
               </div>
             </div>
-          </div>
-
-          {/* Schedule Item Link */}
-          <div>
-            <label className="block text-sm font-medium text-garage-text mb-1">
-              Link to Schedule Item
-            </label>
-            <select
-              value={item.schedule_item_id ?? ''}
-              onChange={(e) => onChange(index, 'schedule_item_id', e.target.value ? parseInt(e.target.value) : undefined)}
-              disabled={disabled}
-              className="w-full px-3 py-2 border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text"
-            >
-              <option value="">No link (standalone service)</option>
-              {scheduleItems.map((scheduleItem) => (
-                <option key={scheduleItem.id} value={scheduleItem.id}>
-                  {scheduleItem.name} ({scheduleItem.component_category})
-                </option>
-              ))}
-            </select>
-            <p className="text-xs text-garage-text-muted mt-1">
-              Linking updates the schedule item's "last performed" date and mileage
-            </p>
           </div>
 
           {/* Inspection toggle */}

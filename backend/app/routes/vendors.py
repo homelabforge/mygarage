@@ -10,7 +10,6 @@ from app.models.user import User
 from app.schemas.vendor import (
     VendorCreate,
     VendorListResponse,
-    VendorPriceHistoryResponse,
     VendorResponse,
     VendorUpdate,
 )
@@ -172,26 +171,3 @@ async def delete_vendor(
     service = VendorService(db)
     await service.delete_vendor(vendor_id, current_user)
     return None
-
-
-@router.get("/{vendor_id}/price-history", response_model=VendorPriceHistoryResponse)
-async def get_vendor_price_history(
-    vendor_id: int,
-    schedule_item_id: int | None = Query(None, description="Filter by schedule item ID"),
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
-):
-    """
-    Get price history for a vendor.
-
-    **Path Parameters:**
-    - **vendor_id**: Vendor ID
-
-    **Query Parameters:**
-    - **schedule_item_id**: Optional filter by schedule item
-
-    **Returns:**
-    - Price history with statistics (average, min, max)
-    """
-    service = VendorService(db)
-    return await service.get_price_history(vendor_id, current_user, schedule_item_id)

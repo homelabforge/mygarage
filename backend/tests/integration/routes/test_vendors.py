@@ -288,28 +288,13 @@ class TestVendorRoutes:
         assert "100 Commerce St" in data["full_address"]
         assert "Dallas" in data["full_address"]
 
-    async def test_vendor_price_history_empty(self, client: AsyncClient, auth_headers):
-        """Test getting price history for vendor with no history."""
-        # Create a vendor
-        create_response = await client.post(
-            "/api/vendors",
-            json={"name": "No History Vendor"},
-            headers=auth_headers,
-        )
-        vendor = create_response.json()
-
-        # Get price history
+    async def test_vendor_price_history_removed(self, client: AsyncClient, auth_headers):
+        """Vendor price history endpoint was removed in Phase 2."""
         response = await client.get(
-            f"/api/vendors/{vendor['id']}/price-history",
+            "/api/vendors/1/price-history",
             headers=auth_headers,
         )
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["vendor_id"] == vendor["id"]
-        assert data["vendor_name"] == "No History Vendor"
-        assert data["history"] == []
-        assert data["average_cost"] is None
+        assert response.status_code == 404
 
     async def test_create_duplicate_vendor_name(self, client: AsyncClient, auth_headers):
         """Test that duplicate vendor names are rejected."""

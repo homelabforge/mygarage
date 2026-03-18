@@ -198,7 +198,6 @@ async def add_line_item(
         is_inspection=line_item.is_inspection,
         inspection_result=line_item.inspection_result,
         inspection_severity=line_item.inspection_severity,
-        schedule_item_id=line_item.schedule_item_id,
         triggered_by_inspection_id=line_item.triggered_by_inspection_id,
         created_at=line_item.created_at,
         is_failed_inspection=line_item.is_failed_inspection,

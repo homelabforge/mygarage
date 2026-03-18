@@ -14,8 +14,8 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.maintenance_schedule_item import MaintenanceScheduleItem
 from app.models.odometer import OdometerRecord
+from app.models.reminder import Reminder
 from app.models.service_visit import ServiceVisit
 from app.models.user import User
 from app.models.vehicle import Vehicle
@@ -169,36 +169,32 @@ class FamilyDashboardService:
         )
         current_mileage = odometer_result.scalar_one_or_none()
 
-        # Get all maintenance schedule items for this vehicle
-        schedule_result = await self.db.execute(
-            select(MaintenanceScheduleItem).where(MaintenanceScheduleItem.vin == vehicle.vin)
+        # Get pending reminders for this vehicle
+        reminder_result = await self.db.execute(
+            select(Reminder).where(Reminder.vin == vehicle.vin, Reminder.status == "pending")
         )
-        schedule_items = list(schedule_result.scalars().all())
+        reminders = list(reminder_result.scalars().all())
 
-        # Calculate overdue and upcoming counts from schedule items
+        # Calculate overdue and upcoming counts from reminders
         overdue_count = 0
         next_maintenance_description: str | None = None
         next_maintenance_due: str | None = None
         soonest_due_date: date | None = None
 
-        for item in schedule_items:
-            status = item.calculate_status(today, current_mileage)
-            if status == "overdue":
+        for reminder in reminders:
+            is_overdue = False
+            if reminder.due_date and reminder.due_date <= today:
+                is_overdue = True
+            if reminder.due_mileage and current_mileage and current_mileage >= reminder.due_mileage:
+                is_overdue = True
+
+            if is_overdue:
                 overdue_count += 1
-            elif status == "due_soon":
-                # Track the soonest due item for "next maintenance"
-                item_due_date = item.next_due_date
-                if item_due_date and (soonest_due_date is None or item_due_date < soonest_due_date):
-                    soonest_due_date = item_due_date
-                    next_maintenance_description = item.name
-                    next_maintenance_due = item_due_date.isoformat()
-            elif status == "on_track":
-                # Also consider on_track items for next upcoming
-                item_due_date = item.next_due_date
-                if item_due_date and (soonest_due_date is None or item_due_date < soonest_due_date):
-                    soonest_due_date = item_due_date
-                    next_maintenance_description = item.name
-                    next_maintenance_due = item_due_date.isoformat()
+            elif reminder.due_date:
+                if soonest_due_date is None or reminder.due_date < soonest_due_date:
+                    soonest_due_date = reminder.due_date
+                    next_maintenance_description = reminder.title
+                    next_maintenance_due = reminder.due_date.isoformat()
 
         # Build photo URL from raw DB path (e.g. "VIN/photo.jpg" -> "/api/vehicles/{vin}/photos/photo.jpg")
         main_photo_url: str | None = None

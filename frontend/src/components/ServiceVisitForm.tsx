@@ -1,17 +1,14 @@
-import { useState, useEffect, useMemo, useRef, type SyntheticEvent } from 'react'
+import { useState, useMemo, useRef, type SyntheticEvent } from 'react'
 import { Save, Plus, AlertTriangle, Paperclip } from 'lucide-react'
 import FormModalWrapper from './FormModalWrapper'
 import { toast } from 'sonner'
-import type { ServiceVisit, ServiceVisitCreate, ServiceVisitFormData, ServiceVisitFormLineItem, ServiceLineItemCreate, ServiceLineItemUpdate } from '../types/serviceVisit'
-import type { MaintenanceScheduleItem } from '../types/maintenanceSchedule'
-import type { ServiceCategory } from '../types/serviceVisit'
+import type { ServiceVisit, ServiceVisitCreate, ServiceVisitFormData, ServiceVisitFormLineItem, ServiceLineItemCreate, ServiceLineItemUpdate, ServiceCategory } from '../types/serviceVisit'
 import type { VehicleType } from '../types/vehicle'
 import { SERVICE_CATEGORIES } from '../schemas/serviceVisit'
 import VendorSearch from './VendorSearch'
 import LineItemEditor from './LineItemEditor'
 import ServiceVisitAttachmentUpload from './ServiceVisitAttachmentUpload'
 import ServiceVisitAttachmentList from './ServiceVisitAttachmentList'
-import api from '../services/api'
 import { useCreateServiceVisit, useUpdateServiceVisit } from '../hooks/queries/useServiceVisits'
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { UnitConverter, UnitFormatter } from '../utils/units'
@@ -20,7 +17,6 @@ interface ServiceVisitFormProps {
   vin: string
   vehicleType?: VehicleType
   visit?: ServiceVisit
-  preselectedScheduleItem?: MaintenanceScheduleItem
   onClose: () => void
   onSuccess: () => void
 }
@@ -34,7 +30,6 @@ const createEmptyLineItem = (tempId: number): ServiceVisitFormLineItem => ({
   is_inspection: false,
   inspection_result: '',
   inspection_severity: '',
-  schedule_item_id: undefined,
   triggered_by_inspection_id: undefined,
 })
 
@@ -44,7 +39,6 @@ export default function ServiceVisitForm({
   vin,
   vehicleType,
   visit,
-  preselectedScheduleItem,
   onClose,
   onSuccess,
 }: ServiceVisitFormProps) {
@@ -55,7 +49,6 @@ export default function ServiceVisitForm({
   const isMotorized = !vehicleType || !NON_MOTORIZED_TYPES.includes(vehicleType)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
-  const [scheduleItems, setScheduleItems] = useState<MaintenanceScheduleItem[]>([])
   const [attachmentRefreshKey, setAttachmentRefreshKey] = useState(0)
   const nextTempIdRef = useRef(-1)
 
@@ -90,20 +83,12 @@ export default function ServiceVisitForm({
           is_inspection: item.is_inspection,
           inspection_result: item.inspection_result || '',
           inspection_severity: item.inspection_severity || '',
-          schedule_item_id: item.schedule_item_id,
           triggered_by_inspection_id: item.triggered_by_inspection_id,
         })),
       }
     }
 
-    // New visit with preselected schedule item
-    const initialTempId = assignTempId()
-    const initialLineItem = createEmptyLineItem(initialTempId)
-    if (preselectedScheduleItem) {
-      initialLineItem.description = preselectedScheduleItem.name
-      initialLineItem.schedule_item_id = preselectedScheduleItem.id
-      initialLineItem.is_inspection = preselectedScheduleItem.item_type === 'inspection'
-    }
+    const initialLineItem = createEmptyLineItem(assignTempId())
 
     return {
       vendor_id: undefined,
@@ -117,18 +102,6 @@ export default function ServiceVisitForm({
       line_items: [initialLineItem],
     }
   })
-
-  // Load schedule items for linking
-  useEffect(() => {
-    api
-      .get(`/vehicles/${vin}/maintenance-schedule`)
-      .then((response) => {
-        setScheduleItems(response.data.items || [])
-      })
-      .catch(() => {
-        // Ignore error, schedule items are optional
-      })
-  }, [vin])
 
   // Calculate subtotal and total cost
   const subtotal = useMemo(() => {
@@ -236,7 +209,6 @@ export default function ServiceVisitForm({
           inspection_result: item.inspection_result || undefined,
           inspection_severity: item.inspection_severity || undefined,
           triggered_by_inspection_id: item.triggered_by_inspection_id,
-          schedule_item_id: item.id ? undefined : item.schedule_item_id,
           // Reminder only for new items (no id) that have an enabled draft
           reminder: !item.id && item.reminderDraft?.enabled ? {
             title: item.reminderDraft.title,
@@ -270,7 +242,6 @@ export default function ServiceVisitForm({
           is_inspection: item.is_inspection,
           inspection_result: item.inspection_result || undefined,
           inspection_severity: item.inspection_severity || undefined,
-          schedule_item_id: item.schedule_item_id,
           triggered_by_inspection_id: item.triggered_by_inspection_id,
           temp_id: item.tempId,
           reminder: item.reminderDraft?.enabled ? {
@@ -418,7 +389,6 @@ export default function ServiceVisitForm({
                   <LineItemEditor
                     item={item}
                     index={index}
-                    scheduleItems={scheduleItems}
                     failedInspections={failedInspections.filter((fi) => fi.refId !== (item.id ?? item.tempId ?? 0))}
                     onChange={handleLineItemChange}
                     onRemove={handleRemoveLineItem}

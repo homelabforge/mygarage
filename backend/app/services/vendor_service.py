@@ -7,14 +7,10 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.maintenance_schedule_item import MaintenanceScheduleItem
 from app.models.user import User
 from app.models.vendor import Vendor
-from app.models.vendor_price_history import VendorPriceHistory
 from app.schemas.vendor import (
     VendorCreate,
-    VendorPriceHistoryEntry,
-    VendorPriceHistoryResponse,
     VendorResponse,
     VendorUpdate,
 )
@@ -235,64 +231,3 @@ class VendorService:
                 sanitize_for_log(e),
             )
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
-
-    async def get_price_history(
-        self,
-        vendor_id: int,
-        current_user: User,
-        schedule_item_id: int | None = None,
-    ) -> VendorPriceHistoryResponse:
-        """
-        Get price history for a vendor.
-
-        Args:
-            vendor_id: Vendor ID
-            current_user: The authenticated user
-            schedule_item_id: Optional filter by schedule item
-
-        Returns:
-            Price history response with statistics
-        """
-        vendor = await self.get_vendor(vendor_id, current_user)
-
-        query = (
-            select(VendorPriceHistory, MaintenanceScheduleItem.name)
-            .join(
-                MaintenanceScheduleItem,
-                VendorPriceHistory.schedule_item_id == MaintenanceScheduleItem.id,
-            )
-            .where(VendorPriceHistory.vendor_id == vendor_id)
-        )
-
-        if schedule_item_id:
-            query = query.where(VendorPriceHistory.schedule_item_id == schedule_item_id)
-
-        query = query.order_by(VendorPriceHistory.date.desc())
-
-        result = await self.db.execute(query)
-        rows = result.all()
-
-        history = [
-            VendorPriceHistoryEntry(
-                date=str(row[0].date),
-                cost=float(row[0].cost),
-                service_name=row[1],
-                service_line_item_id=row[0].service_line_item_id,
-            )
-            for row in rows
-        ]
-
-        # Calculate statistics
-        costs = [h.cost for h in history]
-        avg_cost = sum(costs) / len(costs) if costs else None
-        min_cost = min(costs) if costs else None
-        max_cost = max(costs) if costs else None
-
-        return VendorPriceHistoryResponse(
-            vendor_id=vendor_id,
-            vendor_name=vendor.name,
-            history=history,
-            average_cost=avg_cost,
-            min_cost=min_cost,
-            max_cost=max_cost,
-        )
