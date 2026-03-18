@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Per-line-item service categories with category-aware suggestion combobox
+- Vehicle reminders system (date, mileage, both, smart modes) with inline creation from service visits
+- Reminders sub-tab in Tracking tab with filter views and done/dismiss actions
+- Diff-based service visit line item editing (preserves IDs for reminder FKs)
+- Calendar and dashboard now powered by reminders instead of maintenance schedule
+
+### Removed
+- Maintenance schedule system (tables, routes, services, frontend components)
+- Vendor price history system (schedule-dependent)
+- Visit-level service category selector (auto-derived from line items)
+
 ## [2.24.1] - 2026-03-16
 
 ### Fixed
