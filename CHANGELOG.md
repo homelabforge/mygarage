@@ -8,11 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- OpenAPI-generated TypeScript types: frontend types are now auto-generated from backend Pydantic schemas via `openapi-typescript`, eliminating manual type drift
+- CI freshness gate (`check-api-types` job) ensures generated types stay in sync with backend schemas
 - Per-line-item service categories with category-aware suggestion combobox
 - Vehicle reminders system (date, mileage, both, smart modes) with inline creation from service visits
 - Reminders sub-tab in Tracking tab with filter views and done/dismiss actions
 - Diff-based service visit line item editing (preserves IDs for reminder FKs)
 - Calendar and dashboard now powered by reminders instead of maintenance schedule
+
+### Fixed
+- Fix service_line_items table schema lost during migration 049 (restore PK, autoincrement, FKs, constraints)
+- Fix Vite 8 build failure: convert `manualChunks` from object to function for Rolldown compatibility
 
 ### Removed
 - Maintenance schedule system (tables, routes, services, frontend components)

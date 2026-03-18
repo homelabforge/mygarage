@@ -35,14 +35,14 @@ export default defineConfig({
       },
       output: {
         // Manual chunk splitting for better caching and performance
-        manualChunks: {
-          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-          'charts': ['recharts'],
-          'calendar': ['react-big-calendar', 'date-fns'],
-          'ui': ['lucide-react', 'sonner'],
-          'forms': ['react-hook-form', 'zod', '@hookform/resolvers'],
-          'query': ['@tanstack/react-query'],
-          'utils': ['axios'],
+        manualChunks(id: string) {
+          if (id.includes('node_modules/react-dom') || id.includes('node_modules/react/') || id.includes('node_modules/react-router-dom')) return 'react-vendor'
+          if (id.includes('node_modules/recharts')) return 'charts'
+          if (id.includes('node_modules/react-big-calendar') || id.includes('node_modules/date-fns')) return 'calendar'
+          if (id.includes('node_modules/lucide-react') || id.includes('node_modules/sonner')) return 'ui'
+          if (id.includes('node_modules/react-hook-form') || id.includes('node_modules/zod') || id.includes('node_modules/@hookform')) return 'forms'
+          if (id.includes('node_modules/@tanstack/react-query')) return 'query'
+          if (id.includes('node_modules/axios')) return 'utils'
         },
       },
     },
