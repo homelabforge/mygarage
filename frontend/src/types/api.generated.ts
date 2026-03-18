@@ -5610,10 +5610,7 @@ export interface components {
         };
         /** Body_import_def_csv_api_import_vehicles__vin__def_csv_post */
         Body_import_def_csv_api_import_vehicles__vin__def_csv_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
             /**
              * Skip Duplicates
@@ -5623,10 +5620,7 @@ export interface components {
         };
         /** Body_import_fuel_csv_api_import_vehicles__vin__fuel_csv_post */
         Body_import_fuel_csv_api_import_vehicles__vin__fuel_csv_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
             /**
              * Skip Duplicates
@@ -5636,10 +5630,7 @@ export interface components {
         };
         /** Body_import_insurance_csv_api_import_vehicles__vin__insurance_csv_post */
         Body_import_insurance_csv_api_import_vehicles__vin__insurance_csv_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
             /**
              * Skip Duplicates
@@ -5649,10 +5640,7 @@ export interface components {
         };
         /** Body_import_notes_csv_api_import_vehicles__vin__notes_csv_post */
         Body_import_notes_csv_api_import_vehicles__vin__notes_csv_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
             /**
              * Skip Duplicates
@@ -5662,10 +5650,7 @@ export interface components {
         };
         /** Body_import_odometer_csv_api_import_vehicles__vin__odometer_csv_post */
         Body_import_odometer_csv_api_import_vehicles__vin__odometer_csv_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
             /**
              * Skip Duplicates
@@ -5675,10 +5660,7 @@ export interface components {
         };
         /** Body_import_service_csv_api_import_vehicles__vin__service_csv_post */
         Body_import_service_csv_api_import_vehicles__vin__service_csv_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
             /**
              * Skip Duplicates
@@ -5688,10 +5670,7 @@ export interface components {
         };
         /** Body_import_tax_csv_api_import_vehicles__vin__tax_csv_post */
         Body_import_tax_csv_api_import_vehicles__vin__tax_csv_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
             /**
              * Skip Duplicates
@@ -5701,10 +5680,7 @@ export interface components {
         };
         /** Body_import_vehicle_json_api_import_vehicles__vin__json_post */
         Body_import_vehicle_json_api_import_vehicles__vin__json_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
             /**
              * Skip Duplicates
@@ -5714,10 +5690,7 @@ export interface components {
         };
         /** Body_import_warranties_csv_api_import_vehicles__vin__warranties_csv_post */
         Body_import_warranties_csv_api_import_vehicles__vin__warranties_csv_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
             /**
              * Skip Duplicates
@@ -5727,34 +5700,22 @@ export interface components {
         };
         /** Body_parse_insurance_pdf_api_vehicles__vin__insurance_parse_pdf_post */
         Body_parse_insurance_pdf_api_vehicles__vin__insurance_parse_pdf_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
         };
         /** Body_test_parse_insurance_pdf_api_vehicles__vin__insurance_test_parse_post */
         Body_test_parse_insurance_pdf_api_vehicles__vin__insurance_test_parse_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
         };
         /** Body_test_window_sticker_extraction_api_vehicles__vin__window_sticker_test_post */
         Body_test_window_sticker_extraction_api_vehicles__vin__window_sticker_test_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
         };
         /** Body_upload_backup_api_backup_upload_post */
         Body_upload_backup_api_backup_upload_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
         };
         /** Body_upload_document_api_vehicles__vin__documents_post */
@@ -5763,30 +5724,21 @@ export interface components {
             description?: string | null;
             /** Document Type */
             document_type?: string | null;
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
             /** Title */
             title: string;
         };
         /** Body_upload_service_visit_attachment_api_service_visits__visit_id__attachments_post */
         Body_upload_service_visit_attachment_api_service_visits__visit_id__attachments_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
         };
         /** Body_upload_vehicle_photo_api_vehicles__vin__photos_post */
         Body_upload_vehicle_photo_api_vehicles__vin__photos_post: {
             /** Caption */
             caption?: string | null;
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
             /**
              * Set As Main
@@ -5796,10 +5748,7 @@ export interface components {
         };
         /** Body_upload_window_sticker_api_vehicles__vin__window_sticker_upload_post */
         Body_upload_window_sticker_api_vehicles__vin__window_sticker_upload_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
         };
         /**
