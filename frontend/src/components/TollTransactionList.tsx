@@ -85,7 +85,7 @@ export default function TollTransactionList({ vin, onAddClick, onEditClick }: To
     })
   }
 
-  const getTollTagName = (tagId?: number): string => {
+  const getTollTagName = (tagId?: number | null): string => {
     if (!tagId) return 'N/A'
     const tag = tollTags.find(t => t.id === tagId)
     return tag ? `${tag.toll_system} (${tag.tag_number})` : 'Unknown Tag'
@@ -162,7 +162,7 @@ export default function TollTransactionList({ vin, onAddClick, onEditClick }: To
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs text-garage-text-muted mb-1">Total Amount</p>
-                <p className="text-2xl font-bold text-garage-text">{formatCurrency(summary.total_amount)}</p>
+                <p className="text-2xl font-bold text-garage-text">{formatCurrency(Number(summary.total_amount))}</p>
               </div>
               <DollarSign className="text-success" size={24} />
             </div>
@@ -173,7 +173,7 @@ export default function TollTransactionList({ vin, onAddClick, onEditClick }: To
                 <p className="text-xs text-garage-text-muted mb-1">Average per Transaction</p>
                 <p className="text-2xl font-bold text-garage-text">
                   {summary.total_transactions > 0
-                    ? formatCurrency(summary.total_amount / summary.total_transactions)
+                    ? formatCurrency(Number(summary.total_amount) / summary.total_transactions)
                     : '$0.00'}
                 </p>
               </div>
@@ -267,15 +267,18 @@ export default function TollTransactionList({ vin, onAddClick, onEditClick }: To
                 </tr>
               </thead>
               <tbody className="divide-y divide-garage-border">
-                {summary.monthly_totals.map((monthly) => (
-                  <tr key={monthly.month} className="hover:bg-garage-bg/50">
+                {summary.monthly_totals.map((monthly) => {
+                  const m = monthly as { month: string; count: number; amount: number }
+                  return (
+                  <tr key={m.month} className="hover:bg-garage-bg/50">
                     <td className="px-4 py-3 text-sm text-garage-text">
-                      {new Date(monthly.month + '-01').toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}
+                      {new Date(m.month + '-01').toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}
                     </td>
-                    <td className="px-4 py-3 text-sm text-garage-text">{monthly.count}</td>
-                    <td className="px-4 py-3 text-sm font-semibold text-garage-text">{formatCurrency(monthly.amount)}</td>
+                    <td className="px-4 py-3 text-sm text-garage-text">{m.count}</td>
+                    <td className="px-4 py-3 text-sm font-semibold text-garage-text">{formatCurrency(m.amount)}</td>
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
           </div>

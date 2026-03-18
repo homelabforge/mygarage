@@ -201,7 +201,7 @@ export default function PropaneRecordList({ vin }: PropaneRecordListProps) {
                       {formatDateForDisplay(record.date)}
                     </td>
                     <td className="px-4 py-3 text-sm text-garage-text text-right font-medium">
-                      {formatVolume(record.propane_gallons)}
+                      {formatVolume(record.propane_gallons ?? undefined)}
                     </td>
                     <td className="px-4 py-3 text-sm text-garage-text text-right">
                       {formatCurrency(record.price_per_unit)}
@@ -210,7 +210,7 @@ export default function PropaneRecordList({ vin }: PropaneRecordListProps) {
                       {formatCurrency(record.cost)}
                     </td>
                     <td className="px-4 py-3 text-sm text-garage-text-muted">
-                      {extractVendor(record.notes)}
+                      {extractVendor(record.notes ?? undefined)}
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex gap-1 justify-end">

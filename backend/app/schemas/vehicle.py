@@ -2,9 +2,23 @@
 
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
+
+# Shared vehicle type literal for OpenAPI schema generation
+VehicleType = Literal[
+    "Car",
+    "Truck",
+    "SUV",
+    "Motorcycle",
+    "RV",
+    "Trailer",
+    "FifthWheel",
+    "TravelTrailer",
+    "Electric",
+    "Hybrid",
+]
 
 
 class VehicleBase(BaseModel):
@@ -13,7 +27,7 @@ class VehicleBase(BaseModel):
     nickname: str = Field(
         ..., description="User-friendly display name", min_length=1, max_length=100
     )
-    vehicle_type: str = Field(..., description="Type of vehicle")
+    vehicle_type: VehicleType = Field(..., description="Type of vehicle")
     year: int | None = Field(None, description="Model year", ge=1900, le=2100)
     make: str | None = Field(None, description="Manufacturer brand", max_length=50)
     model: str | None = Field(None, description="Model name", max_length=50)
@@ -42,26 +56,6 @@ class VehicleBase(BaseModel):
     def_tank_capacity_gallons: Decimal | None = Field(
         None, description="DEF tank capacity in gallons", ge=0, le=999.99
     )
-
-    @field_validator("vehicle_type")
-    @classmethod
-    def validate_vehicle_type(cls, v: str) -> str:
-        """Validate vehicle type."""
-        valid_types = [
-            "Car",
-            "Truck",
-            "SUV",
-            "Motorcycle",
-            "RV",
-            "Trailer",
-            "FifthWheel",
-            "TravelTrailer",
-            "Electric",
-            "Hybrid",
-        ]
-        if v not in valid_types:
-            raise ValueError(f"Vehicle type must be one of: {', '.join(valid_types)}")
-        return v
 
 
 class VehicleCreate(VehicleBase):
@@ -112,7 +106,7 @@ class VehicleUpdate(VehicleBase):
     nickname: str | None = Field(
         None, description="User-friendly display name", min_length=1, max_length=100
     )
-    vehicle_type: str | None = Field(None, description="Type of vehicle")
+    vehicle_type: VehicleType | None = Field(None, description="Type of vehicle")
 
     model_config = {
         "json_schema_extra": {

@@ -1,134 +1,30 @@
 /**
  * Vehicle type definitions
+ *
+ * Section A: Generated aliases from openapi-typescript
+ * Section B: Manual types (no response_model or backend uses str)
  */
 
-export type VehicleType = 'Car' | 'Truck' | 'SUV' | 'Motorcycle' | 'RV' | 'Trailer' | 'FifthWheel' | 'TravelTrailer' | 'Electric' | 'Hybrid'
+import type { components } from './api.generated'
 
-export interface Vehicle {
-  vin: string
-  nickname: string
-  vehicle_type: VehicleType
-  year?: number
-  make?: string
-  model?: string
-  license_plate?: string
-  color?: string
-  purchase_date?: string
-  purchase_price?: number
-  sold_date?: string
-  sold_price?: number
-  main_photo?: string
-  // VIN decoded fields
-  trim?: string
-  body_class?: string
-  drive_type?: string
-  doors?: number
-  gvwr_class?: string
-  displacement_l?: string
-  cylinders?: number
-  fuel_type?: string
-  transmission_type?: string
-  transmission_speeds?: string
-  // Window sticker fields
-  window_sticker_file_path?: string
-  window_sticker_uploaded_at?: string
-  msrp_base?: number
-  msrp_options?: number
-  msrp_total?: number
-  fuel_economy_city?: number
-  fuel_economy_highway?: number
-  fuel_economy_combined?: number
-  standard_equipment?: Record<string, unknown>
-  optional_equipment?: Record<string, unknown>
-  assembly_location?: string
-  // Enhanced window sticker fields
-  destination_charge?: number
-  window_sticker_options_detail?: Record<string, string>
-  window_sticker_packages?: Record<string, string>
-  exterior_color?: string
-  interior_color?: string
-  sticker_engine_description?: string
-  sticker_transmission_description?: string
-  sticker_drivetrain?: string
-  wheel_specs?: string
-  tire_specs?: string
-  warranty_powertrain?: string
-  warranty_basic?: string
-  environmental_rating_ghg?: string
-  environmental_rating_smog?: string
-  window_sticker_parser_used?: string
-  window_sticker_confidence_score?: number
-  window_sticker_extracted_vin?: string
-  created_at: string
-  updated_at?: string
-  // Archive fields
-  archived_at?: string | null
-  archive_reason?: string | null
-  archive_sale_price?: number | null
-  archive_sale_date?: string | null
-  archive_notes?: string | null
-  archived_visible?: boolean
-  // DEF tracking
-  def_tank_capacity_gallons?: number | string
-}
+// =============================================================================
+// Section A — Generated aliases
+// =============================================================================
 
-export interface VehicleCreate {
-  vin: string
-  nickname: string
-  vehicle_type: VehicleType
-  year?: number
-  make?: string
-  model?: string
-  license_plate?: string
-  color?: string
-  purchase_date?: string
-  purchase_price?: number
-  sold_date?: string
-  sold_price?: number
-  // VIN decoded fields
-  trim?: string
-  body_class?: string
-  drive_type?: string
-  doors?: number
-  gvwr_class?: string
-  displacement_l?: string
-  cylinders?: number
-  fuel_type?: string
-  transmission_type?: string
-  transmission_speeds?: string
-  def_tank_capacity_gallons?: number | string
-}
+export type Vehicle = components['schemas']['VehicleResponse']
+export type VehicleCreate = components['schemas']['VehicleCreate']
+export type VehicleUpdate = components['schemas']['VehicleUpdate']
+export type VehicleListResponse = components['schemas']['VehicleListResponse']
+export type TrailerDetails = components['schemas']['TrailerDetailsResponse']
+export type TrailerDetailsCreate = components['schemas']['TrailerDetailsCreate']
+export type TrailerDetailsUpdate = components['schemas']['TrailerDetailsUpdate']
 
-export interface VehicleUpdate {
-  nickname?: string
-  vehicle_type?: VehicleType
-  year?: number
-  make?: string
-  model?: string
-  license_plate?: string
-  color?: string
-  purchase_date?: string
-  purchase_price?: number
-  sold_date?: string
-  sold_price?: number
-  // VIN decoded fields
-  trim?: string
-  body_class?: string
-  drive_type?: string
-  doors?: number
-  gvwr_class?: string
-  displacement_l?: string
-  cylinders?: number
-  fuel_type?: string
-  transmission_type?: string
-  transmission_speeds?: string
-  def_tank_capacity_gallons?: number | string
-}
+/** Derived from the generated VehicleResponse vehicle_type enum */
+export type VehicleType = NonNullable<Vehicle['vehicle_type']>
 
-export interface VehicleListResponse {
-  vehicles: Vehicle[]
-  total: number
-}
+// =============================================================================
+// Section B — Manual types (photo routes have no response_model; hitch/brake use str)
+// =============================================================================
 
 export interface VehiclePhoto {
   id: number
@@ -157,42 +53,5 @@ export interface VehiclePhotoUploadResponse {
   uploaded_at?: string
 }
 
-// Trailer Details Types
-
 export type HitchType = 'Ball' | 'Pintle' | 'Fifth Wheel' | 'Gooseneck'
 export type BrakeType = 'None' | 'Electric' | 'Hydraulic'
-
-export interface TrailerDetails {
-  vin: string
-  gvwr?: number
-  hitch_type?: HitchType
-  axle_count?: number
-  brake_type?: BrakeType
-  length_ft?: number
-  width_ft?: number
-  height_ft?: number
-  tow_vehicle_vin?: string
-}
-
-export interface TrailerDetailsCreate {
-  vin: string
-  gvwr?: number
-  hitch_type?: HitchType
-  axle_count?: number
-  brake_type?: BrakeType
-  length_ft?: number
-  width_ft?: number
-  height_ft?: number
-  tow_vehicle_vin?: string
-}
-
-export interface TrailerDetailsUpdate {
-  gvwr?: number
-  hitch_type?: HitchType
-  axle_count?: number
-  brake_type?: BrakeType
-  length_ft?: number
-  width_ft?: number
-  height_ft?: number
-  tow_vehicle_vin?: string
-}

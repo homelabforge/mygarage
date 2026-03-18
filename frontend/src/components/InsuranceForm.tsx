@@ -62,9 +62,9 @@ export default function InsuranceForm({ vin, record, onClose, onSuccess }: Insur
     if (extractedData.policy_type) setValue('policy_type', extractedData.policy_type)
     if (extractedData.start_date) setValue('start_date', extractedData.start_date)
     if (extractedData.end_date) setValue('end_date', extractedData.end_date)
-    if (extractedData.premium_amount) setValue('premium_amount', extractedData.premium_amount)
+    if (extractedData.premium_amount) setValue('premium_amount', String(extractedData.premium_amount))
     if (extractedData.premium_frequency) setValue('premium_frequency', extractedData.premium_frequency)
-    if (extractedData.deductible) setValue('deductible', extractedData.deductible)
+    if (extractedData.deductible) setValue('deductible', String(extractedData.deductible))
     if (extractedData.coverage_limits) setValue('coverage_limits', extractedData.coverage_limits)
     if (extractedData.notes) setValue('notes', extractedData.notes)
   }

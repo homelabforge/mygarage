@@ -122,7 +122,7 @@ export default function POICard({ poi, onSave, isSaved }: POICardProps) {
       {poi.rating && (
         <div className="flex items-center gap-2 mt-2">
           <Star className="w-4 h-4 text-yellow-400 fill-yellow-400 flex-shrink-0" />
-          <span className="text-sm text-gray-600 dark:text-gray-400">{poi.rating.toFixed(1)}</span>
+          <span className="text-sm text-gray-600 dark:text-gray-400">{parseFloat(String(poi.rating)).toFixed(1)}</span>
         </div>
       )}
 

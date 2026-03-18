@@ -51,6 +51,9 @@ import type {
   VendorAnalyticsSummary,
   SeasonalAnalyticsSummary,
   PeriodComparison,
+  PropaneAnalysis,
+  SpotRentalAnalysis,
+  DEFAnalysis,
 } from '../types/analytics'
 import AnalyticsHelpModal from '../components/AnalyticsHelpModal'
 import { formatCurrencyZero as formatCurrency } from '../utils/formatUtils'
@@ -355,6 +358,11 @@ export default function Analytics() {
   }
 
   const { cost_analysis, cost_projection, fuel_economy, fuel_alerts, service_history, predictions } = analytics
+
+  // Type-cast unstructured analysis fields (generated schema types them as { [key: string]: unknown })
+  const propane = analytics.propane_analysis as PropaneAnalysis | null | undefined
+  const spotRental = analytics.spot_rental_analysis as SpotRentalAnalysis | null | undefined
+  const defAnalysis = analytics.def_analysis as DEFAnalysis | null | undefined
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-7xl">
@@ -821,7 +829,7 @@ export default function Analytics() {
                   </div>
                 </div>
                 <div className="text-right">
-                  {prediction.days_until_due !== null && (
+                  {prediction.days_until_due != null && (
                     <p className={`text-sm font-medium ${
                       prediction.days_until_due < 30 ? 'text-danger' :
                       prediction.days_until_due < 60 ? 'text-warning' :
@@ -832,7 +840,7 @@ export default function Analytics() {
                        `${prediction.days_until_due} days`}
                     </p>
                   )}
-                  {prediction.miles_until_due !== null && (
+                  {prediction.miles_until_due != null && (
                     <p className="text-xs text-garage-text-muted mt-1">
                       {prediction.miles_until_due < 0 ? 'Past mileage' : UnitFormatter.formatDistance(prediction.miles_until_due, system, false)}
                     </p>
@@ -990,7 +998,7 @@ export default function Analytics() {
                 />
                 <Bar dataKey="Service" fill="#3B82F6" stackId="a" />
                 <Bar dataKey="Fuel" fill="#10B981" stackId="a" />
-                {analytics.def_analysis && <Bar dataKey="DEF" fill="#14B8A6" stackId="a" />}
+                {defAnalysis && <Bar dataKey="DEF" fill="#14B8A6" stackId="a" />}
                 {hasPropane && <Bar dataKey="Spot Rental" fill="#F59E0B" stackId="a" />}
               </RechartsBarChart>
             </ResponsiveContainer>
@@ -1139,7 +1147,7 @@ export default function Analytics() {
       )}
 
       {/* Propane Analysis for Fifth Wheels and RVs */}
-      {hasPropane && analytics.propane_analysis && analytics.propane_analysis.record_count > 0 && (
+      {hasPropane && propane && propane.record_count > 0 && (
         <div className="bg-garage-surface border border-garage-border rounded-lg p-6 mb-8">
           <div className="flex items-center gap-2 mb-4">
             <Fuel className="w-5 h-5 text-garage-text-muted" />
@@ -1149,31 +1157,31 @@ export default function Analytics() {
             <div className="text-center p-4 bg-garage-bg rounded-lg">
               <p className="text-sm text-garage-text-muted mb-1">Total Spent</p>
               <p className="text-2xl font-bold text-garage-text">
-                {formatCurrency(analytics.propane_analysis.total_spent)}
+                {formatCurrency(propane.total_spent)}
               </p>
             </div>
             <div className="text-center p-4 bg-garage-bg rounded-lg">
               <p className="text-sm text-garage-text-muted mb-1">{system === 'metric' ? 'Total Liters' : 'Total Gallons'}</p>
               <p className="text-2xl font-bold text-garage-text">
-                {UnitFormatter.formatVolumeTotal(parseFloat(analytics.propane_analysis.total_gallons), system).replace(' total', '')}
+                {UnitFormatter.formatVolumeTotal(parseFloat(propane.total_gallons), system).replace(' total', '')}
               </p>
             </div>
             <div className="text-center p-4 bg-garage-bg rounded-lg">
               <p className="text-sm text-garage-text-muted mb-1">Avg Price/{UnitFormatter.getVolumeUnit(system)}</p>
               <p className="text-2xl font-bold text-primary">
-                {analytics.propane_analysis.avg_price_per_gallon
-                  ? UnitFormatter.formatCostPerVolume(parseFloat(analytics.propane_analysis.avg_price_per_gallon), system)
+                {propane.avg_price_per_gallon
+                  ? UnitFormatter.formatCostPerVolume(parseFloat(propane.avg_price_per_gallon), system)
                   : 'N/A'}
               </p>
             </div>
           </div>
 
           {/* Propane Cost Trend Chart */}
-          {analytics.propane_analysis.monthly_trend && analytics.propane_analysis.monthly_trend.length > 0 && (
+          {propane.monthly_trend && propane.monthly_trend.length > 0 && (
             <div className="mb-6 bg-garage-bg rounded-lg p-4">
               <h3 className="text-sm font-medium text-garage-text-muted mb-4">Monthly Propane Costs</h3>
               <ResponsiveContainer width="100%" height={300}>
-                <RechartsBarChart data={analytics.propane_analysis.monthly_trend}>
+                <RechartsBarChart data={propane.monthly_trend}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                   <XAxis dataKey="month_name" stroke="#9CA3AF" />
                   <YAxis stroke="#9CA3AF" />
@@ -1206,7 +1214,7 @@ export default function Analytics() {
       )}
 
       {/* Spot Rental Analysis for Fifth Wheels and RVs */}
-      {hasPropane && analytics.spot_rental_analysis && analytics.spot_rental_analysis.billing_count > 0 && (
+      {hasPropane && spotRental && spotRental.billing_count > 0 && (
         <div className="bg-garage-surface border border-garage-border rounded-lg p-6 mb-8">
           <div className="flex items-center gap-2 mb-4">
             <DollarSign className="w-5 h-5 text-garage-text-muted" />
@@ -1216,29 +1224,29 @@ export default function Analytics() {
             <div className="text-center p-4 bg-garage-bg rounded-lg">
               <p className="text-sm text-garage-text-muted mb-1">Total Cost</p>
               <p className="text-2xl font-bold text-garage-text">
-                {formatCurrency(analytics.spot_rental_analysis.total_cost)}
+                {formatCurrency(spotRental.total_cost)}
               </p>
             </div>
             <div className="text-center p-4 bg-garage-bg rounded-lg">
               <p className="text-sm text-garage-text-muted mb-1">Billing Periods</p>
               <p className="text-2xl font-bold text-garage-text">
-                {analytics.spot_rental_analysis.billing_count}
+                {spotRental.billing_count}
               </p>
             </div>
             <div className="text-center p-4 bg-garage-bg rounded-lg">
               <p className="text-sm text-garage-text-muted mb-1">Monthly Average</p>
               <p className="text-2xl font-bold text-primary">
-                {formatCurrency(analytics.spot_rental_analysis.monthly_average)}
+                {formatCurrency(spotRental.monthly_average)}
               </p>
             </div>
           </div>
 
           {/* Spot Rental Cost Trend Chart */}
-          {analytics.spot_rental_analysis.monthly_trend && analytics.spot_rental_analysis.monthly_trend.length > 0 && (
+          {spotRental.monthly_trend && spotRental.monthly_trend.length > 0 && (
             <div className="bg-garage-bg rounded-lg p-4">
               <h3 className="text-sm font-medium text-garage-text-muted mb-4">Monthly Spot Rental Costs</h3>
               <ResponsiveContainer width="100%" height={300}>
-                <RechartsBarChart data={analytics.spot_rental_analysis.monthly_trend}>
+                <RechartsBarChart data={spotRental.monthly_trend}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                   <XAxis dataKey="month_name" stroke="#9CA3AF" />
                   <YAxis stroke="#9CA3AF" />
@@ -1281,7 +1289,7 @@ export default function Analytics() {
       )}
 
       {/* DEF Analysis for diesel vehicles */}
-      {analytics.def_analysis && analytics.def_analysis.record_count > 0 && (
+      {defAnalysis && defAnalysis.record_count > 0 && (
         <div className="bg-garage-surface border border-garage-border rounded-lg p-6 mb-8">
           <div className="flex items-center gap-2 mb-4">
             <Droplets className="w-5 h-5 text-teal-500" />
@@ -1291,28 +1299,28 @@ export default function Analytics() {
             <div className="text-center p-4 bg-garage-bg rounded-lg">
               <p className="text-sm text-garage-text-muted mb-1">Total Spent</p>
               <p className="text-2xl font-bold text-garage-text">
-                {formatCurrency(analytics.def_analysis.total_spent)}
+                {formatCurrency(defAnalysis.total_spent)}
               </p>
             </div>
             <div className="text-center p-4 bg-garage-bg rounded-lg">
               <p className="text-sm text-garage-text-muted mb-1">{system === 'metric' ? 'Total Liters' : 'Total Gallons'}</p>
               <p className="text-2xl font-bold text-garage-text">
-                {UnitFormatter.formatVolumeTotal(parseFloat(analytics.def_analysis.total_gallons), system).replace(' total', '')}
+                {UnitFormatter.formatVolumeTotal(parseFloat(defAnalysis.total_gallons), system).replace(' total', '')}
               </p>
             </div>
             <div className="text-center p-4 bg-garage-bg rounded-lg">
               <p className="text-sm text-garage-text-muted mb-1">{UnitFormatter.getCostPerVolumeLabel(system)}</p>
               <p className="text-2xl font-bold text-garage-text">
-                {analytics.def_analysis.avg_cost_per_gallon
-                  ? UnitFormatter.formatCostPerVolume(parseFloat(analytics.def_analysis.avg_cost_per_gallon), system)
+                {defAnalysis.avg_cost_per_gallon
+                  ? UnitFormatter.formatCostPerVolume(parseFloat(defAnalysis.avg_cost_per_gallon), system)
                   : '-'}
               </p>
             </div>
             <div className="text-center p-4 bg-garage-bg rounded-lg">
               <p className="text-sm text-garage-text-muted mb-1">Consumption Rate</p>
               <p className="text-2xl font-bold text-primary">
-                {analytics.def_analysis.gallons_per_1000_miles
-                  ? `${UnitFormatter.formatVolumePerDistance(parseFloat(analytics.def_analysis.gallons_per_1000_miles), system)} ${UnitFormatter.getVolumePerDistanceLabel(system)}`
+                {defAnalysis.gallons_per_1000_miles
+                  ? `${UnitFormatter.formatVolumePerDistance(parseFloat(defAnalysis.gallons_per_1000_miles), system)} ${UnitFormatter.getVolumePerDistanceLabel(system)}`
                   : '-'}
               </p>
             </div>

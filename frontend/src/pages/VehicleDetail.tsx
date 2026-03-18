@@ -340,7 +340,7 @@ export default function VehicleDetail() {
     }
   }
 
-  const formatDate = (dateString?: string) => {
+  const formatDate = (dateString?: string | null) => {
     if (!dateString) return 'Not specified'
     const date = new Date(dateString)
     return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
@@ -1108,8 +1108,8 @@ export default function VehicleDetail() {
                       )}
                       {Array.isArray(items) ? (
                         <ul className="space-y-1">
-                          {items.map((item, idx) => {
-                            const price = vehicle.window_sticker_options_detail?.[item as string]
+                          {(items as string[]).map((item, idx) => {
+                            const price = vehicle.window_sticker_options_detail?.[item] as string | undefined
                             return (
                               <li key={idx} className="text-sm text-garage-text flex justify-between">
                                 <span>{item}</span>
@@ -1132,12 +1132,15 @@ export default function VehicleDetail() {
               <div className="bg-garage-surface rounded-lg border border-garage-border p-6 break-inside-avoid">
                 <h2 className="text-xl font-semibold text-garage-text mb-4">Packages</h2>
                 <div className="space-y-2">
-                  {Object.entries(vehicle.window_sticker_packages).map(([packageName, price]) => (
-                    <div key={packageName} className="flex justify-between items-center">
-                      <span className="text-sm text-garage-text">{packageName}</span>
-                      {price && <span className="text-sm text-garage-text-muted">${price}</span>}
-                    </div>
-                  ))}
+                  {Object.entries(vehicle.window_sticker_packages).map(([packageName, rawPrice]) => {
+                    const price = rawPrice as string | undefined
+                    return (
+                      <div key={packageName} className="flex justify-between items-center">
+                        <span className="text-sm text-garage-text">{packageName}</span>
+                        {price && <span className="text-sm text-garage-text-muted">${price}</span>}
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             )}

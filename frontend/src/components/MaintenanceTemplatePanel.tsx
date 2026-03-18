@@ -134,7 +134,7 @@ export default function MaintenanceTemplatePanel({ vin, vehicle }: MaintenanceTe
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
                   <span className="font-medium text-garage-text">
-                    {template.template_data?.metadata?.make || 'Unknown'} {template.template_data?.metadata?.model || 'Unknown'}
+                    {(template.template_data as Record<string, Record<string, string>>)?.metadata?.make || 'Unknown'} {(template.template_data as Record<string, Record<string, string>>)?.metadata?.model || 'Unknown'}
                   </span>
                   {template.template_version && (
                     <span className="text-xs px-2 py-1 rounded bg-garage-bg text-garage-text-muted">
@@ -144,9 +144,9 @@ export default function MaintenanceTemplatePanel({ vin, vehicle }: MaintenanceTe
                 </div>
                 <div className="text-sm text-garage-text-muted space-y-1">
                   <p>Applied: {formatDate(template.applied_at)}</p>
-                  <p>Created {template.schedule_items_created} schedule item{template.schedule_items_created !== 1 ? 's' : ''}</p>
-                  {template.template_data?.metadata?.duty_type && (
-                    <p className="capitalize">{template.template_data.metadata.duty_type} duty schedule</p>
+                  <p>Created {template.reminders_created} schedule item{template.reminders_created !== 1 ? 's' : ''}</p>
+                  {(template.template_data as Record<string, Record<string, string>>)?.metadata?.duty_type && (
+                    <p className="capitalize">{(template.template_data as Record<string, Record<string, string>>).metadata.duty_type} duty schedule</p>
                   )}
                 </div>
                 {template.template_source.startsWith('github:') && (

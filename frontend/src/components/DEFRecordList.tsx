@@ -63,7 +63,7 @@ export default function DEFRecordList({ vin }: DEFRecordListProps) {
     return isNaN(num) ? null : num
   }
 
-  const formatVolume = (gallons?: number | string): string => {
+  const formatVolume = (gallons?: number | string | null): string => {
     const num = parseNum(gallons)
     if (num === null) return '-'
     if (system === 'metric') {
@@ -74,7 +74,7 @@ export default function DEFRecordList({ vin }: DEFRecordListProps) {
     return `${num.toFixed(3)} ${UnitFormatter.getVolumeUnit(system)}`
   }
 
-  const formatFillLevel = (level?: number | string): string => {
+  const formatFillLevel = (level?: number | string | null): string => {
     const num = parseNum(level)
     if (num === null) return '-'
     return `${Math.round(num * 100)}%`
@@ -122,10 +122,10 @@ export default function DEFRecordList({ vin }: DEFRecordListProps) {
                 <TrendingDown className="w-3 h-3" />
                 <span>Est. {UnitFormatter.getDistanceUnit(system)} Left</span>
               </div>
-              <div className={`text-lg font-semibold ${milesRemainingColor(analytics.estimated_miles_remaining)}`}>
+              <div className={`text-lg font-semibold ${milesRemainingColor(analytics.estimated_miles_remaining ?? 0)}`}>
                 {system === 'metric'
-                  ? Math.round(UnitConverter.milesToKm(analytics.estimated_miles_remaining) ?? 0).toLocaleString()
-                  : analytics.estimated_miles_remaining.toLocaleString()}
+                  ? Math.round(UnitConverter.milesToKm(analytics.estimated_miles_remaining ?? 0) ?? 0).toLocaleString()
+                  : (analytics.estimated_miles_remaining ?? 0).toLocaleString()}
               </div>
               {analytics.estimated_days_remaining !== null && (
                 <p className="text-xs text-garage-text-muted">

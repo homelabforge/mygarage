@@ -1,8 +1,13 @@
 """Pydantic schemas for LiveLink device and settings operations."""
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
+
+# Shared status literals for OpenAPI schema generation
+DeviceStatusType = Literal["online", "offline", "unknown"]
+ECUStatusType = Literal["online", "offline", "unknown"]
 
 # =============================================================================
 # Device Schemas
@@ -43,8 +48,10 @@ class LiveLinkDeviceResponse(LiveLinkDeviceBase):
     sta_ip: str | None = Field(None, description="Device IP on local network")
     rssi: int | None = Field(None, description="WiFi signal strength (dBm)")
     battery_voltage: float | None = Field(None, description="Vehicle battery voltage (V)")
-    ecu_status: str = Field("unknown", description="ECU status: online/offline/unknown")
-    device_status: str = Field("unknown", description="Device status: online/offline/unknown")
+    ecu_status: ECUStatusType = Field("unknown", description="ECU status: online/offline/unknown")
+    device_status: DeviceStatusType = Field(
+        "unknown", description="Device status: online/offline/unknown"
+    )
     has_device_token: bool = Field(False, description="Whether device has per-device token")
     enabled: bool
     last_seen: datetime | None

@@ -1,11 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '../../__tests__/test-utils'
 import VehicleCard from '../VehicleCard'
-import type { VehicleType } from '../../types/vehicle'
+import type { Vehicle, VehicleType } from '../../types/vehicle'
 
 describe('VehicleCard', () => {
-  const mockVehicle = {
-    id: 1,
+  const mockVehicle: Vehicle = {
     vin: '1HGBH41JXMN109186',
     year: 2018,
     make: 'Honda',
@@ -14,11 +13,10 @@ describe('VehicleCard', () => {
     nickname: 'Daily Driver',
     license_plate: 'ABC123',
     vehicle_type: 'Car' as VehicleType,
-    current_odometer: 45000,
     purchase_date: '2020-01-15',
-    purchase_price: 25000,
-    main_photo: undefined,
+    purchase_price: '25000',
     created_at: '2020-01-15T00:00:00Z',
+    archived_visible: true,
   }
 
   it('renders vehicle information', () => {

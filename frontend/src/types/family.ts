@@ -1,12 +1,39 @@
-/**
- * Family Multi-User System type definitions.
- *
- * Includes types for:
- * - Relationship presets
- * - Vehicle transfers
- * - Vehicle sharing
- * - Family dashboard
- */
+// ============================================================================
+// Section A: Generated type aliases from OpenAPI schema
+// Source of truth: backend Pydantic models -> openapi.json -> api.generated.ts
+// Run `bun run generate:api` after backend schema changes and commit both files.
+// ============================================================================
+
+import type { components } from './api.generated'
+
+export type UserMinimal = components['schemas']['UserMinimal']
+export type VehicleTransferRequest = components['schemas']['VehicleTransferRequest']
+export type VehicleTransferResponse = components['schemas']['VehicleTransferResponse']
+export type EligibleRecipient = components['schemas']['EligibleRecipient']
+export type TransferHistoryResponse = components['schemas']['TransferHistoryResponse']
+export type VehicleShareCreate = components['schemas']['VehicleShareCreate']
+export type VehicleShareUpdate = components['schemas']['VehicleShareUpdate']
+export type VehicleShareResponse = components['schemas']['VehicleShareResponse']
+export type VehicleSharesListResponse = components['schemas']['VehicleSharesListResponse']
+export type FamilyVehicleSummary = components['schemas']['FamilyVehicleSummary']
+export type FamilyMemberData = components['schemas']['FamilyMemberData']
+export type FamilyDashboardResponse = components['schemas']['FamilyDashboardResponse']
+export type FamilyMemberUpdateRequest = components['schemas']['FamilyMemberUpdateRequest']
+
+// Derive union types from generated schema fields
+export type PermissionType = VehicleShareCreate['permission']
+
+// ============================================================================
+// Section B: Hand-maintained frontend-only types
+// These types and runtime values exist only in the frontend.
+// ============================================================================
+
+// ShareableUser is not in the OpenAPI schema — it's a frontend-only UI type
+export interface ShareableUser {
+  id: number
+  display_name: string
+  relationship: string | null
+}
 
 // =============================================================================
 // Relationship Types
@@ -25,131 +52,6 @@ export const RELATIONSHIP_PRESETS = [
 ] as const
 
 export type RelationshipType = (typeof RELATIONSHIP_PRESETS)[number]['value'] | null
-
-// =============================================================================
-// User Types (Extended)
-// =============================================================================
-
-export interface UserMinimal {
-  id: number
-  username: string
-  full_name: string | null
-  relationship: string | null
-}
-
-export interface ShareableUser {
-  id: number
-  display_name: string
-  relationship: string | null
-}
-
-// =============================================================================
-// Vehicle Transfer Types
-// =============================================================================
-
-export interface VehicleTransferRequest {
-  to_user_id: number
-  transfer_notes?: string | null
-  data_included?: Record<string, boolean>
-}
-
-export interface VehicleTransferResponse {
-  id: number
-  vehicle_vin: string
-  from_user: UserMinimal
-  to_user: UserMinimal
-  transferred_at: string
-  transferred_by: UserMinimal
-  transfer_notes: string | null
-  data_included: Record<string, boolean> | null
-}
-
-export interface EligibleRecipient {
-  id: number
-  username: string
-  full_name: string | null
-  relationship: string | null
-}
-
-export interface TransferHistoryResponse {
-  transfers: VehicleTransferResponse[]
-  total: number
-}
-
-// =============================================================================
-// Vehicle Sharing Types
-// =============================================================================
-
-export type PermissionType = 'read' | 'write'
-
-export interface VehicleShareCreate {
-  user_id: number
-  permission: PermissionType
-}
-
-export interface VehicleShareUpdate {
-  permission: PermissionType
-}
-
-export interface VehicleShareResponse {
-  id: number
-  vehicle_vin: string
-  user: UserMinimal
-  permission: string
-  shared_by: UserMinimal
-  shared_at: string
-}
-
-export interface VehicleSharesListResponse {
-  shares: VehicleShareResponse[]
-  total: number
-}
-
-// =============================================================================
-// Family Dashboard Types
-// =============================================================================
-
-export interface FamilyVehicleSummary {
-  vin: string
-  nickname: string
-  year: number | null
-  make: string | null
-  model: string | null
-  main_photo: string | null
-  last_service_date: string | null
-  last_service_description: string | null
-  next_maintenance_description: string | null
-  next_maintenance_due: string | null
-  overdue_maintenance: number
-}
-
-export interface FamilyMemberData {
-  id: number
-  username: string
-  full_name: string | null
-  relationship: string | null
-  relationship_custom: string | null
-  vehicle_count: number
-  vehicles: FamilyVehicleSummary[]
-  overdue_maintenance: number
-  upcoming_maintenance: number
-  // Dashboard management fields
-  show_on_family_dashboard: boolean
-  family_dashboard_order: number
-}
-
-export interface FamilyDashboardResponse {
-  members: FamilyMemberData[]
-  total_members: number
-  total_vehicles: number
-  total_overdue_maintenance: number
-  total_upcoming_maintenance: number
-}
-
-export interface FamilyMemberUpdateRequest {
-  show_on_family_dashboard: boolean
-  family_dashboard_order?: number | null
-}
 
 // =============================================================================
 // Helper Functions

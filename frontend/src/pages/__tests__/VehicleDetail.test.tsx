@@ -95,14 +95,14 @@ vi.mock('../../contexts/AuthContext', () => ({
 import vehicleService from '../../services/vehicleService'
 import { livelinkService } from '../../services/livelinkService'
 import { useAuth } from '../../contexts/AuthContext'
-import type { VehicleType } from '../../types/vehicle'
+import type { Vehicle, VehicleType } from '../../types/vehicle'
 import VehicleDetail from '../VehicleDetail'
 
 const mockedVehicleService = vi.mocked(vehicleService)
 const mockedLivelinkService = vi.mocked(livelinkService)
 const mockedUseAuth = vi.mocked(useAuth)
 
-const mockVehicle = {
+const mockVehicle: Vehicle = {
   vin: 'TEST12345678901234',
   nickname: 'Test Car',
   vehicle_type: 'Car' as VehicleType,
@@ -112,11 +112,9 @@ const mockVehicle = {
   license_plate: 'ABC123',
   color: 'Blue',
   purchase_date: '2024-01-15',
-  purchase_price: 35000,
+  purchase_price: '35000',
   created_at: '2024-01-15T00:00:00Z',
-  main_photo: undefined,
-  sold_date: undefined,
-  has_propane: false,
+  archived_visible: true,
 }
 
 function renderVehicleDetail(initialPath = '/vehicles/TEST12345678901234') {

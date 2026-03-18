@@ -5,12 +5,12 @@ const LeafletMap = lazy(() => import('./maps/LeafletMap'))
 
 interface POIResult {
   business_name: string
-  latitude: number
-  longitude: number
+  latitude: number | string
+  longitude: number | string
   poi_category: string
-  rating?: number
-  address?: string
-  external_id?: string
+  rating?: number | string | null
+  address?: string | null
+  external_id?: string | null
 }
 
 interface Props {

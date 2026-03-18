@@ -1,49 +1,12 @@
-export interface AddressBookEntry {
-  id: number
-  business_name: string
-  name: string | null
-  address: string | null
-  city: string | null
-  state: string | null
-  zip_code: string | null
-  phone: string | null
-  email: string | null
-  website: string | null
-  category: string | null
-  notes: string | null
-  created_at: string
-  updated_at: string
-}
+// ============================================================================
+// Section A: Generated type aliases from OpenAPI schema
+// Source of truth: backend Pydantic models -> openapi.json -> api.generated.ts
+// Run `bun run generate:api` after backend schema changes and commit both files.
+// ============================================================================
 
-export interface AddressBookEntryCreate {
-  business_name: string
-  name?: string | null
-  address?: string | null
-  city?: string | null
-  state?: string | null
-  zip_code?: string | null
-  phone?: string | null
-  email?: string | null
-  website?: string | null
-  category?: string | null
-  notes?: string | null
-}
+import type { components } from './api.generated'
 
-export interface AddressBookEntryUpdate {
-  business_name?: string | null
-  name?: string | null
-  address?: string | null
-  city?: string | null
-  state?: string | null
-  zip_code?: string | null
-  phone?: string | null
-  email?: string | null
-  website?: string | null
-  category?: string | null
-  notes?: string | null
-}
-
-export interface AddressBookListResponse {
-  entries: AddressBookEntry[]
-  total: number
-}
+export type AddressBookEntry = components['schemas']['AddressBookEntryResponse']
+export type AddressBookEntryCreate = components['schemas']['AddressBookEntryCreate']
+export type AddressBookEntryUpdate = components['schemas']['AddressBookEntryUpdate']
+export type AddressBookListResponse = components['schemas']['AddressBookListResponse']

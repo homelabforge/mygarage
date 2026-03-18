@@ -1,84 +1,22 @@
-export interface SpotRentalBilling {
-  id: number
-  spot_rental_id: number
-  billing_date: string
-  monthly_rate: number | null
-  electric: number | null
-  water: number | null
-  waste: number | null
-  total: number | null
-  notes: string | null
-  created_at: string
-}
+// ============================================================================
+// Section A: Generated type aliases from OpenAPI schema
+// Source of truth: backend Pydantic models -> openapi.json -> api.generated.ts
+// Run `bun run generate:api` after backend schema changes and commit both files.
+// ============================================================================
 
-export interface SpotRentalBillingCreate {
-  billing_date: string
-  monthly_rate?: number | null
-  electric?: number | null
-  water?: number | null
-  waste?: number | null
-  total?: number | null
-  notes?: string | null
-}
+import type { components } from './api.generated'
 
-export interface SpotRentalBillingUpdate {
-  billing_date?: string
-  monthly_rate?: number | null
-  electric?: number | null
-  water?: number | null
-  waste?: number | null
-  total?: number | null
-  notes?: string | null
-}
+export type SpotRental = components['schemas']['SpotRentalResponse']
+export type SpotRentalCreate = components['schemas']['SpotRentalCreate']
+export type SpotRentalUpdate = components['schemas']['SpotRentalUpdate']
+export type SpotRentalListResponse = components['schemas']['SpotRentalListResponse']
 
-export interface SpotRental {
-  id: number
-  vin: string
-  location_name: string | null
-  location_address: string | null
-  check_in_date: string
-  check_out_date: string | null
-  nightly_rate: number | null
-  weekly_rate: number | null
-  monthly_rate: number | null
-  electric: number | null
-  water: number | null
-  waste: number | null
-  total_cost: number | null
-  amenities: string | null
-  notes: string | null
-  created_at: string
-  billings?: SpotRentalBilling[]
-}
+export type SpotRentalBilling = components['schemas']['SpotRentalBillingResponse']
+export type SpotRentalBillingCreate = components['schemas']['SpotRentalBillingCreate']
+export type SpotRentalBillingUpdate = components['schemas']['SpotRentalBillingUpdate']
+export type SpotRentalBillingListResponse = components['schemas']['SpotRentalBillingListResponse']
 
-export interface SpotRentalCreate {
-  location_name?: string | null
-  location_address?: string | null
-  check_in_date: string
-  check_out_date?: string | null
-  nightly_rate?: number | null
-  weekly_rate?: number | null
-  monthly_rate?: number | null
-  electric?: number | null
-  water?: number | null
-  waste?: number | null
-  total_cost?: number | null
-  amenities?: string | null
-  notes?: string | null
-}
-
-export interface SpotRentalUpdate {
-  location_name?: string | null
-  location_address?: string | null
-  check_in_date?: string
-  check_out_date?: string | null
-  nightly_rate?: number | null
-  weekly_rate?: number | null
-  monthly_rate?: number | null
-  electric?: number | null
-  water?: number | null
-  waste?: number | null
-  total_cost?: number | null
-  amenities?: string | null
-  notes?: string | null
-}
+// ============================================================================
+// Section B: Hand-maintained frontend-only types
+// ============================================================================
+// (none)

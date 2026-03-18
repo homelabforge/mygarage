@@ -101,7 +101,7 @@ export default function SpotRentalList({ vin }: SpotRentalListProps) {
 
   const getBillingTotal = (billings?: SpotRentalBilling[]): number => {
     if (!billings || billings.length === 0) return 0
-    return billings.reduce((sum, b) => sum + (b.total || 0), 0)
+    return billings.reduce((sum, b) => sum + (b.total != null ? Number(b.total) : 0), 0)
   }
 
   const getMonthlyAverage = (billings?: SpotRentalBilling[]): number => {
@@ -272,7 +272,7 @@ export default function SpotRentalList({ vin }: SpotRentalListProps) {
                 </div>
 
                 {/* Billing Summary */}
-                {rental.monthly_rate && rental.monthly_rate > 0 ? (
+                {rental.monthly_rate && Number(rental.monthly_rate) > 0 ? (
                   <div className="bg-garage-bg/50 rounded-lg p-3 mb-3">
                     <div className="flex items-center justify-between mb-2">
                       <h5 className="text-sm font-semibold text-garage-text flex items-center gap-1">

@@ -78,7 +78,7 @@ export default function PropaneRecordForm({
           : record.cost
         return isNaN(cost) ? undefined : cost
       })(),
-      vendor: extractVendor(record?.notes) || '',
+      vendor: extractVendor(record?.notes ?? undefined) || '',
       notes: record?.notes?.replace(/^Vendor: .+?\n/, '') || '',
       tank_size_lb: record?.tank_size_lb ? parseFloat(record.tank_size_lb.toString()) : undefined,
       tank_quantity: record?.tank_quantity ?? undefined,

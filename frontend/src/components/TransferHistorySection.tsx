@@ -49,7 +49,7 @@ export default function TransferHistorySection({ vin }: TransferHistorySectionPr
     })
   }
 
-  const getDisplayName = (user: { username: string; full_name: string | null }): string => {
+  const getDisplayName = (user: { username: string; full_name?: string | null }): string => {
     return user.full_name || user.username
   }
 

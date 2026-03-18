@@ -1,84 +1,30 @@
-/**
- * TypeScript types for toll tag and transaction data structures
- */
+// ============================================================================
+// Section A: Generated type aliases from OpenAPI schema
+// Source of truth: backend Pydantic models -> openapi.json -> api.generated.ts
+// Run `bun run generate:api` after backend schema changes and commit both files.
+// ============================================================================
 
-export interface TollTag {
-  id: number
-  vin: string
-  toll_system: string
-  tag_number: string
-  status: 'active' | 'inactive'
-  notes?: string
-  created_at: string
-  updated_at?: string
-}
+import type { components } from './api.generated'
 
-export interface TollTagCreate {
-  vin: string
-  toll_system: string
-  tag_number: string
-  status?: 'active' | 'inactive'
-  notes?: string
-}
+export type TollTag = components['schemas']['TollTagResponse']
+export type TollTagCreate = components['schemas']['TollTagCreate']
+export type TollTagUpdate = components['schemas']['TollTagUpdate']
+export type TollTagListResponse = components['schemas']['TollTagListResponse']
 
-export interface TollTagUpdate {
-  toll_system?: string
-  tag_number?: string
-  status?: 'active' | 'inactive'
-  notes?: string
-}
+export type TollTransaction = components['schemas']['TollTransactionResponse']
+export type TollTransactionCreate = components['schemas']['TollTransactionCreate']
+export type TollTransactionUpdate = components['schemas']['TollTransactionUpdate']
+export type TollTransactionListResponse = components['schemas']['TollTransactionListResponse']
+export type TollTransactionSummary = components['schemas']['TollTransactionSummary']
 
-export interface TollTagListResponse {
-  toll_tags: TollTag[]
-  total: number
-}
+// ============================================================================
+// Section B: Hand-maintained frontend-only types
+// ============================================================================
 
-export interface TollTransaction {
-  id: number
-  vin: string
-  toll_tag_id?: number
-  date: string
-  amount: number
-  location: string
-  notes?: string
-  created_at: string
-}
+/** Backend uses plain str for toll_system; narrow it for dropdown UIs */
+export type TollSystem = (typeof TOLL_SYSTEMS)[number]
 
-export interface TollTransactionCreate {
-  vin: string
-  toll_tag_id?: number
-  transaction_date: string
-  amount: number
-  location: string
-  notes?: string
-}
-
-export interface TollTransactionUpdate {
-  toll_tag_id?: number
-  transaction_date?: string
-  amount?: number
-  location?: string
-  notes?: string
-}
-
-export interface TollTransactionListResponse {
-  transactions: TollTransaction[]
-  total: number
-}
-
-export interface MonthlyTotal {
-  month: string
-  count: number
-  amount: number
-}
-
-export interface TollTransactionSummary {
-  total_transactions: number
-  total_amount: number
-  monthly_totals: MonthlyTotal[]
-}
-
-// Common toll systems for dropdown
+/** Common toll systems for dropdown */
 export const TOLL_SYSTEMS = [
   'EZ TAG',
   'TxTag',
@@ -87,7 +33,12 @@ export const TOLL_SYSTEMS = [
   'NTTA TollTag',
   'FasTrak',
   'I-PASS',
-  'Other'
+  'Other',
 ] as const
 
-export type TollSystem = typeof TOLL_SYSTEMS[number]
+/** Frontend-only type for monthly aggregation in summary views */
+export interface MonthlyTotal {
+  month: string
+  count: number
+  amount: number
+}

@@ -1,35 +1,11 @@
-export interface WarrantyRecord {
-  id: number
-  vin: string
-  warranty_type: string
-  provider: string | null
-  start_date: string
-  end_date: string | null
-  mileage_limit: number | null
-  coverage_details: string | null
-  policy_number: string | null
-  notes: string | null
-  created_at: string
-}
+// ============================================================================
+// Section A: Generated type aliases from OpenAPI schema
+// Source of truth: backend Pydantic models -> openapi.json -> api.generated.ts
+// Run `bun run generate:api` after backend schema changes and commit both files.
+// ============================================================================
 
-export interface WarrantyRecordCreate {
-  warranty_type: string
-  provider?: string | null
-  start_date: string
-  end_date?: string | null
-  mileage_limit?: number | null
-  coverage_details?: string | null
-  policy_number?: string | null
-  notes?: string | null
-}
+import type { components } from './api.generated'
 
-export interface WarrantyRecordUpdate {
-  warranty_type?: string
-  provider?: string | null
-  start_date?: string
-  end_date?: string | null
-  mileage_limit?: number | null
-  coverage_details?: string | null
-  policy_number?: string | null
-  notes?: string | null
-}
+export type WarrantyRecord = components['schemas']['WarrantyRecord']
+export type WarrantyRecordCreate = components['schemas']['WarrantyRecordCreate']
+export type WarrantyRecordUpdate = components['schemas']['WarrantyRecordUpdate']

@@ -47,13 +47,13 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
       location_address: rental?.location_address || '',
       check_in_date: formatDateForInput(rental?.check_in_date),
       check_out_date: rental?.check_out_date ? formatDateForInput(rental.check_out_date) : '',
-      nightly_rate: rental?.nightly_rate ?? undefined,
-      weekly_rate: rental?.weekly_rate ?? undefined,
-      monthly_rate: rental?.monthly_rate ?? undefined,
-      electric: rental?.electric ?? undefined,
-      water: rental?.water ?? undefined,
-      waste: rental?.waste ?? undefined,
-      total_cost: rental?.total_cost ?? undefined,
+      nightly_rate: rental?.nightly_rate != null ? Number(rental.nightly_rate) : undefined,
+      weekly_rate: rental?.weekly_rate != null ? Number(rental.weekly_rate) : undefined,
+      monthly_rate: rental?.monthly_rate != null ? Number(rental.monthly_rate) : undefined,
+      electric: rental?.electric != null ? Number(rental.electric) : undefined,
+      water: rental?.water != null ? Number(rental.water) : undefined,
+      waste: rental?.waste != null ? Number(rental.waste) : undefined,
+      total_cost: rental?.total_cost != null ? Number(rental.total_cost) : undefined,
       amenities: rental?.amenities || '',
       notes: rental?.notes || '',
     },
@@ -178,7 +178,7 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
   return (
     <>
     <FormModalWrapper title={isEdit ? 'Edit Spot Rental' : 'Add Spot Rental'} onClose={onClose}>
-        <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit(onSubmit as Parameters<typeof handleSubmit>[0])} className="p-6 space-y-4">
           {error && (
             <div className="bg-danger/10 border border-danger rounded-lg p-3">
               <p className="text-sm text-danger">{error}</p>

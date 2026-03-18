@@ -249,6 +249,7 @@ function AddressBookForm({ entry, onClose, onSuccess, categories }: AddressBookF
     website: entry?.website || '',
     category: entry?.category || '',
     notes: entry?.notes || '',
+    source: entry?.source || 'manual',
   })
 
   const handleSubmit = async (e: SyntheticEvent<HTMLFormElement>) => {

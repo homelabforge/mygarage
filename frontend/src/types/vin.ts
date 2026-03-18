@@ -1,42 +1,19 @@
-/**
- * TypeScript types for VIN-related data structures
- */
+// ============================================================================
+// Section A: Generated type aliases from OpenAPI schema
+// Source of truth: backend Pydantic models -> openapi.json -> api.generated.ts
+// Run `bun run generate:api` after backend schema changes and commit both files.
+// ============================================================================
 
-export interface EngineInfo {
-  displacement_l?: string | null
-  cylinders?: number | null
-  hp?: number | null
-  kw?: number | null
-  fuel_type?: string | null
-}
+import type { components } from './api.generated'
 
-export interface TransmissionInfo {
-  type?: string | null
-  speeds?: string | null
-}
+export type EngineInfo = components['schemas']['EngineInfo']
+export type TransmissionInfo = components['schemas']['TransmissionInfo']
+export type VINDecodeResponse = components['schemas']['VINDecodeResponse']
 
-export interface VINDecodeResponse {
-  vin: string
-  year?: number | null
-  make?: string | null
-  model?: string | null
-  trim?: string | null
-  vehicle_type?: string | null
-  body_class?: string | null
-  engine?: EngineInfo | null
-  transmission?: TransmissionInfo | null
-  drive_type?: string | null
-  manufacturer?: string | null
-  plant_city?: string | null
-  plant_country?: string | null
-  doors?: number | null
-  gvwr?: string | null
-  series?: string | null
-  steering_location?: string | null
-  entertainment_system?: string | null
-  error_code?: string | null
-  error_text?: string | null
-}
+// ============================================================================
+// Section B: Hand-maintained frontend-only types
+// Backend validates inline, no dedicated schema.
+// ============================================================================
 
 export interface VINValidationResponse {
   valid: boolean

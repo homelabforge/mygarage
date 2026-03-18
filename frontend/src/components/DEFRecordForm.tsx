@@ -53,7 +53,7 @@ export default function DEFRecordForm({
   const updateMutation = useUpdateDEFRecord(vin)
   const { system } = useUnitPreference()
 
-  const parseDecimal = (val?: number | string): number | undefined => {
+  const parseDecimal = (val?: number | string | null): number | undefined => {
     if (val === undefined || val === null) return undefined
     const num = typeof val === 'string' ? parseFloat(val) : val
     return isNaN(num) ? undefined : num

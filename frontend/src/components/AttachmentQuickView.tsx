@@ -79,20 +79,20 @@ export default function AttachmentQuickView({ recordId, onClose, position }: Att
     }
   }
 
-  const getFileIcon = (fileType?: string) => {
+  const getFileIcon = (fileType?: string | null) => {
     if (!fileType) return <FileText className="w-4 h-4" />
     if (fileType.startsWith('image/')) return <ImageIcon className="w-4 h-4" />
     return <FileText className="w-4 h-4" />
   }
 
-  const formatFileSize = (bytes?: number): string => {
+  const formatFileSize = (bytes?: number | null): string => {
     if (!bytes) return 'Unknown size'
     if (bytes < 1024) return `${bytes} B`
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
     return `${(bytes / 1024 / 1024).toFixed(1)} MB`
   }
 
-  const canPreview = (fileType?: string): boolean => {
+  const canPreview = (fileType?: string | null): boolean => {
     if (!fileType) return false
     return fileType.startsWith('image/') || fileType === 'application/pdf'
   }

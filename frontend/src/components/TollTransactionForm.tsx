@@ -30,7 +30,7 @@ export default function TollTransactionForm({ vin, tollTags, transaction, onClos
     resolver: zodResolver(tollTransactionSchema) as Resolver<TollTransactionFormData>,
     defaultValues: {
       transaction_date: transaction?.date || new Date().toISOString().split('T')[0],
-      amount: transaction?.amount ?? undefined,
+      amount: transaction?.amount != null ? Number(transaction.amount) : undefined,
       location: transaction?.location || '',
       toll_tag_id: transaction?.toll_tag_id ?? undefined,
       notes: transaction?.notes || '',
@@ -71,7 +71,7 @@ export default function TollTransactionForm({ vin, tollTags, transaction, onClos
 
   return (
     <FormModalWrapper title={isEdit ? 'Edit Toll Transaction' : 'Add Toll Transaction'} onClose={onClose}>
-        <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit(onSubmit as Parameters<typeof handleSubmit>[0])} className="p-6 space-y-4">
           {error && (
             <div className="bg-danger/10 border border-danger rounded-lg p-3">
               <p className="text-sm text-danger">{error}</p>

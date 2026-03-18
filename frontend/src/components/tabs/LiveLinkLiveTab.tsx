@@ -70,8 +70,8 @@ export default function LiveLinkLiveTab({ vin }: LiveLinkLiveTabProps) {
     return 'Vehicle Parked — WiCAN Connected'
   }
 
-  const formatDuration = (seconds: number | null) => {
-    if (seconds === null) return '--'
+  const formatDuration = (seconds: number | null | undefined) => {
+    if (seconds == null) return '--'
     const hours = Math.floor(seconds / 3600)
     const minutes = Math.floor((seconds % 3600) / 60)
     const secs = seconds % 60
@@ -150,9 +150,9 @@ export default function LiveLinkLiveTab({ vin }: LiveLinkLiveTabProps) {
       </div>
 
       {/* Live Gauges Grid */}
-      {status.latest_values.length > 0 ? (
+      {(status.latest_values?.length ?? 0) > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {status.latest_values.map((value) => (
+          {status.latest_values?.map((value) => (
             <GaugeCard key={value.param_key} value={value} unitSystem={unitSystem} />
           ))}
         </div>
@@ -190,12 +190,12 @@ function GaugeCard({ value, unitSystem }: GaugeCardProps) {
 
   // Convert value based on unit preference
   const converted = useMemo(() => {
-    return convertTelemetryValue(value.value, value.param_key, value.unit, unitSystem)
+    return convertTelemetryValue(value.value, value.param_key, value.unit ?? null, unitSystem)
   }, [value.value, value.param_key, value.unit, unitSystem])
 
   // Format the display name
   const displayName = useMemo(() => {
-    return getParamDisplayName(value.param_key, value.display_name)
+    return getParamDisplayName(value.param_key, value.display_name ?? null)
   }, [value.param_key, value.display_name])
 
   const getBgColor = () => {

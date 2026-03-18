@@ -55,12 +55,12 @@ export default function VehicleLiveLinkWidget({ vin }: VehicleLiveLinkWidgetProp
   // Convert values based on unit preference (hooks must be before early return)
   const convertedSpeed = useMemo(() => {
     if (!speed) return null
-    return convertTelemetryValue(speed.value, 'SPEED', speed.unit, unitSystem)
+    return convertTelemetryValue(speed.value, 'SPEED', speed.unit ?? null, unitSystem)
   }, [speed, unitSystem])
 
   const convertedCoolant = useMemo(() => {
     if (!coolant) return null
-    return convertTelemetryValue(coolant.value, 'COOLANT_TMP', coolant.unit, unitSystem)
+    return convertTelemetryValue(coolant.value, 'COOLANT_TMP', coolant.unit ?? null, unitSystem)
   }, [coolant, unitSystem])
 
   // Don't render if no device or loading

@@ -145,7 +145,7 @@ export default function POIFinder() {
       const resultsWithDistance = response.data.results.map((poi) => ({
         ...poi,
         distance_meters:
-          poi.distance_meters || calculateDistance(latitude, longitude, poi.latitude, poi.longitude),
+          poi.distance_meters || calculateDistance(latitude, longitude, parseFloat(poi.latitude), parseFloat(poi.longitude)),
       }))
 
       resultsWithDistance.sort((a, b) => (a.distance_meters || 0) - (b.distance_meters || 0))

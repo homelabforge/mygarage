@@ -1,44 +1,12 @@
-export interface Recall {
-  id: number
-  vin: string
-  nhtsa_campaign_number?: string
-  component: string
-  summary: string
-  consequence?: string
-  remedy?: string
-  date_announced?: string
-  is_resolved: boolean
-  resolved_at?: string
-  notes?: string
-  created_at: string
-}
+// ============================================================================
+// Section A: Generated type aliases from OpenAPI schema
+// Source of truth: backend Pydantic models -> openapi.json -> api.generated.ts
+// Run `bun run generate:api` after backend schema changes and commit both files.
+// ============================================================================
 
-export interface RecallCreate {
-  vin: string
-  nhtsa_campaign_number?: string
-  component: string
-  summary: string
-  consequence?: string
-  remedy?: string
-  date_announced?: string
-  is_resolved?: boolean
-  notes?: string
-}
+import type { components } from './api.generated'
 
-export interface RecallUpdate {
-  nhtsa_campaign_number?: string
-  component?: string
-  summary?: string
-  consequence?: string
-  remedy?: string
-  date_announced?: string
-  is_resolved?: boolean
-  notes?: string
-}
-
-export interface RecallListResponse {
-  recalls: Recall[]
-  total: number
-  active_count: number
-  resolved_count: number
-}
+export type Recall = components['schemas']['RecallResponse']
+export type RecallCreate = components['schemas']['RecallCreate']
+export type RecallUpdate = components['schemas']['RecallUpdate']
+export type RecallListResponse = components['schemas']['RecallListResponse']

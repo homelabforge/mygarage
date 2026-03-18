@@ -1,4 +1,7 @@
-// Propane record types - simplified version of fuel records for fifth wheels
+// ============================================================================
+// Hand-maintained frontend-only types
+// No dedicated backend schema — propane uses a subset of fuel record endpoints.
+// ============================================================================
 export interface PropaneRecord {
   id: number
   vin: string

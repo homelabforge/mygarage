@@ -124,7 +124,7 @@ export default function FamilyMemberCard({
   const [isExpanded, setIsExpanded] = useState(defaultExpanded)
 
   const displayName = member.full_name || member.username
-  const relationshipLabel = formatRelationship(member.relationship, member.relationship_custom)
+  const relationshipLabel = formatRelationship(member.relationship ?? null, member.relationship_custom)
 
   const isOidc = user?.auth_method === 'oidc'
   const isInactive = user ? !user.is_active : false
@@ -328,7 +328,7 @@ export default function FamilyMemberCard({
       {/* Expanded Content */}
       {isExpanded && (
         <div className="border-t border-garage-border">
-          {member.vehicles.length === 0 ? (
+          {!member.vehicles || member.vehicles.length === 0 ? (
             <div className="p-6 text-center text-garage-text-muted">
               <Car className="w-8 h-8 mx-auto mb-2 opacity-50" />
               <p>No vehicles</p>

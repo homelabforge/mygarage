@@ -45,11 +45,11 @@ export default function BillingEntryForm({
     resolver: zodResolver(spotRentalBillingSchema) as Resolver<SpotRentalBillingFormData>,
     defaultValues: {
       billing_date: formatDateForInput(billing?.billing_date),
-      monthly_rate: billing?.monthly_rate ?? undefined,
-      electric: billing?.electric ?? undefined,
-      water: billing?.water ?? undefined,
-      waste: billing?.waste ?? undefined,
-      total: billing?.total ?? undefined,
+      monthly_rate: billing?.monthly_rate != null ? Number(billing.monthly_rate) : undefined,
+      electric: billing?.electric != null ? Number(billing.electric) : undefined,
+      water: billing?.water != null ? Number(billing.water) : undefined,
+      waste: billing?.waste != null ? Number(billing.waste) : undefined,
+      total: billing?.total != null ? Number(billing.total) : undefined,
       notes: billing?.notes ?? undefined
     }
   })
@@ -116,7 +116,7 @@ export default function BillingEntryForm({
 
   return (
     <FormModalWrapper title={isEdit ? 'Edit Billing Entry' : 'Add Billing Entry'} onClose={onClose}>
-        <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-6">
+        <form onSubmit={handleSubmit(onSubmit as Parameters<typeof handleSubmit>[0])} className="p-6 space-y-6">
           {error && (
             <div className="bg-danger/10 border border-danger rounded-lg p-3">
               <p className="text-sm text-danger">{error}</p>

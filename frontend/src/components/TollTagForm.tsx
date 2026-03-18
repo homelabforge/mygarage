@@ -30,7 +30,7 @@ export default function TollTagForm({ vin, tag, onClose, onSuccess }: TollTagFor
     defaultValues: {
       toll_system: (tag?.toll_system as (typeof TOLL_SYSTEMS)[number]) ?? 'EZ TAG',
       tag_number: tag?.tag_number || '',
-      status: tag?.status || 'active',
+      status: (tag?.status as 'active' | 'inactive') || 'active',
       notes: tag?.notes || '',
     },
   })
@@ -65,7 +65,7 @@ export default function TollTagForm({ vin, tag, onClose, onSuccess }: TollTagFor
 
   return (
     <FormModalWrapper title={isEdit ? 'Edit Toll Tag' : 'Add Toll Tag'} onClose={onClose}>
-        <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit(onSubmit as Parameters<typeof handleSubmit>[0])} className="p-6 space-y-4">
           {error && (
             <div className="bg-danger/10 border border-danger rounded-lg p-3">
               <p className="text-sm text-danger">{error}</p>

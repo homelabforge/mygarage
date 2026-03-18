@@ -13,12 +13,12 @@ L.Icon.Default.mergeOptions({
 
 interface POIResult {
   business_name: string
-  latitude: number
-  longitude: number
+  latitude: number | string
+  longitude: number | string
   poi_category: string
-  rating?: number
-  address?: string
-  external_id?: string
+  rating?: number | string | null
+  address?: string | null
+  external_id?: string | null
 }
 
 interface Props {
@@ -76,7 +76,7 @@ export default function LeafletMap({ pois, userLocation, searchRadius, onMarkerC
       {pois.map((poi, index) => (
         <Marker
           key={poi.external_id || index}
-          position={[poi.latitude, poi.longitude]}
+          position={[Number(poi.latitude), Number(poi.longitude)]}
           icon={createMarkerIcon(poi.poi_category)}
           eventHandlers={{
             click: () => onMarkerClick(poi),

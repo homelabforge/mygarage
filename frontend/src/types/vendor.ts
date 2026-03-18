@@ -1,40 +1,12 @@
-/**
- * Vendor type definitions
- */
+// ============================================================================
+// Section A: Generated type aliases from OpenAPI schema
+// Source of truth: backend Pydantic models -> openapi.json -> api.generated.ts
+// Run `bun run generate:api` after backend schema changes and commit both files.
+// ============================================================================
 
-export interface Vendor {
-  id: number
-  name: string
-  address?: string
-  city?: string
-  state?: string
-  zip_code?: string
-  phone?: string
-  created_at: string
-  updated_at?: string
-  full_address?: string
-}
+import type { components } from './api.generated'
 
-export interface VendorCreate {
-  name: string
-  address?: string
-  city?: string
-  state?: string
-  zip_code?: string
-  phone?: string
-}
-
-export interface VendorUpdate {
-  name?: string
-  address?: string
-  city?: string
-  state?: string
-  zip_code?: string
-  phone?: string
-}
-
-export interface VendorListResponse {
-  vendors: Vendor[]
-  total: number
-}
-
+export type Vendor = components['schemas']['VendorResponse']
+export type VendorCreate = components['schemas']['VendorCreate']
+export type VendorUpdate = components['schemas']['VendorUpdate']
+export type VendorListResponse = components['schemas']['VendorListResponse']

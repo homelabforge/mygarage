@@ -290,6 +290,7 @@ function AddressBookForm({ entry, onClose, onSuccess }: AddressBookFormProps) {
         zip_code: data.zip_code,
         category: data.category,
         notes: data.notes,
+        source: 'manual',
       }
 
       if (isEdit) {

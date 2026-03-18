@@ -1,52 +1,15 @@
-export interface VehicleStatistics {
-  vin: string
-  year: number
-  make: string
-  model: string
-  main_photo_url?: string
+// ============================================================================
+// Section A: Generated type aliases from OpenAPI schema
+// Source of truth: backend Pydantic models -> openapi.json -> api.generated.ts
+// Run `bun run generate:api` after backend schema changes and commit both files.
+// ============================================================================
 
-  // Counts
-  total_service_records: number
-  total_fuel_records: number
-  total_odometer_records: number
-  total_maintenance_items: number
-  total_documents: number
-  total_notes: number
-  total_photos: number
+import type { components } from './api.generated'
 
-  // Recent activity
-  latest_service_date?: string
-  latest_fuel_date?: string
-  latest_odometer_reading?: number
-  latest_odometer_date?: string
+export type VehicleStatistics = components['schemas']['VehicleStatistics']
+export type DashboardResponse = components['schemas']['DashboardResponse']
 
-  // Upcoming maintenance
-  upcoming_maintenance_count: number
-  overdue_maintenance_count: number
-
-  // Fuel statistics
-  average_mpg?: number
-  recent_mpg?: number
-
-  // Archive status
-  archived_at?: string
-  archived_visible: boolean
-
-  // Sharing info (for shared vehicles)
-  is_shared_with_me?: boolean
-  shared_by_username?: string
-  share_permission?: 'read' | 'write'
-}
-
-export interface DashboardResponse {
-  total_vehicles: number
-  vehicles: VehicleStatistics[]
-
-  // Garage-wide totals
-  total_service_records: number
-  total_fuel_records: number
-  total_maintenance_items: number
-  total_documents: number
-  total_notes: number
-  total_photos: number
-}
+// ============================================================================
+// Section B: Hand-maintained frontend-only types
+// ============================================================================
+// (none)

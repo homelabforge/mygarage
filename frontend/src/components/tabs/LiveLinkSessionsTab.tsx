@@ -46,8 +46,8 @@ export default function LiveLinkSessionsTab({ vin }: LiveLinkSessionsTabProps) {
     fetchSessions()
   }, [fetchSessions])
 
-  const formatDuration = (seconds: number | null) => {
-    if (seconds === null) return '--'
+  const formatDuration = (seconds: number | null | undefined) => {
+    if (seconds == null) return '--'
     const hours = Math.floor(seconds / 3600)
     const minutes = Math.floor((seconds % 3600) / 60)
     if (hours > 0) return `${hours}h ${minutes}m`
@@ -57,14 +57,14 @@ export default function LiveLinkSessionsTab({ vin }: LiveLinkSessionsTabProps) {
   // Odometer and distance values from sessions are raw OBD2 values
   // They match the user's locale (miles for US, km for metric)
   // No conversion needed - just display with the appropriate unit label
-  const formatOdometer = (value: number | null) => {
-    if (value === null) return '--'
+  const formatOdometer = (value: number | null | undefined) => {
+    if (value == null) return '--'
     const label = unitSystem === 'imperial' ? 'mi' : 'km'
     return `${Math.round(value).toLocaleString()} ${label}`
   }
 
-  const formatSpeed = (kmh: number | null) => {
-    if (kmh === null) return '--'
+  const formatSpeed = (kmh: number | null | undefined) => {
+    if (kmh == null) return '--'
     if (unitSystem === 'imperial') {
       const mph = kmh * 0.621371
       return `${mph.toFixed(0)} mph`
@@ -72,8 +72,8 @@ export default function LiveLinkSessionsTab({ vin }: LiveLinkSessionsTabProps) {
     return `${kmh.toFixed(0)} km/h`
   }
 
-  const formatTemp = (celsius: number | null) => {
-    if (celsius === null) return '--'
+  const formatTemp = (celsius: number | null | undefined) => {
+    if (celsius == null) return '--'
     if (unitSystem === 'imperial') {
       const fahrenheit = (celsius * 9) / 5 + 32
       return `${fahrenheit.toFixed(0)}°F`
@@ -142,10 +142,10 @@ function SessionCard({
   session: DriveSession
   isExpanded: boolean
   onToggle: () => void
-  formatDuration: (s: number | null) => string
-  formatOdometer: (value: number | null) => string
-  formatSpeed: (kmh: number | null) => string
-  formatTemp: (c: number | null) => string
+  formatDuration: (s: number | null | undefined) => string
+  formatOdometer: (value: number | null | undefined) => string
+  formatSpeed: (kmh: number | null | undefined) => string
+  formatTemp: (c: number | null | undefined) => string
 }) {
   const isActive = !session.ended_at
 
@@ -199,13 +199,13 @@ function SessionCard({
               <Clock className="w-4 h-4" />
               <span>{formatDuration(session.duration_seconds)}</span>
             </div>
-            {session.distance_km !== null && (
+            {session.distance_km != null && (
               <div className="flex items-center gap-1">
                 <MapPin className="w-4 h-4" />
                 <span>{formatOdometer(session.distance_km)}</span>
               </div>
             )}
-            {session.max_speed !== null && (
+            {session.max_speed != null && (
               <div className="flex items-center gap-1">
                 <Gauge className="w-4 h-4" />
                 <span>{formatSpeed(session.max_speed)}</span>
@@ -247,7 +247,7 @@ function SessionCard({
             />
 
             {/* RPM */}
-            {session.avg_rpm !== null && (
+            {session.avg_rpm != null && (
               <StatCard
                 icon={<Activity className="w-5 h-5 text-primary" />}
                 label="Avg / Max RPM"
@@ -256,7 +256,7 @@ function SessionCard({
             )}
 
             {/* Coolant Temp */}
-            {session.avg_coolant_temp !== null && (
+            {session.avg_coolant_temp != null && (
               <StatCard
                 icon={<Thermometer className="w-5 h-5 text-primary" />}
                 label="Avg / Max Coolant"
@@ -265,7 +265,7 @@ function SessionCard({
             )}
 
             {/* Odometer */}
-            {session.start_odometer !== null && (
+            {session.start_odometer != null && (
               <StatCard
                 icon={<Gauge className="w-5 h-5 text-primary" />}
                 label="Odometer Start / End"

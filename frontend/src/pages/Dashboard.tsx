@@ -64,9 +64,9 @@ export default function Dashboard() {
             `${b.year} ${b.make} ${b.model}`
           )
         case 'year-new':
-          return b.year - a.year
+          return (b.year ?? 0) - (a.year ?? 0)
         case 'year-old':
-          return a.year - b.year
+          return (a.year ?? 0) - (b.year ?? 0)
         case 'maintenance':
           // Sort by overdue count (desc), then upcoming count (desc)
           if (b.overdue_maintenance_count !== a.overdue_maintenance_count) {

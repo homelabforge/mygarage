@@ -1,16 +1,22 @@
-export interface MaintenanceTemplate {
-  id: number
-  vin: string
-  template_source: string
-  template_version?: string
-  template_data: MaintenanceTemplateData
-  applied_at: string
-  created_by: string
-  schedule_items_created: number
-  created_at: string
-  updated_at?: string
-}
+// ============================================================================
+// Section A: Generated type aliases from OpenAPI schema
+// Source of truth: backend Pydantic models -> openapi.json -> api.generated.ts
+// Run `bun run generate:api` after backend schema changes and commit both files.
+// ============================================================================
 
+import type { components } from './api.generated'
+
+export type MaintenanceTemplate = components['schemas']['MaintenanceTemplateResponse']
+export type MaintenanceTemplateListResponse = components['schemas']['MaintenanceTemplateListResponse']
+export type TemplateSearchResponse = components['schemas']['TemplateSearchResponse']
+export type TemplateApplyRequest = components['schemas']['TemplateApplyRequest']
+export type TemplateApplyResponse = components['schemas']['TemplateApplyResponse']
+
+// ============================================================================
+// Section B: Hand-maintained frontend-only types
+// ============================================================================
+
+/** Structured template data — backend uses untyped dict */
 export interface MaintenanceTemplateData {
   metadata: {
     make: string
@@ -25,6 +31,7 @@ export interface MaintenanceTemplateData {
   maintenance_items: MaintenanceItem[]
 }
 
+/** Individual maintenance schedule item within a template */
 export interface MaintenanceItem {
   description: string
   interval_months?: number
@@ -32,31 +39,4 @@ export interface MaintenanceItem {
   category: string
   severity: string
   notes?: string
-}
-
-export interface MaintenanceTemplateListResponse {
-  templates: MaintenanceTemplate[]
-  total: number
-}
-
-export interface TemplateSearchResponse {
-  found: boolean
-  template_url?: string
-  template_path?: string
-  template_data?: MaintenanceTemplateData
-  error?: string
-}
-
-export interface TemplateApplyRequest {
-  vin: string
-  duty_type?: string
-  current_mileage?: number
-}
-
-export interface TemplateApplyResponse {
-  success: boolean
-  items_created: number
-  template_source: string
-  template_version?: string
-  error?: string
 }

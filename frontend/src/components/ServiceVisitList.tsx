@@ -148,7 +148,7 @@ export default function ServiceVisitList({
     }
   }
 
-  const getInspectionSeverityColor = (severity?: string) => {
+  const getInspectionSeverityColor = (severity?: string | null) => {
     switch (severity) {
       case 'green':
         return 'text-success'
@@ -520,14 +520,9 @@ export default function ServiceVisitList({
                         <Store className="w-4 h-4 text-garage-text-muted mt-0.5" />
                         <div>
                           <div className="text-garage-text font-medium">{visit.vendor.name}</div>
-                          {visit.vendor.full_address && (
+                          {(visit.vendor.city || visit.vendor.state) && (
                             <div className="text-garage-text-muted text-xs">
-                              {visit.vendor.full_address}
-                            </div>
-                          )}
-                          {visit.vendor.phone && (
-                            <div className="text-garage-text-muted text-xs">
-                              {visit.vendor.phone}
+                              {[visit.vendor.city, visit.vendor.state].filter(Boolean).join(', ')}
                             </div>
                           )}
                         </div>

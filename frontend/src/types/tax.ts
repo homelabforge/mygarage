@@ -1,34 +1,20 @@
-export type TaxType = 'Registration' | 'Inspection' | 'Property Tax' | 'Tolls'
+// ============================================================================
+// Section A: Generated type aliases from OpenAPI schema
+// Source of truth: backend Pydantic models -> openapi.json -> api.generated.ts
+// Run `bun run generate:api` after backend schema changes and commit both files.
+// ============================================================================
 
-export interface TaxRecord {
-  id: number
-  vin: string
-  date: string
-  tax_type?: TaxType
-  amount: number
-  renewal_date?: string
-  notes?: string
-  created_at: string
-}
+import type { components } from './api.generated'
 
-export interface TaxRecordCreate {
-  vin: string
-  date: string
-  tax_type?: TaxType
-  amount: number
-  renewal_date?: string
-  notes?: string
-}
+export type TaxRecord = components['schemas']['TaxRecordResponse']
+export type TaxRecordCreate = components['schemas']['TaxRecordCreate']
+export type TaxRecordUpdate = components['schemas']['TaxRecordUpdate']
+export type TaxRecordListResponse = components['schemas']['TaxRecordListResponse']
 
-export interface TaxRecordUpdate {
-  date?: string
-  tax_type?: TaxType
-  amount?: number
-  renewal_date?: string
-  notes?: string
-}
+// ============================================================================
+// Section B: Hand-maintained frontend-only types
+// ============================================================================
 
-export interface TaxRecordListResponse {
-  records: TaxRecord[]
-  total: number
-}
+// Backend uses Literal["Registration", "Inspection", "Property Tax", "Tolls"]
+// which generates the correct union — re-export for backward compat
+export type TaxType = NonNullable<TaxRecord['tax_type']>

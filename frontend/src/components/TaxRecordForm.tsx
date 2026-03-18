@@ -58,7 +58,7 @@ export default function TaxRecordForm({ vin, record, onClose, onSuccess }: TaxRe
     defaultValues: {
       date: formatDateForInput(record?.date),
       tax_type: record?.tax_type ?? undefined,
-      amount: record?.amount ?? undefined,
+      amount: record?.amount != null ? parseFloat(String(record.amount)) : undefined,
       renewal_date: record?.renewal_date ? formatDateForInput(record.renewal_date) : '',
       notes: record?.notes || '',
     },

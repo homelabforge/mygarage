@@ -1,43 +1,26 @@
-/**
- * Vehicle Reminder type definitions
- */
+// ============================================================================
+// Section A: Generated type aliases from OpenAPI schema
+// Source of truth: backend Pydantic models -> openapi.json -> api.generated.ts
+// Run `bun run generate:api` after backend schema changes and commit both files.
+// ============================================================================
 
-export type ReminderType = 'date' | 'mileage' | 'both' | 'smart'
+import type { components } from './api.generated'
+
+export type Reminder = components['schemas']['ReminderResponse']
+export type ReminderCreate = components['schemas']['ReminderCreate']
+export type ReminderUpdate = components['schemas']['ReminderUpdate']
+
+// ============================================================================
+// Section B: Hand-maintained frontend-only types
+// ============================================================================
+
+/** Derived from the ReminderCreate enum — keeps UI dropdowns in sync */
+export type ReminderType = NonNullable<ReminderCreate['reminder_type']>
+
+/** Backend uses plain str for status; narrow it for frontend UI logic */
 export type ReminderStatus = 'pending' | 'done' | 'dismissed'
 
-export interface Reminder {
-  id: number
-  vin: string
-  line_item_id: number | null
-  title: string
-  reminder_type: ReminderType
-  due_date: string | null
-  due_mileage: number | null
-  status: ReminderStatus
-  notes: string | null
-  estimated_due_date: string | null
-  last_notified_at: string | null
-  created_at: string
-  updated_at: string
-}
-
-export interface ReminderCreate {
-  title: string
-  reminder_type: ReminderType
-  due_date?: string
-  due_mileage?: number
-  notes?: string
-  line_item_id?: number
-}
-
-export interface ReminderUpdate {
-  title?: string
-  reminder_type?: ReminderType
-  due_date?: string
-  due_mileage?: number
-  notes?: string
-}
-
+/** Frontend-only draft type used for inline reminder creation in forms */
 export interface ReminderDraft extends ReminderCreate {
   enabled: boolean
 }

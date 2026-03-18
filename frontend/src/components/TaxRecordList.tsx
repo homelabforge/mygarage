@@ -49,7 +49,7 @@ export default function TaxRecordList({ vin }: TaxRecordListProps) {
   }
 
   const getTotalAmount = (): number => {
-    return records.reduce((sum, record) => sum + record.amount, 0)
+    return records.reduce((sum, record) => sum + parseFloat(String(record.amount)), 0)
   }
 
   if (isLoading) {

@@ -65,7 +65,7 @@ export default function ServiceVisitForm({
 
     if (visit) {
       return {
-        vendor_id: visit.vendor_id,
+        vendor_id: visit.vendor_id ?? undefined,
         date: visit.date.split('T')[0],
         mileage: system === 'metric' && visit.mileage ? UnitConverter.milesToKm(Number(visit.mileage)) ?? Number(visit.mileage) : visit.mileage ? Number(visit.mileage) : undefined,
         notes: visit.notes || '',
@@ -83,7 +83,7 @@ export default function ServiceVisitForm({
           is_inspection: item.is_inspection,
           inspection_result: item.inspection_result || '',
           inspection_severity: item.inspection_severity || '',
-          triggered_by_inspection_id: item.triggered_by_inspection_id,
+          triggered_by_inspection_id: item.triggered_by_inspection_id ?? undefined,
         })),
       }
     }

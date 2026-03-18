@@ -1,6 +1,7 @@
-/**
- * Shop discovery types for TomTom/OSM integration.
- */
+// ============================================================================
+// Hand-maintained frontend-only types
+// Deprecated backward-compat aliases. New code should use poi.ts instead.
+// ============================================================================
 
 export interface PlaceResult {
   business_name: string
