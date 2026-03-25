@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mygarage"
-version = "2.24.1"
+version = "2.25.0"
 description = "Self-hosted vehicle maintenance tracking application"
 requires-python = ">=3.13"
 dependencies = [
-    "fastapi>=0.135.1",
+    "fastapi>=0.135.2",
     "granian>=2.7.2",
     "sqlalchemy>=2.0.48",
     "aiosqlite>=0.22.1",
@@ -29,7 +29,7 @@ dependencies = [
     "slowapi>=0.1.9",
     "argon2-cffi>=25.1.0",
     "authlib>=1.6.9",  # OIDC/OAuth2 authentication
-    "pymupdf>=1.27.2",
+    "pymupdf>=1.27.2.2",
     "pytesseract>=0.3.13",
     "aiosmtplib>=5.1.0",  # Async SMTP for email notifications
     "pyyaml>=6.0.3",  # YAML parsing for maintenance templates
@@ -41,8 +41,8 @@ dependencies = [
 dev = [
     "pytest>=9.0.2",
     "pytest-asyncio>=1.3.0",
-    "pytest-cov>=7.0.0",
-    "ruff>=0.15.4",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.15.7",
     "pandas-stubs>=3.0.0.260204",
     "types-Pillow>=10.2.0.20240822",
 ]

@@ -57,10 +57,15 @@ import type {
 } from '../types/analytics'
 import AnalyticsHelpModal from '../components/AnalyticsHelpModal'
 import { formatCurrencyZero as formatCurrency } from '../utils/formatUtils'
+import { formatDateForDisplay } from '../utils/dateUtils'
+import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
+import { useDateLocale } from '../hooks/useDateLocale'
 
 export default function Analytics() {
   const { vin } = useParams<{ vin: string }>()
   const { system, showBoth } = useUnitPreference()
+  const { currencyCode, locale } = useCurrencyPreference()
+  const dateLocale = useDateLocale()
   const [analytics, setAnalytics] = useState<VehicleAnalytics | null>(null)
   const [vendorAnalytics, setVendorAnalytics] = useState<VendorAnalyticsSummary | null>(null)
   const [seasonalAnalytics, setSeasonalAnalytics] = useState<SeasonalAnalyticsSummary | null>(null)
@@ -191,22 +196,22 @@ export default function Analytics() {
 
     // Cost Analysis Summary
     rows.push(['Cost Analysis Summary'])
-    rows.push(['Total Cost', formatCurrency(cost_analysis.total_cost)])
-    rows.push(['Average Monthly Cost', formatCurrency(cost_analysis.average_monthly_cost)])
+    rows.push(['Total Cost', formatCurrency(cost_analysis.total_cost, { currencyCode, locale })])
+    rows.push(['Average Monthly Cost', formatCurrency(cost_analysis.average_monthly_cost, { currencyCode, locale })])
     rows.push(['Months Tracked', cost_analysis.months_tracked.toString()])
     rows.push(['Service Count', cost_analysis.service_count.toString()])
     rows.push(['Fuel Count', cost_analysis.fuel_count.toString()])
     if (cost_analysis.cost_per_mile) {
-      rows.push(['Cost Per Mile', formatCurrency(cost_analysis.cost_per_mile)])
+      rows.push(['Cost Per Mile', formatCurrency(cost_analysis.cost_per_mile, { currencyCode, locale })])
     }
     rows.push([]) // Empty row
 
     // Rolling Averages
     if (cost_analysis.rolling_avg_3m || cost_analysis.rolling_avg_6m || cost_analysis.rolling_avg_12m) {
       rows.push(['Rolling Averages'])
-      if (cost_analysis.rolling_avg_3m) rows.push(['3-Month', formatCurrency(cost_analysis.rolling_avg_3m)])
-      if (cost_analysis.rolling_avg_6m) rows.push(['6-Month', formatCurrency(cost_analysis.rolling_avg_6m)])
-      if (cost_analysis.rolling_avg_12m) rows.push(['12-Month', formatCurrency(cost_analysis.rolling_avg_12m)])
+      if (cost_analysis.rolling_avg_3m) rows.push(['3-Month', formatCurrency(cost_analysis.rolling_avg_3m, { currencyCode, locale })])
+      if (cost_analysis.rolling_avg_6m) rows.push(['6-Month', formatCurrency(cost_analysis.rolling_avg_6m, { currencyCode, locale })])
+      if (cost_analysis.rolling_avg_12m) rows.push(['12-Month', formatCurrency(cost_analysis.rolling_avg_12m, { currencyCode, locale })])
       rows.push(['Trend Direction', cost_analysis.trend_direction])
       rows.push([]) // Empty row
     }
@@ -268,7 +273,7 @@ export default function Analytics() {
     // Seasonal Analysis
     if (seasonalAnalytics && seasonalAnalytics.seasons.length > 0) {
       rows.push(['Seasonal Analysis'])
-      rows.push(['Annual Average', formatCurrency(seasonalAnalytics.annual_average)])
+      rows.push(['Annual Average', formatCurrency(seasonalAnalytics.annual_average, { currencyCode, locale })])
       if (seasonalAnalytics.highest_cost_season) rows.push(['Highest Cost Season', seasonalAnalytics.highest_cost_season])
       if (seasonalAnalytics.lowest_cost_season) rows.push(['Lowest Cost Season', seasonalAnalytics.lowest_cost_season])
       rows.push([]) // Empty row
@@ -300,11 +305,11 @@ export default function Analytics() {
 
   const formatDate = (dateString: string | null): string => {
     if (!dateString) return 'N/A'
-    return new Date(dateString).toLocaleDateString('en-US', {
+    return formatDateForDisplay(dateString, {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
-    })
+    }, dateLocale)
   }
 
   const getTrendIcon = (trend: string) => {
@@ -424,15 +429,15 @@ export default function Analytics() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <p className="text-xs text-garage-text-muted">Monthly Avg</p>
-              <p className="text-xl font-semibold text-garage-text">{formatCurrency(cost_projection.monthly_average)}</p>
+              <p className="text-xl font-semibold text-garage-text">{formatCurrency(cost_projection.monthly_average, { currencyCode, locale })}</p>
             </div>
             <div>
               <p className="text-xs text-garage-text-muted">Next 6 Months</p>
-              <p className="text-xl font-semibold text-garage-text">{formatCurrency(cost_projection.six_month_projection)}</p>
+              <p className="text-xl font-semibold text-garage-text">{formatCurrency(cost_projection.six_month_projection, { currencyCode, locale })}</p>
             </div>
             <div>
               <p className="text-xs text-garage-text-muted">Next 12 Months</p>
-              <p className="text-xl font-semibold text-garage-text">{formatCurrency(cost_projection.twelve_month_projection)}</p>
+              <p className="text-xl font-semibold text-garage-text">{formatCurrency(cost_projection.twelve_month_projection, { currencyCode, locale })}</p>
             </div>
           </div>
           <p className="text-xs text-garage-text-muted mt-4">{cost_projection.assumptions}</p>
@@ -510,7 +515,7 @@ export default function Analytics() {
             <DollarSign className="w-5 h-5 text-garage-text-muted" />
           </div>
           <p className="text-2xl font-bold text-garage-text">
-            {formatCurrency(cost_analysis.total_cost)}
+            {formatCurrency(cost_analysis.total_cost, { currencyCode, locale })}
           </p>
           <p className="text-xs text-garage-text-muted mt-1">
             {cost_analysis.months_tracked} months tracked
@@ -523,7 +528,7 @@ export default function Analytics() {
             <BarChart3 className="w-5 h-5 text-garage-text-muted" />
           </div>
           <p className="text-2xl font-bold text-garage-text">
-            {formatCurrency(cost_analysis.average_monthly_cost)}
+            {formatCurrency(cost_analysis.average_monthly_cost, { currencyCode, locale })}
           </p>
           <p className="text-xs text-garage-text-muted mt-1">
             {cost_analysis.service_count + cost_analysis.fuel_count} records
@@ -553,7 +558,7 @@ export default function Analytics() {
               <LineChart className="w-5 h-5 text-garage-text-muted" />
             </div>
             <p className="text-2xl font-bold text-garage-text">
-              {cost_analysis.cost_per_mile ? formatCurrency(cost_analysis.cost_per_mile) : 'N/A'}
+              {cost_analysis.cost_per_mile ? formatCurrency(cost_analysis.cost_per_mile, { currencyCode, locale }) : 'N/A'}
             </p>
             {analytics.total_miles_driven && (
               <p className="text-xs text-garage-text-muted mt-1">
@@ -579,7 +584,7 @@ export default function Analytics() {
                   3-Month Rolling Average
                 </h3>
                 <p className="text-2xl font-bold text-garage-text">
-                  {formatCurrency(cost_analysis.rolling_avg_3m)}
+                  {formatCurrency(cost_analysis.rolling_avg_3m, { currencyCode, locale })}
                 </p>
                 <p className="text-xs text-garage-text-muted mt-1">
                   Recent short-term trend
@@ -593,7 +598,7 @@ export default function Analytics() {
                   6-Month Rolling Average
                 </h3>
                 <p className="text-2xl font-bold text-garage-text">
-                  {formatCurrency(cost_analysis.rolling_avg_6m)}
+                  {formatCurrency(cost_analysis.rolling_avg_6m, { currencyCode, locale })}
                 </p>
                 <p className="text-xs text-garage-text-muted mt-1">
                   Smoothed medium-term trend
@@ -607,7 +612,7 @@ export default function Analytics() {
                   12-Month Rolling Average
                 </h3>
                 <p className="text-2xl font-bold text-garage-text">
-                  {formatCurrency(cost_analysis.rolling_avg_12m)}
+                  {formatCurrency(cost_analysis.rolling_avg_12m, { currencyCode, locale })}
                 </p>
                 <p className="text-xs text-garage-text-muted mt-1">
                   Annual trend analysis
@@ -715,7 +720,7 @@ export default function Analytics() {
                               <div key={(entry.dataKey ?? index).toString()} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: index > 0 ? '4px' : '0' }}>
                                 <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: entry.color || '#3B82F6' }} />
                                 <p style={{ fontSize: '14px', margin: 0 }}>
-                                  {entryName}: {formatCurrency(numericValue)}
+                                  {entryName}: {formatCurrency(numericValue, { currencyCode, locale })}
                                 </p>
                               </div>
                             )
@@ -904,7 +909,7 @@ export default function Analytics() {
                       return (
                         <div style={{ backgroundColor: '#1a1f28', border: '1px solid #3a4050', borderRadius: '8px', padding: '12px', color: '#e4e6eb' }}>
                           <p style={{ fontWeight: '600', marginBottom: '4px' }}>{dataName}</p>
-                          <p style={{ fontSize: '14px', color: '#9ca3af' }}>{formatCurrency(numericValue)}</p>
+                          <p style={{ fontSize: '14px', color: '#9ca3af' }}>{formatCurrency(numericValue, { currencyCode, locale })}</p>
                         </div>
                       )
                     }
@@ -922,10 +927,10 @@ export default function Analytics() {
                 <div className="flex-1">
                   <p className="font-medium text-garage-text">{item.service_type}</p>
                   <p className="text-xs text-garage-text-muted">
-                    {item.count} service{item.count !== 1 ? 's' : ''} • Avg: {formatCurrency(item.average_cost)}
+                    {item.count} service{item.count !== 1 ? 's' : ''} • Avg: {formatCurrency(item.average_cost, { currencyCode, locale })}
                   </p>
                 </div>
-                <p className="font-bold text-garage-text">{formatCurrency(item.total_cost)}</p>
+                <p className="font-bold text-garage-text">{formatCurrency(item.total_cost, { currencyCode, locale })}</p>
               </div>
             ))}
           </div>
@@ -982,7 +987,7 @@ export default function Analytics() {
                               <div key={(entry.dataKey ?? index).toString()} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: index > 0 ? '4px' : '0' }}>
                                 <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: entry.color || '#3B82F6' }} />
                                 <p style={{ fontSize: '14px', margin: 0 }}>
-                                  {entryName}: {formatCurrency(numericValue)}
+                                  {entryName}: {formatCurrency(numericValue, { currencyCode, locale })}
                                 </p>
                               </div>
                             )
@@ -1013,12 +1018,12 @@ export default function Analytics() {
                     {month.month_name} {month.year}
                   </p>
                   <p className="text-xs text-garage-text-muted">
-                    Service: {formatCurrency(month.total_service_cost)} • Fuel: {formatCurrency(month.total_fuel_cost)}
-                    {parseFloat(month.total_def_cost) > 0 && ` • DEF: ${formatCurrency(month.total_def_cost)}`}
-                    {parseFloat(month.total_spot_rental_cost) > 0 && ` • Spot Rental: ${formatCurrency(month.total_spot_rental_cost)}`}
+                    Service: {formatCurrency(month.total_service_cost, { currencyCode, locale })} • Fuel: {formatCurrency(month.total_fuel_cost, { currencyCode, locale })}
+                    {parseFloat(month.total_def_cost) > 0 && ` • DEF: ${formatCurrency(month.total_def_cost, { currencyCode, locale })}`}
+                    {parseFloat(month.total_spot_rental_cost) > 0 && ` • Spot Rental: ${formatCurrency(month.total_spot_rental_cost, { currencyCode, locale })}`}
                   </p>
                 </div>
-                <p className="font-bold text-garage-text">{formatCurrency(month.total_cost)}</p>
+                <p className="font-bold text-garage-text">{formatCurrency(month.total_cost, { currencyCode, locale })}</p>
               </div>
             ))}
           </div>
@@ -1059,7 +1064,7 @@ export default function Analytics() {
                 data={fuel_economy.data_points.map(point => {
                   const rawMpg = parseFloat(point.mpg);
                   return {
-                    date: new Date(point.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+                    date: formatDateForDisplay(point.date, { month: 'short', day: 'numeric' }, dateLocale),
                     mpg: rawMpg,
                     displayFuelEconomy: !isNaN(rawMpg) && rawMpg > 0
                       ? (system === 'metric' ? UnitConverter.mpgToL100km(rawMpg) : rawMpg)
@@ -1137,7 +1142,7 @@ export default function Analytics() {
                     <td className="py-2 px-4 text-sm text-garage-text text-right font-medium">{UnitFormatter.formatFuelEconomy(parseFloat(point.mpg), system, showBoth)}</td>
                     <td className="py-2 px-4 text-sm text-garage-text text-right">{UnitFormatter.formatDistance(point.mileage, system, false)}</td>
                     <td className="py-2 px-4 text-sm text-garage-text text-right">{UnitFormatter.formatVolume(parseFloat(point.gallons), system, false)}</td>
-                    <td className="py-2 px-4 text-sm text-garage-text text-right">{formatCurrency(point.cost)}</td>
+                    <td className="py-2 px-4 text-sm text-garage-text text-right">{formatCurrency(point.cost, { currencyCode, locale })}</td>
                   </tr>
                 ))}
               </tbody>
@@ -1157,7 +1162,7 @@ export default function Analytics() {
             <div className="text-center p-4 bg-garage-bg rounded-lg">
               <p className="text-sm text-garage-text-muted mb-1">Total Spent</p>
               <p className="text-2xl font-bold text-garage-text">
-                {formatCurrency(propane.total_spent)}
+                {formatCurrency(propane.total_spent, { currencyCode, locale })}
               </p>
             </div>
             <div className="text-center p-4 bg-garage-bg rounded-lg">
@@ -1195,7 +1200,7 @@ export default function Analytics() {
                             <p style={{ fontWeight: '600', marginBottom: '8px' }}>{label}</p>
                             {payload.map((entry, index) => (
                               <p key={index} style={{ fontSize: '14px', color: '#9ca3af' }}>
-                                {entry.name}: {formatCurrency(entry.value as number)}
+                                {entry.name}: {formatCurrency(entry.value as number, { currencyCode, locale })}
                               </p>
                             ))}
                           </div>
@@ -1224,7 +1229,7 @@ export default function Analytics() {
             <div className="text-center p-4 bg-garage-bg rounded-lg">
               <p className="text-sm text-garage-text-muted mb-1">Total Cost</p>
               <p className="text-2xl font-bold text-garage-text">
-                {formatCurrency(spotRental.total_cost)}
+                {formatCurrency(spotRental.total_cost, { currencyCode, locale })}
               </p>
             </div>
             <div className="text-center p-4 bg-garage-bg rounded-lg">
@@ -1236,7 +1241,7 @@ export default function Analytics() {
             <div className="text-center p-4 bg-garage-bg rounded-lg">
               <p className="text-sm text-garage-text-muted mb-1">Monthly Average</p>
               <p className="text-2xl font-bold text-primary">
-                {formatCurrency(spotRental.monthly_average)}
+                {formatCurrency(spotRental.monthly_average, { currencyCode, locale })}
               </p>
             </div>
           </div>
@@ -1267,7 +1272,7 @@ export default function Analytics() {
                             <p style={{ fontWeight: '600', marginBottom: '8px' }}>{label}</p>
                             {payload.map((entry, index) => (
                               <p key={index} style={{ fontSize: '14px', color: '#9ca3af' }}>
-                                {labels[entry.dataKey as string] || entry.name}: {formatCurrency(entry.value as number)}
+                                {labels[entry.dataKey as string] || entry.name}: {formatCurrency(entry.value as number, { currencyCode, locale })}
                               </p>
                             ))}
                           </div>
@@ -1299,7 +1304,7 @@ export default function Analytics() {
             <div className="text-center p-4 bg-garage-bg rounded-lg">
               <p className="text-sm text-garage-text-muted mb-1">Total Spent</p>
               <p className="text-2xl font-bold text-garage-text">
-                {formatCurrency(defAnalysis.total_spent)}
+                {formatCurrency(defAnalysis.total_spent, { currencyCode, locale })}
               </p>
             </div>
             <div className="text-center p-4 bg-garage-bg rounded-lg">
@@ -1364,7 +1369,7 @@ export default function Analytics() {
                   </div>
                 </div>
                 {item.cost && (
-                  <p className="font-bold text-garage-text ml-4">{formatCurrency(item.cost)}</p>
+                  <p className="font-bold text-garage-text ml-4">{formatCurrency(item.cost, { currencyCode, locale })}</p>
                 )}
               </div>
             ))}
@@ -1442,7 +1447,7 @@ export default function Analytics() {
                         <div style={{ backgroundColor: '#1a1f28', border: '1px solid #3a4050', borderRadius: '8px', padding: '12px', color: '#e4e6eb' }}>
                           <p style={{ fontWeight: '600', marginBottom: '8px' }}>{data.vendor}</p>
                           <p style={{ fontSize: '14px', color: '#9ca3af', marginBottom: '4px' }}>
-                            Total: {formatCurrency(data.spending)}
+                            Total: {formatCurrency(data.spending, { currencyCode, locale })}
                           </p>
                           <p style={{ fontSize: '14px', color: '#9ca3af' }}>
                             Services: {data.services}
@@ -1466,7 +1471,7 @@ export default function Analytics() {
                   <h3 className="font-semibold text-garage-text mb-1">{vendor.vendor_name}</h3>
                   <div className="flex items-center gap-4 text-sm text-garage-text-muted">
                     <span>{vendor.service_count} services</span>
-                    <span>Avg: {formatCurrency(vendor.average_cost)}</span>
+                    <span>Avg: {formatCurrency(vendor.average_cost, { currencyCode, locale })}</span>
                     {vendor.last_service_date && (
                       <span>Last visit: {formatDate(vendor.last_service_date)}</span>
                     )}
@@ -1481,7 +1486,7 @@ export default function Analytics() {
                     </div>
                   )}
                 </div>
-                <p className="font-bold text-garage-text ml-4 text-lg">{formatCurrency(vendor.total_spent)}</p>
+                <p className="font-bold text-garage-text ml-4 text-lg">{formatCurrency(vendor.total_spent, { currencyCode, locale })}</p>
               </div>
             ))}
           </div>
@@ -1500,7 +1505,7 @@ export default function Analytics() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div className="p-4 bg-garage-bg border border-garage-border rounded-lg">
               <h3 className="text-sm font-medium text-garage-text-muted mb-2">Annual Average</h3>
-              <p className="text-2xl font-bold text-garage-text">{formatCurrency(seasonalAnalytics.annual_average)}</p>
+              <p className="text-2xl font-bold text-garage-text">{formatCurrency(seasonalAnalytics.annual_average, { currencyCode, locale })}</p>
             </div>
             {seasonalAnalytics.highest_cost_season && (
               <div className="p-4 bg-garage-bg border border-garage-border rounded-lg">
@@ -1567,10 +1572,10 @@ export default function Analytics() {
                         <div style={{ backgroundColor: '#1a1f28', border: '1px solid #3a4050', borderRadius: '8px', padding: '12px', color: '#e4e6eb' }}>
                           <p style={{ fontWeight: '600', marginBottom: '8px' }}>{data.season}</p>
                           <p style={{ fontSize: '14px', color: '#9ca3af', marginBottom: '4px' }}>
-                            Total Cost: {formatCurrency(data.cost)}
+                            Total Cost: {formatCurrency(data.cost, { currencyCode, locale })}
                           </p>
                           <p style={{ fontSize: '14px', color: '#9ca3af', marginBottom: '4px' }}>
-                            Average Cost: {formatCurrency(data.avgCost)}
+                            Average Cost: {formatCurrency(data.avgCost, { currencyCode, locale })}
                           </p>
                           <p style={{ fontSize: '14px', color: '#9ca3af' }}>
                             Services: {data.services}
@@ -1594,12 +1599,12 @@ export default function Analytics() {
               <div key={idx} className="p-4 bg-garage-bg border border-garage-border rounded-lg">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-lg font-semibold text-garage-text">{season.season}</h3>
-                  <p className="text-xl font-bold text-garage-text">{formatCurrency(season.total_cost)}</p>
+                  <p className="text-xl font-bold text-garage-text">{formatCurrency(season.total_cost, { currencyCode, locale })}</p>
                 </div>
                 <div className="space-y-2 text-sm text-garage-text-muted">
                   <div className="flex justify-between">
                     <span>Average Cost:</span>
-                    <span className="font-medium text-garage-text">{formatCurrency(season.average_cost)}</span>
+                    <span className="font-medium text-garage-text">{formatCurrency(season.average_cost, { currencyCode, locale })}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Services:</span>
@@ -1736,7 +1741,7 @@ export default function Analytics() {
                       <div className="flex justify-between">
                         <span className="text-garage-text-muted">Total Cost:</span>
                         <span className="font-bold text-garage-text text-xl">
-                          {formatCurrency(comparisonData.period1_total_cost)}
+                          {formatCurrency(comparisonData.period1_total_cost, { currencyCode, locale })}
                         </span>
                       </div>
                       <div className="flex justify-between">
@@ -1765,7 +1770,7 @@ export default function Analytics() {
                       <div className="flex justify-between">
                         <span className="text-garage-text-muted">Total Cost:</span>
                         <span className="font-bold text-garage-text text-xl">
-                          {formatCurrency(comparisonData.period2_total_cost)}
+                          {formatCurrency(comparisonData.period2_total_cost, { currencyCode, locale })}
                         </span>
                       </div>
                       <div className="flex justify-between">
@@ -1801,7 +1806,7 @@ export default function Analytics() {
                         {comparisonData.cost_change_percent}%
                       </p>
                       <p className="text-xs text-garage-text-muted mt-1">
-                        {formatCurrency(comparisonData.cost_change_amount)}
+                        {formatCurrency(comparisonData.cost_change_amount, { currencyCode, locale })}
                       </p>
                     </div>
 
@@ -1848,11 +1853,11 @@ export default function Analytics() {
                             </h4>
                             <div className="flex items-center gap-4 text-sm text-garage-text-muted">
                               <span>
-                                Period 1: {formatCurrency(category.period1_value)}
+                                Period 1: {formatCurrency(category.period1_value, { currencyCode, locale })}
                               </span>
                               <span>→</span>
                               <span>
-                                Period 2: {formatCurrency(category.period2_value)}
+                                Period 2: {formatCurrency(category.period2_value, { currencyCode, locale })}
                               </span>
                             </div>
                           </div>
@@ -1866,7 +1871,7 @@ export default function Analytics() {
                               {category.change_percent}%
                             </p>
                             <p className="text-xs text-garage-text-muted">
-                              {formatCurrency(category.change_amount)}
+                              {formatCurrency(category.change_amount, { currencyCode, locale })}
                             </p>
                           </div>
                         </div>

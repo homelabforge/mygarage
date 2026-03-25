@@ -1,5 +1,6 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
 import { Car, Settings, Home, Info, BookUser, BarChart3, Calendar, LogOut, User, MapPin } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
 import { useAppVersion } from '../hooks/useAppVersion'
 import { useEffect, useState } from 'react'
@@ -7,6 +8,8 @@ import OfflineBanner from './OfflineBanner'
 import api from '../services/api'
 
 export default function Layout() {
+  const { t } = useTranslation('nav')
+  const { t: tc } = useTranslation('common')
   const location = useLocation()
   const navigate = useNavigate()
   const { user, isAuthenticated, isAdmin, logout } = useAuth()
@@ -46,35 +49,35 @@ export default function Layout() {
                 className="flex items-center space-x-2 text-garage-text-muted hover:text-garage-text transition-colors"
               >
                 <Home className="w-4 h-4" />
-                <span>Dashboard</span>
+                <span>{t('dashboard')}</span>
               </Link>
               <Link
                 to="/analytics"
                 className="flex items-center space-x-2 text-garage-text-muted hover:text-garage-text transition-colors"
               >
                 <BarChart3 className="w-4 h-4" />
-                <span>Analytics</span>
+                <span>{t('analytics')}</span>
               </Link>
               <Link
                 to="/address-book"
                 className="flex items-center space-x-2 text-garage-text-muted hover:text-garage-text transition-colors"
               >
                 <BookUser className="w-4 h-4" />
-                <span>Address Book</span>
+                <span>{t('addressBook')}</span>
               </Link>
               <Link
                 to="/poi-finder"
                 className="flex items-center space-x-2 text-garage-text-muted hover:text-garage-text transition-colors"
               >
                 <MapPin className="w-4 h-4" />
-                <span>Find POI</span>
+                <span>{t('findPOI')}</span>
               </Link>
               <Link
                 to="/calendar"
                 className="flex items-center space-x-2 text-garage-text-muted hover:text-garage-text transition-colors"
               >
                 <Calendar className="w-4 h-4" />
-                <span>Calendar</span>
+                <span>{t('calendar')}</span>
               </Link>
             </nav>
 
@@ -82,16 +85,16 @@ export default function Layout() {
               <Link
                 to="/about"
                 className="text-garage-text-muted hover:text-garage-text transition-colors"
-                title="About"
-                aria-label="About"
+                title={t('about')}
+                aria-label={t('about')}
               >
                 <Info className="w-5 h-5" />
               </Link>
               <Link
                 to="/settings"
                 className="text-garage-text-muted hover:text-garage-text transition-colors"
-                title="Settings"
-                aria-label="Settings"
+                title={t('settings')}
+                aria-label={t('settings')}
               >
                 <Settings className="w-5 h-5" />
               </Link>
@@ -106,17 +109,17 @@ export default function Layout() {
                         <span className="text-sm font-medium text-garage-text">{user.username}</span>
                         {isAdmin && (
                           <span className="px-2 py-0.5 text-xs font-semibold bg-danger-500 text-white rounded">
-                            ADMIN
+                            {t('admin')}
                           </span>
                         )}
                       </div>
                       <button
                         onClick={handleLogout}
                         className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-garage-text-muted hover:text-garage-text hover:bg-garage-bg rounded-lg transition-colors"
-                        title="Logout"
+                        title={t('logout')}
                       >
                         <LogOut className="w-4 h-4" />
-                        <span>Logout</span>
+                        <span>{t('logout')}</span>
                       </button>
                     </div>
                   ) : (
@@ -125,7 +128,7 @@ export default function Layout() {
                       className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
                     >
                       <User className="w-4 h-4" />
-                      <span>Login</span>
+                      <span>{t('login')}</span>
                     </Link>
                   )}
                 </>
@@ -154,7 +157,7 @@ export default function Layout() {
             }`}
           >
             <Home className="w-5 h-5" />
-            <span className="text-xs mt-1">Home</span>
+            <span className="text-xs mt-1">{t('home')}</span>
           </Link>
 
           <Link
@@ -166,7 +169,7 @@ export default function Layout() {
             }`}
           >
             <BookUser className="w-5 h-5" />
-            <span className="text-xs mt-1">Contacts</span>
+            <span className="text-xs mt-1">{t('contacts')}</span>
           </Link>
 
           <Link
@@ -178,7 +181,7 @@ export default function Layout() {
             }`}
           >
             <MapPin className="w-5 h-5" />
-            <span className="text-xs mt-1">POI</span>
+            <span className="text-xs mt-1">{t('poi')}</span>
           </Link>
 
           <Link
@@ -190,7 +193,7 @@ export default function Layout() {
             }`}
           >
             <Calendar className="w-5 h-5" />
-            <span className="text-xs mt-1">Calendar</span>
+            <span className="text-xs mt-1">{t('calendar')}</span>
           </Link>
 
           <Link
@@ -202,7 +205,7 @@ export default function Layout() {
             }`}
           >
             <BarChart3 className="w-5 h-5" />
-            <span className="text-xs mt-1">Analytics</span>
+            <span className="text-xs mt-1">{t('analytics')}</span>
           </Link>
 
           <Link
@@ -214,7 +217,7 @@ export default function Layout() {
             }`}
           >
             <Settings className="w-5 h-5" />
-            <span className="text-xs mt-1">Settings</span>
+            <span className="text-xs mt-1">{t('settings')}</span>
           </Link>
         </div>
       </nav>
@@ -222,7 +225,7 @@ export default function Layout() {
       {/* Footer - hidden on mobile */}
       <footer className="hidden md:block bg-garage-surface border-t border-garage-border py-4">
         <div className="container mx-auto px-4 text-center text-garage-text-muted text-sm">
-          <p>MyGarage v{version} - Self-hosted vehicle maintenance tracker</p>
+          <p>{tc('footer', { version })}</p>
         </div>
       </footer>
     </div>

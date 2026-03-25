@@ -314,6 +314,12 @@ async def update_current_user(
     if user_update.mobile_quick_entry_enabled is not None:
         current_user.mobile_quick_entry_enabled = user_update.mobile_quick_entry_enabled
 
+    if user_update.language is not None:
+        current_user.language = user_update.language
+
+    if user_update.currency_code is not None:
+        current_user.currency_code = user_update.currency_code
+
     # Users cannot change their own is_active or is_admin status
     current_user.updated_at = utc_now()
 
@@ -530,6 +536,22 @@ async def update_user(
 
     if user_update.family_dashboard_order is not None:
         user.family_dashboard_order = user_update.family_dashboard_order
+
+    # Preference fields (also settable by admin)
+    if user_update.unit_preference is not None:
+        user.unit_preference = user_update.unit_preference
+
+    if user_update.show_both_units is not None:
+        user.show_both_units = user_update.show_both_units
+
+    if user_update.mobile_quick_entry_enabled is not None:
+        user.mobile_quick_entry_enabled = user_update.mobile_quick_entry_enabled
+
+    if user_update.language is not None:
+        user.language = user_update.language
+
+    if user_update.currency_code is not None:
+        user.currency_code = user_update.currency_code
 
     user.updated_at = utc_now()
 

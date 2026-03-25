@@ -1,0 +1,103 @@
+{
+  "systemConfig": {
+    "title": "System Configuration",
+    "description": "Configure core system settings like timezone and debug mode."
+  },
+  "timezone": {
+    "label": "Timezone",
+    "description": "Affects log timestamps, scheduled tasks, and date displays throughout the application."
+  },
+  "debug": {
+    "label": "Debug Mode",
+    "tooltip": "Requires application restart",
+    "enable": "Enable verbose logging and detailed error messages",
+    "warning": "⚠️ Requires application restart to take effect. Only enable for troubleshooting."
+  },
+  "theme": {
+    "label": "Theme",
+    "dark": "Dark",
+    "light": "Light",
+    "description": "Choose between light and dark theme. Your preference is saved automatically."
+  },
+  "units": {
+    "label": "Unit System",
+    "imperial": "Imperial",
+    "metric": "Metric",
+    "imperialDescription": "Using imperial units: gallons, miles, MPG, °F, PSI, lbs, lb-ft",
+    "metricDescription": "Using metric units: liters, kilometers, L/100km, °C, bar, kg, Nm",
+    "showBoth": "Show both units",
+    "showBothDescription": "Display values in both imperial and metric (e.g., \"25 MPG (9.4 L/100km)\")"
+  },
+  "language": {
+    "label": "Language",
+    "description": "Choose your preferred display language. Community translations may be incomplete.",
+    "saved": "Language preference saved!",
+    "error": "Failed to save language preference"
+  },
+  "currency": {
+    "label": "Currency",
+    "description": "Choose your preferred currency for displaying costs and prices.",
+    "preview": "Preview: {{amount}}",
+    "saved": "Currency preference saved!",
+    "error": "Failed to save currency preference",
+    "confirmTitle": "Change Currency?",
+    "confirmMessage": "This changes how all costs are displayed. It does not convert existing values between currencies.",
+    "confirmAction": "Change Currency"
+  },
+  "mobile": {
+    "title": "Mobile Experience",
+    "description": "Customize how the app behaves on mobile devices.",
+    "quickEntry": "Quick Entry on Mobile",
+    "quickEntryDescription": "After signing in on a mobile device, go directly to Quick Entry instead of the dashboard"
+  },
+  "family": {
+    "title": "Family Management",
+    "description": "Manage family members, user accounts, and dashboard visibility.",
+    "manage": "Manage Family"
+  },
+  "auth": {
+    "title": "Authentication Mode",
+    "description": "Configure how users access and authenticate with MyGarage.",
+    "restartWarning": "⚠️ Requires application restart to take effect.",
+    "none": "None",
+    "local": "Local",
+    "oidc": "OIDC",
+    "noneDetected": "External Authenticator Detected",
+    "noneDetectedDescription": "MyGarage is running behind a reverse proxy authenticator. Authentication modes are only needed if you require additional access control beyond your existing setup.",
+    "noneWarning": "No Authentication Enabled",
+    "noneWarningDescription": "Anyone with network access can view and modify data in MyGarage. Consider enabling Local Authentication or placing MyGarage behind an authenticator like Authelia or Authentik.",
+    "checking": "Checking for authenticators...",
+    "localTitle": "Local Authentication",
+    "localConfigured": "Local authentication is configured.",
+    "localDescription": "Local authentication allows users to log in with a username and password stored locally.",
+    "manageAuth": "Manage Family & Auth →",
+    "oidcTitle": "OpenID Connect (OIDC) Authentication",
+    "oidcConfigured": "Configured with {{provider}}",
+    "oidcDescription": "Configure single sign-on with your identity provider (Authentik, Keycloak, Auth0, Okta, etc.)",
+    "configureOIDC": "Configure OIDC"
+  },
+  "archive": {
+    "title": "Archived Vehicles",
+    "description": "View and manage vehicles you've archived (sold, totaled, gifted, etc.). Archived vehicles remain in analytics but can be hidden from the main list."
+  },
+  "secretKey": {
+    "label": "Secret Key:",
+    "description": "Automatically generated and stored securely at {{path}}. No manual configuration needed. The key persists across application restarts."
+  },
+  "stats": {
+    "serviceRecords": "Service Records",
+    "fuelRecords": "Fuel Records",
+    "maintenanceItems": "Maintenance Items",
+    "documents": "Documents",
+    "notes": "Notes",
+    "photos": "Photos"
+  },
+  "preferences": {
+    "unitSaved": "Unit preference saved!",
+    "unitError": "Failed to save unit preference",
+    "displaySaved": "Display preference saved!",
+    "displayError": "Failed to save display preference",
+    "mobileSaved": "Mobile preference saved!",
+    "mobileError": "Failed to save mobile preference"
+  }
+}

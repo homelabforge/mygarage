@@ -4,6 +4,8 @@ import { toast } from 'sonner'
 import type { MaintenanceTemplate, MaintenanceTemplateListResponse, TemplateApplyResponse } from '../types/maintenanceTemplate'
 import type { Vehicle } from '../types/vehicle'
 import api from '../services/api'
+import { formatDateForDisplay } from '../utils/dateUtils'
+import { useDateLocale } from '../hooks/useDateLocale'
 
 interface MaintenanceTemplatePanelProps {
   vin: string
@@ -11,6 +13,7 @@ interface MaintenanceTemplatePanelProps {
 }
 
 export default function MaintenanceTemplatePanel({ vin, vehicle }: MaintenanceTemplatePanelProps) {
+  const dateLocale = useDateLocale()
   const [templates, setTemplates] = useState<MaintenanceTemplate[]>([])
   const [loading, setLoading] = useState(true)
   const [applying, setApplying] = useState(false)
@@ -77,11 +80,11 @@ export default function MaintenanceTemplatePanel({ vin, vehicle }: MaintenanceTe
   }
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
+    return formatDateForDisplay(dateString, {
       year: 'numeric',
       month: 'short',
       day: 'numeric'
-    })
+    }, dateLocale)
   }
 
   if (loading) {

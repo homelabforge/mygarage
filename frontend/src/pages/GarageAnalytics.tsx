@@ -18,12 +18,14 @@ import {
 import type { PieLabelRenderProps, SectorProps } from 'recharts'
 import type { GarageAnalytics, GarageMonthlyTrend } from '../types/analytics'
 import GarageAnalyticsHelpModal from '../components/GarageAnalyticsHelpModal'
-import { formatCurrencyZero as formatCurrency } from '../utils/formatUtils'
+import { formatCurrency as formatCurrencyBase, formatCurrencyZero as formatCurrency } from '../utils/formatUtils'
+import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
 
 // Colors for pie chart categories (9 categories: Maintenance, Upgrades, Inspection, Collision, Detailing, Fuel, DEF, Insurance, Taxes)
 const COLORS = ['#3B82F6', '#8B5CF6', '#F59E0B', '#EF4444', '#10B981', '#06B6D4', '#14B8A6', '#EC4899', '#6B7280']
 
 export default function GarageAnalytics() {
+  const { currencyCode, locale } = useCurrencyPreference()
   const [analytics, setAnalytics] = useState<GarageAnalytics | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -285,14 +287,14 @@ export default function GarageAnalytics() {
       </div>
 
       {/* Total Cost Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
         <div className="bg-garage-surface border border-garage-border rounded-lg p-6">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-sm font-medium text-garage-text-muted">Garage Value</h3>
             <Car className="w-5 h-5 text-primary" />
           </div>
           <p className="text-2xl font-bold text-garage-text">
-            {formatCurrency(total_costs.total_garage_value)}
+            {formatCurrency(total_costs.total_garage_value, { currencyCode, locale })}
           </p>
         </div>
 
@@ -302,7 +304,7 @@ export default function GarageAnalytics() {
             <Wrench className="w-5 h-5 text-primary" />
           </div>
           <p className="text-2xl font-bold text-garage-text">
-            {formatCurrency(total_costs.total_maintenance)}
+            {formatCurrency(total_costs.total_maintenance, { currencyCode, locale })}
           </p>
         </div>
 
@@ -312,7 +314,7 @@ export default function GarageAnalytics() {
             <Fuel className="w-5 h-5 text-success-500" />
           </div>
           <p className="text-2xl font-bold text-garage-text">
-            {formatCurrency(total_costs.total_fuel)}
+            {formatCurrency(total_costs.total_fuel, { currencyCode, locale })}
           </p>
         </div>
 
@@ -323,7 +325,7 @@ export default function GarageAnalytics() {
               <Droplets className="w-5 h-5 text-teal-500" />
             </div>
             <p className="text-2xl font-bold text-garage-text">
-              {formatCurrency(total_costs.total_def)}
+              {formatCurrency(total_costs.total_def, { currencyCode, locale })}
             </p>
           </div>
         )}
@@ -334,7 +336,7 @@ export default function GarageAnalytics() {
             <Shield className="w-5 h-5 text-warning-500" />
           </div>
           <p className="text-2xl font-bold text-garage-text">
-            {formatCurrency(total_costs.total_insurance)}
+            {formatCurrency(total_costs.total_insurance, { currencyCode, locale })}
           </p>
         </div>
 
@@ -344,7 +346,7 @@ export default function GarageAnalytics() {
             <FileText className="w-5 h-5 text-danger-500" />
           </div>
           <p className="text-2xl font-bold text-garage-text">
-            {formatCurrency(total_costs.total_taxes)}
+            {formatCurrency(total_costs.total_taxes, { currencyCode, locale })}
           </p>
         </div>
       </div>
@@ -387,7 +389,7 @@ export default function GarageAnalytics() {
                           <div style={customTooltipStyle}>
                             <p style={{ fontWeight: '600', marginBottom: '4px' }}>{data.name}</p>
                             <p style={{ fontSize: '14px', color: '#9ca3af' }}>
-                              {formatCurrency(data.value as number)}
+                              {formatCurrency(data.value as number, { currencyCode, locale })}
                             </p>
                           </div>
                         )
@@ -408,7 +410,7 @@ export default function GarageAnalytics() {
                       <span className="text-garage-text">{item.category}</span>
                     </div>
                     <span className="text-garage-text-muted font-medium">
-                      {formatCurrency(item.amount)}
+                      {formatCurrency(item.amount, { currencyCode, locale })}
                     </span>
                   </div>
                 ))}
@@ -435,7 +437,7 @@ export default function GarageAnalytics() {
                     type="number"
                     stroke="#9E9E9E"
                     style={{ fontSize: '12px' }}
-                    tickFormatter={(value) => `$${value.toLocaleString()}`}
+                    tickFormatter={(value) => formatCurrencyBase(value, { currencyCode, locale, wholeDollars: true })}
                   />
                   <YAxis
                     type="category"
@@ -456,7 +458,7 @@ export default function GarageAnalytics() {
                               {data.payload.name}
                             </p>
                             <p style={{ fontSize: '14px', color: '#9ca3af' }}>
-                              Running Costs: {formatCurrency(data.value as number)}
+                              Running Costs: {formatCurrency(data.value as number, { currencyCode, locale })}
                             </p>
                           </div>
                         )
@@ -507,28 +509,28 @@ export default function GarageAnalytics() {
                       <tr key={index} className="border-b border-garage-border/50 hover:bg-garage-surface-light transition-colors">
                         <td className="py-2 px-3 text-sm text-garage-text">{vehicle.nickname}</td>
                         <td className="py-2 px-3 text-sm text-garage-text text-right">
-                          {formatCurrency(vehicle.total_maintenance)}
+                          {formatCurrency(vehicle.total_maintenance, { currencyCode, locale })}
                         </td>
                         <td className="py-2 px-3 text-sm text-garage-text text-right">
-                          {formatCurrency(vehicle.total_upgrades)}
+                          {formatCurrency(vehicle.total_upgrades, { currencyCode, locale })}
                         </td>
                         <td className="py-2 px-3 text-sm text-garage-text text-right">
-                          {formatCurrency(vehicle.total_inspection)}
+                          {formatCurrency(vehicle.total_inspection, { currencyCode, locale })}
                         </td>
                         <td className="py-2 px-3 text-sm text-garage-text text-right">
-                          {formatCurrency(vehicle.total_collision)}
+                          {formatCurrency(vehicle.total_collision, { currencyCode, locale })}
                         </td>
                         <td className="py-2 px-3 text-sm text-garage-text text-right">
-                          {formatCurrency(vehicle.total_detailing)}
+                          {formatCurrency(vehicle.total_detailing, { currencyCode, locale })}
                         </td>
                         <td className="py-2 px-3 text-sm text-garage-text text-right">
-                          {formatCurrency(vehicle.total_fuel)}
+                          {formatCurrency(vehicle.total_fuel, { currencyCode, locale })}
                         </td>
                         <td className="py-2 px-3 text-sm text-garage-text text-right">
-                          {formatCurrency(vehicle.total_def)}
+                          {formatCurrency(vehicle.total_def, { currencyCode, locale })}
                         </td>
                         <td className="py-2 px-3 text-sm text-garage-text text-right font-semibold">
-                          {formatCurrency(vehicle.total_cost)}
+                          {formatCurrency(vehicle.total_cost, { currencyCode, locale })}
                         </td>
                       </tr>
                     ))}
@@ -577,7 +579,7 @@ export default function GarageAnalytics() {
                             key={index}
                             style={{ fontSize: '14px', color: '#9ca3af', marginBottom: '4px' }}
                           >
-                            {entry.name}: {formatCurrency(entry.value as number)}
+                            {entry.name}: {formatCurrency(entry.value as number, { currencyCode, locale })}
                           </p>
                         ))}
                       </div>

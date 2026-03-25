@@ -35,23 +35,29 @@ def upgrade(engine=None) -> None:
         inspector = inspect(engine)
 
         # maintenance_schedule_items: last_notified_at, last_notified_status
-        columns = [col["name"] for col in inspector.get_columns("maintenance_schedule_items")]
+        # Table may not exist if removed by a later migration (049)
+        if inspector.has_table("maintenance_schedule_items"):
+            columns = [col["name"] for col in inspector.get_columns("maintenance_schedule_items")]
 
-        if "last_notified_at" not in columns:
-            conn.execute(
-                text(
-                    f"ALTER TABLE maintenance_schedule_items ADD COLUMN last_notified_at {dt_type}"
+            if "last_notified_at" not in columns:
+                conn.execute(
+                    text(
+                        f"ALTER TABLE maintenance_schedule_items ADD COLUMN last_notified_at {dt_type}"
+                    )
                 )
-            )
-            print("  Added column: maintenance_schedule_items.last_notified_at")
+                print("  Added column: maintenance_schedule_items.last_notified_at")
 
-        if "last_notified_status" not in columns:
-            conn.execute(
-                text(
-                    "ALTER TABLE maintenance_schedule_items ADD COLUMN last_notified_status VARCHAR(20)"
+            if "last_notified_status" not in columns:
+                conn.execute(
+                    text(
+                        "ALTER TABLE maintenance_schedule_items ADD COLUMN last_notified_status VARCHAR(20)"
+                    )
                 )
+                print("  Added column: maintenance_schedule_items.last_notified_status")
+        else:
+            print(
+                "  maintenance_schedule_items table not found, skipping (removed by later migration)"
             )
-            print("  Added column: maintenance_schedule_items.last_notified_status")
 
         # insurance_policies: last_notified_at
         columns = [col["name"] for col in inspector.get_columns("insurance_policies")]

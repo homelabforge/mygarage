@@ -10997,6 +10997,11 @@ export interface components {
              */
             created_at: string;
             /**
+             * Currency Code
+             * @default USD
+             */
+            currency_code: string;
+            /**
              * Email
              * Format: email
              */
@@ -11014,6 +11019,11 @@ export interface components {
             is_active: boolean;
             /** Is Admin */
             is_admin: boolean;
+            /**
+             * Language
+             * @default en
+             */
+            language: string;
             /** Last Login */
             last_login: string | null;
             /**
@@ -11053,6 +11063,8 @@ export interface components {
          * @description Schema for updating a user.
          */
         UserUpdate: {
+            /** Currency Code */
+            currency_code?: string | null;
             /** Email */
             email?: string | null;
             /** Family Dashboard Order */
@@ -11063,6 +11075,8 @@ export interface components {
             is_active?: boolean | null;
             /** Is Admin */
             is_admin?: boolean | null;
+            /** Language */
+            language?: string | null;
             /** Mobile Quick Entry Enabled */
             mobile_quick_entry_enabled?: boolean | null;
             /**

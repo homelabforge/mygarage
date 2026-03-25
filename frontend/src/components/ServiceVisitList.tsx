@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback } from 'react'
 import { formatDateForDisplay } from '../utils/dateUtils'
 import { formatCurrency } from '../utils/formatUtils'
+import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
 import {
   Wrench,
   Plus,
@@ -44,6 +45,7 @@ export default function ServiceVisitList({
   const [expandedVisits, setExpandedVisits] = useState<Set<number>>(new Set())
   const [visitAttachments, setVisitAttachments] = useState<Record<number, Attachment[]>>({})
   const { system, showBoth } = useUnitPreference()
+  const { currencyCode, locale } = useCurrencyPreference()
 
   const { data, isLoading, error } = useServiceVisits(vin)
   const deleteMutation = useDeleteServiceVisit(vin)
@@ -218,7 +220,7 @@ export default function ServiceVisitList({
 
         {/* Cost */}
         <div className="flex-shrink-0 text-sm text-garage-text">
-          {item.cost ? formatCurrency(item.cost) : '-'}
+          {item.cost ? formatCurrency(item.cost, { currencyCode, locale }) : '-'}
         </div>
       </div>
     )
@@ -380,7 +382,7 @@ export default function ServiceVisitList({
                   {/* Total cost */}
                   <div className="flex items-center gap-1 text-sm text-garage-text font-medium min-w-[80px] justify-end">
                     <DollarSign className="w-4 h-4 text-garage-text-muted" />
-                    <span>{totalCost > 0 ? formatCurrency(totalCost) : '-'}</span>
+                    <span>{totalCost > 0 ? formatCurrency(totalCost, { currencyCode, locale }) : '-'}</span>
                   </div>
 
                   {/* Warning indicator for failed inspections */}
@@ -486,29 +488,29 @@ export default function ServiceVisitList({
                         <div className="bg-garage-bg/50 rounded-md p-3 space-y-1 text-sm max-w-xs">
                           <div className="flex justify-between text-garage-text-muted">
                             <span>Subtotal:</span>
-                            <span>{formatCurrency(visit.subtotal)}</span>
+                            <span>{formatCurrency(visit.subtotal, { currencyCode, locale })}</span>
                           </div>
                           {visit.tax_amount && (
                             <div className="flex justify-between text-garage-text-muted">
                               <span>Tax:</span>
-                              <span>{formatCurrency(visit.tax_amount)}</span>
+                              <span>{formatCurrency(visit.tax_amount, { currencyCode, locale })}</span>
                             </div>
                           )}
                           {visit.shop_supplies && (
                             <div className="flex justify-between text-garage-text-muted">
                               <span>Shop Supplies:</span>
-                              <span>{formatCurrency(visit.shop_supplies)}</span>
+                              <span>{formatCurrency(visit.shop_supplies, { currencyCode, locale })}</span>
                             </div>
                           )}
                           {visit.misc_fees && (
                             <div className="flex justify-between text-garage-text-muted">
                               <span>Misc Fees:</span>
-                              <span>{formatCurrency(visit.misc_fees)}</span>
+                              <span>{formatCurrency(visit.misc_fees, { currencyCode, locale })}</span>
                             </div>
                           )}
                           <div className="flex justify-between font-medium text-garage-text border-t border-garage-border pt-1 mt-1">
                             <span>Total:</span>
-                            <span>{formatCurrency(visit.calculated_total_cost)}</span>
+                            <span>{formatCurrency(visit.calculated_total_cost, { currencyCode, locale })}</span>
                           </div>
                         </div>
                       </div>

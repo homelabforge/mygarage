@@ -10,6 +10,7 @@ import ProtectedRoute from './components/ProtectedRoute'
 import { useAuth } from './contexts/AuthContext'
 import Layout from './components/Layout'
 import InstallPrompt from './components/InstallPrompt'
+import { useLanguageSync } from './hooks/useLanguageSync'
 
 // Eager load login/register for instant access
 import Login from './pages/Login'
@@ -39,6 +40,12 @@ const LoadingFallback = () => (
   </div>
 )
 
+/** Syncs i18n language with authenticated user's DB preference. */
+function LanguageSyncProvider({ children }: { children: React.ReactNode }) {
+  useLanguageSync()
+  return <>{children}</>
+}
+
 function FamilyRedirect() {
   const { isAdmin } = useAuth()
   return <Navigate to={isAdmin ? '/settings' : '/'} replace />
@@ -59,6 +66,7 @@ function App() {
     <ErrorBoundary>
       <ThemeProvider>
         <AuthProvider>
+          <LanguageSyncProvider>
           <QueryClientProvider client={queryClient}>
           <BrowserRouter>
             <Suspense fallback={<LoadingFallback />}>
@@ -100,6 +108,7 @@ function App() {
           </BrowserRouter>
           <ReactQueryDevtools initialIsOpen={false} />
           </QueryClientProvider>
+          </LanguageSyncProvider>
         </AuthProvider>
       </ThemeProvider>
     </ErrorBoundary>

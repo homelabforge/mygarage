@@ -4,6 +4,8 @@ import { toast } from 'sonner'
 import type { Recall } from '../types/recall'
 import type { Vehicle } from '../types/vehicle'
 import api from '../services/api'
+import { formatDateForDisplay } from '../utils/dateUtils'
+import { useDateLocale } from '../hooks/useDateLocale'
 import { useRecallRecords, useDeleteRecallRecord, useCheckNHTSA, useToggleRecallResolved } from '../hooks/queries/useRecallRecords'
 import { useQueryClient } from '@tanstack/react-query'
 
@@ -15,6 +17,7 @@ interface RecallListProps {
 }
 
 export default function RecallList({ vin, onAddClick, onEditClick, onRefresh }: RecallListProps) {
+  const dateLocale = useDateLocale()
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'resolved'>('all')
   const [vehicle, setVehicle] = useState<Vehicle | null>(null)
   const [carComplaintsEnabled, setCarComplaintsEnabled] = useState(false)
@@ -99,12 +102,11 @@ export default function RecallList({ vin, onAddClick, onEditClick, onRefresh }: 
 
   const formatDate = (dateString?: string): string => {
     if (!dateString) return 'N/A'
-    const date = new Date(dateString + "T00:00:00")
-    return date.toLocaleDateString('en-US', {
+    return formatDateForDisplay(dateString, {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
-    })
+    }, dateLocale)
   }
 
   if (isLoading) {

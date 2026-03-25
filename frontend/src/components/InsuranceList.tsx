@@ -2,6 +2,10 @@ import { Shield, Plus, Trash2, Edit3, Calendar } from 'lucide-react'
 import { toast } from 'sonner'
 import type { InsurancePolicy } from '../types/insurance'
 import { useInsuranceRecords, useDeleteInsuranceRecord } from '../hooks/queries/useInsuranceRecords'
+import { formatDateForDisplay } from '../utils/dateUtils'
+import { useDateLocale } from '../hooks/useDateLocale'
+import { formatCurrency } from '../utils/formatUtils'
+import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
 
 interface InsuranceListProps {
   vin: string
@@ -12,6 +16,8 @@ interface InsuranceListProps {
 export default function InsuranceList({ vin, onAddClick, onEditClick }: InsuranceListProps) {
   const { data: policies = [], isLoading, error } = useInsuranceRecords(vin)
   const deleteMutation = useDeleteInsuranceRecord(vin)
+  const dateLocale = useDateLocale()
+  const { currencyCode, locale } = useCurrencyPreference()
 
   const handleDelete = (policyId: number) => {
     if (!confirm('Are you sure you want to delete this insurance policy?')) {
@@ -26,12 +32,11 @@ export default function InsuranceList({ vin, onAddClick, onEditClick }: Insuranc
   }
 
   const formatDate = (dateString: string): string => {
-    const date = new Date(dateString + 'T00:00:00')
-    return date.toLocaleDateString('en-US', {
+    return formatDateForDisplay(dateString, {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
-    })
+    }, dateLocale)
   }
 
   const isExpired = (endDate: string): boolean => {
@@ -142,7 +147,7 @@ export default function InsuranceList({ vin, onAddClick, onEditClick }: Insuranc
                   <div>
                     <p className="text-xs text-garage-text-muted mb-1">Premium Amount</p>
                     <p className="text-sm text-garage-text">
-                      ${parseFloat(policy.premium_amount).toLocaleString()}
+                      {formatCurrency(policy.premium_amount, { currencyCode, locale })}
                       {policy.premium_frequency && ` / ${policy.premium_frequency}`}
                     </p>
                   </div>
@@ -152,7 +157,7 @@ export default function InsuranceList({ vin, onAddClick, onEditClick }: Insuranc
               {policy.deductible && (
                 <div className="mb-2">
                   <p className="text-xs text-garage-text-muted mb-1">Deductible</p>
-                  <p className="text-sm text-garage-text">${parseFloat(policy.deductible).toLocaleString()}</p>
+                  <p className="text-sm text-garage-text">{formatCurrency(policy.deductible, { currencyCode, locale })}</p>
                 </div>
               )}
 

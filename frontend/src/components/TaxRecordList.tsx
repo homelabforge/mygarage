@@ -4,6 +4,7 @@ import { Edit, Trash2, Plus, AlertCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateForDisplay } from '../utils/dateUtils'
 import { formatCurrency } from '../utils/formatUtils'
+import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
 import type { TaxRecord } from '../types/tax'
 import TaxRecordForm from './TaxRecordForm'
 import { useTaxRecords, useDeleteTaxRecord } from '../hooks/queries/useTaxRecords'
@@ -14,6 +15,7 @@ interface TaxRecordListProps {
 
 export default function TaxRecordList({ vin }: TaxRecordListProps) {
   const queryClient = useQueryClient()
+  const { currencyCode, locale } = useCurrencyPreference()
   const { data, isLoading, error } = useTaxRecords(vin)
   const deleteMutation = useDeleteTaxRecord(vin)
   const [showForm, setShowForm] = useState(false)
@@ -76,7 +78,7 @@ export default function TaxRecordList({ vin }: TaxRecordListProps) {
           <h3 className="text-lg font-semibold text-garage-text">Tax & Registration Records</h3>
           {records.length > 0 && (
             <p className="text-sm text-garage-text-muted">
-              {records.length} {records.length === 1 ? 'record' : 'records'} • Total: {formatCurrency(getTotalAmount())}
+              {records.length} {records.length === 1 ? 'record' : 'records'} • Total: {formatCurrency(getTotalAmount(), { currencyCode, locale })}
             </p>
           )}
         </div>
@@ -136,7 +138,7 @@ export default function TaxRecordList({ vin }: TaxRecordListProps) {
                     {record.tax_type || '-'}
                   </td>
                   <td className="px-4 py-3 text-sm text-garage-text text-right font-medium">
-                    {formatCurrency(record.amount)}
+                    {formatCurrency(record.amount, { currencyCode, locale })}
                   </td>
                   <td className="px-4 py-3 text-sm text-garage-text">
                     {record.renewal_date ? formatDateForDisplay(record.renewal_date) : '-'}

@@ -2,9 +2,13 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react-swc'
 import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
+import pkg from './package.json' with { type: 'json' }
 
 // https://vite.dev/config/
 export default defineConfig({
+  define: {
+    APP_VERSION: JSON.stringify(pkg.version),
+  },
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
@@ -42,6 +46,7 @@ export default defineConfig({
           if (id.includes('node_modules/lucide-react') || id.includes('node_modules/sonner')) return 'ui'
           if (id.includes('node_modules/react-hook-form') || id.includes('node_modules/zod') || id.includes('node_modules/@hookform')) return 'forms'
           if (id.includes('node_modules/@tanstack/react-query')) return 'query'
+          if (id.includes('node_modules/i18next') || id.includes('node_modules/react-i18next')) return 'i18n'
           if (id.includes('node_modules/axios')) return 'utils'
         },
       },

@@ -1,0 +1,15 @@
+{
+  "dashboard": "Dashboard",
+  "home": "Home",
+  "analytics": "Analytics",
+  "addressBook": "Address Book",
+  "contacts": "Contacts",
+  "findPOI": "Find POI",
+  "poi": "POI",
+  "calendar": "Calendar",
+  "settings": "Settings",
+  "about": "About",
+  "login": "Login",
+  "logout": "Logout",
+  "admin": "ADMIN"
+}

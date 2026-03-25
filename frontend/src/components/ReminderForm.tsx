@@ -1,5 +1,9 @@
 /**
  * Reminder create/edit form (standalone, for Tracking tab)
+ *
+ * Mileage input is always an interval ("miles until due"). When currentMileage
+ * is available, the form converts interval → absolute on submit. On edit, it
+ * reverse-computes the remaining interval for display.
  */
 
 import { useState, type SyntheticEvent } from 'react'
@@ -12,6 +16,7 @@ import type { Reminder, ReminderType } from '../types/reminder'
 interface ReminderFormProps {
   vin: string
   reminder?: Reminder
+  currentMileage?: number | null
   onClose: () => void
   onSuccess: () => void
 }
@@ -23,10 +28,11 @@ const REMINDER_TYPES: { value: ReminderType; label: string; description: string 
   { value: 'smart', label: 'Smart', description: 'Uses driving history to estimate — date is the hard cap' },
 ]
 
-export default function ReminderForm({ vin, reminder, onClose, onSuccess }: ReminderFormProps) {
+export default function ReminderForm({ vin, reminder, currentMileage, onClose, onSuccess }: ReminderFormProps) {
   const isEdit = !!reminder
   const createMutation = useCreateReminder(vin)
   const updateMutation = useUpdateReminder(vin)
+  const hasMileage = currentMileage != null && currentMileage > 0
 
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -35,8 +41,24 @@ export default function ReminderForm({ vin, reminder, onClose, onSuccess }: Remi
     (reminder?.reminder_type as ReminderType) ?? 'date'
   )
   const [dueDate, setDueDate] = useState(reminder?.due_date ?? '')
-  const [dueMileage, setDueMileage] = useState<number | undefined>(reminder?.due_mileage ?? undefined)
+
+  // For edits: reverse-compute interval from absolute target
+  const initialInterval = (() => {
+    if (!reminder?.due_mileage) return undefined
+    if (hasMileage) {
+      const remaining = reminder.due_mileage - currentMileage
+      return remaining > 0 ? remaining : 0
+    }
+    return reminder.due_mileage
+  })()
+  const [mileageInterval, setMileageInterval] = useState<number | undefined>(initialInterval)
+
   const [notes, setNotes] = useState(reminder?.notes ?? '')
+
+  // Compute target for display
+  const absoluteTarget = hasMileage && mileageInterval
+    ? currentMileage + mileageInterval
+    : mileageInterval
 
   const handleSubmit = async (e: SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -52,10 +74,15 @@ export default function ReminderForm({ vin, reminder, onClose, onSuccess }: Remi
       return
     }
 
-    if (['mileage', 'both', 'smart'].includes(reminderType) && !dueMileage) {
-      setError('Due mileage is required for this reminder type')
+    if (['mileage', 'both', 'smart'].includes(reminderType) && !mileageInterval) {
+      setError('Miles until due is required for this reminder type')
       return
     }
+
+    // Convert interval to absolute target
+    const due_mileage = hasMileage && mileageInterval
+      ? currentMileage + mileageInterval
+      : mileageInterval
 
     setSubmitting(true)
     try {
@@ -65,7 +92,7 @@ export default function ReminderForm({ vin, reminder, onClose, onSuccess }: Remi
           title,
           reminder_type: reminderType,
           due_date: dueDate || undefined,
-          due_mileage: dueMileage,
+          due_mileage,
           notes: notes || undefined,
         })
         toast.success('Reminder updated')
@@ -74,7 +101,7 @@ export default function ReminderForm({ vin, reminder, onClose, onSuccess }: Remi
           title,
           reminder_type: reminderType,
           due_date: dueDate || undefined,
-          due_mileage: dueMileage,
+          due_mileage,
           notes: notes || undefined,
         })
         toast.success('Reminder created')
@@ -158,17 +185,29 @@ export default function ReminderForm({ vin, reminder, onClose, onSuccess }: Remi
         {['mileage', 'both', 'smart'].includes(reminderType) && (
           <div>
             <label className="block text-sm font-medium text-garage-text mb-1">
-              Due Mileage <span className="text-danger">*</span>
+              {hasMileage ? 'Miles Until Due' : 'Due Mileage (odometer)'} <span className="text-danger">*</span>
             </label>
             <input
               type="number"
-              value={dueMileage ?? ''}
-              onChange={(e) => setDueMileage(e.target.value ? parseInt(e.target.value) : undefined)}
+              value={mileageInterval ?? ''}
+              onChange={(e) => setMileageInterval(e.target.value ? parseInt(e.target.value) : undefined)}
               min="1"
-              placeholder="e.g., 100000"
+              placeholder={hasMileage ? 'e.g., 5000' : 'e.g., 92000'}
               disabled={submitting}
               className="w-full px-3 py-2 border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text"
             />
+            {hasMileage && mileageInterval ? (
+              <p className="text-xs text-garage-text-muted mt-1">
+                Current: {currentMileage.toLocaleString()} + {mileageInterval.toLocaleString()} = {absoluteTarget?.toLocaleString()} mi target
+              </p>
+            ) : !hasMileage ? (
+              <p className="text-xs text-warning mt-1">No odometer data — enter absolute target mileage</p>
+            ) : null}
+            {isEdit && hasMileage && initialInterval !== undefined && initialInterval <= 0 && (
+              <p className="text-xs text-danger mt-1">
+                This reminder is overdue — enter a new interval from current mileage
+              </p>
+            )}
           </div>
         )}
 

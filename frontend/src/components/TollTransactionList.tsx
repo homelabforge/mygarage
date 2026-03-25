@@ -4,6 +4,9 @@ import { DollarSign, Plus, Edit, Trash2, MapPin, Calendar, Download, CreditCard 
 import { toast } from 'sonner'
 import type { TollTransaction } from '../types/toll'
 import { formatCurrency } from '../utils/formatUtils'
+import { formatDateForDisplay } from '../utils/dateUtils'
+import { useDateLocale } from '../hooks/useDateLocale'
+import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
 import { useTollTransactions, useTollTags, useTollTransactionSummary, useDeleteTollTransaction } from '../hooks/queries/useTollRecords'
 import api from '../services/api'
 
@@ -15,6 +18,8 @@ interface TollTransactionListProps {
 
 export default function TollTransactionList({ vin, onAddClick, onEditClick }: TollTransactionListProps) {
   const queryClient = useQueryClient()
+  const dateLocale = useDateLocale()
+  const { currencyCode, locale } = useCurrencyPreference()
   const [exporting, setExporting] = useState(false)
   const [selectedTagFilter, setSelectedTagFilter] = useState<number | ''>('')
 
@@ -77,12 +82,11 @@ export default function TollTransactionList({ vin, onAddClick, onEditClick }: To
   }
 
   const formatDate = (dateString: string): string => {
-    const date = new Date(dateString + 'T00:00:00')
-    return date.toLocaleDateString('en-US', {
+    return formatDateForDisplay(dateString, {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
-    })
+    }, dateLocale)
   }
 
   const getTollTagName = (tagId?: number | null): string => {
@@ -162,7 +166,7 @@ export default function TollTransactionList({ vin, onAddClick, onEditClick }: To
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs text-garage-text-muted mb-1">Total Amount</p>
-                <p className="text-2xl font-bold text-garage-text">{formatCurrency(Number(summary.total_amount))}</p>
+                <p className="text-2xl font-bold text-garage-text">{formatCurrency(Number(summary.total_amount), { currencyCode, locale })}</p>
               </div>
               <DollarSign className="text-success" size={24} />
             </div>
@@ -173,8 +177,8 @@ export default function TollTransactionList({ vin, onAddClick, onEditClick }: To
                 <p className="text-xs text-garage-text-muted mb-1">Average per Transaction</p>
                 <p className="text-2xl font-bold text-garage-text">
                   {summary.total_transactions > 0
-                    ? formatCurrency(Number(summary.total_amount) / summary.total_transactions)
-                    : '$0.00'}
+                    ? formatCurrency(Number(summary.total_amount) / summary.total_transactions, { currencyCode, locale })
+                    : formatCurrency(0, { currencyCode, locale, zeroIsValid: true })}
                 </p>
               </div>
               <CreditCard className="text-primary" size={24} />
@@ -210,7 +214,7 @@ export default function TollTransactionList({ vin, onAddClick, onEditClick }: To
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-3 ml-9">
                     <div>
                       <p className="text-xs text-garage-text-muted mb-1">Amount</p>
-                      <p className="text-sm font-semibold text-garage-text">{formatCurrency(transaction.amount)}</p>
+                      <p className="text-sm font-semibold text-garage-text">{formatCurrency(transaction.amount, { currencyCode, locale })}</p>
                     </div>
                     <div>
                       <p className="text-xs text-garage-text-muted mb-1">Toll Tag</p>
@@ -272,10 +276,10 @@ export default function TollTransactionList({ vin, onAddClick, onEditClick }: To
                   return (
                   <tr key={m.month} className="hover:bg-garage-bg/50">
                     <td className="px-4 py-3 text-sm text-garage-text">
-                      {new Date(m.month + '-01').toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}
+                      {formatDateForDisplay(m.month + '-01', { year: 'numeric', month: 'long' }, dateLocale)}
                     </td>
                     <td className="px-4 py-3 text-sm text-garage-text">{m.count}</td>
-                    <td className="px-4 py-3 text-sm font-semibold text-garage-text">{formatCurrency(m.amount)}</td>
+                    <td className="px-4 py-3 text-sm font-semibold text-garage-text">{formatCurrency(m.amount, { currencyCode, locale })}</td>
                   </tr>
                   )
                 })}

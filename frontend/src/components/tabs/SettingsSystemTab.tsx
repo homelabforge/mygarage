@@ -1,11 +1,14 @@
 import { useState, useCallback, useEffect } from 'react'
-import { Server, CheckCircle, AlertCircle, Info, Shield, Users, AlertTriangle, Key, Wrench, Fuel, Bell, FileText, StickyNote, Camera, Sun, Moon, Ruler, Archive, Smartphone } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import { Server, CheckCircle, AlertCircle, Info, Shield, Users, AlertTriangle, Key, Wrench, Fuel, Bell, FileText, StickyNote, Camera, Sun, Moon, Ruler, Archive, Smartphone, Globe, DollarSign } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useSettings } from '@/contexts/SettingsContext'
 import { useTheme } from '@/contexts/ThemeContext'
 import type { DashboardResponse } from '@/types/dashboard'
 import api from '@/services/api'
 import { toast } from 'sonner'
+import { formatCurrency } from '@/utils/formatUtils'
+import { SUPPORTED_LANGUAGES, SUPPORTED_CURRENCIES, languageToLocale } from '@/constants/i18n'
 import OIDCModal from '@/components/modals/OIDCModal'
 import FamilyManagementModal from '@/components/modals/FamilyManagementModal'
 import ArchivedVehiclesList from '@/components/ArchivedVehiclesList'
@@ -16,6 +19,8 @@ type RawSetting = {
 }
 
 export default function SettingsSystemTab() {
+  const { t } = useTranslation('settings')
+  const { i18n } = useTranslation()
   const { isAuthenticated, isAdmin, user: currentUser, refreshUser } = useAuth()
   const { triggerSave, registerSaveHandler, unregisterSaveHandler } = useSettings()
   const { theme, setTheme } = useTheme()
@@ -54,6 +59,14 @@ export default function SettingsSystemTab() {
   // Mobile experience state
   const [mobileQuickEntry, setMobileQuickEntry] = useState(true)
   const [mobileQuickEntrySaving, setMobileQuickEntrySaving] = useState(false)
+
+  // Language & currency state
+  const [selectedLanguage, setSelectedLanguage] = useState('en')
+  const [languageSaving, setLanguageSaving] = useState(false)
+  const [selectedCurrency, setSelectedCurrency] = useState('USD')
+  const [currencySaving, setCurrencySaving] = useState(false)
+  const [showCurrencyConfirm, setShowCurrencyConfirm] = useState(false)
+  const [pendingCurrency, setPendingCurrency] = useState<string | null>(null)
 
   // Common timezones
   const timezones = [
@@ -127,19 +140,21 @@ export default function SettingsSystemTab() {
     void loadSettings()
   }, [loadSettings])
 
-  // Load user's unit preferences and mobile experience setting
+  // Load user's preferences
   useEffect(() => {
     if (currentUser) {
-      // If authenticated, load from user profile
       setUnitPreference(currentUser.unit_preference || 'imperial')
       setShowBothUnits(currentUser.show_both_units || false)
       setMobileQuickEntry(currentUser.mobile_quick_entry_enabled ?? true)
+      setSelectedLanguage(currentUser.language || 'en')
+      setSelectedCurrency(currentUser.currency_code || 'USD')
     } else {
-      // If not authenticated, load from localStorage
       const storedSystem = localStorage.getItem('unit_preference') as 'imperial' | 'metric' | null
       const storedShowBoth = localStorage.getItem('show_both_units') === 'true'
       setUnitPreference(storedSystem || 'imperial')
       setShowBothUnits(storedShowBoth)
+      setSelectedLanguage(localStorage.getItem('i18nextLng') || 'en')
+      setSelectedCurrency(localStorage.getItem('currency_code') || 'USD')
     }
   }, [currentUser])
 
@@ -258,12 +273,71 @@ export default function SettingsSystemTab() {
     try {
       await api.put('/auth/me', { mobile_quick_entry_enabled: enabled })
       await refreshUser()
-      toast.success('Mobile preference saved!')
+      toast.success(t('preferences.mobileSaved'))
     } catch {
-      toast.error('Failed to save mobile preference')
+      toast.error(t('preferences.mobileError'))
       setMobileQuickEntry(currentUser?.mobile_quick_entry_enabled ?? true)
     } finally {
       setMobileQuickEntrySaving(false)
+    }
+  }
+
+  // Handle language change
+  const handleLanguageChange = async (lang: string) => {
+    setLanguageSaving(true)
+    const prevLang = selectedLanguage
+    setSelectedLanguage(lang)
+
+    try {
+      // Change i18next language immediately for instant feedback
+      await i18n.changeLanguage(lang)
+
+      if (isAuthenticated) {
+        await api.put('/auth/me', { language: lang })
+        await refreshUser()
+      } else {
+        localStorage.setItem('i18nextLng', lang)
+      }
+
+      toast.success(t('language.saved'))
+    } catch {
+      toast.error(t('language.error'))
+      setSelectedLanguage(prevLang)
+      await i18n.changeLanguage(prevLang)
+    } finally {
+      setLanguageSaving(false)
+    }
+  }
+
+  // Handle currency change — show confirmation first
+  const handleCurrencyRequest = (code: string) => {
+    if (code === selectedCurrency) return
+    setPendingCurrency(code)
+    setShowCurrencyConfirm(true)
+  }
+
+  const handleCurrencyConfirm = async () => {
+    if (!pendingCurrency) return
+    setShowCurrencyConfirm(false)
+    setCurrencySaving(true)
+    const prevCurrency = selectedCurrency
+    setSelectedCurrency(pendingCurrency)
+
+    try {
+      if (isAuthenticated) {
+        await api.put('/auth/me', { currency_code: pendingCurrency })
+        await refreshUser()
+      } else {
+        localStorage.setItem('currency_code', pendingCurrency)
+      }
+
+      toast.success(t('currency.saved'))
+    } catch {
+      toast.error(t('currency.error'))
+      setSelectedCurrency(prevCurrency)
+    } finally {
+      setCurrencySaving(false)
+      setPendingCurrency(null)
     }
   }
 
@@ -485,6 +559,92 @@ export default function SettingsSystemTab() {
             </p>
           </div>
         </div>
+
+        {/* Language Setting */}
+        <div>
+          <label className="block text-sm font-medium text-garage-text mb-3">
+            <div className="flex items-center gap-2">
+              <Globe className="w-4 h-4" />
+              {t('language.label')}
+            </div>
+          </label>
+          <select
+            value={selectedLanguage}
+            onChange={(e) => handleLanguageChange(e.target.value)}
+            disabled={languageSaving}
+            className={`w-full md:w-96 px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary ${languageSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
+          >
+            {SUPPORTED_LANGUAGES.map((lang) => (
+              <option key={lang.code} value={lang.code}>
+                {lang.nativeName} ({lang.name})
+              </option>
+            ))}
+          </select>
+          <p className="mt-2 text-sm text-garage-text-muted">
+            {t('language.description')}
+          </p>
+        </div>
+
+        {/* Currency Setting */}
+        <div>
+          <label className="block text-sm font-medium text-garage-text mb-3">
+            <div className="flex items-center gap-2">
+              <DollarSign className="w-4 h-4" />
+              {t('currency.label')}
+            </div>
+          </label>
+          <select
+            value={selectedCurrency}
+            onChange={(e) => handleCurrencyRequest(e.target.value)}
+            disabled={currencySaving}
+            className={`w-full md:w-96 px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary ${currencySaving ? 'opacity-50 cursor-not-allowed' : ''}`}
+          >
+            {SUPPORTED_CURRENCIES.map((curr) => (
+              <option key={curr.code} value={curr.code}>
+                {curr.code} — {curr.name}
+              </option>
+            ))}
+          </select>
+          <p className="mt-2 text-sm text-garage-text-muted">
+            {t('currency.description')}
+          </p>
+          <p className="mt-1 text-sm text-garage-text-muted">
+            {t('currency.preview', {
+              amount: formatCurrency(1234.56, {
+                currencyCode: selectedCurrency,
+                locale: languageToLocale(selectedLanguage),
+              }),
+            })}
+          </p>
+        </div>
+
+        {/* Currency Change Confirmation Dialog */}
+        {showCurrencyConfirm && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-garage-surface border border-garage-border rounded-lg p-6 max-w-md mx-4 space-y-4">
+              <h3 className="text-lg font-semibold text-garage-text">
+                {t('currency.confirmTitle')}
+              </h3>
+              <p className="text-sm text-garage-text-muted">
+                {t('currency.confirmMessage')}
+              </p>
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => { setShowCurrencyConfirm(false); setPendingCurrency(null) }}
+                  className="px-4 py-2 text-sm text-garage-text-muted hover:text-garage-text rounded-lg border border-garage-border hover:bg-garage-bg transition-colors"
+                >
+                  {t('common:cancel')}
+                </button>
+                <button
+                  onClick={handleCurrencyConfirm}
+                  className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors font-medium"
+                >
+                  {t('currency.confirmAction')}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Info Box - Secret Key */}
         <div className="p-4 bg-primary/10 border border-primary/30 rounded-lg">

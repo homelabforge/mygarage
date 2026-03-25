@@ -146,9 +146,8 @@ def upgrade(engine=None):
             conn.execute(text("CREATE INDEX idx_service_records_vin ON service_records (vin)"))
             conn.execute(text("CREATE INDEX idx_service_records_date ON service_records (date)"))
 
-        # Verify
-        inspector = inspect(engine)
-        final_columns = {col["name"] for col in inspector.get_columns("service_records")}
+        # Verify (use conn to avoid deadlock on PostgreSQL)
+        final_columns = {col["name"] for col in inspect(conn).get_columns("service_records")}
         if "tsb_id" not in final_columns:
             print("✓ TSB column verified removed")
 

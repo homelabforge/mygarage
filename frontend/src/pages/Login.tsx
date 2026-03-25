@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { resolvePostLoginRoute } from '../utils/postLoginRedirect'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -10,6 +11,7 @@ import { FormError } from '../components/FormError'
 import AuthPageLayout from '../components/AuthPageLayout'
 
 export default function Login() {
+  const { t } = useTranslation('common')
   const {
     register: registerField,
     handleSubmit,
@@ -50,7 +52,7 @@ export default function Login() {
       const user = await login(data.username, data.password)
       navigate(resolvePostLoginRoute(user), { replace: true })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed. Please try again.')
+      setError(err instanceof Error ? err.message : t('login.error'))
     }
   }
 
@@ -60,12 +62,12 @@ export default function Login() {
 
   return (
     <AuthPageLayout
-      subtitle="Sign in to your account"
+      subtitle={t('login.subtitle')}
       footerExtra={
         <div className="mt-6 text-center text-sm text-garage-text-muted">
-          Don't have an account?{' '}
+          {t('login.noAccount')}{' '}
           <Link to="/register" className="text-primary hover:underline font-medium">
-            Create one here
+            {t('login.registerLink')}
           </Link>
         </div>
       }
@@ -88,7 +90,7 @@ export default function Login() {
               className="w-full flex items-center justify-center gap-2 px-4 py-3 btn-primary-auth font-medium rounded-lg transition-colors"
             >
               <Shield className="w-5 h-5" />
-              Sign in with {oidcProviderName}
+              {t('login.oidcSignIn', { provider: oidcProviderName })}
             </button>
 
             {/* Divider */}
@@ -106,7 +108,7 @@ export default function Login() {
         {/* Username Field */}
         <div>
           <label htmlFor="username" className="block text-sm font-medium text-garage-text mb-2">
-            Username or Email
+            {t('login.usernameOrEmail')}
           </label>
           <input
             id="username"
@@ -125,7 +127,7 @@ export default function Login() {
         {/* Password Field */}
         <div>
           <label htmlFor="password" className="block text-sm font-medium text-garage-text mb-2">
-            Password
+            {t('login.password')}
           </label>
           <div className="relative">
             <input
@@ -166,7 +168,7 @@ export default function Login() {
           ) : (
             <>
               <LogIn className="w-5 h-5" />
-              Sign In
+              {t('login.submit')}
             </>
           )}
         </button>

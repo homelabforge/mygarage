@@ -70,6 +70,9 @@ import TransferHistorySection from '../components/TransferHistorySection'
 import { useOnlineStatus } from '../hooks/useOnlineStatus'
 import { useAuth } from '../contexts/AuthContext'
 import { formatCurrency } from '../utils/formatUtils'
+import { formatDateForDisplay } from '../utils/dateUtils'
+import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
+import { useDateLocale } from '../hooks/useDateLocale'
 
 type ApiError = {
   response?: {
@@ -106,6 +109,7 @@ export default function VehicleDetail() {
   const { vin } = useParams<{ vin: string }>()
   const navigate = useNavigate()
   const { isAdmin } = useAuth()
+  const dateLocale = useDateLocale()
   const [searchParams] = useSearchParams()
   const [vehicle, setVehicle] = useState<Vehicle | null>(null)
   const [loading, setLoading] = useState(true)
@@ -120,6 +124,7 @@ export default function VehicleDetail() {
   const [hasLiveLinkDevice, setHasLiveLinkDevice] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const isOnline = useOnlineStatus()
+  const { currencyCode, locale } = useCurrencyPreference()
   const loadVehicle = useCallback(async () => {
     if (!vin) return
     const cacheKey = `vehicle-cache-${vin}`
@@ -342,8 +347,7 @@ export default function VehicleDetail() {
 
   const formatDate = (dateString?: string | null) => {
     if (!dateString) return 'Not specified'
-    const date = new Date(dateString)
-    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+    return formatDateForDisplay(dateString, { year: 'numeric', month: 'long', day: 'numeric' }, dateLocale)
   }
 
   // Handle primary tab click
@@ -789,7 +793,7 @@ export default function VehicleDetail() {
                     <DollarSign className="w-4 h-4" />
                     <span>Purchase Price</span>
                   </p>
-                  <p className="text-garage-text font-medium mt-1">{formatCurrency(vehicle.purchase_price, { fallback: 'Not specified' })}</p>
+                  <p className="text-garage-text font-medium mt-1">{formatCurrency(vehicle.purchase_price, { currencyCode, locale, fallback: 'Not specified' })}</p>
                 </div>
               </div>
             </div>
@@ -811,7 +815,7 @@ export default function VehicleDetail() {
                       <DollarSign className="w-4 h-4" />
                       <span>Sale Price</span>
                     </p>
-                    <p className="text-garage-text font-medium mt-1">{formatCurrency(vehicle.sold_price, { fallback: 'Not specified' })}</p>
+                    <p className="text-garage-text font-medium mt-1">{formatCurrency(vehicle.sold_price, { currencyCode, locale, fallback: 'Not specified' })}</p>
                   </div>
                 </div>
               </div>
@@ -958,25 +962,25 @@ export default function VehicleDetail() {
                   {vehicle.msrp_base && (
                     <div>
                       <p className="text-sm text-garage-text-muted">Base Price</p>
-                      <p className="text-garage-text font-medium">${vehicle.msrp_base.toLocaleString()}</p>
+                      <p className="text-garage-text font-medium">{formatCurrency(vehicle.msrp_base, { currencyCode, locale })}</p>
                     </div>
                   )}
                   {vehicle.msrp_options && (
                     <div>
                       <p className="text-sm text-garage-text-muted">Options</p>
-                      <p className="text-garage-text font-medium">${vehicle.msrp_options.toLocaleString()}</p>
+                      <p className="text-garage-text font-medium">{formatCurrency(vehicle.msrp_options, { currencyCode, locale })}</p>
                     </div>
                   )}
                   {vehicle.destination_charge && (
                     <div>
                       <p className="text-sm text-garage-text-muted">Destination</p>
-                      <p className="text-garage-text font-medium">${vehicle.destination_charge.toLocaleString()}</p>
+                      <p className="text-garage-text font-medium">{formatCurrency(vehicle.destination_charge, { currencyCode, locale })}</p>
                     </div>
                   )}
                   {vehicle.msrp_total && (
                     <div>
                       <p className="text-sm text-garage-text-muted">Total MSRP</p>
-                      <p className="text-garage-text font-medium text-lg">${vehicle.msrp_total.toLocaleString()}</p>
+                      <p className="text-garage-text font-medium text-lg">{formatCurrency(vehicle.msrp_total, { currencyCode, locale })}</p>
                     </div>
                   )}
                 </div>

@@ -3,6 +3,7 @@ import { Edit, Trash2, Plus, AlertCircle, Fuel, DollarSign, Droplets } from 'luc
 import { toast } from 'sonner'
 import { formatDateForDisplay } from '../utils/dateUtils'
 import { formatCurrency } from '../utils/formatUtils'
+import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
 import type { FuelRecord } from '../types/fuel'
 import PropaneRecordForm from './PropaneRecordForm'
 import { useUnitPreference } from '../hooks/useUnitPreference'
@@ -18,6 +19,7 @@ export default function PropaneRecordList({ vin }: PropaneRecordListProps) {
   const [showForm, setShowForm] = useState(false)
   const [editingRecord, setEditingRecord] = useState<FuelRecord | undefined>()
   const { system } = useUnitPreference()
+  const { currencyCode, locale } = useCurrencyPreference()
 
   const { data, isLoading, error } = usePropaneRecords(vin)
   const deleteMutation = useDeletePropaneRecord(vin)
@@ -131,7 +133,7 @@ export default function PropaneRecordList({ vin }: PropaneRecordListProps) {
                 <span>Total Spent</span>
               </div>
               <div className="text-lg font-semibold text-garage-text">
-                {formatCurrency(totalCost)}
+                {formatCurrency(totalCost, { currencyCode, locale })}
               </div>
             </div>
             <div className="bg-garage-surface border border-garage-border rounded-lg p-3">
@@ -204,10 +206,10 @@ export default function PropaneRecordList({ vin }: PropaneRecordListProps) {
                       {formatVolume(record.propane_gallons ?? undefined)}
                     </td>
                     <td className="px-4 py-3 text-sm text-garage-text text-right">
-                      {formatCurrency(record.price_per_unit)}
+                      {formatCurrency(record.price_per_unit, { currencyCode, locale })}
                     </td>
                     <td className="px-4 py-3 text-sm text-garage-text text-right font-semibold">
-                      {formatCurrency(record.cost)}
+                      {formatCurrency(record.cost, { currencyCode, locale })}
                     </td>
                     <td className="px-4 py-3 text-sm text-garage-text-muted">
                       {extractVendor(record.notes ?? undefined)}

@@ -507,15 +507,23 @@ export class UnitFormatter {
 
   /**
    * Format cost per volume for summary cards.
-   * Input: cost per gallon (imperial-base $/gal). Output: "$3.45/gal" or "$0.91/L".
+   * Input: cost per gallon (imperial-base $/gal). Output: "$3.45" or "$0.91".
    */
-  static formatCostPerVolume(costPerGallon: number, system: UnitSystem): string {
-    if (system === 'metric') {
-      // $/gal → $/L: divide by liters-per-gallon
-      const costPerLiter = costPerGallon / 3.78541;
-      return `$${costPerLiter.toFixed(2)}`;
-    }
-    return `$${costPerGallon.toFixed(2)}`;
+  static formatCostPerVolume(
+    costPerGallon: number,
+    system: UnitSystem,
+    currencyCode: string = 'USD',
+    locale: string = 'en-US'
+  ): string {
+    const value = system === 'metric'
+      ? costPerGallon / 3.78541  // $/gal → $/L
+      : costPerGallon;
+    return new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency: currencyCode,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value);
   }
 
   /**
@@ -529,16 +537,23 @@ export class UnitFormatter {
   /**
    * Format cost per distance for summary cards.
    * Input: cost per 1,000 miles (imperial-base $/1k mi).
-   * Output: "$45.20/1k mi" or "$8.45/100 km".
    * Metric uses $/100 km (standard convention).
    */
-  static formatCostPerDistance(costPer1kMiles: number, system: UnitSystem): string {
-    if (system === 'metric') {
-      // $/1000mi → $/100km: costPer1kMiles / (1000 * 1.60934) * 100
-      const costPer100km = (costPer1kMiles / 1.60934) / 10;
-      return `$${costPer100km.toFixed(2)}`;
-    }
-    return `$${costPer1kMiles.toFixed(2)}`;
+  static formatCostPerDistance(
+    costPer1kMiles: number,
+    system: UnitSystem,
+    currencyCode: string = 'USD',
+    locale: string = 'en-US'
+  ): string {
+    const value = system === 'metric'
+      ? (costPer1kMiles / 1.60934) / 10  // $/1000mi → $/100km
+      : costPer1kMiles;
+    return new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency: currencyCode,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value);
   }
 
   /**

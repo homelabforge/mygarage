@@ -31,9 +31,7 @@ def upgrade(engine=None):
 
     with engine.begin() as conn:
         # Check if fix is needed by looking at the CREATE TABLE statement
-        result = conn.execute(
-            text("SELECT sql FROM sqlite_master WHERE name='service_line_items'")
-        )
+        result = conn.execute(text("SELECT sql FROM sqlite_master WHERE name='service_line_items'"))
         row = result.fetchone()
         if row and "PRIMARY KEY" in row[0].upper():
             print("service_line_items already has PRIMARY KEY — skipping fix.")

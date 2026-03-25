@@ -1,7 +1,20 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '../../__tests__/test-utils'
 import VehicleCard from '../VehicleCard'
 import type { Vehicle, VehicleType } from '../../types/vehicle'
+
+// Mock i18n-dependent hooks so VehicleCard doesn't need AuthProvider/i18next
+vi.mock('../../hooks/useDateLocale', () => ({
+  useDateLocale: () => 'en-US',
+}))
+
+vi.mock('../../hooks/useCurrencyPreference', () => ({
+  useCurrencyPreference: () => ({
+    currencyCode: 'USD',
+    locale: 'en-US',
+    formatCurrency: () => '$0.00',
+  }),
+}))
 
 describe('VehicleCard', () => {
   const mockVehicle: Vehicle = {

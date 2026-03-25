@@ -1,9 +1,12 @@
 import { useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Car, Loader, CheckCircle } from 'lucide-react'
 import api, { setCSRFToken } from '../services/api'
 import { resolvePostLoginRoute } from '../utils/postLoginRedirect'
 
 export default function OIDCSuccess() {
+  const { t } = useTranslation('common')
+
   useEffect(() => {
     const redirect = async () => {
       // Extract CSRF token from URL parameter (Security Enhancement v2.10.0)
@@ -58,10 +61,10 @@ export default function OIDCSuccess() {
           </div>
 
           <h2 className="text-2xl font-bold text-garage-text mb-2">
-            Authentication Successful!
+            {t('oidc.success')}
           </h2>
           <p className="text-garage-text-muted mb-4">
-            Redirecting...
+            {t('oidc.redirecting')}
           </p>
 
           {/* Loading spinner */}

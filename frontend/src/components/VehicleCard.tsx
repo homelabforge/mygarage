@@ -7,20 +7,24 @@ import { Link } from 'react-router-dom'
 import { Car, Calendar, DollarSign, FileText } from 'lucide-react'
 import type { Vehicle } from '../types/vehicle'
 import { formatCurrency } from '../utils/formatUtils'
+import { formatDateForDisplay } from '../utils/dateUtils'
+import { useDateLocale } from '../hooks/useDateLocale'
+import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
 
 interface VehicleCardProps {
   vehicle: Vehicle
 }
 
 function VehicleCard({ vehicle }: VehicleCardProps) {
+  const dateLocale = useDateLocale()
+  const { currencyCode, locale } = useCurrencyPreference()
   const photoUrl = vehicle.main_photo
     ? `/api/vehicles/${vehicle.vin}/photos/${vehicle.main_photo.split('/').pop()}`
     : null
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return null
-    const date = new Date(dateString)
-    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+    return formatDateForDisplay(dateString, { year: 'numeric', month: 'short', day: 'numeric' }, dateLocale)
   }
 
   return (
@@ -84,7 +88,7 @@ function VehicleCard({ vehicle }: VehicleCardProps) {
           {vehicle.purchase_price && (
             <div className="flex items-center space-x-2 text-xs text-garage-text-muted">
               <DollarSign className="w-3.5 h-3.5" />
-              <span>{formatCurrency(vehicle.purchase_price, { wholeDollars: true })}</span>
+              <span>{formatCurrency(vehicle.purchase_price, { currencyCode, locale, wholeDollars: true })}</span>
             </div>
           )}
         </div>

@@ -23,16 +23,21 @@ def upgrade(engine=None):
     is_postgres = engine.dialect.name == "postgresql"
 
     with engine.begin() as conn:
+        insp = inspect(conn)
+
         # 1. Drop vendor_price_history first (depends on maintenance_schedule_items)
-        if inspect(engine).has_table("vendor_price_history"):
+        if insp.has_table("vendor_price_history"):
             print("Dropping vendor_price_history table...")
             conn.execute(text("DROP TABLE vendor_price_history"))
             print("  Dropped vendor_price_history")
         else:
             print("  vendor_price_history already dropped")
 
+        # Clear inspect cache after DDL changes
+        insp = inspect(conn)
+
         # 2. Drop schedule_item_id from service_line_items
-        cols = [c["name"] for c in inspect(engine).get_columns("service_line_items")]
+        cols = [c["name"] for c in insp.get_columns("service_line_items")]
         if "schedule_item_id" in cols:
             if is_postgres:
                 # PostgreSQL: ALTER TABLE DROP COLUMN
@@ -43,7 +48,7 @@ def upgrade(engine=None):
                 print("Dropping schedule_item_id from service_line_items (SQLite recreate)...")
 
                 # Get current columns minus schedule_item_id
-                current_cols = inspect(engine).get_columns("service_line_items")
+                current_cols = inspect(conn).get_columns("service_line_items")
                 keep_cols = [c["name"] for c in current_cols if c["name"] != "schedule_item_id"]
                 cols_csv = ", ".join(keep_cols)
 
@@ -80,7 +85,7 @@ def upgrade(engine=None):
                 pass
 
         # 4. Drop maintenance_schedule_items table
-        if inspect(engine).has_table("maintenance_schedule_items"):
+        if inspect(conn).has_table("maintenance_schedule_items"):
             print("Dropping maintenance_schedule_items table...")
             conn.execute(text("DROP TABLE maintenance_schedule_items"))
             print("  Dropped maintenance_schedule_items")
@@ -88,7 +93,7 @@ def upgrade(engine=None):
             print("  maintenance_schedule_items already dropped")
 
         # 5. Drop maintenance_templates table (if it exists as a DB table)
-        if inspect(engine).has_table("maintenance_templates"):
+        if inspect(conn).has_table("maintenance_templates"):
             print("Dropping maintenance_templates table...")
             conn.execute(text("DROP TABLE maintenance_templates"))
             print("  Dropped maintenance_templates")

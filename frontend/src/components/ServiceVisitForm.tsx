@@ -11,6 +11,7 @@ import ServiceVisitAttachmentUpload from './ServiceVisitAttachmentUpload'
 import ServiceVisitAttachmentList from './ServiceVisitAttachmentList'
 import { useCreateServiceVisit, useUpdateServiceVisit } from '../hooks/queries/useServiceVisits'
 import { useUnitPreference } from '../hooks/useUnitPreference'
+import { useLatestMileage } from '../hooks/useLatestMileage'
 import { UnitConverter, UnitFormatter } from '../utils/units'
 
 interface ServiceVisitFormProps {
@@ -47,6 +48,7 @@ export default function ServiceVisitForm({
   const createMutation = useCreateServiceVisit(vin)
   const updateMutation = useUpdateServiceVisit(vin)
   const isMotorized = !vehicleType || !NON_MOTORIZED_TYPES.includes(vehicleType)
+  const { data: currentMileage } = useLatestMileage(vin)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [attachmentRefreshKey, setAttachmentRefreshKey] = useState(0)
@@ -196,6 +198,12 @@ export default function ServiceVisitForm({
         : formData.mileage
       const mileage = convertedMileage != null ? Math.round(convertedMileage) : undefined
 
+      // Convert reminder mileage interval to absolute odometer target
+      const toAbsoluteMileage = (interval: number | undefined | null): number | undefined => {
+        if (!interval) return undefined
+        return currentMileage ? currentMileage + interval : interval
+      }
+
       if (isEdit && visit) {
         // Diff-based update — include id for existing items, temp_id for new
         const updateLineItems: ServiceLineItemUpdate[] = formData.line_items.map((item) => ({
@@ -214,7 +222,7 @@ export default function ServiceVisitForm({
             title: item.reminderDraft.title,
             reminder_type: item.reminderDraft.reminder_type,
             due_date: item.reminderDraft.due_date,
-            due_mileage: item.reminderDraft.due_mileage,
+            due_mileage: toAbsoluteMileage(item.reminderDraft.due_mileage),
             notes: item.reminderDraft.notes,
           } : undefined,
         }))
@@ -248,7 +256,7 @@ export default function ServiceVisitForm({
             title: item.reminderDraft.title,
             reminder_type: item.reminderDraft.reminder_type,
             due_date: item.reminderDraft.due_date,
-            due_mileage: item.reminderDraft.due_mileage,
+            due_mileage: toAbsoluteMileage(item.reminderDraft.due_mileage),
             notes: item.reminderDraft.notes,
           } : undefined,
         }))
@@ -395,6 +403,7 @@ export default function ServiceVisitForm({
                     disabled={submitting}
                     categories={SERVICE_CATEGORIES as unknown as string[]}
                     isNewItem={!item.id}
+                    currentMileage={currentMileage}
                   />
                   {/* Quick action to add repair from failed inspection */}
                   {item.is_inspection &&

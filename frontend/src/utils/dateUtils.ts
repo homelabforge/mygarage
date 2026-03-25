@@ -16,11 +16,12 @@ export function formatDateForDisplay(
     year: 'numeric',
     month: 'short',
     day: 'numeric',
-  }
+  },
+  locale: string = 'en-US'
 ): string {
   // Parse date without timezone conversion by appending T00:00:00
   const date = new Date(dateString + 'T00:00:00')
-  return date.toLocaleDateString('en-US', options)
+  return date.toLocaleDateString(locale, options)
 }
 
 /**

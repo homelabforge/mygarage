@@ -1,0 +1,103 @@
+{
+  "systemConfig": {
+    "title": "Konfiguracja systemu",
+    "description": "Skonfiguruj podstawowe ustawienia systemu, takie jak strefa czasowa i tryb debugowania."
+  },
+  "timezone": {
+    "label": "Strefa czasowa",
+    "description": "Wpływa na znaczniki czasu logów, zaplanowane zadania i wyświetlanie dat w całej aplikacji."
+  },
+  "debug": {
+    "label": "Tryb debugowania",
+    "tooltip": "Wymaga ponownego uruchomienia aplikacji",
+    "enable": "Włącz szczegółowe logowanie i komunikaty o błędach",
+    "warning": "⚠️ Wymaga ponownego uruchomienia aplikacji. Włączaj tylko do rozwiązywania problemów."
+  },
+  "theme": {
+    "label": "Motyw",
+    "dark": "Ciemny",
+    "light": "Jasny",
+    "description": "Wybierz między jasnym a ciemnym motywem. Preferencja jest zapisywana automatycznie."
+  },
+  "units": {
+    "label": "System jednostek",
+    "imperial": "Imperialny",
+    "metric": "Metryczny",
+    "imperialDescription": "Jednostki imperialne: galony, mile, MPG, °F, PSI, lbs, lb-ft",
+    "metricDescription": "Jednostki metryczne: litry, kilometry, L/100km, °C, bar, kg, Nm",
+    "showBoth": "Pokaż obie jednostki",
+    "showBothDescription": "Wyświetlaj wartości w obu systemach (np. \"25 MPG (9,4 L/100km)\")"
+  },
+  "language": {
+    "label": "Język",
+    "description": "Wybierz preferowany język wyświetlania. Tłumaczenia społeczności mogą być niekompletne.",
+    "saved": "Preferencja językowa zapisana!",
+    "error": "Nie udało się zapisać preferencji językowej"
+  },
+  "currency": {
+    "label": "Waluta",
+    "description": "Wybierz preferowaną walutę do wyświetlania kosztów i cen.",
+    "preview": "Podgląd: {{amount}}",
+    "saved": "Preferencja walutowa zapisana!",
+    "error": "Nie udało się zapisać preferencji walutowej",
+    "confirmTitle": "Zmienić walutę?",
+    "confirmMessage": "To zmienia sposób wyświetlania wszystkich kosztów. Nie przelicza istniejących wartości między walutami.",
+    "confirmAction": "Zmień walutę"
+  },
+  "mobile": {
+    "title": "Mobilne doświadczenie",
+    "description": "Dostosuj zachowanie aplikacji na urządzeniach mobilnych.",
+    "quickEntry": "Szybkie dodawanie na telefonie",
+    "quickEntryDescription": "Po zalogowaniu na urządzeniu mobilnym przejdź bezpośrednio do szybkiego dodawania zamiast panelu głównego"
+  },
+  "family": {
+    "title": "Zarządzanie rodziną",
+    "description": "Zarządzaj członkami rodziny, kontami użytkowników i widocznością panelu.",
+    "manage": "Zarządzaj rodziną"
+  },
+  "auth": {
+    "title": "Tryb uwierzytelniania",
+    "description": "Skonfiguruj sposób dostępu i uwierzytelniania użytkowników w MyGarage.",
+    "restartWarning": "⚠️ Wymaga ponownego uruchomienia aplikacji.",
+    "none": "Brak",
+    "local": "Lokalne",
+    "oidc": "OIDC",
+    "noneDetected": "Wykryto zewnętrzny uwierzytelniacz",
+    "noneDetectedDescription": "MyGarage działa za uwierzytelniaczem proxy. Tryby uwierzytelniania są potrzebne tylko, jeśli wymagasz dodatkowej kontroli dostępu.",
+    "noneWarning": "Brak uwierzytelniania",
+    "noneWarningDescription": "Każdy z dostępem do sieci może przeglądać i modyfikować dane w MyGarage. Rozważ włączenie uwierzytelniania lokalnego lub umieszczenie MyGarage za uwierzytelniaczem.",
+    "checking": "Sprawdzanie uwierzytelniaczy...",
+    "localTitle": "Uwierzytelnianie lokalne",
+    "localConfigured": "Uwierzytelnianie lokalne jest skonfigurowane.",
+    "localDescription": "Uwierzytelnianie lokalne pozwala użytkownikom logować się przy użyciu nazwy użytkownika i hasła.",
+    "manageAuth": "Zarządzaj rodziną i uwierzytelnianiem →",
+    "oidcTitle": "Uwierzytelnianie OpenID Connect (OIDC)",
+    "oidcConfigured": "Skonfigurowano z {{provider}}",
+    "oidcDescription": "Skonfiguruj jednokrotne logowanie z dostawcą tożsamości (Authentik, Keycloak, Auth0, Okta itp.)",
+    "configureOIDC": "Konfiguruj OIDC"
+  },
+  "archive": {
+    "title": "Zarchiwizowane pojazdy",
+    "description": "Przeglądaj i zarządzaj zarchiwizowanymi pojazdami (sprzedane, zniszczone, podarowane itp.). Zarchiwizowane pojazdy pozostają w analityce."
+  },
+  "secretKey": {
+    "label": "Klucz tajny:",
+    "description": "Automatycznie wygenerowany i bezpiecznie przechowywany w {{path}}. Nie wymaga ręcznej konfiguracji."
+  },
+  "stats": {
+    "serviceRecords": "Rekordy serwisowe",
+    "fuelRecords": "Rekordy paliwa",
+    "maintenanceItems": "Elementy konserwacji",
+    "documents": "Dokumenty",
+    "notes": "Notatki",
+    "photos": "Zdjęcia"
+  },
+  "preferences": {
+    "unitSaved": "Preferencja jednostek zapisana!",
+    "unitError": "Nie udało się zapisać preferencji jednostek",
+    "displaySaved": "Preferencja wyświetlania zapisana!",
+    "displayError": "Nie udało się zapisać preferencji wyświetlania",
+    "mobileSaved": "Preferencja mobilna zapisana!",
+    "mobileError": "Nie udało się zapisać preferencji mobilnej"
+  }
+}

@@ -5,6 +5,7 @@ import type { FuelRecord } from '../types/fuel'
 import type { Vehicle } from '../types/vehicle'
 import { formatDateForDisplay } from '../utils/dateUtils'
 import { formatCurrency } from '../utils/formatUtils'
+import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
 import api from '../services/api'
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { UnitFormatter } from '../utils/units'
@@ -23,6 +24,7 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick }: FuelRec
   const [vehicleFuelType, setVehicleFuelType] = useState<string>('')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { system, showBoth } = useUnitPreference()
+  const { currencyCode, locale } = useCurrencyPreference()
 
   const { data, isLoading, error } = useFuelRecords(vin, includeHauling)
   const deleteMutation = useDeleteFuelRecord(vin)
@@ -266,7 +268,7 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick }: FuelRec
                   <span>Total Spent</span>
                 </div>
                 <div className="text-lg font-semibold text-garage-text">
-                  {formatCurrency(totalCost)}
+                  {formatCurrency(totalCost, { currencyCode, locale })}
                 </div>
                 <p className="text-xs text-garage-text-muted">
                   {UnitFormatter.formatVolumeTotal(totalGallons, system)}
@@ -390,13 +392,13 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick }: FuelRec
                       </td>
                     )}
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-garage-text">
-                      {record.price_per_unit ? formatCurrency(parseFloat(record.price_per_unit.toString())) : '-'}
+                      {record.price_per_unit ? formatCurrency(parseFloat(record.price_per_unit.toString()), { currencyCode, locale }) : '-'}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       {record.cost ? (
                         <div className="flex items-center gap-2 text-sm text-garage-text">
                           <DollarSign className="w-4 h-4 text-garage-text-muted" />
-                          {formatCurrency(parseFloat(record.cost.toString()))}
+                          {formatCurrency(parseFloat(record.cost.toString()), { currencyCode, locale })}
                         </div>
                       ) : (
                         <span className="text-sm text-garage-text-muted">-</span>

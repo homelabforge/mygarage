@@ -13036,6 +13036,11 @@
             "title": "Created At",
             "type": "string"
           },
+          "currency_code": {
+            "default": "USD",
+            "title": "Currency Code",
+            "type": "string"
+          },
           "email": {
             "format": "email",
             "maxLength": 255,
@@ -13070,6 +13075,11 @@
           "is_admin": {
             "title": "Is Admin",
             "type": "boolean"
+          },
+          "language": {
+            "default": "en",
+            "title": "Language",
+            "type": "string"
           },
           "last_login": {
             "anyOf": [
@@ -13153,6 +13163,18 @@
       "UserUpdate": {
         "description": "Schema for updating a user.",
         "properties": {
+          "currency_code": {
+            "anyOf": [
+              {
+                "maxLength": 3,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency Code"
+          },
           "email": {
             "anyOf": [
               {
@@ -13211,6 +13233,18 @@
               }
             ],
             "title": "Is Admin"
+          },
+          "language": {
+            "anyOf": [
+              {
+                "maxLength": 10,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language"
           },
           "mobile_quick_entry_enabled": {
             "anyOf": [
@@ -17576,7 +17610,7 @@
   "info": {
     "description": "Self-hosted vehicle maintenance tracking application",
     "title": "MyGarage",
-    "version": "2.24.1"
+    "version": "2.25.0"
   },
   "openapi": "3.1.0",
   "paths": {

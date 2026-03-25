@@ -2,6 +2,8 @@ import { Shield, Plus, Trash2, Edit3, Calendar } from 'lucide-react'
 import { toast } from 'sonner'
 import type { WarrantyRecord } from '../types/warranty'
 import { useWarrantyRecords, useDeleteWarrantyRecord } from '../hooks/queries/useWarrantyRecords'
+import { formatDateForDisplay } from '../utils/dateUtils'
+import { useDateLocale } from '../hooks/useDateLocale'
 
 interface WarrantyListProps {
   vin: string
@@ -12,6 +14,7 @@ interface WarrantyListProps {
 export default function WarrantyList({ vin, onAddClick, onEditClick }: WarrantyListProps) {
   const { data: warranties = [], isLoading, error } = useWarrantyRecords(vin)
   const deleteMutation = useDeleteWarrantyRecord(vin)
+  const dateLocale = useDateLocale()
 
   const handleDelete = (warrantyId: number) => {
     if (!confirm('Are you sure you want to delete this warranty?')) {
@@ -26,12 +29,11 @@ export default function WarrantyList({ vin, onAddClick, onEditClick }: WarrantyL
   }
 
   const formatDate = (dateString: string): string => {
-    const date = new Date(dateString + 'T00:00:00')
-    return date.toLocaleDateString('en-US', {
+    return formatDateForDisplay(dateString, {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
-    })
+    }, dateLocale)
   }
 
   const isExpired = (endDate: string | null): boolean => {

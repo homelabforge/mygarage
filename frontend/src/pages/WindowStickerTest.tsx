@@ -20,6 +20,7 @@ import {
 } from 'lucide-react'
 import api from '../services/api'
 import { formatCurrency } from '../utils/formatUtils'
+import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
 
 interface ExtractedData {
   msrp_base: string | null
@@ -68,6 +69,7 @@ interface Parser {
 
 export default function WindowStickerTest() {
   const { vin } = useParams<{ vin: string }>()
+  const { currencyCode, locale } = useCurrencyPreference()
   const [file, setFile] = useState<File | null>(null)
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<TestResult | null>(null)
@@ -320,19 +322,19 @@ export default function WindowStickerTest() {
                       <div className="grid grid-cols-2 gap-2 text-sm">
                         <div className="flex justify-between p-2 bg-garage-bg rounded">
                           <span className="text-garage-text-muted">Base MSRP:</span>
-                          <span className="text-garage-text">{formatCurrency(result.extracted_data.msrp_base)}</span>
+                          <span className="text-garage-text">{formatCurrency(result.extracted_data.msrp_base, { currencyCode, locale })}</span>
                         </div>
                         <div className="flex justify-between p-2 bg-garage-bg rounded">
                           <span className="text-garage-text-muted">Total MSRP:</span>
-                          <span className="text-garage-text font-semibold">{formatCurrency(result.extracted_data.msrp_total)}</span>
+                          <span className="text-garage-text font-semibold">{formatCurrency(result.extracted_data.msrp_total, { currencyCode, locale })}</span>
                         </div>
                         <div className="flex justify-between p-2 bg-garage-bg rounded">
                           <span className="text-garage-text-muted">Options:</span>
-                          <span className="text-garage-text">{formatCurrency(result.extracted_data.msrp_options)}</span>
+                          <span className="text-garage-text">{formatCurrency(result.extracted_data.msrp_options, { currencyCode, locale })}</span>
                         </div>
                         <div className="flex justify-between p-2 bg-garage-bg rounded">
                           <span className="text-garage-text-muted">Destination:</span>
-                          <span className="text-garage-text">{formatCurrency(result.extracted_data.destination_charge)}</span>
+                          <span className="text-garage-text">{formatCurrency(result.extracted_data.destination_charge, { currencyCode, locale })}</span>
                         </div>
                       </div>
                     </div>
@@ -345,7 +347,7 @@ export default function WindowStickerTest() {
                           {Object.entries(result.extracted_data.options_detail).map(([name, price]) => (
                             <div key={name} className="flex justify-between text-sm p-2 bg-garage-bg rounded">
                               <span className="text-garage-text truncate mr-2">{name}</span>
-                              <span className="text-garage-accent whitespace-nowrap">{formatCurrency(price)}</span>
+                              <span className="text-garage-accent whitespace-nowrap">{formatCurrency(price, { currencyCode, locale })}</span>
                             </div>
                           ))}
                         </div>

@@ -164,10 +164,11 @@ class TestUpgradeFromV221:
     # Columns reported missing in Issue #42 that are added by migrations 038+
     # Note: odometer_records.source was added in migration 035 (pre-v2.21),
     # so it would already exist in a real v2.21 database.
+    # Note: maintenance_schedule_items was removed in migration 049, so it's
+    # no longer in the current model schema and can't be tested here.
     ISSUE_42_COLUMNS = {
         "vehicles": ["def_tank_capacity_gallons"],
         "livelink_devices": ["pending_offline_at"],
-        "maintenance_schedule_items": ["last_notified_at", "last_notified_status"],
         "insurance_policies": ["last_notified_at"],
         "warranty_records": ["last_notified_at"],
     }
@@ -194,10 +195,13 @@ class TestUpgradeFromV221:
         with sync_engine.begin() as conn:
             for table, columns in self.ISSUE_42_COLUMNS.items():
                 for col in columns:
+                    # Use savepoint so a failure doesn't poison the transaction
+                    nested = conn.begin_nested()
                     try:
                         conn.execute(text(f"ALTER TABLE {table} DROP COLUMN IF EXISTS {col}"))
+                        nested.commit()
                     except Exception:
-                        pass  # Column might not exist if table structure differs
+                        nested.rollback()
 
             # Mark migrations up through ~037 as "already applied"
             # (simulating that the user's v2.21 DB had these already run)

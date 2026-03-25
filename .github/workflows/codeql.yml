@@ -1,41 +1,161 @@
-name: CodeQL
+name: "CodeQL"
 
 on:
   push:
-    branches: [ main ]
+    branches: [ "main" ]
   pull_request:
-    branches: [ main ]
+    branches: [ "main" ]
   schedule:
-    - cron: '0 6 * * 1'  # Weekly on Mondays at 6 AM UTC
+    # Run every Monday at 6:00 AM UTC (midnight Sunday CST/CDT)
+    - cron: '0 6 * * 1'
 
 jobs:
   analyze:
-    name: Analyze Code
+    name: Analyze (${{ matrix.language }})
     runs-on: ubuntu-latest
+    timeout-minutes: 360
     permissions:
-      actions: read
-      contents: read
+      # Required for all workflows
       security-events: write
+      # Required for workflows in private repositories
+      contents: read
+      actions: read
 
     strategy:
       fail-fast: false
       matrix:
         language: [ 'python', 'javascript' ]
+        include:
+          - language: python
+            build-mode: none
+            python-version: '3.14'
+          - language: javascript
+            build-mode: none
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
+    - name: Checkout repository
+      uses: actions/checkout@v6
 
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v4
-        with:
-          languages: ${{ matrix.language }}
-          config-file: .github/codeql/codeql-config.yml
+    # Python setup
+    - name: Set up Python 3.14
+      if: matrix.language == 'python'
+      uses: actions/setup-python@v6
+      with:
+        python-version: ${{ matrix.python-version }}
 
-      - name: Autobuild
-        uses: github/codeql-action/autobuild@v4
+    - name: Install Python dependencies
+      if: matrix.language == 'python'
+      run: |
+        cd backend
+        pip install --upgrade pip
+        if [ -f requirements.txt ]; then
+          pip install -r requirements.txt
+        elif [ -f pyproject.toml ]; then
+          pip install -e .
+        fi
 
-      - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v4
-        with:
-          category: "/language:${{ matrix.language }}"
+    # JavaScript/TypeScript setup
+    - name: Set up Bun
+      if: matrix.language == 'javascript'
+      uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: '1.3.8'
+
+    - name: Install dependencies
+      if: matrix.language == 'javascript'
+      run: |
+        cd frontend
+        if [ "${{ github.actor }}" = "dependabot[bot]" ]; then bun install; else bun install --frozen-lockfile; fi
+
+    # Initialize CodeQL
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v4
+      with:
+        languages: ${{ matrix.language }}
+        queries: security-extended,security-and-quality
+        config-file: .github/codeql/codeql-config.yml
+        source-root: ${{ matrix.language == 'python' && 'backend' || 'frontend' }}
+
+    # Autobuild (works for Python and JavaScript without compilation)
+    - name: Autobuild
+      uses: github/codeql-action/autobuild@v4
+
+    # Perform CodeQL Analysis
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v4
+      with:
+        category: "/language:${{ matrix.language }}"
+        output: sarif-results
+        upload: true
+
+    # Upload SARIF results as artifact (for local review)
+    - name: Upload SARIF results
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: codeql-results-${{ matrix.language }}
+        path: sarif-results
+        retention-days: 30
+
+    # Filter results for PR comments (optional enhancement)
+    - name: Filter SARIF for pull requests
+      if: github.event_name == 'pull_request'
+      uses: advanced-security/filter-sarif@v1
+      with:
+        patterns: |
+          -**/*.test.js
+          -**/*.spec.ts
+          -**/tests/**
+          -**/__tests__/**
+        input: sarif-results/${{ matrix.language }}.sarif
+        output: sarif-results/${{ matrix.language }}-filtered.sarif
+
+  # Summary job (runs after both languages complete)
+  summary:
+    name: Security Scan Summary
+    needs: analyze
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+    - name: Download SARIF results
+      uses: actions/download-artifact@v8
+      with:
+        path: sarif-results
+
+    - name: Generate summary
+      run: |
+        echo "# CodeQL Security Scan Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Scan Date**: $(date '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## Results by Language" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+
+        # Count findings in Python SARIF
+        if [ -d "sarif-results/codeql-results-python" ]; then
+          echo "### Python" >> $GITHUB_STEP_SUMMARY
+          PYTHON_ERRORS=$(find sarif-results/codeql-results-python -name "*.sarif" -exec jq '[.runs[]?.results[]? | select(.level == "error")] | length' {} \; 2>/dev/null | awk '{s+=$1} END {print s}')
+          PYTHON_WARNINGS=$(find sarif-results/codeql-results-python -name "*.sarif" -exec jq '[.runs[]?.results[]? | select(.level == "warning")] | length' {} \; 2>/dev/null | awk '{s+=$1} END {print s}')
+          PYTHON_NOTES=$(find sarif-results/codeql-results-python -name "*.sarif" -exec jq '[.runs[]?.results[]? | select(.level == "note")] | length' {} \; 2>/dev/null | awk '{s+=$1} END {print s}')
+          echo "- **HIGH (Errors)**: ${PYTHON_ERRORS:-0} 🔴" >> $GITHUB_STEP_SUMMARY
+          echo "- **MEDIUM (Warnings)**: ${PYTHON_WARNINGS:-0} 🟡" >> $GITHUB_STEP_SUMMARY
+          echo "- **LOW (Notes)**: ${PYTHON_NOTES:-0} 🔵" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+        fi
+
+        # Count findings in JavaScript SARIF
+        if [ -d "sarif-results/codeql-results-javascript" ]; then
+          echo "### JavaScript/TypeScript" >> $GITHUB_STEP_SUMMARY
+          JS_ERRORS=$(find sarif-results/codeql-results-javascript -name "*.sarif" -exec jq '[.runs[]?.results[]? | select(.level == "error")] | length' {} \; 2>/dev/null | awk '{s+=$1} END {print s}')
+          JS_WARNINGS=$(find sarif-results/codeql-results-javascript -name "*.sarif" -exec jq '[.runs[]?.results[]? | select(.level == "warning")] | length' {} \; 2>/dev/null | awk '{s+=$1} END {print s}')
+          JS_NOTES=$(find sarif-results/codeql-results-javascript -name "*.sarif" -exec jq '[.runs[]?.results[]? | select(.level == "note")] | length' {} \; 2>/dev/null | awk '{s+=$1} END {print s}')
+          echo "- **HIGH (Errors)**: ${JS_ERRORS:-0} 🔴" >> $GITHUB_STEP_SUMMARY
+          echo "- **MEDIUM (Warnings)**: ${JS_WARNINGS:-0} 🟡" >> $GITHUB_STEP_SUMMARY
+          echo "- **LOW (Notes)**: ${JS_NOTES:-0} 🔵" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+        fi
+
+        echo "---" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**View detailed results**: Go to the Security tab → Code scanning alerts" >> $GITHUB_STEP_SUMMARY

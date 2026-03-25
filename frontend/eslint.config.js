@@ -25,6 +25,25 @@ export default tseslint.config(
         'warn',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
       ],
+      // i18n guards: prevent raw currency and hardcoded locale outside utility files
+      'no-restricted-syntax': [
+        'warn',
+        {
+          selector: 'TemplateLiteral[quasis.0.value.raw=/\\$\\$/]',
+          message: 'Avoid raw $ in template literals for currency. Use formatCurrency() from utils/formatUtils.ts instead.',
+        },
+        {
+          selector: "CallExpression[callee.property.name='toLocaleDateString'][arguments.0.value='en-US']",
+          message: "Avoid hardcoded 'en-US' locale. Use formatDateForDisplay() from utils/dateUtils.ts instead.",
+        },
+      ],
+    },
+  },
+  // Exempt utility files from the i18n lint guards (they ARE the centralized implementation)
+  {
+    files: ['src/utils/formatUtils.ts', 'src/utils/units.ts', 'src/utils/dateUtils.ts'],
+    rules: {
+      'no-restricted-syntax': 'off',
     },
   },
 )

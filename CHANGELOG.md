@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Dev Dependencies
+- **@tailwindcss/vite**: 4.2.1 → 4.2.2
+- **@typescript-eslint/eslint-plugin**: 8.57.1 → 8.57.2
+- **@typescript-eslint/parser**: 8.57.1 → 8.57.2
+- **@vitest/coverage-v8**: 4.1.0 → 4.1.1
+- **@vitest/ui**: 4.1.0 → 4.1.1
+- **eslint**: 10.0.3 → 10.1.0
+- **jsdom**: 29.0.0 → 29.0.1
+- **pytest-cov**: 7.0.0 → 7.1.0
+- **ruff**: 0.15.4 → 0.15.7
+- **tailwindcss**: 4.2.1 → 4.2.2
+- **typescript**: 5.9.3 → 6.0.2
+- **typescript-eslint**: 8.57.1 → 8.57.2
+- **vite**: 8.0.0 → 8.0.2
+- **vitest**: 4.1.0 → 4.1.1
+
+### App Dependencies
+- **@tanstack/react-query**: 5.90.21 → 5.95.2
+- **@tanstack/react-query-devtools**: 5.91.3 → 5.95.2
+- **fastapi**: 0.135.1 → 0.135.2
+- **lucide-react**: 0.577.0 → 1.6.0
+- **pymupdf**: 1.27.2 → 1.27.2.2
+- **react-hook-form**: 7.71.2 → 7.72.0
+- **react-router-dom**: 7.13.1 → 7.13.2
+
+### Dockerfile Dependencies
+- **oven/bun**: 1.3.10-alpine → 1.3.11-alpine
+
 ### Added
 - OpenAPI-generated TypeScript types: frontend types are now auto-generated from backend Pydantic schemas via `openapi-typescript`, eliminating manual type drift
 - CI freshness gate (`check-api-types` job) ensures generated types stay in sync with backend schemas

@@ -8,6 +8,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
+from app.constants.i18n import SUPPORTED_CURRENCIES, SUPPORTED_LANGUAGES
+
 # Relationship type presets for family system
 RELATIONSHIP_PRESETS: list[dict[str, str]] = [
     {"value": "spouse", "label": "Spouse/Partner"},
@@ -86,11 +88,32 @@ class UserUpdate(BaseModel):
     unit_preference: str | None = Field(None, pattern="^(imperial|metric)$")
     show_both_units: bool | None = None
     mobile_quick_entry_enabled: bool | None = None
+    # i18n preferences
+    language: str | None = Field(None, max_length=10)
+    currency_code: str | None = Field(None, max_length=3)
     # Family/relationship fields
     relationship: RelationshipType = None
     relationship_custom: str | None = Field(None, max_length=100)
     show_on_family_dashboard: bool | None = None
     family_dashboard_order: int | None = Field(None, ge=0)
+
+    @field_validator("language")
+    @classmethod
+    def validate_language(cls, v: Any) -> Any:
+        """Validate language against supported allowlist."""
+        if v is not None and v not in SUPPORTED_LANGUAGES:
+            raise ValueError(f"Unsupported language: {v}. Supported: {sorted(SUPPORTED_LANGUAGES)}")
+        return v
+
+    @field_validator("currency_code")
+    @classmethod
+    def validate_currency_code(cls, v: Any) -> Any:
+        """Validate currency code against supported allowlist."""
+        if v is not None and v not in SUPPORTED_CURRENCIES:
+            raise ValueError(
+                f"Unsupported currency: {v}. Supported: {sorted(SUPPORTED_CURRENCIES)}"
+            )
+        return v
 
     @model_validator(mode="after")
     def validate_relationship_custom(self) -> UserUpdate:
@@ -147,6 +170,9 @@ class UserResponse(UserBase):
     unit_preference: str = "imperial"
     show_both_units: bool = False
     mobile_quick_entry_enabled: bool = True
+    # i18n preferences
+    language: str = "en"
+    currency_code: str = "USD"
     # Family/relationship fields
     relationship: str | None = None
     relationship_custom: str | None = None

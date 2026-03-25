@@ -1,6 +1,10 @@
 import type { Page } from '@playwright/test'
 
-/** Navigation links in the top nav bar */
+/**
+ * Navigation links in the top nav bar.
+ * NOTE: These selectors use English text, which is the default/fallback language.
+ * E2E tests run in English locale. See e2e/i18n.spec.ts for language-switching tests.
+ */
 export const nav = {
   dashboard: (page: Page) => page.getByRole('link', { name: 'Dashboard' }),
   analytics: (page: Page) => page.getByRole('link', { name: 'Analytics' }),

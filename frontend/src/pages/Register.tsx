@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { UserPlus, AlertCircle, CheckCircle, Loader, Crown, Eye, EyeOff } from 'lucide-react'
@@ -10,6 +11,7 @@ import AuthPageLayout from '../components/AuthPageLayout'
 import api from '../services/api'
 
 export default function Register() {
+  const { t } = useTranslation('common')
   const {
     register: registerField,
     handleSubmit,
@@ -79,7 +81,7 @@ export default function Register() {
 
   return (
     <AuthPageLayout
-      subtitle="Create your account"
+      subtitle={t('register.subtitle')}
       className="py-8"
       headerExtra={
         isFirstUser ? (
@@ -91,9 +93,9 @@ export default function Register() {
       }
       footerExtra={
         <div className="mt-6 text-center text-sm text-garage-text-muted">
-          Already have an account?{' '}
+          {t('register.hasAccount')}{' '}
           <Link to="/login" className="text-primary hover:underline font-medium">
-            Sign in here
+            {t('register.loginLink')}
           </Link>
         </div>
       }
@@ -110,7 +112,7 @@ export default function Register() {
         {/* Username Field */}
         <div>
           <label htmlFor="username" className="block text-sm font-medium text-garage-text mb-2">
-            Username
+            {t('register.username')}
           </label>
           <input
             id="username"
@@ -134,7 +136,7 @@ export default function Register() {
         {/* Email Field */}
         <div>
           <label htmlFor="email" className="block text-sm font-medium text-garage-text mb-2">
-            Email Address
+            {t('register.email')}
           </label>
           <input
             id="email"
@@ -153,7 +155,7 @@ export default function Register() {
         {/* Password Field */}
         <div>
           <label htmlFor="password" className="block text-sm font-medium text-garage-text mb-2">
-            Password
+            {t('register.password')}
           </label>
           <div className="relative">
             <input
@@ -253,7 +255,7 @@ export default function Register() {
           ) : (
             <>
               <UserPlus className="w-5 h-5" />
-              Create Account
+              {t('register.submit')}
             </>
           )}
         </button>

@@ -82,6 +82,35 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Translation files - network first (same as API) to pick up new versions
+  if (url.pathname.startsWith('/locales/')) {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          const responseClone = response.clone();
+          caches.open(RUNTIME_CACHE).then((cache) => {
+            cache.put(request, responseClone);
+          });
+          return response;
+        })
+        .catch(() => {
+          return caches.match(request).then((cached) => {
+            if (cached) {
+              return cached;
+            }
+            return new Response(
+              JSON.stringify({}),
+              {
+                headers: { 'Content-Type': 'application/json' },
+                status: 503,
+              }
+            );
+          });
+        })
+    );
+    return;
+  }
+
   // API requests - network first, cache fallback
   if (url.pathname.startsWith('/api/')) {
     event.respondWith(

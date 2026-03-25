@@ -9,6 +9,8 @@ interface User {
   unit_preference?: 'imperial' | 'metric'
   show_both_units?: boolean
   mobile_quick_entry_enabled?: boolean
+  language?: string
+  currency_code?: string
 }
 
 interface AuthContextType {

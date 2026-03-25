@@ -59,39 +59,38 @@ def upgrade(engine=None):
             print(f"  dtc_definitions already has {existing_count} codes, skipping seed")
             return
 
-        # Insert in batches for efficiency
-        batch_size = 100
+        # Build parameter list with correct types (bool for PostgreSQL BOOLEAN)
+        params = [
+            {
+                "code": dtc["code"],
+                "description": dtc["description"],
+                "category": dtc["category"],
+                "subcategory": dtc.get("subcategory"),
+                "severity": dtc["severity"],
+                "severity_level": dtc["estimated_severity_level"],
+                "emissions": bool(dtc.get("is_emissions_related")),
+            }
+            for dtc in dtc_list
+        ]
+
+        # Bulk insert in batches
+        insert_sql = text("""
+            INSERT INTO dtc_definitions (
+                code, description, category, subcategory,
+                severity, estimated_severity_level, is_emissions_related
+            ) VALUES (
+                :code, :description, :category, :subcategory,
+                :severity, :severity_level, :emissions
+            )
+        """)
+
+        batch_size = 500
         inserted = 0
-
-        for i in range(0, len(dtc_list), batch_size):
-            batch = dtc_list[i : i + batch_size]
-
-            for dtc in batch:
-                try:
-                    conn.execute(
-                        text("""
-                            INSERT INTO dtc_definitions (
-                                code, description, category, subcategory,
-                                severity, estimated_severity_level, is_emissions_related
-                            ) VALUES (
-                                :code, :description, :category, :subcategory,
-                                :severity, :severity_level, :emissions
-                            )
-                        """),
-                        {
-                            "code": dtc["code"],
-                            "description": dtc["description"],
-                            "category": dtc["category"],
-                            "subcategory": dtc.get("subcategory"),
-                            "severity": dtc["severity"],
-                            "severity_level": dtc["estimated_severity_level"],
-                            "emissions": 1 if dtc.get("is_emissions_related") else 0,
-                        },
-                    )
-                    inserted += 1
-                except Exception as e:
-                    # Skip duplicates or errors
-                    print(f"  Warning: Could not insert {dtc['code']}: {e}")
+        for i in range(0, len(params), batch_size):
+            batch = params[i : i + batch_size]
+            for row in batch:
+                conn.execute(insert_sql, row)
+                inserted += 1
 
         print(f"  Inserted {inserted} DTC definitions")
 

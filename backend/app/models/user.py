@@ -44,6 +44,14 @@ class User(Base):
     )  # 'imperial' or 'metric'
     show_both_units: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
+    # i18n preferences
+    language: Mapped[str] = mapped_column(
+        String(10), default="en", nullable=False
+    )  # ISO 639-1 language code
+    currency_code: Mapped[str] = mapped_column(
+        String(3), default="USD", nullable=False
+    )  # ISO 4217 currency code
+
     # Mobile experience
     mobile_quick_entry_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 

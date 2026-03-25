@@ -6,7 +6,7 @@ import InspectionResult from './InspectionResult'
 
 // Service suggestions per category
 const SERVICE_SUGGESTIONS: Record<string, string[]> = {
-  Maintenance: ['Oil Change', 'Tire Rotation', 'Tire Replacement', 'Air Filter', 'Cabin Air Filter', 'Brake Pad Replacement', 'Brake Rotor Replacement', 'Spark Plug Replacement', 'Battery Replacement', 'Coolant Flush', 'Transmission Fluid Change', 'Differential Fluid Change', 'Fuel Filter Replacement', 'Serpentine Belt', 'Timing Belt/Chain', 'Power Steering Flush', 'Wheel Alignment', 'Wheel Balancing', 'TPMS Reset', 'Wiper Blades', 'Thermostat Replacement', 'Oxygen Sensor', 'PCV Valve', 'Hose Replacement', 'Fluid Top-Off'],
+  Maintenance: ['Oil Change', 'Tire Rotation', 'Tire Replacement', 'Air Filter', 'Cabin Air Filter', 'Brake Pad Replacement', 'Brake Rotor Replacement', 'Spark Plug Replacement', 'Battery Replacement', 'Alternator Replacement', 'Starter Replacement', 'Coolant Flush', 'Transmission Fluid Change', 'Differential Fluid Change', 'Fuel Filter Replacement', 'Serpentine Belt', 'Timing Belt/Chain', 'Power Steering Flush', 'Wheel Alignment', 'Wheel Balancing', 'TPMS Reset', 'Wiper Blades', 'Thermostat Replacement', 'Oxygen Sensor', 'PCV Valve', 'Hose Replacement', 'Fluid Top-Off'],
   Inspection: ['Multi-Point Inspection', 'Safety Inspection', 'Emissions Test', 'State/Annual Inspection', 'Pre-Purchase Inspection', 'Pre-Trip Inspection', 'Brake Inspection', 'Tire Tread Check', 'Suspension Inspection', 'Exhaust Inspection', 'Fluid Level Check', 'Battery/Charging System Test', 'Alignment Check', '4WD/AWD System Check'],
   Collision: ['Paintless Dent Repair (PDR)', 'Paint Repair', 'Body Panel Replacement', 'Bumper Replacement', 'Fender Replacement', 'Hood Replacement', 'Door Panel Replacement', 'Windshield Replacement', 'Side Window Replacement', 'Rear Glass Replacement', 'Structural/Frame Repair', 'Airbag Replacement', 'Radiator Replacement', 'Headlight Replacement', 'Taillight Replacement'],
   Upgrades: ['Aftermarket Exhaust', 'Cold Air Intake', 'Performance Tune/ECU Flash', 'Suspension Lift Kit', 'Lowering Kit', 'Wheels and Tires', 'Window Tint', 'Audio Upgrade', 'Remote Start', 'Dash Cam', 'Running Boards', 'Bed Liner', 'Trailer Hitch', 'Roof Rack', 'LED Lighting', 'Interior Upholstery'],
@@ -22,6 +22,7 @@ interface LineItemEditorProps {
   disabled?: boolean
   categories?: string[]
   isNewItem?: boolean
+  currentMileage?: number | null
 }
 
 export default function LineItemEditor({
@@ -33,6 +34,7 @@ export default function LineItemEditor({
   disabled = false,
   categories = [],
   isNewItem = true,
+  currentMileage,
 }: LineItemEditorProps) {
   const [expanded, setExpanded] = useState(true)
   const [showSuggestions, setShowSuggestions] = useState(false)
@@ -313,15 +315,25 @@ export default function LineItemEditor({
                     )}
                     {['mileage', 'both', 'smart'].includes(item.reminderDraft.reminder_type) && (
                       <div>
-                        <label className="block text-xs font-medium text-garage-text mb-1">Due Mileage</label>
+                        <label className="block text-xs font-medium text-garage-text mb-1">
+                          {currentMileage ? 'Miles Until Due' : 'Due Mileage (odometer)'}
+                        </label>
                         <input
                           type="number"
                           value={item.reminderDraft.due_mileage ?? ''}
                           onChange={(e) => handleReminderFieldChange('due_mileage', e.target.value ? parseInt(e.target.value) : undefined)}
                           min="1"
+                          placeholder={currentMileage ? 'e.g., 5000' : 'e.g., 92000'}
                           disabled={disabled}
                           className="w-full px-2 py-1.5 text-sm border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-surface text-garage-text"
                         />
+                        {currentMileage && item.reminderDraft.due_mileage ? (
+                          <p className="text-xs text-garage-text-muted mt-1">
+                            Current: {currentMileage.toLocaleString()} + {item.reminderDraft.due_mileage.toLocaleString()} = {(currentMileage + item.reminderDraft.due_mileage).toLocaleString()} mi target
+                          </p>
+                        ) : !currentMileage ? (
+                          <p className="text-xs text-warning mt-1">No odometer data — enter absolute target mileage</p>
+                        ) : null}
                       </div>
                     )}
                   </div>

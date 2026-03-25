@@ -1,11 +1,13 @@
 import { useState, useEffect, type SyntheticEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { Car, Lock, AlertCircle, Loader } from 'lucide-react'
 import api, { setCSRFToken } from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
 import { resolvePostLoginRoute } from '../utils/postLoginRedirect'
 
 export default function LinkAccount() {
+  const { t } = useTranslation('common')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -90,10 +92,10 @@ export default function LinkAccount() {
             </div>
           </div>
           <h1 className="text-3xl font-bold text-garage-text mb-2">
-            Link Your Account
+            {t('oidc.linkAccount')}
           </h1>
           <p className="text-garage-text-muted">
-            An existing account with this username was found. Please verify your password to link your SSO account.
+            {t('oidc.linkDescription')}
           </p>
         </div>
 
@@ -111,7 +113,7 @@ export default function LinkAccount() {
             {/* Password Field */}
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-garage-text mb-2">
-                Password
+                {t('login.password')}
               </label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-garage-text-muted" />
@@ -151,7 +153,7 @@ export default function LinkAccount() {
                     Linking...
                   </>
                 ) : (
-                  'Link Account'
+                  t('oidc.linkAccount')
                 )}
               </button>
             </div>

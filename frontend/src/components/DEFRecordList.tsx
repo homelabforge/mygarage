@@ -3,6 +3,7 @@ import { Edit, Trash2, Plus, AlertCircle, Droplets, TrendingDown, DollarSign } f
 import { toast } from 'sonner'
 import { formatDateForDisplay } from '../utils/dateUtils'
 import { formatCurrency } from '../utils/formatUtils'
+import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
 import type { DEFRecord } from '../types/def'
 import DEFRecordForm from './DEFRecordForm'
 import { useUnitPreference } from '../hooks/useUnitPreference'
@@ -18,6 +19,7 @@ export default function DEFRecordList({ vin }: DEFRecordListProps) {
   const [showForm, setShowForm] = useState(false)
   const [editingRecord, setEditingRecord] = useState<DEFRecord | undefined>()
   const { system } = useUnitPreference()
+  const { currencyCode, locale } = useCurrencyPreference()
 
   const { data: recordsData, isLoading, error } = useDEFRecords(vin)
   const { data: analytics } = useDEFAnalytics(vin)
@@ -171,7 +173,7 @@ export default function DEFRecordList({ vin }: DEFRecordListProps) {
                 <span>Total Spent</span>
               </div>
               <div className="text-lg font-semibold text-garage-text">
-                {formatCurrency(analytics.total_cost)}
+                {formatCurrency(analytics.total_cost, { currencyCode, locale })}
               </div>
               <p className="text-xs text-garage-text-muted">
                 {UnitFormatter.formatVolumeTotal(parseNum(analytics.total_gallons) ?? 0, system)}
@@ -301,7 +303,7 @@ export default function DEFRecordList({ vin }: DEFRecordListProps) {
                         {record.entry_type === 'auto_fuel_sync' ? '\u2014' : (record.brand || '-')}
                       </td>
                       <td className="px-4 py-3 text-sm text-garage-text text-right font-semibold">
-                        {formatCurrency(record.cost)}
+                        {formatCurrency(record.cost, { currencyCode, locale })}
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex gap-1 justify-end">

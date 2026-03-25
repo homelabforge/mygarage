@@ -4,6 +4,7 @@ import { Edit, Trash2, Plus, AlertCircle, MapPin, Calendar, ChevronDown, Chevron
 import { toast } from 'sonner'
 import { formatDateForDisplay } from '../utils/dateUtils'
 import { formatCurrency } from '../utils/formatUtils'
+import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
 import type { SpotRental, SpotRentalBilling } from '../types/spotRental'
 import SpotRentalForm from './SpotRentalForm'
 import BillingEntryForm from './BillingEntryForm'
@@ -16,6 +17,7 @@ interface SpotRentalListProps {
 
 export default function SpotRentalList({ vin }: SpotRentalListProps) {
   const queryClient = useQueryClient()
+  const { currencyCode, locale } = useCurrencyPreference()
   const { data, isLoading, error } = useSpotRentals(vin)
   const deleteRental = useDeleteSpotRental(vin)
   const rentals = data?.spot_rentals ?? []
@@ -163,7 +165,7 @@ export default function SpotRentalList({ vin }: SpotRentalListProps) {
             <p className="text-sm text-garage-text-muted">
               {rentals.length} {rentals.length === 1 ? 'rental' : 'rentals'} •
               Active: {getActiveRentals()} •
-              Total Spent: {formatCurrency(getTotalCost())}
+              Total Spent: {formatCurrency(getTotalCost(), { currencyCode, locale })}
             </p>
           )}
         </div>
@@ -295,7 +297,7 @@ export default function SpotRentalList({ vin }: SpotRentalListProps) {
                         <div>
                           <p className="text-xs text-garage-text-muted mb-0.5">Total Billed</p>
                           <p className="text-sm text-garage-text font-semibold">
-                            {formatCurrency(billingTotal)}
+                            {formatCurrency(billingTotal, { currencyCode, locale })}
                           </p>
                         </div>
                         <div>
@@ -305,7 +307,7 @@ export default function SpotRentalList({ vin }: SpotRentalListProps) {
                         <div>
                           <p className="text-xs text-garage-text-muted mb-0.5">Monthly Avg</p>
                           <p className="text-sm text-garage-text font-medium">
-                            {formatCurrency(monthlyAvg)}
+                            {formatCurrency(monthlyAvg, { currencyCode, locale })}
                           </p>
                         </div>
                       </div>
@@ -320,25 +322,25 @@ export default function SpotRentalList({ vin }: SpotRentalListProps) {
                             <div>
                               <p className="text-xs text-garage-text-muted">Monthly</p>
                               <p className="text-xs text-garage-text font-medium">
-                                {formatCurrency(lastBilling.monthly_rate)}
+                                {formatCurrency(lastBilling.monthly_rate, { currencyCode, locale })}
                               </p>
                             </div>
                             <div>
                               <p className="text-xs text-garage-text-muted">Electric</p>
                               <p className="text-xs text-garage-text font-medium">
-                                {formatCurrency(lastBilling.electric)}
+                                {formatCurrency(lastBilling.electric, { currencyCode, locale })}
                               </p>
                             </div>
                             <div>
                               <p className="text-xs text-garage-text-muted">Water</p>
                               <p className="text-xs text-garage-text font-medium">
-                                {formatCurrency(lastBilling.water)}
+                                {formatCurrency(lastBilling.water, { currencyCode, locale })}
                               </p>
                             </div>
                             <div>
                               <p className="text-xs text-garage-text-muted">Waste</p>
                               <p className="text-xs text-garage-text font-medium">
-                                {formatCurrency(lastBilling.waste)}
+                                {formatCurrency(lastBilling.waste, { currencyCode, locale })}
                               </p>
                             </div>
                           </div>
@@ -415,31 +417,31 @@ export default function SpotRentalList({ vin }: SpotRentalListProps) {
                           <div>
                             <p className="text-xs text-garage-text-muted">Monthly</p>
                             <p className="text-xs text-garage-text font-medium">
-                              {formatCurrency(billing.monthly_rate)}
+                              {formatCurrency(billing.monthly_rate, { currencyCode, locale })}
                             </p>
                           </div>
                           <div>
                             <p className="text-xs text-garage-text-muted">Electric</p>
                             <p className="text-xs text-garage-text font-medium">
-                              {formatCurrency(billing.electric)}
+                              {formatCurrency(billing.electric, { currencyCode, locale })}
                             </p>
                           </div>
                           <div>
                             <p className="text-xs text-garage-text-muted">Water</p>
                             <p className="text-xs text-garage-text font-medium">
-                              {formatCurrency(billing.water)}
+                              {formatCurrency(billing.water, { currencyCode, locale })}
                             </p>
                           </div>
                           <div>
                             <p className="text-xs text-garage-text-muted">Waste</p>
                             <p className="text-xs text-garage-text font-medium">
-                              {formatCurrency(billing.waste)}
+                              {formatCurrency(billing.waste, { currencyCode, locale })}
                             </p>
                           </div>
                           <div>
                             <p className="text-xs text-garage-text-muted">Total</p>
                             <p className="text-xs text-garage-text font-semibold">
-                              {formatCurrency(billing.total)}
+                              {formatCurrency(billing.total, { currencyCode, locale })}
                             </p>
                           </div>
                         </div>
@@ -459,10 +461,10 @@ export default function SpotRentalList({ vin }: SpotRentalListProps) {
                     {(rental.nightly_rate || rental.weekly_rate) && (
                       <div className="flex gap-3 text-xs text-garage-text-muted">
                         {rental.nightly_rate && (
-                          <span>Nightly: {formatCurrency(rental.nightly_rate)}</span>
+                          <span>Nightly: {formatCurrency(rental.nightly_rate, { currencyCode, locale })}</span>
                         )}
                         {rental.weekly_rate && (
-                          <span>Weekly: {formatCurrency(rental.weekly_rate)}</span>
+                          <span>Weekly: {formatCurrency(rental.weekly_rate, { currencyCode, locale })}</span>
                         )}
                       </div>
                     )}
