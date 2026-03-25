@@ -152,7 +152,7 @@ export default function PropaneRecordList({ vin }: PropaneRecordListProps) {
                   <span>{UnitFormatter.getCostPerVolumeLabel(system)}</span>
                 </div>
                 <div className="text-lg font-semibold text-garage-text">
-                  {avgCostPerGallon !== null && UnitFormatter.formatCostPerVolume(avgCostPerGallon, system)}
+                  {avgCostPerGallon !== null && UnitFormatter.formatCostPerVolume(avgCostPerGallon, system, currencyCode, locale)}
                 </div>
               </div>
             )}

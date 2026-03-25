@@ -1175,7 +1175,7 @@ export default function Analytics() {
               <p className="text-sm text-garage-text-muted mb-1">Avg Price/{UnitFormatter.getVolumeUnit(system)}</p>
               <p className="text-2xl font-bold text-primary">
                 {propane.avg_price_per_gallon
-                  ? UnitFormatter.formatCostPerVolume(parseFloat(propane.avg_price_per_gallon), system)
+                  ? UnitFormatter.formatCostPerVolume(parseFloat(propane.avg_price_per_gallon), system, currencyCode, locale)
                   : 'N/A'}
               </p>
             </div>
@@ -1317,7 +1317,7 @@ export default function Analytics() {
               <p className="text-sm text-garage-text-muted mb-1">{UnitFormatter.getCostPerVolumeLabel(system)}</p>
               <p className="text-2xl font-bold text-garage-text">
                 {defAnalysis.avg_cost_per_gallon
-                  ? UnitFormatter.formatCostPerVolume(parseFloat(defAnalysis.avg_cost_per_gallon), system)
+                  ? UnitFormatter.formatCostPerVolume(parseFloat(defAnalysis.avg_cost_per_gallon), system, currencyCode, locale)
                   : '-'}
               </p>
             </div>

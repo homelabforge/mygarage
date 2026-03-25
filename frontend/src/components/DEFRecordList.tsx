@@ -160,7 +160,7 @@ export default function DEFRecordList({ vin }: DEFRecordListProps) {
                 <span>{UnitFormatter.getCostPerVolumeLabel(system)}</span>
               </div>
               <div className="text-lg font-semibold text-garage-text">
-                {UnitFormatter.formatCostPerVolume(parseNum(analytics.avg_cost_per_gallon) ?? 0, system)}
+                {UnitFormatter.formatCostPerVolume(parseNum(analytics.avg_cost_per_gallon) ?? 0, system, currencyCode, locale)}
               </div>
             </div>
           )}

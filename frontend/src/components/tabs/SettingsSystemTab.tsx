@@ -132,9 +132,9 @@ export default function SettingsSystemTab() {
         setAuthEverEnabled(false)
       }
     } catch {
-      setMessage({ type: 'error', text: 'Failed to load system settings' })
+      setMessage({ type: 'error', text: t('common:errors.generic') })
     }
-  }, [])
+  }, [t])
 
   useEffect(() => {
     void loadSettings()
@@ -216,11 +216,11 @@ export default function SettingsSystemTab() {
         localStorage.setItem('unit_preference', system)
       }
 
-      toast.success('Unit preference saved!')
+      toast.success(t('preferences.unitSaved'))
       // Force a re-render to update displays
       window.dispatchEvent(new Event('storage'))
     } catch {
-      toast.error('Failed to save unit preference')
+      toast.error(t('preferences.unitError'))
       // Revert on error
       if (isAuthenticated) {
         setUnitPreference(currentUser?.unit_preference || 'imperial')
@@ -249,11 +249,11 @@ export default function SettingsSystemTab() {
         localStorage.setItem('show_both_units', showBoth.toString())
       }
 
-      toast.success('Display preference saved!')
+      toast.success(t('preferences.displaySaved'))
       // Force a re-render to update displays
       window.dispatchEvent(new Event('storage'))
     } catch {
-      toast.error('Failed to save display preference')
+      toast.error(t('preferences.displayError'))
       // Revert on error
       if (isAuthenticated) {
         setShowBothUnits(currentUser?.show_both_units || false)
@@ -363,37 +363,37 @@ export default function SettingsSystemTab() {
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
           <StatCard
             icon={<Wrench className="w-5 h-5" />}
-            label="Service Records"
+            label={t('stats.serviceRecords')}
             value={dashboardStats.total_service_records}
             color="text-primary"
           />
           <StatCard
             icon={<Fuel className="w-5 h-5" />}
-            label="Fuel Records"
+            label={t('stats.fuelRecords')}
             value={dashboardStats.total_fuel_records}
             color="text-primary"
           />
           <StatCard
             icon={<Bell className="w-5 h-5" />}
-            label="Maintenance Items"
+            label={t('stats.maintenanceItems')}
             value={dashboardStats.total_maintenance_items}
             color="text-warning"
           />
           <StatCard
             icon={<FileText className="w-5 h-5" />}
-            label="Documents"
+            label={t('stats.documents')}
             value={dashboardStats.total_documents}
             color="text-primary"
           />
           <StatCard
             icon={<StickyNote className="w-5 h-5" />}
-            label="Notes"
+            label={t('stats.notes')}
             value={dashboardStats.total_notes}
             color="text-primary"
           />
           <StatCard
             icon={<Camera className="w-5 h-5" />}
-            label="Photos"
+            label={t('stats.photos')}
             value={dashboardStats.total_photos}
             color="text-primary"
           />
@@ -410,10 +410,10 @@ export default function SettingsSystemTab() {
           <Server className="w-6 h-6 text-primary mt-1" />
           <div className="flex-1">
             <h2 className="text-xl font-semibold text-garage-text mb-2">
-              System Configuration
+              {t('systemConfig.title')}
             </h2>
             <p className="text-sm text-garage-text-muted">
-              Configure core system settings like timezone and debug mode.
+              {t('systemConfig.description')}
             </p>
           </div>
         </div>
@@ -421,7 +421,7 @@ export default function SettingsSystemTab() {
         {/* Timezone Setting */}
         <div>
           <label htmlFor="timezone" className="block text-sm font-medium text-garage-text mb-2">
-            Timezone
+            {t('timezone.label')}
           </label>
           <select
             id="timezone"
@@ -434,7 +434,7 @@ export default function SettingsSystemTab() {
             ))}
           </select>
           <p className="mt-2 text-sm text-garage-text-muted">
-            Affects log timestamps, scheduled tasks, and date displays throughout the application.
+            {t('timezone.description')}
           </p>
         </div>
 
@@ -442,12 +442,12 @@ export default function SettingsSystemTab() {
         <div>
           <div className="flex items-center gap-3 mb-2">
             <label htmlFor="debug" className="text-sm font-medium text-garage-text">
-              Debug Mode
+              {t('debug.label')}
             </label>
             <div className="relative group">
               <Info className="w-4 h-4 text-garage-text-muted cursor-help" />
               <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10">
-                Requires application restart
+                {t('debug.tooltip')}
               </div>
             </div>
           </div>
@@ -460,18 +460,18 @@ export default function SettingsSystemTab() {
               className="w-4 h-4 text-primary bg-garage-bg border-garage-border rounded focus:ring-primary focus:ring-2"
             />
             <span className="text-sm text-garage-text">
-              Enable verbose logging and detailed error messages
+              {t('debug.enable')}
             </span>
           </label>
           <p className="mt-2 ml-7 text-sm text-garage-text-muted">
-            ⚠️ Requires application restart to take effect. Only enable for troubleshooting.
+            {t('debug.warning')}
           </p>
         </div>
 
         {/* Theme Setting */}
         <div>
           <label className="block text-sm font-medium text-garage-text mb-3">
-            Theme
+            {t('theme.label')}
           </label>
           <div className="flex gap-3">
             <button
@@ -483,7 +483,7 @@ export default function SettingsSystemTab() {
               }`}
             >
               <Moon className="w-5 h-5" />
-              <span className="font-medium">Dark</span>
+              <span className="font-medium">{t('theme.dark')}</span>
             </button>
             <button
               onClick={() => setTheme('light')}
@@ -494,18 +494,18 @@ export default function SettingsSystemTab() {
               }`}
             >
               <Sun className="w-5 h-5" />
-              <span className="font-medium">Light</span>
+              <span className="font-medium">{t('theme.light')}</span>
             </button>
           </div>
           <p className="mt-2 text-sm text-garage-text-muted">
-            Choose between light and dark theme. Your preference is saved automatically.
+            {t('theme.description')}
           </p>
         </div>
 
         {/* Unit System Setting */}
         <div>
           <label className="block text-sm font-medium text-garage-text mb-3">
-            Unit System
+            {t('units.label')}
           </label>
           <div className="flex gap-3">
             <button
@@ -518,7 +518,7 @@ export default function SettingsSystemTab() {
               } ${unitPreferenceSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               <Ruler className="w-5 h-5" />
-              <span className="font-medium">Imperial</span>
+              <span className="font-medium">{t('units.imperial')}</span>
             </button>
             <button
               onClick={() => handleUnitPreferenceChange('metric')}
@@ -530,13 +530,13 @@ export default function SettingsSystemTab() {
               } ${unitPreferenceSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               <Ruler className="w-5 h-5" />
-              <span className="font-medium">Metric</span>
+              <span className="font-medium">{t('units.metric')}</span>
             </button>
           </div>
           <p className="mt-2 text-sm text-garage-text-muted">
             {unitPreference === 'imperial'
-              ? 'Using imperial units: gallons, miles, MPG, °F, PSI, lbs, lb-ft'
-              : 'Using metric units: liters, kilometers, L/100km, °C, bar, kg, Nm'
+              ? t('units.imperialDescription')
+              : t('units.metricDescription')
             }
           </p>
 
@@ -551,11 +551,11 @@ export default function SettingsSystemTab() {
                 className="w-4 h-4 text-primary bg-garage-bg border-garage-border rounded focus:ring-primary focus:ring-2"
               />
               <span className="text-sm text-garage-text">
-                Show both units
+                {t('units.showBoth')}
               </span>
             </label>
             <p className="mt-1 ml-7 text-sm text-garage-text-muted">
-              Display values in both imperial and metric (e.g., "25 MPG (9.4 L/100km)")
+              {t('units.showBothDescription')}
             </p>
           </div>
         </div>
@@ -651,9 +651,8 @@ export default function SettingsSystemTab() {
           <div className="flex items-start gap-2">
             <Info className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
             <div className="text-sm text-garage-text">
-              <strong className="font-semibold">Secret Key:</strong> Automatically generated and stored securely at{' '}
-              <code className="px-1 py-0.5 bg-garage-bg rounded text-xs font-mono">/data/secret.key</code>
-              . No manual configuration needed. The key persists across application restarts.
+              <strong className="font-semibold">{t('secretKey.label')}</strong>{' '}
+              {t('secretKey.description', { path: '/data/secret.key' })}
             </div>
           </div>
         </div>
@@ -681,9 +680,9 @@ export default function SettingsSystemTab() {
           <div className="flex items-start gap-3">
             <Smartphone className="w-6 h-6 text-primary mt-1" />
             <div className="flex-1">
-              <h2 className="text-xl font-semibold text-garage-text mb-1">Mobile Experience</h2>
+              <h2 className="text-xl font-semibold text-garage-text mb-1">{t('mobile.title')}</h2>
               <p className="text-sm text-garage-text-muted">
-                Customize how the app behaves on mobile devices.
+                {t('mobile.description')}
               </p>
             </div>
           </div>
@@ -697,9 +696,9 @@ export default function SettingsSystemTab() {
               className="w-4 h-4 mt-0.5 text-primary bg-garage-bg border-garage-border rounded focus:ring-primary focus:ring-2"
             />
             <div>
-              <span className="text-sm font-medium text-garage-text">Quick Entry on Mobile</span>
+              <span className="text-sm font-medium text-garage-text">{t('mobile.quickEntry')}</span>
               <p className="mt-0.5 text-sm text-garage-text-muted">
-                After signing in on a mobile device, go directly to Quick Entry instead of the dashboard
+                {t('mobile.quickEntryDescription')}
               </p>
             </div>
           </label>
@@ -713,10 +712,10 @@ export default function SettingsSystemTab() {
             <Users className="w-6 h-6 text-primary mt-1" />
             <div className="flex-1">
               <h2 className="text-xl font-semibold text-garage-text mb-2">
-                Family Management
+                {t('family.title')}
               </h2>
               <p className="text-sm text-garage-text-muted">
-                Manage family members, user accounts, and dashboard visibility.
+                {t('family.description')}
               </p>
             </div>
           </div>
@@ -724,7 +723,7 @@ export default function SettingsSystemTab() {
             onClick={() => setShowFamilyManagement(true)}
             className="w-full px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors font-medium"
           >
-            Manage Family
+            {t('family.manage')}
           </button>
         </div>
       )}
@@ -741,14 +740,14 @@ export default function SettingsSystemTab() {
             <Shield className="w-6 h-6 text-primary mt-1" />
             <div className="flex-1">
               <h2 className="text-xl font-semibold text-garage-text mb-2">
-                Authentication Mode
+                {t('auth.title')}
               </h2>
               <p className="text-sm text-garage-text-muted">
-                Configure how users access and authenticate with MyGarage.
+                {t('auth.description')}
               </p>
               <p className="text-xs text-warning-500 mt-2 flex items-center gap-1.5">
                 <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
-                <span>⚠️ Requires application restart to take effect.</span>
+                <span>{t('auth.restartWarning')}</span>
               </p>
             </div>
           </div>
@@ -763,7 +762,7 @@ export default function SettingsSystemTab() {
                   : 'border-transparent text-garage-text-muted hover:text-garage-text hover:border-garage-border'
               }`}
             >
-              None
+              {t('auth.none')}
             </button>
             <button
               onClick={() => setFormData({ ...formData, auth_mode: 'local', oidc_enabled: 'false' })}
@@ -773,7 +772,7 @@ export default function SettingsSystemTab() {
                   : 'border-transparent text-garage-text-muted hover:text-garage-text hover:border-garage-border'
               }`}
             >
-              Local
+              {t('auth.local')}
             </button>
             <button
               onClick={() => setFormData({ ...formData, auth_mode: 'oidc', oidc_enabled: 'true' })}
@@ -783,7 +782,7 @@ export default function SettingsSystemTab() {
                   : 'border-transparent text-garage-text-muted hover:text-garage-text hover:border-garage-border'
               }`}
             >
-              OIDC
+              {t('auth.oidc')}
             </button>
           </div>
         </div>
@@ -798,9 +797,9 @@ export default function SettingsSystemTab() {
                   <div className="flex items-start gap-3">
                     <Info className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
                     <div className="text-sm text-garage-text">
-                      <strong className="font-semibold">External Authenticator Detected</strong>
+                      <strong className="font-semibold">{t('auth.noneDetected')}</strong>
                       <p className="mt-1">
-                        MyGarage is running behind a reverse proxy authenticator. Authentication modes are only needed if you require additional access control beyond your existing setup.
+                        {t('auth.noneDetectedDescription')}
                       </p>
                     </div>
                   </div>
@@ -810,16 +809,16 @@ export default function SettingsSystemTab() {
                   <div className="flex items-start gap-3">
                     <AlertTriangle className="w-5 h-5 text-warning-500 flex-shrink-0 mt-0.5" />
                     <div className="text-sm text-garage-text">
-                      <strong className="font-semibold text-warning-500">No Authentication Enabled</strong>
+                      <strong className="font-semibold text-warning-500">{t('auth.noneWarning')}</strong>
                       <p className="mt-1">
-                        Anyone with network access can view and modify data in MyGarage. Consider enabling Local Authentication or placing MyGarage behind an authenticator like Authelia or Authentik.
+                        {t('auth.noneWarningDescription')}
                       </p>
                     </div>
                   </div>
                 </div>
               ) : (
                 <div className="p-4 bg-garage-bg border border-garage-border rounded-lg text-center">
-                  <p className="text-sm text-garage-text-muted">Checking for authenticators...</p>
+                  <p className="text-sm text-garage-text-muted">{t('auth.checking')}</p>
                 </div>
               )}
             </div>
@@ -832,17 +831,17 @@ export default function SettingsSystemTab() {
                 <div className="flex items-start gap-3">
                   <Key className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
                   <div className="flex-1">
-                    <strong className="text-sm font-semibold text-garage-text">Local Authentication</strong>
+                    <strong className="text-sm font-semibold text-garage-text">{t('auth.localTitle')}</strong>
                     <p className="mt-1 text-sm text-garage-text">
                       {authEverEnabled
-                        ? 'Local authentication is configured.'
-                        : 'Local authentication allows users to log in with a username and password stored locally.'}
+                        ? t('auth.localConfigured')
+                        : t('auth.localDescription')}
                     </p>
                     <button
                       onClick={() => setShowFamilyManagement(true)}
                       className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium"
                     >
-                      Manage Family & Auth →
+                      {t('auth.manageAuth')}
                     </button>
                   </div>
                 </div>
@@ -857,17 +856,17 @@ export default function SettingsSystemTab() {
                 <div className="flex items-start gap-3">
                   <Shield className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
                   <div className="flex-1">
-                    <strong className="text-sm font-semibold text-garage-text">OpenID Connect (OIDC) Authentication</strong>
+                    <strong className="text-sm font-semibold text-garage-text">{t('auth.oidcTitle')}</strong>
                     <p className="mt-1 text-sm text-garage-text">
                       {formData.oidc_issuer_url
-                        ? `Configured with ${formData.oidc_provider_name || 'OIDC provider'}`
-                        : 'Configure single sign-on with your identity provider (Authentik, Keycloak, Auth0, Okta, etc.)'}
+                        ? t('auth.oidcConfigured', { provider: formData.oidc_provider_name || 'OIDC provider' })
+                        : t('auth.oidcDescription')}
                     </p>
                     <button
                       onClick={() => setShowOIDCModal(true)}
                       className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium"
                     >
-                      Configure OIDC
+                      {t('auth.configureOIDC')}
                     </button>
                   </div>
                 </div>
@@ -884,11 +883,10 @@ export default function SettingsSystemTab() {
           <Archive className="w-6 h-6 text-primary mt-1" />
           <div className="flex-1">
             <h2 className="text-xl font-semibold text-garage-text mb-2">
-              Archived Vehicles
+              {t('archive.title')}
             </h2>
             <p className="text-sm text-garage-text-muted">
-              View and manage vehicles you've archived (sold, totaled, gifted, etc.).
-              Archived vehicles remain in analytics but can be hidden from the main list.
+              {t('archive.description')}
             </p>
           </div>
         </div>

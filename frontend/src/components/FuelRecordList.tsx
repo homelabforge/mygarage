@@ -282,7 +282,7 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick }: FuelRec
                   <span>{UnitFormatter.getCostPerVolumeLabel(system)}</span>
                 </div>
                 <div className="text-lg font-semibold text-garage-text">
-                  {avgCostPerGallon !== null && UnitFormatter.formatCostPerVolume(avgCostPerGallon, system)}
+                  {avgCostPerGallon !== null && UnitFormatter.formatCostPerVolume(avgCostPerGallon, system, currencyCode, locale)}
                 </div>
               </div>
             )}
@@ -293,7 +293,7 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick }: FuelRec
                   <span>{UnitFormatter.getCostPerDistanceLabel(system)}</span>
                 </div>
                 <div className="text-lg font-semibold text-garage-text">
-                  {costPer1kMiles !== null && UnitFormatter.formatCostPerDistance(costPer1kMiles, system)}
+                  {costPer1kMiles !== null && UnitFormatter.formatCostPerDistance(costPer1kMiles, system, currencyCode, locale)}
                 </div>
               </div>
             )}
