@@ -5,6 +5,7 @@
  * Step 3: Confirm Transfer
  */
 
+import { useTranslation } from 'react-i18next'
 import { useState, useEffect } from 'react'
 import { X, ChevronLeft, ChevronRight, Check, AlertTriangle, User, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -37,6 +38,7 @@ export default function VehicleTransferWizard({
   vehicleNickname,
   onTransferComplete,
 }: VehicleTransferWizardProps) {
+  const { t } = useTranslation('forms')
   const [currentStep, setCurrentStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [loadingRecipients, setLoadingRecipients] = useState(true)
@@ -73,14 +75,14 @@ export default function VehicleTransferWizard({
         setRecipients(data)
       } catch (err) {
         console.error('Failed to load eligible recipients:', err)
-        toast.error('Failed to load eligible recipients')
+        toast.error(t('modal.failedToLoadRecipients'))
       } finally {
         setLoadingRecipients(false)
       }
     }
 
     loadRecipients()
-  }, [isOpen, vin])
+  }, [isOpen, vin, t])
 
   // Reset state when modal opens/closes
   useEffect(() => {
@@ -177,8 +179,8 @@ export default function VehicleTransferWizard({
         setError(detail)
         toast.error(detail)
       } else {
-        setError('Failed to transfer vehicle')
-        toast.error('Failed to transfer vehicle')
+        setError(t('modal.failedToTransfer'))
+        toast.error(t('modal.failedToTransfer'))
       }
     } finally {
       setLoading(false)
@@ -193,7 +195,7 @@ export default function VehicleTransferWizard({
         {/* Header */}
         <div className="p-6 border-b border-garage-border flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-bold text-garage-text">Transfer Vehicle</h2>
+            <h2 className="text-xl font-bold text-garage-text">{t('modal.transferVehicle')}</h2>
             <p className="text-sm text-garage-text-muted mt-1">{vehicleNickname}</p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-garage-muted rounded-lg transition-colors">
@@ -242,13 +244,13 @@ export default function VehicleTransferWizard({
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-garage-text mb-2">
-                  Select New Owner
+                  {t('modal.selectNewOwner')}
                 </label>
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search by username or name..."
+                  placeholder={t('modal.searchByUsernameOrName')}
                   className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary"
                 />
               </div>
@@ -259,7 +261,7 @@ export default function VehicleTransferWizard({
                 </div>
               ) : filteredRecipients.length === 0 ? (
                 <div className="text-center py-8 text-garage-text-muted">
-                  {searchQuery ? 'No users found matching your search.' : 'No eligible recipients.'}
+                  {searchQuery ? t('modal.noUsersFound') : t('modal.noEligibleRecipients')}
                 </div>
               ) : (
                 <div className="space-y-2 max-h-64 overflow-y-auto">
@@ -305,7 +307,7 @@ export default function VehicleTransferWizard({
               </div>
 
               <div className="flex items-center justify-between py-2 border-b border-garage-border">
-                <span className="font-medium text-garage-text">Include All Data</span>
+                <span className="font-medium text-garage-text">{t('modal.includeAllData')}</span>
                 <button
                   onClick={toggleAllData}
                   className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
@@ -350,7 +352,7 @@ export default function VehicleTransferWizard({
               <div className="p-4 bg-warning/10 border border-warning/30 rounded-lg flex gap-3">
                 <AlertTriangle className="w-5 h-5 text-warning flex-shrink-0 mt-0.5" />
                 <div>
-                  <p className="font-medium text-garage-text">Confirm Vehicle Transfer</p>
+                  <p className="font-medium text-garage-text">{t('modal.confirmTransfer')}</p>
                   <p className="text-sm text-garage-text-muted mt-1">
                     This action will transfer ownership of <strong>{vehicleNickname}</strong> to{' '}
                     <strong>{selectedRecipient?.full_name || selectedRecipient?.username}</strong>.
@@ -362,7 +364,7 @@ export default function VehicleTransferWizard({
               {/* Summary */}
               <div className="space-y-3">
                 <div className="flex justify-between py-2 border-b border-garage-border">
-                  <span className="text-garage-text-muted">Vehicle</span>
+                  <span className="text-garage-text-muted">{t('modal.vehicle')}</span>
                   <span className="font-medium text-garage-text">{vehicleNickname}</span>
                 </div>
                 <div className="flex justify-between py-2 border-b border-garage-border">
@@ -370,13 +372,13 @@ export default function VehicleTransferWizard({
                   <span className="font-mono text-garage-text">{vin}</span>
                 </div>
                 <div className="flex justify-between py-2 border-b border-garage-border">
-                  <span className="text-garage-text-muted">New Owner</span>
+                  <span className="text-garage-text-muted">{t('modal.newOwner')}</span>
                   <span className="font-medium text-garage-text">
                     {selectedRecipient?.full_name || selectedRecipient?.username}
                   </span>
                 </div>
                 <div className="flex justify-between py-2 border-b border-garage-border">
-                  <span className="text-garage-text-muted">Data Included</span>
+                  <span className="text-garage-text-muted">{t('modal.dataIncluded')}</span>
                   <span className="text-garage-text">
                     {Object.values(dataIncluded).filter(Boolean).length} of {DATA_CATEGORIES.length}{' '}
                     categories
@@ -387,12 +389,12 @@ export default function VehicleTransferWizard({
               {/* Transfer Notes */}
               <div>
                 <label className="block text-sm font-medium text-garage-text mb-1.5">
-                  Transfer Notes (Optional)
+                  {t('modal.transferNotes')}
                 </label>
                 <textarea
                   value={transferNotes}
                   onChange={(e) => setTransferNotes(e.target.value)}
-                  placeholder="Add notes about this transfer..."
+                  placeholder={t('modal.transferNotesPlaceholder')}
                   rows={3}
                   maxLength={1000}
                   className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary resize-none"
@@ -429,7 +431,7 @@ export default function VehicleTransferWizard({
             className="flex items-center gap-2 px-4 py-2 bg-garage-bg border border-garage-border rounded-lg hover:bg-garage-surface text-garage-text transition-colors"
           >
             <ChevronLeft className="w-4 h-4" />
-            {currentStep === 1 ? 'Cancel' : 'Back'}
+            {currentStep === 1 ? t('common:cancel') : t('common:back')}
           </button>
 
           {currentStep < 3 ? (
@@ -450,7 +452,7 @@ export default function VehicleTransferWizard({
               {loading ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Transferring...
+                  {t('modal.transferring')}
                 </>
               ) : (
                 <>

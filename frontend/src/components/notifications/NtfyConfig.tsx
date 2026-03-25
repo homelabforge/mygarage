@@ -1,4 +1,5 @@
 import { Bell, Send, Info } from 'lucide-react';
+import { useTranslation } from 'react-i18next'
 
 interface NtfyConfigProps {
   settings: Record<string, unknown>;
@@ -17,6 +18,7 @@ export function NtfyConfig({
   testing,
   saving,
 }: NtfyConfigProps) {
+  const { t } = useTranslation('settings')
   const isEnabled = settings.ntfy_enabled === 'true';
   const hasRequiredFields = Boolean(settings.ntfy_server && settings.ntfy_topic);
 
@@ -40,10 +42,10 @@ export function NtfyConfig({
             disabled={saving}
             className="w-4 h-4 text-primary bg-garage-bg border-garage-border rounded focus:ring-primary focus:ring-2 disabled:opacity-50"
           />
-          <span className="ml-2 text-sm text-garage-text font-medium">Enable ntfy notifications</span>
+          <span className="ml-2 text-sm text-garage-text font-medium">{t('ntfy.enable')}</span>
         </label>
 
-        {/* Server URL */}
+        {/* {t('ntfy.serverUrl')} */}
         <div>
           <label htmlFor="ntfy_server" className="block text-sm font-medium text-garage-text mb-1">
             Server URL

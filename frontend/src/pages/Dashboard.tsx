@@ -1,5 +1,6 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useLocation } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { Plus, Car as CarIcon, SlidersHorizontal, Filter, RefreshCw } from 'lucide-react'
 import VehicleStatisticsCard from '../components/VehicleStatisticsCard'
 import VehicleWizard from '../components/VehicleWizard'
@@ -10,6 +11,7 @@ type SortOption = 'name' | 'year-new' | 'year-old' | 'maintenance'
 type FilterOption = 'all' | 'owned' | 'shared'
 
 export default function Dashboard() {
+  const { t } = useTranslation('vehicles')
   const location = useLocation()
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null)
   const [loading, setLoading] = useState(true)
@@ -18,22 +20,22 @@ export default function Dashboard() {
   const [sortBy, setSortBy] = useState<SortOption>('name')
   const [filterBy, setFilterBy] = useState<FilterOption>('all')
 
-  useEffect(() => {
-    // Load dashboard data when component mounts or navigation occurs
-    loadDashboard()
-  }, [location.key])
-
-  const loadDashboard = async () => {
+  const loadDashboard = useCallback(async () => {
     setError(null)
     try {
       const response = await api.get('/dashboard')
       setDashboard(response.data)
     } catch {
-      setError('Failed to load dashboard. Please try again.')
+      setError(t('dashboard.loadError'))
     } finally {
       setLoading(false)
     }
-  }
+  }, [t])
+
+  useEffect(() => {
+    // Load dashboard data when component mounts or navigation occurs
+    loadDashboard()
+  }, [location.key, loadDashboard])
 
   const handleVehicleCreated = () => {
     loadDashboard()
@@ -89,11 +91,11 @@ export default function Dashboard() {
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-3xl font-bold mb-2 text-garage-text">My Garage</h1>
+            <h1 className="text-3xl font-bold mb-2 text-garage-text">{t('dashboard.title')}</h1>
             <p className="text-garage-text-muted">
               {vehicleCount > 0
-                ? `Managing ${vehicleCount} vehicle${vehicleCount !== 1 ? 's' : ''}`
-                : 'Manage your vehicles and track maintenance'}
+                ? t('dashboard.managingCount', { count: vehicleCount })
+                : t('dashboard.subtitle')}
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -103,17 +105,17 @@ export default function Dashboard() {
                 <select
                   value={filterBy}
                   onChange={(e) => setFilterBy(e.target.value as FilterOption)}
-                  aria-label="Filter vehicles"
+                  aria-label={t('dashboard.filterVehicles')}
                   className="pl-3 pr-10 py-2 border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text appearance-none cursor-pointer"
                 >
                   <option value="all" className="bg-garage-bg text-garage-text">
-                    All Vehicles
+                    {t('dashboard.allVehicles')}
                   </option>
                   <option value="owned" className="bg-garage-bg text-garage-text">
-                    My Vehicles
+                    {t('dashboard.myVehicles')}
                   </option>
                   <option value="shared" className="bg-garage-bg text-garage-text">
-                    Shared With Me
+                    {t('dashboard.sharedWithMe')}
                   </option>
                 </select>
                 <Filter className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-garage-text-muted pointer-events-none" />
@@ -125,20 +127,20 @@ export default function Dashboard() {
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as SortOption)}
-                  aria-label="Sort vehicles"
+                  aria-label={t('dashboard.sortVehicles')}
                   className="pl-3 pr-10 py-2 border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text appearance-none cursor-pointer"
                 >
                   <option value="name" className="bg-garage-bg text-garage-text">
-                    Sort by Name
+                    {t('dashboard.sortByName')}
                   </option>
                   <option value="year-new" className="bg-garage-bg text-garage-text">
-                    Newest First
+                    {t('dashboard.newestFirst')}
                   </option>
                   <option value="year-old" className="bg-garage-bg text-garage-text">
-                    Oldest First
+                    {t('dashboard.oldestFirst')}
                   </option>
                   <option value="maintenance" className="bg-garage-bg text-garage-text">
-                    By Maintenance
+                    {t('dashboard.byMaintenance')}
                   </option>
                 </select>
                 <SlidersHorizontal className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-garage-text-muted pointer-events-none" />
@@ -149,16 +151,16 @@ export default function Dashboard() {
               className="flex items-center gap-2 px-5 py-3 btn btn-primary rounded-lg"
             >
               <Plus className="w-5 h-5" />
-              <span>Add Vehicle</span>
+              <span>{t('dashboard.addVehicle')}</span>
             </button>
           </div>
         </div>
 
         {/* Vehicles Grid */}
         {loading ? (
-          <div className="flex items-center justify-center py-16" role="status" aria-label="Loading dashboard">
+          <div className="flex items-center justify-center py-16" role="status" aria-label={t('dashboard.loading')}>
             <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-            <span className="sr-only">Loading dashboard...</span>
+            <span className="sr-only">{t('dashboard.loading')}</span>
           </div>
         ) : error ? (
           <div className="bg-garage-surface rounded-lg border border-garage-border text-center py-16">
@@ -168,7 +170,7 @@ export default function Dashboard() {
               className="inline-flex items-center gap-2 btn btn-primary rounded-lg"
             >
               <RefreshCw className="w-4 h-4" />
-              <span>Retry</span>
+              <span>{t('common:retry')}</span>
             </button>
           </div>
         ) : dashboard && vehicleCount > 0 ? (
@@ -184,16 +186,16 @@ export default function Dashboard() {
         ) : (
           <div className="bg-garage-surface rounded-lg border border-garage-border text-center py-16">
             <CarIcon className="w-16 h-16 text-garage-text-muted mx-auto mb-4 opacity-50" />
-            <h3 className="text-xl font-semibold mb-2 text-garage-text">No Vehicles Yet</h3>
+            <h3 className="text-xl font-semibold mb-2 text-garage-text">{t('dashboard.noVehiclesYet')}</h3>
             <p className="text-garage-text-muted mb-6">
-              Get started by adding your first vehicle
+              {t('dashboard.getStarted')}
             </p>
             <button
               onClick={() => setShowWizard(true)}
               className="inline-flex items-center gap-2 btn btn-primary rounded-lg"
             >
               <Plus className="w-5 h-5" />
-              <span>Add Your First Vehicle</span>
+              <span>{t('dashboard.addFirstVehicle')}</span>
             </button>
           </div>
         )}

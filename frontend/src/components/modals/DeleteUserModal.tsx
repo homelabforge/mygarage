@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useState } from 'react'
 import { AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
@@ -18,6 +19,7 @@ interface DeleteUserModalProps {
 }
 
 export default function DeleteUserModal({ isOpen, onClose, user, onConfirm }: DeleteUserModalProps) {
+  const { t } = useTranslation('forms')
   const [confirmText, setConfirmText] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -27,7 +29,7 @@ export default function DeleteUserModal({ isOpen, onClose, user, onConfirm }: De
     setLoading(true)
     try {
       await api.delete(`/auth/users/${user.id}`)
-      toast.success('User deleted successfully')
+      toast.success(t('modal.userDeleted'))
       onConfirm()
       onClose()
       setConfirmText('')
@@ -37,7 +39,7 @@ export default function DeleteUserModal({ isOpen, onClose, user, onConfirm }: De
       if (typeof detail === 'string') {
         toast.error(detail)
       } else {
-        toast.error('Failed to delete user')
+        toast.error(t('modal.failedToDeleteUser'))
       }
     } finally {
       setLoading(false)
@@ -56,18 +58,18 @@ export default function DeleteUserModal({ isOpen, onClose, user, onConfirm }: De
               <AlertTriangle className="w-6 h-6 text-danger" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-garage-text">Delete User</h2>
-              <p className="text-sm text-garage-text-muted">This action cannot be undone</p>
+              <h2 className="text-xl font-bold text-garage-text">{t('modal.deleteUser')}</h2>
+              <p className="text-sm text-garage-text-muted">{t('modal.cannotBeUndone')}</p>
             </div>
           </div>
 
           {/* User Info */}
           <div className="p-4 bg-garage-bg border border-garage-border rounded-lg">
             <p className="text-sm text-garage-text">
-              <strong>Username:</strong> {user.username}
+              <strong>{t('modal.username')}:</strong> {user.username}
             </p>
             <p className="text-sm text-garage-text">
-              <strong>Email:</strong> {user.email}
+              <strong>{t('modal.email')}:</strong> {user.email}
             </p>
             {user.is_admin && (
               <p className="text-sm text-warning mt-2">
@@ -78,12 +80,12 @@ export default function DeleteUserModal({ isOpen, onClose, user, onConfirm }: De
 
           {/* Impact Warning */}
           <div className="p-4 bg-danger/10 border border-danger/30 rounded-lg">
-            <p className="text-sm text-danger font-semibold mb-2">Data Impact:</p>
+            <p className="text-sm text-danger font-semibold mb-2">{t('modal.dataImpact')}:</p>
             <ul className="text-sm text-garage-text space-y-1">
-              <li>• User account will be permanently deleted</li>
-              <li>• All associated vehicles will be deleted</li>
-              <li>• All service and fuel records will be deleted</li>
-              <li>• This action cannot be reversed</li>
+              <li>• {t('modal.deleteImpact.account')}</li>
+              <li>• {t('modal.deleteImpact.vehicles')}</li>
+              <li>• {t('modal.deleteImpact.records')}</li>
+              <li>• {t('modal.deleteImpact.irreversible')}</li>
             </ul>
           </div>
 
@@ -117,7 +119,7 @@ export default function DeleteUserModal({ isOpen, onClose, user, onConfirm }: De
               disabled={confirmText !== 'DELETE' || loading}
               className="flex-1 px-4 py-2 bg-danger text-white rounded-lg hover:bg-danger/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {loading ? 'Deleting...' : 'Delete User'}
+              {loading ? t('common:deleting') : t('modal.deleteUser')}
             </button>
           </div>
         </div>

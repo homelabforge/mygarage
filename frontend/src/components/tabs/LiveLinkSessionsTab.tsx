@@ -3,6 +3,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
   Clock,
@@ -24,6 +25,7 @@ interface LiveLinkSessionsTabProps {
 }
 
 export default function LiveLinkSessionsTab({ vin }: LiveLinkSessionsTabProps) {
+  const { t } = useTranslation('vehicles')
   const [sessions, setSessions] = useState<DriveSessionListResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [expandedSession, setExpandedSession] = useState<number | null>(null)
@@ -36,11 +38,11 @@ export default function LiveLinkSessionsTab({ vin }: LiveLinkSessionsTabProps) {
       setSessions(data)
     } catch (err) {
       console.error('Failed to fetch sessions:', err)
-      toast.error('Failed to load drive sessions')
+      toast.error(t('livelink.sessions.loadError'))
     } finally {
       setLoading(false)
     }
-  }, [vin])
+  }, [vin, t])
 
   useEffect(() => {
     fetchSessions()
@@ -97,9 +99,9 @@ export default function LiveLinkSessionsTab({ vin }: LiveLinkSessionsTabProps) {
     return (
       <div className="bg-garage-surface rounded-lg border border-garage-border p-8 text-center">
         <Clock className="w-12 h-12 mx-auto mb-3 text-garage-text-muted opacity-50" />
-        <p className="text-garage-text">No drive sessions recorded</p>
+        <p className="text-garage-text">{t('livelink.sessions.noRecords')}</p>
         <p className="text-sm text-garage-text-muted mt-2">
-          Sessions are automatically detected when your vehicle's ECU comes online
+          {t('livelink.sessions.autoDetected')}
         </p>
       </div>
     )
@@ -109,7 +111,7 @@ export default function LiveLinkSessionsTab({ vin }: LiveLinkSessionsTabProps) {
     <div className="space-y-4">
       {/* Session Count */}
       <div className="flex items-center justify-between text-sm text-garage-text-muted">
-        <span>{sessions.total} sessions recorded</span>
+        <span>{t('livelink.sessions.sessionCount', { count: sessions.total })}</span>
       </div>
 
       {/* Session List */}
@@ -147,6 +149,7 @@ function SessionCard({
   formatSpeed: (kmh: number | null | undefined) => string
   formatTemp: (c: number | null | undefined) => string
 }) {
+  const { t } = useTranslation('vehicles')
   const isActive = !session.ended_at
 
   return (
@@ -187,7 +190,7 @@ function SessionCard({
           {isActive && (
             <span className="flex items-center gap-1 px-2 py-1 bg-green-500/20 text-green-500 text-xs rounded">
               <Activity className="w-3 h-3" />
-              In Progress
+              {t('livelink.sessions.inProgress')}
             </span>
           )}
         </div>
@@ -228,21 +231,21 @@ function SessionCard({
             {/* Duration */}
             <StatCard
               icon={<Clock className="w-5 h-5 text-primary" />}
-              label="Duration"
+              label={t('livelink.sessions.duration')}
               value={formatDuration(session.duration_seconds)}
             />
 
             {/* Distance */}
             <StatCard
               icon={<MapPin className="w-5 h-5 text-primary" />}
-              label="Distance"
+              label={t('livelink.sessions.distance')}
               value={formatOdometer(session.distance_km)}
             />
 
             {/* Speed */}
             <StatCard
               icon={<Gauge className="w-5 h-5 text-primary" />}
-              label="Avg / Max Speed"
+              label={t('livelink.sessions.avgMaxSpeed')}
               value={`${formatSpeed(session.avg_speed)} / ${formatSpeed(session.max_speed)}`}
             />
 
@@ -250,7 +253,7 @@ function SessionCard({
             {session.avg_rpm != null && (
               <StatCard
                 icon={<Activity className="w-5 h-5 text-primary" />}
-                label="Avg / Max RPM"
+                label={t('livelink.sessions.avgMaxRPM')}
                 value={`${session.avg_rpm?.toFixed(0) || '--'} / ${session.max_rpm?.toFixed(0) || '--'}`}
               />
             )}
@@ -259,7 +262,7 @@ function SessionCard({
             {session.avg_coolant_temp != null && (
               <StatCard
                 icon={<Thermometer className="w-5 h-5 text-primary" />}
-                label="Avg / Max Coolant"
+                label={t('livelink.sessions.avgMaxCoolant')}
                 value={`${formatTemp(session.avg_coolant_temp)} / ${formatTemp(session.max_coolant_temp)}`}
               />
             )}
@@ -268,7 +271,7 @@ function SessionCard({
             {session.start_odometer != null && (
               <StatCard
                 icon={<Gauge className="w-5 h-5 text-primary" />}
-                label="Odometer Start / End"
+                label={t('livelink.sessions.odometerStartEnd')}
                 value={`${formatOdometer(session.start_odometer)} → ${formatOdometer(session.end_odometer)}`}
               />
             )}

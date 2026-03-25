@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { CheckCircle, AlertCircle, Plug, Check, X, Plus, Radio, Settings, ArrowUpCircle } from 'lucide-react'
 import { useSettings } from '@/contexts/SettingsContext'
 import api from '@/services/api'
@@ -32,6 +33,7 @@ type POIProvider = {
 }
 
 export default function SettingsIntegrationsTab() {
+  const { t } = useTranslation('settings')
   const [loading, setLoading] = useState(true)
   const { triggerSave, registerSaveHandler, unregisterSaveHandler } = useSettings()
   const [testing, setTesting] = useState(false)
@@ -82,13 +84,13 @@ export default function SettingsIntegrationsTab() {
       setLoadedFormData(newFormData)
     } catch {
       // Removed console.error
-      setMessage({ type: 'error', text: 'Failed to load settings' })
+      setMessage({ type: 'error', text: t('integrations.loadError') })
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [t])
 
-  const loadProviders = async () => {
+  const loadProviders = useCallback(async () => {
     try {
       console.log('Loading POI providers...')
       const response = await api.get('/settings/poi-providers')
@@ -96,9 +98,9 @@ export default function SettingsIntegrationsTab() {
       setProviders(response.data.providers || [])
     } catch (error) {
       console.error('Failed to load POI providers:', error)
-      setMessage({ type: 'error', text: 'Failed to load POI providers' })
+      setMessage({ type: 'error', text: t('integrations.loadProvidersError') })
     }
-  }
+  }, [t])
 
   const loadLiveLinkData = useCallback(async () => {
     setLivelinkLoading(true)
@@ -125,7 +127,7 @@ export default function SettingsIntegrationsTab() {
     loadSettings()
     loadProviders()
     loadLiveLinkData()
-  }, [loadSettings, loadLiveLinkData])
+  }, [loadSettings, loadLiveLinkData, loadProviders])
 
   const handleEditProvider = (provider: POIProvider) => {
     setSelectedProvider(provider)
@@ -138,10 +140,10 @@ export default function SettingsIntegrationsTab() {
     try {
       await api.delete(`/settings/poi-providers/${providerName}`)
       await loadProviders()
-      setMessage({ type: 'success', text: 'Provider removed' })
+      setMessage({ type: 'success', text: t('integrations.providerRemoved') })
     } catch (error: unknown) {
       const err = error as { response?: { data?: { detail?: string } } }
-      setMessage({ type: 'error', text: err.response?.data?.detail || 'Failed to remove provider' })
+      setMessage({ type: 'error', text: err.response?.data?.detail || t('integrations.removeProviderError') })
     }
   }
 
@@ -182,11 +184,11 @@ export default function SettingsIntegrationsTab() {
       // Test NHTSA API by trying to decode a sample VIN
       await api.get(`/vin/decode/${TEST_VIN}`)
 
-      setMessage({ type: 'success', text: 'NHTSA API connection successful!' })
+      setMessage({ type: 'success', text: t('integrations.nhtsaTestSuccess') })
       setTimeout(() => setMessage(null), 3000)
     } catch {
       // Removed console.error
-      setMessage({ type: 'error', text: 'NHTSA API connection failed. Please check your internet connection.' })
+      setMessage({ type: 'error', text: t('integrations.nhtsaTestFailed') })
     } finally {
       setTesting(false)
     }
@@ -195,7 +197,7 @@ export default function SettingsIntegrationsTab() {
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-[200px]">
-        <div className="text-garage-text-muted">Loading integration settings...</div>
+        <div className="text-garage-text-muted">{t('integrations.loading')}</div>
       </div>
     )
   }
@@ -227,9 +229,9 @@ export default function SettingsIntegrationsTab() {
         <div className="flex items-start gap-3 mb-6">
           <Plug className="w-6 h-6 text-primary mt-1" />
           <div className="flex-1">
-            <h2 className="text-xl font-semibold text-garage-text mb-2">NHTSA</h2>
+            <h2 className="text-xl font-semibold text-garage-text mb-2">{t('integrations.nhtsa')}</h2>
             <p className="text-sm text-garage-text-muted">
-              Configure automatic recall checking from the National Highway Traffic Safety Administration
+              {t('integrations.nhtsaDesc')}
             </p>
           </div>
         </div>
@@ -245,11 +247,11 @@ export default function SettingsIntegrationsTab() {
                 className="w-4 h-4 text-primary bg-garage-bg border-garage-border rounded focus:ring-primary focus:ring-2"
               />
               <span className="ml-2 text-sm text-garage-text font-medium">
-                Enable NHTSA recall integration
+                {t('integrations.enableNHTSA')}
               </span>
             </label>
             <p className="mt-1 ml-6 text-sm text-garage-text-muted">
-              Allow MyGarage to fetch recall information from NHTSA's database
+              {t('integrations.enableNHTSADesc')}
             </p>
           </div>
 
@@ -264,11 +266,11 @@ export default function SettingsIntegrationsTab() {
                 className="w-4 h-4 text-primary bg-garage-bg border-garage-border rounded focus:ring-primary focus:ring-2 disabled:opacity-50"
               />
               <span className="ml-2 text-sm text-garage-text font-medium">
-                Enable automatic recall checking
+                {t('integrations.enableAutoCheck')}
               </span>
             </label>
             <p className="mt-1 ml-6 text-sm text-garage-text-muted">
-              Automatically check for new recalls on a schedule
+              {t('integrations.enableAutoCheckDesc')}
             </p>
           </div>
 
@@ -284,14 +286,14 @@ export default function SettingsIntegrationsTab() {
               onChange={(e) => setFormData({ ...formData, nhtsa_recall_check_interval: e.target.value })}
               className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
             >
-              <option value="1">Daily</option>
-              <option value="7">Weekly (Recommended)</option>
-              <option value="14">Bi-weekly</option>
-              <option value="30">Monthly</option>
-              <option value="90">Quarterly</option>
+              <option value="1">{t('integrations.daily')}</option>
+              <option value="7">{t('integrations.weeklyRecommended')}</option>
+              <option value="14">{t('integrations.biWeekly')}</option>
+              <option value="30">{t('integrations.monthly')}</option>
+              <option value="90">{t('integrations.quarterly')}</option>
             </select>
             <p className="mt-1 text-sm text-garage-text-muted">
-              How often to automatically check NHTSA for new recalls
+              {t('integrations.recallCheckIntervalDesc')}
             </p>
           </div>
 
@@ -310,7 +312,7 @@ export default function SettingsIntegrationsTab() {
               placeholder="https://api.nhtsa.gov/recalls/recallsByVehicle"
             />
             <p className="mt-1 text-sm text-garage-text-muted">
-              Base URL for NHTSA recall queries. Change only if using a different API endpoint.
+              {t('integrations.nhtsaApiUrlDesc')}
             </p>
           </div>
 
@@ -322,10 +324,10 @@ export default function SettingsIntegrationsTab() {
               className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors disabled:opacity-50"
             >
               <CheckCircle size={16} />
-              {testing ? 'Testing Connection...' : 'Test NHTSA Connection'}
+              {testing ? t('integrations.testingConnection') : t('integrations.testNHTSA')}
             </button>
             <p className="mt-2 text-sm text-garage-text-muted">
-              Verify that MyGarage can connect to NHTSA's API
+              {t('integrations.testNHTSADesc')}
             </p>
           </div>
         </div>
@@ -336,9 +338,9 @@ export default function SettingsIntegrationsTab() {
         <div className="flex items-start gap-3 mb-6">
           <Plug className="w-6 h-6 text-primary mt-1" />
           <div className="flex-1">
-            <h2 className="text-xl font-semibold text-garage-text mb-2">CarComplaints</h2>
+            <h2 className="text-xl font-semibold text-garage-text mb-2">{t('integrations.carComplaints')}</h2>
             <p className="text-sm text-garage-text-muted">
-              Enable direct links to CarComplaints.com for vehicle issue research and common problems
+              {t('integrations.carComplaintsDesc')}
             </p>
           </div>
         </div>
@@ -354,16 +356,16 @@ export default function SettingsIntegrationsTab() {
                 className="w-4 h-4 text-primary bg-garage-bg border-garage-border rounded focus:ring-primary focus:ring-2"
               />
               <span className="ml-2 text-sm text-garage-text font-medium">
-                Enable CarComplaints integration
+                {t('integrations.enableCarComplaints')}
               </span>
             </label>
             <p className="mt-1 ml-6 text-sm text-garage-text-muted">
-              Show links to CarComplaints.com in the Recalls tab for researching common vehicle issues
+              {t('integrations.enableCarComplaintsDesc')}
             </p>
           </div>
 
           <div className="bg-garage-bg rounded-lg p-4 border border-garage-border">
-            <h3 className="text-sm font-medium text-garage-text mb-2">About CarComplaints</h3>
+            <h3 className="text-sm font-medium text-garage-text mb-2">{t('integrations.aboutCarComplaints')}</h3>
             <p className="text-sm text-garage-text-muted">
               CarComplaints.com provides a database of consumer complaints, common problems, and issue trends for vehicles.
               This integration adds convenient links to research known issues for your specific vehicle make, model, and year.
@@ -380,9 +382,9 @@ export default function SettingsIntegrationsTab() {
         <div className="flex items-start gap-3 mb-6">
           <Plug className="w-6 h-6 text-primary mt-1" />
           <div className="flex-1">
-            <h2 className="text-xl font-semibold text-garage-text mb-2">Shop Finder</h2>
+            <h2 className="text-xl font-semibold text-garage-text mb-2">{t('integrations.shopFinder')}</h2>
             <p className="text-sm text-garage-text-muted">
-              Optional Service API Keys for enhanced POI discovery (automatically falls back to OSM)
+              {t('integrations.shopFinderDesc')}
             </p>
           </div>
         </div>
@@ -391,10 +393,10 @@ export default function SettingsIntegrationsTab() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-garage-border">
-                <th className="text-left py-2 px-3 text-garage-text">Provider</th>
-                <th className="text-left py-2 px-3 text-garage-text">Active</th>
-                <th className="text-left py-2 px-3 text-garage-text">API Limits</th>
-                <th className="text-right py-2 px-3 text-garage-text">Options</th>
+                <th className="text-left py-2 px-3 text-garage-text">{t('integrations.provider')}</th>
+                <th className="text-left py-2 px-3 text-garage-text">{t('integrations.active')}</th>
+                <th className="text-left py-2 px-3 text-garage-text">{t('integrations.apiLimits')}</th>
+                <th className="text-right py-2 px-3 text-garage-text">{t('integrations.options')}</th>
               </tr>
             </thead>
             <tbody>
@@ -441,7 +443,7 @@ export default function SettingsIntegrationsTab() {
             className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors"
           >
             <Plus className="w-4 h-4" />
-            Add Service
+            {t('integrations.addService')}
           </button>
         </div>
         </div>
@@ -451,16 +453,16 @@ export default function SettingsIntegrationsTab() {
           <div className="flex items-start gap-3 mb-6">
             <Radio className="w-6 h-6 text-primary mt-1" />
             <div className="flex-1">
-              <h2 className="text-xl font-semibold text-garage-text mb-2">LiveLink</h2>
+              <h2 className="text-xl font-semibold text-garage-text mb-2">{t('integrations.livelink')}</h2>
               <p className="text-sm text-garage-text-muted">
-                Real-time vehicle telemetry from WiCAN PRO OBD2 devices
+                {t('integrations.livelinkDesc')}
               </p>
             </div>
           </div>
 
           <div className="space-y-6">
             {livelinkLoading ? (
-              <div className="text-sm text-garage-text-muted">Loading LiveLink status...</div>
+              <div className="text-sm text-garage-text-muted">{t('integrations.livelinkLoading')}</div>
             ) : (
               <>
                 {/* Status Indicator */}
@@ -476,12 +478,12 @@ export default function SettingsIntegrationsTab() {
                   />
                   <span className="text-sm text-garage-text">
                     {!livelinkSettings?.enabled
-                      ? 'Disabled'
+                      ? t('integrations.disabled')
                       : livelinkDevices && livelinkDevices.online_count > 0
-                      ? 'Receiving data'
+                      ? t('integrations.receivingData')
                       : livelinkDevices && livelinkDevices.total > 0
                       ? 'No data (devices offline)'
-                      : 'No devices configured'}
+                      : t('integrations.noDevices')}
                   </span>
                 </div>
 
@@ -501,7 +503,7 @@ export default function SettingsIntegrationsTab() {
                 {livelinkFirmware.some((d) => d.update_available) && (
                   <div className="flex items-center gap-2 text-sm text-yellow-500">
                     <ArrowUpCircle className="w-4 h-4" />
-                    <span>Firmware update available</span>
+                    <span>{t('integrations.firmwareUpdate')}</span>
                   </div>
                 )}
 
@@ -512,10 +514,10 @@ export default function SettingsIntegrationsTab() {
                     className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors"
                   >
                     <Settings size={16} />
-                    Configure LiveLink
+                    {t('integrations.configureLiveLink')}
                   </button>
                   <p className="mt-2 text-sm text-garage-text-muted">
-                    Manage devices, tokens, alerts, and data retention
+                    {t('integrations.configureDesc')}
                   </p>
                 </div>
               </>
@@ -523,7 +525,7 @@ export default function SettingsIntegrationsTab() {
 
             {/* Info Box */}
             <div className="bg-garage-bg rounded-lg p-4 border border-garage-border">
-              <h3 className="text-sm font-medium text-garage-text mb-2">About LiveLink</h3>
+              <h3 className="text-sm font-medium text-garage-text mb-2">{t('integrations.aboutLiveLink')}</h3>
               <p className="text-sm text-garage-text-muted">
                 LiveLink connects WiCAN PRO OBD2 devices to MyGarage for real-time vehicle telemetry.
                 Track engine parameters, detect drive sessions, and receive diagnostic trouble code alerts.

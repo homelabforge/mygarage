@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   Car,
   Shield,
@@ -14,6 +15,7 @@ import { useAppVersion } from '../hooks/useAppVersion'
 import VINDecoderModal from '../components/modals/VINDecoderModal'
 
 export default function About() {
+  const { t } = useTranslation('common')
   const version = useAppVersion()
   const [showVINDecoder, setShowVINDecoder] = useState(false)
 
@@ -25,8 +27,8 @@ export default function About() {
           <div className="flex items-center gap-3">
             <Car className="w-8 h-8 text-primary" />
             <div>
-              <h1 className="text-3xl font-bold text-garage-text">About</h1>
-              <p className="text-sm text-garage-text-muted">Learn about MyGarage</p>
+              <h1 className="text-3xl font-bold text-garage-text">{t('about.title')}</h1>
+              <p className="text-sm text-garage-text-muted">{t('about.subtitle')}</p>
             </div>
           </div>
         </div>
@@ -42,7 +44,7 @@ export default function About() {
             My<span className="text-primary">Garage</span>
           </h1>
           <p className="text-xl text-garage-text-muted">
-            Self-hosted vehicle maintenance tracking application
+            {t('about.tagline')}
           </p>
           <div className="mt-4 inline-block px-4 py-2 bg-primary/10 border border-primary/20 rounded-full">
             <span className="text-primary font-semibold">v{version}</span>
@@ -51,62 +53,52 @@ export default function About() {
 
         {/* What is MyGarage */}
         <div className="bg-garage-surface rounded-lg border border-garage-border p-6">
-          <h2 className="text-2xl font-bold text-garage-text mb-4">What is MyGarage?</h2>
+          <h2 className="text-2xl font-bold text-garage-text mb-4">{t('about.whatIsTitle')}</h2>
           <p className="text-garage-text-muted leading-relaxed mb-4">
-            MyGarage is a comprehensive, self-hosted vehicle maintenance tracking application designed
-            for car enthusiasts, hobbyists, and anyone who wants to keep detailed records of their
-            vehicles. Track service history, fuel consumption, maintenance schedules, and more—all in
-            one centralized location.
+            {t('about.whatIsDescription1')}
           </p>
           <p className="text-garage-text-muted leading-relaxed">
-            Built with privacy and control in mind, MyGarage runs entirely on your own infrastructure.
-            Your data stays with you, with no cloud dependencies or subscription fees. Whether you're
-            managing a single vehicle or an entire garage, MyGarage provides the tools you need to stay
-            organized and maintain your vehicles properly.
+            {t('about.whatIsDescription2')}
           </p>
         </div>
 
         {/* Why MyGarage? */}
         <div className="bg-garage-surface rounded-lg border border-garage-border p-6">
-          <h2 className="text-2xl font-bold text-garage-text mb-4">Why MyGarage?</h2>
+          <h2 className="text-2xl font-bold text-garage-text mb-4">{t('about.whyTitle')}</h2>
           <div className="space-y-3 text-garage-text-muted">
             <div className="flex items-start gap-3">
               <Shield className="w-5 h-5 text-primary mt-1 flex-shrink-0" />
               <div>
-                <p className="font-semibold text-garage-text">Privacy First</p>
+                <p className="font-semibold text-garage-text">{t('about.privacyFirst')}</p>
                 <p className="text-sm">
-                  Self-hosted architecture means your data stays on your infrastructure. No cloud
-                  dependencies, no third-party data sharing, complete control over your information.
+                  {t('about.privacyFirstDesc')}
                 </p>
               </div>
             </div>
             <div className="flex items-start gap-3">
               <Database className="w-5 h-5 text-primary mt-1 flex-shrink-0" />
               <div>
-                <p className="font-semibold text-garage-text">Database-Backed Settings</p>
+                <p className="font-semibold text-garage-text">{t('about.databaseSettings')}</p>
                 <p className="text-sm">
-                  Configure everything through the UI with settings stored in SQLite. Support for
-                  encrypted values for sensitive configuration like notification credentials.
+                  {t('about.databaseSettingsDesc')}
                 </p>
               </div>
             </div>
             <div className="flex items-start gap-3">
               <Bell className="w-5 h-5 text-primary mt-1 flex-shrink-0" />
               <div>
-                <p className="font-semibold text-garage-text">Multi-Service Notifications</p>
+                <p className="font-semibold text-garage-text">{t('about.multiNotifications')}</p>
                 <p className="text-sm">
-                  7 notification providers (ntfy, Gotify, Pushover, Slack, Discord, Telegram, Email)
-                  for alerts about recalls, upcoming maintenance, and expiring insurance or warranties.
+                  {t('about.multiNotificationsDesc')}
                 </p>
               </div>
             </div>
             <div className="flex items-start gap-3">
               <Car className="w-5 h-5 text-primary mt-1 flex-shrink-0" />
               <div>
-                <p className="font-semibold text-garage-text">Comprehensive Tracking</p>
+                <p className="font-semibold text-garage-text">{t('about.comprehensiveTracking')}</p>
                 <p className="text-sm">
-                  Track everything from routine maintenance to fuel consumption, from insurance
-                  policies to photo galleries. All your vehicle information in one place.
+                  {t('about.comprehensiveTrackingDesc')}
                 </p>
               </div>
             </div>
@@ -117,34 +109,28 @@ export default function About() {
         <div className="bg-garage-surface rounded-lg border border-garage-border p-6">
           <h2 className="text-2xl font-bold text-garage-text mb-4 flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-warning" />
-            Built with AI
+            {t('about.builtWithAI')}
           </h2>
           <p className="text-garage-text-muted leading-relaxed mb-4">
-            MyGarage is built through collaboration between human expertise and cutting-edge AI capabilities.
-            Claude handles architecture design and full-stack development, Codex
-            assists with bug fixing and security auditing, while the Operator guides product vision, requirements,
-            and deployment strategy.
+            {t('about.builtWithAIDesc')}
           </p>
           <ul className="space-y-2 text-garage-text-muted text-sm">
             <li className="flex items-start gap-2">
               <CheckCircle className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
               <span>
-                <strong className="text-garage-text">Claude</strong> – Full-stack
-                architecture, feature development, and production-ready code delivery.
+                <strong className="text-garage-text">Claude</strong> – {t('about.claudeRole')}
               </span>
             </li>
             <li className="flex items-start gap-2">
               <CheckCircle className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
               <span>
-                <strong className="text-garage-text">Operator</strong> – Product vision,
-                requirements definition, NHTSA integration guidance, and homelab deployment expertise.
+                <strong className="text-garage-text">Operator</strong> – {t('about.operatorRole')}
               </span>
             </li>
             <li className="flex items-start gap-2">
               <CheckCircle className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
               <span>
-                <strong className="text-garage-text">Codex</strong> – Bug fixing,
-                security auditing, and code quality improvements.
+                <strong className="text-garage-text">Codex</strong> – {t('about.codexRole')}
               </span>
             </li>
           </ul>
@@ -154,23 +140,19 @@ export default function About() {
         <div className="bg-garage-surface rounded-lg border border-garage-border p-6 border-l-4 border-l-primary">
           <h2 className="text-2xl font-bold text-garage-text mb-4 flex items-center gap-2">
             <Shield className="w-6 h-6 text-primary" />
-            Powered by NHTSA
+            {t('about.poweredByNHTSA')}
           </h2>
           <p className="text-garage-text-muted leading-relaxed mb-3">
-            MyGarage integrates with the National Highway Traffic Safety Administration (NHTSA) database
-            to provide automatic VIN decoding and recall monitoring. When you add a vehicle by VIN,
-            MyGarage queries NHTSA to populate vehicle details like make, model, year, and trim.
+            {t('about.nhtsaDesc1')}
           </p>
           <p className="text-garage-text-muted leading-relaxed">
-            The recall monitoring feature checks NHTSA's database on a configurable schedule (daily,
-            weekly, monthly, or quarterly) to detect new recalls affecting your vehicles. When recalls
-            are found, you'll receive notifications and can track their status until resolved.
+            {t('about.nhtsaDesc2')}
           </p>
         </div>
 
         {/* Links */}
         <div className="bg-garage-surface rounded-lg border border-garage-border p-6">
-          <h2 className="text-2xl font-bold text-garage-text mb-4">Learn More</h2>
+          <h2 className="text-2xl font-bold text-garage-text mb-4">{t('about.learnMore')}</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <a
               href="https://homelabforge.io/builds/mygarage"
@@ -179,7 +161,7 @@ export default function About() {
               className="btn btn-primary flex items-center gap-2"
             >
               <ExternalLink className="w-4 h-4" />
-              Project Website
+              {t('about.projectWebsite')}
             </a>
             <a
               href="https://github.com/homelabforge/mygarage"
@@ -188,7 +170,7 @@ export default function About() {
               className="btn btn-primary flex items-center gap-2"
             >
               <ExternalLink className="w-4 h-4" />
-              GitHub Repository
+              {t('about.githubRepo')}
             </a>
             <a
               href="https://www.nhtsa.gov/recalls"
@@ -197,14 +179,14 @@ export default function About() {
               className="btn btn-primary flex items-center gap-2"
             >
               <ExternalLink className="w-4 h-4" />
-              NHTSA VIN Search
+              {t('about.nhtsaVINSearch')}
             </a>
             <button
               onClick={() => setShowVINDecoder(true)}
               className="btn btn-primary flex items-center gap-2"
             >
               <Search className="w-4 h-4" />
-              VIN Decoder
+              {t('about.vinDecoder')}
             </button>
           </div>
         </div>
@@ -218,7 +200,7 @@ export default function About() {
         {/* Footer */}
         <div className="text-center pt-8 pb-8 border-t border-garage-border">
           <p className="text-garage-text-muted text-sm flex items-center justify-center gap-1">
-            Made with <Heart className="w-4 h-4 text-danger" /> for the homelab community
+            {t('about.madeWith')} <Heart className="w-4 h-4 text-danger" /> {t('about.forCommunity')}
           </p>
           <p className="text-garage-text-muted text-xs mt-2">
             MyGarage v{version}

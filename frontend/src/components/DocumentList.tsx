@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { formatDateForDisplay } from '../utils/dateUtils'
 import { FileText, Plus, Trash2, Download, Edit3, Save, X } from 'lucide-react'
 import { toast } from 'sonner'
@@ -13,6 +14,7 @@ interface DocumentListProps {
 }
 
 export default function DocumentList({ vin, onAddClick }: DocumentListProps) {
+  const { t } = useTranslation('vehicles')
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editData, setEditData] = useState<{
     title: string
@@ -27,13 +29,13 @@ export default function DocumentList({ vin, onAddClick }: DocumentListProps) {
   const documents = data?.documents ?? []
 
   const handleDelete = (documentId: number) => {
-    if (!confirm('Are you sure you want to delete this document?')) {
+    if (!confirm(t('documentList.confirmDelete'))) {
       return
     }
 
     deleteMutation.mutate(documentId, {
       onError: (err) => {
-        toast.error(err instanceof Error ? err.message : 'Failed to delete document')
+        toast.error(err instanceof Error ? err.message : t('documentList.deleteError'))
       },
     })
   }
@@ -53,7 +55,7 @@ export default function DocumentList({ vin, onAddClick }: DocumentListProps) {
       window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to download document')
+      toast.error(err instanceof Error ? err.message : t('documentList.downloadError'))
     }
   }
 
@@ -77,7 +79,7 @@ export default function DocumentList({ vin, onAddClick }: DocumentListProps) {
       queryClient.invalidateQueries({ queryKey: ['documents', vin] })
       setEditingId(null)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to update document')
+      toast.error(err instanceof Error ? err.message : t('documentList.updateError'))
     }
   }
 
@@ -109,7 +111,7 @@ export default function DocumentList({ vin, onAddClick }: DocumentListProps) {
   if (isLoading) {
     return (
       <div className="flex justify-center items-center min-h-[200px]">
-        <div className="text-garage-text-muted">Loading documents...</div>
+        <div className="text-garage-text-muted">{t('documentList.loading')}</div>
       </div>
     )
   }
@@ -127,33 +129,31 @@ export default function DocumentList({ vin, onAddClick }: DocumentListProps) {
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-2">
           <FileText className="w-5 h-5 text-garage-text-muted" />
-          <h3 className="text-lg font-semibold text-garage-text">
-            Documents
-          </h3>
-          <span className="text-sm text-garage-text-muted">({documents.length} files)</span>
+          <h3 className="text-lg font-semibold text-garage-text">{t('documentList.title')}</h3>
+          <span className="text-sm text-garage-text-muted">({t('documentList.fileCount', { count: documents.length })})</span>
         </div>
         <button
           onClick={onAddClick}
           className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors"
         >
           <Plus className="w-4 h-4" />
-          <span>Upload Document</span>
+          <span>{t('documentList.uploadDocument')}</span>
         </button>
       </div>
 
       {documents.length === 0 ? (
         <div className="bg-garage-surface border border-garage-border rounded-lg p-8 text-center">
           <FileText className="w-12 h-12 text-garage-text-muted opacity-50 mx-auto mb-3" />
-          <p className="text-garage-text mb-2">No documents yet</p>
+          <p className="text-garage-text mb-2">{t('documentList.noRecords')}</p>
           <p className="text-sm text-garage-text-muted mb-4">
-            Upload important vehicle documents like insurance, registration, manuals, and receipts
+            {t('documentList.noRecordsDesc')}
           </p>
           <button
             onClick={onAddClick}
             className="inline-flex items-center gabtn-primary transition-colors"
           >
             <Plus className="w-4 h-4" />
-            <span>Upload First Document</span>
+            <span>{t('documentList.uploadFirstDocument')}</span>
           </button>
         </div>
       ) : (
@@ -166,9 +166,7 @@ export default function DocumentList({ vin, onAddClick }: DocumentListProps) {
               {editingId === doc.id ? (
                 <div className="space-y-3">
                   <div>
-                    <label className="block text-sm font-medium text-garage-text mb-1">
-                      Title
-                    </label>
+                    <label className="block text-sm font-medium text-garage-text mb-1">{t('documentList.titleLabel')}</label>
                     <input
                       type="text"
                       value={editData.title}
@@ -177,15 +175,13 @@ export default function DocumentList({ vin, onAddClick }: DocumentListProps) {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-garage-text mb-1">
-                      Type
-                    </label>
+                    <label className="block text-sm font-medium text-garage-text mb-1">{t('documentList.typeLabel')}</label>
                     <select
                       value={editData.document_type}
                       onChange={(e) => setEditData({ ...editData, document_type: e.target.value })}
                       className="w-full px-3 py-2 border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text"
                     >
-                      <option value="" className="bg-garage-bg text-garage-text">Select type</option>
+                      <option value="" className="bg-garage-bg text-garage-text">{t('documentList.selectType')}</option>
                       <option value="Insurance" className="bg-garage-bg text-garage-text">Insurance</option>
                       <option value="Registration" className="bg-garage-bg text-garage-text">Registration</option>
                       <option value="Manual" className="bg-garage-bg text-garage-text">Manual</option>
@@ -195,9 +191,7 @@ export default function DocumentList({ vin, onAddClick }: DocumentListProps) {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-garage-text mb-1">
-                      Description
-                    </label>
+                    <label className="block text-sm font-medium text-garage-text mb-1">{t('documentList.descriptionLabel')}</label>
                     <textarea
                       value={editData.description}
                       onChange={(e) => setEditData({ ...editData, description: e.target.value })}
@@ -244,21 +238,21 @@ export default function DocumentList({ vin, onAddClick }: DocumentListProps) {
                     )}
                     <div className="flex items-center gap-4 mt-2 text-xs text-garage-text-muted">
                       <span>{formatFileSize(doc.file_size)}</span>
-                      <span>Uploaded {formatDate(doc.uploaded_at)}</span>
+                      <span>{t('documentList.uploaded')} {formatDate(doc.uploaded_at)}</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
                     <button
                       onClick={() => handleDownload(doc.id, doc.file_name)}
                       className="p-2 text-primary hover:bg-primary/10 rounded-full"
-                      title="Download"
+                      title={t('documentList.download')}
                     >
                       <Download className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => startEdit(doc)}
                       className="p-2 text-garage-text-muted hover:bg-garage-bg rounded-full"
-                      title="Edit"
+                      title={t('common:edit')}
                     >
                       <Edit3 className="w-4 h-4" />
                     </button>
@@ -266,7 +260,7 @@ export default function DocumentList({ vin, onAddClick }: DocumentListProps) {
                       onClick={() => handleDelete(doc.id)}
                       disabled={deleteMutation.isPending && deleteMutation.variables === doc.id}
                       className="p-2 text-danger hover:bg-danger/10 rounded-full disabled:opacity-50"
-                      title="Delete"
+                      title={t('common:delete')}
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>

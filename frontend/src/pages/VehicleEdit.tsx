@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -9,6 +10,7 @@ import { vehicleEditSchema, type VehicleEditFormData, VEHICLE_TYPES } from '../s
 import { FormError } from '../components/FormError'
 
 export default function VehicleEdit() {
+  const { t } = useTranslation('vehicles')
   const { vin } = useParams<{ vin: string }>()
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
@@ -118,7 +120,7 @@ export default function VehicleEdit() {
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-[400px]">
-        <div className="text-garage-text-muted">Loading vehicle...</div>
+        <div className="text-garage-text-muted">{t('edit.loading')}</div>
       </div>
     )
   }
@@ -137,7 +139,7 @@ export default function VehicleEdit() {
     return (
       <div className="max-w-4xl mx-auto">
         <div className="bg-yellow-900/20 border border-yellow-500/50 rounded-lg p-4">
-          <p className="text-yellow-400">Vehicle not found</p>
+          <p className="text-yellow-400">{t('edit.vehicleNotFound')}</p>
         </div>
       </div>
     )
@@ -154,11 +156,11 @@ export default function VehicleEdit() {
           className="flex items-center gap-2 text-garage-text-muted hover:text-garage-text mb-4 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
-          <span>Back to Vehicle</span>
+          <span>{t('edit.backToVehicle')}</span>
         </button>
 
         <h1 className="text-3xl font-bold text-garage-text">
-          Edit Vehicle
+          {t('edit.title')}
         </h1>
         <p className="text-garage-text-muted mt-1">
           {vehicle.year} {vehicle.make} {vehicle.model}
@@ -175,11 +177,11 @@ export default function VehicleEdit() {
       <form onSubmit={handleSubmit(onSubmit)} className="bg-garage-surface border border-garage-border rounded-lg p-6 space-y-6">
         {/* Basic Information Section */}
         <div>
-          <h3 className="text-lg font-semibold text-garage-text mb-4">Basic Information</h3>
+          <h3 className="text-lg font-semibold text-garage-text mb-4">{t('edit.basicInformation')}</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label htmlFor="nickname" className="block text-sm font-medium text-garage-text mb-1">
-                Nickname <span className="text-red-400">*</span>
+                {t('edit.nickname')} <span className="text-red-400">*</span>
               </label>
               <input
                 type="text"
@@ -193,7 +195,7 @@ export default function VehicleEdit() {
 
             <div>
               <label htmlFor="license_plate" className="block text-sm font-medium text-garage-text mb-1">
-                License Plate
+                {t('edit.licensePlate')}
               </label>
               <input
                 type="text"
@@ -207,14 +209,14 @@ export default function VehicleEdit() {
 
             <div>
               <label htmlFor="vehicle_type" className="block text-sm font-medium text-garage-text mb-1">
-                Vehicle Type
+                {t('edit.vehicleType')}
               </label>
               <select
                 id="vehicle_type"
                 {...register('vehicle_type')}
                 className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-garage-text"
               >
-                <option value="">Select type</option>
+                <option value="">{t('edit.selectType')}</option>
                 {VEHICLE_TYPES.map((type) => (
                   <option key={type} value={type}>
                     {type}
@@ -226,7 +228,7 @@ export default function VehicleEdit() {
 
             <div>
               <label htmlFor="color" className="block text-sm font-medium text-garage-text mb-1">
-                Color
+                {t('edit.color')}
               </label>
               <input
                 type="text"
@@ -242,11 +244,11 @@ export default function VehicleEdit() {
 
         {/* Vehicle Details Section */}
         <div>
-          <h3 className="text-lg font-semibold text-garage-text mb-4">Vehicle Details</h3>
+          <h3 className="text-lg font-semibold text-garage-text mb-4">{t('edit.vehicleDetails')}</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label htmlFor="year" className="block text-sm font-medium text-garage-text mb-1">
-                Year
+                {t('edit.year')}
               </label>
               <input
                 type="number"
@@ -262,7 +264,7 @@ export default function VehicleEdit() {
 
             <div>
               <label htmlFor="make" className="block text-sm font-medium text-garage-text mb-1">
-                Make
+                {t('edit.make')}
               </label>
               <input
                 type="text"
@@ -276,7 +278,7 @@ export default function VehicleEdit() {
 
             <div>
               <label htmlFor="model" className="block text-sm font-medium text-garage-text mb-1">
-                Model
+                {t('edit.model')}
               </label>
               <input
                 type="text"
@@ -293,11 +295,11 @@ export default function VehicleEdit() {
         {/* VIN Decoded Information Section - only for motorized vehicles */}
         {isMotorized && (
           <div>
-            <h3 className="text-lg font-semibold text-garage-text mb-4">VIN Decoded Information</h3>
+            <h3 className="text-lg font-semibold text-garage-text mb-4">{t('edit.vinDecodedInfo')}</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label htmlFor="trim" className="block text-sm font-medium text-garage-text mb-1">
-                  Trim
+                  {t('edit.trim')}
                 </label>
                 <input
                   type="text"
@@ -311,7 +313,7 @@ export default function VehicleEdit() {
 
               <div>
                 <label htmlFor="body_class" className="block text-sm font-medium text-garage-text mb-1">
-                  Body Class
+                  {t('edit.bodyClass')}
                 </label>
                 <input
                   type="text"
@@ -325,7 +327,7 @@ export default function VehicleEdit() {
 
               <div>
                 <label htmlFor="drive_type" className="block text-sm font-medium text-garage-text mb-1">
-                  Drive Type
+                  {t('edit.driveType')}
                 </label>
                 <input
                   type="text"
@@ -339,7 +341,7 @@ export default function VehicleEdit() {
 
               <div>
                 <label htmlFor="doors" className="block text-sm font-medium text-garage-text mb-1">
-                  Doors
+                  {t('edit.doors')}
                 </label>
                 <input
                   type="number"
@@ -371,11 +373,11 @@ export default function VehicleEdit() {
         {/* Engine & Transmission Section - only for motorized vehicles */}
         {isMotorized && (
           <div>
-            <h3 className="text-lg font-semibold text-garage-text mb-4">Engine & Transmission</h3>
+            <h3 className="text-lg font-semibold text-garage-text mb-4">{t('edit.engineTransmission')}</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label htmlFor="displacement_l" className="block text-sm font-medium text-garage-text mb-1">
-                  Displacement (L)
+                  {t('edit.displacement')}
                 </label>
                 <input
                   type="text"
@@ -389,7 +391,7 @@ export default function VehicleEdit() {
 
               <div>
                 <label htmlFor="cylinders" className="block text-sm font-medium text-garage-text mb-1">
-                  Cylinders
+                  {t('edit.cylinders')}
                 </label>
                 <input
                   type="number"
@@ -403,7 +405,7 @@ export default function VehicleEdit() {
 
               <div>
                 <label htmlFor="fuel_type" className="block text-sm font-medium text-garage-text mb-1">
-                  Fuel Type
+                  {t('edit.fuelType')}
                 </label>
                 <input
                   type="text"
@@ -419,7 +421,7 @@ export default function VehicleEdit() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
               <div>
                 <label htmlFor="transmission_type" className="block text-sm font-medium text-garage-text mb-1">
-                  Transmission Type
+                  {t('edit.transmissionType')}
                 </label>
                 <input
                   type="text"
@@ -433,7 +435,7 @@ export default function VehicleEdit() {
 
               <div>
                 <label htmlFor="transmission_speeds" className="block text-sm font-medium text-garage-text mb-1">
-                  Transmission Speeds
+                  {t('edit.transmissionSpeeds')}
                 </label>
                 <input
                   type="text"
@@ -453,7 +455,7 @@ export default function VehicleEdit() {
           <div>
             <h3 className="text-lg font-semibold text-garage-text mb-4 flex items-center gap-2">
               <Droplets className="w-5 h-5" />
-              DEF Tracking
+              {t('edit.defTracking')}
             </h3>
             <div className="space-y-4">
               <label className="flex items-center gap-3 cursor-pointer">
@@ -469,19 +471,19 @@ export default function VehicleEdit() {
                   className="w-4 h-4 rounded border-garage-border bg-garage-bg text-primary focus:ring-primary"
                 />
                 <span className="text-sm font-medium text-garage-text">
-                  Enable DEF Tracking
+                  {t('edit.enableDefTracking')}
                 </span>
               </label>
               {watchedFuelType?.toLowerCase().includes('diesel') && !defEnabled && (
                 <p className="text-sm text-warning">
-                  This vehicle uses diesel fuel. Consider enabling DEF tracking.
+                  {t('edit.dieselDefHint')}
                 </p>
               )}
               {defEnabled && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label htmlFor="def_tank_capacity_gallons" className="block text-sm font-medium text-garage-text mb-1">
-                      DEF Tank Capacity (gallons)
+                      {t('edit.defTankCapacity')}
                     </label>
                     <input
                       type="number"
@@ -494,7 +496,7 @@ export default function VehicleEdit() {
                       max="999.99"
                     />
                     <p className="text-xs text-garage-text-muted mt-1">
-                      Optional. Helps estimate remaining DEF capacity.
+                      {t('edit.defTankCapacityHint')}
                     </p>
                     <FormError error={errors.def_tank_capacity_gallons} />
                   </div>
@@ -507,11 +509,11 @@ export default function VehicleEdit() {
         {/* Fuel Type for non-motorized vehicles (e.g., propane for fifth wheels) */}
         {!isMotorized && vehicle.fuel_type && (
           <div>
-            <h3 className="text-lg font-semibold text-garage-text mb-4">Fuel Information</h3>
+            <h3 className="text-lg font-semibold text-garage-text mb-4">{t('edit.fuelInformation')}</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label htmlFor="fuel_type" className="block text-sm font-medium text-garage-text mb-1">
-                  Fuel Type
+                  {t('edit.fuelType')}
                 </label>
                 <input
                   type="text"
@@ -528,11 +530,11 @@ export default function VehicleEdit() {
 
         {/* Purchase Information Section */}
         <div>
-          <h3 className="text-lg font-semibold text-garage-text mb-4">Purchase Information</h3>
+          <h3 className="text-lg font-semibold text-garage-text mb-4">{t('edit.purchaseInformation')}</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label htmlFor="purchase_date" className="block text-sm font-medium text-garage-text mb-1">
-                Purchase Date
+                {t('edit.purchaseDate')}
               </label>
               <input
                 type="date"
@@ -545,7 +547,7 @@ export default function VehicleEdit() {
 
             <div>
               <label htmlFor="purchase_price" className="block text-sm font-medium text-garage-text mb-1">
-                Purchase Price
+                {t('edit.purchasePrice')}
               </label>
               <div className="relative">
                 <span className="absolute left-3 top-2 text-garage-text-muted">$</span>
@@ -566,11 +568,11 @@ export default function VehicleEdit() {
 
         {/* Sale Information Section */}
         <div>
-          <h3 className="text-lg font-semibold text-garage-text mb-4">Sale Information (Optional)</h3>
+          <h3 className="text-lg font-semibold text-garage-text mb-4">{t('edit.saleInformation')}</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label htmlFor="sold_date" className="block text-sm font-medium text-garage-text mb-1">
-                Sold Date
+                {t('edit.soldDate')}
               </label>
               <input
                 type="date"
@@ -583,7 +585,7 @@ export default function VehicleEdit() {
 
             <div>
               <label htmlFor="sold_price" className="block text-sm font-medium text-garage-text mb-1">
-                Sold Price
+                {t('edit.soldPrice')}
               </label>
               <div className="relative">
                 <span className="absolute left-3 top-2 text-garage-text-muted">$</span>
@@ -610,7 +612,7 @@ export default function VehicleEdit() {
             className="flex items-center gap-2 px-4 py-2 btn btn-primary rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <Save className="w-4 h-4" />
-            <span>{isSubmitting ? 'Saving...' : 'Save Changes'}</span>
+            <span>{isSubmitting ? t('common:saving') : t('edit.saveChanges')}</span>
           </button>
 
           <button
@@ -618,7 +620,7 @@ export default function VehicleEdit() {
             onClick={() => navigate(`/vehicles/${vin}`)}
             className="btn btn-primary rounded-lg"
           >
-            Cancel
+            {t('common:cancel')}
           </button>
         </div>
       </form>

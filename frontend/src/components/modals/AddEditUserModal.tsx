@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useState, useEffect, type SyntheticEvent } from 'react'
 import { X, Eye, EyeOff } from 'lucide-react'
 import { toast } from 'sonner'
@@ -16,6 +17,7 @@ interface AddEditUserModalProps {
 }
 
 export default function AddEditUserModal({ isOpen, onClose, user, onSave, currentUserId, activeAdminCount }: AddEditUserModalProps) {
+  const { t } = useTranslation('forms')
   const isEditMode = !!user
   const isOidc = isEditMode && user?.auth_method === 'oidc'
   const [formData, setFormData] = useState({
@@ -111,7 +113,7 @@ export default function AddEditUserModal({ isOpen, onClose, user, onSave, curren
           })
         }
 
-        toast.success('User updated successfully')
+        toast.success(t('modal.userUpdated'))
       } else {
         // Create user
         const response = await api.post('/auth/users', {
@@ -133,7 +135,7 @@ export default function AddEditUserModal({ isOpen, onClose, user, onSave, curren
           })
         }
 
-        toast.success('User created successfully')
+        toast.success(t('modal.userCreated'))
       }
 
       onSave()
@@ -144,7 +146,7 @@ export default function AddEditUserModal({ isOpen, onClose, user, onSave, curren
       if (typeof detail === 'string') {
         toast.error(detail)
       } else {
-        toast.error(isEditMode ? 'Failed to update user' : 'Failed to create user')
+        toast.error(isEditMode ? t('modal.failedToUpdateUser') : t('modal.failedToCreateUser'))
       }
     } finally {
       setLoading(false)
@@ -159,7 +161,7 @@ export default function AddEditUserModal({ isOpen, onClose, user, onSave, curren
         {/* Header */}
         <div className="p-6 border-b border-garage-border flex items-center justify-between sticky top-0 bg-garage-surface">
           <h2 className="text-xl font-bold text-garage-text">
-            {isEditMode ? 'Edit User' : 'Add User'}
+            {isEditMode ? t('modal.editUser') : t('modal.addUser')}
           </h2>
           <button onClick={onClose} className="p-2 hover:bg-garage-muted rounded-lg transition-colors">
             <X className="w-5 h-5 text-garage-text-muted" />
@@ -171,7 +173,7 @@ export default function AddEditUserModal({ isOpen, onClose, user, onSave, curren
           {/* Username */}
           <div>
             <label className="block text-sm font-medium text-garage-text mb-1.5">
-              Username {!isEditMode && <span className="text-danger">*</span>}
+              {t('modal.username')} {!isEditMode && <span className="text-danger">*</span>}
             </label>
             <input
               type="text"
@@ -186,7 +188,7 @@ export default function AddEditUserModal({ isOpen, onClose, user, onSave, curren
           {/* Email */}
           <div>
             <label className="block text-sm font-medium text-garage-text mb-1.5">
-              Email <span className="text-danger">*</span>
+              {t('modal.email')} <span className="text-danger">*</span>
             </label>
             <input
               type="email"
@@ -196,13 +198,13 @@ export default function AddEditUserModal({ isOpen, onClose, user, onSave, curren
               disabled={isOidc}
               className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
             />
-            {isOidc && <p className="text-xs text-garage-text-muted mt-1">Managed by OIDC provider</p>}
+            {isOidc && <p className="text-xs text-garage-text-muted mt-1">{t('modal.managedByOidc')}</p>}
           </div>
 
           {/* Full Name */}
           <div>
             <label className="block text-sm font-medium text-garage-text mb-1.5">
-              Full Name
+              {t('modal.fullName')}
             </label>
             <input
               type="text"
@@ -211,15 +213,15 @@ export default function AddEditUserModal({ isOpen, onClose, user, onSave, curren
               disabled={isOidc}
               className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
             />
-            {isOidc && <p className="text-xs text-garage-text-muted mt-1">Managed by OIDC provider</p>}
+            {isOidc && <p className="text-xs text-garage-text-muted mt-1">{t('modal.managedByOidc')}</p>}
           </div>
 
           {/* Password (hidden for OIDC users) */}
           {!isOidc && (
             <div>
               <label className="block text-sm font-medium text-garage-text mb-1.5">
-                Password {!isEditMode && <span className="text-danger">*</span>}
-                {isEditMode && <span className="text-xs text-garage-text-muted ml-2">(leave blank to keep current)</span>}
+                {t('modal.password')} {!isEditMode && <span className="text-danger">*</span>}
+                {isEditMode && <span className="text-xs text-garage-text-muted ml-2">({t('modal.leaveBlankToKeep')})</span>}
               </label>
               <div className="relative">
                 <input
@@ -245,7 +247,7 @@ export default function AddEditUserModal({ isOpen, onClose, user, onSave, curren
           {!isOidc && (!isEditMode || formData.password) && (
             <div>
               <label className="block text-sm font-medium text-garage-text mb-1.5">
-                Confirm Password <span className="text-danger">*</span>
+                {t('modal.confirmPassword')} <span className="text-danger">*</span>
               </label>
               <div className="relative">
                 <input
@@ -270,14 +272,14 @@ export default function AddEditUserModal({ isOpen, onClose, user, onSave, curren
           {/* Relationship */}
           <div>
             <label className="block text-sm font-medium text-garage-text mb-1.5">
-              Relationship
+              {t('modal.relationship')}
             </label>
             <select
               value={formData.relationship}
               onChange={(e) => setFormData({ ...formData, relationship: e.target.value, relationship_custom: e.target.value !== 'other' ? '' : formData.relationship_custom })}
               className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary"
             >
-              <option value="">None</option>
+              <option value="">{t('common:none')}</option>
               {RELATIONSHIP_PRESETS.map((preset) => (
                 <option key={preset.value} value={preset.value}>
                   {preset.label}
@@ -285,7 +287,7 @@ export default function AddEditUserModal({ isOpen, onClose, user, onSave, curren
               ))}
             </select>
             <p className="text-xs text-garage-text-muted mt-1">
-              Family relationship for the family dashboard
+              {t('modal.relationshipHint')}
             </p>
           </div>
 
@@ -293,7 +295,7 @@ export default function AddEditUserModal({ isOpen, onClose, user, onSave, curren
           {formData.relationship === 'other' && (
             <div>
               <label className="block text-sm font-medium text-garage-text mb-1.5">
-                Custom Relationship
+                {t('modal.customRelationship')}
               </label>
               <input
                 type="text"
@@ -309,7 +311,7 @@ export default function AddEditUserModal({ isOpen, onClose, user, onSave, curren
           {/* Role */}
           <div>
             <label className="block text-sm font-medium text-garage-text mb-1.5">
-              Role
+              {t('modal.role')}
             </label>
             <select
               value={formData.is_admin ? 'admin' : 'user'}
@@ -317,11 +319,11 @@ export default function AddEditUserModal({ isOpen, onClose, user, onSave, curren
               disabled={isEditMode && user?.id === currentUserId && user?.is_admin && user?.is_active && activeAdminCount === 1}
               className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <option value="user">User</option>
-              <option value="admin">Admin</option>
+              <option value="user">{t('common:user')}</option>
+              <option value="admin">{t('common:admin')}</option>
             </select>
             {isEditMode && user?.id === currentUserId && user?.is_admin && user?.is_active && activeAdminCount === 1 && (
-              <p className="text-xs text-warning mt-1">Cannot change role - you are the last active admin</p>
+              <p className="text-xs text-warning mt-1">{t('modal.lastActiveAdminWarning')}</p>
             )}
           </div>
 
@@ -336,11 +338,11 @@ export default function AddEditUserModal({ isOpen, onClose, user, onSave, curren
                 className="w-4 h-4 text-primary bg-garage-bg border-garage-border rounded focus:ring-primary focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed"
               />
               <span className="text-sm font-medium text-garage-text">
-                Active User
+                {t('modal.activeUser')}
               </span>
             </label>
             <p className="mt-1 ml-7 text-sm text-garage-text-muted">
-              {isOidc ? 'Managed by OIDC provider' : 'Inactive users cannot log in'}
+              {isOidc ? t('modal.managedByOidc') : t('modal.inactiveUsersCannotLogin')}
             </p>
           </div>
 
@@ -348,7 +350,7 @@ export default function AddEditUserModal({ isOpen, onClose, user, onSave, curren
           {isOidc && (
             <div className="p-3 bg-warning/10 border border-warning/30 rounded-lg">
               <p className="text-sm text-garage-text">
-                <strong>OIDC User</strong> - Identity managed by {user?.oidc_provider || 'external provider'}. Only role and relationship can be edited.
+                <strong>{t('modal.oidcUser')}</strong> - {t('modal.oidcUserDescription', { provider: user?.oidc_provider || t('modal.externalProvider') })}
               </p>
             </div>
           )}
@@ -360,14 +362,14 @@ export default function AddEditUserModal({ isOpen, onClose, user, onSave, curren
               onClick={onClose}
               className="flex-1 px-4 py-2 bg-garage-bg border border-garage-border rounded-lg hover:bg-garage-surface text-garage-text transition-colors"
             >
-              Cancel
+              {t('common:cancel')}
             </button>
             <button
               type="submit"
               disabled={loading}
               className="flex-1 px-4 py-2 bg-gray-700 border border-gray-600 hover:bg-gray-800 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {loading ? 'Saving...' : (isEditMode ? 'Update' : 'Create')}
+              {loading ? t('common:saving') : (isEditMode ? t('common:update') : t('common:create'))}
             </button>
           </div>
         </form>

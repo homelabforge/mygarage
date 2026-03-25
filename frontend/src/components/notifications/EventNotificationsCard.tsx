@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next'
 import { ChevronDown, ChevronRight, Bell, Settings2 } from 'lucide-react';
 
 interface EventNotificationsCardProps {
@@ -96,6 +97,7 @@ export function EventNotificationsCard({
   saving,
   hasEnabledService,
 }: EventNotificationsCardProps) {
+  const { t } = useTranslation('settings')
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(['safety', 'maintenance']));
   const [showAdvanced, setShowAdvanced] = useState(false);
 
@@ -120,10 +122,10 @@ export function EventNotificationsCard({
       <div className="bg-garage-surface rounded-lg border border-garage-border p-6">
         <div className="flex items-center gap-3 mb-4">
           <Bell className="w-6 h-6 text-garage-text-muted" />
-          <h2 className="text-lg font-semibold text-garage-text">Event Notifications</h2>
+          <h2 className="text-lg font-semibold text-garage-text">{t('events.title')}</h2>
         </div>
         <p className="text-sm text-garage-text-muted">
-          Enable at least one notification service to configure event notifications.
+          {t('events.enableServiceFirst')} to configure event notifications.
         </p>
       </div>
     );

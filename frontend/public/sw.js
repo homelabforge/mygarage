@@ -184,4 +184,31 @@ self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
   }
+
+  // Proactively cache all translation files for a language
+  if (event.data && event.data.type === 'CACHE_LANGUAGE') {
+    const lang = event.data.lang;
+    if (!lang || lang === 'en') return; // English is bundled inline
+
+    const namespaces = ['common', 'nav', 'settings', 'vehicles', 'forms', 'analytics'];
+    const version = event.data.version || '0';
+
+    event.waitUntil(
+      caches.open(RUNTIME_CACHE).then((cache) => {
+        return Promise.all(
+          namespaces.map(async (ns) => {
+            const url = `/locales/${lang}/${ns}.json?v=${version}`;
+            try {
+              const response = await fetch(url);
+              if (response && response.ok) {
+                await cache.put(url, response.clone());
+              }
+            } catch (err) {
+              // Silently skip — file may not exist yet for this namespace
+            }
+          })
+        );
+      })
+    );
+  }
 });

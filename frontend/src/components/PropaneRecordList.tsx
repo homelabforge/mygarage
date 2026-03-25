@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Edit, Trash2, Plus, AlertCircle, Fuel, DollarSign, Droplets } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateForDisplay } from '../utils/dateUtils'
@@ -18,6 +19,7 @@ interface PropaneRecordListProps {
 export default function PropaneRecordList({ vin }: PropaneRecordListProps) {
   const [showForm, setShowForm] = useState(false)
   const [editingRecord, setEditingRecord] = useState<FuelRecord | undefined>()
+  const { t } = useTranslation('vehicles')
   const { system } = useUnitPreference()
   const { currencyCode, locale } = useCurrencyPreference()
 
@@ -38,16 +40,16 @@ export default function PropaneRecordList({ vin }: PropaneRecordListProps) {
   }
 
   const handleDelete = (id: number) => {
-    if (!confirm('Are you sure you want to delete this propane record?')) {
+    if (!confirm(t('propaneList.confirmDelete'))) {
       return
     }
 
     deleteMutation.mutate(id, {
       onSuccess: () => {
-        toast.success('Propane record deleted')
+        toast.success(t('propaneList.deleted'))
       },
       onError: (err) => {
-        toast.error(err instanceof Error ? err.message : 'Failed to delete propane record')
+        toast.error(err instanceof Error ? err.message : t('propaneList.deleteError'))
       },
     })
   }
@@ -78,9 +80,7 @@ export default function PropaneRecordList({ vin }: PropaneRecordListProps) {
 
   if (isLoading) {
     return (
-      <div className="text-center py-8 text-garage-text-muted">
-        Loading propane records...
-      </div>
+      <div className="text-center py-8 text-garage-text-muted">{t('propaneList.loading')}</div>
     )
   }
 
@@ -97,10 +97,10 @@ export default function PropaneRecordList({ vin }: PropaneRecordListProps) {
 
       <div className="flex justify-between items-center mb-4">
         <div>
-          <h3 className="text-lg font-semibold text-garage-text">Propane Records</h3>
+          <h3 className="text-lg font-semibold text-garage-text">{t('propaneList.title')}</h3>
           {records.length > 0 && (
             <p className="text-sm text-garage-text-muted">
-              {records.length} {records.length === 1 ? 'record' : 'records'}
+              {t('propaneList.recordCount', { count: records.length })}
             </p>
           )}
         </div>
@@ -109,7 +109,7 @@ export default function PropaneRecordList({ vin }: PropaneRecordListProps) {
           className="flex items-center gap-2 px-4 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg hover:bg-gray-800 transition-colors"
         >
           <Plus className="w-4 h-4" />
-          <span>Add Propane</span>
+          <span>{t('propaneList.addPropane')}</span>
         </button>
       </div>
 
@@ -130,7 +130,7 @@ export default function PropaneRecordList({ vin }: PropaneRecordListProps) {
             <div className="bg-garage-surface border border-garage-border rounded-lg p-3">
               <div className="flex items-center gap-1 text-xs text-garage-text-muted mb-1">
                 <DollarSign className="w-3 h-3" />
-                <span>Total Spent</span>
+                <span>{t('propaneList.totalSpent')}</span>
               </div>
               <div className="text-lg font-semibold text-garage-text">
                 {formatCurrency(totalCost, { currencyCode, locale })}
@@ -139,7 +139,7 @@ export default function PropaneRecordList({ vin }: PropaneRecordListProps) {
             <div className="bg-garage-surface border border-garage-border rounded-lg p-3">
               <div className="flex items-center gap-1 text-xs text-garage-text-muted mb-1">
                 <Droplets className="w-3 h-3" />
-                <span>{system === 'metric' ? 'Total Liters' : 'Total Gallons'}</span>
+                <span>{system === 'metric' ? t('propaneList.totalLiters') : t('propaneList.totalGallons')}</span>
               </div>
               <div className="text-lg font-semibold text-garage-text">
                 {UnitFormatter.formatVolumeTotal(totalGallons, system).replace(' total', '')}
@@ -170,16 +170,14 @@ export default function PropaneRecordList({ vin }: PropaneRecordListProps) {
       {records.length === 0 ? (
         <div className="text-center py-12 bg-garage-surface border border-garage-border rounded-lg">
           <Fuel className="w-12 h-12 text-garage-text-muted mx-auto mb-3" />
-          <p className="text-garage-text mb-2">No propane records yet</p>
-          <p className="text-sm text-garage-text-muted mb-4">
-            Track propane refills for your fifth wheel
-          </p>
+          <p className="text-garage-text mb-2">{t('propaneList.noRecords')}</p>
+          <p className="text-sm text-garage-text-muted mb-4">{t('propaneList.noRecordsDesc')}</p>
           <button
             onClick={handleAdd}
             className="inline-flex items-center gap-2 px-4 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg hover:bg-gray-800 transition-colors"
           >
             <Plus className="w-4 h-4" />
-            <span>Add Your First Record</span>
+            <span>{t('propaneList.addFirstRecord')}</span>
           </button>
         </div>
       ) : (
@@ -188,12 +186,12 @@ export default function PropaneRecordList({ vin }: PropaneRecordListProps) {
             <table className="w-full">
               <thead className="bg-garage-bg border-b border-garage-border">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-garage-text-muted uppercase">Date</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-garage-text-muted uppercase">Gallons</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-garage-text-muted uppercase">Price/Unit</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-garage-text-muted uppercase">Cost</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-garage-text-muted uppercase">Vendor</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-garage-text-muted uppercase">Actions</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-garage-text-muted uppercase">{t('propaneList.date')}</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-garage-text-muted uppercase">{t('propaneList.gallons')}</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-garage-text-muted uppercase">{t('propaneList.pricePerUnit')}</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-garage-text-muted uppercase">{t('propaneList.cost')}</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-garage-text-muted uppercase">{t('propaneList.vendor')}</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-garage-text-muted uppercase">{t('propaneList.actions')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-garage-border">
@@ -219,8 +217,8 @@ export default function PropaneRecordList({ vin }: PropaneRecordListProps) {
                         <button
                           onClick={() => handleEdit(record)}
                           className="p-1.5 text-primary hover:bg-primary/10 rounded transition-colors"
-                          aria-label="Edit"
-                          title="Edit"
+                          aria-label={t('common:edit')}
+                          title={t('common:edit')}
                         >
                           <Edit className="w-4 h-4" />
                         </button>
@@ -228,8 +226,8 @@ export default function PropaneRecordList({ vin }: PropaneRecordListProps) {
                           onClick={() => handleDelete(record.id)}
                           disabled={deleteMutation.isPending && deleteMutation.variables === record.id}
                           className="p-1.5 text-danger hover:bg-danger/10 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                          aria-label="Delete"
-                          title="Delete"
+                          aria-label={t('common:delete')}
+                          title={t('common:delete')}
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>

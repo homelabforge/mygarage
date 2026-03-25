@@ -1,4 +1,5 @@
 import { useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Save } from 'lucide-react'
@@ -20,6 +21,7 @@ interface OdometerRecordFormProps {
 }
 
 export default function OdometerRecordForm({ vin, record, onClose, onSuccess }: OdometerRecordFormProps) {
+  const { t } = useTranslation('forms')
   const isEdit = !!record
   const createMutation = useCreateOdometerRecord(vin)
   const updateMutation = useUpdateOdometerRecord(vin)
@@ -66,7 +68,7 @@ export default function OdometerRecordForm({ vin, record, onClose, onSuccess }: 
   })
 
   return (
-    <FormModalWrapper title={isEdit ? 'Edit Odometer Reading' : 'Add Odometer Reading'} onClose={onClose} maxWidth="max-w-lg">
+    <FormModalWrapper title={isEdit ? t('odometer.editTitle') : t('odometer.createTitle')} onClose={onClose} maxWidth="max-w-lg">
         <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
           {error && (
             <div className="bg-danger/10 border border-danger rounded-lg p-3">
@@ -76,7 +78,7 @@ export default function OdometerRecordForm({ vin, record, onClose, onSuccess }: 
 
           <div>
             <label htmlFor="date" className="block text-sm font-medium text-garage-text mb-1">
-              Date <span className="text-danger">*</span>
+              {t('common:date')} <span className="text-danger">*</span>
             </label>
             <input
               type="date"
@@ -92,7 +94,7 @@ export default function OdometerRecordForm({ vin, record, onClose, onSuccess }: 
 
           <div>
             <label htmlFor="mileage" className="block text-sm font-medium text-garage-text mb-1">
-              Mileage ({UnitFormatter.getDistanceUnit(system)}) <span className="text-danger">*</span>
+              {t('common:mileage')} ({UnitFormatter.getDistanceUnit(system)}) <span className="text-danger">*</span>
             </label>
             <input
               type="number"
@@ -115,7 +117,7 @@ export default function OdometerRecordForm({ vin, record, onClose, onSuccess }: 
               id="notes"
               rows={3}
               {...register('notes')}
-              placeholder="Monthly reading, trip odometer, etc..."
+              placeholder={t('odometer.notesPlaceholder')}
               className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
                 errors.notes ? 'border-red-500' : 'border-garage-border'
               }`}
@@ -131,7 +133,7 @@ export default function OdometerRecordForm({ vin, record, onClose, onSuccess }: 
               className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Save className="w-4 h-4" />
-              <span>{isSubmitting ? 'Saving...' : isEdit ? 'Update' : 'Create'}</span>
+              <span>{isSubmitting ? t('common:saving') : isEdit ? t('common:update') : t('common:create')}</span>
             </button>
 
             <button

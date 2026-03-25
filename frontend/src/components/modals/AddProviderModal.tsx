@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useState } from 'react'
 import { X } from 'lucide-react'
 import api from '../../services/api'
@@ -37,6 +38,7 @@ const availableProviders = [
 ]
 
 export default function AddProviderModal({ isOpen, onClose, onProviderAdded }: Props) {
+  const { t } = useTranslation('forms')
   const [step, setStep] = useState<ModalStep>(ModalStep.SELECT_PROVIDER)
   const [selectedProviderName, setSelectedProviderName] = useState<string>('')
   const [apiKey, setApiKey] = useState('')
@@ -105,7 +107,7 @@ export default function AddProviderModal({ isOpen, onClose, onProviderAdded }: P
       <div className="bg-zinc-900 rounded-lg p-6 max-w-2xl w-full mx-4">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-bold text-zinc-100">
-            {step === ModalStep.SELECT_PROVIDER ? 'Select POI Provider' : `Add ${selectedProvider?.displayName}`}
+            {step === ModalStep.SELECT_PROVIDER ? t('modal.selectPoiProvider') : t('modal.addProvider', { name: selectedProvider?.displayName })}
           </h2>
           <button onClick={handleClose} className="text-zinc-400 hover:text-zinc-100">
             <X className="w-5 h-5" />
@@ -129,12 +131,12 @@ export default function AddProviderModal({ isOpen, onClose, onProviderAdded }: P
         {step === ModalStep.ENTER_API_KEY && (
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-zinc-300 mb-2">API Key</label>
+              <label className="block text-sm font-medium text-zinc-300 mb-2">{t('modal.apiKey')}</label>
               <input
                 type="password"
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
-                placeholder="Enter API key"
+                placeholder={t('modal.enterApiKey')}
                 className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-zinc-100 focus:outline-none focus:border-blue-500"
               />
             </div>
@@ -162,7 +164,7 @@ export default function AddProviderModal({ isOpen, onClose, onProviderAdded }: P
                 disabled={!apiKey || isTestingKey}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded disabled:opacity-50 disabled:cursor-not-allowed text-white"
               >
-                {isTestingKey ? 'Testing...' : 'Test'}
+                {isTestingKey ? t('modal.testing') : t('modal.test')}
               </button>
 
               <button

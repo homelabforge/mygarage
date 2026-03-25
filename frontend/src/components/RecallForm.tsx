@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -16,6 +17,7 @@ interface RecallFormProps {
 }
 
 export default function RecallForm({ vin, recall, onClose, onSuccess }: RecallFormProps) {
+  const { t } = useTranslation('forms')
   const isEdit = !!recall
   const [error, setError] = useState<string | null>(null)
   const createMutation = useCreateRecallRecord(vin)
@@ -67,12 +69,12 @@ export default function RecallForm({ vin, recall, onClose, onSuccess }: RecallFo
       onSuccess()
       onClose()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
+      setError(err instanceof Error ? err.message : t('common:error'))
     }
   }
 
   return (
-    <FormModalWrapper title={isEdit ? 'Edit Recall' : 'Add Recall'} onClose={onClose} maxWidth="max-w-3xl">
+    <FormModalWrapper title={isEdit ? t('recall.editTitle') : t('recall.createTitle')} onClose={onClose} maxWidth="max-w-3xl">
         <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
           {error && (
             <div className="bg-danger/10 border border-danger rounded-lg p-3">
@@ -83,7 +85,7 @@ export default function RecallForm({ vin, recall, onClose, onSuccess }: RecallFo
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label htmlFor="nhtsa_campaign_number" className="block text-sm font-medium text-garage-text mb-1">
-                NHTSA Campaign Number
+                {t('recall.nhtsaCampaignNumber')}
               </label>
               <input
                 type="text"
@@ -100,7 +102,7 @@ export default function RecallForm({ vin, recall, onClose, onSuccess }: RecallFo
 
             <div>
               <label htmlFor="date_announced" className="block text-sm font-medium text-garage-text mb-1">
-                Date Announced
+                {t('recall.dateAnnounced')}
               </label>
               <input
                 type="date"
@@ -117,7 +119,7 @@ export default function RecallForm({ vin, recall, onClose, onSuccess }: RecallFo
 
           <div>
             <label htmlFor="component" className="block text-sm font-medium text-garage-text mb-1">
-              Component <span className="text-danger">*</span>
+              {t('recall.component')} <span className="text-danger">*</span>
             </label>
             <input
               type="text"
@@ -134,7 +136,7 @@ export default function RecallForm({ vin, recall, onClose, onSuccess }: RecallFo
 
           <div>
             <label htmlFor="summary" className="block text-sm font-medium text-garage-text mb-1">
-              Summary <span className="text-danger">*</span>
+              {t('recall.summary')} <span className="text-danger">*</span>
             </label>
             <textarea
               id="summary"
@@ -143,7 +145,7 @@ export default function RecallForm({ vin, recall, onClose, onSuccess }: RecallFo
                 errors.summary ? 'border-red-500' : 'border-garage-border'
               }`}
               rows={3}
-              placeholder="Brief description of the recall issue..."
+              placeholder={t('recall.summaryPlaceholder')}
               disabled={isSubmitting}
             />
             <FormError error={errors.summary} />
@@ -151,7 +153,7 @@ export default function RecallForm({ vin, recall, onClose, onSuccess }: RecallFo
 
           <div>
             <label htmlFor="consequence" className="block text-sm font-medium text-garage-text mb-1">
-              Consequence
+              {t('recall.consequence')}
             </label>
             <textarea
               id="consequence"
@@ -160,7 +162,7 @@ export default function RecallForm({ vin, recall, onClose, onSuccess }: RecallFo
                 errors.consequence ? 'border-red-500' : 'border-garage-border'
               }`}
               rows={2}
-              placeholder="Potential consequences if not addressed..."
+              placeholder={t('recall.consequencePlaceholder')}
               disabled={isSubmitting}
             />
             <FormError error={errors.consequence} />
@@ -168,7 +170,7 @@ export default function RecallForm({ vin, recall, onClose, onSuccess }: RecallFo
 
           <div>
             <label htmlFor="remedy" className="block text-sm font-medium text-garage-text mb-1">
-              Remedy
+              {t('recall.remedy')}
             </label>
             <textarea
               id="remedy"
@@ -177,7 +179,7 @@ export default function RecallForm({ vin, recall, onClose, onSuccess }: RecallFo
                 errors.remedy ? 'border-red-500' : 'border-garage-border'
               }`}
               rows={2}
-              placeholder="How to fix or address the issue..."
+              placeholder={t('recall.remedyPlaceholder')}
               disabled={isSubmitting}
             />
             <FormError error={errors.remedy} />
@@ -185,7 +187,7 @@ export default function RecallForm({ vin, recall, onClose, onSuccess }: RecallFo
 
           <div>
             <label htmlFor="notes" className="block text-sm font-medium text-garage-text mb-1">
-              Notes
+              {t('common:notes')}
             </label>
             <textarea
               id="notes"
@@ -194,7 +196,7 @@ export default function RecallForm({ vin, recall, onClose, onSuccess }: RecallFo
                 errors.notes ? 'border-red-500' : 'border-garage-border'
               }`}
               rows={2}
-              placeholder="Additional notes..."
+              placeholder={t('common:additionalNotes')}
               disabled={isSubmitting}
             />
             <FormError error={errors.notes} />
@@ -209,7 +211,7 @@ export default function RecallForm({ vin, recall, onClose, onSuccess }: RecallFo
               disabled={isSubmitting}
             />
             <label htmlFor="is_resolved" className="ml-2 text-sm text-garage-text">
-              Mark as resolved
+              {t('recall.markAsResolved')}
             </label>
           </div>
 
@@ -228,7 +230,7 @@ export default function RecallForm({ vin, recall, onClose, onSuccess }: RecallFo
               disabled={isSubmitting}
             >
               <Save className="w-4 h-4" />
-              {isSubmitting ? 'Saving...' : isEdit ? 'Update Recall' : 'Add Recall'}
+              {isSubmitting ? t('common:saving') : isEdit ? t('recall.updateRecall') : t('recall.addRecall')}
             </button>
           </div>
         </form>

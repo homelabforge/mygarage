@@ -25,8 +25,19 @@ export function useLanguageSync(): void {
     }
   }, [user?.language, i18n])
 
-  // Keep <html lang="..."> in sync with i18n language
+  // Keep <html lang="..."> in sync and tell SW to proactively cache translations
   useEffect(() => {
     document.documentElement.lang = i18n.language
+
+    // Ask service worker to pre-cache translation files for offline use
+    if (i18n.language !== 'en' && navigator.serviceWorker?.controller) {
+      navigator.serviceWorker.controller.postMessage({
+        type: 'CACHE_LANGUAGE',
+        lang: i18n.language,
+        version: typeof APP_VERSION !== 'undefined' ? APP_VERSION : '0',
+      })
+    }
   }, [i18n.language])
 }
+
+declare const APP_VERSION: string

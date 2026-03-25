@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useState, type SyntheticEvent } from 'react'
 import { Shield, Info, AlertTriangle, Users, Key, CheckCircle, AlertCircle, Eye, EyeOff, Loader } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
@@ -39,6 +40,7 @@ export default function LocalAuthModal({
   onShowUserManagement,
   onShowAddUser,
 }: LocalAuthModalProps) {
+  const { t } = useTranslation('forms')
   const { isAuthenticated, isAdmin } = useAuth()
 
   // Password change state
@@ -124,7 +126,7 @@ export default function LocalAuthModal({
 
   return (
     <FormModalWrapper
-      title="Local Authentication"
+      title={t('modal.localAuth')}
       onClose={handleClose}
       isOpen={isOpen}
       maxWidth="max-w-lg"
@@ -147,7 +149,7 @@ export default function LocalAuthModal({
               <div className="flex items-start gap-3">
                 <Info className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
-                  <strong className="font-semibold text-garage-text">Enable Local Authentication</strong>
+                  <strong className="font-semibold text-garage-text">{t('modal.enableLocalAuth')}</strong>
                   <p className="mt-1 text-sm text-garage-text">
                     Local authentication is currently not set up. Register the first user to enable authentication.
                   </p>
@@ -175,7 +177,7 @@ export default function LocalAuthModal({
                     <div className="flex items-center gap-3">
                       <Users className="w-5 h-5 text-primary" />
                       <div>
-                        <div className="text-sm font-medium text-garage-text">User Management</div>
+                        <div className="text-sm font-medium text-garage-text">{t('modal.userManagement')}</div>
                         <div className="text-xs text-garage-text-muted mt-0.5">
                           {userCount} registered users
                         </div>
@@ -245,7 +247,7 @@ export default function LocalAuthModal({
                 <div className="flex items-start gap-3">
                   <Key className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
                   <div className="flex-1">
-                    <div className="text-sm font-medium text-garage-text mb-4">Change Password</div>
+                    <div className="text-sm font-medium text-garage-text mb-4">{t('modal.changePassword')}</div>
 
                     <form onSubmit={handlePasswordChange} className="space-y-4">
                       {/* Password Change Message */}
@@ -379,7 +381,7 @@ export default function LocalAuthModal({
                         {passwordChangeLoading ? (
                           <>
                             <Loader className="w-4 h-4 animate-spin" />
-                            Changing Password...
+                            {t('modal.changingPassword')}
                           </>
                         ) : (
                           <>
@@ -415,7 +417,7 @@ export default function LocalAuthModal({
                 <div className="flex items-start gap-3">
                   <Key className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
                   <div className="flex-1">
-                    <div className="text-sm font-medium text-garage-text mb-4">Change Password</div>
+                    <div className="text-sm font-medium text-garage-text mb-4">{t('modal.changePassword')}</div>
 
                     <form onSubmit={handlePasswordChange} className="space-y-4">
                       {/* Password Change Message */}
@@ -549,7 +551,7 @@ export default function LocalAuthModal({
                         {passwordChangeLoading ? (
                           <>
                             <Loader className="w-4 h-4 animate-spin" />
-                            Changing Password...
+                            {t('modal.changingPassword')}
                           </>
                         ) : (
                           <>
@@ -571,7 +573,7 @@ export default function LocalAuthModal({
               <div className="flex items-start gap-3">
                 <AlertTriangle className="w-5 h-5 text-warning-500 flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
-                  <strong className="font-semibold text-warning-500">Authentication Required</strong>
+                  <strong className="font-semibold text-warning-500">{t('modal.authRequired')}</strong>
                   <p className="mt-1 text-sm text-garage-text">
                     Local authentication is enabled. You must be logged in as an administrator to manage authentication settings.
                   </p>

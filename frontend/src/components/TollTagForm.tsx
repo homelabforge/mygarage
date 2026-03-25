@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -16,6 +17,7 @@ interface TollTagFormProps {
 }
 
 export default function TollTagForm({ vin, tag, onClose, onSuccess }: TollTagFormProps) {
+  const { t } = useTranslation('forms')
   const isEdit = !!tag
   const [error, setError] = useState<string | null>(null)
   const createMutation = useCreateTollTag(vin)
@@ -59,12 +61,12 @@ export default function TollTagForm({ vin, tag, onClose, onSuccess }: TollTagFor
       onSuccess()
       onClose()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
+      setError(err instanceof Error ? err.message : t('common:error'))
     }
   }
 
   return (
-    <FormModalWrapper title={isEdit ? 'Edit Toll Tag' : 'Add Toll Tag'} onClose={onClose}>
+    <FormModalWrapper title={isEdit ? t('toll.editTagTitle') : t('toll.createTagTitle')} onClose={onClose}>
         <form onSubmit={handleSubmit(onSubmit as Parameters<typeof handleSubmit>[0])} className="p-6 space-y-4">
           {error && (
             <div className="bg-danger/10 border border-danger rounded-lg p-3">
@@ -75,7 +77,7 @@ export default function TollTagForm({ vin, tag, onClose, onSuccess }: TollTagFor
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label htmlFor="toll_system" className="block text-sm font-medium text-garage-text mb-1">
-                Toll System <span className="text-danger">*</span>
+                {t('toll.tollSystem')} <span className="text-danger">*</span>
               </label>
               <select
                 id="toll_system"
@@ -85,7 +87,7 @@ export default function TollTagForm({ vin, tag, onClose, onSuccess }: TollTagFor
                 }`}
                 disabled={isSubmitting}
               >
-                <option value="">Select toll system...</option>
+                <option value="">{t('toll.selectTollSystem')}</option>
                 {TOLL_SYSTEMS.map((system) => (
                   <option key={system} value={system}>{system}</option>
                 ))}
@@ -95,7 +97,7 @@ export default function TollTagForm({ vin, tag, onClose, onSuccess }: TollTagFor
 
             <div>
               <label htmlFor="tag_number" className="block text-sm font-medium text-garage-text mb-1">
-                Tag Number <span className="text-danger">*</span>
+                {t('toll.tagNumber')} <span className="text-danger">*</span>
               </label>
               <input
                 type="text"
@@ -113,7 +115,7 @@ export default function TollTagForm({ vin, tag, onClose, onSuccess }: TollTagFor
 
           <div>
             <label htmlFor="status" className="block text-sm font-medium text-garage-text mb-1">
-              Status
+              {t('common:status')}
             </label>
             <select
               id="status"
@@ -123,15 +125,15 @@ export default function TollTagForm({ vin, tag, onClose, onSuccess }: TollTagFor
               }`}
               disabled={isSubmitting}
             >
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
+              <option value="active">{t('common:active')}</option>
+              <option value="inactive">{t('common:inactive')}</option>
             </select>
             <FormError error={errors.status} />
           </div>
 
           <div>
             <label htmlFor="notes" className="block text-sm font-medium text-garage-text mb-1">
-              Notes
+              {t('common:notes')}
             </label>
             <textarea
               id="notes"
@@ -140,7 +142,7 @@ export default function TollTagForm({ vin, tag, onClose, onSuccess }: TollTagFor
                 errors.notes ? 'border-red-500' : 'border-garage-border'
               }`}
               rows={3}
-              placeholder="Additional notes about this toll tag..."
+              placeholder={t('toll.tagNotesPlaceholder')}
               disabled={isSubmitting}
             />
             <FormError error={errors.notes} />
@@ -161,7 +163,7 @@ export default function TollTagForm({ vin, tag, onClose, onSuccess }: TollTagFor
               disabled={isSubmitting}
             >
               <Save className="w-4 h-4" />
-              {isSubmitting ? 'Saving...' : isEdit ? 'Update Tag' : 'Add Tag'}
+              {isSubmitting ? t('common:saving') : isEdit ? t('toll.updateTag') : t('toll.addTag')}
             </button>
           </div>
         </form>

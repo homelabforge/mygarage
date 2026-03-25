@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 import { Edit, Trash2, Plus, AlertCircle, MapPin, Calendar, ChevronDown, ChevronUp, DollarSign } from 'lucide-react'
 import { toast } from 'sonner'
@@ -16,6 +17,7 @@ interface SpotRentalListProps {
 }
 
 export default function SpotRentalList({ vin }: SpotRentalListProps) {
+  const { t } = useTranslation('vehicles')
   const queryClient = useQueryClient()
   const { currencyCode, locale } = useCurrencyPreference()
   const { data, isLoading, error } = useSpotRentals(vin)
@@ -40,13 +42,13 @@ export default function SpotRentalList({ vin }: SpotRentalListProps) {
   }
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this spot rental?')) {
+    if (!confirm(t('spotRentalList.confirmDelete'))) {
       return
     }
 
     deleteRental.mutate(id, {
       onError: (err) => {
-        toast.error(err instanceof Error ? err.message : 'Failed to delete spot rental')
+        toast.error(err instanceof Error ? err.message : t('spotRentalList.deleteError'))
       },
     })
   }
@@ -76,16 +78,16 @@ export default function SpotRentalList({ vin }: SpotRentalListProps) {
   }
 
   const handleDeleteBilling = async (rentalId: number, billingId: number) => {
-    if (!confirm('Are you sure you want to delete this billing entry?')) {
+    if (!confirm(t('spotRentalList.confirmDeleteBilling'))) {
       return
     }
 
     try {
       await api.delete(`/vehicles/${vin}/spot-rentals/${rentalId}/billings/${billingId}`)
       queryClient.invalidateQueries({ queryKey: ['spotRentals', vin] })
-      toast.success('Billing entry deleted')
+      toast.success(t('spotRentalList.billingDeleted'))
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to delete billing entry')
+      toast.error(err instanceof Error ? err.message : t('spotRentalList.billingDeleteError'))
     }
   }
 
@@ -128,7 +130,7 @@ export default function SpotRentalList({ vin }: SpotRentalListProps) {
   if (isLoading) {
     return (
       <div className="text-center py-8 text-garage-text-muted">
-        Loading spot rentals...
+        {t('spotRentalList.loading')}
       </div>
     )
   }
@@ -160,12 +162,12 @@ export default function SpotRentalList({ vin }: SpotRentalListProps) {
 
       <div className="flex justify-between items-center mb-4">
         <div>
-          <h3 className="text-lg font-semibold text-garage-text">Spot Rentals</h3>
+          <h3 className="text-lg font-semibold text-garage-text">{t('spotRentalList.title')}</h3>
           {rentals.length > 0 && (
             <p className="text-sm text-garage-text-muted">
-              {rentals.length} {rentals.length === 1 ? 'rental' : 'rentals'} •
-              Active: {getActiveRentals()} •
-              Total Spent: {formatCurrency(getTotalCost(), { currencyCode, locale })}
+              {t('spotRentalList.rentalCount', { count: rentals.length })} •
+              {t('spotRentalList.active')}: {getActiveRentals()} •
+              {t('spotRentalList.totalSpent')}: {formatCurrency(getTotalCost(), { currencyCode, locale })}
             </p>
           )}
         </div>
@@ -174,7 +176,7 @@ export default function SpotRentalList({ vin }: SpotRentalListProps) {
           className="flex items-center gap-2 px-4 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg hover:bg-gray-800 transition-colors"
         >
           <Plus className="w-4 h-4" />
-          <span>Add Rental</span>
+          <span>{t('spotRentalList.addRental')}</span>
         </button>
       </div>
 
@@ -188,16 +190,16 @@ export default function SpotRentalList({ vin }: SpotRentalListProps) {
       {rentals.length === 0 ? (
         <div className="text-center py-12 bg-garage-surface border border-garage-border rounded-lg">
           <MapPin className="w-12 h-12 text-garage-text-muted mx-auto mb-3" />
-          <p className="text-garage-text mb-2">No spot rentals yet</p>
+          <p className="text-garage-text mb-2">{t('spotRentalList.noRecords')}</p>
           <p className="text-sm text-garage-text-muted mb-4">
-            Track RV park and campground rentals
+            {t('spotRentalList.noRecordsDesc')}
           </p>
           <button
             onClick={handleAdd}
             className="inline-flex items-center gap-2 px-4 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg hover:bg-gray-800 transition-colors"
           >
             <Plus className="w-4 h-4" />
-            <span>Add Your First Rental</span>
+            <span>{t('spotRentalList.addFirstRental')}</span>
           </button>
         </div>
       ) : (
@@ -219,12 +221,10 @@ export default function SpotRentalList({ vin }: SpotRentalListProps) {
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
                       <h4 className="text-base font-semibold text-garage-text">
-                        {rental.location_name || 'Unnamed Location'}
+                        {rental.location_name || t('spotRentalList.unnamedLocation')}
                       </h4>
                       {!rental.check_out_date && (
-                        <span className="px-2 py-0.5 bg-success/20 text-success text-xs rounded-full border border-success/30">
-                          Active
-                        </span>
+                        <span className="px-2 py-0.5 bg-success/20 text-success text-xs rounded-full border border-success/30">{t('spotRentalList.activeStatus')}</span>
                       )}
                     </div>
                     {rental.location_address && (
@@ -238,8 +238,8 @@ export default function SpotRentalList({ vin }: SpotRentalListProps) {
                     <button
                       onClick={() => handleEdit(rental)}
                       className="p-1.5 text-primary hover:bg-primary/10 rounded transition-colors"
-                      aria-label="Edit Rental"
-                      title="Edit Rental"
+                      aria-label={t('spotRentalList.editRental')}
+                      title={t('spotRentalList.editRental')}
                     >
                       <Edit className="w-4 h-4" />
                     </button>
@@ -247,8 +247,8 @@ export default function SpotRentalList({ vin }: SpotRentalListProps) {
                       onClick={() => handleDelete(rental.id)}
                       disabled={deleteRental.isPending && deleteRental.variables === rental.id}
                       className="p-1.5 text-danger hover:bg-danger/10 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      aria-label="Delete Rental"
-                      title="Delete Rental"
+                      aria-label={t('spotRentalList.deleteRental')}
+                      title={t('spotRentalList.deleteRental')}
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -258,17 +258,17 @@ export default function SpotRentalList({ vin }: SpotRentalListProps) {
                 {/* Check-in/Check-out */}
                 <div className="grid grid-cols-2 gap-3 mb-3">
                   <div>
-                    <p className="text-xs text-garage-text-muted mb-1">Check-In</p>
+                    <p className="text-xs text-garage-text-muted mb-1">{t('spotRentalList.checkIn')}</p>
                     <p className="text-sm text-garage-text font-medium flex items-center gap-1">
                       <Calendar className="w-3.5 h-3.5" />
                       {formatDateForDisplay(rental.check_in_date)}
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-garage-text-muted mb-1">Check-Out</p>
+                    <p className="text-xs text-garage-text-muted mb-1">{t('spotRentalList.checkOut')}</p>
                     <p className="text-sm text-garage-text font-medium flex items-center gap-1">
                       <Calendar className="w-3.5 h-3.5" />
-                      {rental.check_out_date ? formatDateForDisplay(rental.check_out_date) : 'Ongoing'}
+                      {rental.check_out_date ? formatDateForDisplay(rental.check_out_date) : t('spotRentalList.ongoing')}
                     </p>
                   </div>
                 </div>
@@ -278,9 +278,7 @@ export default function SpotRentalList({ vin }: SpotRentalListProps) {
                   <div className="bg-garage-bg/50 rounded-lg p-3 mb-3">
                     <div className="flex items-center justify-between mb-2">
                       <h5 className="text-sm font-semibold text-garage-text flex items-center gap-1">
-                        <DollarSign className="w-4 h-4" />
-                        Billing Summary
-                      </h5>
+                        <DollarSign className="w-4 h-4" />{t('spotRentalList.billingSummary')}</h5>
                       <button
                         onClick={() => handleAddBilling(rental.id)}
                         className="px-2 py-1 text-xs bg-primary/10 text-primary hover:bg-primary/20 rounded transition-colors"
@@ -290,29 +288,29 @@ export default function SpotRentalList({ vin }: SpotRentalListProps) {
                     </div>
 
                     {billingCount === 0 ? (
-                      <p className="text-xs text-garage-text-muted">No billing entries yet</p>
+                      <p className="text-xs text-garage-text-muted">{t('spotRentalList.noBillingEntries')}</p>
                     ) : (
                     <>
                       <div className="grid grid-cols-3 gap-3 mb-2">
                         <div>
-                          <p className="text-xs text-garage-text-muted mb-0.5">Total Billed</p>
+                          <p className="text-xs text-garage-text-muted mb-0.5">{t('spotRentalList.totalBilled')}</p>
                           <p className="text-sm text-garage-text font-semibold">
                             {formatCurrency(billingTotal, { currencyCode, locale })}
                           </p>
                         </div>
                         <div>
-                          <p className="text-xs text-garage-text-muted mb-0.5">Billing Periods</p>
+                          <p className="text-xs text-garage-text-muted mb-0.5">{t('spotRentalList.billingPeriods')}</p>
                           <p className="text-sm text-garage-text font-medium">{billingCount}</p>
                         </div>
                         <div>
-                          <p className="text-xs text-garage-text-muted mb-0.5">Monthly Avg</p>
+                          <p className="text-xs text-garage-text-muted mb-0.5">{t('spotRentalList.monthlyAvg')}</p>
                           <p className="text-sm text-garage-text font-medium">
                             {formatCurrency(monthlyAvg, { currencyCode, locale })}
                           </p>
                         </div>
                       </div>
 
-                      {/* Last Billing Entry */}
+                      {/* {t('spotRentalList.lastBilling')} Entry */}
                       {lastBilling && (
                         <div className="border-t border-garage-border pt-2">
                           <p className="text-xs text-garage-text-muted mb-2">
@@ -320,25 +318,25 @@ export default function SpotRentalList({ vin }: SpotRentalListProps) {
                           </p>
                           <div className="grid grid-cols-4 gap-2">
                             <div>
-                              <p className="text-xs text-garage-text-muted">Monthly</p>
+                              <p className="text-xs text-garage-text-muted">{t('spotRentalList.monthly')}</p>
                               <p className="text-xs text-garage-text font-medium">
                                 {formatCurrency(lastBilling.monthly_rate, { currencyCode, locale })}
                               </p>
                             </div>
                             <div>
-                              <p className="text-xs text-garage-text-muted">Electric</p>
+                              <p className="text-xs text-garage-text-muted">{t('spotRentalList.electric')}</p>
                               <p className="text-xs text-garage-text font-medium">
                                 {formatCurrency(lastBilling.electric, { currencyCode, locale })}
                               </p>
                             </div>
                             <div>
-                              <p className="text-xs text-garage-text-muted">Water</p>
+                              <p className="text-xs text-garage-text-muted">{t('spotRentalList.water')}</p>
                               <p className="text-xs text-garage-text font-medium">
                                 {formatCurrency(lastBilling.water, { currencyCode, locale })}
                               </p>
                             </div>
                             <div>
-                              <p className="text-xs text-garage-text-muted">Waste</p>
+                              <p className="text-xs text-garage-text-muted">{t('spotRentalList.waste')}</p>
                               <p className="text-xs text-garage-text font-medium">
                                 {formatCurrency(lastBilling.waste, { currencyCode, locale })}
                               </p>
@@ -356,12 +354,12 @@ export default function SpotRentalList({ vin }: SpotRentalListProps) {
                           {isExpanded ? (
                             <>
                               <ChevronUp className="w-3.5 h-3.5" />
-                              Hide All Billings
+                              {t('spotRentalList.hideAllBillings')}
                             </>
                           ) : (
                             <>
                               <ChevronDown className="w-3.5 h-3.5" />
-                              View All {billingCount} Billings
+                              {t('spotRentalList.viewAllBillings', { count: billingCount })}
                             </>
                           )}
                         </button>
@@ -372,11 +370,9 @@ export default function SpotRentalList({ vin }: SpotRentalListProps) {
                 ) : (
                   <div className="bg-garage-bg/50 rounded-lg p-3 mb-3">
                     <h5 className="text-sm font-semibold text-garage-text flex items-center gap-1 mb-2">
-                      <DollarSign className="w-4 h-4" />
-                      Billing Summary
-                    </h5>
+                      <DollarSign className="w-4 h-4" />{t('spotRentalList.billingSummary')}</h5>
                     <p className="text-xs text-garage-text-muted">
-                      Billing entries are only available for monthly rentals
+                      {t('spotRentalList.billingMonthlyOnly')}
                     </p>
                   </div>
                 )}
@@ -384,7 +380,7 @@ export default function SpotRentalList({ vin }: SpotRentalListProps) {
                 {/* Expanded Billings */}
                 {isExpanded && rental.billings && rental.billings.length > 0 && (
                   <div className="border-t border-garage-border pt-3 space-y-2">
-                    <h6 className="text-xs font-semibold text-garage-text mb-2">All Billing Entries</h6>
+                    <h6 className="text-xs font-semibold text-garage-text mb-2">{t('spotRentalList.allBillingEntries')}</h6>
                     {rental.billings.map((billing) => (
                       <div
                         key={billing.id}
@@ -398,16 +394,16 @@ export default function SpotRentalList({ vin }: SpotRentalListProps) {
                             <button
                               onClick={() => handleEditBilling(rental.id, billing)}
                               className="p-1 text-primary hover:bg-primary/10 rounded transition-colors"
-                              aria-label="Edit Billing"
-                              title="Edit Billing"
+                              aria-label={t('spotRentalList.editBilling')}
+                              title={t('spotRentalList.editBilling')}
                             >
                               <Edit className="w-3 h-3" />
                             </button>
                             <button
                               onClick={() => handleDeleteBilling(rental.id, billing.id)}
                               className="p-1 text-danger hover:bg-danger/10 rounded transition-colors"
-                              aria-label="Delete Billing"
-                              title="Delete Billing"
+                              aria-label={t('spotRentalList.deleteBilling')}
+                              title={t('spotRentalList.deleteBilling')}
                             >
                               <Trash2 className="w-3 h-3" />
                             </button>
@@ -415,31 +411,31 @@ export default function SpotRentalList({ vin }: SpotRentalListProps) {
                         </div>
                         <div className="grid grid-cols-5 gap-2">
                           <div>
-                            <p className="text-xs text-garage-text-muted">Monthly</p>
+                            <p className="text-xs text-garage-text-muted">{t('spotRentalList.monthly')}</p>
                             <p className="text-xs text-garage-text font-medium">
                               {formatCurrency(billing.monthly_rate, { currencyCode, locale })}
                             </p>
                           </div>
                           <div>
-                            <p className="text-xs text-garage-text-muted">Electric</p>
+                            <p className="text-xs text-garage-text-muted">{t('spotRentalList.electric')}</p>
                             <p className="text-xs text-garage-text font-medium">
                               {formatCurrency(billing.electric, { currencyCode, locale })}
                             </p>
                           </div>
                           <div>
-                            <p className="text-xs text-garage-text-muted">Water</p>
+                            <p className="text-xs text-garage-text-muted">{t('spotRentalList.water')}</p>
                             <p className="text-xs text-garage-text font-medium">
                               {formatCurrency(billing.water, { currencyCode, locale })}
                             </p>
                           </div>
                           <div>
-                            <p className="text-xs text-garage-text-muted">Waste</p>
+                            <p className="text-xs text-garage-text-muted">{t('spotRentalList.waste')}</p>
                             <p className="text-xs text-garage-text font-medium">
                               {formatCurrency(billing.waste, { currencyCode, locale })}
                             </p>
                           </div>
                           <div>
-                            <p className="text-xs text-garage-text-muted">Total</p>
+                            <p className="text-xs text-garage-text-muted">{t('spotRentalList.total')}</p>
                             <p className="text-xs text-garage-text font-semibold">
                               {formatCurrency(billing.total, { currencyCode, locale })}
                             </p>
@@ -461,22 +457,22 @@ export default function SpotRentalList({ vin }: SpotRentalListProps) {
                     {(rental.nightly_rate || rental.weekly_rate) && (
                       <div className="flex gap-3 text-xs text-garage-text-muted">
                         {rental.nightly_rate && (
-                          <span>Nightly: {formatCurrency(rental.nightly_rate, { currencyCode, locale })}</span>
+                          <span>{t('spotRentalList.nightly')}: {formatCurrency(rental.nightly_rate, { currencyCode, locale })}</span>
                         )}
                         {rental.weekly_rate && (
-                          <span>Weekly: {formatCurrency(rental.weekly_rate, { currencyCode, locale })}</span>
+                          <span>{t('spotRentalList.weekly')}: {formatCurrency(rental.weekly_rate, { currencyCode, locale })}</span>
                         )}
                       </div>
                     )}
                     {rental.amenities && (
                       <div>
-                        <p className="text-xs text-garage-text-muted mb-0.5">Amenities:</p>
+                        <p className="text-xs text-garage-text-muted mb-0.5">{t('spotRentalList.amenities')}:</p>
                         <p className="text-xs text-garage-text">{rental.amenities}</p>
                       </div>
                     )}
                     {rental.notes && (
                       <div>
-                        <p className="text-xs text-garage-text-muted mb-0.5">Notes:</p>
+                        <p className="text-xs text-garage-text-muted mb-0.5">{t('spotRentalList.notes')}:</p>
                         <p className="text-xs text-garage-text-muted">{rental.notes}</p>
                       </div>
                     )}

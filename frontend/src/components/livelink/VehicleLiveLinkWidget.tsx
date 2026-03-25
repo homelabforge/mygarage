@@ -3,6 +3,7 @@
  */
 
 import { useState, useEffect, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { Radio, Activity, Car, Thermometer } from 'lucide-react'
 import { livelinkService } from '@/services/livelinkService'
@@ -15,6 +16,7 @@ interface VehicleLiveLinkWidgetProps {
 }
 
 export default function VehicleLiveLinkWidget({ vin }: VehicleLiveLinkWidgetProps) {
+  const { t } = useTranslation('vehicles')
   const navigate = useNavigate()
   const [status, setStatus] = useState<VehicleLiveLinkStatus | null>(null)
   const [loading, setLoading] = useState(true)
@@ -90,7 +92,7 @@ export default function VehicleLiveLinkWidget({ vin }: VehicleLiveLinkWidgetProp
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <Radio className={`w-4 h-4 ${isRunning ? 'text-green-500' : isOnline ? 'text-blue-500' : 'text-garage-text-muted'}`} />
-          <span className="text-xs font-medium text-garage-text">LiveLink</span>
+          <span className="text-xs font-medium text-garage-text">{t('livelink.widget.title')}</span>
         </div>
         <span className={`text-xs px-2 py-0.5 rounded ${
           isRunning

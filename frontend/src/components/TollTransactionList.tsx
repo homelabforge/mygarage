@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 import { DollarSign, Plus, Edit, Trash2, MapPin, Calendar, Download, CreditCard } from 'lucide-react'
 import { toast } from 'sonner'
@@ -17,6 +18,7 @@ interface TollTransactionListProps {
 }
 
 export default function TollTransactionList({ vin, onAddClick, onEditClick }: TollTransactionListProps) {
+  const { t } = useTranslation('vehicles')
   const queryClient = useQueryClient()
   const dateLocale = useDateLocale()
   const { currencyCode, locale } = useCurrencyPreference()
@@ -39,7 +41,7 @@ export default function TollTransactionList({ vin, onAddClick, onEditClick }: To
   const loading = loadingTransactions || loadingTags
 
   const handleDelete = async (transactionId: number): Promise<void> => {
-    if (!confirm('Are you sure you want to delete this toll transaction?')) {
+    if (!confirm(t('tollList.confirmDelete'))) {
       return
     }
 
@@ -49,7 +51,7 @@ export default function TollTransactionList({ vin, onAddClick, onEditClick }: To
         queryClient.invalidateQueries({ queryKey: ['tollTransactionSummary', vin] })
       },
       onError: (err) => {
-        toast.error(err instanceof Error ? err.message : 'Failed to delete toll transaction')
+        toast.error(err instanceof Error ? err.message : t('tollList.deleteError'))
       },
     })
   }
@@ -75,7 +77,7 @@ export default function TollTransactionList({ vin, onAddClick, onEditClick }: To
       window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to export data')
+      toast.error(err instanceof Error ? err.message : t('tollList.exportError'))
     } finally {
       setExporting(false)
     }
@@ -106,7 +108,7 @@ export default function TollTransactionList({ vin, onAddClick, onEditClick }: To
   if (transactionsError) {
     return (
       <div className="bg-danger/10 border border-danger rounded-lg p-4">
-        <p className="text-danger">{transactionsError instanceof Error ? transactionsError.message : 'An error occurred'}</p>
+        <p className="text-danger">{transactionsError instanceof Error ? transactionsError.message : t('tollList.error')}</p>
       </div>
     )
   }
@@ -115,9 +117,9 @@ export default function TollTransactionList({ vin, onAddClick, onEditClick }: To
     <div>
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
         <div>
-          <h2 className="text-2xl font-bold text-garage-text">Toll Transactions</h2>
+          <h2 className="text-2xl font-bold text-garage-text">{t('tollList.title')}</h2>
           <p className="text-sm text-garage-text-muted">
-            {transactions.length} {transactions.length === 1 ? 'transaction' : 'transactions'} recorded
+            {t('tollList.transactionCount', { count: transactions.length })}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -126,7 +128,7 @@ export default function TollTransactionList({ vin, onAddClick, onEditClick }: To
             onChange={(e) => setSelectedTagFilter(e.target.value ? parseInt(e.target.value) : '')}
             className="px-3 py-2 border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text text-sm"
           >
-            <option value="">All Tags</option>
+            <option value="">{t('tollList.allTags')}</option>
             {tollTags.filter(t => t.status === 'active').map((tag) => (
               <option key={tag.id} value={tag.id}>{tag.toll_system} - {tag.tag_number}</option>
             ))}
@@ -138,7 +140,7 @@ export default function TollTransactionList({ vin, onAddClick, onEditClick }: To
             title="Export to CSV"
           >
             <Download className="w-4 h-4" />
-            <span>{exporting ? 'Exporting...' : 'Export'}</span>
+            <span>{exporting ? t('tollList.exporting') : t('tollList.export')}</span>
           </button>
           <button
             onClick={onAddClick}
@@ -156,7 +158,7 @@ export default function TollTransactionList({ vin, onAddClick, onEditClick }: To
           <div className="bg-garage-surface rounded-lg p-4 border border-garage-border">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-garage-text-muted mb-1">Total Transactions</p>
+                <p className="text-xs text-garage-text-muted mb-1">{t('tollList.totalTransactions')}</p>
                 <p className="text-2xl font-bold text-garage-text">{summary.total_transactions}</p>
               </div>
               <Calendar className="text-primary" size={24} />
@@ -165,7 +167,7 @@ export default function TollTransactionList({ vin, onAddClick, onEditClick }: To
           <div className="bg-garage-surface rounded-lg p-4 border border-garage-border">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-garage-text-muted mb-1">Total Amount</p>
+                <p className="text-xs text-garage-text-muted mb-1">{t('tollList.totalAmount')}</p>
                 <p className="text-2xl font-bold text-garage-text">{formatCurrency(Number(summary.total_amount), { currencyCode, locale })}</p>
               </div>
               <DollarSign className="text-success" size={24} />
@@ -174,7 +176,7 @@ export default function TollTransactionList({ vin, onAddClick, onEditClick }: To
           <div className="bg-garage-surface rounded-lg p-4 border border-garage-border">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-garage-text-muted mb-1">Average per Transaction</p>
+                <p className="text-xs text-garage-text-muted mb-1">{t('tollList.averagePerTransaction')}</p>
                 <p className="text-2xl font-bold text-garage-text">
                   {summary.total_transactions > 0
                     ? formatCurrency(Number(summary.total_amount) / summary.total_transactions, { currencyCode, locale })
@@ -190,9 +192,9 @@ export default function TollTransactionList({ vin, onAddClick, onEditClick }: To
       {transactions.length === 0 ? (
         <div className="text-center py-12 bg-garage-surface rounded-lg border border-garage-border">
           <DollarSign size={48} className="mx-auto text-garage-text-muted mb-4" />
-          <p className="text-garage-text-muted mb-4">No toll transactions recorded yet</p>
+          <p className="text-garage-text-muted mb-4">{t('tollList.noRecords')}</p>
           <button onClick={onAddClick} className="inline-flex items-center gap-2 px-4 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg hover:bg-gray-800 transition-colors">
-            Add Your First Transaction
+            {t('tollList.addFirstTransaction')}
           </button>
         </div>
       ) : (
@@ -213,16 +215,16 @@ export default function TollTransactionList({ vin, onAddClick, onEditClick }: To
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-3 ml-9">
                     <div>
-                      <p className="text-xs text-garage-text-muted mb-1">Amount</p>
+                      <p className="text-xs text-garage-text-muted mb-1">{t('tollList.amount')}</p>
                       <p className="text-sm font-semibold text-garage-text">{formatCurrency(transaction.amount, { currencyCode, locale })}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-garage-text-muted mb-1">Toll Tag</p>
+                      <p className="text-xs text-garage-text-muted mb-1">{t('tollList.tollTag')}</p>
                       <p className="text-sm text-garage-text">{getTollTagName(transaction.toll_tag_id)}</p>
                     </div>
                     {transaction.notes && (
                       <div className="col-span-2 md:col-span-1">
-                        <p className="text-xs text-garage-text-muted mb-1">Notes</p>
+                        <p className="text-xs text-garage-text-muted mb-1">{t('tollList.notes')}</p>
                         <p className="text-sm text-garage-text">{transaction.notes}</p>
                       </div>
                     )}
@@ -232,7 +234,7 @@ export default function TollTransactionList({ vin, onAddClick, onEditClick }: To
                   <button
                     onClick={() => onEditClick(transaction)}
                     className="btn btn-ghost btn-sm"
-                    title="Edit"
+                    title={t('common:edit')}
                   >
                     <Edit size={16} />
                   </button>
@@ -240,7 +242,7 @@ export default function TollTransactionList({ vin, onAddClick, onEditClick }: To
                     onClick={() => handleDelete(transaction.id)}
                     className="btn btn-ghost btn-sm text-danger"
                     disabled={deleteMutation.isPending && deleteMutation.variables === transaction.id}
-                    title="Delete"
+                    title={t('common:delete')}
                   >
                     {deleteMutation.isPending && deleteMutation.variables === transaction.id ? '...' : <Trash2 size={16} />}
                   </button>
@@ -254,20 +256,14 @@ export default function TollTransactionList({ vin, onAddClick, onEditClick }: To
       {/* Monthly Breakdown */}
       {summary && summary.monthly_totals.length > 0 && (
         <div className="mt-8">
-          <h3 className="text-lg font-semibold text-garage-text mb-4">Monthly Breakdown</h3>
+          <h3 className="text-lg font-semibold text-garage-text mb-4">{t('tollList.monthlyBreakdown')}</h3>
           <div className="bg-garage-surface rounded-lg border border-garage-border overflow-hidden">
             <table className="w-full">
               <thead className="bg-garage-bg">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-garage-text-muted uppercase tracking-wider">
-                    Month
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-garage-text-muted uppercase tracking-wider">
-                    Transactions
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-garage-text-muted uppercase tracking-wider">
-                    Total
-                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-garage-text-muted uppercase tracking-wider">{t('tollList.month')}</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-garage-text-muted uppercase tracking-wider">{t('tollList.transactions')}</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-garage-text-muted uppercase tracking-wider">{t('tollList.total')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-garage-border">

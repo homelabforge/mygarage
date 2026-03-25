@@ -36,6 +36,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **oven/bun**: 1.3.10-alpine → 1.3.11-alpine
 
 ### Added
+- Per-user language preference with react-i18next (English, Polish, Ukrainian, Russian)
+- Per-user currency preference (16 currencies) with locale-aware formatting
+- Language and currency selectors in Settings
+- ESLint guards against hardcoded currency/locale strings
+- Playwright E2E tests for language/currency switching
 - OpenAPI-generated TypeScript types: frontend types are now auto-generated from backend Pydantic schemas via `openapi-typescript`, eliminating manual type drift
 - CI freshness gate (`check-api-types` job) ensures generated types stay in sync with backend schemas
 - Per-line-item service categories with category-aware suggestion combobox

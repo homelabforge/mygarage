@@ -45,8 +45,8 @@ describe('ServiceVisitForm – mileage field visibility', () => {
     vi.clearAllMocks()
   })
 
-  // The mileage label renders as "Mileage (mi)" — match on the leading word
-  const hasMileage = () => screen.queryByText(/^mileage/i) !== null
+  // With i18n mock, t() returns translation keys. The label renders as "common:mileage (mi)"
+  const hasMileage = () => screen.queryByText(/mileage/i) !== null
 
   it('shows mileage field when vehicleType is undefined (default to motorized)', () => {
     render(<ServiceVisitForm {...DEFAULT_PROPS} />)

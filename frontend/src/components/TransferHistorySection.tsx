@@ -3,6 +3,7 @@
  */
 
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ArrowRight, ChevronDown, ChevronUp, Clock, Loader2, History } from 'lucide-react'
 import { familyService } from '@/services/familyService'
 import type { VehicleTransferResponse } from '@/types/family'
@@ -13,6 +14,7 @@ interface TransferHistorySectionProps {
 }
 
 export default function TransferHistorySection({ vin }: TransferHistorySectionProps) {
+  const { t } = useTranslation('vehicles')
   const [transfers, setTransfers] = useState<VehicleTransferResponse[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -62,7 +64,7 @@ export default function TransferHistorySection({ vin }: TransferHistorySectionPr
       >
         <div className="flex items-center gap-2">
           <History className="w-5 h-5 text-primary" />
-          <span className="font-medium text-garage-text">Transfer History</span>
+          <span className="font-medium text-garage-text">{t('transferHistory.title')}</span>
           {!loading && (
             <span className="text-sm text-garage-text-muted">
               ({transfers.length} {transfers.length === 1 ? 'transfer' : 'transfers'})

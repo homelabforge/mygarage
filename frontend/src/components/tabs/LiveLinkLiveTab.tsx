@@ -3,6 +3,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   Radio,
   Wifi,
@@ -31,6 +32,7 @@ interface LiveLinkLiveTabProps {
 }
 
 export default function LiveLinkLiveTab({ vin }: LiveLinkLiveTabProps) {
+  const { t } = useTranslation('vehicles')
   const [status, setStatus] = useState<VehicleLiveLinkStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -45,11 +47,11 @@ export default function LiveLinkLiveTab({ vin }: LiveLinkLiveTabProps) {
       setLastRefresh(new Date())
     } catch (err) {
       console.error('Failed to fetch LiveLink status:', err)
-      setError('Failed to fetch status')
+      setError(t('livelink.fetchStatusError'))
     } finally {
       setLoading(false)
     }
-  }, [vin])
+  }, [vin, t])
 
   // Initial fetch and polling every 5 seconds
   useEffect(() => {
@@ -65,9 +67,9 @@ export default function LiveLinkLiveTab({ vin }: LiveLinkLiveTabProps) {
   }
 
   const getStatusText = (deviceStatus: string, ecuStatus: string) => {
-    if (deviceStatus !== 'online') return 'WiCAN Offline'
-    if (ecuStatus === 'online') return 'Vehicle Running'
-    return 'Vehicle Parked — WiCAN Connected'
+    if (deviceStatus !== 'online') return t('livelink.wicanOffline')
+    if (ecuStatus === 'online') return t('livelink.vehicleRunning')
+    return t('livelink.vehicleParked')
   }
 
   const formatDuration = (seconds: number | null | undefined) => {
@@ -92,9 +94,9 @@ export default function LiveLinkLiveTab({ vin }: LiveLinkLiveTabProps) {
     return (
       <div className="bg-garage-surface rounded-lg border border-garage-border p-6 text-center">
         <Radio className="w-12 h-12 mx-auto mb-3 text-garage-text-muted opacity-50" />
-        <p className="text-garage-text-muted">{error || 'No LiveLink data available'}</p>
+        <p className="text-garage-text-muted">{error || t('livelink.noData')}</p>
         <p className="text-sm text-garage-text-muted mt-2">
-          Make sure a WiCAN device is linked to this vehicle
+          {t('livelink.ensureDeviceLinked')}
         </p>
       </div>
     )
@@ -138,13 +140,13 @@ export default function LiveLinkLiveTab({ vin }: LiveLinkLiveTabProps) {
           {status.current_session_id && (
             <div className="flex items-center gap-1 text-green-500">
               <Activity className="w-4 h-4" />
-              <span className="text-sm">Session: {formatDuration(status.session_duration_seconds)}</span>
+              <span className="text-sm">{t('livelink.session')}: {formatDuration(status.session_duration_seconds)}</span>
             </div>
           )}
 
           {/* Last Update */}
           <div className="ml-auto text-sm text-garage-text-muted">
-            Last update: {lastRefresh.toLocaleTimeString()}
+            {t('livelink.lastUpdate')}: {lastRefresh.toLocaleTimeString()}
           </div>
         </div>
       </div>
@@ -159,9 +161,9 @@ export default function LiveLinkLiveTab({ vin }: LiveLinkLiveTabProps) {
       ) : (
         <div className="bg-garage-surface rounded-lg border border-garage-border p-8 text-center">
           <Car className="w-12 h-12 mx-auto mb-3 text-garage-text-muted opacity-50" />
-          <p className="text-garage-text-muted">No telemetry data available</p>
+          <p className="text-garage-text-muted">{t('livelink.noTelemetry')}</p>
           <p className="text-sm text-garage-text-muted mt-2">
-            Data will appear here when your WiCAN device starts sending readings
+            {t('livelink.telemetryWillAppear')}
           </p>
         </div>
       )}

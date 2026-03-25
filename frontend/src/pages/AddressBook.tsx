@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Plus, Search, Edit, Trash2, X, Save, Phone, Mail, Globe, MapPin, BookUser } from 'lucide-react'
@@ -9,6 +10,7 @@ import { FormError } from '../components/FormError'
 import api from '../services/api'
 
 export default function AddressBook() {
+  const { t } = useTranslation('common')
   const [entries, setEntries] = useState<AddressBookEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -56,13 +58,13 @@ export default function AddressBook() {
   }
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this contact?')) return
+    if (!confirm(t('addressBook.confirmDelete'))) return
 
     try {
       await api.delete(`/address-book/${id}`)
       loadEntries()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to delete contact')
+      toast.error(err instanceof Error ? err.message : t('addressBook.deleteError'))
     }
   }
 
@@ -70,9 +72,9 @@ export default function AddressBook() {
     <div className="container mx-auto px-4 py-8">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-3xl font-bold mb-2 text-garage-text">Address Book</h1>
+        <h1 className="text-3xl font-bold mb-2 text-garage-text">{t('addressBook.title')}</h1>
         <p className="text-garage-text-muted">
-          Manage your contacts for service providers, dealers, and other vendors
+          {t('addressBook.subtitle')}
         </p>
       </div>
 
@@ -83,7 +85,7 @@ export default function AddressBook() {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-garage-text-muted" />
             <input
               type="text"
-              placeholder="Search by name, business, or city..."
+              placeholder={t('addressBook.searchPlaceholder')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-garage-border rounded-lg bg-garage-surface text-garage-text focus:outline-none focus:ring-2 focus:ring-primary"
@@ -95,12 +97,12 @@ export default function AddressBook() {
             onChange={(e) => setCategoryFilter(e.target.value)}
             className="px-4 py-2 border border-garage-border rounded-lg bg-garage-surface text-garage-text focus:outline-none focus:ring-2 focus:ring-primary"
           >
-            <option value="">All Categories</option>
-            <option value="Service">Service</option>
-            <option value="Parts">Parts</option>
-            <option value="Dealer">Dealer</option>
-            <option value="Insurance">Insurance</option>
-            <option value="Other">Other</option>
+            <option value="">{t('addressBook.allCategories')}</option>
+            <option value="Service">{t('addressBook.categoryService')}</option>
+            <option value="Parts">{t('addressBook.categoryParts')}</option>
+            <option value="Dealer">{t('addressBook.categoryDealer')}</option>
+            <option value="Insurance">{t('addressBook.categoryInsurance')}</option>
+            <option value="Other">{t('addressBook.categoryOther')}</option>
           </select>
 
           <button
@@ -108,25 +110,25 @@ export default function AddressBook() {
             className="flex items-center gap-2 px-5 py-3 btn btn-primary rounded-lg"
           >
             <Plus className="w-5 h-5" />
-            Add Contact
+            {t('addressBook.addContact')}
           </button>
         </div>
 
         {/* Entries List */}
         {loading ? (
-          <div className="text-center py-12 text-garage-text-muted">Loading contacts...</div>
+          <div className="text-center py-12 text-garage-text-muted">{t('addressBook.loading')}</div>
         ) : entries.length === 0 ? (
           <div className="text-center py-12">
             <BookUser className="w-16 h-16 text-garage-text-muted mx-auto mb-4" />
             <p className="text-garage-text-muted mb-4">
-              {searchTerm || categoryFilter ? 'No contacts found matching your filters' : 'No contacts in your address book yet'}
+              {searchTerm || categoryFilter ? t('addressBook.noMatchingContacts') : t('addressBook.noContacts')}
             </p>
             <button
               onClick={handleAddClick}
               className="inline-flex items-center gap-2 px-5 py-3 btn btn-primary rounded-lg"
             >
               <Plus className="w-5 h-5" />
-              Add Your First Contact
+              {t('addressBook.addFirstContact')}
             </button>
           </div>
         ) : (
@@ -249,6 +251,7 @@ interface AddressBookFormProps {
 }
 
 function AddressBookForm({ entry, onClose, onSuccess }: AddressBookFormProps) {
+  const { t } = useTranslation('common')
   const isEdit = !!entry
   const [error, setError] = useState<string | null>(null)
 
@@ -301,7 +304,7 @@ function AddressBookForm({ entry, onClose, onSuccess }: AddressBookFormProps) {
 
       onSuccess()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
+      setError(err instanceof Error ? err.message : t('common:error'))
     }
   }
 
@@ -310,7 +313,7 @@ function AddressBookForm({ entry, onClose, onSuccess }: AddressBookFormProps) {
       <div className="bg-garage-surface rounded-lg shadow-2xl max-w-full sm:max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-garage-border">
         <div className="sticky top-0 bg-garage-surface border-b border-garage-border px-6 py-4 flex justify-between items-center rounded-t-lg">
           <h2 className="text-xl font-semibold text-garage-text">
-            {isEdit ? 'Edit Contact' : 'Add Contact'}
+            {isEdit ? t('addressBook.editContact') : t('addressBook.addContact')}
           </h2>
           <button onClick={onClose} className="text-garage-text-muted hover:text-garage-text">
             <X className="w-5 h-5" />
@@ -327,7 +330,7 @@ function AddressBookForm({ entry, onClose, onSuccess }: AddressBookFormProps) {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label htmlFor="business_name" className="block text-sm font-medium text-garage-text mb-1">
-                Business Name <span className="text-danger">*</span>
+                {t('addressBook.businessName')} <span className="text-danger">*</span>
               </label>
               <input
                 type="text"
@@ -344,7 +347,7 @@ function AddressBookForm({ entry, onClose, onSuccess }: AddressBookFormProps) {
 
             <div>
               <label htmlFor="name" className="block text-sm font-medium text-garage-text mb-1">
-                Contact Name
+                {t('addressBook.contactName')}
               </label>
               <input
                 type="text"
@@ -362,7 +365,7 @@ function AddressBookForm({ entry, onClose, onSuccess }: AddressBookFormProps) {
 
           <div>
             <label htmlFor="category" className="block text-sm font-medium text-garage-text mb-1">
-              Category
+              {t('addressBook.category')}
             </label>
             <select
               id="category"
@@ -372,7 +375,7 @@ function AddressBookForm({ entry, onClose, onSuccess }: AddressBookFormProps) {
               }`}
               disabled={isSubmitting}
             >
-              <option value="">Select category</option>
+              <option value="">{t('addressBook.selectCategory')}</option>
               {ADDRESS_BOOK_CATEGORIES.map((cat) => (
                 <option key={cat} value={cat}>{cat}</option>
               ))}
@@ -383,7 +386,7 @@ function AddressBookForm({ entry, onClose, onSuccess }: AddressBookFormProps) {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-garage-text mb-1">
-                Email
+                {t('addressBook.email')}
               </label>
               <input
                 type="email"
@@ -400,7 +403,7 @@ function AddressBookForm({ entry, onClose, onSuccess }: AddressBookFormProps) {
 
             <div>
               <label htmlFor="phone" className="block text-sm font-medium text-garage-text mb-1">
-                Phone
+                {t('addressBook.phone')}
               </label>
               <input
                 type="tel"
@@ -418,7 +421,7 @@ function AddressBookForm({ entry, onClose, onSuccess }: AddressBookFormProps) {
 
           <div>
             <label htmlFor="website" className="block text-sm font-medium text-garage-text mb-1">
-              Website
+              {t('addressBook.website')}
             </label>
             <input
               type="url"
@@ -435,7 +438,7 @@ function AddressBookForm({ entry, onClose, onSuccess }: AddressBookFormProps) {
 
           <div>
             <label htmlFor="address" className="block text-sm font-medium text-garage-text mb-1">
-              Street Address
+              {t('addressBook.streetAddress')}
             </label>
             <input
               type="text"
@@ -453,7 +456,7 @@ function AddressBookForm({ entry, onClose, onSuccess }: AddressBookFormProps) {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="sm:col-span-2">
               <label htmlFor="city" className="block text-sm font-medium text-garage-text mb-1">
-                City
+                {t('addressBook.city')}
               </label>
               <input
                 type="text"
@@ -470,7 +473,7 @@ function AddressBookForm({ entry, onClose, onSuccess }: AddressBookFormProps) {
 
             <div>
               <label htmlFor="state" className="block text-sm font-medium text-garage-text mb-1">
-                State
+                {t('addressBook.state')}
               </label>
               <input
                 type="text"
@@ -488,7 +491,7 @@ function AddressBookForm({ entry, onClose, onSuccess }: AddressBookFormProps) {
 
           <div>
             <label htmlFor="zip" className="block text-sm font-medium text-garage-text mb-1">
-              ZIP Code
+              {t('addressBook.zipCode')}
             </label>
             <input
               type="text"
@@ -505,13 +508,13 @@ function AddressBookForm({ entry, onClose, onSuccess }: AddressBookFormProps) {
 
           <div>
             <label htmlFor="notes" className="block text-sm font-medium text-garage-text mb-1">
-              Notes
+              {t('addressBook.notes')}
             </label>
             <textarea
               id="notes"
               rows={3}
               {...register('notes')}
-              placeholder="Additional notes about this contact..."
+              placeholder={t('addressBook.notesPlaceholder')}
               className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
                 errors.notes ? 'border-red-500' : 'border-garage-border'
               }`}
@@ -527,7 +530,7 @@ function AddressBookForm({ entry, onClose, onSuccess }: AddressBookFormProps) {
               className="flex items-center gap-2 px-5 py-3 btn btn-primary rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Save className="w-4 h-4" />
-              <span>{isSubmitting ? 'Saving...' : isEdit ? 'Update' : 'Create'}</span>
+              <span>{isSubmitting ? t('common:saving') : isEdit ? t('common:update') : t('common:create')}</span>
             </button>
 
             <button
@@ -536,7 +539,7 @@ function AddressBookForm({ entry, onClose, onSuccess }: AddressBookFormProps) {
               className="px-5 py-3 btn btn-secondary rounded-lg"
               disabled={isSubmitting}
             >
-              Cancel
+              {t('common:cancel')}
             </button>
           </div>
         </form>

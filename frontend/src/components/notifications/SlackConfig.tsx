@@ -1,4 +1,5 @@
 import { Hash, Send, Info, ExternalLink } from 'lucide-react';
+import { useTranslation } from 'react-i18next'
 
 interface SlackConfigProps {
   settings: Record<string, unknown>;
@@ -17,6 +18,7 @@ export function SlackConfig({
   testing,
   saving,
 }: SlackConfigProps) {
+  const { t } = useTranslation('settings')
   const isEnabled = settings.slack_enabled === 'true';
   const hasRequiredFields = Boolean(settings.slack_webhook_url);
 
@@ -40,10 +42,10 @@ export function SlackConfig({
             disabled={saving}
             className="w-4 h-4 text-primary bg-garage-bg border-garage-border rounded focus:ring-primary focus:ring-2 disabled:opacity-50"
           />
-          <span className="ml-2 text-sm text-garage-text font-medium">Enable Slack notifications</span>
+          <span className="ml-2 text-sm text-garage-text font-medium">{t('slack.enable')}</span>
         </label>
 
-        {/* Webhook URL */}
+        {/* {t('slack.webhookUrl')} */}
         <div>
           <label htmlFor="slack_webhook_url" className="block text-sm font-medium text-garage-text mb-1">
             Webhook URL

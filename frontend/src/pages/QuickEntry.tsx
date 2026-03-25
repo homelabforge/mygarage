@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
 import { Car, Fuel, Wrench, Gauge, ChevronRight, LayoutDashboard } from 'lucide-react'
 import { toast } from 'sonner'
@@ -22,6 +23,7 @@ interface QuickEntryVehicle {
 type EntryType = 'fuel' | 'service' | 'odometer' | null
 
 export default function QuickEntry() {
+  const { t } = useTranslation('vehicles')
   const { user } = useAuth()
   const [vehicles, setVehicles] = useState<QuickEntryVehicle[]>([])
   const [selectedVin, setSelectedVin] = useState<string>('')
@@ -47,13 +49,13 @@ export default function QuickEntry() {
           setSelectedVin(list[0].vin)
         }
       } catch {
-        setError('Failed to load vehicles')
+        setError(t('quickEntry.loadError'))
       } finally {
         setLoading(false)
       }
     }
     void fetchVehicles()
-  }, [])
+  }, [t])
 
   const selectedVehicle = vehicles.find(v => v.vin === selectedVin)
 
@@ -64,11 +66,11 @@ export default function QuickEntry() {
 
   const handleSuccess = (type: EntryType) => {
     const labels: Record<string, string> = {
-      fuel: 'Fuel record',
-      service: 'Service visit',
-      odometer: 'Mileage',
+      fuel: t('quickEntry.fuelRecord'),
+      service: t('quickEntry.serviceVisit'),
+      odometer: t('quickEntry.mileage'),
     }
-    toast.success(`${labels[type as string] ?? 'Record'} saved`)
+    toast.success(t('quickEntry.recordSaved', { type: labels[type as string] ?? t('quickEntry.record') }))
     setEntryType(null)
   }
 
@@ -78,22 +80,22 @@ export default function QuickEntry() {
       <header className="bg-garage-surface border-b border-garage-border px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Car className="w-5 h-5 text-primary" />
-          <span className="font-semibold text-garage-text">My Garage</span>
+          <span className="font-semibold text-garage-text">{t('common:appName')}</span>
         </div>
         <Link
           to="/"
           className="flex items-center gap-1 text-sm text-primary hover:underline"
         >
           <LayoutDashboard className="w-4 h-4" />
-          Dashboard
+          {t('common:dashboard')}
         </Link>
       </header>
 
       <main className="flex-1 px-4 py-6 max-w-lg mx-auto w-full">
-        <h1 className="text-xl font-bold text-garage-text mb-6">Quick Entry</h1>
+        <h1 className="text-xl font-bold text-garage-text mb-6">{t('quickEntry.title')}</h1>
 
         {loading && (
-          <div className="text-garage-text-muted text-center py-12">Loading vehicles...</div>
+          <div className="text-garage-text-muted text-center py-12">{t('quickEntry.loadingVehicles')}</div>
         )}
 
         {!loading && error && (
@@ -102,9 +104,9 @@ export default function QuickEntry() {
 
         {!loading && !error && vehicles.length === 0 && (
           <div className="text-center py-12">
-            <p className="text-garage-text-muted mb-4">No vehicles available for logging.</p>
+            <p className="text-garage-text-muted mb-4">{t('quickEntry.noVehicles')}</p>
             <Link to="/" className="text-primary hover:underline">
-              Go to Dashboard
+              {t('quickEntry.goToDashboard')}
             </Link>
           </div>
         )}
@@ -114,7 +116,7 @@ export default function QuickEntry() {
             {/* Vehicle selector */}
             <div>
               <label className="block text-sm font-medium text-garage-text mb-2">
-                Vehicle
+                {t('quickEntry.vehicle')}
               </label>
               {vehicles.length === 1 ? (
                 /* Single vehicle — show as a card, not a dropdown */
@@ -138,7 +140,7 @@ export default function QuickEntry() {
                   onChange={e => setSelectedVin(e.target.value)}
                   className="w-full px-4 py-3 bg-garage-surface border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                 >
-                  <option value="">Select a vehicle...</option>
+                  <option value="">{t('quickEntry.selectVehicle')}</option>
                   {vehicles.map(v => (
                     <option key={v.vin} value={v.vin}>
                       {vehicleLabel(v)}
@@ -151,7 +153,7 @@ export default function QuickEntry() {
             {/* Action buttons — only shown once a vehicle is selected */}
             {selectedVin && (
               <div>
-                <p className="text-sm font-medium text-garage-text mb-3">What are you logging?</p>
+                <p className="text-sm font-medium text-garage-text mb-3">{t('quickEntry.whatLogging')}</p>
                 <div className="grid grid-cols-1 gap-3">
                   <button
                     onClick={() => setEntryType('fuel')}
@@ -162,8 +164,8 @@ export default function QuickEntry() {
                         <Fuel className="w-5 h-5 text-blue-500" />
                       </div>
                       <div>
-                        <div className="font-medium text-garage-text">Fuel Up</div>
-                        <div className="text-xs text-garage-text-muted">Log a fill-up or charge</div>
+                        <div className="font-medium text-garage-text">{t('quickEntry.fuelUp')}</div>
+                        <div className="text-xs text-garage-text-muted">{t('quickEntry.fuelUpDesc')}</div>
                       </div>
                     </div>
                     <ChevronRight className="w-5 h-5 text-garage-text-muted" />
@@ -178,8 +180,8 @@ export default function QuickEntry() {
                         <Wrench className="w-5 h-5 text-orange-500" />
                       </div>
                       <div>
-                        <div className="font-medium text-garage-text">Service Visit</div>
-                        <div className="text-xs text-garage-text-muted">Log maintenance or repair</div>
+                        <div className="font-medium text-garage-text">{t('quickEntry.serviceVisit')}</div>
+                        <div className="text-xs text-garage-text-muted">{t('quickEntry.serviceVisitDesc')}</div>
                       </div>
                     </div>
                     <ChevronRight className="w-5 h-5 text-garage-text-muted" />
@@ -194,8 +196,8 @@ export default function QuickEntry() {
                         <Gauge className="w-5 h-5 text-green-500" />
                       </div>
                       <div>
-                        <div className="font-medium text-garage-text">Mileage</div>
-                        <div className="text-xs text-garage-text-muted">Record odometer reading</div>
+                        <div className="font-medium text-garage-text">{t('quickEntry.mileage')}</div>
+                        <div className="text-xs text-garage-text-muted">{t('quickEntry.mileageDesc')}</div>
                       </div>
                     </div>
                     <ChevronRight className="w-5 h-5 text-garage-text-muted" />

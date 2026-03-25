@@ -3,6 +3,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
   LineChart,
@@ -47,6 +48,7 @@ const CHART_COLORS = [
 ]
 
 export default function LiveLinkChartsTab({ vin }: LiveLinkChartsTabProps) {
+  const { t } = useTranslation('vehicles')
   const [loading, setLoading] = useState(true)
   const [parameters, setParameters] = useState<LiveLinkParameter[]>([])
   const [selectedParams, setSelectedParams] = useState<string[]>([])
@@ -127,11 +129,11 @@ export default function LiveLinkChartsTab({ vin }: LiveLinkChartsTabProps) {
       setTelemetry(data)
     } catch (err) {
       console.error('Failed to fetch telemetry:', err)
-      toast.error('Failed to load telemetry data')
+      toast.error(t('livelink.charts.loadError'))
     } finally {
       setLoading(false)
     }
-  }, [vin, selectedParams, timeRange, getTimeRange])
+  }, [vin, selectedParams, timeRange, getTimeRange, t])
 
   useEffect(() => {
     fetchTelemetry()
@@ -193,9 +195,9 @@ export default function LiveLinkChartsTab({ vin }: LiveLinkChartsTabProps) {
     return (
       <div className="bg-garage-surface rounded-lg border border-garage-border p-8 text-center">
         <BarChart3 className="w-12 h-12 mx-auto mb-3 text-garage-text-muted opacity-50" />
-        <p className="text-garage-text">No telemetry parameters available</p>
+        <p className="text-garage-text">{t('livelink.charts.noParams')}</p>
         <p className="text-sm text-garage-text-muted mt-2">
-          Parameters will appear here once your WiCAN device starts sending data
+          {t('livelink.charts.paramsWillAppear')}
         </p>
       </div>
     )
@@ -238,7 +240,7 @@ export default function LiveLinkChartsTab({ vin }: LiveLinkChartsTabProps) {
 
       {/* Parameter Selector */}
       <div className="bg-garage-surface rounded-lg border border-garage-border p-4">
-        <p className="text-sm text-garage-text-muted mb-3">Select parameters to chart:</p>
+        <p className="text-sm text-garage-text-muted mb-3">{t('livelink.charts.selectParams')}:</p>
         <div className="flex flex-wrap gap-2">
           {parameters.map((param) => {
             const isSelected = selectedParams.includes(param.param_key)
@@ -330,14 +332,14 @@ export default function LiveLinkChartsTab({ vin }: LiveLinkChartsTabProps) {
                     </p>
                     <div className="flex justify-between text-garage-text">
                       <span>
-                        Min: {series.min_value?.toFixed(1)} {series.unit}
+                        {t('livelink.charts.min')}: {series.min_value?.toFixed(1)} {series.unit}
                       </span>
                       <span>
-                        Max: {series.max_value?.toFixed(1)} {series.unit}
+                        {t('livelink.charts.max')}: {series.max_value?.toFixed(1)} {series.unit}
                       </span>
                     </div>
                     <p className="text-garage-text-muted text-xs mt-1">
-                      Avg: {series.avg_value?.toFixed(1)} {series.unit}
+                      {t('livelink.charts.avg')}: {series.avg_value?.toFixed(1)} {series.unit}
                     </p>
                   </div>
                 ))}
@@ -348,9 +350,9 @@ export default function LiveLinkChartsTab({ vin }: LiveLinkChartsTabProps) {
       ) : (
         <div className="bg-garage-surface rounded-lg border border-garage-border p-8 text-center">
           <BarChart3 className="w-12 h-12 mx-auto mb-3 text-garage-text-muted opacity-50" />
-          <p className="text-garage-text">No data available for the selected time range</p>
+          <p className="text-garage-text">{t('livelink.charts.noData')}</p>
           <p className="text-sm text-garage-text-muted mt-2">
-            Try selecting a different time range or parameters
+            {t('livelink.charts.tryDifferentRange')}
           </p>
         </div>
       )}
@@ -358,7 +360,7 @@ export default function LiveLinkChartsTab({ vin }: LiveLinkChartsTabProps) {
       {/* Data Points Info */}
       {telemetry && telemetry.total_points > 0 && (
         <p className="text-xs text-garage-text-muted text-right">
-          {telemetry.total_points.toLocaleString()} data points
+          {t('livelink.charts.dataPoints', { count: telemetry.total_points.toLocaleString() })}
         </p>
       )}
     </div>

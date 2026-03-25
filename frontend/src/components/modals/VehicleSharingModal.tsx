@@ -6,6 +6,7 @@
  * - Only editable by owner/admin
  */
 
+import { useTranslation } from 'react-i18next'
 import { useState, useEffect } from 'react'
 import { X, UserPlus, Trash2, Loader2, Share2, User } from 'lucide-react'
 import { toast } from 'sonner'
@@ -28,6 +29,7 @@ export default function VehicleSharingModal({
   vehicleNickname,
   onSharesUpdated,
 }: VehicleSharingModalProps) {
+  const { t } = useTranslation('forms')
   const [loading, setLoading] = useState(true)
   const [shares, setShares] = useState<VehicleShareResponse[]>([])
   const [shareableUsers, setShareableUsers] = useState<ShareableUser[]>([])
@@ -57,14 +59,14 @@ export default function VehicleSharingModal({
         setShareableUsers(usersData)
       } catch (err) {
         console.error('Failed to load sharing data:', err)
-        toast.error('Failed to load sharing data')
+        toast.error(t('modal.failedToLoadSharingData'))
       } finally {
         setLoading(false)
       }
     }
 
     loadData()
-  }, [isOpen, vin])
+  }, [isOpen, vin, t])
 
   // Reset form when modal closes
   useEffect(() => {
@@ -94,12 +96,12 @@ export default function VehicleSharingModal({
       setShowAddForm(false)
       setSelectedUserId('')
       setSelectedPermission('read')
-      toast.success('Vehicle shared successfully')
+      toast.success(t('modal.vehicleShared'))
       onSharesUpdated?.()
     } catch (err) {
       const error = err as { response?: { data?: { detail?: string } } }
       const detail = error.response?.data?.detail
-      toast.error(typeof detail === 'string' ? detail : 'Failed to share vehicle')
+      toast.error(typeof detail === 'string' ? detail : t('modal.failedToShareVehicle'))
     } finally {
       setAddingShare(false)
     }
@@ -111,12 +113,12 @@ export default function VehicleSharingModal({
     try {
       const updated = await familyService.updateShare(shareId, { permission: newPermission })
       setShares(shares.map((s) => (s.id === shareId ? updated : s)))
-      toast.success('Permission updated')
+      toast.success(t('modal.permissionUpdated'))
       onSharesUpdated?.()
     } catch (err) {
       const error = err as { response?: { data?: { detail?: string } } }
       const detail = error.response?.data?.detail
-      toast.error(typeof detail === 'string' ? detail : 'Failed to update permission')
+      toast.error(typeof detail === 'string' ? detail : t('modal.failedToUpdatePermission'))
     } finally {
       setUpdatingShareId(null)
     }
@@ -128,12 +130,12 @@ export default function VehicleSharingModal({
     try {
       await familyService.revokeShare(shareId)
       setShares(shares.filter((s) => s.id !== shareId))
-      toast.success('Share revoked')
+      toast.success(t('modal.shareRevoked'))
       onSharesUpdated?.()
     } catch (err) {
       const error = err as { response?: { data?: { detail?: string } } }
       const detail = error.response?.data?.detail
-      toast.error(typeof detail === 'string' ? detail : 'Failed to revoke share')
+      toast.error(typeof detail === 'string' ? detail : t('modal.failedToRevokeShare'))
     } finally {
       setRevokingShareId(null)
     }
@@ -149,7 +151,7 @@ export default function VehicleSharingModal({
           <div className="flex items-center gap-3">
             <Share2 className="w-6 h-6 text-primary" />
             <div>
-              <h2 className="text-xl font-bold text-garage-text">Share Vehicle</h2>
+              <h2 className="text-xl font-bold text-garage-text">{t('modal.shareVehicle')}</h2>
               <p className="text-sm text-garage-text-muted">{vehicleNickname}</p>
             </div>
           </div>
@@ -168,11 +170,11 @@ export default function VehicleSharingModal({
             <div className="space-y-6">
               {/* Current Shares */}
               <div>
-                <h3 className="text-sm font-medium text-garage-text mb-3">Shared With</h3>
+                <h3 className="text-sm font-medium text-garage-text mb-3">{t('modal.sharedWith')}</h3>
                 {shares.length === 0 ? (
                   <div className="text-center py-6 text-garage-text-muted border border-dashed border-garage-border rounded-lg">
                     <Share2 className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                    <p>Not shared with anyone yet</p>
+                    <p>{t('modal.notSharedYet')}</p>
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -207,8 +209,8 @@ export default function VehicleSharingModal({
                           disabled={updatingShareId === share.id}
                           className="px-2 py-1 bg-garage-surface border border-garage-border rounded text-sm text-garage-text focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
                         >
-                          <option value="read">Read</option>
-                          <option value="write">Write</option>
+                          <option value="read">{t('modal.read')}</option>
+                          <option value="write">{t('modal.write')}</option>
                         </select>
                         <button
                           onClick={() => handleRevokeShare(share.id)}
@@ -231,10 +233,10 @@ export default function VehicleSharingModal({
               {/* Add Share Form */}
               {showAddForm ? (
                 <div className="border border-primary/30 rounded-lg p-4 bg-primary/5">
-                  <h3 className="text-sm font-medium text-garage-text mb-3">Add Share</h3>
+                  <h3 className="text-sm font-medium text-garage-text mb-3">{t('modal.addShare')}</h3>
                   <div className="space-y-3">
                     <div>
-                      <label className="block text-sm text-garage-text-muted mb-1">User</label>
+                      <label className="block text-sm text-garage-text-muted mb-1">{t('common:user')}</label>
                       <select
                         value={selectedUserId}
                         onChange={(e) =>
@@ -242,7 +244,7 @@ export default function VehicleSharingModal({
                         }
                         className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary"
                       >
-                        <option value="">Select a user...</option>
+                        <option value="">{t('modal.selectUser')}</option>
                         {availableUsers.map((user) => (
                           <option key={user.id} value={user.id}>
                             {user.display_name}
@@ -252,14 +254,14 @@ export default function VehicleSharingModal({
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm text-garage-text-muted mb-1">Permission</label>
+                      <label className="block text-sm text-garage-text-muted mb-1">{t('modal.permission')}</label>
                       <select
                         value={selectedPermission}
                         onChange={(e) => setSelectedPermission(e.target.value as PermissionType)}
                         className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary"
                       >
-                        <option value="read">Read - Can view vehicle and records</option>
-                        <option value="write">Write - Can add records and photos</option>
+                        <option value="read">{t('modal.readDescription')}</option>
+                        <option value="write">{t('modal.writeDescription')}</option>
                       </select>
                     </div>
                     <div className="flex gap-2">
@@ -277,10 +279,10 @@ export default function VehicleSharingModal({
                         {addingShare ? (
                           <span className="flex items-center justify-center gap-2">
                             <Loader2 className="w-4 h-4 animate-spin" />
-                            Sharing...
+                            {t('modal.sharing')}
                           </span>
                         ) : (
-                          'Share'
+                          t('modal.share')
                         )}
                       </button>
                     </div>
@@ -292,30 +294,30 @@ export default function VehicleSharingModal({
                   className="w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-garage-border rounded-lg text-garage-text-muted hover:text-garage-text hover:border-primary transition-colors"
                 >
                   <UserPlus className="w-5 h-5" />
-                  Share with another user
+                  {t('modal.shareWithAnother')}
                 </button>
               ) : (
                 <div className="text-center py-4 text-garage-text-muted text-sm">
-                  All available users already have access to this vehicle.
+                  {t('modal.allUsersHaveAccess')}
                 </div>
               )}
 
               {/* Permission Legend */}
               <div className="pt-4 border-t border-garage-border">
                 <h4 className="text-xs font-medium text-garage-text-muted uppercase mb-2">
-                  Permission Levels
+                  {t('modal.permissionLevels')}
                 </h4>
                 <div className="space-y-1 text-sm">
                   <div className="flex items-start gap-2">
-                    <span className="font-medium text-garage-text">Read:</span>
+                    <span className="font-medium text-garage-text">{t('modal.read')}:</span>
                     <span className="text-garage-text-muted">
-                      View vehicle details, service history, and reminders
+                      {t('modal.readPermDescription')}
                     </span>
                   </div>
                   <div className="flex items-start gap-2">
-                    <span className="font-medium text-garage-text">Write:</span>
+                    <span className="font-medium text-garage-text">{t('modal.write')}:</span>
                     <span className="text-garage-text-muted">
-                      All read permissions, plus add service records, fuel logs, and photos
+                      {t('modal.writePermDescription')}
                     </span>
                   </div>
                 </div>

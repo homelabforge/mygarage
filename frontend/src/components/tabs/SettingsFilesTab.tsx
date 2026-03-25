@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { HardDrive, FileText } from 'lucide-react'
 import { useSettings } from '@/contexts/SettingsContext'
 import api from '@/services/api'
@@ -13,6 +14,7 @@ type SettingsResponse = {
 }
 
 export default function SettingsFilesTab() {
+  const { t } = useTranslation('settings')
   const [loading, setLoading] = useState(true)
   const { triggerSave, registerSaveHandler, unregisterSaveHandler } = useSettings()
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
@@ -51,11 +53,11 @@ export default function SettingsFilesTab() {
       setLoadedFormData(newFormData)
     } catch {
       // Removed console.error
-      setMessage({ type: 'error', text: 'Failed to load settings' })
+      setMessage({ type: 'error', text: t('files.loadError') })
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [t])
 
   useEffect(() => {
     loadSettings()
@@ -119,7 +121,7 @@ export default function SettingsFilesTab() {
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-[200px]">
-        <div className="text-garage-text-muted">Loading settings...</div>
+        <div className="text-garage-text-muted">{t('files.loading')}</div>
       </div>
     )
   }
@@ -146,9 +148,9 @@ export default function SettingsFilesTab() {
           <div className="flex items-start gap-3 mb-6">
             <HardDrive className="w-6 h-6 text-primary mt-1" />
             <div className="flex-1">
-              <h2 className="text-xl font-semibold text-garage-text mb-2">File Management Settings</h2>
+              <h2 className="text-xl font-semibold text-garage-text mb-2">{t('files.title')}</h2>
               <p className="text-sm text-garage-text-muted">
-                Configure file upload limits and allowed file types
+                {t('files.description')}
               </p>
             </div>
           </div>
@@ -157,7 +159,7 @@ export default function SettingsFilesTab() {
           {/* Max Upload Size */}
           <div>
             <label htmlFor="max_upload_size" className="block text-sm font-medium text-garage-text mb-2">
-              Maximum Upload Size (MB)
+              {t('files.maxUploadSize')}
             </label>
             <input
               type="number"
@@ -169,11 +171,11 @@ export default function SettingsFilesTab() {
               className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary"
             />
             <p className="mt-1 text-sm text-garage-text-muted">
-              Maximum file size per upload (1-100 MB)
+              {t('files.maxUploadSizeDesc')}
             </p>
           </div>
 
-          {/* Allowed Photo Types */}
+          {/* {t('files.allowedPhotoTypes')} */}
           <div>
             <label className="block text-sm font-medium text-garage-text mb-2">
               Allowed Photo Types
@@ -195,11 +197,11 @@ export default function SettingsFilesTab() {
               ))}
             </div>
             <p className="mt-1 text-sm text-garage-text-muted">
-              File types allowed for vehicle photos
+              {t('files.allowedPhotoTypesDesc')}
             </p>
           </div>
 
-          {/* Allowed Attachment Types */}
+          {/* {t('files.allowedAttachmentTypes')} */}
           <div>
             <label className="block text-sm font-medium text-garage-text mb-2">
               Allowed Attachment Types
@@ -221,19 +223,19 @@ export default function SettingsFilesTab() {
               ))}
             </div>
             <p className="mt-1 text-sm text-garage-text-muted">
-              File types allowed for documents and attachments
+              {t('files.allowedAttachmentTypesDesc')}
             </p>
           </div>
 
           {/* Storage Info */}
           <div className="pt-6 border-t border-garage-border">
-            <h3 className="text-lg font-medium text-garage-text mb-4">Storage Information</h3>
+            <h3 className="text-lg font-medium text-garage-text mb-4">{t('files.storageInfo')}</h3>
             <div className="bg-garage-bg rounded-lg p-4 space-y-3">
               <div className="flex items-center gap-3">
                 <HardDrive className="w-5 h-5 text-primary" />
                 <div className="flex-1">
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-garage-text-muted">Data Directory:</span>
+                    <span className="text-sm text-garage-text-muted">{t('files.dataDirectory')}:</span>
                     <span className="text-sm text-garage-text font-mono">/app/data</span>
                   </div>
                 </div>
@@ -242,7 +244,7 @@ export default function SettingsFilesTab() {
                 <HardDrive className="w-5 h-5 text-primary" />
                 <div className="flex-1">
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-garage-text-muted">Photos Directory:</span>
+                    <span className="text-sm text-garage-text-muted">{t('files.photosDirectory')}:</span>
                     <span className="text-sm text-garage-text font-mono">/app/data/photos</span>
                   </div>
                 </div>
@@ -251,7 +253,7 @@ export default function SettingsFilesTab() {
                 <HardDrive className="w-5 h-5 text-primary" />
                 <div className="flex-1">
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-garage-text-muted">Documents Directory:</span>
+                    <span className="text-sm text-garage-text-muted">{t('files.documentsDirectory')}:</span>
                     <span className="text-sm text-garage-text font-mono">/app/data/documents</span>
                   </div>
                 </div>
@@ -266,9 +268,9 @@ export default function SettingsFilesTab() {
           <div className="flex items-start gap-3 mb-6">
             <FileText className="w-6 h-6 text-primary mt-1" />
             <div className="flex-1">
-              <h2 className="text-xl font-semibold text-garage-text mb-2">Window Sticker</h2>
+              <h2 className="text-xl font-semibold text-garage-text mb-2">{t('files.windowSticker')}</h2>
               <p className="text-sm text-garage-text-muted">
-                Upload window stickers (Monroney labels) and automatically extract vehicle specifications and pricing data
+                {t('files.windowStickerDesc')}
               </p>
             </div>
           </div>
@@ -284,11 +286,11 @@ export default function SettingsFilesTab() {
                   className="w-4 h-4 text-primary bg-garage-bg border-garage-border rounded focus:ring-primary focus:ring-2"
                 />
                 <span className="ml-2 text-sm text-garage-text font-medium">
-                  Enable window sticker upload
+                  {t('files.enableWindowSticker')}
                 </span>
               </label>
               <p className="mt-1 ml-6 text-sm text-garage-text-muted">
-                Allow uploading window sticker PDFs and images for your vehicles
+                {t('files.enableWindowStickerDesc')}
               </p>
             </div>
 
@@ -303,16 +305,16 @@ export default function SettingsFilesTab() {
                   className="w-4 h-4 text-primary bg-garage-bg border-garage-border rounded focus:ring-primary focus:ring-2 disabled:opacity-50"
                 />
                 <span className="ml-2 text-sm text-garage-text font-medium">
-                  Enable automatic data extraction (OCR)
+                  {t('files.enableOCR')}
                 </span>
               </label>
               <p className="mt-1 ml-6 text-sm text-garage-text-muted">
-                Automatically extract MSRP, fuel economy, and equipment data from uploaded stickers
+                {t('files.enableOCRDesc')}
               </p>
             </div>
 
             <div className="bg-garage-bg rounded-lg p-4 border border-garage-border">
-              <h3 className="text-sm font-medium text-garage-text mb-2">About Window Stickers</h3>
+              <h3 className="text-sm font-medium text-garage-text mb-2">{t('files.aboutWindowStickers')}</h3>
               <p className="text-sm text-garage-text-muted">
                 Window stickers (Monroney labels) are federally mandated labels on new vehicles showing MSRP, fuel economy, standard equipment, and optional features.
                 Upload your vehicle's window sticker to automatically populate pricing and specification data.

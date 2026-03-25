@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { formatDateForDisplay } from '../utils/dateUtils'
 import { formatCurrency } from '../utils/formatUtils'
 import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
@@ -41,6 +42,7 @@ export default function ServiceVisitList({
   onEditClick,
   refreshTrigger: _refreshTrigger,
 }: ServiceVisitListProps) {
+  const { t } = useTranslation('vehicles')
   const [searchQuery, setSearchQuery] = useState('')
   const [expandedVisits, setExpandedVisits] = useState<Set<number>>(new Set())
   const [visitAttachments, setVisitAttachments] = useState<Record<number, Attachment[]>>({})
@@ -86,17 +88,17 @@ export default function ServiceVisitList({
   }, [visits, searchQuery])
 
   const handleDelete = (visitId: number) => {
-    if (!confirm('Are you sure you want to delete this service visit and all its line items?')) {
+    if (!confirm(t('serviceList.confirmDelete'))) {
       return
     }
 
     deleteMutation.mutate(visitId, {
       onSuccess: () => {
-        toast.success('Service visit deleted')
+        toast.success(t('serviceList.deleted'))
       },
       onError: (err) => {
-        toast.error('Delete failed', {
-          description: err instanceof Error ? err.message : 'Failed to delete visit',
+        toast.error(t('serviceList.deleteFailed'), {
+          description: err instanceof Error ? err.message : t('serviceList.deleteFailedDesc'),
         })
       },
     })
@@ -199,7 +201,7 @@ export default function ServiceVisitList({
             <span className="text-sm text-garage-text font-medium">{item.description}</span>
             {item.is_inspection && (
               <span className="px-1.5 py-0.5 text-xs bg-primary/20 text-primary rounded">
-                Inspection
+                {t('serviceList.inspection')}
               </span>
             )}
             {item.is_inspection && item.inspection_result && (
@@ -229,7 +231,7 @@ export default function ServiceVisitList({
   if (isLoading) {
     return (
       <div className="flex justify-center items-center min-h-[200px]">
-        <div className="text-garage-text-muted">Loading service history...</div>
+        <div className="text-garage-text-muted">{t('serviceList.loading')}</div>
       </div>
     )
   }
@@ -248,8 +250,8 @@ export default function ServiceVisitList({
       <div className="flex flex-wrap justify-between items-center gap-4">
         <div className="flex items-center gap-2">
           <Wrench className="w-5 h-5 text-garage-text-muted" />
-          <h3 className="text-lg font-semibold text-garage-text">Service History</h3>
-          <span className="text-sm text-garage-text-muted">({visits.length} visits)</span>
+          <h3 className="text-lg font-semibold text-garage-text">{t('serviceList.title')}</h3>
+          <span className="text-sm text-garage-text-muted">({t('serviceList.visitCount', { count: visits.length })})</span>
         </div>
         <div className="flex items-center gap-2">
           {/* Search */}
@@ -258,7 +260,7 @@ export default function ServiceVisitList({
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-garage-text-muted" />
               <input
                 type="text"
-                placeholder="Search services..."
+                placeholder={t('serviceList.searchPlaceholder')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10 pr-4 py-2 border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text w-full sm:w-56"
@@ -270,7 +272,7 @@ export default function ServiceVisitList({
             className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors"
           >
             <Plus className="w-4 h-4" />
-            <span>Log Service Visit</span>
+            <span>{t('serviceList.logVisit')}</span>
           </button>
         </div>
       </div>
@@ -278,8 +280,7 @@ export default function ServiceVisitList({
       {/* Search results count */}
       {searchQuery && (
         <div className="text-sm text-garage-text-muted">
-          Showing {filteredVisits.length} of {visits.length} visit
-          {visits.length !== 1 ? 's' : ''}
+          {t('serviceList.showingResults', { shown: filteredVisits.length, total: visits.length })}
         </div>
       )}
 
@@ -287,22 +288,22 @@ export default function ServiceVisitList({
       {visits.length === 0 ? (
         <div className="bg-garage-surface border border-garage-border rounded-lg p-8 text-center">
           <Wrench className="w-12 h-12 text-garage-text-muted opacity-50 mx-auto mb-3" />
-          <p className="text-garage-text mb-2">No service visits yet</p>
+          <p className="text-garage-text mb-2">{t('serviceList.noRecords')}</p>
           <p className="text-sm text-garage-text-muted mb-4">
-            Start tracking your vehicle's maintenance and repairs
+            {t('serviceList.noRecordsDesc')}
           </p>
           <button
             onClick={onAddClick}
             className="inline-flex items-center gap-2 btn btn-primary rounded-lg transition-colors"
           >
             <Plus className="w-4 h-4" />
-            <span>Log First Service Visit</span>
+            <span>{t('serviceList.logFirstVisit')}</span>
           </button>
         </div>
       ) : filteredVisits.length === 0 ? (
         <div className="bg-garage-surface border border-garage-border rounded-lg p-8 text-center">
           <Search className="w-8 h-8 text-garage-text-muted opacity-50 mx-auto mb-2" />
-          <p className="text-garage-text-muted">No matching visits found</p>
+          <p className="text-garage-text-muted">{t('serviceList.noMatchingVisits')}</p>
         </div>
       ) : (
         /* Visit list */
@@ -361,7 +362,7 @@ export default function ServiceVisitList({
                     <div className="text-sm text-garage-text truncate">
                       {lineItemCount === 1
                         ? visit.line_items?.[0]?.description
-                        : `${lineItemCount} service${lineItemCount !== 1 ? 's' : ''}`}
+                        : t('serviceList.serviceCount', { count: lineItemCount })}
                     </div>
                     {visit.vendor && (
                       <div className="flex items-center gap-1 text-xs text-garage-text-muted mt-0.5">
@@ -398,7 +399,7 @@ export default function ServiceVisitList({
                     <button
                       onClick={() => onEditClick(visit)}
                       className="p-2 text-garage-text-muted hover:text-primary hover:bg-primary/10 rounded-full transition-colors"
-                      title="Edit"
+                      title={t('common:edit')}
                     >
                       <Edit className="w-4 h-4" />
                     </button>
@@ -406,7 +407,7 @@ export default function ServiceVisitList({
                       onClick={() => handleDelete(visit.id)}
                       disabled={deleteMutation.isPending && deleteMutation.variables === visit.id}
                       className="p-2 text-garage-text-muted hover:text-danger hover:bg-danger/10 rounded-full transition-colors disabled:opacity-50"
-                      title="Delete"
+                      title={t('common:delete')}
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -426,7 +427,7 @@ export default function ServiceVisitList({
                     {/* Insurance claim */}
                     {visit.insurance_claim_number && (
                       <div className="text-sm text-garage-text-muted">
-                        <span className="font-medium">Insurance Claim:</span>{' '}
+                        <span className="font-medium">{t('serviceList.insuranceClaim')}:</span>{' '}
                         {visit.insurance_claim_number}
                       </div>
                     )}
@@ -435,7 +436,7 @@ export default function ServiceVisitList({
                     {visit.line_items && visit.line_items.length > 0 && (
                       <div className="space-y-2">
                         <h4 className="text-xs font-medium text-garage-text-muted uppercase tracking-wide">
-                          Services Performed
+                          {t('serviceList.servicesPerformed')}
                         </h4>
                         <div className="space-y-1">
                           {visit.line_items.map((item, index) => renderLineItem(item, index))}
@@ -447,7 +448,7 @@ export default function ServiceVisitList({
                     {visitAttachments[visit.id] && visitAttachments[visit.id].length > 0 && (
                       <div className="space-y-2">
                         <h4 className="text-xs font-medium text-garage-text-muted uppercase tracking-wide">
-                          Attachments
+                          {t('serviceList.attachments')}
                         </h4>
                         <div className="flex flex-wrap gap-2">
                           {visitAttachments[visit.id].map((attachment) => (
@@ -483,33 +484,33 @@ export default function ServiceVisitList({
                     {(visit.tax_amount || visit.shop_supplies || visit.misc_fees) && (
                       <div className="space-y-2">
                         <h4 className="text-xs font-medium text-garage-text-muted uppercase tracking-wide">
-                          Cost Breakdown
+                          {t('serviceList.costBreakdown')}
                         </h4>
                         <div className="bg-garage-bg/50 rounded-md p-3 space-y-1 text-sm max-w-xs">
                           <div className="flex justify-between text-garage-text-muted">
-                            <span>Subtotal:</span>
+                            <span>{t('serviceList.subtotal')}:</span>
                             <span>{formatCurrency(visit.subtotal, { currencyCode, locale })}</span>
                           </div>
                           {visit.tax_amount && (
                             <div className="flex justify-between text-garage-text-muted">
-                              <span>Tax:</span>
+                              <span>{t('serviceList.tax')}:</span>
                               <span>{formatCurrency(visit.tax_amount, { currencyCode, locale })}</span>
                             </div>
                           )}
                           {visit.shop_supplies && (
                             <div className="flex justify-between text-garage-text-muted">
-                              <span>Shop Supplies:</span>
+                              <span>{t('serviceList.shopSupplies')}:</span>
                               <span>{formatCurrency(visit.shop_supplies, { currencyCode, locale })}</span>
                             </div>
                           )}
                           {visit.misc_fees && (
                             <div className="flex justify-between text-garage-text-muted">
-                              <span>Misc Fees:</span>
+                              <span>{t('serviceList.miscFees')}:</span>
                               <span>{formatCurrency(visit.misc_fees, { currencyCode, locale })}</span>
                             </div>
                           )}
                           <div className="flex justify-between font-medium text-garage-text border-t border-garage-border pt-1 mt-1">
-                            <span>Total:</span>
+                            <span>{t('serviceList.total')}:</span>
                             <span>{formatCurrency(visit.calculated_total_cost, { currencyCode, locale })}</span>
                           </div>
                         </div>

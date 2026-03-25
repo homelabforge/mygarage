@@ -4,6 +4,7 @@
  */
 
 import { useState, useCallback, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useParams, Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import {
@@ -68,6 +69,7 @@ interface Parser {
 }
 
 export default function WindowStickerTest() {
+  const { t } = useTranslation('vehicles')
   const { vin } = useParams<{ vin: string }>()
   const { currencyCode, locale } = useCurrencyPreference()
   const [file, setFile] = useState<File | null>(null)
@@ -151,7 +153,7 @@ export default function WindowStickerTest() {
           </Link>
           <div>
             <h1 className="text-2xl font-bold text-garage-text">
-              Window Sticker OCR Test
+              {t('windowSticker.ocrTestTitle')}
             </h1>
             <p className="text-garage-text-muted text-sm">
               VIN: {vin}
@@ -164,7 +166,7 @@ export default function WindowStickerTest() {
           <div className="bg-garage-card rounded-xl p-6 border border-garage-border">
             <h2 className="text-lg font-semibold text-garage-text mb-4 flex items-center gap-2">
               <Upload className="w-5 h-5" />
-              Upload Window Sticker
+              {t('windowSticker.upload')}
             </h2>
 
             {/* Drop Zone */}
@@ -187,17 +189,17 @@ export default function WindowStickerTest() {
                     onClick={() => setFile(null)}
                     className="text-red-500 text-sm hover:underline"
                   >
-                    Remove
+                    {t('common:remove')}
                   </button>
                 </div>
               ) : (
                 <div className="flex flex-col items-center gap-2">
                   <Upload className="w-12 h-12 text-garage-text-muted" />
                   <p className="text-garage-text">
-                    Drop file here or click to upload
+                    {t('windowSticker.dropOrClick')}
                   </p>
                   <p className="text-garage-text-muted text-sm">
-                    PDF, JPG, or PNG (max 10MB)
+                    {t('windowSticker.fileTypes')}
                   </p>
                 </div>
               )}
@@ -240,7 +242,7 @@ export default function WindowStickerTest() {
                 }
               `}
             >
-              {loading ? 'Processing...' : 'Test Extraction'}
+              {loading ? t('windowSticker.processing') : t('windowSticker.testExtraction')}
             </button>
           </div>
 
@@ -248,12 +250,12 @@ export default function WindowStickerTest() {
           <div className="bg-garage-card rounded-xl p-6 border border-garage-border">
             <h2 className="text-lg font-semibold text-garage-text mb-4 flex items-center gap-2">
               <FileText className="w-5 h-5" />
-              Extraction Results
+              {t('windowSticker.extractionResults')}
             </h2>
 
             {!result ? (
               <div className="text-center py-12 text-garage-text-muted">
-                Upload a window sticker and click "Test Extraction" to see results
+                {t('windowSticker.uploadPrompt')}
               </div>
             ) : (
               <div className="space-y-4">
@@ -268,7 +270,7 @@ export default function WindowStickerTest() {
                     <XCircle className="w-5 h-5" />
                   )}
                   <span className="font-medium">
-                    {result.success ? 'Extraction Successful' : 'Extraction Failed'}
+                    {result.success ? t('windowSticker.extractionSuccess') : t('windowSticker.extractionFailed')}
                   </span>
                 </div>
 
@@ -520,7 +522,7 @@ export default function WindowStickerTest() {
                     className="flex items-center gap-2 text-sm text-garage-accent hover:underline"
                   >
                     <Download className="w-4 h-4" />
-                    Export as JSON
+                    {t('windowSticker.exportJSON')}
                   </button>
                 )}
               </div>

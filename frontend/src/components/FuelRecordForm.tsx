@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Save } from 'lucide-react'
@@ -21,6 +22,7 @@ interface FuelRecordFormProps {
 }
 
 export default function FuelRecordForm({ vin, record, onClose, onSuccess }: FuelRecordFormProps) {
+  const { t } = useTranslation('forms')
   const isEdit = !!record
   const [error, setError] = useState<string | null>(null)
   const createMutation = useCreateFuelRecord(vin)
@@ -169,7 +171,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
       onSuccess()
       onClose()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
+      setError(err instanceof Error ? err.message : t('common:error'))
     }
   }
 
@@ -187,13 +189,13 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
   const showDefLevel = isDiesel || defTankCapacity > 0
 
   // Dynamic labels
-  const priceLabel = isElectric ? 'Price per kWh' : `Price per ${UnitFormatter.getVolumeUnit(system)}`
+  const priceLabel = isElectric ? t('fuel.pricePerKwh') : `${t('fuel.pricePer')} ${UnitFormatter.getVolumeUnit(system)}`
 
   return (
-    <FormModalWrapper title={isEdit ? 'Edit Fuel Record' : 'Add Fuel Record'} onClose={onClose}>
+    <FormModalWrapper title={isEdit ? t('fuel.editTitle') : t('fuel.createTitle')} onClose={onClose}>
         <form onSubmit={handleSubmit(onSubmit, (validationErrors) => {
           const fields = Object.keys(validationErrors).join(', ')
-          setError(`Please check the following fields: ${fields}`)
+          setError(t('common:checkFields', { fields }))
         })} className="p-6 space-y-4">
           {error && (
             <div className="bg-danger/10 border border-danger rounded-lg p-3">
@@ -204,7 +206,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label htmlFor="date" className="block text-sm font-medium text-garage-text mb-1">
-                Date <span className="text-danger">*</span>
+                {t('common:date')} <span className="text-danger">*</span>
               </label>
               <input
                 type="date"
@@ -220,7 +222,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
 
             <div>
               <label htmlFor="mileage" className="block text-sm font-medium text-garage-text mb-1">
-                Mileage ({UnitFormatter.getDistanceUnit(system)})
+                {t('common:mileage')} ({UnitFormatter.getDistanceUnit(system)})
               </label>
               <input
                 type="number"
@@ -242,7 +244,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
             {showGallons && (
               <div>
                 <label htmlFor="gallons" className="block text-sm font-medium text-garage-text mb-1">
-                  Volume ({UnitFormatter.getVolumeUnit(system)})
+                  {t('fuel.volume')} ({UnitFormatter.getVolumeUnit(system)})
                 </label>
                 <input
                   type="number"
@@ -264,7 +266,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
             {showKwh && (
               <div>
                 <label htmlFor="kwh" className="block text-sm font-medium text-garage-text mb-1">
-                  Energy (kWh)
+                  {t('fuel.energy')} (kWh)
                 </label>
                 <input
                   type="number"
@@ -286,7 +288,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
             {showPropane && (
               <div>
                 <label htmlFor="propane_gallons" className="block text-sm font-medium text-garage-text mb-1">
-                  Propane ({UnitFormatter.getVolumeUnit(system)})
+                  {t('fuel.propane')} ({UnitFormatter.getVolumeUnit(system)})
                 </label>
                 <input
                   type="number"
@@ -330,7 +332,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
 
           <div>
             <label htmlFor="cost" className="block text-sm font-medium text-garage-text mb-1">
-              Total Cost
+              {t('common:totalCost')}
             </label>
             <div className="relative">
               <span className="absolute left-3 top-2 text-garage-text-muted">$</span>
@@ -349,13 +351,13 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
             </div>
             <FormError error={errors.cost} />
             <p className="text-xs text-garage-text-muted mt-1">
-              Auto-calculated when gallons and price are entered
+              {t('fuel.autoCalculatedHint')}
             </p>
           </div>
 
           <div>
             <label htmlFor="fuel_type" className="block text-sm font-medium text-garage-text mb-1">
-              Fuel Type
+              {t('fuel.fuelType')}
             </label>
             <input
               type="text"
@@ -369,7 +371,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
             />
             <FormError error={errors.fuel_type} />
             <p className="text-xs text-garage-text-muted mt-1">
-              Auto-populated from vehicle information
+              {t('fuel.autoPopulatedHint')}
             </p>
           </div>
 
@@ -384,7 +386,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
                   disabled={isSubmitting}
                 />
                 <label htmlFor="is_full_tank" className="ml-2 block text-sm text-garage-text">
-                  Full Tank Fill-up
+                  {t('fuel.fullTankFillup')}
                 </label>
               </div>
             )}
@@ -398,7 +400,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
                 disabled={isSubmitting}
               />
               <label htmlFor="missed_fillup" className="ml-2 block text-sm text-garage-text">
-                {isElectric ? 'Missed Charging Session' : 'Missed Fill-up'}
+                {isElectric ? t('fuel.missedChargingSession') : t('fuel.missedFillup')}
               </label>
             </div>
           </div>
@@ -413,7 +415,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
                 disabled={isSubmitting}
               />
               <label htmlFor="is_hauling" className="ml-2 block text-sm text-garage-text">
-                Towing/Hauling Load
+                {t('fuel.towingHaulingLoad')}
               </label>
             </div>
           )}
@@ -422,7 +424,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
           {showDefLevel && (
             <div className="border border-garage-border rounded-lg p-4 space-y-2">
               <label className="block text-sm font-medium text-garage-text">
-                DEF Tank Level
+                {t('fuel.defTankLevel')}
               </label>
               <div className="flex gap-2 mb-2">
                 {FILL_LEVEL_PRESETS.map(preset => (
@@ -444,7 +446,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
                   onClick={() => setValue('def_fill_level', undefined)}
                   className="px-3 py-1.5 text-sm rounded-md border border-garage-border bg-garage-bg text-garage-text-muted hover:border-danger"
                 >
-                  Clear
+                  {t('common:clear')}
                 </button>
               </div>
               <div className="flex items-center gap-2">
@@ -475,7 +477,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
               </div>
               <FormError error={errors.def_fill_level} />
               <p className="text-xs text-garage-text-muted">
-                Auto-creates a DEF observation record for analytics
+                {t('fuel.defAutoCreatesHint')}
               </p>
             </div>
           )}
@@ -483,8 +485,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
           {!isElectric && (
             <div className="bg-primary/10 border border-primary rounded-lg p-3">
               <p className="text-sm text-primary">
-                <strong>Tip:</strong> MPG is only calculated for full tank fill-ups.
-                Check "Full Tank Fill-up" to enable MPG calculation.
+                <strong>{t('common:tip')}:</strong> {t('fuel.mpgTip')}
               </p>
             </div>
           )}
@@ -492,20 +493,20 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
           {isElectric && (
             <div className="bg-primary/10 border border-primary rounded-lg p-3">
               <p className="text-sm text-primary">
-                <strong>Tip:</strong> Efficiency metrics (kWh/100mi) are calculated from charging records.
+                <strong>{t('common:tip')}:</strong> {t('fuel.electricTip')}
               </p>
             </div>
           )}
 
           <div>
             <label htmlFor="notes" className="block text-sm font-medium text-garage-text mb-1">
-              Notes
+              {t('common:notes')}
             </label>
             <textarea
               id="notes"
               rows={3}
               {...register('notes')}
-              placeholder="Additional notes..."
+              placeholder={t('common:additionalNotes')}
               className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
                 errors.notes ? 'border-red-500' : 'border-garage-border'
               }`}
@@ -521,7 +522,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
               className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Save className="w-4 h-4" />
-              <span>{isSubmitting ? 'Saving...' : isEdit ? 'Update' : 'Create'}</span>
+              <span>{isSubmitting ? t('common:saving') : isEdit ? t('common:update') : t('common:create')}</span>
             </button>
 
             <button
@@ -530,7 +531,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
               className="btn btn-primary rounded-lg transition-colors"
               disabled={isSubmitting}
             >
-              Cancel
+              {t('common:cancel')}
             </button>
           </div>
         </form>

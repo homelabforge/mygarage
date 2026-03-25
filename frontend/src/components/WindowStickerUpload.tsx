@@ -1,4 +1,5 @@
 import { useState, useRef, type SyntheticEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Upload, X, FileText, DollarSign, Fuel, Edit2, Save, Palette, Shield, Leaf, Cog, Car } from 'lucide-react'
 import api from '../services/api'
 
@@ -45,6 +46,7 @@ interface ExtractedData {
 }
 
 export default function WindowStickerUpload({ vin, onSuccess, onClose }: WindowStickerUploadProps) {
+  const { t } = useTranslation('vehicles')
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -159,7 +161,7 @@ export default function WindowStickerUpload({ vin, onSuccess, onClose }: WindowS
     <div className="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50 overflow-y-auto">
       <div className="bg-garage-surface rounded-lg shadow-2xl max-w-3xl w-full border border-garage-border my-8">
         <div className="bg-garage-surface border-b border-garage-border px-6 py-4 flex justify-between items-center rounded-t-lg">
-          <h2 className="text-xl font-semibold text-garage-text">Upload Window Sticker</h2>
+          <h2 className="text-xl font-semibold text-garage-text">{t('windowSticker.uploadTitle')}</h2>
           <button
             onClick={onClose}
             className="text-garage-text-muted hover:text-garage-text"
@@ -245,7 +247,7 @@ export default function WindowStickerUpload({ vin, onSuccess, onClose }: WindowS
                   className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Upload className="w-4 h-4" />
-                  {uploading ? 'Uploading...' : 'Upload & Extract Data'}
+                  {uploading ? t('windowSticker.uploading') : t('windowSticker.uploadAndExtract')}
                 </button>
               </div>
             </>
@@ -256,7 +258,7 @@ export default function WindowStickerUpload({ vin, onSuccess, onClose }: WindowS
               <div className="bg-garage-bg rounded-lg p-4 border border-garage-border max-h-[60vh] overflow-y-auto">
                 <div className="flex items-center justify-between mb-4 sticky top-0 bg-garage-bg pb-2">
                   <div>
-                    <h3 className="text-lg font-semibold text-garage-text">Extracted Data</h3>
+                    <h3 className="text-lg font-semibold text-garage-text">{t('windowSticker.extractedData')}</h3>
                     {extractedData.window_sticker_parser_used && (
                       <p className="text-xs text-garage-text-muted">
                         Parser: {extractedData.window_sticker_parser_used}
@@ -274,7 +276,7 @@ export default function WindowStickerUpload({ vin, onSuccess, onClose }: WindowS
                     className="flex items-center gap-2 px-3 py-1 text-sm bg-garage-surface border border-garage-border text-garage-text rounded hover:bg-garage-border/50 transition-colors"
                   >
                     <Edit2 className="w-4 h-4" />
-                    {editMode ? 'View Mode' : 'Edit Mode'}
+                    {editMode ? t('windowSticker.viewMode') : t('windowSticker.editMode')}
                   </button>
                 </div>
 
@@ -283,7 +285,7 @@ export default function WindowStickerUpload({ vin, onSuccess, onClose }: WindowS
                   <div className="space-y-3">
                     <div className="flex items-center gap-2 text-garage-text font-medium">
                       <DollarSign className="w-5 h-5 text-primary" />
-                      <span>MSRP Pricing</span>
+                      <span>{t('windowSticker.msrpPricing')}</span>
                     </div>
 
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3 ml-7">

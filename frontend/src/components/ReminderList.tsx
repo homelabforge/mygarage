@@ -3,6 +3,7 @@
  */
 
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Bell, Plus, Check, X, Edit, Trash2, Clock, Gauge, Zap } from 'lucide-react'
 import { toast } from 'sonner'
 import { useReminders, useMarkReminderDone, useMarkReminderDismissed, useDeleteReminder } from '../hooks/useReminders'
@@ -30,6 +31,7 @@ const TYPE_ICONS: Record<string, typeof Bell> = {
 }
 
 export default function ReminderList({ vin }: ReminderListProps) {
+  const { t } = useTranslation('vehicles')
   const dateLocale = useDateLocale()
   const [activeStatus, setActiveStatus] = useState<ReminderStatus | 'all'>('pending')
   const [showForm, setShowForm] = useState(false)
@@ -49,27 +51,27 @@ export default function ReminderList({ vin }: ReminderListProps) {
   const handleMarkDone = async (id: number) => {
     try {
       await markDoneMutation.mutateAsync(id)
-      toast.success('Reminder marked as done')
+      toast.success(t('reminderList.markedDone'))
     } catch {
-      toast.error('Failed to mark reminder as done')
+      toast.error(t('reminderList.markDoneError'))
     }
   }
 
   const handleDismiss = async (id: number) => {
     try {
       await dismissMutation.mutateAsync(id)
-      toast.success('Reminder dismissed')
+      toast.success(t('reminderList.dismissed'))
     } catch {
-      toast.error('Failed to dismiss reminder')
+      toast.error(t('reminderList.dismissError'))
     }
   }
 
   const handleDelete = async (id: number) => {
     try {
       await deleteMutation.mutateAsync(id)
-      toast.success('Reminder deleted')
+      toast.success(t('reminderList.deleted'))
     } catch {
-      toast.error('Failed to delete reminder')
+      toast.error(t('reminderList.deleteError'))
     }
   }
 
@@ -89,14 +91,14 @@ export default function ReminderList({ vin }: ReminderListProps) {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Bell className="w-5 h-5 text-primary" />
-          <h3 className="text-lg font-semibold text-garage-text">Reminders</h3>
+          <h3 className="text-lg font-semibold text-garage-text">{t('reminderList.title')}</h3>
         </div>
         <button
           onClick={() => { setEditingReminder(undefined); setShowForm(true) }}
           className="flex items-center gap-1 text-sm text-primary hover:text-primary/80"
         >
           <Plus className="w-4 h-4" />
-          Add Reminder
+          {t('reminderList.addReminder')}
         </button>
       </div>
 
@@ -119,10 +121,10 @@ export default function ReminderList({ vin }: ReminderListProps) {
 
       {/* Reminder list */}
       {isLoading ? (
-        <div className="text-center py-8 text-garage-text-muted">Loading reminders...</div>
+        <div className="text-center py-8 text-garage-text-muted">{t('reminderList.loading')}</div>
       ) : reminders.length === 0 ? (
         <div className="text-center py-8 text-garage-text-muted">
-          No {activeStatus !== 'all' ? activeStatus : ''} reminders
+          {t('reminderList.noReminders', { status: activeStatus !== 'all' ? activeStatus : '' })}
         </div>
       ) : (
         <div className="space-y-3">
@@ -144,17 +146,17 @@ export default function ReminderList({ vin }: ReminderListProps) {
                         </span>
                         {reminder.due_date && (
                           <span className="text-xs text-garage-text-muted">
-                            Due: {formatDate(reminder.due_date)}
+                            {t('reminderList.due')}: {formatDate(reminder.due_date)}
                           </span>
                         )}
                         {reminder.due_mileage && (
                           <span className="text-xs text-garage-text-muted">
-                            Due: {reminder.due_mileage.toLocaleString()} mi
+                            {t('reminderList.due')}: {reminder.due_mileage.toLocaleString()} mi
                           </span>
                         )}
                         {reminder.estimated_due_date && (
                           <span className="text-xs text-primary">
-                            Est: {formatDate(reminder.estimated_due_date)}
+                            {t('reminderList.estimated')}: {formatDate(reminder.estimated_due_date)}
                           </span>
                         )}
                       </div>
@@ -162,7 +164,7 @@ export default function ReminderList({ vin }: ReminderListProps) {
                         <p className="text-xs text-garage-text-muted mt-1 truncate">{reminder.notes}</p>
                       )}
                       {reminder.line_item_id && (
-                        <p className="text-xs text-garage-text-muted mt-1">Linked to service record</p>
+                        <p className="text-xs text-garage-text-muted mt-1">{t('reminderList.linkedToService')}</p>
                       )}
                     </div>
                   </div>
@@ -174,14 +176,14 @@ export default function ReminderList({ vin }: ReminderListProps) {
                         <button
                           onClick={() => handleMarkDone(reminder.id)}
                           className="p-1.5 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded"
-                          title="Mark done"
+                          title={t('reminderList.markDone')}
                         >
                           <Check className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => handleDismiss(reminder.id)}
                           className="p-1.5 text-garage-text-muted hover:bg-garage-bg rounded"
-                          title="Dismiss"
+                          title={t('reminderList.dismiss')}
                         >
                           <X className="w-4 h-4" />
                         </button>
@@ -190,14 +192,14 @@ export default function ReminderList({ vin }: ReminderListProps) {
                     <button
                       onClick={() => handleEdit(reminder)}
                       className="p-1.5 text-garage-text-muted hover:bg-garage-bg rounded"
-                      title="Edit"
+                      title={t('common:edit')}
                     >
                       <Edit className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => handleDelete(reminder.id)}
                       className="p-1.5 text-danger hover:bg-danger/10 rounded"
-                      title="Delete"
+                      title={t('common:delete')}
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>

@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import { formatDateForDisplay } from '../utils/dateUtils'
 import { Gauge, Plus, Edit, Trash2, Calendar, Download, Upload, Radio } from 'lucide-react'
 import { toast } from 'sonner'
@@ -16,6 +17,7 @@ interface OdometerRecordListProps {
 }
 
 export default function OdometerRecordList({ vin, onAddClick, onEditClick }: OdometerRecordListProps) {
+  const { t } = useTranslation('vehicles')
   const [exporting, setExporting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { system, showBoth } = useUnitPreference()
@@ -50,7 +52,7 @@ export default function OdometerRecordList({ vin, onAddClick, onEditClick }: Odo
       window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to export data')
+      toast.error(err instanceof Error ? err.message : t('odometerList.exportError'))
     } finally {
       setExporting(false)
     }
@@ -80,7 +82,7 @@ export default function OdometerRecordList({ vin, onAddClick, onEditClick }: Odo
         }
       },
       onError: (err) => {
-        toast.error(err instanceof Error ? err.message : 'Failed to import data')
+        toast.error(err instanceof Error ? err.message : t('odometerList.importError'))
       },
       onSettled: () => {
         // Reset file input
@@ -92,13 +94,13 @@ export default function OdometerRecordList({ vin, onAddClick, onEditClick }: Odo
   }
 
   const handleDelete = (recordId: number) => {
-    if (!confirm('Are you sure you want to delete this odometer record?')) {
+    if (!confirm(t('odometerList.confirmDelete'))) {
       return
     }
 
     deleteMutation.mutate(recordId, {
       onError: (err) => {
-        toast.error(err instanceof Error ? err.message : 'Failed to delete record')
+        toast.error(err instanceof Error ? err.message : t('odometerList.deleteError'))
       },
     })
   }
@@ -110,7 +112,7 @@ export default function OdometerRecordList({ vin, onAddClick, onEditClick }: Odo
   if (isLoading) {
     return (
       <div className="flex justify-center items-center min-h-[200px]">
-        <div className="text-garage-text-muted">Loading odometer records...</div>
+        <div className="text-garage-text-muted">{t('odometerList.loading')}</div>
       </div>
     )
   }
@@ -128,10 +130,8 @@ export default function OdometerRecordList({ vin, onAddClick, onEditClick }: Odo
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-2">
           <Gauge className="w-5 h-5 text-garage-text-muted" />
-          <h3 className="text-lg font-semibold text-garage-text">
-            Odometer Readings
-          </h3>
-          <span className="text-sm text-garage-text-muted">({records.length} records)</span>
+          <h3 className="text-lg font-semibold text-garage-text">{t('odometerList.title')}</h3>
+          <span className="text-sm text-garage-text-muted">({t('odometerList.recordCount', { count: records.length })})</span>
         </div>
         <div className="flex items-center gap-2">
           {/* Import button */}
@@ -146,10 +146,10 @@ export default function OdometerRecordList({ vin, onAddClick, onEditClick }: Odo
             onClick={handleImportClick}
             disabled={importMutation.isPending}
             className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors disabled:opacity-50"
-            title="Import from CSV"
+            title={t('odometerList.importFromCSV')}
           >
             <Upload className="w-4 h-4" />
-            <span>{importMutation.isPending ? 'Importing...' : 'Import CSV'}</span>
+            <span>{importMutation.isPending ? t('odometerList.importing') : t('odometerList.importCSV')}</span>
           </button>
           {/* Export button */}
           {records.length > 0 && (
@@ -157,10 +157,10 @@ export default function OdometerRecordList({ vin, onAddClick, onEditClick }: Odo
               onClick={handleExportCSV}
               disabled={exporting}
               className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors disabled:opacity-50"
-              title="Export to CSV"
+              title={t('odometerList.exportToCSV')}
             >
               <Download className="w-4 h-4" />
-              <span>{exporting ? 'Exporting...' : 'Export CSV'}</span>
+              <span>{exporting ? t('odometerList.exporting') : t('odometerList.exportCSV')}</span>
             </button>
           )}
           <button
@@ -168,7 +168,7 @@ export default function OdometerRecordList({ vin, onAddClick, onEditClick }: Odo
             className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors"
           >
             <Plus className="w-4 h-4" />
-            <span>Add Reading</span>
+            <span>{t('odometerList.addReading')}</span>
           </button>
         </div>
       </div>
@@ -180,7 +180,7 @@ export default function OdometerRecordList({ vin, onAddClick, onEditClick }: Odo
               <Gauge className="w-6 h-6 text-primary" />
             </div>
             <div>
-              <p className="text-sm text-garage-text-muted">Latest Mileage</p>
+              <p className="text-sm text-garage-text-muted">{t('odometerList.latestMileage')}</p>
               <p className="text-2xl font-bold text-garage-text">
                 {UnitFormatter.formatDistance(latestMileage, system, showBoth)}
               </p>
@@ -192,16 +192,14 @@ export default function OdometerRecordList({ vin, onAddClick, onEditClick }: Odo
       {records.length === 0 ? (
         <div className="bg-garage-surface border border-garage-border rounded-lg p-8 text-center">
           <Gauge className="w-12 h-12 text-garage-text-muted opacity-50 mx-auto mb-3" />
-          <p className="text-garage-text mb-2">No odometer records yet</p>
-          <p className="text-sm text-garage-text-muted mb-4">
-            Track your vehicle's mileage over time
-          </p>
+          <p className="text-garage-text mb-2">{t('odometerList.noRecords')}</p>
+          <p className="text-sm text-garage-text-muted mb-4">{t('odometerList.noRecordsDesc')}</p>
           <button
             onClick={onAddClick}
             className="inline-flex items-center gap-2 btn btn-primary rounded-lg transition-colors"
           >
             <Plus className="w-4 h-4" />
-            <span>Add First Reading</span>
+            <span>{t('odometerList.addFirstReading')}</span>
           </button>
         </div>
       ) : (
@@ -210,18 +208,12 @@ export default function OdometerRecordList({ vin, onAddClick, onEditClick }: Odo
             <table className="min-w-full divide-y divide-garage-border">
               <thead className="bg-garage-bg">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-garage-text-muted uppercase tracking-wider">
-                    Date
-                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-garage-text-muted uppercase tracking-wider">{t('odometerList.date')}</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-garage-text-muted uppercase tracking-wider">
                     Mileage ({UnitFormatter.getDistanceUnit(system)})
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-garage-text-muted uppercase tracking-wider">
-                    Notes
-                  </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-garage-text-muted uppercase tracking-wider">
-                    Actions
-                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-garage-text-muted uppercase tracking-wider">{t('odometerList.notes')}</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-garage-text-muted uppercase tracking-wider">{t('odometerList.actions')}</th>
                 </tr>
               </thead>
               <tbody className="bg-garage-surface divide-y divide-garage-border">
@@ -256,7 +248,7 @@ export default function OdometerRecordList({ vin, onAddClick, onEditClick }: Odo
                         <button
                           onClick={() => onEditClick(record)}
                           className="text-primary hover:text-primary-dark"
-                          title="Edit"
+                          title={t('common:edit')}
                         >
                           <Edit className="w-4 h-4" />
                         </button>
@@ -264,7 +256,7 @@ export default function OdometerRecordList({ vin, onAddClick, onEditClick }: Odo
                           onClick={() => handleDelete(record.id)}
                           disabled={deleteMutation.isPending && deleteMutation.variables === record.id}
                           className="text-danger hover:text-danger/80 disabled:opacity-50"
-                          title="Delete"
+                          title={t('common:delete')}
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>

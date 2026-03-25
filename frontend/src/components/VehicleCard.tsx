@@ -3,6 +3,7 @@
  */
 
 import { memo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { Car, Calendar, DollarSign, FileText } from 'lucide-react'
 import type { Vehicle } from '../types/vehicle'
@@ -16,6 +17,7 @@ interface VehicleCardProps {
 }
 
 function VehicleCard({ vehicle }: VehicleCardProps) {
+  const { t } = useTranslation('vehicles')
   const dateLocale = useDateLocale()
   const { currencyCode, locale } = useCurrencyPreference()
   const photoUrl = vehicle.main_photo
@@ -80,7 +82,7 @@ function VehicleCard({ vehicle }: VehicleCardProps) {
           {vehicle.purchase_date && (
             <div className="flex items-center space-x-2 text-xs text-garage-text-muted">
               <Calendar className="w-3.5 h-3.5" />
-              <span>Purchased {formatDate(vehicle.purchase_date)}</span>
+              <span>{t('vehicleCard.purchased')} {formatDate(vehicle.purchase_date)}</span>
             </div>
           )}
 
@@ -96,8 +98,7 @@ function VehicleCard({ vehicle }: VehicleCardProps) {
         {/* Sold Badge */}
         {vehicle.sold_date && (
           <div className="mt-3 pt-3 border-t border-garage-border">
-            <span className="inline-block px-2 py-1 bg-warning/10 text-warning text-xs font-medium rounded">
-              Sold {formatDate(vehicle.sold_date)}
+            <span className="inline-block px-2 py-1 bg-warning/10 text-warning text-xs font-medium rounded">{t('vehicleCard.sold')} {formatDate(vehicle.sold_date)}
             </span>
           </div>
         )}

@@ -7,6 +7,7 @@
  * classification. allMembers provides vehicle data for active users only.
  */
 
+import { useTranslation } from 'react-i18next'
 import { useState, useEffect, useCallback } from 'react'
 import {
   Users, X, Car, AlertTriangle, Bell, Loader2,
@@ -31,6 +32,7 @@ interface FamilyManagementModalProps {
 }
 
 export default function FamilyManagementModal({ isOpen, onClose }: FamilyManagementModalProps) {
+  const { t } = useTranslation('forms')
   const { user: currentUser } = useAuth()
 
   // Data state
@@ -157,11 +159,11 @@ export default function FamilyManagementModal({ isOpen, onClose }: FamilyManagem
         setMembersLoaded(false)
       }
     } catch {
-      toast.error('Failed to load family management data')
+      toast.error(t('modal.failedToLoadFamilyData'))
     } finally {
       setLoading(false)
     }
-  }, [isOpen])
+  }, [isOpen, t])
 
   useEffect(() => {
     if (isOpen) {
@@ -192,7 +194,7 @@ export default function FamilyManagementModal({ isOpen, onClose }: FamilyManagem
 
   const handleDeleteUser = (u: User) => {
     if (u.id === currentUser?.id) {
-      toast.error('You cannot delete your own account')
+      toast.error(t('modal.cannotDeleteOwnAccount'))
       return
     }
     setSelectedUser(u)
@@ -201,7 +203,7 @@ export default function FamilyManagementModal({ isOpen, onClose }: FamilyManagem
 
   const handleResetPassword = (u: User) => {
     if (u.auth_method === 'oidc') {
-      toast.error('Cannot reset password for OIDC users')
+      toast.error(t('modal.cannotResetOidcPassword'))
       return
     }
     setSelectedUser(u)
@@ -213,12 +215,12 @@ export default function FamilyManagementModal({ isOpen, onClose }: FamilyManagem
     setUpdatingUserId(u.id)
     try {
       await api.put(`/auth/users/${u.id}`, { is_active: !u.is_active })
-      toast.success(`User ${u.is_active ? 'disabled' : 'enabled'} successfully`)
+      toast.success(u.is_active ? t('modal.userDisabled') : t('modal.userEnabled'))
       await reloadAll()
     } catch (err) {
       const error = err as { response?: { data?: { detail?: string } } }
       const detail = error.response?.data?.detail
-      toast.error(typeof detail === 'string' ? detail : 'Failed to update user status')
+      toast.error(typeof detail === 'string' ? detail : t('modal.failedToUpdateStatus'))
     } finally {
       setUpdatingUserId(null)
     }
@@ -232,12 +234,12 @@ export default function FamilyManagementModal({ isOpen, onClose }: FamilyManagem
       })
       toast.success(
         u.show_on_family_dashboard
-          ? `${u.username} hidden from dashboard`
-          : `${u.username} shown on dashboard`
+          ? t('modal.hiddenFromDashboardMsg', { name: u.username })
+          : t('modal.shownOnDashboardMsg', { name: u.username })
       )
       await reloadAll()
     } catch {
-      toast.error('Failed to update dashboard visibility')
+      toast.error(t('modal.failedToUpdateDashboard'))
     } finally {
       setUpdatingUserId(null)
     }
@@ -261,7 +263,7 @@ export default function FamilyManagementModal({ isOpen, onClose }: FamilyManagem
       ])
       await reloadAll()
     } catch {
-      toast.error('Failed to reorder')
+      toast.error(t('modal.failedToReorder'))
       await reloadAll()  // Resync on failure
     } finally {
       setUpdatingUserId(null)
@@ -286,7 +288,7 @@ export default function FamilyManagementModal({ isOpen, onClose }: FamilyManagem
       ])
       await reloadAll()
     } catch {
-      toast.error('Failed to reorder')
+      toast.error(t('modal.failedToReorder'))
       await reloadAll()  // Resync on failure
     } finally {
       setUpdatingUserId(null)
@@ -312,10 +314,10 @@ export default function FamilyManagementModal({ isOpen, onClose }: FamilyManagem
       await api.post('/settings/batch', {
         settings: { multi_user_enabled: newValue },
       })
-      toast.success(`Multi-user mode ${enabled ? 'enabled' : 'disabled'}`)
+      toast.success(`{t('modal.multiUserMode')} ${enabled ? 'enabled' : 'disabled'}`)
       await reloadAll()
     } catch {
-      toast.error('Failed to update multi-user setting')
+      toast.error(t('modal.failedToUpdateMultiUser'))
       setMultiUserEnabled(enabled ? 'false' : 'true') // Revert
     }
   }
@@ -373,9 +375,9 @@ export default function FamilyManagementModal({ isOpen, onClose }: FamilyManagem
             <div className="flex items-center gap-2">
               <Users className="w-6 h-6 text-primary" />
               <div>
-                <h2 className="text-2xl font-bold text-garage-text">Family Management</h2>
+                <h2 className="text-2xl font-bold text-garage-text">{t('modal.familyManagement')}</h2>
                 <p className="text-sm text-garage-text-muted">
-                  Manage family members, vehicles, and dashboard visibility
+                  {t('modal.familyManagementDescription')}
                 </p>
               </div>
             </div>
@@ -401,7 +403,7 @@ export default function FamilyManagementModal({ isOpen, onClose }: FamilyManagem
                       </div>
                       <div>
                         <p className="text-2xl font-bold text-garage-text">{totalMembers}</p>
-                        <p className="text-sm text-garage-text-muted">Members</p>
+                        <p className="text-sm text-garage-text-muted">{t('modal.members')}</p>
                       </div>
                     </div>
                   </div>
@@ -412,7 +414,7 @@ export default function FamilyManagementModal({ isOpen, onClose }: FamilyManagem
                       </div>
                       <div>
                         <p className="text-2xl font-bold text-garage-text">{totalVehicles}</p>
-                        <p className="text-sm text-garage-text-muted">Vehicles</p>
+                        <p className="text-sm text-garage-text-muted">{t('modal.vehicles')}</p>
                       </div>
                     </div>
                   </div>
@@ -423,7 +425,7 @@ export default function FamilyManagementModal({ isOpen, onClose }: FamilyManagem
                       </div>
                       <div>
                         <p className="text-2xl font-bold text-garage-text">{totalUpcoming}</p>
-                        <p className="text-sm text-garage-text-muted">Upcoming</p>
+                        <p className="text-sm text-garage-text-muted">{t('modal.upcoming')}</p>
                       </div>
                     </div>
                   </div>
@@ -434,7 +436,7 @@ export default function FamilyManagementModal({ isOpen, onClose }: FamilyManagem
                       </div>
                       <div>
                         <p className="text-2xl font-bold text-garage-text">{totalOverdue}</p>
-                        <p className="text-sm text-garage-text-muted">Overdue</p>
+                        <p className="text-sm text-garage-text-muted">{t('modal.overdue')}</p>
                       </div>
                     </div>
                   </div>
@@ -445,7 +447,7 @@ export default function FamilyManagementModal({ isOpen, onClose }: FamilyManagem
                   <div className="flex items-center gap-3 p-3 bg-warning/10 border border-warning/30 rounded-lg">
                     <Info className="w-5 h-5 text-warning flex-shrink-0" />
                     <p className="text-sm text-garage-text">
-                      Member data unavailable — some actions disabled.
+                      {t('modal.memberDataUnavailable')}
                     </p>
                   </div>
                 )}
@@ -477,7 +479,7 @@ export default function FamilyManagementModal({ isOpen, onClose }: FamilyManagem
                           className="flex items-center gap-2 px-3 py-2 bg-garage-bg border border-garage-border rounded-lg hover:bg-garage-surface text-garage-text transition-colors text-sm"
                         >
                           <Key className="w-4 h-4" />
-                          Configure Auth
+                          {t('modal.configureAuth')}
                         </button>
                         <button
                           onClick={handleAddUser}
@@ -495,9 +497,9 @@ export default function FamilyManagementModal({ isOpen, onClose }: FamilyManagem
                 {!shouldLoadUsers && !authEverEnabled ? (
                   <div className="text-center py-12">
                     <Shield className="w-16 h-16 text-garage-text-muted mx-auto mb-4 opacity-50" />
-                    <h3 className="text-xl font-semibold text-garage-text mb-2">Authentication Not Enabled</h3>
+                    <h3 className="text-xl font-semibold text-garage-text mb-2">{t('modal.authNotEnabled')}</h3>
                     <p className="text-garage-text-muted">
-                      Enable authentication in System settings to manage users.
+                      {t('modal.enableAuthDescription')}
                     </p>
                   </div>
                 ) : (
@@ -506,7 +508,7 @@ export default function FamilyManagementModal({ isOpen, onClose }: FamilyManagem
                     {visibleMembers.length > 0 && (
                       <section>
                         <h3 className="text-sm font-medium text-garage-text-muted mb-3 uppercase tracking-wide">
-                          On Dashboard ({visibleMembers.length})
+                          {t('modal.onDashboard')} ({visibleMembers.length})
                         </h3>
                         <div className="space-y-3">
                           {visibleMembers.map(({ user: u, member }, index) => (
@@ -539,7 +541,7 @@ export default function FamilyManagementModal({ isOpen, onClose }: FamilyManagem
                     {hiddenMembers.length > 0 && (
                       <section>
                         <h3 className="text-sm font-medium text-garage-text-muted mb-3 uppercase tracking-wide">
-                          Hidden from Dashboard ({hiddenMembers.length})
+                          {t('modal.hiddenFromDashboard')} ({hiddenMembers.length})
                         </h3>
                         <div className="space-y-3">
                           {hiddenMembers.map(({ user: u, member }) => (
@@ -568,7 +570,7 @@ export default function FamilyManagementModal({ isOpen, onClose }: FamilyManagem
                     {inactiveUsers.length > 0 && (
                       <section>
                         <h3 className="text-sm font-medium text-garage-text-muted mb-3 uppercase tracking-wide">
-                          Inactive ({inactiveUsers.length})
+                          {t('modal.inactive')} ({inactiveUsers.length})
                         </h3>
                         <div className="space-y-3">
                           {inactiveUsers.map((u) => (
@@ -595,9 +597,9 @@ export default function FamilyManagementModal({ isOpen, onClose }: FamilyManagem
                     {visibleMembers.length === 0 && hiddenMembers.length === 0 && inactiveUsers.length === 0 && (
                       <div className="text-center py-12">
                         <Users className="w-16 h-16 text-garage-text-muted mx-auto mb-4 opacity-50" />
-                        <h3 className="text-xl font-semibold text-garage-text mb-2">No Users</h3>
+                        <h3 className="text-xl font-semibold text-garage-text mb-2">{t('modal.noUsers')}</h3>
                         <p className="text-garage-text-muted">
-                          Add users to manage family members and dashboard visibility.
+                          {t('modal.addUsersDescription')}
                         </p>
                       </div>
                     )}

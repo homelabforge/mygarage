@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { CreditCard, Plus, Trash2, Edit3, CheckCircle, XCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import type { TollTag } from '../types/toll'
@@ -11,19 +12,20 @@ interface TollTagListProps {
 }
 
 export default function TollTagList({ vin, onAddClick, onEditClick }: TollTagListProps) {
+  const { t } = useTranslation('vehicles')
   const { data, isLoading, error } = useTollTags(vin)
   const deleteMutation = useDeleteTollTag(vin)
 
   const tollTags = useMemo(() => data?.toll_tags ?? [], [data?.toll_tags])
 
   const handleDelete = (tagId: number) => {
-    if (!confirm('Are you sure you want to delete this toll tag?')) {
+    if (!confirm(t('tollTagList.confirmDelete'))) {
       return
     }
 
     deleteMutation.mutate(tagId, {
       onError: (err) => {
-        toast.error(err instanceof Error ? err.message : 'Failed to delete toll tag')
+        toast.error(err instanceof Error ? err.message : t('tollTagList.deleteError'))
       },
     })
   }
@@ -31,7 +33,7 @@ export default function TollTagList({ vin, onAddClick, onEditClick }: TollTagLis
   if (isLoading) {
     return (
       <div className="flex justify-center items-center min-h-[200px]">
-        <div className="text-garage-text-muted">Loading toll tags...</div>
+        <div className="text-garage-text-muted">{t('tollTagList.loading')}</div>
       </div>
     )
   }
@@ -48,9 +50,9 @@ export default function TollTagList({ vin, onAddClick, onEditClick }: TollTagLis
     <div>
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h2 className="text-2xl font-bold text-garage-text">Toll Tags</h2>
+          <h2 className="text-2xl font-bold text-garage-text">{t('tollTagList.title')}</h2>
           <p className="text-sm text-garage-text-muted">
-            {tollTags.length} {tollTags.length === 1 ? 'tag' : 'tags'} configured
+            {t('tollTagList.tagCount', { count: tollTags.length })}
           </p>
         </div>
         <button
@@ -58,16 +60,16 @@ export default function TollTagList({ vin, onAddClick, onEditClick }: TollTagLis
           className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors"
         >
           <Plus size={20} />
-          Add Toll Tag
+          {t('tollTagList.addTollTag')}
         </button>
       </div>
 
       {tollTags.length === 0 ? (
         <div className="text-center py-12 bg-garage-surface rounded-lg border border-garage-border">
           <CreditCard size={48} className="mx-auto text-garage-text-muted mb-4" />
-          <p className="text-garage-text-muted mb-4">No toll tags configured yet</p>
+          <p className="text-garage-text-muted mb-4">{t('tollTagList.noRecords')}</p>
           <button onClick={onAddClick} className="inline-flex items-center gap-2 btn btn-primary rounded-lg transition-colors">
-            Add Your First Toll Tag
+            {t('tollTagList.addFirstTollTag')}
           </button>
         </div>
       ) : (
@@ -94,7 +96,7 @@ export default function TollTagList({ vin, onAddClick, onEditClick }: TollTagLis
                   <button
                     onClick={() => onEditClick(tag)}
                     className="btn btn-ghost btn-sm"
-                    title="Edit"
+                    title={t('common:edit')}
                   >
                     <Edit3 size={16} />
                   </button>
@@ -102,7 +104,7 @@ export default function TollTagList({ vin, onAddClick, onEditClick }: TollTagLis
                     onClick={() => handleDelete(tag.id)}
                     className="btn btn-ghost btn-sm text-danger"
                     disabled={deleteMutation.isPending && deleteMutation.variables === tag.id}
-                    title="Delete"
+                    title={t('common:delete')}
                   >
                     {deleteMutation.isPending && deleteMutation.variables === tag.id ? '...' : <Trash2 size={16} />}
                   </button>
@@ -111,7 +113,7 @@ export default function TollTagList({ vin, onAddClick, onEditClick }: TollTagLis
 
               <div className="space-y-2">
                 <div>
-                  <p className="text-xs text-garage-text-muted mb-1">Status</p>
+                  <p className="text-xs text-garage-text-muted mb-1">{t('tollTagList.status')}</p>
                   <span className="inline-flex items-center gap-1">
                     {tag.status === 'active' ? (
                       <CheckCircle size={14} className="text-success-500" />
@@ -126,7 +128,7 @@ export default function TollTagList({ vin, onAddClick, onEditClick }: TollTagLis
 
                 {tag.notes && (
                   <div>
-                    <p className="text-xs text-garage-text-muted mb-1">Notes</p>
+                    <p className="text-xs text-garage-text-muted mb-1">{t('tollTagList.notes')}</p>
                     <p className="text-sm text-garage-text whitespace-pre-wrap">{tag.notes}</p>
                   </div>
                 )}

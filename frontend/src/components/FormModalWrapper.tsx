@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { X } from 'lucide-react'
 
 interface FormModalWrapperProps {
@@ -21,6 +22,7 @@ export default function FormModalWrapper({
   isOpen,
   zIndex = 'z-50',
 }: FormModalWrapperProps): React.ReactElement | null {
+  const { t } = useTranslation('forms')
   if (isOpen !== undefined && !isOpen) return null
 
   return (
@@ -36,7 +38,7 @@ export default function FormModalWrapper({
           <button
             onClick={onClose}
             className="text-garage-text-muted hover:text-garage-text"
-            aria-label="Close"
+            aria-label={t('common:close')}
           >
             <X className="w-5 h-5" />
           </button>

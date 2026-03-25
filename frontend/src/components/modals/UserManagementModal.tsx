@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useState, useEffect } from 'react'
 import { Users, X, Search, Edit, Trash2, Key, Power, PowerOff, Eye, EyeOff } from 'lucide-react'
 import { toast } from 'sonner'
@@ -24,6 +25,7 @@ export default function UserManagementModal({
   onResetPassword,
   onToggleActive
 }: UserManagementModalProps) {
+  const { t } = useTranslation('forms')
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
@@ -36,14 +38,14 @@ export default function UserManagementModal({
         const response = await api.get('/auth/users')
         setUsers(response.data)
       } catch {
-        toast.error('Failed to load users')
+        toast.error(t('modal.failedToLoadUsers'))
       } finally {
         setLoading(false)
       }
     }
 
     fetchUsers()
-  }, [isOpen])
+  }, [isOpen, t])
 
   const filteredUsers = users.filter(user =>
     user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -72,7 +74,7 @@ export default function UserManagementModal({
           : `${user.username} added to family dashboard`
       )
     } catch {
-      toast.error('Failed to update dashboard visibility')
+      toast.error(t('modal.failedToUpdateDashboard'))
     }
   }
 
@@ -85,7 +87,7 @@ export default function UserManagementModal({
         <div className="p-6 border-b border-garage-border flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Users className="w-6 h-6 text-primary" />
-            <h2 className="text-2xl font-bold text-garage-text">User Management</h2>
+            <h2 className="text-2xl font-bold text-garage-text">{t('modal.userManagement')}</h2>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-garage-muted rounded-lg transition-colors">
             <X className="w-5 h-5 text-garage-text-muted" />
@@ -100,7 +102,7 @@ export default function UserManagementModal({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search users by username, email, or name..."
+              placeholder={t('modal.searchUsersPlaceholder')}
               className="w-full pl-10 pr-4 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
@@ -109,22 +111,22 @@ export default function UserManagementModal({
         {/* User Table */}
         <div className="flex-1 overflow-y-auto p-6">
           {loading ? (
-            <div className="text-center py-8 text-garage-text-muted">Loading users...</div>
+            <div className="text-center py-8 text-garage-text-muted">{t('modal.loadingUsers')}</div>
           ) : filteredUsers.length === 0 ? (
             <div className="text-center py-8 text-garage-text-muted">
-              {searchQuery ? 'No users found matching your search.' : 'No users yet.'}
+              {searchQuery ? t('modal.noUsersFound') : t('modal.noUsersYet')}
             </div>
           ) : (
             <table className="w-full">
               <thead className="border-b border-garage-border">
                 <tr className="text-left">
-                  <th className="pb-3 text-sm font-medium text-garage-text">Username</th>
-                  <th className="pb-3 text-sm font-medium text-garage-text">Email</th>
-                  <th className="pb-3 text-sm font-medium text-garage-text">Relationship</th>
-                  <th className="pb-3 text-sm font-medium text-garage-text">Role</th>
-                  <th className="pb-3 text-sm font-medium text-garage-text">Status</th>
-                  <th className="pb-3 text-sm font-medium text-garage-text">Dashboard</th>
-                  <th className="pb-3 text-sm font-medium text-garage-text text-right">Actions</th>
+                  <th className="pb-3 text-sm font-medium text-garage-text">{t('modal.username')}</th>
+                  <th className="pb-3 text-sm font-medium text-garage-text">{t('modal.email')}</th>
+                  <th className="pb-3 text-sm font-medium text-garage-text">{t('modal.relationship')}</th>
+                  <th className="pb-3 text-sm font-medium text-garage-text">{t('modal.role')}</th>
+                  <th className="pb-3 text-sm font-medium text-garage-text">{t('common:status')}</th>
+                  <th className="pb-3 text-sm font-medium text-garage-text">{t('modal.dashboard')}</th>
+                  <th className="pb-3 text-sm font-medium text-garage-text text-right">{t('common:actions')}</th>
                 </tr>
               </thead>
               <tbody>

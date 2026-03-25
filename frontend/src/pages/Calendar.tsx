@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Calendar as CalendarIcon, Filter, AlertCircle, CheckCircle, RotateCw, Clock, Wrench, Search, Download, Gauge, X, CheckSquare, Square, MessageCircle } from 'lucide-react'
 import { Calendar as BigCalendar, dateFnsLocalizer, View } from 'react-big-calendar'
 import { format, parse, startOfWeek, getDay, startOfMonth, endOfMonth, subMonths, addMonths, startOfDay, endOfDay, addDays, differenceInDays, isBefore, isAfter } from 'date-fns'
@@ -33,6 +34,7 @@ interface BigCalendarEvent {
 }
 
 export default function CalendarPage() {
+  const { t } = useTranslation('vehicles')
   const navigate = useNavigate()
   const [events, setEvents] = useState<CalendarEvent[]>([])
   const [summary, setSummary] = useState({ total: 0, overdue: 0, upcoming_7_days: 0, upcoming_30_days: 0 })
@@ -62,9 +64,9 @@ export default function CalendarPage() {
       const response = await api.get('/vehicles')
       setVehicles(response.data.vehicles || [])
     } catch {
-      toast.error('Failed to load vehicles')
+      toast.error(t('calendar.loadVehiclesError'))
     }
-  }, [])
+  }, [t])
 
   // Fetch calendar events
   const loadEvents = useCallback(async () => {
@@ -112,7 +114,7 @@ export default function CalendarPage() {
       setCachedStartDate(desiredStartDate)
       setCachedEndDate(desiredEndDate)
     } catch {
-      toast.error('Failed to load calendar events')
+      toast.error(t('calendar.loadEventsError'))
     } finally {
       setLoading(false)
     }
@@ -209,10 +211,10 @@ export default function CalendarPage() {
 
     try {
       await api.post(`/vehicles/${event.vehicle_vin}/reminders/${id}/done`)
-      toast.success('Reminder marked as done')
+      toast.success(t('calendar.reminderDone'))
       loadEvents()
     } catch {
-      toast.error('Failed to complete reminder')
+      toast.error(t('calendar.completeReminderError'))
     }
   }
 
@@ -230,7 +232,7 @@ export default function CalendarPage() {
     }
 
     window.location.href = `/api/calendar/export?${params.toString()}`
-    toast.success('Calendar export started')
+    toast.success(t('calendar.exportStarted'))
   }
 
   // Phase 3: Toggle event selection for bulk actions
@@ -249,7 +251,7 @@ export default function CalendarPage() {
       .map(id => id.split('-')[1])
 
     if (reminderIds.length === 0) {
-      toast.error('No reminder items selected')
+      toast.error(t('calendar.noRemindersSelected'))
       return
     }
 
@@ -292,7 +294,7 @@ export default function CalendarPage() {
         })
       }
     } catch {
-      toast.error('Failed to complete maintenance items')
+      toast.error(t('calendar.completeMaintenanceError'))
     } finally {
       setBulkCompleting(false)
     }
@@ -379,9 +381,9 @@ export default function CalendarPage() {
     <div className="container mx-auto px-4 py-8">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-3xl font-bold mb-2 text-garage-text">Calendar</h1>
+        <h1 className="text-3xl font-bold mb-2 text-garage-text">{t('calendar.title')}</h1>
         <p className="text-garage-text-muted">
-          View all upcoming maintenance, insurance renewals, and warranty expirations
+          {t('calendar.subtitle')}
         </p>
       </div>
 
@@ -391,7 +393,7 @@ export default function CalendarPage() {
           <div className="bg-garage-surface border border-garage-border rounded-lg p-4">
             <div className="flex items-center gap-2 mb-2">
               <CalendarIcon className="w-5 h-5 text-garage-text-muted" />
-              <span className="text-sm text-garage-text-muted">Total Events</span>
+              <span className="text-sm text-garage-text-muted">{t('calendar.totalEvents')}</span>
             </div>
             <p className="text-2xl font-bold text-garage-text">{summary.total}</p>
           </div>
@@ -401,7 +403,7 @@ export default function CalendarPage() {
           }`}>
             <div className="flex items-center gap-2 mb-2">
               <AlertCircle className={`w-5 h-5 ${summary.overdue > 0 ? 'text-danger' : 'text-garage-text-secondary'}`} />
-              <span className={`text-sm ${summary.overdue > 0 ? 'text-danger' : 'text-garage-text-secondary'}`}>Overdue</span>
+              <span className={`text-sm ${summary.overdue > 0 ? 'text-danger' : 'text-garage-text-secondary'}`}>{t('calendar.overdue')}</span>
             </div>
             <p className={`text-2xl font-bold ${summary.overdue > 0 ? 'text-danger' : 'text-garage-text'}`}>{summary.overdue}</p>
           </div>
@@ -409,7 +411,7 @@ export default function CalendarPage() {
           <div className="bg-garage-surface border border-warning rounded-lg p-4">
             <div className="flex items-center gap-2 mb-2">
               <Clock className="w-5 h-5 text-warning" />
-              <span className="text-sm text-warning">Next 7 Days</span>
+              <span className="text-sm text-warning">{t('calendar.next7Days')}</span>
             </div>
             <p className="text-2xl font-bold text-warning">{summary.upcoming_7_days}</p>
           </div>
@@ -417,7 +419,7 @@ export default function CalendarPage() {
           <div className="bg-garage-surface border border-primary rounded-lg p-4">
             <div className="flex items-center gap-2 mb-2">
               <Clock className="w-5 h-5 text-primary" />
-              <span className="text-sm text-primary">Next 30 Days</span>
+              <span className="text-sm text-primary">{t('calendar.next30Days')}</span>
             </div>
             <p className="text-2xl font-bold text-primary">{summary.upcoming_30_days}</p>
           </div>
@@ -428,7 +430,7 @@ export default function CalendarPage() {
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <Filter className="w-5 h-5 text-primary" />
-              <h2 className="text-lg font-semibold text-garage-text">Filters & Actions</h2>
+              <h2 className="text-lg font-semibold text-garage-text">{t('calendar.filtersActions')}</h2>
             </div>
 
             {/* Phase 3: Action Buttons */}
@@ -442,7 +444,7 @@ export default function CalendarPage() {
                 }`}
               >
                 {bulkMode ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
-                <span className="hidden sm:inline">Bulk Mode</span>
+                <span className="hidden sm:inline">{t('calendar.bulkMode')}</span>
               </button>
 
               <button
@@ -450,7 +452,7 @@ export default function CalendarPage() {
                 className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-garage-bg text-garage-text-muted border border-garage-border hover:border-primary transition-colors"
               >
                 <Download className="w-4 h-4" />
-                <span className="hidden sm:inline">Export iCal</span>
+                <span className="hidden sm:inline">{t('calendar.exportICal')}</span>
               </button>
             </div>
           </div>
@@ -461,7 +463,7 @@ export default function CalendarPage() {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-garage-text-muted" />
               <input
                 type="text"
-                placeholder="Search events by title, description, or vehicle..."
+                placeholder={t('calendar.searchPlaceholder')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-10 pr-10 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text placeholder-garage-text-muted focus:outline-none focus:border-primary"
@@ -495,7 +497,7 @@ export default function CalendarPage() {
                     disabled={selectedEvents.length === 0 || bulkCompleting}
                     className="px-3 py-1 rounded-lg text-sm bg-success text-white hover:bg-success-dark disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
-                    {bulkCompleting ? 'Completing...' : 'Complete Selected'}
+                    {bulkCompleting ? t('calendar.completing') : t('calendar.completeSelected')}
                   </button>
                   <button
                     onClick={() => setSelectedEvents([])}
@@ -511,7 +513,7 @@ export default function CalendarPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Vehicle Filter */}
             <div>
-              <h3 className="text-sm font-medium text-garage-text-muted mb-2">Vehicles</h3>
+              <h3 className="text-sm font-medium text-garage-text-muted mb-2">{t('calendar.vehicles')}</h3>
               <div className="flex flex-wrap gap-2">
                 {vehicles.map(vehicle => (
                   <button
@@ -527,14 +529,14 @@ export default function CalendarPage() {
                   </button>
                 ))}
                 {vehicles.length === 0 && (
-                  <p className="text-garage-text-muted text-sm">No vehicles found</p>
+                  <p className="text-garage-text-muted text-sm">{t('calendar.noVehiclesFound')}</p>
                 )}
               </div>
             </div>
 
             {/* Event Type Filter */}
             <div>
-              <h3 className="text-sm font-medium text-garage-text-muted mb-2">Event Types</h3>
+              <h3 className="text-sm font-medium text-garage-text-muted mb-2">{t('calendar.eventTypes')}</h3>
               <div className="flex flex-wrap gap-2">
                 <button
                   onClick={() => toggleEventType('maintenance')}
@@ -611,11 +613,11 @@ export default function CalendarPage() {
 
           {/* Upcoming Events Sidebar */}
           <div className="bg-garage-surface border border-garage-border rounded-lg p-4">
-            <h3 className="text-lg font-semibold text-garage-text mb-4">Upcoming Events</h3>
+            <h3 className="text-lg font-semibold text-garage-text mb-4">{t('calendar.upcomingEvents')}</h3>
 
             {upcomingEvents.length === 0 ? (
               <p className="text-garage-text-muted text-sm text-center py-8">
-                No upcoming events in the next 30 days
+                {t('calendar.noUpcomingEvents')}
               </p>
             ) : (
               <div className="space-y-3">
@@ -745,7 +747,7 @@ export default function CalendarPage() {
 
         {/* Legend */}
         <div className="mt-6 bg-garage-surface border border-garage-border rounded-lg p-4">
-          <h3 className="text-sm font-medium text-garage-text mb-3">Legend</h3>
+          <h3 className="text-sm font-medium text-garage-text mb-3">{t('calendar.legend')}</h3>
           <div className="flex flex-wrap gap-4">
             <div className="flex items-center gap-2">
               <div className="w-4 h-4 bg-blue-600 rounded"></div>
@@ -789,7 +791,7 @@ export default function CalendarPage() {
           <div className="bg-garage-surface border border-garage-border rounded-lg max-w-2xl w-full max-h-[80vh] overflow-auto">
             <div className="p-6">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-bold text-garage-text">Event Notes</h3>
+                <h3 className="text-xl font-bold text-garage-text">{t('calendar.eventNotes')}</h3>
                 <button
                   onClick={() => setShowNotesModal(false)}
                   className="p-1 hover:bg-garage-bg rounded transition-colors"

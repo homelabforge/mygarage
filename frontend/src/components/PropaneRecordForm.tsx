@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Save } from 'lucide-react'
@@ -31,6 +32,7 @@ export default function PropaneRecordForm({
   onClose,
   onSuccess
 }: PropaneRecordFormProps) {
+  const { t } = useTranslation('forms')
   const isEdit = !!record
   const [error, setError] = useState<string | null>(null)
   const createMutation = useCreatePropaneRecord(vin)
@@ -164,12 +166,12 @@ export default function PropaneRecordForm({
       onSuccess()
       onClose()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
+      setError(err instanceof Error ? err.message : t('common:error'))
     }
   }
 
   return (
-    <FormModalWrapper title={isEdit ? 'Edit Propane Record' : 'Add Propane Record'} onClose={onClose} maxWidth="max-w-lg">
+    <FormModalWrapper title={isEdit ? t('propane.editTitle') : t('propane.createTitle')} onClose={onClose} maxWidth="max-w-lg">
         <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
           {error && (
             <div className="bg-danger/10 border border-danger rounded-lg p-3">
@@ -180,7 +182,7 @@ export default function PropaneRecordForm({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label htmlFor="date" className="block text-sm font-medium text-garage-text mb-1">
-                Date <span className="text-danger">*</span>
+                {t('common:date')} <span className="text-danger">*</span>
               </label>
               <input
                 type="date"
@@ -198,14 +200,13 @@ export default function PropaneRecordForm({
           {/* Tank Information Section */}
           <div className="border-t border-garage-border pt-4 mt-4">
             <h3 className="text-sm font-medium text-garage-text mb-3">
-              Tank Information (Optional)
+              {t('propane.tankInfo')}
             </h3>
 
             <div className="grid grid-cols-2 gap-4">
-              {/* Tank Size */}
               <div>
                 <label htmlFor="tank_size_lb" className="block text-sm font-medium text-garage-text mb-1">
-                  Tank Size
+                  {t('propane.tankSize')}
                 </label>
                 <select
                   id="tank_size_lb"
@@ -213,7 +214,7 @@ export default function PropaneRecordForm({
                   className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text border-garage-border"
                   disabled={isSubmitting}
                 >
-                  <option value="">Select tank size...</option>
+                  <option value="">  {t('propane.selectTankSize')}  </option>
                   {TANK_SIZES.map(tank => (
                     <option key={tank.value} value={tank.value}>
                       {tank.label}
@@ -225,7 +226,7 @@ export default function PropaneRecordForm({
               {/* Tank Quantity */}
               <div>
                 <label htmlFor="tank_quantity" className="block text-sm font-medium text-garage-text mb-1">
-                  Number of Tanks
+                  {t('propane.numberOfTanks')}
                 </label>
                 <input
                   type="number"
@@ -276,7 +277,7 @@ export default function PropaneRecordForm({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label htmlFor="price_per_unit" className="block text-sm font-medium text-garage-text mb-1">
-                Price per {UnitFormatter.getVolumeUnit(system)}
+                {t('fuel.pricePer')} {UnitFormatter.getVolumeUnit(system)}
               </label>
               <div className="relative">
                 <span className="absolute left-3 top-2 text-garage-text-muted">$</span>
@@ -317,14 +318,14 @@ export default function PropaneRecordForm({
               </div>
               <FormError error={errors.cost} />
               <p className="text-xs text-garage-text-muted mt-1">
-                Auto-calculated when gallons and price are entered
+                {t('fuel.autoCalculatedHint')}
               </p>
             </div>
           </div>
 
           <div>
             <label htmlFor="vendor" className="block text-sm font-medium text-garage-text mb-1">
-              Vendor/Location
+              {t('propane.vendorLocation')}
             </label>
             <input
               type="text"
@@ -347,7 +348,7 @@ export default function PropaneRecordForm({
               id="notes"
               rows={3}
               {...register('notes')}
-              placeholder="Additional notes..."
+              placeholder={t('common:additionalNotes')}
               className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
                 errors.notes ? 'border-red-500' : 'border-garage-border'
               }`}
@@ -363,7 +364,7 @@ export default function PropaneRecordForm({
               className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Save className="w-4 h-4" />
-              <span>{isSubmitting ? 'Saving...' : isEdit ? 'Update' : 'Create'}</span>
+              <span>{isSubmitting ? t('common:saving') : isEdit ? t('common:update') : t('common:create')}</span>
             </button>
 
             <button

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useState, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
 import {
@@ -44,6 +45,7 @@ interface LiveLinkSettingsModalProps {
 }
 
 export default function LiveLinkSettingsModal({ isOpen, onClose }: LiveLinkSettingsModalProps) {
+  const { t } = useTranslation('forms')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [settings, setSettings] = useState<LiveLinkSettings | null>(null)
@@ -104,11 +106,11 @@ export default function LiveLinkSettingsModal({ isOpen, onClose }: LiveLinkSetti
       setMqttStatus(mqttStatusData)
     } catch (error) {
       console.error('Failed to load LiveLink settings:', error)
-      toast.error('Failed to load LiveLink settings')
+      toast.error(t('modal.failedToLoadLiveLink'))
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [t])
 
   useEffect(() => {
     if (isOpen) {
@@ -132,10 +134,10 @@ export default function LiveLinkSettingsModal({ isOpen, onClose }: LiveLinkSetti
     try {
       const updated = await livelinkService.updateSettings(update)
       setSettings(updated)
-      toast.success('Settings saved')
+      toast.success(t('modal.settingsSaved'))
     } catch (error) {
       console.error('Failed to save settings:', error)
-      toast.error('Failed to save settings')
+      toast.error(t('modal.failedToSaveSettings'))
     } finally {
       setSaving(false)
     }
@@ -156,12 +158,12 @@ export default function LiveLinkSettingsModal({ isOpen, onClose }: LiveLinkSetti
       const response = await livelinkService.regenerateGlobalToken()
       setNewToken(response.token)
       setShowToken(true)
-      toast.success('New token generated')
+      toast.success(t('modal.newTokenGenerated'))
       const updated = await livelinkService.getSettings()
       setSettings(updated)
     } catch (error) {
       console.error('Failed to generate token:', error)
-      toast.error('Failed to generate token')
+      toast.error(t('modal.failedToGenerateToken'))
     } finally {
       setGeneratingToken(false)
     }
@@ -173,7 +175,7 @@ export default function LiveLinkSettingsModal({ isOpen, onClose }: LiveLinkSetti
       await navigator.clipboard.writeText(text)
       toast.success(`${label} copied to clipboard`)
     } catch {
-      toast.error('Failed to copy to clipboard')
+      toast.error(t('modal.failedToCopy'))
     }
   }
 
@@ -187,10 +189,10 @@ export default function LiveLinkSettingsModal({ isOpen, onClose }: LiveLinkSetti
       ])
       setFirmware(firmwareData)
       setDeviceFirmware(deviceFirmwareData)
-      toast.success('Firmware check complete')
+      toast.success(t('modal.firmwareCheckComplete'))
     } catch (error) {
       console.error('Failed to check firmware:', error)
-      toast.error('Failed to check firmware updates')
+      toast.error(t('modal.failedToCheckFirmware'))
     } finally {
       setCheckingFirmware(false)
     }
@@ -215,10 +217,10 @@ export default function LiveLinkSettingsModal({ isOpen, onClose }: LiveLinkSetti
       if (update.password) {
         setMqttPassword('')
       }
-      toast.success('MQTT settings saved')
+      toast.success(t('modal.mqttSettingsSaved'))
     } catch (error) {
       console.error('Failed to save MQTT settings:', error)
-      toast.error('Failed to save MQTT settings')
+      toast.error(t('modal.failedToSaveMqtt'))
     } finally {
       setSavingMqtt(false)
     }
@@ -236,7 +238,7 @@ export default function LiveLinkSettingsModal({ isOpen, onClose }: LiveLinkSetti
       }
     } catch (error) {
       console.error('Failed to test MQTT connection:', error)
-      toast.error('Failed to test MQTT connection')
+      toast.error(t('modal.failedToTestMqtt'))
     } finally {
       setTestingMqtt(false)
     }
@@ -248,10 +250,10 @@ export default function LiveLinkSettingsModal({ isOpen, onClose }: LiveLinkSetti
     try {
       const status = await livelinkService.restartMQTTSubscriber()
       setMqttStatus(status)
-      toast.success('MQTT subscriber restarted')
+      toast.success(t('modal.mqttRestarted'))
     } catch (error) {
       console.error('Failed to restart MQTT subscriber:', error)
-      toast.error('Failed to restart MQTT subscriber')
+      toast.error(t('modal.failedToRestartMqtt'))
     } finally {
       setRestartingMqtt(false)
     }
@@ -264,12 +266,12 @@ export default function LiveLinkSettingsModal({ isOpen, onClose }: LiveLinkSetti
   ) => {
     try {
       await livelinkService.updateDevice(deviceId, update)
-      toast.success('Device updated')
+      toast.success(t('modal.deviceUpdated'))
       const updated = await livelinkService.getDevices()
       setDevices(updated)
     } catch (error) {
       console.error('Failed to update device:', error)
-      toast.error('Failed to update device')
+      toast.error(t('modal.failedToUpdateDevice'))
     }
   }
 
@@ -285,12 +287,12 @@ export default function LiveLinkSettingsModal({ isOpen, onClose }: LiveLinkSetti
 
     try {
       await livelinkService.deleteDevice(deviceId)
-      toast.success('Device deleted')
+      toast.success(t('modal.deviceDeleted'))
       const updated = await livelinkService.getDevices()
       setDevices(updated)
     } catch (error) {
       console.error('Failed to delete device:', error)
-      toast.error('Failed to delete device')
+      toast.error(t('modal.failedToDeleteDevice'))
     }
   }
 
@@ -303,7 +305,7 @@ export default function LiveLinkSettingsModal({ isOpen, onClose }: LiveLinkSetti
       setDevices(updated)
     } catch (error) {
       console.error('Failed to generate device token:', error)
-      toast.error('Failed to generate device token')
+      toast.error(t('modal.failedToGenerateDeviceToken'))
     }
   }
 
@@ -315,12 +317,12 @@ export default function LiveLinkSettingsModal({ isOpen, onClose }: LiveLinkSetti
 
     try {
       await livelinkService.revokeDeviceToken(deviceId)
-      toast.success('Device token revoked')
+      toast.success(t('modal.deviceTokenRevoked'))
       const updated = await livelinkService.getDevices()
       setDevices(updated)
     } catch (error) {
       console.error('Failed to revoke device token:', error)
-      toast.error('Failed to revoke device token')
+      toast.error(t('modal.failedToRevokeDeviceToken'))
     }
   }
 
@@ -330,7 +332,7 @@ export default function LiveLinkSettingsModal({ isOpen, onClose }: LiveLinkSetti
       toast.success(result.message)
     } catch (error) {
       console.error('Failed to send command:', error)
-      toast.error('Failed to send command to device')
+      toast.error(t('modal.failedToSendCommand'))
     }
   }
 
@@ -344,8 +346,8 @@ export default function LiveLinkSettingsModal({ isOpen, onClose }: LiveLinkSetti
           <div className="flex items-center gap-3">
             <Settings className="w-6 h-6 text-primary" />
             <div>
-              <h2 className="text-xl font-semibold text-garage-text">LiveLink Settings</h2>
-              <p className="text-sm text-garage-text-muted">Configure WiCAN OBD2 telemetry integration</p>
+              <h2 className="text-xl font-semibold text-garage-text">{t('modal.liveLinkSettings')}</h2>
+              <p className="text-sm text-garage-text-muted">{t('modal.liveLinkDescription')}</p>
             </div>
           </div>
           <button onClick={onClose} className="text-garage-text-muted hover:text-garage-text">
@@ -365,7 +367,7 @@ export default function LiveLinkSettingsModal({ isOpen, onClose }: LiveLinkSetti
               <section className="bg-garage-bg rounded-lg border border-garage-border p-4">
                 <div className="flex items-center gap-2 mb-4">
                   <Link2 className="w-5 h-5 text-primary" />
-                  <h3 className="text-lg font-semibold text-garage-text">Connection</h3>
+                  <h3 className="text-lg font-semibold text-garage-text">{t('modal.connection')}</h3>
                 </div>
 
                 <div className="space-y-4">
@@ -379,14 +381,14 @@ export default function LiveLinkSettingsModal({ isOpen, onClose }: LiveLinkSetti
                       className="w-4 h-4 text-primary bg-garage-bg border-garage-border rounded focus:ring-primary focus:ring-2"
                     />
                     <div>
-                      <span className="text-garage-text font-medium">Enable LiveLink</span>
-                      <p className="text-xs text-garage-text-muted">Accept telemetry data from WiCAN devices</p>
+                      <span className="text-garage-text font-medium">{t('modal.enableLiveLink')}</span>
+                      <p className="text-xs text-garage-text-muted">{t('modal.acceptTelemetry')}</p>
                     </div>
                   </label>
 
                   {/* Ingestion URL */}
                   <div>
-                    <label className="block text-sm font-medium text-garage-text mb-1">Ingestion URL</label>
+                    <label className="block text-sm font-medium text-garage-text mb-1">{t('modal.ingestionUrl')}</label>
                     <div className="flex gap-2">
                       <input
                         type="text"
@@ -405,7 +407,7 @@ export default function LiveLinkSettingsModal({ isOpen, onClose }: LiveLinkSetti
 
                   {/* Global Token */}
                   <div>
-                    <label className="block text-sm font-medium text-garage-text mb-1">Global API Token</label>
+                    <label className="block text-sm font-medium text-garage-text mb-1">{t('modal.globalApiToken')}</label>
                     {newToken ? (
                       <div className="space-y-2">
                         <div className="flex gap-2">
@@ -465,7 +467,7 @@ export default function LiveLinkSettingsModal({ isOpen, onClose }: LiveLinkSetti
               <section className="bg-garage-bg rounded-lg border border-garage-border p-4">
                 <div className="flex items-center gap-2 mb-4">
                   <Server className="w-5 h-5 text-primary" />
-                  <h3 className="text-lg font-semibold text-garage-text">MQTT Subscription</h3>
+                  <h3 className="text-lg font-semibold text-garage-text">{t('modal.mqttSubscription')}</h3>
                   {mqttStatus && (
                     <span
                       className={`px-2 py-0.5 text-xs rounded-full ${
@@ -494,15 +496,15 @@ export default function LiveLinkSettingsModal({ isOpen, onClose }: LiveLinkSetti
                       className="w-4 h-4 text-primary bg-garage-bg border-garage-border rounded focus:ring-primary focus:ring-2"
                     />
                     <div>
-                      <span className="text-garage-text font-medium">Enable MQTT Subscription</span>
-                      <p className="text-xs text-garage-text-muted">Subscribe to WiCAN MQTT topics on a local broker</p>
+                      <span className="text-garage-text font-medium">{t('modal.enableMqttSubscription')}</span>
+                      <p className="text-xs text-garage-text-muted">{t('modal.mqttDescription')}</p>
                     </div>
                   </label>
 
                   {/* Broker Settings */}
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-garage-text mb-1">Broker Host</label>
+                      <label className="block text-sm font-medium text-garage-text mb-1">{t('modal.brokerHost')}</label>
                       <input
                         type="text"
                         value={mqttSettings?.broker_host ?? ''}
@@ -513,7 +515,7 @@ export default function LiveLinkSettingsModal({ isOpen, onClose }: LiveLinkSetti
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-garage-text mb-1">Port</label>
+                      <label className="block text-sm font-medium text-garage-text mb-1">{t('modal.port')}</label>
                       <input
                         type="number"
                         value={mqttSettings?.broker_port ?? 1883}
@@ -525,7 +527,7 @@ export default function LiveLinkSettingsModal({ isOpen, onClose }: LiveLinkSetti
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-garage-text mb-1">Username</label>
+                      <label className="block text-sm font-medium text-garage-text mb-1">{t('modal.username')}</label>
                       <input
                         type="text"
                         value={mqttSettings?.username ?? ''}
@@ -560,7 +562,7 @@ export default function LiveLinkSettingsModal({ isOpen, onClose }: LiveLinkSetti
                       </div>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-garage-text mb-1">Topic Prefix</label>
+                      <label className="block text-sm font-medium text-garage-text mb-1">{t('modal.topicPrefix')}</label>
                       <input
                         type="text"
                         value={mqttSettings?.topic_prefix ?? 'wican'}
@@ -579,7 +581,7 @@ export default function LiveLinkSettingsModal({ isOpen, onClose }: LiveLinkSetti
                           disabled={savingMqtt}
                           className="w-4 h-4 text-primary bg-garage-bg border-garage-border rounded focus:ring-primary focus:ring-2"
                         />
-                        <span className="text-garage-text font-medium text-sm">Use TLS/SSL</span>
+                        <span className="text-garage-text font-medium text-sm">{t('modal.useTls')}</span>
                       </label>
                     </div>
                   </div>
@@ -632,7 +634,7 @@ export default function LiveLinkSettingsModal({ isOpen, onClose }: LiveLinkSetti
               <section className="bg-garage-bg rounded-lg border border-garage-border p-4">
                 <div className="flex items-center gap-2 mb-4">
                   <Cpu className="w-5 h-5 text-primary" />
-                  <h3 className="text-lg font-semibold text-garage-text">Devices</h3>
+                  <h3 className="text-lg font-semibold text-garage-text">{t('modal.devices')}</h3>
                   <span className="text-sm text-garage-text-muted">
                     ({devices?.total ?? 0} discovered, {devices?.online_count ?? 0} online)
                   </span>
@@ -671,7 +673,7 @@ export default function LiveLinkSettingsModal({ isOpen, onClose }: LiveLinkSetti
                 ) : (
                   <div className="text-center py-6 text-garage-text-muted">
                     <Cpu className="w-10 h-10 mx-auto mb-2 opacity-50" />
-                    <p>No WiCAN devices discovered yet</p>
+                    <p>{t('modal.noDevicesDiscovered')}</p>
                   </div>
                 )}
               </section>
@@ -680,12 +682,12 @@ export default function LiveLinkSettingsModal({ isOpen, onClose }: LiveLinkSetti
               <section className="bg-garage-bg rounded-lg border border-garage-border p-4">
                 <div className="flex items-center gap-2 mb-4">
                   <Database className="w-5 h-5 text-primary" />
-                  <h3 className="text-lg font-semibold text-garage-text">Data Retention</h3>
+                  <h3 className="text-lg font-semibold text-garage-text">{t('modal.dataRetention')}</h3>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-garage-text mb-1">Raw Telemetry Retention</label>
+                    <label className="block text-sm font-medium text-garage-text mb-1">{t('modal.rawTelemetryRetention')}</label>
                     <select
                       value={settings?.telemetry_retention_days ?? 90}
                       onChange={(e) => handleSaveSettings({ telemetry_retention_days: parseInt(e.target.value) })}

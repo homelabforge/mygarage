@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { formatDateForDisplay } from '../utils/dateUtils'
 import { FileText, Plus, Trash2, Edit3, Calendar } from 'lucide-react'
 import { toast } from 'sonner'
@@ -12,19 +13,20 @@ interface NoteListProps {
 }
 
 export default function NoteList({ vin, onAddClick, onEditClick }: NoteListProps) {
+  const { t } = useTranslation('vehicles')
   const { data, isLoading, error } = useNotes(vin)
   const deleteMutation = useDeleteNote(vin)
 
   const notes = useMemo(() => data?.notes ?? [], [data?.notes])
 
   const handleDelete = (noteId: number) => {
-    if (!confirm('Are you sure you want to delete this note?')) {
+    if (!confirm(t('noteList.confirmDelete'))) {
       return
     }
 
     deleteMutation.mutate(noteId, {
       onError: (err) => {
-        toast.error(err instanceof Error ? err.message : 'Failed to delete note')
+        toast.error(err instanceof Error ? err.message : t('noteList.deleteError'))
       },
     })
   }
@@ -40,7 +42,7 @@ export default function NoteList({ vin, onAddClick, onEditClick }: NoteListProps
   if (isLoading) {
     return (
       <div className="flex justify-center items-center min-h-[200px]">
-        <div className="text-garage-text-muted">Loading notes...</div>
+        <div className="text-garage-text-muted">{t('noteList.loading')}</div>
       </div>
     )
   }
@@ -58,33 +60,31 @@ export default function NoteList({ vin, onAddClick, onEditClick }: NoteListProps
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-2">
           <FileText className="w-5 h-5 text-garage-text-muted" />
-          <h3 className="text-lg font-semibold text-garage-text">
-            Notes
-          </h3>
-          <span className="text-sm text-garage-text-muted">({notes.length} notes)</span>
+          <h3 className="text-lg font-semibold text-garage-text">{t('noteList.title')}</h3>
+          <span className="text-sm text-garage-text-muted">({t('noteList.noteCount', { count: notes.length })})</span>
         </div>
         <button
           onClick={onAddClick}
           className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors"
         >
           <Plus className="w-4 h-4" />
-          <span>Add Note</span>
+          <span>{t('noteList.addNote')}</span>
         </button>
       </div>
 
       {notes.length === 0 ? (
         <div className="bg-garage-surface border border-garage-border rounded-lg p-8 text-center">
           <FileText className="w-12 h-12 text-garage-text-muted opacity-50 mx-auto mb-3" />
-          <p className="text-garage-text mb-2">No notes yet</p>
+          <p className="text-garage-text mb-2">{t('noteList.noRecords')}</p>
           <p className="text-sm text-garage-text-muted mb-4">
-            Keep track of observations, modifications, trips, and other information about your vehicle
+            {t('noteList.noRecordsDesc')}
           </p>
           <button
             onClick={onAddClick}
             className="inline-flex items-center gap-2 btn btn-primary rounded-lg transition-colors"
           >
             <Plus className="w-4 h-4" />
-            <span>Add First Note</span>
+            <span>{t('noteList.addFirstNote')}</span>
           </button>
         </div>
       ) : (
@@ -110,7 +110,7 @@ export default function NoteList({ vin, onAddClick, onEditClick }: NoteListProps
                   <button
                     onClick={() => onEditClick(note)}
                     className="p-2 text-garage-text-muted hover:bg-garage-bg rounded-full"
-                    title="Edit"
+                    title={t('common:edit')}
                   >
                     <Edit3 className="w-4 h-4" />
                   </button>
@@ -118,7 +118,7 @@ export default function NoteList({ vin, onAddClick, onEditClick }: NoteListProps
                     onClick={() => handleDelete(note.id)}
                     disabled={deleteMutation.isPending && deleteMutation.variables === note.id}
                     className="p-2 text-danger hover:bg-danger/10 rounded-full disabled:opacity-50"
-                    title="Delete"
+                    title={t('common:delete')}
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -130,9 +130,9 @@ export default function NoteList({ vin, onAddClick, onEditClick }: NoteListProps
               </div>
 
               <div className="flex items-center gap-4 mt-3 text-xs text-garage-text-muted border-t border-garage-border pt-3">
-                <span>Created {formatTimestamp(note.created_at)}</span>
+                <span>{t('noteList.created')} {formatTimestamp(note.created_at)}</span>
                 {note.updated_at && (
-                  <span>Updated {formatTimestamp(note.updated_at)}</span>
+                  <span>{t('noteList.updated')} {formatTimestamp(note.updated_at)}</span>
                 )}
               </div>
             </div>

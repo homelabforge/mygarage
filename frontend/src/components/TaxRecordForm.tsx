@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useState } from 'react'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -17,6 +18,7 @@ interface TaxRecordFormProps {
 }
 
 export default function TaxRecordForm({ vin, record, onClose, onSuccess }: TaxRecordFormProps) {
+  const { t } = useTranslation('forms')
   const isEdit = !!record
   const [error, setError] = useState<string | null>(null)
   const createMutation = useCreateTaxRecord(vin)
@@ -45,7 +47,7 @@ export default function TaxRecordForm({ vin, record, onClose, onSuccess }: TaxRe
       onSuccess()
       onClose()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
+      setError(err instanceof Error ? err.message : t('common:error'))
     }
   }
 
@@ -65,7 +67,7 @@ export default function TaxRecordForm({ vin, record, onClose, onSuccess }: TaxRe
   })
 
   return (
-    <FormModalWrapper title={isEdit ? 'Edit Tax/Registration Record' : 'Add Tax/Registration Record'} onClose={onClose}>
+    <FormModalWrapper title={isEdit ? t('tax.editTitle') : t('tax.createTitle')} onClose={onClose}>
         <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
           {error && (
             <div className="bg-danger/10 border border-danger rounded-lg p-3">
@@ -76,7 +78,7 @@ export default function TaxRecordForm({ vin, record, onClose, onSuccess }: TaxRe
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label htmlFor="date" className="block text-sm font-medium text-garage-text mb-1">
-                Date Paid <span className="text-danger">*</span>
+                {t('tax.datePaid')} <span className="text-danger">*</span>
               </label>
               <input
                 type="date"
@@ -102,7 +104,7 @@ export default function TaxRecordForm({ vin, record, onClose, onSuccess }: TaxRe
                 }`}
                 disabled={isSubmitting}
               >
-                <option value="" className="bg-garage-bg text-garage-text">Select type</option>
+                <option value="" className="bg-garage-bg text-garage-text">{t('tax.selectType')}</option>
                 {TAX_TYPES.map((type) => (
                   <option key={type} value={type} className="bg-garage-bg text-garage-text">{type}</option>
                 ))}
@@ -114,7 +116,7 @@ export default function TaxRecordForm({ vin, record, onClose, onSuccess }: TaxRe
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label htmlFor="amount" className="block text-sm font-medium text-garage-text mb-1">
-                Amount <span className="text-danger">*</span>
+                {t('common:amount')} <span className="text-danger">*</span>
               </label>
               <div className="relative">
                 <span className="absolute left-3 top-2 text-garage-text-muted">$</span>
@@ -135,7 +137,7 @@ export default function TaxRecordForm({ vin, record, onClose, onSuccess }: TaxRe
 
             <div>
               <label htmlFor="renewal_date" className="block text-sm font-medium text-garage-text mb-1">
-                Renewal Date
+                {t('tax.renewalDate')}
               </label>
               <input
                 type="date"
@@ -148,20 +150,20 @@ export default function TaxRecordForm({ vin, record, onClose, onSuccess }: TaxRe
               />
               <FormError error={errors.renewal_date} />
               <p className="text-xs text-garage-text-muted mt-1">
-                When is this due next?
+                {t('tax.renewalDateHint')}
               </p>
             </div>
           </div>
 
           <div>
             <label htmlFor="notes" className="block text-sm font-medium text-garage-text mb-1">
-              Notes
+              {t('common:notes')}
             </label>
             <textarea
               id="notes"
               rows={3}
               {...register('notes')}
-              placeholder="Additional notes..."
+              placeholder={t('common:additionalNotes')}
               className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
                 errors.notes ? 'border-red-500' : 'border-garage-border'
               }`}
@@ -177,7 +179,7 @@ export default function TaxRecordForm({ vin, record, onClose, onSuccess }: TaxRe
               className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Save className="w-4 h-4" />
-              <span>{isSubmitting ? 'Saving...' : isEdit ? 'Update' : 'Create'}</span>
+              <span>{isSubmitting ? t('common:saving') : isEdit ? t('common:update') : t('common:create')}</span>
             </button>
 
             <button
@@ -186,7 +188,7 @@ export default function TaxRecordForm({ vin, record, onClose, onSuccess }: TaxRe
               disabled={isSubmitting}
               className="btn btn-primary rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Cancel
+              {t('common:cancel')}
             </button>
           </div>
         </form>

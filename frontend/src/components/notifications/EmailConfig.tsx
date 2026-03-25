@@ -1,4 +1,5 @@
 import { Mail, Send, Info } from 'lucide-react';
+import { useTranslation } from 'react-i18next'
 
 interface EmailConfigProps {
   settings: Record<string, unknown>;
@@ -17,6 +18,7 @@ export function EmailConfig({
   testing,
   saving,
 }: EmailConfigProps) {
+  const { t } = useTranslation('settings')
   const isEnabled = settings.email_enabled === 'true';
   const hasRequiredFields = Boolean(
     settings.email_smtp_host &&
@@ -46,10 +48,10 @@ export function EmailConfig({
             disabled={saving}
             className="w-4 h-4 text-primary bg-garage-bg border-garage-border rounded focus:ring-primary focus:ring-2 disabled:opacity-50"
           />
-          <span className="ml-2 text-sm text-garage-text font-medium">Enable email notifications</span>
+          <span className="ml-2 text-sm text-garage-text font-medium">{t('email.enable')}</span>
         </label>
 
-        {/* SMTP Host */}
+        {/* {t('email.smtpHost')} */}
         <div className="grid grid-cols-3 gap-3">
           <div className="col-span-2">
             <label htmlFor="email_smtp_host" className="block text-sm font-medium text-garage-text mb-1">
@@ -81,7 +83,7 @@ export function EmailConfig({
           </div>
         </div>
 
-        {/* SMTP Username */}
+        {/* {t('email.smtpUsername')} */}
         <div>
           <label htmlFor="email_smtp_user" className="block text-sm font-medium text-garage-text mb-1">
             SMTP Username
@@ -97,7 +99,7 @@ export function EmailConfig({
           />
         </div>
 
-        {/* SMTP Password */}
+        {/* {t('email.smtpPassword')} */}
         <div>
           <label htmlFor="email_smtp_password" className="block text-sm font-medium text-garage-text mb-1">
             SMTP Password / App Password
@@ -128,7 +130,7 @@ export function EmailConfig({
           <span className="ml-2 text-sm text-garage-text">Use STARTTLS (recommended)</span>
         </label>
 
-        {/* From Address */}
+        {/* {t('email.fromAddress')} */}
         <div>
           <label htmlFor="email_from" className="block text-sm font-medium text-garage-text mb-1">
             From Address
@@ -144,7 +146,7 @@ export function EmailConfig({
           />
         </div>
 
-        {/* To Address */}
+        {/* {t('email.toAddress')} */}
         <div>
           <label htmlFor="email_to" className="block text-sm font-medium text-garage-text mb-1">
             Recipient Address

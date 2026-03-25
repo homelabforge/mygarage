@@ -1,4 +1,5 @@
 import { AtSign, Send, Info, ExternalLink } from 'lucide-react';
+import { useTranslation } from 'react-i18next'
 
 interface TelegramConfigProps {
   settings: Record<string, unknown>;
@@ -17,6 +18,7 @@ export function TelegramConfig({
   testing,
   saving,
 }: TelegramConfigProps) {
+  const { t } = useTranslation('settings')
   const isEnabled = settings.telegram_enabled === 'true';
   const hasRequiredFields = Boolean(settings.telegram_bot_token && settings.telegram_chat_id);
 
@@ -40,10 +42,10 @@ export function TelegramConfig({
             disabled={saving}
             className="w-4 h-4 text-primary bg-garage-bg border-garage-border rounded focus:ring-primary focus:ring-2 disabled:opacity-50"
           />
-          <span className="ml-2 text-sm text-garage-text font-medium">Enable Telegram notifications</span>
+          <span className="ml-2 text-sm text-garage-text font-medium">{t('telegram.enable')}</span>
         </label>
 
-        {/* Bot Token */}
+        {/* {t('telegram.botToken')} */}
         <div>
           <label htmlFor="telegram_bot_token" className="block text-sm font-medium text-garage-text mb-1">
             Bot Token

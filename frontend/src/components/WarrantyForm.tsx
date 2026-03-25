@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useCallback } from 'react'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -18,6 +19,7 @@ interface WarrantyFormProps {
 }
 
 export default function WarrantyForm({ vin, record, onClose, onSuccess }: WarrantyFormProps) {
+  const { t } = useTranslation('forms')
   const isEdit = !!record
   const createMutation = useCreateWarrantyRecord(vin)
   const updateMutation = useUpdateWarrantyRecord(vin)
@@ -63,7 +65,7 @@ export default function WarrantyForm({ vin, record, onClose, onSuccess }: Warran
   })
 
   return (
-    <FormModalWrapper title={isEdit ? 'Edit Warranty' : 'Add Warranty'} onClose={onClose}>
+    <FormModalWrapper title={isEdit ? t('warranty.editTitle') : t('warranty.createTitle')} onClose={onClose}>
         <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
           {error && (
             <div className="bg-danger/10 border border-danger rounded-lg p-3">
@@ -74,7 +76,7 @@ export default function WarrantyForm({ vin, record, onClose, onSuccess }: Warran
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label htmlFor="warranty_type" className="block text-sm font-medium text-garage-text mb-1">
-                Warranty Type <span className="text-danger">*</span>
+                {t('warranty.warrantyType')} <span className="text-danger">*</span>
               </label>
               <select
                 id="warranty_type"
@@ -82,7 +84,7 @@ export default function WarrantyForm({ vin, record, onClose, onSuccess }: Warran
                 className={`input w-full ${errors.warranty_type ? 'border-red-500' : ''}`}
                 disabled={isSubmitting}
               >
-                <option value="">Select type...</option>
+                <option value="">{t('common:selectType')}</option>
                 {WARRANTY_TYPES.map((type) => (
                   <option key={type} value={type}>{type}</option>
                 ))}
@@ -92,7 +94,7 @@ export default function WarrantyForm({ vin, record, onClose, onSuccess }: Warran
 
             <div>
               <label htmlFor="provider" className="block text-sm font-medium text-garage-text mb-1">
-                Provider
+                {t('insurance.provider')}
               </label>
               <input
                 type="text"
@@ -109,7 +111,7 @@ export default function WarrantyForm({ vin, record, onClose, onSuccess }: Warran
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label htmlFor="start_date" className="block text-sm font-medium text-garage-text mb-1">
-                Start Date <span className="text-danger">*</span>
+                {t('common:startDate')} <span className="text-danger">*</span>
               </label>
               <input
                 type="date"
@@ -123,7 +125,7 @@ export default function WarrantyForm({ vin, record, onClose, onSuccess }: Warran
 
             <div>
               <label htmlFor="end_date" className="block text-sm font-medium text-garage-text mb-1">
-                End Date
+                {t('common:endDate')}
               </label>
               <input
                 type="date"
@@ -139,7 +141,7 @@ export default function WarrantyForm({ vin, record, onClose, onSuccess }: Warran
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label htmlFor="mileage_limit" className="block text-sm font-medium text-garage-text mb-1">
-                Mileage Limit
+                {t('warranty.mileageLimit')}
               </label>
               <input
                 type="number"
@@ -155,7 +157,7 @@ export default function WarrantyForm({ vin, record, onClose, onSuccess }: Warran
 
             <div>
               <label htmlFor="policy_number" className="block text-sm font-medium text-garage-text mb-1">
-                Policy Number
+                {t('insurance.policyNumber')}
               </label>
               <input
                 type="text"
@@ -171,14 +173,14 @@ export default function WarrantyForm({ vin, record, onClose, onSuccess }: Warran
 
           <div>
             <label htmlFor="coverage_details" className="block text-sm font-medium text-garage-text mb-1">
-              Coverage Details
+              {t('warranty.coverageDetails')}
             </label>
             <textarea
               id="coverage_details"
               {...register('coverage_details')}
               className={`input w-full ${errors.coverage_details ? 'border-red-500' : ''}`}
               rows={3}
-              placeholder="What's covered by this warranty..."
+              placeholder={t('warranty.coverageDetailsPlaceholder')}
               disabled={isSubmitting}
             />
             <FormError error={errors.coverage_details} />
@@ -186,7 +188,7 @@ export default function WarrantyForm({ vin, record, onClose, onSuccess }: Warran
 
           <div>
             <label htmlFor="notes" className="block text-sm font-medium text-garage-text mb-1">
-              Notes
+              {t('common:notes')}
             </label>
             <textarea
               id="notes"
@@ -214,7 +216,7 @@ export default function WarrantyForm({ vin, record, onClose, onSuccess }: Warran
               disabled={isSubmitting}
             >
               <Save size={16} />
-              {isSubmitting ? 'Saving...' : isEdit ? 'Update' : 'Create'}
+              {isSubmitting ? t('common:saving') : isEdit ? t('common:update') : t('common:create')}
             </button>
           </div>
         </form>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import ServiceVisitList from '../ServiceVisitList'
 import ServiceVisitForm from '../ServiceVisitForm'
 import type { ServiceVisit } from '../../types/serviceVisit'
@@ -10,6 +11,7 @@ interface ServiceTabProps {
 }
 
 export default function ServiceTab({ vin }: ServiceTabProps) {
+  const { t } = useTranslation('vehicles')
   const [vehicle, setVehicle] = useState<Vehicle | null>(null)
   const [vehicleReady, setVehicleReady] = useState(false)
   const [showVisitForm, setShowVisitForm] = useState(false)
@@ -63,7 +65,7 @@ export default function ServiceTab({ vin }: ServiceTabProps) {
       {showVisitForm && !vehicleReady && (
         <div className="fixed inset-0 modal-overlay backdrop-blur-xs flex items-center justify-center z-50">
           <div className="bg-garage-surface rounded-lg border border-garage-border p-8">
-            <div className="text-garage-text-muted text-sm">Loading...</div>
+            <div className="text-garage-text-muted text-sm">{t('common:loading')}</div>
           </div>
         </div>
       )}

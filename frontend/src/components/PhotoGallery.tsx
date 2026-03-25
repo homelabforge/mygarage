@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, memo } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   Image as ImageIcon,
   Plus,
@@ -27,6 +28,7 @@ interface PhotoCache {
 const PHOTO_CACHE_KEY = (vin: string) => `photos-cache-${vin}`
 
 function PhotoGallery({ vin, onAddClick }: PhotoGalleryProps) {
+  const { t } = useTranslation('vehicles')
   const [photos, setPhotos] = useState<Photo[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -151,7 +153,7 @@ function PhotoGallery({ vin, onAddClick }: PhotoGalleryProps) {
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-[200px]">
-        <div className="text-garage-text-muted">Loading photos...</div>
+        <div className="text-garage-text-muted">{t('photoGallery.loading')}</div>
       </div>
     )
   }
@@ -193,9 +195,9 @@ function PhotoGallery({ vin, onAddClick }: PhotoGalleryProps) {
       {photos.length === 0 ? (
         <div className="bg-garage-surface border border-garage-border rounded-lg p-8 text-center">
           <ImageIcon className="w-12 h-12 text-garage-text-muted opacity-50 mx-auto mb-3" />
-          <p className="text-garage-text mb-2">No photos yet</p>
+          <p className="text-garage-text mb-2">{t('photoGallery.noPhotos')}</p>
           <p className="text-sm text-garage-text-muted mb-4">
-            Upload photos of your vehicle to create a gallery
+            {t('photoGallery.noPhotosDesc')}
           </p>
           <button
             onClick={onAddClick}
@@ -203,7 +205,7 @@ function PhotoGallery({ vin, onAddClick }: PhotoGalleryProps) {
             disabled={!isOnline}
           >
             <Plus className="w-4 h-4" />
-            <span>Upload First Photo</span>
+            <span>{t('photoGallery.uploadFirstPhoto')}</span>
           </button>
         </div>
       ) : (
@@ -241,7 +243,7 @@ function PhotoGallery({ vin, onAddClick }: PhotoGalleryProps) {
                       <button
                         onClick={() => handleSetMain(photo)}
                         className="p-2 bg-warning text-white rounded-full hover:bg-warning/80 disabled:opacity-50"
-                        title="Set as main photo"
+                        title={t('photoGallery.setAsMain')}
                         disabled={!isOnline}
                       >
                         <Star className="w-4 h-4" />
@@ -251,7 +253,7 @@ function PhotoGallery({ vin, onAddClick }: PhotoGalleryProps) {
                       onClick={() => handleDelete(photo)}
                       disabled={deletingId === (photo.id ?? photo.filename) || !isOnline}
                       className="p-2 bg-danger text-white rounded-full hover:bg-danger/80 disabled:opacity-50"
-                      title="Delete photo"
+                      title={t('photoGallery.deletePhoto')}
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>

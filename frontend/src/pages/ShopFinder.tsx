@@ -6,6 +6,7 @@
  */
 
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { MapPin, Loader2, Navigation, Star, Phone, Globe, Save, Check,  AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '@/services/api'
@@ -14,6 +15,7 @@ import type { PlaceResult, ShopRecommendation, ShopSearchResponse, ShopRecommend
 type Step = 'permission' | 'searching' | 'results'
 
 export default function ShopFinder() {
+  const { t } = useTranslation('common')
   const [step, setStep] = useState<Step>('permission')
   const [recommendations, setRecommendations] = useState<ShopRecommendation[]>([])
   const [searchResults, setSearchResults] = useState<PlaceResult[]>([])
@@ -172,9 +174,9 @@ export default function ShopFinder() {
             <MapPin className="w-8 h-8 text-primary" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold text-garage-text">Find Nearby Shops</h1>
+            <h1 className="text-3xl font-bold text-garage-text">{t('shopFinder.title')}</h1>
             <p className="text-garage-text-muted">
-              Discover auto repair shops near your location and save them to your address book
+              {t('shopFinder.subtitle')}
             </p>
           </div>
         </div>
@@ -185,7 +187,7 @@ export default function ShopFinder() {
         <>
           {/* Search Options */}
           <div className="mb-8 bg-garage-surface border border-garage-border rounded-lg p-6">
-            <h2 className="text-lg font-semibold text-garage-text mb-4">Search Options</h2>
+            <h2 className="text-lg font-semibold text-garage-text mb-4">{t('shopFinder.searchOptions')}</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Search Radius */}
               <div>
@@ -209,7 +211,7 @@ export default function ShopFinder() {
               {/* Shop Type */}
               <div>
                 <label htmlFor="shop_type" className="block text-sm font-medium text-garage-text mb-2">
-                  Shop Type
+                  {t('shopFinder.shopType')}
                 </label>
                 <select
                   id="shop_type"
@@ -217,8 +219,8 @@ export default function ShopFinder() {
                   onChange={(e) => setShopType(e.target.value as 'auto' | 'rv')}
                   className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary"
                 >
-                  <option value="auto">Auto Repair</option>
-                  <option value="rv">RV Repair</option>
+                  <option value="auto">{t('shopFinder.autoRepair')}</option>
+                  <option value="rv">{t('shopFinder.rvRepair')}</option>
                 </select>
               </div>
             </div>
@@ -227,7 +229,7 @@ export default function ShopFinder() {
           {/* Recommendations Section */}
           {recommendations.length > 0 && (
             <div className="mb-8">
-              <h2 className="text-lg font-semibold text-garage-text mb-4">Previously Used Shops</h2>
+              <h2 className="text-lg font-semibold text-garage-text mb-4">{t('shopFinder.previouslyUsed')}</h2>
               <div className="space-y-3">
                 {recommendations.map((shop) => (
                   <div
@@ -269,7 +271,7 @@ export default function ShopFinder() {
                 </div>
               </div>
               <div>
-                <h2 className="text-xl font-semibold text-garage-text">Enable Location Access</h2>
+                <h2 className="text-xl font-semibold text-garage-text">{t('shopFinder.enableLocation')}</h2>
                 <p className="text-garage-text-muted mt-2 max-w-md mx-auto">
                   We need your location to find nearby {shopType === 'auto' ? 'auto repair' : 'RV repair'} shops within {searchRadius} mile{searchRadius !== 1 ? 's' : ''}.
                 </p>
@@ -287,7 +289,7 @@ export default function ShopFinder() {
                 className="px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors flex items-center gap-2 mx-auto"
               >
                 <Navigation className="w-4 h-4" />
-                Enable Location
+                {t('shopFinder.enableLocationBtn')}
               </button>
 
               <p className="text-xs text-garage-text-muted">
@@ -304,7 +306,7 @@ export default function ShopFinder() {
           <div className="text-center space-y-4">
             <Loader2 className="w-16 h-16 text-primary animate-spin mx-auto" />
             <div>
-              <h2 className="text-xl font-semibold text-garage-text">Searching for Shops...</h2>
+              <h2 className="text-xl font-semibold text-garage-text">{t('shopFinder.searching')}</h2>
               <p className="text-garage-text-muted mt-2">
                 Finding nearby {shopType === 'auto' ? 'auto repair' : 'RV repair'} shops within {searchRadius} mile{searchRadius !== 1 ? 's' : ''}
               </p>
@@ -329,7 +331,7 @@ export default function ShopFinder() {
               onClick={() => setStep('permission')}
               className="px-4 py-2 bg-primary/10 text-primary rounded-lg hover:bg-primary/20 transition-colors"
             >
-              Search Again
+              {t('shopFinder.searchAgain')}
             </button>
           </div>
 
@@ -337,9 +339,9 @@ export default function ShopFinder() {
             <div className="bg-garage-surface border border-garage-border rounded-lg p-12">
               <div className="text-center">
                 <MapPin className="w-16 h-16 text-garage-text-muted mx-auto mb-4" />
-                <h3 className="text-xl font-semibold text-garage-text">No Shops Found</h3>
+                <h3 className="text-xl font-semibold text-garage-text">{t('shopFinder.noShopsFound')}</h3>
                 <p className="text-garage-text-muted mt-2">
-                  Try searching from a different location or expanding your search radius.
+                  {t('shopFinder.noShopsHint')}
                 </p>
               </div>
             </div>
@@ -393,7 +395,7 @@ export default function ShopFinder() {
                               className="flex items-center gap-1 text-primary hover:underline"
                             >
                               <Globe className="w-4 h-4" />
-                              Website
+                              {t('shopFinder.website')}
                             </a>
                           )}
                         </div>
@@ -412,12 +414,12 @@ export default function ShopFinder() {
                         {isSaved ? (
                           <>
                             <Check className="w-4 h-4" />
-                            Saved
+                            {t('shopFinder.saved')}
                           </>
                         ) : (
                           <>
                             <Save className="w-4 h-4" />
-                            Save to Address Book
+                            {t('shopFinder.saveToAddressBook')}
                           </>
                         )}
                       </button>

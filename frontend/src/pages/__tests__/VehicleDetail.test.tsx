@@ -164,7 +164,7 @@ describe('VehicleDetail', () => {
     await waitFor(() => {
       expect(screen.getByText('Network Error')).toBeInTheDocument()
     })
-    expect(screen.getByText('Back to Dashboard')).toBeInTheDocument()
+    expect(screen.getByText('detail.backToDashboard')).toBeInTheDocument()
   })
 
   // --- Caching ---
@@ -244,7 +244,8 @@ describe('VehicleDetail', () => {
     })
 
     // Click the Maintenance primary tab (first match — mobile grid renders before desktop bar)
-    fireEvent.click(screen.getAllByText('Maintenance')[0])
+    // With i18n mock, t() returns translation keys
+    fireEvent.click(screen.getAllByText('detail.tabs.maintenance')[0])
 
     // SubTabNav should appear with Service as default sub-tab
     await waitFor(() => {

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useState } from 'react'
 import { X, Eye, EyeOff } from 'lucide-react'
 import api from '../../services/api'
@@ -20,6 +21,7 @@ interface Props {
 }
 
 function EditProviderModalContent({ provider, onClose, onSave }: Omit<Props, 'isOpen'>) {
+  const { t } = useTranslation('forms')
   const [enabled, setEnabled] = useState(provider?.enabled ?? false)
   const [apiKey, setApiKey] = useState('')
   const [showApiKey, setShowApiKey] = useState(false)
@@ -50,7 +52,7 @@ function EditProviderModalContent({ provider, onClose, onSave }: Omit<Props, 'is
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-zinc-900 rounded-lg p-6 max-w-md w-full mx-4">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-bold text-zinc-100">Edit {provider.display_name}</h2>
+          <h2 className="text-xl font-bold text-zinc-100">{t('modal.editProvider', { name: provider.display_name })}</h2>
           <button onClick={onClose} className="text-zinc-400 hover:text-zinc-100">
             <X className="w-5 h-5" />
           </button>
@@ -64,7 +66,7 @@ function EditProviderModalContent({ provider, onClose, onSave }: Omit<Props, 'is
               onChange={(e) => setEnabled(e.target.checked)}
               className="w-4 h-4"
             />
-            <span className="text-zinc-300">Enabled</span>
+            <span className="text-zinc-300">{t('common:enabled')}</span>
           </label>
 
           <div>

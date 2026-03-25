@@ -4,6 +4,7 @@
  */
 
 import { Car } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useAppVersion } from '../hooks/useAppVersion'
 
 interface AuthPageLayoutProps {
@@ -21,6 +22,7 @@ export default function AuthPageLayout({
   children,
   className = '',
 }: AuthPageLayoutProps) {
+  const { t } = useTranslation('common')
   const version = useAppVersion()
 
   return (
@@ -50,7 +52,7 @@ export default function AuthPageLayout({
 
         {/* Version Footer */}
         <div className="mt-8 text-center text-xs text-garage-text-muted">
-          MyGarage v{version} &bull; Self-hosted vehicle maintenance tracking
+          MyGarage v{version} &bull; {t('auth.tagline')}
         </div>
       </div>
     </div>

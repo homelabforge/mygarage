@@ -1,4 +1,5 @@
 import { memo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import {
   Car,
@@ -24,6 +25,7 @@ interface VehicleStatisticsCardProps {
 }
 
 function VehicleStatisticsCard({ stats }: VehicleStatisticsCardProps) {
+  const { t } = useTranslation('vehicles')
   const navigate = useNavigate()
   const { system } = useUnitPreference()
 
@@ -32,7 +34,7 @@ function VehicleStatisticsCard({ stats }: VehicleStatisticsCardProps) {
   }
 
   const formatDate = (dateString?: string): string => {
-    if (!dateString) return 'Never'
+    if (!dateString) return t('vehicleStats.never')
     return formatDateForDisplay(dateString, {
       month: 'short',
       day: 'numeric',
@@ -86,13 +88,13 @@ function VehicleStatisticsCard({ stats }: VehicleStatisticsCardProps) {
         {stats.overdue_maintenance_count > 0 && (
           <div className="absolute top-3 right-3 bg-danger text-white px-2 py-1 rounded-md text-xs font-semibold flex items-center gap-1">
             <AlertCircle className="w-3 h-3" />
-            {stats.overdue_maintenance_count} Overdue
+            {t('vehicleStats.overdue', { count: stats.overdue_maintenance_count })}
           </div>
         )}
         {stats.overdue_maintenance_count === 0 && stats.upcoming_maintenance_count > 0 && (
           <div className="absolute top-3 right-3 bg-warning text-white px-2 py-1 rounded-md text-xs font-semibold flex items-center gap-1">
             <Bell className="w-3 h-3" />
-            {stats.upcoming_maintenance_count} Upcoming
+            {t('vehicleStats.upcoming', { count: stats.upcoming_maintenance_count })}
           </div>
         )}
 
@@ -113,50 +115,48 @@ function VehicleStatisticsCard({ stats }: VehicleStatisticsCardProps) {
           <StatBadge
             icon={<Wrench className="w-3 h-3" />}
             count={stats.total_service_records}
-            label="Service"
+            label={t('vehicleStats.service')}
           />
           <StatBadge
             icon={<Fuel className="w-3 h-3" />}
             count={stats.total_fuel_records}
-            label="Fuel"
+            label={t('vehicleStats.fuel')}
           />
           <StatBadge
             icon={<Bell className="w-3 h-3" />}
             count={stats.total_maintenance_items}
-            label="Maintenance"
+            label={t('vehicleStats.maintenance')}
           />
           <StatBadge
             icon={<FileText className="w-3 h-3" />}
             count={stats.total_documents}
-            label="Docs"
+            label={t('vehicleStats.docs')}
           />
         </div>
 
         {/* Recent Activity */}
         {hasActivity && (
           <div className="border-t border-garage-border pt-3 space-y-2">
-            <h4 className="text-xs font-semibold text-garage-text-muted uppercase">
-              Recent Activity
-            </h4>
+            <h4 className="text-xs font-semibold text-garage-text-muted uppercase">{t('vehicleStats.recentActivity')}</h4>
             <div className="space-y-1.5 text-sm">
               {stats.latest_service_date && (
                 <ActivityRow
                   icon={<Wrench className="w-3.5 h-3.5" />}
-                  label="Last Service"
+                  label={t('vehicleStats.lastService')}
                   value={formatDate(stats.latest_service_date)}
                 />
               )}
               {stats.latest_fuel_date && (
                 <ActivityRow
                   icon={<Fuel className="w-3.5 h-3.5" />}
-                  label="Last Fill-up"
+                  label={t('vehicleStats.lastFillUp')}
                   value={formatDate(stats.latest_fuel_date)}
                 />
               )}
               {stats.latest_odometer_reading && (
                 <ActivityRow
                   icon={<Gauge className="w-3.5 h-3.5" />}
-                  label="Latest Odometer"
+                  label={t('vehicleStats.latestOdometer')}
                   value={UnitFormatter.formatDistance(stats.latest_odometer_reading, system, false)}
                 />
               )}
@@ -180,7 +180,7 @@ function VehicleStatisticsCard({ stats }: VehicleStatisticsCardProps) {
             </div>
             {stats.recent_mpg && stats.recent_mpg !== stats.average_mpg && (
               <div className="text-xs text-garage-text-muted mt-1">
-                Recent: {UnitFormatter.formatFuelEconomy(stats.recent_mpg, system, false)}
+                {t('vehicleStats.recent')}: {UnitFormatter.formatFuelEconomy(stats.recent_mpg, system, false)}
               </div>
             )}
           </div>
@@ -191,11 +191,11 @@ function VehicleStatisticsCard({ stats }: VehicleStatisticsCardProps) {
           <div className="flex items-center justify-between text-xs text-garage-text-muted">
             <div className="flex items-center gap-1">
               <Camera className="w-3 h-3" />
-              <span>{stats.total_photos} photos</span>
+              <span>{t('vehicleStats.photoCount', { count: stats.total_photos })}</span>
             </div>
             <div className="flex items-center gap-1">
               <StickyNote className="w-3 h-3" />
-              <span>{stats.total_notes} notes</span>
+              <span>{t('vehicleStats.noteCount', { count: stats.total_notes })}</span>
             </div>
           </div>
         </div>

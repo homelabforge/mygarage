@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback, type SyntheticEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Plus, Search, Edit, Trash2, X, Save, Building2, Phone, Mail, Globe, MapPin } from 'lucide-react'
 import type { AddressBookEntry, AddressBookEntryCreate } from '../../types/addressBook'
 import api from '@/services/api'
 
 export default function SettingsAddressBookTab() {
+  const { t } = useTranslation('settings')
   const [entries, setEntries] = useState<AddressBookEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -25,11 +27,11 @@ export default function SettingsAddressBookTab() {
       const response = await api.get(`/address-book?${params}`)
       setEntries(response.data.entries || [])
     } catch {
-      setMessage({ type: 'error', text: 'Failed to load address book entries' })
+      setMessage({ type: 'error', text: t('addressBook.loadError') })
     } finally {
       setLoading(false)
     }
-  }, [searchTerm, categoryFilter])
+  }, [searchTerm, categoryFilter, t])
 
   useEffect(() => {
     loadEntries()
@@ -53,27 +55,27 @@ export default function SettingsAddressBookTab() {
   const handleFormSuccess = () => {
     loadEntries()
     handleCloseForm()
-    setMessage({ type: 'success', text: editingEntry ? 'Entry updated successfully' : 'Entry added successfully' })
+    setMessage({ type: 'success', text: editingEntry ? t('addressBook.entryUpdated') : t('addressBook.entryAdded') })
     setTimeout(() => setMessage(null), 3000)
   }
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this entry?')) return
+    if (!confirm(t('addressBook.confirmDelete'))) return
 
     try {
       await api.delete(`/address-book/${id}`)
       loadEntries()
-      setMessage({ type: 'success', text: 'Entry deleted successfully' })
+      setMessage({ type: 'success', text: t('addressBook.entryDeleted') })
       setTimeout(() => setMessage(null), 3000)
     } catch {
-      setMessage({ type: 'error', text: 'Failed to delete entry' })
+      setMessage({ type: 'error', text: t('addressBook.deleteError') })
     }
   }
 
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-[200px]">
-        <div className="text-garage-text-muted">Loading address book...</div>
+        <div className="text-garage-text-muted">{t('addressBook.loading')}</div>
       </div>
     )
   }
@@ -82,13 +84,13 @@ export default function SettingsAddressBookTab() {
     <div className="max-w-7xl">
       <div className="bg-garage-surface rounded-lg border border-garage-border p-6">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold text-garage-text">Address Book</h2>
+          <h2 className="text-xl font-semibold text-garage-text">{t('addressBook.title')}</h2>
           <button
             onClick={handleAddClick}
             className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors"
           >
             <Plus size={16} />
-            Add Contact
+            {t('addressBook.addContact')}
           </button>
         </div>
 
@@ -110,7 +112,7 @@ export default function SettingsAddressBookTab() {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-garage-text-muted" size={18} />
             <input
               type="text"
-              placeholder="Search by name, business, or city..."
+              placeholder={t('addressBook.searchPlaceholder')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary"
@@ -121,7 +123,7 @@ export default function SettingsAddressBookTab() {
             onChange={(e) => setCategoryFilter(e.target.value)}
             className="px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary"
           >
-            <option value="">All Categories</option>
+            <option value="">{t('addressBook.allCategories')}</option>
             {categories.map((cat) => (
               <option key={cat} value={cat}>{cat}</option>
             ))}
@@ -132,8 +134,8 @@ export default function SettingsAddressBookTab() {
         {entries.length === 0 ? (
           <div className="text-center py-12 text-garage-text-muted">
             <Building2 className="w-12 h-12 mx-auto mb-3 opacity-50" />
-            <p>No contacts found</p>
-            <p className="text-sm">Add your first contact to get started</p>
+            <p>{t('addressBook.noContacts')}</p>
+            <p className="text-sm">{t('addressBook.noContactsDesc')}</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -235,6 +237,7 @@ interface AddressBookFormProps {
 }
 
 function AddressBookForm({ entry, onClose, onSuccess, categories }: AddressBookFormProps) {
+  const { t } = useTranslation('settings')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [formData, setFormData] = useState<AddressBookEntryCreate>({
@@ -278,7 +281,7 @@ function AddressBookForm({ entry, onClose, onSuccess, categories }: AddressBookF
       <div className="bg-garage-surface rounded-lg border border-garage-border w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-garage-surface border-b border-garage-border px-6 py-4 flex items-center justify-between">
           <h2 className="text-xl font-semibold text-garage-text">
-            {entry ? 'Edit Contact' : 'Add Contact'}
+            {entry ? t('addressBook.editContact') : t('addressBook.addContact')}
           </h2>
           <button
             onClick={onClose}
@@ -298,7 +301,7 @@ function AddressBookForm({ entry, onClose, onSuccess, categories }: AddressBookF
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-garage-text mb-1">
-                Business Name <span className="text-danger">*</span>
+                {t('addressBook.businessName')} <span className="text-danger">*</span>
               </label>
               <input
                 type="text"
@@ -310,9 +313,7 @@ function AddressBookForm({ entry, onClose, onSuccess, categories }: AddressBookF
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-garage-text mb-1">
-                Contact Name
-              </label>
+              <label className="block text-sm font-medium text-garage-text mb-1">{t('addressBook.contactName')}</label>
               <input
                 type="text"
                 value={formData.name || ''}
@@ -323,9 +324,7 @@ function AddressBookForm({ entry, onClose, onSuccess, categories }: AddressBookF
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-garage-text mb-1">
-              Address
-            </label>
+            <label className="block text-sm font-medium text-garage-text mb-1">{t('addressBook.address')}</label>
             <input
               type="text"
               value={formData.address || ''}
@@ -336,9 +335,7 @@ function AddressBookForm({ entry, onClose, onSuccess, categories }: AddressBookF
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium text-garage-text mb-1">
-                City
-              </label>
+              <label className="block text-sm font-medium text-garage-text mb-1">{t('addressBook.city')}</label>
               <input
                 type="text"
                 value={formData.city || ''}
@@ -348,9 +345,7 @@ function AddressBookForm({ entry, onClose, onSuccess, categories }: AddressBookF
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-garage-text mb-1">
-                State
-              </label>
+              <label className="block text-sm font-medium text-garage-text mb-1">{t('addressBook.state')}</label>
               <input
                 type="text"
                 value={formData.state || ''}
@@ -360,9 +355,7 @@ function AddressBookForm({ entry, onClose, onSuccess, categories }: AddressBookF
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-garage-text mb-1">
-                ZIP Code
-              </label>
+              <label className="block text-sm font-medium text-garage-text mb-1">{t('addressBook.zipCode')}</label>
               <input
                 type="text"
                 value={formData.zip_code || ''}
@@ -374,9 +367,7 @@ function AddressBookForm({ entry, onClose, onSuccess, categories }: AddressBookF
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-garage-text mb-1">
-                Phone
-              </label>
+              <label className="block text-sm font-medium text-garage-text mb-1">{t('addressBook.phone')}</label>
               <input
                 type="tel"
                 value={formData.phone || ''}
@@ -386,9 +377,7 @@ function AddressBookForm({ entry, onClose, onSuccess, categories }: AddressBookF
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-garage-text mb-1">
-                Email
-              </label>
+              <label className="block text-sm font-medium text-garage-text mb-1">{t('addressBook.email')}</label>
               <input
                 type="email"
                 value={formData.email || ''}
@@ -400,9 +389,7 @@ function AddressBookForm({ entry, onClose, onSuccess, categories }: AddressBookF
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-garage-text mb-1">
-                Website
-              </label>
+              <label className="block text-sm font-medium text-garage-text mb-1">{t('addressBook.websiteLabel')}</label>
               <input
                 type="text"
                 value={formData.website || ''}
@@ -413,15 +400,13 @@ function AddressBookForm({ entry, onClose, onSuccess, categories }: AddressBookF
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-garage-text mb-1">
-                Category
-              </label>
+              <label className="block text-sm font-medium text-garage-text mb-1">{t('addressBook.category')}</label>
               <select
                 value={formData.category || ''}
                 onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                 className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary"
               >
-                <option value="">Select category</option>
+                <option value="">{t('addressBook.selectCategory')}</option>
                 {categories.map((cat) => (
                   <option key={cat} value={cat}>{cat}</option>
                 ))}
@@ -430,9 +415,7 @@ function AddressBookForm({ entry, onClose, onSuccess, categories }: AddressBookF
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-garage-text mb-1">
-              Notes
-            </label>
+            <label className="block text-sm font-medium text-garage-text mb-1">{t('addressBook.notes')}</label>
             <textarea
               value={formData.notes || ''}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
@@ -455,7 +438,7 @@ function AddressBookForm({ entry, onClose, onSuccess, categories }: AddressBookF
               className="flex-1 flex items-center justify-center gap-2 btn-primary transition-colors disabled:opacity-50"
             >
               <Save size={16} />
-              {saving ? 'Saving...' : 'Save Contact'}
+              {saving ? t('common:saving') : t('addressBook.saveContact')}
             </button>
           </div>
         </form>

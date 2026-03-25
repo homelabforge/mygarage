@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   Download,
   Upload,
@@ -38,6 +39,7 @@ interface BackupStats {
 }
 
 export default function SettingsBackupTab() {
+  const { t } = useTranslation('settings')
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState<BackupStats | null>(null)
   const [settingsBackups, setSettingsBackups] = useState<BackupFile[]>([])
@@ -62,11 +64,11 @@ export default function SettingsBackupTab() {
       setSettingsBackups(allBackups.filter(b => b.type === 'settings'))
       setFullBackups(allBackups.filter(b => b.type === 'full'))
     } catch {
-      setMessage({ type: 'error', text: 'Failed to load backup data' })
+      setMessage({ type: 'error', text: t('backup.loadError') })
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [t])
 
   useEffect(() => {
     loadData()
@@ -81,7 +83,7 @@ export default function SettingsBackupTab() {
       setMessage({ type: 'success', text: response.data.message || 'Settings backup created successfully!' })
       await loadData()
     } catch {
-      setMessage({ type: 'error', text: 'Failed to create settings backup' })
+      setMessage({ type: 'error', text: t('backup.createSettingsError') })
     } finally {
       setCreatingSettings(false)
     }
@@ -96,7 +98,7 @@ export default function SettingsBackupTab() {
       setMessage({ type: 'success', text: response.data.message || 'Full backup created successfully!' })
       await loadData()
     } catch {
-      setMessage({ type: 'error', text: 'Failed to create full backup' })
+      setMessage({ type: 'error', text: t('backup.createFullError') })
     } finally {
       setCreatingFull(false)
     }
@@ -199,7 +201,7 @@ export default function SettingsBackupTab() {
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-[200px]">
-        <div className="text-garage-text-muted">Loading backup data...</div>
+        <div className="text-garage-text-muted">{t('backup.loading')}</div>
       </div>
     )
   }
@@ -239,9 +241,9 @@ export default function SettingsBackupTab() {
         <div className="flex items-start gap-3 mb-6">
           <FileJson className="w-6 h-6 text-primary mt-1" />
           <div className="flex-1">
-            <h2 className="text-xl font-semibold text-garage-text mb-2">Settings Backup</h2>
+            <h2 className="text-xl font-semibold text-garage-text mb-2">{t('backup.settingsBackup')}</h2>
             <p className="text-sm text-garage-text-muted">
-              Backup and restore application settings only. Does not include database or uploaded files.
+              {t('backup.settingsBackupDesc')}
             </p>
           </div>
         </div>
@@ -252,14 +254,14 @@ export default function SettingsBackupTab() {
             <div className="bg-garage-bg rounded-lg p-4 border border-garage-border">
               <div className="flex items-center gap-2 text-garage-text-muted mb-2">
                 <Database className="w-4 h-4" />
-                <span className="text-sm font-medium">Database Size</span>
+                <span className="text-sm font-medium">{t('backup.databaseSize')}</span>
               </div>
               <p className="text-2xl font-bold text-primary">{stats.database.size_mb} MB</p>
             </div>
             <div className="bg-garage-bg rounded-lg p-4 border border-garage-border">
               <div className="flex items-center gap-2 text-garage-text-muted mb-2">
                 <FileJson className="w-4 h-4" />
-                <span className="text-sm font-medium">Settings Backups</span>
+                <span className="text-sm font-medium">{t('backup.settingsBackups')}</span>
               </div>
               <p className="text-2xl font-bold text-primary">{stats.settings_backups.count}</p>
               <p className="text-xs text-garage-text-muted mt-1">
@@ -269,10 +271,10 @@ export default function SettingsBackupTab() {
             <div className="bg-garage-bg rounded-lg p-4 border border-garage-border">
               <div className="flex items-center gap-2 text-garage-text-muted mb-2">
                 <Database className="w-4 h-4" />
-                <span className="text-sm font-medium">Last Modified</span>
+                <span className="text-sm font-medium">{t('backup.lastModified')}</span>
               </div>
               <p className="text-sm font-bold text-primary">
-                {stats.database.last_modified ? formatDate(stats.database.last_modified) : 'Never'}
+                {stats.database.last_modified ? formatDate(stats.database.last_modified) : t('backup.never')}
               </p>
             </div>
           </div>
@@ -286,14 +288,14 @@ export default function SettingsBackupTab() {
             className="flex items-center gap-2 px-4 py-2 btn btn-primary rounded-lg transition-colors disabled:opacity-50"
           >
             <Download size={16} />
-            {creatingSettings ? 'Creating Backup...' : 'Create Settings Backup'}
+            {creatingSettings ? t('backup.creatingBackup') : t('backup.createSettingsBackup')}
           </button>
           <button
             onClick={() => settingsFileInputRef.current?.click()}
             className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors"
           >
             <Upload size={16} />
-            Upload Settings Backup
+            {t('backup.uploadSettingsBackup')}
           </button>
           <input
             ref={settingsFileInputRef}
@@ -310,10 +312,10 @@ export default function SettingsBackupTab() {
             <table className="w-full text-sm">
               <thead className="bg-garage-bg border-b border-garage-border">
                 <tr>
-                  <th className="text-left p-3 text-garage-text font-medium">Filename</th>
-                  <th className="text-left p-3 text-garage-text font-medium">Size</th>
-                  <th className="text-left p-3 text-garage-text font-medium">Created</th>
-                  <th className="text-right p-3 text-garage-text font-medium">Actions</th>
+                  <th className="text-left p-3 text-garage-text font-medium">{t('backup.filename')}</th>
+                  <th className="text-left p-3 text-garage-text font-medium">{t('backup.size')}</th>
+                  <th className="text-left p-3 text-garage-text font-medium">{t('backup.created')}</th>
+                  <th className="text-right p-3 text-garage-text font-medium">{t('backup.actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -334,14 +336,14 @@ export default function SettingsBackupTab() {
                         <button
                           onClick={() => handleDownload(backup.filename)}
                           className="p-1 text-primary hover:bg-primary/10 rounded"
-                          title="Download"
+                          title={t('backup.download')}
                         >
                           <Download size={16} />
                         </button>
                         <button
                           onClick={() => handleRestore(backup.filename, false)}
                           className="p-1 text-success-500 hover:bg-success-500/10 rounded"
-                          title="Restore"
+                          title={t('backup.restore')}
                         >
                           <RefreshCw size={16} />
                         </button>
@@ -349,7 +351,7 @@ export default function SettingsBackupTab() {
                           <button
                             onClick={() => handleDelete(backup.filename)}
                             className="p-1 text-danger-500 hover:bg-danger-500/10 rounded"
-                            title="Delete"
+                            title={t('common:delete')}
                           >
                             <Trash2 size={16} />
                           </button>
@@ -363,7 +365,7 @@ export default function SettingsBackupTab() {
           </div>
         ) : (
           <div className="text-center py-8 text-garage-text-muted">
-            No settings backups available. Create your first backup above.
+            {t('backup.noSettingsBackups')}
           </div>
         )}
         </div>
@@ -373,10 +375,9 @@ export default function SettingsBackupTab() {
         <div className="flex items-start gap-3 mb-6">
           <Archive className="w-6 h-6 text-warning-500 mt-1" />
           <div className="flex-1">
-            <h2 className="text-xl font-semibold text-garage-text mb-2">Full Data Backup</h2>
+            <h2 className="text-xl font-semibold text-garage-text mb-2">{t('backup.fullDataBackup')}</h2>
             <p className="text-sm text-garage-text-muted">
-              Complete backup including database and all uploaded files (photos, documents, attachments).
-              May take several minutes depending on data size.
+              {t('backup.fullDataBackupDesc')}
             </p>
           </div>
         </div>
@@ -387,7 +388,7 @@ export default function SettingsBackupTab() {
             <div className="bg-garage-bg rounded-lg p-4 border border-garage-border">
               <div className="flex items-center gap-2 text-garage-text-muted mb-2">
                 <Archive className="w-4 h-4" />
-                <span className="text-sm font-medium">Full Backups</span>
+                <span className="text-sm font-medium">{t('backup.fullBackups')}</span>
               </div>
               <p className="text-2xl font-bold text-warning-500">{stats.full_backups.count}</p>
               <p className="text-xs text-garage-text-muted mt-1">
@@ -397,7 +398,7 @@ export default function SettingsBackupTab() {
             <div className="bg-garage-bg rounded-lg p-4 border border-garage-border">
               <div className="flex items-center gap-2 text-garage-text-muted mb-2">
                 <HardDrive className="w-4 h-4" />
-                <span className="text-sm font-medium">Data Included</span>
+                <span className="text-sm font-medium">{t('backup.dataIncluded')}</span>
               </div>
               <p className="text-sm text-garage-text">
                 Database, Photos, Documents, Attachments
@@ -411,7 +412,7 @@ export default function SettingsBackupTab() {
           <div className="flex items-start gap-2">
             <AlertCircle className="w-5 h-5 text-warning-500 mt-0.5" />
             <div>
-              <h3 className="text-sm font-medium text-warning-500 mb-1">Important Information:</h3>
+              <h3 className="text-sm font-medium text-warning-500 mb-1">{t('backup.importantInfo')}:</h3>
               <ul className="text-sm text-warning-500/90 space-y-1">
                 <li>• Full backups include your entire database and all uploaded files</li>
                 <li>• Backup size depends on the amount of photos and documents you have uploaded</li>
@@ -431,14 +432,14 @@ export default function SettingsBackupTab() {
             className="flex items-center gap-2 px-4 py-2 btn bg-warning-600 hover:bg-warning-700 text-white rounded-lg transition-colors disabled:opacity-50"
           >
             <Archive size={16} />
-            {creatingFull ? 'Creating Full Backup...' : 'Create Full Backup'}
+            {creatingFull ? t('backup.creatingFullBackup') : t('backup.createFullBackup')}
           </button>
           <button
             onClick={() => fullFileInputRef.current?.click()}
             className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors"
           >
             <Upload size={16} />
-            Upload Full Backup
+            {t('backup.uploadFullBackup')}
           </button>
           <input
             ref={fullFileInputRef}
@@ -455,10 +456,10 @@ export default function SettingsBackupTab() {
             <table className="w-full text-sm">
               <thead className="bg-garage-bg border-b border-garage-border">
                 <tr>
-                  <th className="text-left p-3 text-garage-text font-medium">Filename</th>
-                  <th className="text-left p-3 text-garage-text font-medium">Size</th>
-                  <th className="text-left p-3 text-garage-text font-medium">Created</th>
-                  <th className="text-right p-3 text-garage-text font-medium">Actions</th>
+                  <th className="text-left p-3 text-garage-text font-medium">{t('backup.filename')}</th>
+                  <th className="text-left p-3 text-garage-text font-medium">{t('backup.size')}</th>
+                  <th className="text-left p-3 text-garage-text font-medium">{t('backup.created')}</th>
+                  <th className="text-right p-3 text-garage-text font-medium">{t('backup.actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -479,14 +480,14 @@ export default function SettingsBackupTab() {
                         <button
                           onClick={() => handleDownload(backup.filename)}
                           className="p-1 text-primary hover:bg-primary/10 rounded"
-                          title="Download"
+                          title={t('backup.download')}
                         >
                           <Download size={16} />
                         </button>
                         <button
                           onClick={() => handleRestore(backup.filename, true)}
                           className="p-1 text-danger-500 hover:bg-danger-500/10 rounded"
-                          title="Restore (Overwrites all data!)"
+                          title={t('backup.restoreOverwrite')}
                         >
                           <RefreshCw size={16} />
                         </button>
@@ -494,7 +495,7 @@ export default function SettingsBackupTab() {
                           <button
                             onClick={() => handleDelete(backup.filename)}
                             className="p-1 text-danger-500 hover:bg-danger-500/10 rounded"
-                            title="Delete"
+                            title={t('common:delete')}
                           >
                             <Trash2 size={16} />
                           </button>
@@ -508,7 +509,7 @@ export default function SettingsBackupTab() {
           </div>
         ) : (
           <div className="text-center py-8 text-garage-text-muted">
-            No full backups available. Create your first full backup above.
+            {t('backup.noFullBackups')}
           </div>
         )}
         </div>

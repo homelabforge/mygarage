@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useCallback } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -17,6 +18,7 @@ interface NoteFormProps {
 }
 
 export default function NoteForm({ vin, note, onClose, onSuccess }: NoteFormProps) {
+  const { t } = useTranslation('forms')
   const isEdit = !!note
   const createMutation = useCreateNote(vin)
   const updateMutation = useUpdateNote(vin)
@@ -55,7 +57,7 @@ export default function NoteForm({ vin, note, onClose, onSuccess }: NoteFormProp
   const title = watch('title', '')
 
   return (
-    <FormModalWrapper title={isEdit ? 'Edit Note' : 'Add Note'} onClose={onClose}>
+    <FormModalWrapper title={isEdit ? t('note.editTitle') : t('note.createTitle')} onClose={onClose}>
         <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
           {error && (
             <div className="bg-danger/10 border border-danger rounded-lg p-3">
@@ -65,7 +67,7 @@ export default function NoteForm({ vin, note, onClose, onSuccess }: NoteFormProp
 
           <div>
             <label htmlFor="date" className="block text-sm font-medium text-garage-text mb-1">
-              Date <span className="text-danger">*</span>
+              {t('common:date')} <span className="text-danger">*</span>
             </label>
             <input
               type="date"
@@ -81,7 +83,7 @@ export default function NoteForm({ vin, note, onClose, onSuccess }: NoteFormProp
 
           <div>
             <label htmlFor="title" className="block text-sm font-medium text-garage-text mb-1">
-              Title (Optional)
+              {t('note.titleOptional')}
             </label>
             <input
               type="text"
@@ -95,19 +97,19 @@ export default function NoteForm({ vin, note, onClose, onSuccess }: NoteFormProp
             />
             <FormError error={errors.title} />
             <p className="text-xs text-garage-text-muted mt-1">
-              {title?.length ?? 0}/100 characters
+              {title?.length ?? 0}/100 {t('common:characters')}
             </p>
           </div>
 
           <div>
             <label htmlFor="content" className="block text-sm font-medium text-garage-text mb-1">
-              Content <span className="text-danger">*</span>
+              {t('note.content')} <span className="text-danger">*</span>
             </label>
             <textarea
               id="content"
               rows={10}
               {...register('content')}
-              placeholder="Write your note here... You can include observations about vehicle performance, modifications made, interesting trips, or any other information you want to remember."
+              placeholder={t('note.contentPlaceholder')}
               className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
                 errors.content ? 'border-red-500' : 'border-garage-border'
               }`}
@@ -115,7 +117,7 @@ export default function NoteForm({ vin, note, onClose, onSuccess }: NoteFormProp
             />
             <FormError error={errors.content} />
             <p className="text-xs text-garage-text-muted mt-1">
-              Free-form text, no character limit
+              {t('note.freeFormHint')}
             </p>
           </div>
 
@@ -126,7 +128,7 @@ export default function NoteForm({ vin, note, onClose, onSuccess }: NoteFormProp
               className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Save className="w-4 h-4" />
-              <span>{isSubmitting ? 'Saving...' : isEdit ? 'Update' : 'Create'}</span>
+              <span>{isSubmitting ? t('common:saving') : isEdit ? t('common:update') : t('common:create')}</span>
             </button>
 
             <button
@@ -135,7 +137,7 @@ export default function NoteForm({ vin, note, onClose, onSuccess }: NoteFormProp
               disabled={isSubmitting}
               className="btn btn-primary rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Cancel
+              {t('common:cancel')}
             </button>
           </div>
         </form>

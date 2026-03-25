@@ -1,4 +1,5 @@
 import { useState, useRef, type SyntheticEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Upload, X, FileText } from 'lucide-react'
 import { useUploadDocument } from '../hooks/queries/useDocuments'
 
@@ -9,6 +10,7 @@ interface DocumentUploadProps {
 }
 
 export default function DocumentUpload({ vin, onSuccess, onClose }: DocumentUploadProps) {
+  const { t } = useTranslation('vehicles')
   const uploadMutation = useUploadDocument(vin)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -108,7 +110,7 @@ export default function DocumentUpload({ vin, onSuccess, onClose }: DocumentUplo
     <div className="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
       <div className="bg-garage-surface rounded-lg shadow-2xl max-w-2xl w-full border border-garage-border">
         <div className="bg-garage-surface border-b border-garage-border px-6 py-4 flex justify-between items-center rounded-t-lg">
-          <h2 className="text-xl font-semibold text-garage-text">Upload Document</h2>
+          <h2 className="text-xl font-semibold text-garage-text">{t('documentUpload.title')}</h2>
           <button
             onClick={onClose}
             className="text-garage-text-muted hover:text-garage-text"
@@ -239,7 +241,7 @@ export default function DocumentUpload({ vin, onSuccess, onClose }: DocumentUplo
               className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Upload className="w-4 h-4" />
-              <span>{uploading ? 'Uploading...' : 'Upload Document'}</span>
+              <span>{uploading ? t('documentUpload.uploading') : t('documentUpload.uploadBtn')}</span>
             </button>
 
             <button

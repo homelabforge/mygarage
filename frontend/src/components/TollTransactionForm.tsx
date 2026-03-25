@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useState } from 'react'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -17,6 +18,7 @@ interface TollTransactionFormProps {
 }
 
 export default function TollTransactionForm({ vin, tollTags, transaction, onClose, onSuccess }: TollTransactionFormProps) {
+  const { t } = useTranslation('forms')
   const isEdit = !!transaction
   const [error, setError] = useState<string | null>(null)
   const createMutation = useCreateTollTransaction(vin)
@@ -63,14 +65,14 @@ export default function TollTransactionForm({ vin, tollTags, transaction, onClos
       onSuccess()
       onClose()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
+      setError(err instanceof Error ? err.message : t('common:error'))
     }
   }
 
   const activeTollTags = tollTags.filter(tag => tag.status === 'active')
 
   return (
-    <FormModalWrapper title={isEdit ? 'Edit Toll Transaction' : 'Add Toll Transaction'} onClose={onClose}>
+    <FormModalWrapper title={isEdit ? t('toll.editTransactionTitle') : t('toll.createTransactionTitle')} onClose={onClose}>
         <form onSubmit={handleSubmit(onSubmit as Parameters<typeof handleSubmit>[0])} className="p-6 space-y-4">
           {error && (
             <div className="bg-danger/10 border border-danger rounded-lg p-3">
@@ -81,7 +83,7 @@ export default function TollTransactionForm({ vin, tollTags, transaction, onClos
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label htmlFor="transaction_date" className="block text-sm font-medium text-garage-text mb-1">
-                Date <span className="text-danger">*</span>
+                {t('common:date')} <span className="text-danger">*</span>
               </label>
               <input
                 type="date"
@@ -97,7 +99,7 @@ export default function TollTransactionForm({ vin, tollTags, transaction, onClos
 
             <div>
               <label htmlFor="amount" className="block text-sm font-medium text-garage-text mb-1">
-                Amount <span className="text-danger">*</span>
+                {t('common:amount')} <span className="text-danger">*</span>
               </label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-garage-text-muted">$</span>
@@ -119,7 +121,7 @@ export default function TollTransactionForm({ vin, tollTags, transaction, onClos
 
           <div>
             <label htmlFor="location" className="block text-sm font-medium text-garage-text mb-1">
-              Location <span className="text-danger">*</span>
+              {t('toll.location')} <span className="text-danger">*</span>
             </label>
             <input
               type="text"
@@ -128,7 +130,7 @@ export default function TollTransactionForm({ vin, tollTags, transaction, onClos
               className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
                 errors.location ? 'border-red-500' : 'border-garage-border'
               }`}
-              placeholder="e.g., Hardy Toll Road - Spring, I-45 North Tollway"
+              placeholder={t('toll.locationPlaceholder')}
               disabled={isSubmitting}
             />
             <FormError error={errors.location} />
@@ -136,7 +138,7 @@ export default function TollTransactionForm({ vin, tollTags, transaction, onClos
 
           <div>
             <label htmlFor="toll_tag_id" className="block text-sm font-medium text-garage-text mb-1">
-              Toll Tag
+              {t('toll.tollTag')}
             </label>
             <select
               id="toll_tag_id"
@@ -146,7 +148,7 @@ export default function TollTransactionForm({ vin, tollTags, transaction, onClos
               }`}
               disabled={isSubmitting}
             >
-              <option value="">None / Manual Payment</option>
+              <option value="">{t('toll.noneManualPayment')}</option>
               {activeTollTags.map((tag) => (
                 <option key={tag.id} value={tag.id}>
                   {tag.toll_system} - {tag.tag_number}
@@ -156,14 +158,14 @@ export default function TollTransactionForm({ vin, tollTags, transaction, onClos
             <FormError error={errors.toll_tag_id} />
             {activeTollTags.length === 0 && (
               <p className="text-xs text-garage-text-muted mt-1">
-                No active toll tags configured. Add a toll tag first to link transactions.
+                {t('toll.noActiveTollTags')}
               </p>
             )}
           </div>
 
           <div>
             <label htmlFor="notes" className="block text-sm font-medium text-garage-text mb-1">
-              Notes
+              {t('common:notes')}
             </label>
             <textarea
               id="notes"
@@ -172,7 +174,7 @@ export default function TollTransactionForm({ vin, tollTags, transaction, onClos
                 errors.notes ? 'border-red-500' : 'border-garage-border'
               }`}
               rows={3}
-              placeholder="Additional notes about this toll transaction..."
+              placeholder={t('toll.transactionNotesPlaceholder')}
               disabled={isSubmitting}
             />
             <FormError error={errors.notes} />
@@ -193,7 +195,7 @@ export default function TollTransactionForm({ vin, tollTags, transaction, onClos
               disabled={isSubmitting}
             >
               <Save className="w-4 h-4" />
-              {isSubmitting ? 'Saving...' : isEdit ? 'Update Transaction' : 'Add Transaction'}
+              {isSubmitting ? t('common:saving') : isEdit ? t('toll.updateTransaction') : t('toll.addTransaction')}
             </button>
           </div>
         </form>

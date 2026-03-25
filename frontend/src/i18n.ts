@@ -13,6 +13,9 @@ import HttpBackend from 'i18next-http-backend'
 import commonEn from './locales/en/common.json'
 import navEn from './locales/en/nav.json'
 import settingsEn from './locales/en/settings.json'
+import vehiclesEn from './locales/en/vehicles.json'
+import formsEn from './locales/en/forms.json'
+import analyticsEn from './locales/en/analytics.json'
 
 declare const APP_VERSION: string
 
@@ -27,6 +30,9 @@ i18n
         common: commonEn,
         nav: navEn,
         settings: settingsEn,
+        vehicles: vehiclesEn,
+        forms: formsEn,
+        analytics: analyticsEn,
       },
     },
 
@@ -35,7 +41,7 @@ i18n
     supportedLngs: ['en', 'pl', 'uk', 'ru'],
     fallbackLng: 'en',
     defaultNS: 'common',
-    ns: ['common', 'nav', 'settings'],
+    ns: ['common', 'nav', 'settings', 'vehicles', 'forms', 'analytics'],
 
     // Detection: localStorage first, then browser language
     detection: {

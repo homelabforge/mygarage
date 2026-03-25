@@ -1,4 +1,5 @@
 import { MessageSquare, Send, Info, ExternalLink } from 'lucide-react';
+import { useTranslation } from 'react-i18next'
 
 interface DiscordConfigProps {
   settings: Record<string, unknown>;
@@ -17,6 +18,7 @@ export function DiscordConfig({
   testing,
   saving,
 }: DiscordConfigProps) {
+  const { t } = useTranslation('settings')
   const isEnabled = settings.discord_enabled === 'true';
   const hasRequiredFields = Boolean(settings.discord_webhook_url);
 
@@ -40,10 +42,10 @@ export function DiscordConfig({
             disabled={saving}
             className="w-4 h-4 text-primary bg-garage-bg border-garage-border rounded focus:ring-primary focus:ring-2 disabled:opacity-50"
           />
-          <span className="ml-2 text-sm text-garage-text font-medium">Enable Discord notifications</span>
+          <span className="ml-2 text-sm text-garage-text font-medium">{t('discord.enable')}</span>
         </label>
 
-        {/* Webhook URL */}
+        {/* {t('discord.webhookUrl')} */}
         <div>
           <label htmlFor="discord_webhook_url" className="block text-sm font-medium text-garage-text mb-1">
             Webhook URL

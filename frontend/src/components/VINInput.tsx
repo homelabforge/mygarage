@@ -3,6 +3,7 @@
  */
 
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Search, Check, X, Loader2 } from 'lucide-react'
 import { vinService } from '@/services/vinService'
 import type { VINDecodeResponse } from '@/types/vin'
@@ -22,6 +23,7 @@ export default function VINInput({
   autoValidate = true,
   className = '',
 }: VINInputProps) {
+  const { t } = useTranslation('vehicles')
   const [isValidating, setIsValidating] = useState(false)
   const [isDecoding, setIsDecoding] = useState(false)
   const [validationStatus, setValidationStatus] = useState<
@@ -118,7 +120,7 @@ export default function VINInput({
           value={value}
           onChange={handleChange}
           maxLength={17}
-          placeholder="Enter 17-character VIN"
+          placeholder={t('vinInput.placeholder')}
           className="input pr-12"
         />
         <div className="absolute right-3 top-1/2 -translate-y-1/2">
@@ -145,12 +147,12 @@ export default function VINInput({
           {isDecoding ? (
             <>
               <Loader2 className="w-4 h-4 animate-spin" />
-              <span>Decoding...</span>
+              <span>{t('vinInput.decoding')}</span>
             </>
           ) : (
             <>
               <Search className="w-4 h-4" />
-              <span>Decode VIN</span>
+              <span>{t('vinInput.decode')}</span>
             </>
           )}
         </button>

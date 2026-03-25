@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { CheckCircle, AlertCircle } from 'lucide-react'
 import { useSettings } from '@/contexts/SettingsContext'
 import api from '@/services/api'
@@ -90,6 +91,7 @@ const DEFAULT_SETTINGS: Record<string, string> = {
 }
 
 export default function SettingsNotificationsTab() {
+  const { t } = useTranslation('settings')
   const [loading, setLoading] = useState(true)
   const { triggerSave, registerSaveHandler, unregisterSaveHandler } = useSettings()
   const [activeSubTab, setActiveSubTab] = useState<NotificationSubTab>('ntfy')
@@ -121,11 +123,11 @@ export default function SettingsNotificationsTab() {
       setFormData(newFormData)
       setLoadedFormData(newFormData)
     } catch {
-      setMessage({ type: 'error', text: 'Failed to load settings' })
+      setMessage({ type: 'error', text: t('notifications.loadError') })
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [t])
 
   useEffect(() => {
     loadSettings()
@@ -180,7 +182,7 @@ export default function SettingsNotificationsTab() {
       }
       setTimeout(() => setMessage(null), 5000)
     } catch {
-      setMessage({ type: 'error', text: `Failed to test ${service} connection` })
+      setMessage({ type: 'error', text: t('notifications.testFailed', { service }) })
     } finally {
       setTestingService(null)
     }
@@ -201,7 +203,7 @@ export default function SettingsNotificationsTab() {
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-[200px]">
-        <div className="text-garage-text-muted">Loading notification settings...</div>
+        <div className="text-garage-text-muted">{t('notifications.loading')}</div>
       </div>
     )
   }

@@ -1,4 +1,5 @@
 import { Radio, Send, Info } from 'lucide-react';
+import { useTranslation } from 'react-i18next'
 
 interface GotifyConfigProps {
   settings: Record<string, unknown>;
@@ -17,6 +18,7 @@ export function GotifyConfig({
   testing,
   saving,
 }: GotifyConfigProps) {
+  const { t } = useTranslation('settings')
   const isEnabled = settings.gotify_enabled === 'true';
   const hasRequiredFields = Boolean(settings.gotify_server && settings.gotify_token);
 
@@ -40,10 +42,10 @@ export function GotifyConfig({
             disabled={saving}
             className="w-4 h-4 text-primary bg-garage-bg border-garage-border rounded focus:ring-primary focus:ring-2 disabled:opacity-50"
           />
-          <span className="ml-2 text-sm text-garage-text font-medium">Enable Gotify notifications</span>
+          <span className="ml-2 text-sm text-garage-text font-medium">{t('gotify.enable')}</span>
         </label>
 
-        {/* Server URL */}
+        {/* {t('gotify.serverUrl')} */}
         <div>
           <label htmlFor="gotify_server" className="block text-sm font-medium text-garage-text mb-1">
             Server URL
@@ -62,7 +64,7 @@ export function GotifyConfig({
         {/* App Token */}
         <div>
           <label htmlFor="gotify_token" className="block text-sm font-medium text-garage-text mb-1">
-            Application Token
+            {t('gotify.appToken')}
           </label>
           <input
             type="password"

@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, type SyntheticEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Save, Plus, AlertTriangle, Paperclip } from 'lucide-react'
 import FormModalWrapper from './FormModalWrapper'
 import { toast } from 'sonner'
@@ -43,6 +44,7 @@ export default function ServiceVisitForm({
   onClose,
   onSuccess,
 }: ServiceVisitFormProps) {
+  const { t } = useTranslation('forms')
   const isEdit = !!visit
   const { system } = useUnitPreference()
   const createMutation = useCreateServiceVisit(vin)
@@ -147,7 +149,7 @@ export default function ServiceVisitForm({
 
   const handleRemoveLineItem = (index: number) => {
     if (formData.line_items.length <= 1) {
-      toast.error('At least one line item is required')
+      toast.error(t('service.atLeastOneLineItem'))
       return
     }
     setFormData((prev) => ({
@@ -177,7 +179,7 @@ export default function ServiceVisitForm({
     // Validate
     const emptyDescriptions = formData.line_items.some((item) => !item.description.trim())
     if (emptyDescriptions) {
-      setError('All line items must have a description')
+      setError(t('service.allLineItemsNeedDescription'))
       return
     }
 
@@ -185,7 +187,7 @@ export default function ServiceVisitForm({
       (item) => item.is_inspection && !item.inspection_result
     )
     if (inspectionsMissingResult) {
-      setError('All inspection items must have a result')
+      setError(t('service.allInspectionsNeedResult'))
       return
     }
 
@@ -239,7 +241,7 @@ export default function ServiceVisitForm({
           misc_fees: formData.misc_fees,
           line_items: updateLineItems,
         })
-        toast.success('Service visit updated')
+        toast.success(t('service.visitUpdated'))
       } else {
         // Create — map to ServiceLineItemCreate with temp_id + reminder
         const createLineItems: ServiceLineItemCreate[] = formData.line_items.map((item) => ({
@@ -274,7 +276,7 @@ export default function ServiceVisitForm({
         }
 
         await createMutation.mutateAsync(payload)
-        toast.success('Service visit created')
+        toast.success(t('service.visitCreated'))
       }
 
       // Reset temp ID counter after successful submit
@@ -283,14 +285,14 @@ export default function ServiceVisitForm({
       onSuccess()
       onClose()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
+      setError(err instanceof Error ? err.message : t('common:error'))
     } finally {
       setSubmitting(false)
     }
   }
 
   return (
-    <FormModalWrapper title={isEdit ? 'Edit Service Visit' : 'Log Service Visit'} onClose={onClose} maxWidth="max-w-full sm:max-w-3xl">
+    <FormModalWrapper title={isEdit ? t('service.editTitle') : t('service.createTitle')} onClose={onClose} maxWidth="max-w-full sm:max-w-3xl">
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
           {error && (
             <div className="bg-danger/10 border border-danger rounded-lg p-3 flex items-center gap-2">
@@ -302,13 +304,13 @@ export default function ServiceVisitForm({
           {/* Visit Details */}
           <div className="space-y-4">
             <h3 className="text-sm font-semibold text-garage-text-muted uppercase tracking-wide">
-              Visit Details
+              {t('service.visitDetails')}
             </h3>
 
             <div className={`grid grid-cols-1 ${isMotorized ? 'md:grid-cols-2' : ''} gap-4`}>
               <div>
                 <label className="block text-sm font-medium text-garage-text mb-1">
-                  Date <span className="text-danger">*</span>
+                  {t('common:date')} <span className="text-danger">*</span>
                 </label>
                 <input
                   type="date"
@@ -323,7 +325,7 @@ export default function ServiceVisitForm({
               {isMotorized && (
                 <div>
                   <label className="block text-sm font-medium text-garage-text mb-1">
-                    Mileage ({UnitFormatter.getDistanceUnit(system)})
+                    {t('common:mileage')} ({UnitFormatter.getDistanceUnit(system)})
                   </label>
                   <input
                     type="number"
@@ -339,7 +341,7 @@ export default function ServiceVisitForm({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-garage-text mb-1">Vendor/Shop</label>
+              <label className="block text-sm font-medium text-garage-text mb-1">{t('service.vendorShop')}</label>
               <VendorSearch
                 value={formData.vendor_id}
                 onSelect={(vendor) => handleFieldChange('vendor_id', vendor?.id)}
@@ -349,7 +351,7 @@ export default function ServiceVisitForm({
 
             <div>
               <label className="block text-sm font-medium text-garage-text mb-1">
-                Insurance Claim #
+                {t('service.insuranceClaim')}
               </label>
               <input
                 type="text"
@@ -362,11 +364,11 @@ export default function ServiceVisitForm({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-garage-text mb-1">Visit Notes</label>
+              <label className="block text-sm font-medium text-garage-text mb-1">{t('service.visitNotes')}</label>
               <textarea
                 value={formData.notes}
                 onChange={(e) => handleFieldChange('notes', e.target.value)}
-                placeholder="Overall notes about this visit..."
+                placeholder={t('service.visitNotesPlaceholder')}
                 rows={2}
                 disabled={submitting}
                 className="w-full px-3 py-2 border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text"
@@ -378,7 +380,7 @@ export default function ServiceVisitForm({
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-garage-text-muted uppercase tracking-wide">
-                Services Performed
+                {t('service.servicesPerformed')}
               </h3>
               <button
                 type="button"
@@ -387,7 +389,7 @@ export default function ServiceVisitForm({
                 className="flex items-center gap-1 text-sm text-primary hover:text-primary/80"
               >
                 <Plus className="w-4 h-4" />
-                Add Item
+                {t('service.addItem')}
               </button>
             </div>
 
@@ -414,7 +416,7 @@ export default function ServiceVisitForm({
                         className="mt-2 ml-4 text-sm text-primary hover:text-primary/80 flex items-center gap-1"
                       >
                         <Plus className="w-3 h-3" />
-                        Add repair for this inspection
+                        {t('service.addRepairForInspection')}
                       </button>
                     )}
                 </div>
@@ -425,11 +427,11 @@ export default function ServiceVisitForm({
           {/* Tax & Fees */}
           <div className="space-y-4">
             <h3 className="text-sm font-semibold text-garage-text-muted uppercase tracking-wide">
-              Tax & Fees
+              {t('service.taxAndFees')}
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-garage-text mb-1">Tax</label>
+                <label className="block text-sm font-medium text-garage-text mb-1">{t('service.tax')}</label>
                 <div className="relative">
                   <span className="absolute left-3 top-2 text-garage-text-muted">$</span>
                   <input
@@ -445,7 +447,7 @@ export default function ServiceVisitForm({
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-garage-text mb-1">Shop Supplies</label>
+                <label className="block text-sm font-medium text-garage-text mb-1">{t('service.shopSupplies')}</label>
                 <div className="relative">
                   <span className="absolute left-3 top-2 text-garage-text-muted">$</span>
                   <input
@@ -461,7 +463,7 @@ export default function ServiceVisitForm({
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-garage-text mb-1">Misc Fees</label>
+                <label className="block text-sm font-medium text-garage-text mb-1">{t('service.miscFees')}</label>
                 <div className="relative">
                   <span className="absolute left-3 top-2 text-garage-text-muted">$</span>
                   <input
@@ -482,33 +484,33 @@ export default function ServiceVisitForm({
           {/* Total */}
           <div className="space-y-2 pt-4 border-t border-garage-border">
             <div className="flex items-center justify-end gap-2 text-sm text-garage-text-muted">
-              <span>Subtotal:</span>
+              <span>{t('service.subtotal')}:</span>
               <span>${subtotal.toFixed(2)}</span>
             </div>
             {(formData.tax_amount || formData.shop_supplies || formData.misc_fees) && (
               <>
                 {formData.tax_amount && (
                   <div className="flex items-center justify-end gap-2 text-sm text-garage-text-muted">
-                    <span>Tax:</span>
+                    <span>{t('service.tax')}:</span>
                     <span>${formData.tax_amount.toFixed(2)}</span>
                   </div>
                 )}
                 {formData.shop_supplies && (
                   <div className="flex items-center justify-end gap-2 text-sm text-garage-text-muted">
-                    <span>Shop Supplies:</span>
+                    <span>{t('service.shopSupplies')}:</span>
                     <span>${formData.shop_supplies.toFixed(2)}</span>
                   </div>
                 )}
                 {formData.misc_fees && (
                   <div className="flex items-center justify-end gap-2 text-sm text-garage-text-muted">
-                    <span>Misc Fees:</span>
+                    <span>{t('service.miscFees')}:</span>
                     <span>${formData.misc_fees.toFixed(2)}</span>
                   </div>
                 )}
               </>
             )}
             <div className="flex items-center justify-end gap-2">
-              <span className="text-sm text-garage-text-muted">Total Cost:</span>
+              <span className="text-sm text-garage-text-muted">{t('common:totalCost')}:</span>
               <span className="text-lg font-semibold text-garage-text">${totalCost.toFixed(2)}</span>
             </div>
           </div>
@@ -519,7 +521,7 @@ export default function ServiceVisitForm({
               <div className="flex items-center gap-2">
                 <Paperclip className="w-4 h-4 text-garage-text-muted" />
                 <h3 className="text-sm font-semibold text-garage-text-muted uppercase tracking-wide">
-                  Attachments
+                  {t('service.attachments')}
                 </h3>
               </div>
 
@@ -543,7 +545,7 @@ export default function ServiceVisitForm({
               className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Save className="w-4 h-4" />
-              <span>{submitting ? 'Saving...' : isEdit ? 'Update' : 'Create'}</span>
+              <span>{submitting ? t('common:saving') : isEdit ? t('common:update') : t('common:create')}</span>
             </button>
 
             <button
@@ -552,7 +554,7 @@ export default function ServiceVisitForm({
               disabled={submitting}
               className="btn btn-primary rounded-lg transition-colors"
             >
-              Cancel
+              {t('common:cancel')}
             </button>
           </div>
         </form>

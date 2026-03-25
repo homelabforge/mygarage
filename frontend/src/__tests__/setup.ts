@@ -2,6 +2,16 @@ import { afterEach, vi } from 'vitest'
 import { cleanup } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 
+// Mock react-i18next globally for all tests
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) => key,
+    i18n: { language: 'en', changeLanguage: () => Promise.resolve() },
+  }),
+  Trans: ({ children }: { children: React.ReactNode }) => children,
+  initReactI18next: { type: '3rdParty', init: () => {} },
+}))
+
 // Mock axios before any imports that might use it
 vi.mock('axios', () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

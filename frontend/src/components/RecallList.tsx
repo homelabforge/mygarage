@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { AlertTriangle, Plus, Trash2, Edit, CheckCircle, RefreshCw, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Recall } from '../types/recall'
@@ -17,6 +18,7 @@ interface RecallListProps {
 }
 
 export default function RecallList({ vin, onAddClick, onEditClick, onRefresh }: RecallListProps) {
+  const { t } = useTranslation('vehicles')
   const dateLocale = useDateLocale()
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'resolved'>('all')
   const [vehicle, setVehicle] = useState<Vehicle | null>(null)
@@ -69,22 +71,22 @@ export default function RecallList({ vin, onAddClick, onEditClick, onRefresh }: 
   const handleCheckNHTSA = () => {
     nhtsaMutation.mutate(undefined, {
       onSuccess: () => {
-        toast.success('Successfully checked NHTSA for recalls')
+        toast.success(t('recallList.nhtsaSuccess'))
       },
       onError: (err) => {
-        toast.error(err instanceof Error ? err.message : 'Failed to check NHTSA')
+        toast.error(err instanceof Error ? err.message : t('recallList.nhtsaError'))
       },
     })
   }
 
   const handleDelete = (recallId: number) => {
-    if (!confirm('Are you sure you want to delete this recall?')) {
+    if (!confirm(t('recallList.confirmDelete'))) {
       return
     }
 
     deleteMutation.mutate(recallId, {
       onError: (err) => {
-        toast.error(err instanceof Error ? err.message : 'Failed to delete recall')
+        toast.error(err instanceof Error ? err.message : t('recallList.deleteError'))
       },
     })
   }
@@ -94,7 +96,7 @@ export default function RecallList({ vin, onAddClick, onEditClick, onRefresh }: 
       { recallId: recall.id, isResolved: !recall.is_resolved },
       {
         onError: (err) => {
-          toast.error(err instanceof Error ? err.message : 'Failed to update recall status')
+          toast.error(err instanceof Error ? err.message : t('recallList.statusError'))
         },
       }
     )
@@ -112,7 +114,7 @@ export default function RecallList({ vin, onAddClick, onEditClick, onRefresh }: 
   if (isLoading) {
     return (
       <div className="flex justify-center items-center min-h-[200px]">
-        <div className="text-garage-text-muted">Loading recalls...</div>
+        <div className="text-garage-text-muted">{t('recallList.loading')}</div>
       </div>
     )
   }
@@ -129,9 +131,9 @@ export default function RecallList({ vin, onAddClick, onEditClick, onRefresh }: 
     <div>
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
         <div>
-          <h2 className="text-2xl font-bold text-garage-text">Safety Recalls</h2>
+          <h2 className="text-2xl font-bold text-garage-text">{t('recallList.title')}</h2>
           <p className="text-sm text-garage-text-muted">
-            {stats.active_count} active, {stats.resolved_count} resolved
+            {t('recallList.activeCount', { active: stats.active_count, resolved: stats.resolved_count })}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -140,9 +142,9 @@ export default function RecallList({ vin, onAddClick, onEditClick, onRefresh }: 
             onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'resolved')}
             className="px-3 py-2 border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text text-sm"
           >
-            <option value="all">All Recalls</option>
-            <option value="active">Active Only</option>
-            <option value="resolved">Resolved Only</option>
+            <option value="all">{t('recallList.allRecalls')}</option>
+            <option value="active">{t('recallList.activeOnly')}</option>
+            <option value="resolved">{t('recallList.resolvedOnly')}</option>
           </select>
           <button
             onClick={handleCheckNHTSA}
@@ -151,14 +153,14 @@ export default function RecallList({ vin, onAddClick, onEditClick, onRefresh }: 
             title="Check NHTSA for recalls"
           >
             <RefreshCw size={16} className={nhtsaMutation.isPending ? 'animate-spin' : ''} />
-            {nhtsaMutation.isPending ? 'Checking...' : 'Check NHTSA'}
+            {nhtsaMutation.isPending ? t('recallList.checking') : t('recallList.checkNHTSA')}
           </button>
           <button
             onClick={onAddClick}
             className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors"
           >
             <Plus size={20} />
-            Add Recall
+            {t('recallList.addRecall')}
           </button>
         </div>
       </div>
@@ -166,7 +168,7 @@ export default function RecallList({ vin, onAddClick, onEditClick, onRefresh }: 
       {recalls.length === 0 ? (
         <div className="text-center py-12 bg-garage-surface rounded-lg border border-garage-border">
           <AlertTriangle size={48} className="mx-auto text-garage-text-muted mb-4" />
-          <p className="text-garage-text-muted mb-4">No recalls found</p>
+          <p className="text-garage-text-muted mb-4">{t('recallList.noRecords')}</p>
           <div className="flex gap-2 justify-center">
             <button
               onClick={handleCheckNHTSA}
@@ -174,13 +176,13 @@ export default function RecallList({ vin, onAddClick, onEditClick, onRefresh }: 
               className="inline-flex items-center gap-2 btn btn-primary rounded-lg transition-colors disabled:opacity-50"
             >
               <RefreshCw size={16} className={nhtsaMutation.isPending ? 'animate-spin' : ''} />
-              {nhtsaMutation.isPending ? 'Checking...' : 'Check NHTSA'}
+              {nhtsaMutation.isPending ? t('recallList.checking') : t('recallList.checkNHTSA')}
             </button>
             <button
               onClick={onAddClick}
               className="inline-flex items-center gap-2 btn btn-primary rounded-lg transition-colors"
             >
-              Add Manual Entry
+              {t('recallList.addManualEntry')}
             </button>
           </div>
         </div>
@@ -213,7 +215,7 @@ export default function RecallList({ vin, onAddClick, onEditClick, onRefresh }: 
                     </div>
                     {recall.date_announced && (
                       <p className="text-sm text-garage-text-muted mb-2">
-                        Announced: {formatDate(recall.date_announced)}
+                        {t('recallList.announced')}: {formatDate(recall.date_announced)}
                       </p>
                     )}
                   </div>
@@ -222,7 +224,7 @@ export default function RecallList({ vin, onAddClick, onEditClick, onRefresh }: 
                   <button
                     onClick={() => handleMarkResolved(recall)}
                     className="btn btn-ghost btn-sm"
-                    title={recall.is_resolved ? 'Mark as active' : 'Mark as resolved'}
+                    title={recall.is_resolved ? t('recallList.markActive') : t('recallList.markResolved')}
                   >
                     {recall.is_resolved ? (
                       <AlertTriangle size={16} />
@@ -233,7 +235,7 @@ export default function RecallList({ vin, onAddClick, onEditClick, onRefresh }: 
                   <button
                     onClick={() => onEditClick(recall)}
                     className="btn btn-ghost btn-sm"
-                    title="Edit"
+                    title={t('common:edit')}
                   >
                     <Edit size={16} />
                   </button>
@@ -241,7 +243,7 @@ export default function RecallList({ vin, onAddClick, onEditClick, onRefresh }: 
                     onClick={() => handleDelete(recall.id)}
                     className="btn btn-ghost btn-sm text-danger"
                     disabled={deleteMutation.isPending && deleteMutation.variables === recall.id}
-                    title="Delete"
+                    title={t('common:delete')}
                   >
                     {deleteMutation.isPending && deleteMutation.variables === recall.id ? '...' : <Trash2 size={16} />}
                   </button>
@@ -250,34 +252,34 @@ export default function RecallList({ vin, onAddClick, onEditClick, onRefresh }: 
 
               <div className="space-y-3 ml-9">
                 <div>
-                  <p className="text-xs text-garage-text-muted mb-1">Summary</p>
+                  <p className="text-xs text-garage-text-muted mb-1">{t('recallList.summary')}</p>
                   <p className="text-sm text-garage-text whitespace-pre-wrap">{recall.summary}</p>
                 </div>
 
                 {recall.consequence && (
                   <div>
-                    <p className="text-xs text-garage-text-muted mb-1">Consequence</p>
+                    <p className="text-xs text-garage-text-muted mb-1">{t('recallList.consequence')}</p>
                     <p className="text-sm text-garage-text whitespace-pre-wrap">{recall.consequence}</p>
                   </div>
                 )}
 
                 {recall.remedy && (
                   <div>
-                    <p className="text-xs text-garage-text-muted mb-1">Remedy</p>
+                    <p className="text-xs text-garage-text-muted mb-1">{t('recallList.remedy')}</p>
                     <p className="text-sm text-garage-text whitespace-pre-wrap">{recall.remedy}</p>
                   </div>
                 )}
 
                 {recall.notes && (
                   <div>
-                    <p className="text-xs text-garage-text-muted mb-1">Notes</p>
+                    <p className="text-xs text-garage-text-muted mb-1">{t('recallList.notes')}</p>
                     <p className="text-sm text-garage-text whitespace-pre-wrap">{recall.notes}</p>
                   </div>
                 )}
 
                 {recall.is_resolved && recall.resolved_at && (
                   <div>
-                    <p className="text-xs text-garage-text-muted mb-1">Resolved</p>
+                    <p className="text-xs text-garage-text-muted mb-1">{t('recallList.resolved')}</p>
                     <p className="text-sm text-success-500">{formatDate(recall.resolved_at)}</p>
                   </div>
                 )}
@@ -298,11 +300,9 @@ export default function RecallList({ vin, onAddClick, onEditClick, onRefresh }: 
           <div className="flex items-start gap-3">
             <ExternalLink className="w-5 h-5 text-primary mt-1" />
             <div className="flex-1">
-              <h3 className="text-lg font-semibold text-garage-text mb-2">
-                Research Common Issues
-              </h3>
+              <h3 className="text-lg font-semibold text-garage-text mb-2">{t('recallList.researchCommonIssues')}</h3>
               <p className="text-sm text-garage-text-muted mb-4">
-                Check CarComplaints.com for known issues, complaints, and problem trends for your {vehicle.year} {vehicle.make} {vehicle.model}.
+                {t('recallList.carComplaintsDesc', { year: vehicle.year, make: vehicle.make, model: vehicle.model })}
               </p>
               <a
                 href={`https://www.carcomplaints.com/${vehicle.make.toLowerCase().replace(/\b\w/g, c => c.toUpperCase()).replace(/\s+/g, '_')}/${vehicle.model.toLowerCase().replace(/\b\w/g, c => c.toUpperCase()).replace(/\s+/g, '_')}/${vehicle.year}/`}
@@ -311,7 +311,7 @@ export default function RecallList({ vin, onAddClick, onEditClick, onRefresh }: 
                 className="inline-flex items-center gap-2 btn btn-primary rounded-lg transition-colors"
               >
                 <ExternalLink className="w-4 h-4" />
-                View on CarComplaints.com
+                {t('recallList.viewOnCarComplaints')}
               </a>
             </div>
           </div>

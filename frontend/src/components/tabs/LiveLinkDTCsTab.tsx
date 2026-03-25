@@ -3,6 +3,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
   AlertTriangle,
@@ -24,6 +25,7 @@ interface LiveLinkDTCsTabProps {
 type FilterType = 'all' | 'active' | 'cleared'
 
 export default function LiveLinkDTCsTab({ vin }: LiveLinkDTCsTabProps) {
+  const { t } = useTranslation('vehicles')
   const [dtcs, setDtcs] = useState<VehicleDTCListResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<FilterType>('active')
@@ -37,40 +39,40 @@ export default function LiveLinkDTCsTab({ vin }: LiveLinkDTCsTabProps) {
       setDtcs(data)
     } catch (err) {
       console.error('Failed to fetch DTCs:', err)
-      toast.error('Failed to load diagnostic trouble codes')
+      toast.error(t('livelink.dtcs.loadError'))
     } finally {
       setLoading(false)
     }
-  }, [vin, filter])
+  }, [vin, filter, t])
 
   useEffect(() => {
     fetchDTCs()
   }, [fetchDTCs])
 
   const handleClearDTC = async (dtcId: number, code: string) => {
-    if (!confirm(`Mark ${code} as cleared? This indicates you've addressed the issue.`)) {
+    if (!confirm(t('livelink.dtcs.confirmClear', { code }))) {
       return
     }
 
     try {
       await livelinkService.clearVehicleDTC(vin, dtcId)
-      toast.success(`${code} marked as cleared`)
+      toast.success(t('livelink.dtcs.markedCleared', { code }))
       fetchDTCs()
     } catch (err) {
       console.error('Failed to clear DTC:', err)
-      toast.error('Failed to clear DTC')
+      toast.error(t('livelink.dtcs.clearError'))
     }
   }
 
   const handleSaveNotes = async (dtc: VehicleDTC) => {
     try {
       await livelinkService.updateVehicleDTC(vin, dtc.id, { user_notes: notesValue || null })
-      toast.success('Notes saved')
+      toast.success(t('livelink.dtcs.notesSaved'))
       setEditingNotes(null)
       fetchDTCs()
     } catch (err) {
       console.error('Failed to save notes:', err)
-      toast.error('Failed to save notes')
+      toast.error(t('livelink.dtcs.notesSaveError'))
     }
   }
 
@@ -144,7 +146,7 @@ export default function LiveLinkDTCsTab({ vin }: LiveLinkDTCsTabProps) {
         {dtcs && dtcs.critical_count > 0 && (
           <div className="flex items-center gap-2 text-red-500">
             <AlertTriangle className="w-4 h-4" />
-            <span className="text-sm font-medium">{dtcs.critical_count} critical</span>
+            <span className="text-sm font-medium">{t('livelink.dtcs.criticalCount', { count: dtcs.critical_count })}</span>
           </div>
         )}
       </div>
@@ -167,26 +169,22 @@ export default function LiveLinkDTCsTab({ vin }: LiveLinkDTCsTabProps) {
                       <span className="font-mono font-bold text-garage-text">{dtc.code}</span>
                       {!dtc.is_active && (
                         <span className="flex items-center gap-1 text-xs text-green-500">
-                          <CheckCircle className="w-3 h-3" />
-                          Cleared
-                        </span>
+                          <CheckCircle className="w-3 h-3" />{t('livelink.dtcs.cleared')}</span>
                       )}
                       {dtc.is_emissions_related && (
-                        <span className="px-1.5 py-0.5 bg-yellow-500/20 text-yellow-500 text-xs rounded">
-                          Emissions
-                        </span>
+                        <span className="px-1.5 py-0.5 bg-yellow-500/20 text-yellow-500 text-xs rounded">{t('livelink.dtcs.emissions')}</span>
                       )}
                     </div>
                     <p className="text-garage-text mt-1">
-                      {dtc.description || 'Unknown code'}
+                      {dtc.description || t('livelink.dtcs.unknownCode')}
                     </p>
                     <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-garage-text-muted">
-                      <span>First seen: {new Date(dtc.first_seen).toLocaleDateString()}</span>
-                      <span>Last seen: {new Date(dtc.last_seen).toLocaleDateString()}</span>
+                      <span>{t('livelink.dtcs.firstSeen')}: {new Date(dtc.first_seen).toLocaleDateString()}</span>
+                      <span>{t('livelink.dtcs.lastSeen')}: {new Date(dtc.last_seen).toLocaleDateString()}</span>
                       {dtc.cleared_at && (
-                        <span>Cleared: {new Date(dtc.cleared_at).toLocaleDateString()}</span>
+                        <span>{t('livelink.dtcs.clearedAt')}: {new Date(dtc.cleared_at).toLocaleDateString()}</span>
                       )}
-                      {dtc.category && <span>Category: {dtc.category}</span>}
+                      {dtc.category && <span>{t('livelink.dtcs.category')}: {dtc.category}</span>}
                     </div>
                   </div>
                 </div>
@@ -195,7 +193,7 @@ export default function LiveLinkDTCsTab({ vin }: LiveLinkDTCsTabProps) {
                   <button
                     onClick={() => openExternalSearch(dtc)}
                     className="p-2 text-garage-text-muted hover:text-primary transition-colors"
-                    title="Search online"
+                    title={t('livelink.dtcs.searchOnline')}
                   >
                     <Search className="w-4 h-4" />
                   </button>
@@ -203,7 +201,7 @@ export default function LiveLinkDTCsTab({ vin }: LiveLinkDTCsTabProps) {
                     <button
                       onClick={() => handleClearDTC(dtc.id, dtc.code)}
                       className="p-2 text-garage-text-muted hover:text-green-500 transition-colors"
-                      title="Mark as cleared"
+                      title={t('livelink.dtcs.markAsCleared')}
                     >
                       <CheckCircle className="w-4 h-4" />
                     </button>
@@ -219,7 +217,7 @@ export default function LiveLinkDTCsTab({ vin }: LiveLinkDTCsTabProps) {
                       type="text"
                       value={notesValue}
                       onChange={(e) => setNotesValue(e.target.value)}
-                      placeholder="Add notes..."
+                      placeholder={t('livelink.dtcs.addNotesPlaceholder')}
                       className="flex-1 px-3 py-1.5 bg-garage-bg border border-garage-border rounded text-sm text-garage-text"
                       autoFocus
                     />
@@ -245,7 +243,7 @@ export default function LiveLinkDTCsTab({ vin }: LiveLinkDTCsTabProps) {
                     className="flex items-center gap-2 text-sm text-garage-text-muted hover:text-garage-text"
                   >
                     <FileText className="w-4 h-4" />
-                    {dtc.user_notes || 'Add notes...'}
+                    {dtc.user_notes || t('livelink.dtcs.addNotesPlaceholder')}
                   </button>
                 )}
               </div>
@@ -257,13 +255,13 @@ export default function LiveLinkDTCsTab({ vin }: LiveLinkDTCsTabProps) {
           <CheckCircle className="w-12 h-12 mx-auto mb-3 text-green-500 opacity-50" />
           <p className="text-garage-text">
             {filter === 'active'
-              ? 'No active diagnostic trouble codes'
+              ? t('livelink.dtcs.noActive')
               : filter === 'cleared'
-              ? 'No cleared codes in history'
-              : 'No diagnostic trouble codes recorded'}
+              ? t('livelink.dtcs.noCleared')
+              : t('livelink.dtcs.noRecorded')}
           </p>
           <p className="text-sm text-garage-text-muted mt-2">
-            DTCs will appear here if your WiCAN device detects any issues
+            {t('livelink.dtcs.willAppear')}
           </p>
         </div>
       )}
@@ -273,9 +271,9 @@ export default function LiveLinkDTCsTab({ vin }: LiveLinkDTCsTabProps) {
         <div className="flex items-center gap-3">
           <ExternalLink className="w-5 h-5 text-primary" />
           <div>
-            <p className="text-sm text-garage-text font-medium">Need more information?</p>
+            <p className="text-sm text-garage-text font-medium">{t('livelink.dtcs.needMoreInfo')}</p>
             <p className="text-xs text-garage-text-muted">
-              Click the search icon on any code to look up causes and fixes online
+              {t('livelink.dtcs.searchHint')}
             </p>
           </div>
         </div>

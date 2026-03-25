@@ -6,6 +6,7 @@
  */
 
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { MapPin, Loader2, Navigation, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '@/services/api'
@@ -23,6 +24,7 @@ import type {
 type Step = 'permission' | 'searching' | 'results'
 
 export default function POIFinder() {
+  const { t } = useTranslation('common')
   const [step, setStep] = useState<Step>('permission')
   const [recommendations, setRecommendations] = useState<POIRecommendation[]>([])
   const [searchResults, setSearchResults] = useState<POIResult[]>([])
@@ -84,7 +86,7 @@ export default function POIFinder() {
   const handleRequestLocation = () => {
     const activeCategories = getActiveCategories()
     if (activeCategories.length === 0) {
-      toast.error('Please enable at least one category')
+      toast.error(t('poiFinder.enableCategory'))
       return
     }
 
@@ -201,9 +203,9 @@ export default function POIFinder() {
             <MapPin className="w-8 h-8 text-primary" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold text-garage-text">Find POI (Points of Interest)</h1>
+            <h1 className="text-3xl font-bold text-garage-text">{t('poiFinder.title')}</h1>
             <p className="text-garage-text-muted">
-              Discover nearby locations and save them to your address book
+              {t('poiFinder.subtitle')}
             </p>
           </div>
         </div>
@@ -214,7 +216,7 @@ export default function POIFinder() {
         <>
           {/* Category Toggles */}
           <div className="mb-8 bg-garage-surface border border-garage-border rounded-lg p-6">
-            <h2 className="text-lg font-semibold text-garage-text mb-4">POI Categories</h2>
+            <h2 className="text-lg font-semibold text-garage-text mb-4">{t('poiFinder.categories')}</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <CategoryToggle
                 label="Auto Shops"
@@ -251,7 +253,7 @@ export default function POIFinder() {
             {/* Search Radius */}
             <div className="mt-6">
               <label htmlFor="search_radius" className="block text-sm font-medium text-garage-text mb-2">
-                Search Radius
+                {t('poiFinder.searchRadius')}
               </label>
               <select
                 id="search_radius"
@@ -271,7 +273,7 @@ export default function POIFinder() {
           {/* Recommendations */}
           {recommendations.length > 0 && (
             <div className="mb-8">
-              <h2 className="text-lg font-semibold text-garage-text mb-4">Recently Used</h2>
+              <h2 className="text-lg font-semibold text-garage-text mb-4">{t('poiFinder.recentlyUsed')}</h2>
               <div className="space-y-3">
                 {recommendations.map((poi) => (
                   <div
@@ -305,7 +307,7 @@ export default function POIFinder() {
               className="w-full px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 font-medium"
             >
               <Navigation className="w-5 h-5" />
-              Use My Location
+              {t('poiFinder.useMyLocation')}
             </button>
             {error && (
               <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-start gap-3">
@@ -321,9 +323,9 @@ export default function POIFinder() {
       {step === 'searching' && (
         <div className="bg-garage-surface border border-garage-border rounded-lg p-12 text-center">
           <Loader2 className="w-12 h-12 text-primary animate-spin mx-auto mb-4" />
-          <p className="text-lg text-garage-text">Searching for nearby POIs...</p>
+          <p className="text-lg text-garage-text">{t('poiFinder.searching')}</p>
           <p className="text-sm text-garage-text-muted mt-2">
-            This may take a few seconds
+            {t('poiFinder.searchingHint')}
           </p>
         </div>
       )}
@@ -346,7 +348,7 @@ export default function POIFinder() {
               onClick={() => setStep('permission')}
               className="px-4 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text hover:bg-garage-surface transition-colors"
             >
-              New Search
+              {t('poiFinder.newSearch')}
             </button>
           </div>
 
@@ -384,9 +386,9 @@ export default function POIFinder() {
           ) : (
             <div className="bg-garage-surface border border-garage-border rounded-lg p-12 text-center">
               <MapPin className="w-12 h-12 text-garage-text-muted mx-auto mb-4" />
-              <p className="text-lg text-garage-text">No POIs found in this area</p>
+              <p className="text-lg text-garage-text">{t('poiFinder.noPOIsFound')}</p>
               <p className="text-sm text-garage-text-muted mt-2">
-                Try increasing the search radius or selecting different categories
+                {t('poiFinder.noPOIsHint')}
               </p>
             </div>
           )}

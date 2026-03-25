@@ -7,44 +7,46 @@
  * - Bulk delete selected vehicles
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Eye, EyeOff, RotateCcw, Trash2, AlertTriangle } from 'lucide-react'
 import api from '@/services/api'
 import { toast } from 'sonner'
 import type { Vehicle, VehicleListResponse } from '@/types/vehicle'
 
 export default function ArchivedVehiclesList() {
+  const { t } = useTranslation('vehicles')
   const [archivedVehicles, setArchivedVehicles] = useState<Vehicle[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedVins, setSelectedVins] = useState<Set<string>>(new Set())
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   // Load archived vehicles
-  const loadArchivedVehicles = async () => {
+  const loadArchivedVehicles = useCallback(async () => {
     setLoading(true)
     try {
       const response = await api.get<VehicleListResponse>('/vehicles/archived/list')
       setArchivedVehicles(response.data.vehicles)
     } catch (error) {
-      toast.error('Failed to load archived vehicles')
+      toast.error(t('archivedList.loadError'))
       console.error('Failed to load archived vehicles:', error)
     } finally {
       setLoading(false)
     }
-  }
+  }, [t])
 
   useEffect(() => {
     void loadArchivedVehicles()
-  }, [])
+  }, [loadArchivedVehicles])
 
   // Toggle visibility of archived vehicle
   const handleToggleVisibility = async (vin: string, currentlyVisible: boolean) => {
     try {
       await api.patch(`/vehicles/${vin}/archive/visibility?visible=${!currentlyVisible}`)
-      toast.success(`Vehicle ${currentlyVisible ? 'hidden' : 'shown'} in main list`)
+      toast.success(currentlyVisible ? t('archivedList.vehicleHidden') : t('archivedList.vehicleShown'))
       await loadArchivedVehicles()
     } catch (error) {
-      toast.error('Failed to update visibility')
+      toast.error(t('archivedList.visibilityError'))
       console.error('Failed to toggle visibility:', error)
     }
   }
@@ -53,10 +55,10 @@ export default function ArchivedVehiclesList() {
   const handleRestore = async (vin: string, nickname: string) => {
     try {
       await api.post(`/vehicles/${vin}/unarchive`)
-      toast.success(`${nickname} restored to active`)
+      toast.success(t('archivedList.vehicleRestored', { name: nickname }))
       await loadArchivedVehicles()
     } catch (error) {
-      toast.error('Failed to restore vehicle')
+      toast.error(t('archivedList.restoreError'))
       console.error('Failed to restore vehicle:', error)
     }
   }
@@ -75,7 +77,7 @@ export default function ArchivedVehiclesList() {
   // Bulk delete selected vehicles
   const handleBulkDelete = async () => {
     if (selectedVins.size === 0) {
-      toast.error('No vehicles selected')
+      toast.error(t('archivedList.noVehiclesSelected'))
       return
     }
 
@@ -84,12 +86,12 @@ export default function ArchivedVehiclesList() {
         api.delete(`/vehicles/${vin}`)
       )
       await Promise.all(deletePromises)
-      toast.success(`${selectedVins.size} vehicle(s) permanently deleted`)
+      toast.success(t('archivedList.vehiclesDeleted', { count: selectedVins.size }))
       setSelectedVins(new Set())
       setConfirmDelete(false)
       await loadArchivedVehicles()
     } catch (error) {
-      toast.error('Failed to delete some vehicles')
+      toast.error(t('archivedList.deleteError'))
       console.error('Bulk delete failed:', error)
     }
   }
@@ -97,7 +99,7 @@ export default function ArchivedVehiclesList() {
   if (loading) {
     return (
       <div className="text-center py-8 text-garage-text-muted">
-        Loading archived vehicles...
+        {t('archivedList.loading')}
       </div>
     )
   }
@@ -105,7 +107,7 @@ export default function ArchivedVehiclesList() {
   if (archivedVehicles.length === 0) {
     return (
       <div className="text-center py-8 text-garage-text-muted">
-        No archived vehicles found.
+        {t('archivedList.noRecords')}
       </div>
     )
   }
@@ -118,7 +120,7 @@ export default function ArchivedVehiclesList() {
           <div className="flex items-center gap-2">
             <AlertTriangle className="w-5 h-5 text-danger" />
             <span className="text-sm font-medium text-garage-text">
-              {selectedVins.size} vehicle(s) selected
+              {t('archivedList.selectedCount', { count: selectedVins.size })}
             </span>
           </div>
           {!confirmDelete ? (
@@ -168,11 +170,11 @@ export default function ArchivedVehiclesList() {
                   className="w-4 h-4 text-primary bg-garage-bg border-garage-border rounded focus:ring-primary focus:ring-2"
                 />
               </th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-garage-text">VIN</th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-garage-text">Vehicle</th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-garage-text">Reason</th>
-              <th className="px-4 py-3 text-left text-sm font-medium text-garage-text">Archived</th>
-              <th className="px-4 py-3 text-right text-sm font-medium text-garage-text">Actions</th>
+              <th className="px-4 py-3 text-left text-sm font-medium text-garage-text">{t('archivedList.vin')}</th>
+              <th className="px-4 py-3 text-left text-sm font-medium text-garage-text">{t('archivedList.vehicle')}</th>
+              <th className="px-4 py-3 text-left text-sm font-medium text-garage-text">{t('archivedList.reason')}</th>
+              <th className="px-4 py-3 text-left text-sm font-medium text-garage-text">{t('archivedList.archived')}</th>
+              <th className="px-4 py-3 text-right text-sm font-medium text-garage-text">{t('archivedList.actions')}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-garage-border">
@@ -203,7 +205,7 @@ export default function ArchivedVehiclesList() {
                     vehicle.archive_reason === 'Trade-in' ? 'bg-warning/20 text-warning' :
                     'bg-garage-surface text-garage-text-muted'
                   }`}>
-                    {vehicle.archive_reason || 'Unknown'}
+                    {vehicle.archive_reason || t('archivedList.unknown')}
                   </span>
                 </td>
                 <td className="px-4 py-3 text-sm text-garage-text-muted">
@@ -218,7 +220,7 @@ export default function ArchivedVehiclesList() {
                     <button
                       onClick={() => handleToggleVisibility(vehicle.vin, vehicle.archived_visible ?? true)}
                       className="p-2 text-garage-text-muted hover:text-primary transition-colors"
-                      title={vehicle.archived_visible ? 'Hide in main list' : 'Show in main list'}
+                      title={vehicle.archived_visible ? t('archivedList.hideInMainList') : t('archivedList.showInMainList')}
                     >
                       {vehicle.archived_visible ? (
                         <Eye className="w-4 h-4" />
@@ -231,7 +233,7 @@ export default function ArchivedVehiclesList() {
                     <button
                       onClick={() => handleRestore(vehicle.vin, vehicle.nickname)}
                       className="p-2 text-garage-text-muted hover:text-success transition-colors"
-                      title="Restore to active"
+                      title={t('archivedList.restoreToActive')}
                     >
                       <RotateCcw className="w-4 h-4" />
                     </button>
@@ -245,9 +247,7 @@ export default function ArchivedVehiclesList() {
 
       {/* Info Text */}
       <p className="text-xs text-garage-text-muted">
-        <strong>Tip:</strong> Archived vehicles are kept in analytics and statistics.
-        Use the eye icon to control visibility in the main vehicle list.
-        Select vehicles and use "Delete Selected" to permanently remove them.
+        {t('archivedList.tip')}
       </p>
     </div>
   )

@@ -7,6 +7,7 @@
  */
 
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -24,6 +25,7 @@ interface VehicleWizardProps {
 }
 
 export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps) {
+  const { t } = useTranslation('vehicles')
   const navigate = useNavigate()
   const [currentStep, setCurrentStep] = useState(1)
   const [loading, setLoading] = useState(false)
@@ -194,7 +196,7 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-garage-border">
           <div>
-            <h2 className="text-2xl font-bold text-garage-text">Add New Vehicle</h2>
+            <h2 className="text-2xl font-bold text-garage-text">{t('wizard.title')}</h2>
             <p className="text-garage-text-muted mt-1">
               Step {currentStep} of {steps.length}: {steps[currentStep - 1].description}
             </p>
@@ -296,7 +298,7 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-garage-text mb-2">Year</label>
+                  <label className="block text-sm font-medium text-garage-text mb-2">{t('wizard.year')}</label>
                   <input
                     type="number"
                     {...register('year', { valueAsNumber: true })}
@@ -309,7 +311,7 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-garage-text mb-2">Make</label>
+                  <label className="block text-sm font-medium text-garage-text mb-2">{t('wizard.make')}</label>
                   <input
                     type="text"
                     {...register('make')}
@@ -320,7 +322,7 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-garage-text mb-2">Model</label>
+                  <label className="block text-sm font-medium text-garage-text mb-2">{t('wizard.model')}</label>
                   <input
                     type="text"
                     {...register('model')}
@@ -333,7 +335,7 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-garage-text mb-2">Color</label>
+                  <label className="block text-sm font-medium text-garage-text mb-2">{t('wizard.color')}</label>
                   <input
                     type="text"
                     {...register('color')}
@@ -389,7 +391,7 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-garage-text mb-2">Trim</label>
+                  <label className="block text-sm font-medium text-garage-text mb-2">{t('wizard.trim')}</label>
                   <input
                     type="text"
                     {...register('trim')}
@@ -461,7 +463,7 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-garage-text mb-2">Fuel Type</label>
+                  <label className="block text-sm font-medium text-garage-text mb-2">{t('wizard.fuelType')}</label>
                   <input
                     type="text"
                     {...register('fuel_type')}
@@ -546,11 +548,11 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
               <div className="bg-garage-bg rounded-lg p-6 space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-sm text-garage-text-muted">VIN</p>
+                    <p className="text-sm text-garage-text-muted">{t('wizard.vin')}</p>
                     <p className="text-garage-text font-mono">{vin}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-garage-text-muted">Nickname</p>
+                    <p className="text-sm text-garage-text-muted">{t('wizard.nickname')}</p>
                     <p className="text-garage-text">{formData.nickname}</p>
                   </div>
                   <div>
@@ -627,7 +629,7 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
                 disabled={!canProceed()}
                 className="flex items-center space-x-2 px-6 py-2 btn btn-primary rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                <span>Next</span>
+                <span>{t('wizard.next')}</span>
                 <ChevronRight className="w-4 h-4" />
               </button>
             ) : (

@@ -6,6 +6,7 @@
  * reverse-computes the remaining interval for display.
  */
 
+import { useTranslation } from 'react-i18next'
 import { useState, type SyntheticEvent } from 'react'
 import { Save, AlertTriangle } from 'lucide-react'
 import FormModalWrapper from './FormModalWrapper'
@@ -29,6 +30,7 @@ const REMINDER_TYPES: { value: ReminderType; label: string; description: string 
 ]
 
 export default function ReminderForm({ vin, reminder, currentMileage, onClose, onSuccess }: ReminderFormProps) {
+  const { t } = useTranslation('forms')
   const isEdit = !!reminder
   const createMutation = useCreateReminder(vin)
   const updateMutation = useUpdateReminder(vin)
@@ -65,17 +67,17 @@ export default function ReminderForm({ vin, reminder, currentMileage, onClose, o
     setError(null)
 
     if (!title.trim()) {
-      setError('Title is required')
+      setError(t('reminder.titleRequired'))
       return
     }
 
     if (['date', 'both', 'smart'].includes(reminderType) && !dueDate) {
-      setError('Due date is required for this reminder type')
+      setError(t('reminder.dueDateRequired'))
       return
     }
 
     if (['mileage', 'both', 'smart'].includes(reminderType) && !mileageInterval) {
-      setError('Miles until due is required for this reminder type')
+      setError(t('reminder.milesRequired'))
       return
     }
 
@@ -95,7 +97,7 @@ export default function ReminderForm({ vin, reminder, currentMileage, onClose, o
           due_mileage,
           notes: notes || undefined,
         })
-        toast.success('Reminder updated')
+        toast.success(t('reminder.updated'))
       } else {
         await createMutation.mutateAsync({
           title,
@@ -104,11 +106,11 @@ export default function ReminderForm({ vin, reminder, currentMileage, onClose, o
           due_mileage,
           notes: notes || undefined,
         })
-        toast.success('Reminder created')
+        toast.success(t('reminder.created'))
       }
       onSuccess()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
+      setError(err instanceof Error ? err.message : t('common:error'))
     } finally {
       setSubmitting(false)
     }
@@ -116,7 +118,7 @@ export default function ReminderForm({ vin, reminder, currentMileage, onClose, o
 
   return (
     <FormModalWrapper
-      title={isEdit ? 'Edit Reminder' : 'Create Reminder'}
+      title={isEdit ? t('reminder.editTitle') : t('reminder.createTitle')}
       onClose={onClose}
       maxWidth="max-w-lg"
     >
@@ -130,13 +132,13 @@ export default function ReminderForm({ vin, reminder, currentMileage, onClose, o
 
         <div>
           <label className="block text-sm font-medium text-garage-text mb-1">
-            Title <span className="text-danger">*</span>
+            {t('common:title')} <span className="text-danger">*</span>
           </label>
           <input
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="e.g., Next oil change"
+            placeholder={t('reminder.titlePlaceholder')}
             maxLength={200}
             disabled={submitting}
             className="w-full px-3 py-2 border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text"
@@ -145,7 +147,7 @@ export default function ReminderForm({ vin, reminder, currentMileage, onClose, o
 
         <div>
           <label className="block text-sm font-medium text-garage-text mb-1">
-            Reminder Type
+            {t('reminder.reminderType')}
           </label>
           <div className="grid grid-cols-2 gap-2">
             {REMINDER_TYPES.map((type) => (
@@ -170,7 +172,7 @@ export default function ReminderForm({ vin, reminder, currentMileage, onClose, o
         {['date', 'both', 'smart'].includes(reminderType) && (
           <div>
             <label className="block text-sm font-medium text-garage-text mb-1">
-              Due Date <span className="text-danger">*</span>
+              {t('reminder.dueDate')} <span className="text-danger">*</span>
             </label>
             <input
               type="date"
@@ -185,7 +187,7 @@ export default function ReminderForm({ vin, reminder, currentMileage, onClose, o
         {['mileage', 'both', 'smart'].includes(reminderType) && (
           <div>
             <label className="block text-sm font-medium text-garage-text mb-1">
-              {hasMileage ? 'Miles Until Due' : 'Due Mileage (odometer)'} <span className="text-danger">*</span>
+              {hasMileage ? t('reminder.milesUntilDue') : t('reminder.dueMileage')} <span className="text-danger">*</span>
             </label>
             <input
               type="number"
@@ -201,11 +203,11 @@ export default function ReminderForm({ vin, reminder, currentMileage, onClose, o
                 Current: {currentMileage.toLocaleString()} + {mileageInterval.toLocaleString()} = {absoluteTarget?.toLocaleString()} mi target
               </p>
             ) : !hasMileage ? (
-              <p className="text-xs text-warning mt-1">No odometer data — enter absolute target mileage</p>
+              <p className="text-xs text-warning mt-1">{t('reminder.noOdometerData')}</p>
             ) : null}
             {isEdit && hasMileage && initialInterval !== undefined && initialInterval <= 0 && (
               <p className="text-xs text-danger mt-1">
-                This reminder is overdue — enter a new interval from current mileage
+                {t('reminder.overdueHint')}
               </p>
             )}
           </div>
@@ -214,18 +216,17 @@ export default function ReminderForm({ vin, reminder, currentMileage, onClose, o
         {reminderType === 'smart' && (
           <div className="bg-primary/5 border border-primary/20 rounded-lg p-3">
             <p className="text-xs text-garage-text-muted">
-              Smart mode uses your driving history to estimate when you'll hit the mileage target.
-              The date acts as a hard cap — you'll be notified by whichever comes first.
+              {t('reminder.smartModeDescription')}
             </p>
           </div>
         )}
 
         <div>
-          <label className="block text-sm font-medium text-garage-text mb-1">Notes</label>
+          <label className="block text-sm font-medium text-garage-text mb-1">{t('common:notes')}</label>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            placeholder="Optional notes..."
+            placeholder={t('reminder.optionalNotes')}
             rows={2}
             disabled={submitting}
             className="w-full px-3 py-2 border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text"
@@ -239,7 +240,7 @@ export default function ReminderForm({ vin, reminder, currentMileage, onClose, o
             className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Save className="w-4 h-4" />
-            <span>{submitting ? 'Saving...' : isEdit ? 'Update' : 'Create'}</span>
+            <span>{submitting ? t('common:saving') : isEdit ? t('common:update') : t('common:create')}</span>
           </button>
           <button
             type="button"
@@ -247,7 +248,7 @@ export default function ReminderForm({ vin, reminder, currentMileage, onClose, o
             disabled={submitting}
             className="btn btn-primary rounded-lg transition-colors"
           >
-            Cancel
+            {t('common:cancel')}
           </button>
         </div>
       </form>

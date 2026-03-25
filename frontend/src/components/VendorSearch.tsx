@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Search, Building2, Plus, X } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Vendor, VendorCreate } from '../types/vendor'
@@ -19,6 +20,7 @@ export default function VendorSearch({
   disabled = false,
   className = '',
 }: VendorSearchProps) {
+  const { t } = useTranslation('vehicles')
   const [query, setQuery] = useState('')
   const [vendors, setVendors] = useState<Vendor[]>([])
   const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null)
@@ -164,7 +166,7 @@ export default function VendorSearch({
 
           {!loading && query.length >= 2 && vendors.length === 0 && (
             <div className="px-4 py-2 text-sm text-garage-text-muted">
-              No vendors found
+              {t('vendorSearch.noResults')}
             </div>
           )}
 

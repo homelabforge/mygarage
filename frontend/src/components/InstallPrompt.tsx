@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Download, X } from 'lucide-react'
 
 interface BeforeInstallPromptEvent extends Event {
@@ -7,6 +8,7 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 export default function InstallPrompt() {
+  const { t } = useTranslation('common')
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null)
   const [showPrompt, setShowPrompt] = useState(false)
 
@@ -77,20 +79,16 @@ export default function InstallPrompt() {
           </div>
 
           <div className="flex-1 min-w-0">
-            <h3 className="text-sm font-semibold text-garage-text mb-1">
-              Install MyGarage
-            </h3>
+            <h3 className="text-sm font-semibold text-garage-text mb-1">{t('installPrompt.title')}</h3>
             <p className="text-xs text-garage-text-muted mb-3">
-              Install the app for quick access and offline use. Works like a native app!
+              {t('installPrompt.description')}
             </p>
 
             <div className="flex gap-2">
               <button
                 onClick={handleInstallClick}
                 className="flex-1 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium px-3 py-2 rounded-lg transition-colors duration-200"
-              >
-                Install
-              </button>
+              >{t('installPrompt.install')}</button>
               <button
                 onClick={handleDismiss}
                 className="px-3 py-2 text-garage-text-muted hover:text-garage-text transition-colors duration-200"

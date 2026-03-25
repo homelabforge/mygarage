@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Edit, Trash2, Plus, AlertCircle, Droplets, TrendingDown, DollarSign } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateForDisplay } from '../utils/dateUtils'
@@ -18,6 +19,7 @@ interface DEFRecordListProps {
 export default function DEFRecordList({ vin }: DEFRecordListProps) {
   const [showForm, setShowForm] = useState(false)
   const [editingRecord, setEditingRecord] = useState<DEFRecord | undefined>()
+  const { t } = useTranslation('vehicles')
   const { system } = useUnitPreference()
   const { currencyCode, locale } = useCurrencyPreference()
 
@@ -39,16 +41,16 @@ export default function DEFRecordList({ vin }: DEFRecordListProps) {
   }
 
   const handleDelete = (id: number) => {
-    if (!confirm('Are you sure you want to delete this DEF record?')) {
+    if (!confirm(t('defList.confirmDelete'))) {
       return
     }
 
     deleteMutation.mutate(id, {
       onSuccess: () => {
-        toast.success('DEF record deleted')
+        toast.success(t('defList.deleted'))
       },
       onError: (err) => {
-        toast.error(err instanceof Error ? err.message : 'Failed to delete DEF record')
+        toast.error(err instanceof Error ? err.message : t('defList.deleteError'))
       },
     })
   }
@@ -97,9 +99,7 @@ export default function DEFRecordList({ vin }: DEFRecordListProps) {
 
   if (isLoading) {
     return (
-      <div className="text-center py-8 text-garage-text-muted">
-        Loading DEF records...
-      </div>
+      <div className="text-center py-8 text-garage-text-muted">{t('defList.loading')}</div>
     )
   }
 
@@ -131,7 +131,7 @@ export default function DEFRecordList({ vin }: DEFRecordListProps) {
               </div>
               {analytics.estimated_days_remaining !== null && (
                 <p className="text-xs text-garage-text-muted">
-                  ~{analytics.estimated_days_remaining} days
+                  {t('defList.estimatedDays', { count: analytics.estimated_days_remaining })}
                 </p>
               )}
             </div>
@@ -142,7 +142,7 @@ export default function DEFRecordList({ vin }: DEFRecordListProps) {
             <div className="bg-garage-surface border border-garage-border rounded-lg p-3">
               <div className="flex items-center gap-1 text-xs text-garage-text-muted mb-1">
                 <Droplets className="w-3 h-3" />
-                <span>Consumption</span>
+                <span>{t('defList.consumption')}</span>
               </div>
               <div className="text-lg font-semibold text-garage-text">
                 {analytics.gallons_per_1000_miles !== null &&
@@ -170,7 +170,7 @@ export default function DEFRecordList({ vin }: DEFRecordListProps) {
             <div className="bg-garage-surface border border-garage-border rounded-lg p-3">
               <div className="flex items-center gap-1 text-xs text-garage-text-muted mb-1">
                 <DollarSign className="w-3 h-3" />
-                <span>Total Spent</span>
+                <span>{t('defList.totalSpent')}</span>
               </div>
               <div className="text-lg font-semibold text-garage-text">
                 {formatCurrency(analytics.total_cost, { currencyCode, locale })}
@@ -186,13 +186,13 @@ export default function DEFRecordList({ vin }: DEFRecordListProps) {
             <div className="bg-garage-surface border border-garage-border rounded-lg p-3">
               <div className="flex items-center gap-1 text-xs text-garage-text-muted mb-1">
                 <AlertCircle className="w-3 h-3" />
-                <span>Data Quality</span>
+                <span>{t('defList.dataQuality')}</span>
               </div>
               <div className="text-sm font-medium text-warning">
-                {analytics.data_confidence === 'low' ? 'Estimates' : 'Need More Data'}
+                {analytics.data_confidence === 'low' ? t('defList.estimates') : t('defList.needMoreData')}
               </div>
               <p className="text-xs text-garage-text-muted">
-                {analytics.record_count} record{analytics.record_count !== 1 ? 's' : ''}
+                {t('defList.recordCount', { count: analytics.record_count })}
               </p>
             </div>
           )}
@@ -201,10 +201,10 @@ export default function DEFRecordList({ vin }: DEFRecordListProps) {
 
       <div className="flex justify-between items-center mb-4">
         <div>
-          <h3 className="text-lg font-semibold text-garage-text">DEF Records</h3>
+          <h3 className="text-lg font-semibold text-garage-text">{t('defList.title')}</h3>
           {records.length > 0 && (
             <p className="text-sm text-garage-text-muted">
-              {records.length} {records.length === 1 ? 'record' : 'records'}
+              {t('defList.recordCount', { count: records.length })}
             </p>
           )}
         </div>
@@ -213,7 +213,7 @@ export default function DEFRecordList({ vin }: DEFRecordListProps) {
           className="flex items-center gap-2 px-4 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg hover:bg-gray-800 transition-colors"
         >
           <Plus className="w-4 h-4" />
-          <span>Add DEF</span>
+          <span>{t('defList.addDEF')}</span>
         </button>
       </div>
 
@@ -227,16 +227,14 @@ export default function DEFRecordList({ vin }: DEFRecordListProps) {
       {records.length === 0 ? (
         <div className="text-center py-12 bg-garage-surface border border-garage-border rounded-lg">
           <Droplets className="w-12 h-12 text-garage-text-muted mx-auto mb-3" />
-          <p className="text-garage-text mb-2">No DEF records yet</p>
-          <p className="text-sm text-garage-text-muted mb-4">
-            Track diesel exhaust fluid purchases and fill levels
-          </p>
+          <p className="text-garage-text mb-2">{t('defList.noRecords')}</p>
+          <p className="text-sm text-garage-text-muted mb-4">{t('defList.noRecordsDesc')}</p>
           <button
             onClick={handleAdd}
             className="inline-flex items-center gap-2 px-4 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg hover:bg-gray-800 transition-colors"
           >
             <Plus className="w-4 h-4" />
-            <span>Add Your First DEF Record</span>
+            <span>{t('defList.addFirstRecord')}</span>
           </button>
         </div>
       ) : (
@@ -245,15 +243,15 @@ export default function DEFRecordList({ vin }: DEFRecordListProps) {
             <table className="w-full">
               <thead className="bg-garage-bg border-b border-garage-border">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-garage-text-muted uppercase">Date</th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-garage-text-muted uppercase">Type</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-garage-text-muted uppercase">Mileage</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-garage-text-muted uppercase">Gallons</th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-garage-text-muted uppercase">Fill Level</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-garage-text-muted uppercase">Source</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-garage-text-muted uppercase">Brand</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-garage-text-muted uppercase">Cost</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-garage-text-muted uppercase">Actions</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-garage-text-muted uppercase">{t('defList.date')}</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-garage-text-muted uppercase">{t('defList.type')}</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-garage-text-muted uppercase">{t('defList.mileage')}</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-garage-text-muted uppercase">{t('defList.gallons')}</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-garage-text-muted uppercase">{t('defList.fillLevel')}</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-garage-text-muted uppercase">{t('defList.source')}</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-garage-text-muted uppercase">{t('defList.brand')}</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-garage-text-muted uppercase">{t('defList.cost')}</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-garage-text-muted uppercase">{t('defList.actions')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-garage-border">
@@ -266,13 +264,9 @@ export default function DEFRecordList({ vin }: DEFRecordListProps) {
                       </td>
                       <td className="px-4 py-3 text-sm text-center">
                         {record.entry_type === 'auto_fuel_sync' ? (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-primary/15 text-primary">
-                            Auto
-                          </span>
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-primary/15 text-primary">{t('defList.auto')}</span>
                         ) : (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-success/15 text-success">
-                            Purchase
-                          </span>
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-success/15 text-success">{t('defList.purchase')}</span>
                         )}
                       </td>
                       <td className="px-4 py-3 text-sm text-garage-text text-right">
@@ -310,8 +304,8 @@ export default function DEFRecordList({ vin }: DEFRecordListProps) {
                           <button
                             onClick={() => handleEdit(record)}
                             className="p-1.5 text-primary hover:bg-primary/10 rounded transition-colors"
-                            aria-label="Edit"
-                            title="Edit"
+                            aria-label={t('common:edit')}
+                            title={t('common:edit')}
                           >
                             <Edit className="w-4 h-4" />
                           </button>
@@ -319,8 +313,8 @@ export default function DEFRecordList({ vin }: DEFRecordListProps) {
                             onClick={() => handleDelete(record.id)}
                             disabled={deleteMutation.isPending && deleteMutation.variables === record.id}
                             className="p-1.5 text-danger hover:bg-danger/10 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                            aria-label="Delete"
-                            title="Delete"
+                            aria-label={t('common:delete')}
+                            title={t('common:delete')}
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>

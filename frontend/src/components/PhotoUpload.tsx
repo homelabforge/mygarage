@@ -1,4 +1,5 @@
 import { useState, useRef, type SyntheticEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Upload, X } from 'lucide-react'
 import api from '../services/api'
 
@@ -9,6 +10,7 @@ interface PhotoUploadProps {
 }
 
 export default function PhotoUpload({ vin, onSuccess, onClose }: PhotoUploadProps) {
+  const { t } = useTranslation('vehicles')
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
@@ -209,7 +211,7 @@ export default function PhotoUpload({ vin, onSuccess, onClose }: PhotoUploadProp
               className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Upload className="w-4 h-4" />
-              <span>{uploading ? 'Uploading...' : 'Upload Photo'}</span>
+              <span>{uploading ? t('photoUpload.uploading') : t('photoUpload.uploadBtn')}</span>
             </button>
 
             <button

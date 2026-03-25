@@ -1,4 +1,5 @@
 import { Send, Info } from 'lucide-react';
+import { useTranslation } from 'react-i18next'
 
 interface PushoverConfigProps {
   settings: Record<string, unknown>;
@@ -17,6 +18,7 @@ export function PushoverConfig({
   testing,
   saving,
 }: PushoverConfigProps) {
+  const { t } = useTranslation('settings')
   const isEnabled = settings.pushover_enabled === 'true';
   const hasRequiredFields = Boolean(settings.pushover_user_key && settings.pushover_api_token);
 
@@ -40,10 +42,10 @@ export function PushoverConfig({
             disabled={saving}
             className="w-4 h-4 text-primary bg-garage-bg border-garage-border rounded focus:ring-primary focus:ring-2 disabled:opacity-50"
           />
-          <span className="ml-2 text-sm text-garage-text font-medium">Enable Pushover notifications</span>
+          <span className="ml-2 text-sm text-garage-text font-medium">{t('pushover.enable')}</span>
         </label>
 
-        {/* User Key */}
+        {/* {t('pushover.userKey')} */}
         <div>
           <label htmlFor="pushover_user_key" className="block text-sm font-medium text-garage-text mb-1">
             User Key
@@ -62,7 +64,7 @@ export function PushoverConfig({
           </p>
         </div>
 
-        {/* API Token */}
+        {/* {t('pushover.apiToken')} */}
         <div>
           <label htmlFor="pushover_api_token" className="block text-sm font-medium text-garage-text mb-1">
             API Token / App Token

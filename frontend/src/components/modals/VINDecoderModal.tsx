@@ -2,6 +2,7 @@
  * VIN Decoder Modal - Wraps VINInput for use from the About page
  */
 
+import { useTranslation } from 'react-i18next'
 import { useState } from 'react'
 import { X, Search } from 'lucide-react'
 import VINInput from '@/components/VINInput'
@@ -13,6 +14,7 @@ interface VINDecoderModalProps {
 }
 
 export default function VINDecoderModal({ isOpen, onClose }: VINDecoderModalProps) {
+  const { t } = useTranslation('forms')
   const [vin, setVin] = useState('')
   const [decodedData, setDecodedData] = useState<VINDecodeResponse | null>(null)
 
@@ -32,9 +34,9 @@ export default function VINDecoderModal({ isOpen, onClose }: VINDecoderModalProp
           <div className="flex items-center gap-2">
             <Search className="w-6 h-6 text-primary" />
             <div>
-              <h2 className="text-xl font-bold text-garage-text">VIN Decoder</h2>
+              <h2 className="text-xl font-bold text-garage-text">{t('modal.vinDecoder')}</h2>
               <p className="text-sm text-garage-text-muted">
-                Decode vehicle information from the NHTSA database
+                {t('modal.vinDecoderDescription')}
               </p>
             </div>
           </div>
@@ -47,7 +49,7 @@ export default function VINDecoderModal({ isOpen, onClose }: VINDecoderModalProp
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           {/* VIN Input */}
           <div className="bg-garage-bg border border-garage-border rounded-lg p-4">
-            <h3 className="text-lg font-semibold mb-3 text-garage-text">Enter VIN</h3>
+            <h3 className="text-lg font-semibold mb-3 text-garage-text">{t('modal.enterVin')}</h3>
             <VINInput
               value={vin}
               onChange={setVin}
@@ -58,7 +60,7 @@ export default function VINDecoderModal({ isOpen, onClose }: VINDecoderModalProp
 
           {/* Example VINs */}
           <div className="bg-garage-bg border border-garage-border rounded-lg p-4">
-            <h3 className="text-lg font-semibold mb-3 text-garage-text">Example VINs to Try</h3>
+            <h3 className="text-lg font-semibold mb-3 text-garage-text">{t('modal.exampleVins')}</h3>
             <div className="space-y-2">
               {[
                 { vin: 'ML32A5HJ9KH009478', desc: '2019 Mitsubishi Mirage' },
@@ -80,7 +82,7 @@ export default function VINDecoderModal({ isOpen, onClose }: VINDecoderModalProp
           {/* Full decoded data (JSON view) */}
           {decodedData && (
             <div className="bg-garage-bg border border-garage-border rounded-lg p-4">
-              <h3 className="text-lg font-semibold mb-3 text-garage-text">Full Response Data</h3>
+              <h3 className="text-lg font-semibold mb-3 text-garage-text">{t('modal.fullResponseData')}</h3>
               <pre className="bg-garage-surface border border-garage-border p-4 rounded-lg overflow-x-auto text-sm text-garage-text">
                 {JSON.stringify(decodedData, null, 2)}
               </pre>

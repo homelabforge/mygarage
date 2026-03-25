@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useState, useEffect } from 'react'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -30,6 +31,7 @@ export default function BillingEntryForm({
   onClose,
   onSuccess
 }: BillingEntryFormProps) {
+  const { t } = useTranslation('forms')
   const isEdit = !!billing
   const [error, setError] = useState<string | null>(null)
   const createMutation = useCreateBillingEntry(vin, rentalId)
@@ -104,18 +106,18 @@ export default function BillingEntryForm({
         if (axiosError.response?.data?.detail) {
           setError(axiosError.response.data.detail)
         } else if (axiosError.response?.status === 404) {
-          setError('Spot rental not found')
+          setError(t('billing.spotRentalNotFound'))
         } else {
-          setError('Failed to save billing entry. Please try again.')
+          setError(t('billing.failedToSave'))
         }
       } else {
-        setError('Failed to save billing entry. Please try again.')
+        setError(t('billing.failedToSave'))
       }
     }
   }
 
   return (
-    <FormModalWrapper title={isEdit ? 'Edit Billing Entry' : 'Add Billing Entry'} onClose={onClose}>
+    <FormModalWrapper title={isEdit ? t('billing.editTitle') : t('billing.createTitle')} onClose={onClose}>
         <form onSubmit={handleSubmit(onSubmit as Parameters<typeof handleSubmit>[0])} className="p-6 space-y-6">
           {error && (
             <div className="bg-danger/10 border border-danger rounded-lg p-3">
@@ -126,7 +128,7 @@ export default function BillingEntryForm({
           {/* Billing Date */}
           <div>
             <label htmlFor="billing_date" className="block text-sm font-medium text-garage-text mb-1">
-              Billing Date <span className="text-danger">*</span>
+              {t('billing.billingDate')} <span className="text-danger">*</span>
             </label>
             <input
               type="date"
@@ -144,7 +146,7 @@ export default function BillingEntryForm({
           {/* Monthly Rate */}
           <div>
             <label htmlFor="monthly_rate" className="block text-sm font-medium text-garage-text mb-1">
-              Monthly Rate
+              {t('spotRental.monthlyRate')}
             </label>
             <div className="relative">
               <span className="absolute left-3 top-2 text-garage-text-muted">$</span>
@@ -239,7 +241,7 @@ export default function BillingEntryForm({
           {/* Total (Auto-calculated) */}
           <div>
             <label htmlFor="total" className="block text-sm font-medium text-garage-text mb-1">
-              Total
+              {t('common:total')}
             </label>
             <div className="relative">
               <span className="absolute left-3 top-2 text-garage-text-muted">$</span>
@@ -257,20 +259,20 @@ export default function BillingEntryForm({
               <p className="mt-1 text-sm text-danger">{errors.total.message}</p>
             )}
             <p className="mt-1 text-xs text-garage-text-muted">
-              Automatically calculated from Monthly Rate + Electric + Water + Waste
+              {t('billing.autoCalculatedHint')}
             </p>
           </div>
 
           {/* Notes */}
           <div>
             <label htmlFor="notes" className="block text-sm font-medium text-garage-text mb-1">
-              Notes
+              {t('common:notes')}
             </label>
             <textarea
               id="notes"
               rows={4}
               {...register('notes')}
-              placeholder="Any additional notes about this billing period..."
+              placeholder={t('billing.notesPlaceholder')}
               className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
                 errors.notes ? 'border-red-500' : 'border-garage-border'
               }`}
@@ -288,7 +290,7 @@ export default function BillingEntryForm({
               className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Save className="w-4 h-4" />
-              <span>{isSubmitting ? 'Saving...' : isEdit ? 'Update' : 'Create'}</span>
+              <span>{isSubmitting ? t('common:saving') : isEdit ? t('common:update') : t('common:create')}</span>
             </button>
 
             <button
@@ -297,7 +299,7 @@ export default function BillingEntryForm({
               disabled={isSubmitting}
               className="btn btn-primary rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Cancel
+              {t('common:cancel')}
             </button>
           </div>
         </form>

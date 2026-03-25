@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Save } from 'lucide-react'
@@ -47,6 +48,7 @@ export default function DEFRecordForm({
   onClose,
   onSuccess
 }: DEFRecordFormProps) {
+  const { t } = useTranslation('forms')
   const isEdit = !!record
   const [error, setError] = useState<string | null>(null)
   const createMutation = useCreateDEFRecord(vin)
@@ -147,12 +149,12 @@ export default function DEFRecordForm({
       onSuccess()
       onClose()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
+      setError(err instanceof Error ? err.message : t('common:error'))
     }
   }
 
   return (
-    <FormModalWrapper title={isEdit ? 'Edit DEF Record' : 'Add DEF Record'} onClose={onClose} maxWidth="max-w-lg">
+    <FormModalWrapper title={isEdit ? t('def.editTitle') : t('def.createTitle')} onClose={onClose} maxWidth="max-w-lg">
         <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
           {error && (
             <div className="bg-danger/10 border border-danger rounded-lg p-3">
@@ -163,7 +165,7 @@ export default function DEFRecordForm({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label htmlFor="date" className="block text-sm font-medium text-garage-text mb-1">
-                Date <span className="text-danger">*</span>
+                {t('common:date')} <span className="text-danger">*</span>
               </label>
               <input
                 type="date"
@@ -179,7 +181,7 @@ export default function DEFRecordForm({
 
             <div>
               <label htmlFor="mileage" className="block text-sm font-medium text-garage-text mb-1">
-                Mileage ({UnitFormatter.getDistanceUnit(system)})
+                {t('common:mileage')} ({UnitFormatter.getDistanceUnit(system)})
               </label>
               <input
                 type="number"
@@ -200,7 +202,7 @@ export default function DEFRecordForm({
           {/* Fill Level */}
           <div>
             <label className="block text-sm font-medium text-garage-text mb-2">
-              Tank Level After Fill
+              {t('def.tankLevelAfterFill')}
             </label>
             <div className="flex gap-2 mb-2">
               {FILL_LEVEL_PRESETS.map(preset => (
@@ -272,7 +274,7 @@ export default function DEFRecordForm({
 
             <div>
               <label htmlFor="price_per_unit" className="block text-sm font-medium text-garage-text mb-1">
-                Price/{UnitFormatter.getVolumeUnit(system)}
+                {t('fuel.pricePer')}/{UnitFormatter.getVolumeUnit(system)}
               </label>
               <div className="relative">
                 <span className="absolute left-3 top-2 text-garage-text-muted">$</span>
@@ -294,7 +296,7 @@ export default function DEFRecordForm({
 
             <div>
               <label htmlFor="cost" className="block text-sm font-medium text-garage-text mb-1">
-                Total Cost
+                {t('common:totalCost')}
               </label>
               <div className="relative">
                 <span className="absolute left-3 top-2 text-garage-text-muted">$</span>
@@ -312,14 +314,14 @@ export default function DEFRecordForm({
                 />
               </div>
               <FormError error={errors.cost} />
-              <p className="text-xs text-garage-text-muted mt-1">Auto-calculated</p>
+              <p className="text-xs text-garage-text-muted mt-1">{t('common:autoCalculated')}</p>
             </div>
           </div>
 
           {/* Source */}
           <div>
             <label htmlFor="source" className="block text-sm font-medium text-garage-text mb-1">
-              Where Purchased
+              {t('def.wherePurchased')}
             </label>
             <input
               type="text"
@@ -343,7 +345,7 @@ export default function DEFRecordForm({
           {/* Brand */}
           <div>
             <label htmlFor="brand" className="block text-sm font-medium text-garage-text mb-1">
-              Brand
+              {t('def.brand')}
             </label>
             <input
               type="text"
@@ -367,13 +369,13 @@ export default function DEFRecordForm({
           {/* Notes */}
           <div>
             <label htmlFor="notes" className="block text-sm font-medium text-garage-text mb-1">
-              Notes
+              {t('common:notes')}
             </label>
             <textarea
               id="notes"
               rows={3}
               {...register('notes')}
-              placeholder="Additional notes..."
+              placeholder={t('common:additionalNotes')}
               className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
                 errors.notes ? 'border-red-500' : 'border-garage-border'
               }`}
@@ -389,7 +391,7 @@ export default function DEFRecordForm({
               className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Save className="w-4 h-4" />
-              <span>{isSubmitting ? 'Saving...' : isEdit ? 'Update' : 'Create'}</span>
+              <span>{isSubmitting ? t('common:saving') : isEdit ? t('common:update') : t('common:create')}</span>
             </button>
 
             <button
@@ -398,7 +400,7 @@ export default function DEFRecordForm({
               className="btn btn-primary rounded-lg transition-colors"
               disabled={isSubmitting}
             >
-              Cancel
+              {t('common:cancel')}
             </button>
           </div>
         </form>

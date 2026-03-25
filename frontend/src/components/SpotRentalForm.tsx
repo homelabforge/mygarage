@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useState, useEffect } from 'react'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -21,6 +22,7 @@ interface SpotRentalFormProps {
 }
 
 export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: SpotRentalFormProps) {
+  const { t } = useTranslation('forms')
   const isEdit = !!rental
   const [error, setError] = useState<string | null>(null)
   const createMutation = useCreateSpotRental(vin)
@@ -119,9 +121,9 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
         address: pendingLocationData.address,
         category: 'RV Park'
       })
-      toast.success('Location saved to address book')
+      toast.success(t('spotRental.locationSaved'))
     } catch {
-      toast.error('Failed to save to address book')
+      toast.error(t('spotRental.failedToSaveLocation'))
     } finally {
       setShowSaveToAddressBook(false)
       setPendingLocationData(null)
@@ -171,13 +173,13 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
         }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
+      setError(err instanceof Error ? err.message : t('common:error'))
     }
   }
 
   return (
     <>
-    <FormModalWrapper title={isEdit ? 'Edit Spot Rental' : 'Add Spot Rental'} onClose={onClose}>
+    <FormModalWrapper title={isEdit ? t('spotRental.editTitle') : t('spotRental.createTitle')} onClose={onClose}>
         <form onSubmit={handleSubmit(onSubmit as Parameters<typeof handleSubmit>[0])} className="p-6 space-y-4">
           {error && (
             <div className="bg-danger/10 border border-danger rounded-lg p-3">
@@ -188,7 +190,7 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
               <label htmlFor="location_name" className="block text-sm font-medium text-garage-text mb-1">
-                Location/Facility Name
+                {t('spotRental.locationName')}
               </label>
               <AddressBookAutocomplete
                 id="location_name"
@@ -207,20 +209,20 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
               />
               <FormError error={errors.location_name} />
               <p className="text-xs text-garage-text-muted mt-1">
-                Start typing to search from your address book
+                {t('spotRental.addressBookHint')}
               </p>
             </div>
           </div>
 
           <div>
             <label htmlFor="location_address" className="block text-sm font-medium text-garage-text mb-1">
-              Address
+              {t('spotRental.address')}
             </label>
             <textarea
               id="location_address"
               rows={2}
               {...register('location_address')}
-              placeholder="Full address of the rental location..."
+              placeholder={t('spotRental.addressPlaceholder')}
               className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
                 errors.location_address ? 'border-red-500' : 'border-garage-border'
               }`}
@@ -232,7 +234,7 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label htmlFor="check_in_date" className="block text-sm font-medium text-garage-text mb-1">
-                Check-In Date <span className="text-danger">*</span>
+                {t('spotRental.checkInDate')} <span className="text-danger">*</span>
               </label>
               <input
                 type="date"
@@ -248,7 +250,7 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
 
             <div>
               <label htmlFor="check_out_date" className="block text-sm font-medium text-garage-text mb-1">
-                Check-Out Date
+                {t('spotRental.checkOutDate')}
               </label>
               <input
                 type="date"
@@ -261,7 +263,7 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
               />
               <FormError error={errors.check_out_date} />
               <p className="text-xs text-garage-text-muted mt-1">
-                Leave blank if still renting
+                {t('spotRental.leaveBlankHint')}
               </p>
             </div>
           </div>
@@ -269,7 +271,7 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label htmlFor="rate_type" className="block text-sm font-medium text-garage-text mb-1">
-                Rate Type
+                {t('spotRental.rateType')}
               </label>
               <select
                 id="rate_type"
@@ -292,9 +294,9 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
                 className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text border-garage-border"
                 disabled={isSubmitting}
               >
-                <option value="nightly">Nightly</option>
-                <option value="weekly">Weekly</option>
-                <option value="monthly">Monthly</option>
+                <option value="nightly">{t('spotRental.nightly')}</option>
+                <option value="weekly">{t('spotRental.weekly')}</option>
+                <option value="monthly">{t('spotRental.monthly')}</option>
               </select>
             </div>
 
@@ -329,7 +331,7 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
           <div className="grid grid-cols-3 gap-4">
             <div>
               <label htmlFor="electric" className="block text-sm font-medium text-garage-text mb-1">
-                Electric
+                {t('spotRental.electric')}
               </label>
               <div className="relative">
                 <span className="absolute left-3 top-2 text-garage-text-muted">$</span>
@@ -350,7 +352,7 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
 
             <div>
               <label htmlFor="water" className="block text-sm font-medium text-garage-text mb-1">
-                Water
+                {t('spotRental.water')}
               </label>
               <div className="relative">
                 <span className="absolute left-3 top-2 text-garage-text-muted">$</span>
@@ -371,7 +373,7 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
 
             <div>
               <label htmlFor="waste" className="block text-sm font-medium text-garage-text mb-1">
-                Waste
+                {t('spotRental.waste')}
               </label>
               <div className="relative">
                 <span className="absolute left-3 top-2 text-garage-text-muted">$</span>
@@ -393,7 +395,7 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
 
           <div>
             <label htmlFor="total_cost" className="block text-sm font-medium text-garage-text mb-1">
-              Total Cost
+              {t('common:totalCost')}
             </label>
             <div className="relative">
               <span className="absolute left-3 top-2 text-garage-text-muted">$</span>
@@ -409,13 +411,13 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
             </div>
             <FormError error={errors.total_cost} />
             <p className="text-xs text-garage-text-muted mt-1">
-              Automatically calculated from rate + electric + water + waste
+              {t('spotRental.autoCalculatedHint')}
             </p>
           </div>
 
           <div>
             <label htmlFor="amenities" className="block text-sm font-medium text-garage-text mb-1">
-              Amenities
+              {t('spotRental.amenities')}
             </label>
             <textarea
               id="amenities"
@@ -432,13 +434,13 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
 
           <div>
             <label htmlFor="notes" className="block text-sm font-medium text-garage-text mb-1">
-              Notes
+              {t('common:notes')}
             </label>
             <textarea
               id="notes"
               rows={3}
               {...register('notes')}
-              placeholder="Additional notes about this rental..."
+              placeholder={t('spotRental.notesPlaceholder')}
               className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
                 errors.notes ? 'border-red-500' : 'border-garage-border'
               }`}
@@ -454,7 +456,7 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
               className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Save className="w-4 h-4" />
-              <span>{isSubmitting ? 'Saving...' : isEdit ? 'Update' : 'Create'}</span>
+              <span>{isSubmitting ? t('common:saving') : isEdit ? t('common:update') : t('common:create')}</span>
             </button>
 
             <button
@@ -463,7 +465,7 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
               disabled={isSubmitting}
               className="btn btn-primary rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Cancel
+              {t('common:cancel')}
             </button>
           </div>
         </form>
@@ -474,17 +476,17 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60]">
           <div className="bg-garage-surface rounded-lg shadow-xl max-w-md w-full p-6 border border-garage-border">
             <h3 className="text-lg font-semibold text-garage-text mb-3">
-              Save to Address Book?
+              {t('spotRental.saveToAddressBook')}
             </h3>
             <p className="text-sm text-garage-text-muted mb-4">
-              Would you like to save "{pendingLocationData.name}" to your address book for quicker access in the future?
+              {t('spotRental.saveToAddressBookPrompt', { name: pendingLocationData.name })}
             </p>
             <div className="flex gap-3">
               <button
                 onClick={handleSaveToAddressBook}
                 className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
               >
-                Yes, Save
+                {t('spotRental.yesSave')}
               </button>
               <button
                 onClick={() => {
@@ -495,7 +497,7 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
                 }}
                 className="flex-1 px-4 py-2 bg-garage-bg border border-garage-border text-garage-text rounded-lg hover:bg-garage-bg/80 transition-colors"
               >
-                No, Skip
+                {t('spotRental.noSkip')}
               </button>
             </div>
           </div>

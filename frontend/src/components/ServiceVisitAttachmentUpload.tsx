@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Upload, X, AlertCircle } from 'lucide-react'
 import api from '../services/api'
 
@@ -15,6 +16,7 @@ export default function ServiceVisitAttachmentUpload({
   visitId,
   onUploadSuccess,
 }: ServiceVisitAttachmentUploadProps) {
+  const { t } = useTranslation('vehicles')
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -92,7 +94,7 @@ export default function ServiceVisitAttachmentUpload({
   return (
     <div className="space-y-3">
       <div>
-        <label className="block text-sm font-medium text-garage-text mb-2">Upload Attachment</label>
+        <label className="block text-sm font-medium text-garage-text mb-2">{t('serviceVisitAttachmentUpload.title')}</label>
         <div className="flex items-center gap-2">
           <input
             ref={fileInputRef}

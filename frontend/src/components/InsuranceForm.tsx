@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -19,6 +20,7 @@ interface InsuranceFormProps {
 }
 
 export default function InsuranceForm({ vin, record, onClose, onSuccess }: InsuranceFormProps) {
+  const { t } = useTranslation('forms')
   const isEdit = !!record
   const createMutation = useCreateInsuranceRecord(vin)
   const updateMutation = useUpdateInsuranceRecord(vin)
@@ -93,13 +95,13 @@ export default function InsuranceForm({ vin, record, onClose, onSuccess }: Insur
       onSuccess()
       onClose()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to save insurance policy')
+      toast.error(err instanceof Error ? err.message : t('insurance.failedToSave'))
     }
   }
 
   return (
     <>
-    <FormModalWrapper title={isEdit ? 'Edit Insurance Policy' : 'Add Insurance Policy'} onClose={onClose}>
+    <FormModalWrapper title={isEdit ? t('insurance.editTitle') : t('insurance.createTitle')} onClose={onClose}>
         <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
 
           {/* PDF Import Button - Only show on create */}
@@ -114,7 +116,7 @@ export default function InsuranceForm({ vin, record, onClose, onSuccess }: Insur
                 Import from PDF
               </button>
               <p className="text-xs text-garage-text-muted mt-2 text-center">
-                Upload your insurance policy PDF to auto-fill this form
+                {t('insurance.pdfUploadHint')}
               </p>
             </div>
           )}
@@ -122,7 +124,7 @@ export default function InsuranceForm({ vin, record, onClose, onSuccess }: Insur
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label htmlFor="provider" className="block text-sm font-medium text-garage-text mb-1">
-                Provider <span className="text-danger">*</span>
+                {t('insurance.provider')} <span className="text-danger">*</span>
               </label>
               <input
                 type="text"
@@ -137,7 +139,7 @@ export default function InsuranceForm({ vin, record, onClose, onSuccess }: Insur
 
             <div>
               <label htmlFor="policy_number" className="block text-sm font-medium text-garage-text mb-1">
-                Policy Number <span className="text-danger">*</span>
+                {t('insurance.policyNumber')} <span className="text-danger">*</span>
               </label>
               <input
                 type="text"
@@ -153,7 +155,7 @@ export default function InsuranceForm({ vin, record, onClose, onSuccess }: Insur
 
           <div>
             <label htmlFor="policy_type" className="block text-sm font-medium text-garage-text mb-1">
-              Policy Type <span className="text-danger">*</span>
+              {t('insurance.policyType')} <span className="text-danger">*</span>
             </label>
             <select
               id="policy_type"
@@ -161,7 +163,7 @@ export default function InsuranceForm({ vin, record, onClose, onSuccess }: Insur
               disabled={isSubmitting}
               className="input w-full"
             >
-              <option value="">Select type...</option>
+              <option value="">{t('common:selectType')}</option>
               {POLICY_TYPES.map((type) => (
                 <option key={type} value={type}>{type}</option>
               ))}
@@ -172,7 +174,7 @@ export default function InsuranceForm({ vin, record, onClose, onSuccess }: Insur
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label htmlFor="start_date" className="block text-sm font-medium text-garage-text mb-1">
-                Start Date <span className="text-danger">*</span>
+                {t('common:startDate')} <span className="text-danger">*</span>
               </label>
               <input
                 type="date"
@@ -186,7 +188,7 @@ export default function InsuranceForm({ vin, record, onClose, onSuccess }: Insur
 
             <div>
               <label htmlFor="end_date" className="block text-sm font-medium text-garage-text mb-1">
-                End Date <span className="text-danger">*</span>
+                {t('common:endDate')} <span className="text-danger">*</span>
               </label>
               <input
                 type="date"
@@ -202,7 +204,7 @@ export default function InsuranceForm({ vin, record, onClose, onSuccess }: Insur
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label htmlFor="premium_amount" className="block text-sm font-medium text-garage-text mb-1">
-                Premium Amount
+                {t('insurance.premiumAmount')}
               </label>
               <input
                 type="text"
@@ -217,7 +219,7 @@ export default function InsuranceForm({ vin, record, onClose, onSuccess }: Insur
 
             <div>
               <label htmlFor="premium_frequency" className="block text-sm font-medium text-garage-text mb-1">
-                Premium Frequency
+                {t('insurance.premiumFrequency')}
               </label>
               <select
                 id="premium_frequency"
@@ -225,7 +227,7 @@ export default function InsuranceForm({ vin, record, onClose, onSuccess }: Insur
                 disabled={isSubmitting}
                 className="input w-full"
               >
-                <option value="">Select frequency...</option>
+                <option value="">{t('insurance.selectFrequency')}</option>
                 {PREMIUM_FREQUENCIES.map((freq) => (
                   <option key={freq} value={freq}>{freq}</option>
                 ))}
@@ -236,7 +238,7 @@ export default function InsuranceForm({ vin, record, onClose, onSuccess }: Insur
 
           <div>
             <label htmlFor="deductible" className="block text-sm font-medium text-garage-text mb-1">
-              Deductible
+              {t('insurance.deductible')}
             </label>
             <input
               type="text"
@@ -251,7 +253,7 @@ export default function InsuranceForm({ vin, record, onClose, onSuccess }: Insur
 
           <div>
             <label htmlFor="coverage_limits" className="block text-sm font-medium text-garage-text mb-1">
-              Coverage Limits
+              {t('insurance.coverageLimits')}
             </label>
             <textarea
               id="coverage_limits"
@@ -265,7 +267,7 @@ export default function InsuranceForm({ vin, record, onClose, onSuccess }: Insur
 
           <div>
             <label htmlFor="notes" className="block text-sm font-medium text-garage-text mb-1">
-              Notes
+              {t('common:notes')}
             </label>
             <textarea
               id="notes"
@@ -273,7 +275,7 @@ export default function InsuranceForm({ vin, record, onClose, onSuccess }: Insur
               disabled={isSubmitting}
               className="input w-full"
               rows={2}
-              placeholder="Additional notes..."
+              placeholder={t('common:additionalNotes')}
             />
           </div>
 
@@ -292,7 +294,7 @@ export default function InsuranceForm({ vin, record, onClose, onSuccess }: Insur
               disabled={isSubmitting}
             >
               <Save size={16} />
-              {isSubmitting ? 'Saving...' : isEdit ? 'Update' : 'Create'}
+              {isSubmitting ? t('common:saving') : isEdit ? t('common:update') : t('common:create')}
             </button>
           </div>
         </form>

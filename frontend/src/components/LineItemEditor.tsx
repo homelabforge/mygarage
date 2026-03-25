@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Trash2, ChevronDown, ChevronUp, Clipboard, Wrench, Bell } from 'lucide-react'
 import type { ServiceVisitFormLineItem } from '../types/serviceVisit'
 import type { ReminderDraft } from '../types/reminder'
@@ -36,6 +37,7 @@ export default function LineItemEditor({
   isNewItem = true,
   currentMileage,
 }: LineItemEditorProps) {
+  const { t } = useTranslation('vehicles')
   const [expanded, setExpanded] = useState(true)
   const [showSuggestions, setShowSuggestions] = useState(false)
 
@@ -170,7 +172,7 @@ export default function LineItemEditor({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-garage-text mb-1">Cost</label>
+              <label className="block text-sm font-medium text-garage-text mb-1">{t('lineItemEditor.cost')}</label>
               <div className="relative">
                 <span className="absolute left-3 top-2 text-garage-text-muted">$</span>
                 <input
@@ -245,7 +247,7 @@ export default function LineItemEditor({
 
           {/* Notes */}
           <div>
-            <label className="block text-sm font-medium text-garage-text mb-1">Notes</label>
+            <label className="block text-sm font-medium text-garage-text mb-1">{t('lineItemEditor.notes')}</label>
             <textarea
               value={item.notes}
               onChange={(e) => onChange(index, 'notes', e.target.value)}

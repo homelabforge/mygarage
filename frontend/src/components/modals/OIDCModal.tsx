@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useState } from 'react'
 import { Shield, Info, CheckCircle, AlertCircle, Eye, EyeOff, Loader } from 'lucide-react'
 import api from '@/services/api'
@@ -29,6 +30,7 @@ export default function OIDCModal({
   formData,
   onFormDataChange,
 }: OIDCModalProps) {
+  const { t } = useTranslation('forms')
   const [oidcTestLoading, setOidcTestLoading] = useState(false)
   const [oidcTestResult, setOidcTestResult] = useState<{
     success: boolean
@@ -73,7 +75,7 @@ export default function OIDCModal({
 
   return (
     <FormModalWrapper
-      title="OIDC Authentication"
+      title={t('modal.oidcAuth')}
       onClose={handleClose}
       isOpen={isOpen}
       icon={<Shield className="w-6 h-6 text-primary" />}
@@ -115,7 +117,7 @@ export default function OIDCModal({
           {/* OIDC Configuration Form */}
           <div className="p-4 bg-garage-bg border border-garage-border rounded-lg">
             <div className="space-y-4">
-              <h3 className="text-sm font-semibold text-garage-text">OIDC Configuration</h3>
+              <h3 className="text-sm font-semibold text-garage-text">{t('modal.oidcConfiguration')}</h3>
 
               {/* Provider Name */}
               <div>
@@ -130,7 +132,7 @@ export default function OIDCModal({
                   className="w-full px-3 py-2 bg-garage-surface border border-garage-border rounded-lg text-sm text-garage-text placeholder-garage-text-muted focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                   placeholder="e.g., Authentik, Keycloak"
                 />
-                <p className="text-xs text-garage-text-muted mt-1">Display name for the SSO provider</p>
+                <p className="text-xs text-garage-text-muted mt-1">{t('modal.providerNameHint')}</p>
               </div>
 
               {/* Issuer URL */}
@@ -189,7 +191,7 @@ export default function OIDCModal({
                     {showClientSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
-                <p className="text-xs text-garage-text-muted mt-1">Encrypted and stored securely</p>
+                <p className="text-xs text-garage-text-muted mt-1">{t('modal.encryptedHint')}</p>
               </div>
 
               {/* Redirect URI (Read-only) */}
@@ -224,7 +226,7 @@ export default function OIDCModal({
                   className="w-full px-3 py-2 bg-garage-surface border border-garage-border rounded-lg text-sm text-garage-text placeholder-garage-text-muted focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                   placeholder="openid profile email"
                 />
-                <p className="text-xs text-garage-text-muted mt-1">Space-separated list of OIDC scopes</p>
+                <p className="text-xs text-garage-text-muted mt-1">{t('modal.scopesHint')}</p>
               </div>
 
               {/* Auto-create Users */}
@@ -266,7 +268,7 @@ export default function OIDCModal({
 
               {/* Claim Mappings */}
               <div className="space-y-3 pt-2 border-t border-garage-border">
-                <h4 className="text-xs font-semibold text-garage-text">Claim Mappings</h4>
+                <h4 className="text-xs font-semibold text-garage-text">{t('modal.claimMappings')}</h4>
 
                 {/* Username Claim */}
                 <div>
@@ -343,7 +345,7 @@ export default function OIDCModal({
                         </>
                       ) : (
                         <>
-                          <div className="font-medium text-danger-500 mb-1">Connection Failed</div>
+                          <div className="font-medium text-danger-500 mb-1">{t('modal.connectionFailed')}</div>
                           <ul className="text-xs text-danger-500 space-y-1">
                             {oidcTestResult.errors?.map((err, idx) => (
                               <li key={idx}>• {err}</li>
@@ -366,7 +368,7 @@ export default function OIDCModal({
                 {oidcTestLoading ? (
                   <>
                     <Loader className="w-4 h-4 animate-spin" />
-                    Testing...
+                    {t('modal.testing')}
                   </>
                 ) : (
                   <>
@@ -383,7 +385,7 @@ export default function OIDCModal({
             <div className="flex items-start gap-3">
               <Info className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
               <div className="flex-1">
-                <h4 className="text-sm font-semibold text-garage-text mb-2">Authentik Setup Guide</h4>
+                <h4 className="text-sm font-semibold text-garage-text mb-2">{t('modal.authentikSetupGuide')}</h4>
                 <ol className="list-decimal list-inside space-y-1.5 text-xs text-garage-text-muted">
                   <li>In Authentik, create a new OAuth2/OIDC Provider</li>
                   <li>Set Client Type to "Confidential"</li>

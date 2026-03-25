@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import {
@@ -106,6 +107,7 @@ type PrimaryTabType = 'overview' | 'media' | 'maintenance' | 'tracking' | 'finan
 type SubTabType = 'photos' | 'documents' | 'service' | 'fuel' | 'def' | 'propane' | 'odometer' | 'notes' | 'warranties' | 'insurance' | 'tax' | 'tolls' | 'spotrentals' | 'recalls' | 'reports' | 'reminders' | 'live' | 'dtcs' | 'sessions' | 'charts'
 
 export default function VehicleDetail() {
+  const { t } = useTranslation('vehicles')
   const { vin } = useParams<{ vin: string }>()
   const navigate = useNavigate()
   const { isAdmin } = useAuth()
@@ -219,7 +221,7 @@ export default function VehicleDetail() {
   const handleExportJSON = async () => {
     if (!vin) return
     if (!isOnline) {
-      toast.error('Connect to the internet to export data.')
+      toast.error(t('detail.connectToExport'))
       return
     }
 
@@ -244,9 +246,9 @@ export default function VehicleDetail() {
       a.click()
       window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
-      toast.success('Vehicle data exported successfully')
+      toast.success(t('detail.exportSuccess'))
     } catch (err) {
-      toast.error('Failed to export data', {
+      toast.error(t('detail.exportError'), {
         description: err instanceof Error ? err.message : undefined
       })
     } finally {
@@ -262,7 +264,7 @@ export default function VehicleDetail() {
     const file = event.target.files?.[0]
     if (!file || !vin) return
     if (!isOnline) {
-      toast.error('Connect to the internet to import data.')
+      toast.error(t('detail.connectToImport'))
       return
     }
 
@@ -326,14 +328,14 @@ export default function VehicleDetail() {
         }
       }
 
-      toast.success('Import completed successfully', {
+      toast.success(t('detail.importSuccess'), {
         description: message
       })
 
       // Reload the vehicle data
       await loadVehicle()
     } catch (err) {
-      toast.error('Failed to import data', {
+      toast.error(t('detail.importError'), {
         description: err instanceof Error ? err.message : undefined
       })
     } finally {
@@ -346,7 +348,7 @@ export default function VehicleDetail() {
   }
 
   const formatDate = (dateString?: string | null) => {
-    if (!dateString) return 'Not specified'
+    if (!dateString) return t('detail.notSpecified')
     return formatDateForDisplay(dateString, { year: 'numeric', month: 'long', day: 'numeric' }, dateLocale)
   }
 
@@ -395,7 +397,7 @@ export default function VehicleDetail() {
       // Clean up after a delay
       setTimeout(() => window.URL.revokeObjectURL(url), 10000)
     } catch {
-      toast.error('Failed to download window sticker')
+      toast.error(t('detail.windowStickerDownloadError'))
     }
   }
 
@@ -420,31 +422,31 @@ export default function VehicleDetail() {
   const primaryTabs = [
     {
       id: 'overview' as const,
-      label: 'Overview',
+      label: t('detail.tabs.overview'),
       icon: Info,
       hasSubTabs: false
     },
     {
       id: 'media' as const,
-      label: 'Media',
+      label: t('detail.tabs.media'),
       icon: Image,
       hasSubTabs: true
     },
     {
       id: 'maintenance' as const,
-      label: 'Maintenance',
+      label: t('detail.tabs.maintenance'),
       icon: Wrench,
       hasSubTabs: true
     },
     {
       id: 'tracking' as const,
-      label: 'Tracking',
+      label: t('detail.tabs.tracking'),
       icon: Bell,
       hasSubTabs: true
     },
     {
       id: 'financial' as const,
-      label: 'Financial',
+      label: t('detail.tabs.financial'),
       icon: DollarSign,
       hasSubTabs: true
     },
@@ -495,7 +497,7 @@ export default function VehicleDetail() {
     return (
       <div className="flex items-center justify-center min-h-screen" role="status" aria-label="Loading vehicle">
         <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-        <span className="sr-only">Loading vehicle details...</span>
+        <span className="sr-only">{t('detail.loading')}</span>
       </div>
     )
   }
@@ -504,13 +506,13 @@ export default function VehicleDetail() {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="bg-danger/10 border border-danger rounded-lg p-6 text-center">
-          <p className="text-danger mb-4">{error || 'Vehicle not found'}</p>
+          <p className="text-danger mb-4">{error || t('detail.vehicleNotFound')}</p>
           <Link
             to="/"
             className="inline-flex items-center space-x-2 px-4 py-2 bg-garage-surface border border-garage-border rounded-lg hover:bg-garage-bg transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span>Back to Dashboard</span>
+            <span>{t('detail.backToDashboard')}</span>
           </Link>
         </div>
       </div>
@@ -551,7 +553,7 @@ export default function VehicleDetail() {
                   className="inline-flex items-center space-x-1 text-sm text-garage-text-muted hover:text-garage-text transition-colors mb-2"
                 >
                   <ArrowLeft className="w-3 h-3" />
-                  <span>Back to Garage</span>
+                  <span>{t('detail.backToGarage')}</span>
                 </Link>
                 <h1 className="text-2xl md:text-3xl font-bold text-garage-text mb-1">{vehicle.nickname}</h1>
                 <p className="text-garage-text-muted mb-2">
@@ -571,7 +573,7 @@ export default function VehicleDetail() {
                 {fromCache && (
                   <div className="mt-2 flex items-center gap-2 text-xs text-amber-500">
                     <AlertTriangle className="w-4 h-4" />
-                    <span>Offline: showing cached data</span>
+                    <span>{t('detail.offlineCachedData')}</span>
                   </div>
                 )}
               </div>
@@ -595,39 +597,39 @@ export default function VehicleDetail() {
                   title="Import vehicle data from JSON"
                 >
                   <Upload className="w-4 h-4" />
-                  <span>{importing ? 'Importing...' : 'Import'}</span>
+                  <span>{importing ? t('detail.importing') : t('detail.import')}</span>
                 </button>
                 <button
                   onClick={handleExportJSON}
                   disabled={exporting || !isOnline}
                   className="flex items-center space-x-2 px-5 py-3 btn btn-primary rounded-lg disabled:opacity-50"
-                  title="Export complete vehicle data as JSON"
+                  title={t('detail.exportTooltip')}
                 >
                   <Download className="w-4 h-4" />
-                  <span>{exporting ? 'Exporting...' : 'Export'}</span>
+                  <span>{exporting ? t('detail.exporting') : t('detail.export')}</span>
                 </button>
                 <button
                   onClick={() => navigate(`/vehicles/${vin}/analytics`)}
                   className="flex items-center space-x-2 px-5 py-3 btn btn-primary rounded-lg"
-                  title="View analytics and reports"
+                  title={t('detail.analyticsTooltip')}
                 >
                   <BarChart3 className="w-4 h-4" />
-                  <span>Analytics</span>
+                  <span>{t('detail.analytics')}</span>
                 </button>
                 <button
                   onClick={() => setOpenModal('sharing')}
                   className="flex items-center space-x-2 px-5 py-3 btn btn-primary rounded-lg"
-                  title="Share vehicle with other users"
+                  title={t('detail.shareTooltip')}
                 >
                   <Share2 className="w-4 h-4" />
-                  <span>Share</span>
+                  <span>{t('detail.share')}</span>
                 </button>
                 <button
                   onClick={() => navigate(`/vehicles/${vin}/edit`)}
                   className="flex items-center space-x-2 px-5 py-3 btn btn-primary rounded-lg"
                 >
                   <Edit className="w-4 h-4" />
-                  <span>Edit</span>
+                  <span>{t('common:edit')}</span>
                 </button>
                 {isAdmin && (
                   <button
@@ -636,7 +638,7 @@ export default function VehicleDetail() {
                     title="Transfer vehicle ownership"
                   >
                     <ArrowRightLeft className="w-4 h-4" />
-                    <span>Transfer</span>
+                    <span>{t('detail.transfer')}</span>
                   </button>
                 )}
                 <button
@@ -644,7 +646,7 @@ export default function VehicleDetail() {
                   className="flex items-center space-x-2 px-5 py-3 bg-red-900/30 border border-red-700 text-red-400 rounded-lg hover:bg-red-800/50 transition-colors"
                 >
                   <Trash2 className="w-4 h-4" />
-                  <span>Remove</span>
+                  <span>{t('detail.remove')}</span>
                 </button>
               </div>
 
@@ -740,7 +742,7 @@ export default function VehicleDetail() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Basic Information */}
             <div className="bg-garage-surface rounded-lg border border-garage-border p-6 break-inside-avoid">
-              <h2 className="text-xl font-semibold text-garage-text mb-4">Basic Information</h2>
+              <h2 className="text-xl font-semibold text-garage-text mb-4">{t('detail.basicInformation')}</h2>
               <div className="space-y-3">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
@@ -779,7 +781,7 @@ export default function VehicleDetail() {
 
             {/* Purchase Information */}
             <div className="bg-garage-surface rounded-lg border border-garage-border p-6 break-inside-avoid">
-              <h2 className="text-xl font-semibold text-garage-text mb-4">Purchase Information</h2>
+              <h2 className="text-xl font-semibold text-garage-text mb-4">{t('detail.purchaseInformation')}</h2>
               <div className="space-y-3">
                 <div>
                   <p className="text-sm text-garage-text-muted flex items-center space-x-2">
@@ -801,7 +803,7 @@ export default function VehicleDetail() {
             {/* Sale Information (if sold) */}
             {vehicle.sold_date && (
               <div className="bg-garage-surface rounded-lg border border-warning p-6 break-inside-avoid">
-                <h2 className="text-xl font-semibold text-garage-text mb-4">Sale Information</h2>
+                <h2 className="text-xl font-semibold text-garage-text mb-4">{t('detail.saleInformation')}</h2>
                 <div className="space-y-3">
                   <div>
                     <p className="text-sm text-garage-text-muted flex items-center space-x-2">
@@ -827,7 +829,7 @@ export default function VehicleDetail() {
             {/* VIN Decoded Information */}
             {(vehicle.trim || vehicle.body_class || vehicle.drive_type || vehicle.doors || vehicle.gvwr_class || vehicle.wheel_specs || vehicle.tire_specs || (!isMotorized && vehicle.fuel_type)) && (
               <div className="bg-garage-surface rounded-lg border border-garage-border p-6 break-inside-avoid">
-                <h2 className="text-xl font-semibold text-garage-text mb-4">Vehicle Details</h2>
+                <h2 className="text-xl font-semibold text-garage-text mb-4">{t('detail.vehicleDetails')}</h2>
                 <div className="space-y-3">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {vehicle.trim && (
@@ -887,7 +889,7 @@ export default function VehicleDetail() {
             {/* Powertrain (Engine & Transmission) - Only show for motorized vehicles */}
             {isMotorized && (vehicle.displacement_l || vehicle.cylinders || vehicle.fuel_type || vehicle.sticker_engine_description || vehicle.transmission_type || vehicle.transmission_speeds || vehicle.sticker_transmission_description || vehicle.sticker_drivetrain) && (
               <div className="bg-garage-surface rounded-lg border border-garage-border p-6 break-inside-avoid">
-                <h2 className="text-xl font-semibold text-garage-text mb-4">Powertrain</h2>
+                <h2 className="text-xl font-semibold text-garage-text mb-4">{t('detail.powertrain')}</h2>
                 <div className="space-y-3">
                   {/* Engine Section */}
                   {(vehicle.displacement_l || vehicle.cylinders || vehicle.fuel_type || vehicle.sticker_engine_description) && (
@@ -957,7 +959,7 @@ export default function VehicleDetail() {
             {/* MSRP & Pricing */}
             {(vehicle.msrp_base || vehicle.msrp_options || vehicle.msrp_total || vehicle.destination_charge) && (
               <div className="bg-garage-surface rounded-lg border border-garage-border p-6 break-inside-avoid">
-                <h2 className="text-xl font-semibold text-garage-text mb-4">MSRP Pricing</h2>
+                <h2 className="text-xl font-semibold text-garage-text mb-4">{t('detail.msrpPricing')}</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {vehicle.msrp_base && (
                     <div>
@@ -990,7 +992,7 @@ export default function VehicleDetail() {
             {/* Fuel Economy */}
             {(vehicle.fuel_economy_city || vehicle.fuel_economy_highway || vehicle.fuel_economy_combined) && (
               <div className="bg-garage-surface rounded-lg border border-garage-border p-6 break-inside-avoid">
-                <h2 className="text-xl font-semibold text-garage-text mb-4">Fuel Economy</h2>
+                <h2 className="text-xl font-semibold text-garage-text mb-4">{t('detail.fuelEconomy')}</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   {vehicle.fuel_economy_city && (
                     <div>
@@ -1017,7 +1019,7 @@ export default function VehicleDetail() {
             {/* Warranty */}
             {(vehicle.warranty_powertrain || vehicle.warranty_basic) && (
               <div className="bg-garage-surface rounded-lg border border-garage-border p-6 break-inside-avoid">
-                <h2 className="text-xl font-semibold text-garage-text mb-4">Warranty</h2>
+                <h2 className="text-xl font-semibold text-garage-text mb-4">{t('detail.warranty')}</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {vehicle.warranty_basic && (
                     <div>
@@ -1038,7 +1040,7 @@ export default function VehicleDetail() {
             {/* Environmental Ratings */}
             {(vehicle.environmental_rating_ghg || vehicle.environmental_rating_smog) && (
               <div className="bg-garage-surface rounded-lg border border-garage-border p-6 break-inside-avoid">
-                <h2 className="text-xl font-semibold text-garage-text mb-4">Environmental Ratings</h2>
+                <h2 className="text-xl font-semibold text-garage-text mb-4">{t('detail.environmentalRatings')}</h2>
                 <div className="grid grid-cols-2 gap-4">
                   {vehicle.environmental_rating_ghg && (
                     <div>
@@ -1059,7 +1061,7 @@ export default function VehicleDetail() {
             {/* Assembly Location */}
             {vehicle.assembly_location && (
               <div className="bg-garage-surface rounded-lg border border-garage-border p-6 break-inside-avoid">
-                <h2 className="text-xl font-semibold text-garage-text mb-4">Manufacturing</h2>
+                <h2 className="text-xl font-semibold text-garage-text mb-4">{t('detail.manufacturing')}</h2>
                 <div>
                   <p className="text-sm text-garage-text-muted">Assembly Location</p>
                   <p className="text-garage-text font-medium">{vehicle.assembly_location}</p>
@@ -1071,7 +1073,7 @@ export default function VehicleDetail() {
             {vehicle.standard_equipment && typeof vehicle.standard_equipment === 'object' && Object.keys(vehicle.standard_equipment).length > 0 && (
               <details className="bg-garage-surface rounded-lg border border-garage-border p-6 break-inside-avoid group">
                 <summary className="text-xl font-semibold text-garage-text cursor-pointer list-none flex items-center justify-between">
-                  <span>Standard Equipment</span>
+                  <span>{t('detail.standardEquipment')}</span>
                   <span className="text-sm font-normal text-garage-text-muted group-open:rotate-180 transition-transform">▼</span>
                 </summary>
                 <div className="space-y-3 mt-4">
@@ -1100,7 +1102,7 @@ export default function VehicleDetail() {
             {vehicle.optional_equipment && typeof vehicle.optional_equipment === 'object' && Object.keys(vehicle.optional_equipment).length > 0 && (
               <details className="bg-garage-surface rounded-lg border border-garage-border p-6 break-inside-avoid group">
                 <summary className="text-xl font-semibold text-garage-text cursor-pointer list-none flex items-center justify-between">
-                  <span>Optional Equipment</span>
+                  <span>{t('detail.optionalEquipment')}</span>
                   <span className="text-sm font-normal text-garage-text-muted group-open:rotate-180 transition-transform">▼</span>
                 </summary>
                 <div className="space-y-2 mt-4">
@@ -1134,7 +1136,7 @@ export default function VehicleDetail() {
             {/* Packages */}
             {vehicle.window_sticker_packages && typeof vehicle.window_sticker_packages === 'object' && Object.keys(vehicle.window_sticker_packages).length > 0 && (
               <div className="bg-garage-surface rounded-lg border border-garage-border p-6 break-inside-avoid">
-                <h2 className="text-xl font-semibold text-garage-text mb-4">Packages</h2>
+                <h2 className="text-xl font-semibold text-garage-text mb-4">{t('detail.packages')}</h2>
                 <div className="space-y-2">
                   {Object.entries(vehicle.window_sticker_packages).map(([packageName, rawPrice]) => {
                     const price = rawPrice as string | undefined
@@ -1153,7 +1155,7 @@ export default function VehicleDetail() {
             {vehicle.vehicle_type && ['Car', 'Truck', 'SUV'].includes(vehicle.vehicle_type) && (
               <div className="bg-garage-surface rounded-lg border border-garage-border p-6 break-inside-avoid">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-semibold text-garage-text">Window Sticker</h2>
+                  <h2 className="text-xl font-semibold text-garage-text">{t('detail.windowSticker')}</h2>
                   <Link
                     to={`/vehicles/${vin}/window-sticker-test`}
                     className="text-xs px-2 py-1 bg-garage-bg rounded text-garage-text-muted hover:text-primary transition-colors"
@@ -1170,8 +1172,8 @@ export default function VehicleDetail() {
                       <div className="h-20 bg-garage-bg rounded-lg border border-garage-border overflow-hidden flex items-center justify-center gap-3 hover:bg-garage-border/30 transition-colors">
                         <FileText className="w-8 h-8 text-primary" />
                         <div className="text-left">
-                          <p className="text-sm font-medium text-garage-text">View Window Sticker</p>
-                          <p className="text-xs text-garage-text-muted">Click to open PDF</p>
+                          <p className="text-sm font-medium text-garage-text">{t('detail.viewWindowSticker')}</p>
+                          <p className="text-xs text-garage-text-muted">{t('detail.clickToOpenPDF')}</p>
                         </div>
                       </div>
                     </button>
@@ -1193,18 +1195,18 @@ export default function VehicleDetail() {
                       onClick={() => setOpenModal('windowSticker')}
                       className="text-sm text-garage-text-muted hover:text-garage-text transition-colors"
                     >
-                      Replace sticker...
+                      {t('detail.replaceSticker')}
                     </button>
                   </div>
                 ) : (
                   <div className="text-center py-4">
                     <FileText className="w-10 h-10 text-garage-text-muted mx-auto mb-2 opacity-50" />
-                    <p className="text-sm text-garage-text-muted mb-3">No window sticker uploaded</p>
+                    <p className="text-sm text-garage-text-muted mb-3">{t('detail.noWindowSticker')}</p>
                     <button
                       onClick={() => setOpenModal('windowSticker')}
                       className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors text-sm"
                     >
-                      Upload Window Sticker
+                      {t('detail.uploadWindowSticker')}
                     </button>
                   </div>
                 )}
@@ -1281,7 +1283,7 @@ export default function VehicleDetail() {
         <div className="fixed inset-0 bg-black/50 flex items-end justify-center z-50 md:hidden" onClick={() => setShowMobileMenu(false)}>
           <div className="bg-garage-surface rounded-t-2xl w-full max-w-lg max-h-[70vh] overflow-y-auto pb-safe" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between p-4 border-b border-garage-border">
-              <h3 className="text-lg font-semibold text-garage-text">Actions</h3>
+              <h3 className="text-lg font-semibold text-garage-text">{t('detail.actions')}</h3>
               <button
                 onClick={() => setShowMobileMenu(false)}
                 className="p-2 text-garage-text-muted hover:text-garage-text rounded-lg transition-colors"
@@ -1299,7 +1301,7 @@ export default function VehicleDetail() {
                 className="w-full flex items-center space-x-3 px-4 py-3 text-left text-garage-text hover:bg-garage-bg rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Upload className="w-5 h-5" />
-                <span>{importing ? 'Importing...' : 'Import Data'}</span>
+                <span>{importing ? t('detail.importing') : t('detail.importData')}</span>
               </button>
               <button
                 onClick={() => {
@@ -1310,7 +1312,7 @@ export default function VehicleDetail() {
                 className="w-full flex items-center space-x-3 px-4 py-3 text-left text-garage-text hover:bg-garage-bg rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Download className="w-5 h-5" />
-                <span>{exporting ? 'Exporting...' : 'Export Data'}</span>
+                <span>{exporting ? t('detail.exporting') : t('detail.exportData')}</span>
               </button>
               <button
                 onClick={() => {
@@ -1320,7 +1322,7 @@ export default function VehicleDetail() {
                 className="w-full flex items-center space-x-3 px-4 py-3 text-left text-garage-text hover:bg-garage-bg rounded-lg transition-colors"
               >
                 <BarChart3 className="w-5 h-5" />
-                <span>View Analytics</span>
+                <span>{t('detail.viewAnalytics')}</span>
               </button>
               <button
                 onClick={() => {
@@ -1330,7 +1332,7 @@ export default function VehicleDetail() {
                 className="w-full flex items-center space-x-3 px-4 py-3 text-left text-garage-text hover:bg-garage-bg rounded-lg transition-colors"
               >
                 <Share2 className="w-5 h-5" />
-                <span>Share Vehicle</span>
+                <span>{t('detail.shareVehicle')}</span>
               </button>
               <button
                 onClick={() => {
@@ -1340,7 +1342,7 @@ export default function VehicleDetail() {
                 className="w-full flex items-center space-x-3 px-4 py-3 text-left text-garage-text hover:bg-garage-bg rounded-lg transition-colors"
               >
                 <Edit className="w-5 h-5" />
-                <span>Edit Vehicle</span>
+                <span>{t('detail.editVehicle')}</span>
               </button>
               {isAdmin && (
                 <button
@@ -1351,7 +1353,7 @@ export default function VehicleDetail() {
                   className="w-full flex items-center space-x-3 px-4 py-3 text-left text-amber-400 hover:bg-amber-900/20 rounded-lg transition-colors"
                 >
                   <ArrowRightLeft className="w-5 h-5" />
-                  <span>Transfer Vehicle</span>
+                  <span>{t('detail.transferVehicle')}</span>
                 </button>
               )}
               <button
@@ -1362,7 +1364,7 @@ export default function VehicleDetail() {
                 className="w-full flex items-center space-x-3 px-4 py-3 text-left text-red-400 hover:bg-red-900/20 rounded-lg transition-colors"
               >
                 <Trash2 className="w-5 h-5" />
-                <span>Remove Vehicle</span>
+                <span>{t('detail.removeVehicle')}</span>
               </button>
             </div>
           </div>
@@ -1376,7 +1378,7 @@ export default function VehicleDetail() {
           onSuccess={() => {
             setOpenModal(null)
             loadVehicle()
-            toast.success('Window sticker uploaded successfully!')
+            toast.success(t('detail.windowStickerUploaded'))
           }}
           onClose={() => setOpenModal(null)}
         />

@@ -30,12 +30,14 @@ describe('Dashboard Page', () => {
   it('renders dashboard header', () => {
     render(<Dashboard />)
 
-    expect(screen.getByText(/my garage/i)).toBeInTheDocument()
+    // With i18n mock, t() returns translation keys
+    expect(screen.getByText('dashboard.title')).toBeInTheDocument()
   })
 
   it('has add vehicle button', () => {
     render(<Dashboard />)
 
-    expect(screen.getByRole('button', { name: /add vehicle/i })).toBeInTheDocument()
+    // With i18n mock, button text is the translation key
+    expect(screen.getByRole('button', { name: /dashboard\.addVehicle/i })).toBeInTheDocument()
   })
 })

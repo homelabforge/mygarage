@@ -3,10 +3,12 @@
  */
 
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import VINInput from '@/components/VINInput'
 import type { VINDecodeResponse } from '@/types/vin'
 
 export default function VINDemo() {
+  const { t } = useTranslation('vehicles')
   const [vin, setVin] = useState('')
   const [decodedData, setDecodedData] = useState<VINDecodeResponse | null>(null)
 
@@ -19,16 +21,15 @@ export default function VINDemo() {
       <div className="max-w-3xl mx-auto">
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-3xl font-bold mb-2 text-garage-text">VIN Decoder</h1>
+          <h1 className="text-3xl font-bold mb-2 text-garage-text">{t('vinDemo.title')}</h1>
           <p className="text-garage-text-muted">
-            Enter a 17-character Vehicle Identification Number to decode vehicle information
-            from the NHTSA database
+            {t('vinDemo.subtitle')}
           </p>
         </div>
 
         {/* VIN Input Component */}
         <div className="bg-garage-surface border border-garage-border rounded-lg p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-4 text-garage-text">Enter VIN</h2>
+          <h2 className="text-xl font-semibold mb-4 text-garage-text">{t('vinDemo.enterVIN')}</h2>
           <VINInput
             value={vin}
             onChange={setVin}
@@ -39,7 +40,7 @@ export default function VINDemo() {
 
         {/* Example VINs */}
         <div className="bg-garage-surface border border-garage-border rounded-lg p-6 mb-6">
-          <h3 className="text-lg font-semibold mb-3 text-garage-text">Example VINs to Try</h3>
+          <h3 className="text-lg font-semibold mb-3 text-garage-text">{t('vinDemo.exampleVINs')}</h3>
           <div className="space-y-2">
             {[
               { vin: 'ML32A5HJ9KH009478', desc: '2019 Mitsubishi Mirage' },
@@ -61,7 +62,7 @@ export default function VINDemo() {
         {/* Full decoded data (JSON view) */}
         {decodedData && (
           <div className="bg-garage-surface border border-garage-border rounded-lg p-6">
-            <h3 className="text-lg font-semibold mb-3 text-garage-text">Full Response Data</h3>
+            <h3 className="text-lg font-semibold mb-3 text-garage-text">{t('vinDemo.fullResponseData')}</h3>
             <pre className="bg-garage-bg border border-garage-border p-4 rounded-lg overflow-x-auto text-sm text-garage-text">
               {JSON.stringify(decodedData, null, 2)}
             </pre>

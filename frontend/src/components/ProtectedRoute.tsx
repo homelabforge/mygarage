@@ -1,8 +1,10 @@
 import { Navigate, Outlet } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
 import { Loader } from 'lucide-react'
 
 export default function ProtectedRoute() {
+  const { t } = useTranslation('common')
   const { isAuthenticated, loading, authMode } = useAuth()
 
   // Show loading spinner while checking auth status
@@ -11,7 +13,7 @@ export default function ProtectedRoute() {
       <div className="min-h-screen bg-garage-bg flex items-center justify-center" role="status" aria-label="Loading">
         <div className="text-center">
           <Loader className="w-8 h-8 text-primary animate-spin mx-auto mb-4" />
-          <p className="text-garage-text-muted">Loading...</p>
+          <p className="text-garage-text-muted">{t('loading')}</p>
         </div>
       </div>
     )

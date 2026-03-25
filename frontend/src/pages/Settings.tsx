@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Settings as SettingsIcon, Plug, Bell, HardDrive, Download, Server } from 'lucide-react'
 import SettingsSystemTab from '../components/tabs/SettingsSystemTab'
 import SettingsFilesTab from '../components/tabs/SettingsFilesTab'
@@ -10,6 +11,7 @@ import { SettingsProvider, useSettings } from '../contexts/SettingsContext'
 type TabType = 'system' | 'files' | 'integrations' | 'notifications' | 'backup'
 
 function SettingsContent() {
+  const { t } = useTranslation('common')
   const [activeTab, setActiveTab] = useState<TabType>('system')
   const { setCurrentTabId } = useSettings()
 
@@ -18,11 +20,11 @@ function SettingsContent() {
   }, [activeTab, setCurrentTabId])
 
   const tabs = [
-    { id: 'system', label: 'System', icon: Server },
-    { id: 'files', label: 'File Management', icon: HardDrive },
-    { id: 'integrations', label: 'Integrations', icon: Plug },
-    { id: 'notifications', label: 'Notifications', icon: Bell },
-    { id: 'backup', label: 'Backup & Restore', icon: Download },
+    { id: 'system', label: t('settings.system'), icon: Server },
+    { id: 'files', label: t('settings.fileManagement'), icon: HardDrive },
+    { id: 'integrations', label: t('settings.integrations'), icon: Plug },
+    { id: 'notifications', label: t('settings.notifications'), icon: Bell },
+    { id: 'backup', label: t('settings.backupRestore'), icon: Download },
   ]
 
   return (
@@ -33,8 +35,8 @@ function SettingsContent() {
           <div className="flex items-center gap-3">
             <SettingsIcon className="w-8 h-8 text-primary" />
             <div>
-              <h1 className="text-3xl font-bold text-garage-text">Settings</h1>
-              <p className="text-sm text-garage-text-muted">Configure your MyGarage application • Auto-saves after 1 second</p>
+              <h1 className="text-3xl font-bold text-garage-text">{t('settings.title')}</h1>
+              <p className="text-sm text-garage-text-muted">{t('settings.subtitle')}</p>
             </div>
           </div>
         </div>
