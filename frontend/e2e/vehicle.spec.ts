@@ -155,8 +155,8 @@ test.describe('Vehicle Archive & Restore', () => {
       },
       headers,
     })
-    // 201 = created, 409/422 = already exists
-    if (![201, 409].includes(resp.status())) {
+    // 201 = created, 400/409/422 = already exists
+    if (![201, 400, 409].includes(resp.status())) {
       console.error(`Archive vehicle seed failed: ${resp.status()} ${await resp.text()}`)
     }
   })

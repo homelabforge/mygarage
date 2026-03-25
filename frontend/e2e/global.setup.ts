@@ -61,9 +61,9 @@ setup('create admin account and authenticate', async ({ page, request }) => {
     data: TEST_VEHICLE,
     headers: authHeaders,
   })
-  // 201 = created, 409/422 = already exists (rerun)
+  // 201 = created, 400/409/422 = already exists (rerun)
   expect(
-    [201, 409, 422].includes(vehicleResp.status()),
+    [201, 400, 409, 422].includes(vehicleResp.status()),
     `Seed vehicle failed: ${vehicleResp.status()} ${await vehicleResp.text()}`
   ).toBeTruthy()
 
