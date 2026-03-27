@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.25.1] - 2026-03-26
+
+> **Warning -- Backup Recommended:** Back up your data directory before updating. This release includes changes to static file serving that affect translation loading.
+
+### Fixed
+- Fix settings i18n namespace mismatch and missing `/locales` static mount -- Settings.tsx used wrong i18n namespace ('common' instead of 'settings'), causing raw translation keys to render; backend also never mounted `/locales` as a static path, so non-English translation files were unreachable
+- Remove deprecated `ignoreDeprecations` from tsconfig.json (TypeScript 6 compatibility cleanup)
+
+## [2.25.0] - 2026-03-26
+
 ### Dev Dependencies
 - **@tailwindcss/vite**: 4.2.1 → 4.2.2
 - **@typescript-eslint/eslint-plugin**: 8.57.1 → 8.57.2
