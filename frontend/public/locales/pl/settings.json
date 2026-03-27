@@ -1,4 +1,13 @@
 {
+  "title": "Ustawienia",
+  "subtitle": "Zarządzaj preferencjami i konfiguracją aplikacji",
+  "tabs": {
+    "system": "System",
+    "fileManagement": "Zarządzanie plikami",
+    "integrations": "Integracje",
+    "notifications": "Powiadomienia",
+    "backupRestore": "Kopia zapasowa i przywracanie"
+  },
   "systemConfig": {
     "title": "Konfiguracja systemu",
     "description": "Skonfiguruj podstawowe ustawienia systemu, takie jak strefa czasowa i tryb debugowania."

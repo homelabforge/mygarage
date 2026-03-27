@@ -1,4 +1,13 @@
 {
+  "title": "Налаштування",
+  "subtitle": "Керуйте своїми вподобаннями та конфігурацією додатку",
+  "tabs": {
+    "system": "Система",
+    "fileManagement": "Керування файлами",
+    "integrations": "Інтеграції",
+    "notifications": "Сповіщення",
+    "backupRestore": "Резервне копіювання та відновлення"
+  },
   "systemConfig": {
     "title": "System Configuration",
     "description": "Configure core system settings like timezone and debug mode."

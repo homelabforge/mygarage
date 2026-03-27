@@ -1,4 +1,13 @@
 {
+  "title": "Settings",
+  "subtitle": "Manage your preferences and application configuration",
+  "tabs": {
+    "system": "System",
+    "fileManagement": "File Management",
+    "integrations": "Integrations",
+    "notifications": "Notifications",
+    "backupRestore": "Backup & Restore"
+  },
   "systemConfig": {
     "title": "System Configuration",
     "description": "Configure core system settings like timezone and debug mode."

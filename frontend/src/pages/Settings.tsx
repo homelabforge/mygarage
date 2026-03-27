@@ -11,7 +11,7 @@ import { SettingsProvider, useSettings } from '../contexts/SettingsContext'
 type TabType = 'system' | 'files' | 'integrations' | 'notifications' | 'backup'
 
 function SettingsContent() {
-  const { t } = useTranslation('common')
+  const { t } = useTranslation('settings')
   const [activeTab, setActiveTab] = useState<TabType>('system')
   const { setCurrentTabId } = useSettings()
 
@@ -20,11 +20,11 @@ function SettingsContent() {
   }, [activeTab, setCurrentTabId])
 
   const tabs = [
-    { id: 'system', label: t('settings.system'), icon: Server },
-    { id: 'files', label: t('settings.fileManagement'), icon: HardDrive },
-    { id: 'integrations', label: t('settings.integrations'), icon: Plug },
-    { id: 'notifications', label: t('settings.notifications'), icon: Bell },
-    { id: 'backup', label: t('settings.backupRestore'), icon: Download },
+    { id: 'system', label: t('tabs.system'), icon: Server },
+    { id: 'files', label: t('tabs.fileManagement'), icon: HardDrive },
+    { id: 'integrations', label: t('tabs.integrations'), icon: Plug },
+    { id: 'notifications', label: t('tabs.notifications'), icon: Bell },
+    { id: 'backup', label: t('tabs.backupRestore'), icon: Download },
   ]
 
   return (
@@ -35,8 +35,8 @@ function SettingsContent() {
           <div className="flex items-center gap-3">
             <SettingsIcon className="w-8 h-8 text-primary" />
             <div>
-              <h1 className="text-3xl font-bold text-garage-text">{t('settings.title')}</h1>
-              <p className="text-sm text-garage-text-muted">{t('settings.subtitle')}</p>
+              <h1 className="text-3xl font-bold text-garage-text">{t('title')}</h1>
+              <p className="text-sm text-garage-text-muted">{t('subtitle')}</p>
             </div>
           </div>
         </div>

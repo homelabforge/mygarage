@@ -321,6 +321,11 @@ if static_dir.exists():
     # Mount static assets (CSS, JS, images) - must be after route definitions
     app.mount("/assets", StaticFiles(directory=str(static_dir / "assets")), name="assets")
 
+    # Mount translation files for non-English languages (loaded lazily by i18next)
+    locales_dir = static_dir / "locales"
+    if locales_dir.is_dir():
+        app.mount("/locales", StaticFiles(directory=str(locales_dir)), name="locales")
+
     # Custom 404 handler to serve SPA for non-API routes
     @app.exception_handler(404)
     async def custom_404_handler(request: Request, exc: HTTPException):
