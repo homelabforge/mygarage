@@ -1,6 +1,6 @@
 {
   "title": "Настройки",
-  "subtitle": "Управляйте предпочтениями и конфигурацией приложения",
+  "subtitle": "Управление предпочтениями и конфигурацией приложения",
   "tabs": {
     "system": "Система",
     "fileManagement": "Управление файлами",
@@ -9,104 +9,104 @@
     "backupRestore": "Резервное копирование и восстановление"
   },
   "systemConfig": {
-    "title": "System Configuration",
-    "description": "Configure core system settings like timezone and debug mode."
+    "title": "Конфигурация системы",
+    "description": "Настройка основных параметров системы, таких как часовой пояс и режим отладки."
   },
   "timezone": {
-    "label": "Timezone",
-    "description": "Affects log timestamps, scheduled tasks, and date displays throughout the application."
+    "label": "Часовой пояс",
+    "description": "Влияет на временные метки в логах, запланированные задачи и отображение дат во всем приложении."
   },
   "debug": {
-    "label": "Debug Mode",
-    "tooltip": "Requires application restart",
-    "enable": "Enable verbose logging and detailed error messages",
-    "warning": "⚠️ Requires application restart to take effect. Only enable for troubleshooting."
+    "label": "Режим отладки",
+    "tooltip": "Требуется перезапуск приложения",
+    "enable": "Включить подробное логирование и детальные сообщения об ошибках",
+    "warning": "⚠️ Для вступления в силу требуется перезапуск приложения. Включайте только для поиска и устранения неисправностей."
   },
   "theme": {
-    "label": "Theme",
-    "dark": "Dark",
-    "light": "Light",
-    "description": "Choose between light and dark theme. Your preference is saved automatically."
+    "label": "Тема оформления",
+    "dark": "Темная",
+    "light": "Светлая",
+    "description": "Выберите светлую или темную тему. Ваш выбор сохраняется автоматически."
   },
   "units": {
-    "label": "Unit System",
-    "imperial": "Imperial",
-    "metric": "Metric",
-    "imperialDescription": "Using imperial units: gallons, miles, MPG, °F, PSI, lbs, lb-ft",
-    "metricDescription": "Using metric units: liters, kilometers, L/100km, °C, bar, kg, Nm",
-    "showBoth": "Show both units",
-    "showBothDescription": "Display values in both imperial and metric (e.g., \"25 MPG (9.4 L/100km)\")"
+    "label": "Система единиц",
+    "imperial": "Имперская",
+    "metric": "Метрическая",
+    "imperialDescription": "Используются имперские единицы: галлоны, мили, MPG, °F, PSI, фунты, фунт-футы",
+    "metricDescription": "Используются метрические единицы: литры, километры, л/100км, °C, бар, кг, Нм",
+    "showBoth": "Показывать обе системы",
+    "showBothDescription": "Отображать значения в имперских и метрических единицах одновременно (например, \"25 MPG (9.4 л/100км)\")"
   },
   "language": {
-    "label": "Language",
-    "description": "Choose your preferred display language. Community translations may be incomplete.",
-    "saved": "Language preference saved!",
-    "error": "Failed to save language preference"
+    "label": "Язык",
+    "description": "Выберите предпочитаемый язык интерфейса. Переводы от сообщества могут быть неполными.",
+    "saved": "Настройки языка сохранены!",
+    "error": "Не удалось сохранить настройки языка"
   },
   "currency": {
-    "label": "Currency",
-    "description": "Choose your preferred currency for displaying costs and prices.",
-    "preview": "Preview: {{amount}}",
-    "saved": "Currency preference saved!",
-    "error": "Failed to save currency preference",
-    "confirmTitle": "Change Currency?",
-    "confirmMessage": "This changes how all costs are displayed. It does not convert existing values between currencies.",
-    "confirmAction": "Change Currency"
+    "label": "Валюта",
+    "description": "Выберите предпочитаемую валюту для отображения расходов и цен.",
+    "preview": "Пример: {{amount}}",
+    "saved": "Настройки валюты сохранены!",
+    "error": "Не удалось сохранить настройки валюты",
+    "confirmTitle": "Изменить валюту?",
+    "confirmMessage": "Это изменит способ отображения всех цен. Существующие значения не будут конвертированы из одной валюты в другую.",
+    "confirmAction": "Изменить валюту"
   },
   "mobile": {
-    "title": "Mobile Experience",
-    "description": "Customize how the app behaves on mobile devices.",
-    "quickEntry": "Quick Entry on Mobile",
-    "quickEntryDescription": "After signing in on a mobile device, go directly to Quick Entry instead of the dashboard"
+    "title": "Мобильный интерфейс",
+    "description": "Настройте поведение приложения на мобильных устройствах.",
+    "quickEntry": "Быстрый ввод на мобильных устройствах",
+    "quickEntryDescription": "После входа с мобильного устройства сразу переходить к быстрому вводу вместо панели управления"
   },
   "family": {
-    "title": "Family Management",
-    "description": "Manage family members, user accounts, and dashboard visibility.",
-    "manage": "Manage Family"
+    "title": "Управление семьей",
+    "description": "Управление членами семьи, учетными записями пользователей и видимостью панели управления.",
+    "manage": "Управление семьей"
   },
   "auth": {
-    "title": "Authentication Mode",
-    "description": "Configure how users access and authenticate with MyGarage.",
-    "restartWarning": "⚠️ Requires application restart to take effect.",
-    "none": "None",
-    "local": "Local",
+    "title": "Режим аутентификации",
+    "description": "Настройте способ доступа и проверки подлинности пользователей в MyGarage.",
+    "restartWarning": "⚠️ Для вступления в силу требуется перезапуск приложения.",
+    "none": "Отсутствует",
+    "local": "Локальная",
     "oidc": "OIDC",
-    "noneDetected": "External Authenticator Detected",
-    "noneDetectedDescription": "MyGarage is running behind a reverse proxy authenticator. Authentication modes are only needed if you require additional access control beyond your existing setup.",
-    "noneWarning": "No Authentication Enabled",
-    "noneWarningDescription": "Anyone with network access can view and modify data in MyGarage. Consider enabling Local Authentication or placing MyGarage behind an authenticator like Authelia or Authentik.",
-    "checking": "Checking for authenticators...",
-    "localTitle": "Local Authentication",
-    "localConfigured": "Local authentication is configured.",
-    "localDescription": "Local authentication allows users to log in with a username and password stored locally.",
-    "manageAuth": "Manage Family & Auth →",
-    "oidcTitle": "OpenID Connect (OIDC) Authentication",
-    "oidcConfigured": "Configured with {{provider}}",
-    "oidcDescription": "Configure single sign-on with your identity provider (Authentik, Keycloak, Auth0, Okta, etc.)",
-    "configureOIDC": "Configure OIDC"
+    "noneDetected": "Обнаружен внешний аутентификатор",
+    "noneDetectedDescription": "MyGarage работает за обратным прокси-сервером с аутентификацией. Режимы аутентификации нужны только в том случае, если вам требуется дополнительный контроль доступа помимо существующей настройки.",
+    "noneWarning": "Аутентификация не включена",
+    "noneWarningDescription": "Любой пользователь с доступом к сети может просматривать и изменять данные в MyGarage. Рассмотрите возможность включения локальной аутентификации или размещения MyGarage за аутентификатором, таким как Authelia или Authentik.",
+    "checking": "Проверка аутентификаторов...",
+    "localTitle": "Локальная аутентификация",
+    "localConfigured": "Локальная аутентификация настроена.",
+    "localDescription": "Локальная аутентификация позволяет пользователям входить в систему с использованием имени пользователя и пароля, хранящихся локально.",
+    "manageAuth": "Управление семьей и доступом →",
+    "oidcTitle": "Аутентификация OpenID Connect (OIDC)",
+    "oidcConfigured": "Настроено с {{provider}}",
+    "oidcDescription": "Настройте единый вход с помощью вашего провайдера идентификации (Authentik, Keycloak, Auth0, Okta и т. д.)",
+    "configureOIDC": "Настроить OIDC"
   },
   "archive": {
-    "title": "Archived Vehicles",
-    "description": "View and manage vehicles you've archived (sold, totaled, gifted, etc.). Archived vehicles remain in analytics but can be hidden from the main list."
+    "title": "Архивные транспортные средства",
+    "description": "Просматривайте и управляйте транспортными средствами, которые вы добавили в архив (проданы, списаны, подарены и т. д.). Архивные транспортные средства остаются в аналитике, но могут быть скрыты из основного списка."
   },
   "secretKey": {
-    "label": "Secret Key:",
-    "description": "Automatically generated and stored securely at {{path}}. No manual configuration needed. The key persists across application restarts."
+    "label": "Секретный ключ:",
+    "description": "Создается автоматически и надежно хранится в {{path}}. Ручная настройка не требуется. Ключ сохраняется при перезапуске приложения."
   },
   "stats": {
-    "serviceRecords": "Service Records",
-    "fuelRecords": "Fuel Records",
-    "maintenanceItems": "Maintenance Items",
-    "documents": "Documents",
-    "notes": "Notes",
-    "photos": "Photos"
+    "serviceRecords": "Сервисные записи",
+    "fuelRecords": "Записи заправок",
+    "maintenanceItems": "Пункты обслуживания",
+    "documents": "Документы",
+    "notes": "Заметки",
+    "photos": "Фотографии"
   },
   "preferences": {
-    "unitSaved": "Unit preference saved!",
-    "unitError": "Failed to save unit preference",
-    "displaySaved": "Display preference saved!",
-    "displayError": "Failed to save display preference",
-    "mobileSaved": "Mobile preference saved!",
-    "mobileError": "Failed to save mobile preference"
+    "unitSaved": "Настройки единиц измерения сохранены!",
+    "unitError": "Не удалось сохранить настройки единиц измерения",
+    "displaySaved": "Настройки отображения сохранены!",
+    "displayError": "Не удалось сохранить настройки отображения",
+    "mobileSaved": "Настройки мобильного интерфейса сохранены!",
+    "mobileError": "Не удалось сохранить настройки мобильного интерфейса"
   }
 }
