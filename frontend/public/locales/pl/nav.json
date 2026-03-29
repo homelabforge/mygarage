@@ -1,15 +1,15 @@
 {
-  "dashboard": "Panel główny",
+  "dashboard": "Panel sterowania",
   "home": "Strona główna",
   "analytics": "Analityka",
   "addressBook": "Książka adresowa",
   "contacts": "Kontakty",
-  "findPOI": "Znajdź POI",
-  "poi": "POI",
+  "findPOI": "Znajdź interesujące miejsca",
+  "poi": "Interesujące miejsca",
   "calendar": "Kalendarz",
   "settings": "Ustawienia",
-  "about": "O aplikacji",
-  "login": "Zaloguj",
-  "logout": "Wyloguj",
-  "admin": "ADMIN"
+  "about": "O programie",
+  "login": "Zaloguj się",
+  "logout": "Wyloguj się",
+  "admin": "ADMINISTRATOR"
 }
