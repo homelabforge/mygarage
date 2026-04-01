@@ -38,7 +38,7 @@ test.describe('Internationalization', () => {
     await languageSelect.selectOption('pl')
 
     // Nav labels should change to Polish
-    await expect(page.getByRole('link', { name: 'Panel główny' })).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('link', { name: 'Panel sterowania' })).toBeVisible({ timeout: 10000 })
     await expect(page.getByRole('link', { name: 'Analityka' })).toBeVisible()
     await expect(page.getByRole('link', { name: 'Kalendarz' })).toBeVisible()
 
@@ -77,13 +77,13 @@ test.describe('Internationalization', () => {
     await languageSelect.selectOption('pl')
 
     // Wait for Polish nav to render
-    await expect(page.getByRole('link', { name: 'Panel główny' })).toBeVisible({ timeout: 10000 })
+    await expect(page.getByRole('link', { name: 'Panel sterowania' })).toBeVisible({ timeout: 10000 })
 
     // Refresh page
     await page.reload()
 
     // Polish should persist via localStorage
-    await expect(page.getByRole('link', { name: 'Panel główny' })).toBeVisible({ timeout: 15000 })
+    await expect(page.getByRole('link', { name: 'Panel sterowania' })).toBeVisible({ timeout: 15000 })
 
     // Clean up: switch back to English
     const langSelectAfterReload = page.locator('select').filter({ has: page.locator('option[value="pl"]') })
