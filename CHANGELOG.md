@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Community translations for Polish, Russian, and Ukrainian (thanks [@f0rZzZ](https://github.com/f0rZzZ))
+- Interpolation variable validation in `validate-translations` script
+
+### Fixed
+- E2E test fixture to pin English locale and prevent cross-test language contamination
+
 ## [2.25.1] - 2026-03-26
 
 > **Warning -- Backup Recommended:** Back up your data directory before updating. This release includes changes to static file serving that affect translation loading.
