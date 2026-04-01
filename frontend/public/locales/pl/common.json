@@ -15,11 +15,22 @@
   "noResults": "Brak wyników",
   "required": "Wymagane",
   "optional": "Opcjonalne",
-  "yes": "Tak", "no": "Nie",
+  "yes": "Tak",
+  "no": "Nie",
   "ok": "OK",
   "signIn": "Zaloguj się",
   "signOut": "Wyloguj się",
-  "register": "Zarejestruj się",
+  "register": {
+    "title": "Utwórz konto",
+    "subtitle": "Skonfiguruj swoje konto MyGarage",
+    "username": "Nazwa użytkownika",
+    "email": "E-mail",
+    "password": "Hasło",
+    "submit": "Utwórz konto",
+    "hasAccount": "Masz już konto?",
+    "loginLink": "Zaloguj się",
+    "success": "Konto zostało pomyślnie utworzone!"
+  },
   "username": "Nazwa użytkownika",
   "password": "Hasło",
   "email": "E-mail",
@@ -34,17 +45,6 @@
     "registerLink": "Zarejestruj się tutaj",
     "oidcSignIn": "Zaloguj się przez {{provider}}",
     "error": "Nieprawidłowa nazwa użytkownika lub hasło"
-  },
-  "register": {
-    "title": "Utwórz konto",
-    "subtitle": "Skonfiguruj swoje konto MyGarage",
-    "username": "Nazwa użytkownika",
-    "email": "E-mail",
-    "password": "Hasło",
-    "submit": "Utwórz konto",
-    "hasAccount": "Masz już konto?",
-    "loginLink": "Zaloguj się",
-    "success": "Konto zostało pomyślnie utworzone!"
   },
   "oidc": {
     "signingIn": "Trwa logowanie...",
