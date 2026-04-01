@@ -46,4 +46,13 @@ export default tseslint.config(
       'no-restricted-syntax': 'off',
     },
   },
+  // Exempt E2E test files from React-specific rules (Playwright, not React)
+  {
+    files: ['e2e/**/*.ts'],
+    rules: {
+      'react-hooks/rules-of-hooks': 'off',
+      'react-hooks/exhaustive-deps': 'off',
+      'react-refresh/only-export-components': 'off',
+    },
+  },
 )
