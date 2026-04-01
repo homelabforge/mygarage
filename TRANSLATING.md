@@ -117,9 +117,9 @@ bun run validate:translations
 | Code | Language | Status |
 |------|----------|--------|
 | en | English | Complete (canonical) |
-| pl | Polish | ~12% translated |
-| uk | Ukrainian | Placeholder (needs translation) |
-| ru | Russian | Placeholder (needs translation) |
+| pl | Polish | 99% translated |
+| uk | Ukrainian | 100% translated |
+| ru | Russian | 100% translated |
 
 To add a new language, also update:
 - `backend/app/constants/i18n.py` — add to `SUPPORTED_LANGUAGES`
