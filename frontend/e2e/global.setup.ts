@@ -67,6 +67,18 @@ setup('create admin account and authenticate', async ({ page, request }) => {
     `Seed vehicle failed: ${vehicleResp.status()} ${await vehicleResp.text()}`
   ).toBeTruthy()
 
+  // Step 4b: Force user language to English via API
+  const langResp = await request.put(`${API_BASE}/auth/me`, {
+    data: { language: 'en' },
+    headers: authHeaders,
+  })
+  expect(langResp.ok(), `Set language failed: ${langResp.status()}`).toBeTruthy()
+
+  // Verify /auth/me returns English
+  const meResp = await request.get(`${API_BASE}/auth/me`, { headers: authHeaders })
+  const meData = await meResp.json()
+  console.log(`[E2E Setup] /auth/me language: ${meData.language}`)
+
   // Step 5: Set JWT cookie on browser context
   await page.context().addCookies([
     {

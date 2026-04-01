@@ -16,6 +16,14 @@ export const test = base.extend({
     await page.addInitScript(() => {
       localStorage.setItem('i18nextLng', 'en')
     })
+
+    // Diagnostic: log what language i18next resolved to after first navigation
+    page.on('console', (msg) => {
+      if (msg.text().includes('[i18n-debug]')) {
+        console.log(msg.text())
+      }
+    })
+
     await use(page)
   },
 })
