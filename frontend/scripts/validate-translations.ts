@@ -20,8 +20,15 @@ const LOCALES_DIR = join(ROOT, 'public', 'locales')
 interface Issue {
   lang: string
   namespace: string
-  type: 'missing' | 'extra' | 'empty'
+  type: 'missing' | 'extra' | 'empty' | 'interpolation'
   key: string
+  detail?: string
+}
+
+/** Extract {{variable}} interpolation placeholders from a string. */
+function extractInterpolations(value: string): Set<string> {
+  const matches = value.match(/\{\{(\w+)\}\}/g) || []
+  return new Set(matches)
 }
 
 /** Recursively flatten a nested JSON object into dot-separated keys. */
@@ -108,6 +115,24 @@ for (const ns of namespaces) {
         } else if (val === enVal) {
           // Same as English — likely a placeholder (not counted as translated)
         }
+
+        // Check interpolation variables are preserved
+        if (typeof enVal === 'string' && typeof val === 'string') {
+          const enVars = extractInterpolations(enVal)
+          const trVars = extractInterpolations(val)
+          if (enVars.size > 0) {
+            const missing: string[] = []
+            for (const v of enVars) {
+              if (!trVars.has(v)) missing.push(v)
+            }
+            if (missing.length > 0) {
+              issues.push({
+                lang, namespace: ns, type: 'interpolation', key,
+                detail: `missing {{${missing.join('}}, {{')}}}`
+              })
+            }
+          }
+        }
       }
     }
 
@@ -126,6 +151,7 @@ for (const lang of languages) {
   const missing = langIssues.filter(i => i.type === 'missing')
   const empty = langIssues.filter(i => i.type === 'empty')
   const extra = langIssues.filter(i => i.type === 'extra')
+  const interpolation = langIssues.filter(i => i.type === 'interpolation')
 
   const totalEnKeys = namespaces.reduce((sum: number, ns: string) => {
     const enData = loadJson(join(EN_DIR, `${ns}.json`))
@@ -171,12 +197,21 @@ for (const lang of languages) {
       console.log(`    - ${i.namespace}:${i.key}`)
     }
   }
+  if (interpolation.length > 0) {
+    console.log(`  Missing interpolation variables (${interpolation.length}):`)
+    for (const i of interpolation.slice(0, 10)) {
+      console.log(`    - ${i.namespace}:${i.key} — ${i.detail}`)
+    }
+    if (interpolation.length > 10) console.log(`    ... and ${interpolation.length - 10} more`)
+  }
   console.log()
 }
 
 const missingCount = issues.filter(i => i.type === 'missing').length
-if (missingCount > 0) {
-  console.log(`⚠ ${missingCount} missing key(s) found across all languages.`)
+const interpolationCount = issues.filter(i => i.type === 'interpolation').length
+if (missingCount > 0 || interpolationCount > 0) {
+  if (missingCount > 0) console.log(`⚠ ${missingCount} missing key(s) found across all languages.`)
+  if (interpolationCount > 0) console.log(`⚠ ${interpolationCount} interpolation variable(s) missing across all languages.`)
   process.exit(1)
 } else {
   console.log('✓ All translation keys present across all languages.')
