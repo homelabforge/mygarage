@@ -61,6 +61,12 @@ Built for homelabbers who want to track vehicle maintenance without sending data
 
 VIN decoding powered by the [NHTSA vPIC API](https://vpic.nhtsa.dot.gov/).
 
+### Community Contributors
+
+| Contributor | Contribution |
+|-------------|-------------|
+| [Antonio (f0rZzZ)](https://github.com/f0rZzZ) | Polish, Russian, and Ukrainian translations |
+
 ### Development Assistance
 
 MyGarage was developed through AI-assisted pair programming with **Claude** and **Codex**, combining human vision with AI capabilities for architecture, security patterns, and implementation.
