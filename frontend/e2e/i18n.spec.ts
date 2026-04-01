@@ -1,4 +1,4 @@
-import { test, expect } from './helpers/fixtures'
+import { test, expect } from '@playwright/test'
 
 const API_BASE = 'http://localhost:8686/api'
 const ADMIN = { username: 'e2e-admin', password: 'E2eTest!ng123' }
