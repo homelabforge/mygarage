@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.25.2] - 2026-03-31
+
 ### Added
 - Community translations for Polish, Russian, and Ukrainian (thanks [@f0rZzZ](https://github.com/f0rZzZ))
 - Interpolation variable validation in `validate-translations` script
