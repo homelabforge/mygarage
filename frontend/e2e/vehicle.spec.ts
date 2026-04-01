@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from './helpers/fixtures'
 import { TEST_VEHICLE, toast } from './helpers/selectors'
 
 test.describe('Vehicle Management', () => {

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from './helpers/fixtures'
 
 test.describe('Internationalization', () => {
   test('language selector exists in settings and switches nav labels', async ({ page }) => {
