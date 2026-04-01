@@ -12,6 +12,7 @@ import { test as base } from '@playwright/test'
  * guaranteeing localStorage.i18nextLng is set when i18next reads it.
  */
 export const test = base.extend({
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   page: async ({ page }, use) => {
     await page.addInitScript(() => {
       localStorage.setItem('i18nextLng', 'en')
