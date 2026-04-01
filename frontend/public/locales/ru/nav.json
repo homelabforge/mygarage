@@ -1,15 +1,15 @@
 {
-  "dashboard": "Dashboard",
-  "home": "Home",
-  "analytics": "Analytics",
-  "addressBook": "Address Book",
-  "contacts": "Contacts",
-  "findPOI": "Find POI",
-  "poi": "POI",
-  "calendar": "Calendar",
-  "settings": "Settings",
-  "about": "About",
-  "login": "Login",
-  "logout": "Logout",
-  "admin": "ADMIN"
+  "dashboard": "Панель управления",
+  "home": "Главная",
+  "analytics": "Аналитика",
+  "addressBook": "Адресная книга",
+  "contacts": "Контакты",
+  "findPOI": "Найти точки интереса",
+  "poi": "Точки интереса",
+  "calendar": "Календарь",
+  "settings": "Настройки",
+  "about": "О программе",
+  "login": "Войти",
+  "logout": "Выйти",
+  "admin": "АДМИНИСТРАТОР"
 }

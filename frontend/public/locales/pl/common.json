@@ -12,30 +12,14 @@
   "back": "Wstecz",
   "next": "Dalej",
   "search": "Szukaj",
-  "noResults": "Nie znaleziono wyników",
+  "noResults": "Brak wyników",
   "required": "Wymagane",
   "optional": "Opcjonalne",
   "yes": "Tak",
   "no": "Nie",
   "ok": "OK",
   "signIn": "Zaloguj się",
-  "signOut": "Wyloguj",
-  "register": "Zarejestruj",
-  "username": "Nazwa użytkownika",
-  "password": "Hasło",
-  "email": "E-mail",
-  "fullName": "Imię i nazwisko",
-  "login": {
-    "title": "Zaloguj się do MyGarage",
-    "subtitle": "Wprowadź dane logowania, aby uzyskać dostęp do garażu",
-    "usernameOrEmail": "Nazwa użytkownika",
-    "password": "Hasło",
-    "submit": "Zaloguj się",
-    "noAccount": "Nie masz konta?",
-    "registerLink": "Zarejestruj się tutaj",
-    "oidcSignIn": "Zaloguj się przez {{provider}}",
-    "error": "Nieprawidłowa nazwa użytkownika lub hasło"
-  },
+  "signOut": "Wyloguj się",
   "register": {
     "title": "Utwórz konto",
     "subtitle": "Skonfiguruj swoje konto MyGarage",
@@ -45,23 +29,38 @@
     "submit": "Utwórz konto",
     "hasAccount": "Masz już konto?",
     "loginLink": "Zaloguj się",
-    "success": "Konto zostało utworzone pomyślnie!"
+    "success": "Konto zostało pomyślnie utworzone!"
+  },
+  "username": "Nazwa użytkownika",
+  "password": "Hasło",
+  "email": "E-mail",
+  "fullName": "Imię i nazwisko",
+  "login": {
+    "title": "Zaloguj się do MyGarage",
+    "subtitle": "Wprowadź swoje dane uwierzytelniające, aby uzyskać dostęp do garażu",
+    "usernameOrEmail": "Nazwa użytkownika",
+    "password": "Hasło",
+    "submit": "Zaloguj się",
+    "noAccount": "Nie masz konta?",
+    "registerLink": "Zarejestruj się tutaj",
+    "oidcSignIn": "Zaloguj się przez {{provider}}",
+    "error": "Nieprawidłowa nazwa użytkownika lub hasło"
   },
   "oidc": {
-    "signingIn": "Logowanie...",
-    "success": "Uwierzytelnianie zakończone sukcesem!",
-    "redirecting": "Przekierowanie do garażu...",
+    "signingIn": "Trwa logowanie...",
+    "success": "Uwierzytelnianie powiodło się!",
+    "redirecting": "Przekierowywanie do Twojego garażu...",
     "error": "Uwierzytelnianie nie powiodło się",
     "linkAccount": "Połącz konto",
-    "linkDescription": "Połącz swoje istniejące konto z tożsamością SSO"
+    "linkDescription": "Połącz swoje istniejące konto z tożsamością SSO (Single Sign-On)"
   },
   "errors": {
     "generic": "Coś poszło nie tak. Spróbuj ponownie.",
-    "network": "Błąd sieci. Sprawdź połączenie.",
+    "network": "Błąd sieci. Sprawdź swoje połączenie.",
     "unauthorized": "Zaloguj się, aby kontynuować.",
-    "forbidden": "Nie masz uprawnień do tej operacji.",
-    "notFound": "Nie znaleziono żądanego zasobu.",
-    "validation": "Sprawdź dane i spróbuj ponownie."
+    "forbidden": "Nie masz uprawnień do wykonania tej czynności.",
+    "notFound": "Żądany zasób nie został znaleziony.",
+    "validation": "Sprawdź wprowadzone dane i spróbuj ponownie."
   },
-  "footer": "MyGarage v{{version}} - Samodzielnie hostowany tracker konserwacji pojazdów"
+  "footer": "MyGarage v{{version}} — Lokalny system śledzenia konserwacji pojazdów"
 }
