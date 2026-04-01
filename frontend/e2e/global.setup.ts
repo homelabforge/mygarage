@@ -80,13 +80,14 @@ setup('create admin account and authenticate', async ({ page, request }) => {
     },
   ])
 
-  // Step 6: Set CSRF token in sessionStorage
+  // Step 6: Set CSRF token and ensure English locale in sessionStorage/localStorage
   await page.goto('/')
   await page.evaluate((token: string) => {
     sessionStorage.setItem('csrf_token', token)
+    localStorage.setItem('i18nextLng', 'en')
   }, loginData.csrf_token)
 
-  // Step 7: Verify authentication works
+  // Step 7: Verify authentication works (reload to pick up English locale)
   await page.goto('/')
   await expect(page.getByRole('link', { name: 'Dashboard' })).toBeVisible({
     timeout: 15000,
