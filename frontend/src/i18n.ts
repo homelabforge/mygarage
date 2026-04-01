@@ -66,9 +66,5 @@ i18n
       escapeValue: false, // React already escapes
     },
   })
-  .then(() => {
-    // Temporary diagnostic for CI E2E debugging
-    console.log(`[i18n-debug] detected=${i18n.language} localStorage=${localStorage.getItem('i18nextLng')} navigator=${navigator.language}`)
-  })
 
 export default i18n

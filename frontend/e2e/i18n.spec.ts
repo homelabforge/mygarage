@@ -1,6 +1,26 @@
 import { test, expect } from './helpers/fixtures'
 
+const API_BASE = 'http://localhost:8686/api'
+const ADMIN = { username: 'e2e-admin', password: 'E2eTest!ng123' }
+
 test.describe('Internationalization', () => {
+  // Reset language to English via API after each test to prevent DB contamination
+  test.afterEach(async ({ request }) => {
+    const loginResp = await request.post(`${API_BASE}/auth/login`, {
+      data: ADMIN,
+    })
+    if (loginResp.ok()) {
+      const loginData = await loginResp.json()
+      await request.put(`${API_BASE}/auth/me`, {
+        data: { language: 'en' },
+        headers: {
+          Cookie: `mygarage_token=${loginData.access_token}`,
+          'X-CSRF-Token': loginData.csrf_token,
+        },
+      })
+    }
+  })
+
   test('language selector exists in settings and switches nav labels', async ({ page }) => {
     await page.goto('/settings')
 

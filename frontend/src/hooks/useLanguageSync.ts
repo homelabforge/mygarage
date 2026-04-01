@@ -21,7 +21,6 @@ export function useLanguageSync(): void {
   useEffect(() => {
     // Rule 1: authenticated user's DB preference takes precedence
     if (user?.language && user.language !== i18n.language) {
-      console.log(`[i18n-debug] useLanguageSync: changing ${i18n.language} -> ${user.language}`)
       i18n.changeLanguage(user.language)
     }
   }, [user?.language, i18n])
