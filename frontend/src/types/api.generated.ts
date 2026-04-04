@@ -5481,6 +5481,14 @@ export interface components {
             total: number;
         };
         /**
+         * AdminPasswordReset
+         * @description Schema for admin password reset.
+         */
+        AdminPasswordReset: {
+            /** New Password */
+            new_password: string;
+        };
+        /**
          * AdminUserCreate
          * @description Schema for admin creating a new user with additional fields.
          */
@@ -5508,6 +5516,41 @@ export interface components {
             show_on_family_dashboard: boolean;
             /** Username */
             username: string;
+        };
+        /**
+         * AdminUserUpdate
+         * @description Schema for admin updating any user. Includes privileged fields.
+         */
+        AdminUserUpdate: {
+            /** Currency Code */
+            currency_code?: string | null;
+            /** Email */
+            email?: string | null;
+            /** Family Dashboard Order */
+            family_dashboard_order?: number | null;
+            /** Full Name */
+            full_name?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Is Admin */
+            is_admin?: boolean | null;
+            /** Language */
+            language?: string | null;
+            /** Mobile Quick Entry Enabled */
+            mobile_quick_entry_enabled?: boolean | null;
+            /**
+             * Relationship
+             * @enum {unknown}
+             */
+            relationship?: "spouse" | "child" | "parent" | "sibling" | "grandparent" | "grandchild" | "in_law" | "friend" | "other" | null;
+            /** Relationship Custom */
+            relationship_custom?: string | null;
+            /** Show Both Units */
+            show_both_units?: boolean | null;
+            /** Show On Family Dashboard */
+            show_on_family_dashboard?: boolean | null;
+            /** Unit Preference */
+            unit_preference?: string | null;
         };
         /**
          * AnomalyAlert
@@ -11059,37 +11102,22 @@ export interface components {
             username: string;
         };
         /**
-         * UserUpdate
-         * @description Schema for updating a user.
+         * UserSelfUpdate
+         * @description Schema for users updating their own profile. Rejects privileged fields.
          */
-        UserUpdate: {
+        UserSelfUpdate: {
             /** Currency Code */
             currency_code?: string | null;
             /** Email */
             email?: string | null;
-            /** Family Dashboard Order */
-            family_dashboard_order?: number | null;
             /** Full Name */
             full_name?: string | null;
-            /** Is Active */
-            is_active?: boolean | null;
-            /** Is Admin */
-            is_admin?: boolean | null;
             /** Language */
             language?: string | null;
             /** Mobile Quick Entry Enabled */
             mobile_quick_entry_enabled?: boolean | null;
-            /**
-             * Relationship
-             * @enum {unknown}
-             */
-            relationship?: "spouse" | "child" | "parent" | "sibling" | "grandparent" | "grandchild" | "in_law" | "friend" | "other" | null;
-            /** Relationship Custom */
-            relationship_custom?: string | null;
             /** Show Both Units */
             show_both_units?: boolean | null;
-            /** Show On Family Dashboard */
-            show_on_family_dashboard?: boolean | null;
             /** Unit Preference */
             unit_preference?: string | null;
         };
@@ -13349,7 +13377,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["UserUpdate"];
+                "application/json": components["schemas"]["UserSelfUpdate"];
             };
         };
         responses: {
@@ -13742,7 +13770,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["UserUpdate"];
+                "application/json": components["schemas"]["AdminUserUpdate"];
             };
         };
         responses: {
@@ -13806,9 +13834,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": components["schemas"]["AdminPasswordReset"];
             };
         };
         responses: {

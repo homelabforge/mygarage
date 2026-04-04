@@ -676,6 +676,22 @@
         "title": "AddressBookListResponse",
         "type": "object"
       },
+      "AdminPasswordReset": {
+        "description": "Schema for admin password reset.",
+        "properties": {
+          "new_password": {
+            "maxLength": 100,
+            "minLength": 8,
+            "title": "New Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "new_password"
+        ],
+        "title": "AdminPasswordReset",
+        "type": "object"
+      },
       "AdminUserCreate": {
         "description": "Schema for admin creating a new user with additional fields.",
         "properties": {
@@ -748,6 +764,168 @@
           "password"
         ],
         "title": "AdminUserCreate",
+        "type": "object"
+      },
+      "AdminUserUpdate": {
+        "description": "Schema for admin updating any user. Includes privileged fields.",
+        "properties": {
+          "currency_code": {
+            "anyOf": [
+              {
+                "maxLength": 3,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency Code"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "format": "email",
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "family_dashboard_order": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Family Dashboard Order"
+          },
+          "full_name": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Name"
+          },
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          },
+          "is_admin": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Admin"
+          },
+          "language": {
+            "anyOf": [
+              {
+                "maxLength": 10,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language"
+          },
+          "mobile_quick_entry_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mobile Quick Entry Enabled"
+          },
+          "relationship": {
+            "enum": [
+              "spouse",
+              "child",
+              "parent",
+              "sibling",
+              "grandparent",
+              "grandchild",
+              "in_law",
+              "friend",
+              "other",
+              null
+            ],
+            "title": "Relationship"
+          },
+          "relationship_custom": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Relationship Custom"
+          },
+          "show_both_units": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Show Both Units"
+          },
+          "show_on_family_dashboard": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Show On Family Dashboard"
+          },
+          "unit_preference": {
+            "anyOf": [
+              {
+                "pattern": "^(imperial|metric)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Preference"
+          }
+        },
+        "title": "AdminUserUpdate",
         "type": "object"
       },
       "AnomalyAlert": {
@@ -13160,8 +13338,9 @@
         "title": "UserResponse",
         "type": "object"
       },
-      "UserUpdate": {
-        "description": "Schema for updating a user.",
+      "UserSelfUpdate": {
+        "additionalProperties": false,
+        "description": "Schema for users updating their own profile. Rejects privileged fields.",
         "properties": {
           "currency_code": {
             "anyOf": [
@@ -13188,18 +13367,6 @@
             ],
             "title": "Email"
           },
-          "family_dashboard_order": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Family Dashboard Order"
-          },
           "full_name": {
             "anyOf": [
               {
@@ -13211,28 +13378,6 @@
               }
             ],
             "title": "Full Name"
-          },
-          "is_active": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Is Active"
-          },
-          "is_admin": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Is Admin"
           },
           "language": {
             "anyOf": [
@@ -13257,33 +13402,6 @@
             ],
             "title": "Mobile Quick Entry Enabled"
           },
-          "relationship": {
-            "enum": [
-              "spouse",
-              "child",
-              "parent",
-              "sibling",
-              "grandparent",
-              "grandchild",
-              "in_law",
-              "friend",
-              "other",
-              null
-            ],
-            "title": "Relationship"
-          },
-          "relationship_custom": {
-            "anyOf": [
-              {
-                "maxLength": 100,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Relationship Custom"
-          },
           "show_both_units": {
             "anyOf": [
               {
@@ -13294,17 +13412,6 @@
               }
             ],
             "title": "Show Both Units"
-          },
-          "show_on_family_dashboard": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Show On Family Dashboard"
           },
           "unit_preference": {
             "anyOf": [
@@ -13319,7 +13426,7 @@
             "title": "Unit Preference"
           }
         },
-        "title": "UserUpdate",
+        "title": "UserSelfUpdate",
         "type": "object"
       },
       "VINDecodeRequest": {
@@ -18497,7 +18604,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/UserUpdate"
+                "$ref": "#/components/schemas/UserSelfUpdate"
               }
             }
           },
@@ -19075,7 +19182,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/UserUpdate"
+                "$ref": "#/components/schemas/AdminUserUpdate"
               }
             }
           },
@@ -19133,9 +19240,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "additionalProperties": true,
-                "title": "Password Data",
-                "type": "object"
+                "$ref": "#/components/schemas/AdminPasswordReset"
               }
             }
           },
