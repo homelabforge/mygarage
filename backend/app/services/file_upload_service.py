@@ -31,6 +31,7 @@ class FileUploadConfig:
         max_size_bytes: int,
         generate_unique_name: bool = True,
         verify_magic_bytes: bool = True,
+        strict_magic_bytes: bool = False,
         create_thumbnail: bool = False,
         thumbnail_size: tuple[Any, ...] = (300, 300),
     ):
@@ -40,6 +41,7 @@ class FileUploadConfig:
         self.max_size_bytes = max_size_bytes
         self.generate_unique_name = generate_unique_name
         self.verify_magic_bytes = verify_magic_bytes
+        self.strict_magic_bytes = strict_magic_bytes
         self.create_thumbnail = create_thumbnail
         self.thumbnail_size = thumbnail_size
 
@@ -144,7 +146,7 @@ class FileUploadService:
                 contents,
                 file.filename,
                 file.content_type,
-                strict=False,  # Warn but allow
+                strict=config.strict_magic_bytes,
             )
             if not is_valid:
                 logger.warning("Magic byte validation warning: %s", error_msg)
@@ -271,7 +273,7 @@ class FileUploadService:
             logger.error("File upload failed: %s", e)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Upload failed: {str(e)}",
+                detail="Upload failed",
             )
 
 
@@ -284,6 +286,7 @@ PHOTO_UPLOAD_CONFIG = FileUploadConfig(
     max_size_bytes=settings.max_upload_size_bytes,
     generate_unique_name=True,
     verify_magic_bytes=True,
+    strict_magic_bytes=True,
     create_thumbnail=True,
     thumbnail_size=(512, 512),
 )

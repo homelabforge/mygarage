@@ -376,3 +376,26 @@ class TestPOIValidation:
 
         # business_name is required
         assert response.status_code == 422
+
+    async def test_search_error_does_not_leak_exception(self, client: AsyncClient, auth_headers):
+        """Test that internal errors return generic message, not exception details."""
+        with patch(
+            "app.routes.poi.POIDiscoveryService",
+            return_value=AsyncMock(
+                search_pois=AsyncMock(side_effect=RuntimeError("secret db connection string"))
+            ),
+        ):
+            response = await client.post(
+                "/api/poi/search",
+                json={
+                    "latitude": 41.8781,
+                    "longitude": -87.6298,
+                    "categories": ["auto_shop"],
+                },
+                headers=auth_headers,
+            )
+
+        assert response.status_code == 500
+        detail = response.json()["detail"]
+        assert "secret db connection string" not in detail
+        assert detail == "Failed to search for POIs"

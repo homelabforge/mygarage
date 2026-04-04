@@ -92,41 +92,25 @@ class TestUpdateCurrentUserPreferences:
             headers=auth_headers,
         )
 
-    async def test_cannot_self_escalate_is_admin(
-        self, client: AsyncClient, auth_headers, test_user, db_session
-    ):
-        """Test that users cannot change their own is_admin status."""
-        # Demote to non-admin first
-        user = await db_session.get(User, test_user["id"])
-        user.is_admin = False
-        await db_session.commit()
-
+    async def test_cannot_self_escalate_is_admin(self, client: AsyncClient, auth_headers):
+        """Test that users cannot send is_admin via self-update (rejected by schema)."""
         response = await client.put(
             "/api/auth/me",
             json={"is_admin": True},
             headers=auth_headers,
         )
-        # Request should succeed (valid schema) but is_admin should be unchanged
-        assert response.status_code == 200
-        assert response.json()["is_admin"] is False
+        # UserSelfUpdate has extra="forbid" — privileged fields get 422
+        assert response.status_code == 422
 
-        # Restore admin status
-        await db_session.refresh(user)
-        user.is_admin = True
-        await db_session.commit()
-
-    async def test_cannot_self_escalate_is_active(
-        self, client: AsyncClient, auth_headers, test_user, db_session
-    ):
-        """Test that users cannot change their own is_active status via PUT /me."""
+    async def test_cannot_self_escalate_is_active(self, client: AsyncClient, auth_headers):
+        """Test that users cannot send is_active via self-update (rejected by schema)."""
         response = await client.put(
             "/api/auth/me",
             json={"is_active": False},
             headers=auth_headers,
         )
-        # is_active should not change (ignored by handler)
-        assert response.status_code == 200
-        assert response.json()["is_active"] is True
+        # UserSelfUpdate has extra="forbid" — privileged fields get 422
+        assert response.status_code == 422
 
 
 @pytest.mark.integration

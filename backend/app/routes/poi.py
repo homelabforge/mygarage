@@ -104,7 +104,7 @@ async def search_nearby_pois(
 
     except Exception as e:
         logger.error("POI search failed: %s", str(e), exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to search for POIs: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to search for POIs")
 
 
 @router.post("/save", response_model=AddressBookEntryResponse, status_code=201)

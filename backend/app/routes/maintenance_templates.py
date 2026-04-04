@@ -73,7 +73,7 @@ async def search_template(
 
     except Exception as e:
         logger.error("Error searching for template: %s", sanitize_for_log(str(e)))
-        raise HTTPException(status_code=500, detail=f"Failed to search for template: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to search for template")
 
 
 @maintenance_templates_router.post("/apply", response_model=TemplateApplyResponse)
@@ -154,7 +154,7 @@ async def apply_template(
             sanitize_for_log(request.vin),
             sanitize_for_log(str(e)),
         )
-        raise HTTPException(status_code=500, detail=f"Failed to apply template: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to apply template")
 
 
 @maintenance_templates_router.get("/vehicles/{vin}", response_model=MaintenanceTemplateListResponse)

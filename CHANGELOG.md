@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- Restrict all backup API endpoints to admin-only access
+- Fix information leakage via raw exception text in HTTP error responses
+- Fix broken admin password reset endpoint (ImportError on every call)
+- Enforce magic byte validation for photo uploads
+- Reject privileged fields (`is_admin`, `is_active`) on self-update endpoint
+
 ## [2.25.2] - 2026-03-31
 
 ### Added

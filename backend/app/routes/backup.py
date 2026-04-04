@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.database import get_db, is_sqlite
 from app.models.user import User
-from app.services.auth import require_auth
+from app.services.auth import get_current_admin_user
 from app.services.backup_service import BackupService
 
 router = APIRouter(prefix="/api/backup", tags=["Backup"])
@@ -42,7 +42,7 @@ def get_backup_service() -> BackupService:
 @router.get("/stats")
 async def get_stats(
     db: AsyncSession = Depends(get_db),
-    current_user: User | None = Depends(require_auth),
+    current_user: User | None = Depends(get_current_admin_user),
 ) -> dict[str, Any]:
     """Get database and backup statistics.
 
@@ -86,7 +86,7 @@ async def get_stats(
 
 @router.get("/list")
 async def list_backups(
-    backup_type: str = "all", current_user: User | None = Depends(require_auth)
+    backup_type: str = "all", current_user: User | None = Depends(get_current_admin_user)
 ) -> dict[str, Any]:
     """List all available backup files.
 
@@ -108,7 +108,7 @@ async def list_backups(
 @router.post("/create")
 async def create_settings_backup(
     db: AsyncSession = Depends(get_db),
-    current_user: User | None = Depends(require_auth),
+    current_user: User | None = Depends(get_current_admin_user),
 ) -> dict[str, Any]:
     """Create a new backup of all settings.
 
@@ -140,7 +140,7 @@ async def create_settings_backup(
 
 @router.post("/create-full")
 async def create_full_backup(
-    current_user: User | None = Depends(require_auth),
+    current_user: User | None = Depends(get_current_admin_user),
 ) -> dict[str, Any]:
     """Create a full backup including database and all uploaded files.
 
@@ -173,7 +173,9 @@ async def create_full_backup(
 
 
 @router.get("/download/{filename}")
-async def download_backup(filename: str, current_user: User | None = Depends(require_auth)):
+async def download_backup(
+    filename: str, current_user: User | None = Depends(get_current_admin_user)
+):
     """Download a specific backup file.
 
     Args:
@@ -219,7 +221,7 @@ async def download_backup(filename: str, current_user: User | None = Depends(req
 async def restore_backup(
     filename: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User | None = Depends(require_auth),
+    current_user: User | None = Depends(get_current_admin_user),
 ) -> dict[str, Any]:
     """Restore settings from a backup file.
 
@@ -290,7 +292,7 @@ async def restore_backup(
 async def upload_backup(
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
-    current_user: User | None = Depends(require_auth),
+    current_user: User | None = Depends(get_current_admin_user),
 ) -> dict[str, Any]:
     """Upload and save a backup file.
 
@@ -390,7 +392,7 @@ async def upload_backup(
 
 @router.delete("/{filename}")
 async def delete_backup(
-    filename: str, current_user: User | None = Depends(require_auth)
+    filename: str, current_user: User | None = Depends(get_current_admin_user)
 ) -> dict[str, Any]:
     """Delete a backup file.
 

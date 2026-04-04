@@ -1,5 +1,6 @@
 """Security middleware for MyGarage application."""
 
+import logging
 import os
 import uuid
 
@@ -11,6 +12,8 @@ from starlette.responses import JSONResponse, Response
 from app.database import get_db_context
 from app.models.csrf_token import CSRFToken
 from app.utils.datetime_utils import utc_now
+
+logger = logging.getLogger(__name__)
 
 
 def is_test_mode() -> bool:
@@ -169,8 +172,7 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
                 # No need to do it on every request (performance optimization)
 
         except Exception as e:
-            return JSONResponse(
-                status_code=500, content={"detail": f"CSRF validation error: {str(e)}"}
-            )
+            logger.error("CSRF validation error: %s", e, exc_info=True)
+            return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
         return await call_next(request)

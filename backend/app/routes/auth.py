@@ -3,7 +3,6 @@
 import logging
 import secrets
 from datetime import timedelta
-from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from slowapi import Limiter
@@ -17,13 +16,15 @@ from app.models.csrf_token import CSRFToken
 from app.models.settings import Setting
 from app.models.user import User
 from app.schemas.user import (
+    AdminPasswordReset,
     AdminUserCreate,
+    AdminUserUpdate,
     LoginRequest,
     Token,
     UserCreate,
     UserPasswordUpdate,
     UserResponse,
-    UserUpdate,
+    UserSelfUpdate,
 )
 from app.services.auth import (
     authenticate_user,
@@ -284,7 +285,7 @@ async def get_current_user_info(
 
 @router.put("/me", response_model=UserResponse)
 async def update_current_user(
-    user_update: UserUpdate,
+    user_update: UserSelfUpdate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -485,7 +486,7 @@ async def get_user(
 @router.put("/users/{user_id}", response_model=UserResponse)
 async def update_user(
     user_id: int,
-    user_update: UserUpdate,
+    user_update: AdminUserUpdate,
     current_user: User = Depends(get_current_admin_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -610,7 +611,7 @@ async def delete_user(
 async def admin_reset_user_password(
     request: Request,
     user_id: int,
-    password_data: dict[str, Any],
+    password_data: AdminPasswordReset,
     current_user: User = Depends(get_current_admin_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -634,22 +635,8 @@ async def admin_reset_user_password(
             detail="Cannot reset password for OIDC users. Password is managed by identity provider.",
         )
 
-    # Validate new password
-    from app.schemas.user import passwordSchema
-
-    try:
-        new_password = password_data.get("new_password")
-        if not new_password:
-            raise ValueError("new_password is required")
-        passwordSchema.validate_password(new_password)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        )
-
-    # Update password
-    user.hashed_password = hash_password(new_password)
+    # Update password (validation handled by AdminPasswordReset schema)
+    user.hashed_password = hash_password(password_data.new_password)
     user.updated_at = utc_now()
 
     await db.commit()
