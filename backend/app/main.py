@@ -1,6 +1,7 @@
 """Main FastAPI application for MyGarage."""
 
 import logging
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -47,9 +48,10 @@ async def lifespan(app: FastAPI):
     logger.info("Starting MyGarage application...")
 
     # Log secret key status (key was generated during config import)
-    secret_key_file = Path("/data/secret.key")
-    if secret_key_file.exists():
-        logger.info("✓ Secret key loaded from %s", secret_key_file)
+    if os.environ.get("MYGARAGE_SECRET_KEY"):
+        logger.info("✓ Secret key loaded from MYGARAGE_SECRET_KEY environment variable")
+    elif Path("/data/secret.key").exists():
+        logger.info("✓ Secret key loaded from /data/secret.key")
     else:
         logger.warning("Secret key file not found - using temporary in-memory key")
 

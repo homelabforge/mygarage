@@ -36,6 +36,7 @@ from app.services.auth import (
     verify_password,
 )
 from app.utils.datetime_utils import utc_now
+from app.utils.logging_utils import sanitize_for_log
 from app.utils.request_scheme import get_cookie_secure
 
 logger = logging.getLogger(__name__)
@@ -102,7 +103,7 @@ async def register(
     await db.commit()
     await db.refresh(new_user)
 
-    logger.info("First admin user registered: %s", new_user.username)
+    logger.info("First admin user registered: %s", sanitize_for_log(new_user.username))
 
     return new_user
 
@@ -147,7 +148,7 @@ async def login(
     csrf_token = CSRFToken(
         token=csrf_token_value,
         user_id=user.id,
-        expires_at=CSRFToken.get_expiry_time(hours=24),  # Same as JWT expiry
+        expires_at=CSRFToken.get_expiry_time(),
     )
     db.add(csrf_token)
 
@@ -170,7 +171,7 @@ async def login(
         max_age=settings.jwt_cookie_max_age,
     )
 
-    logger.info("User logged in: %s", user.username)
+    logger.info("User logged in: %s", sanitize_for_log(user.username))
 
     # Return token and CSRF token for frontend
     return {
@@ -200,7 +201,7 @@ async def logout(
         secure=get_cookie_secure(request),
         samesite=settings.jwt_cookie_samesite,
     )
-    logger.info("User logged out: %s", current_user.username)
+    logger.info("User logged out: %s", sanitize_for_log(current_user.username))
     return {"message": "Successfully logged out"}
 
 
@@ -265,12 +266,12 @@ async def refresh_csrf_token(
     csrf_token = CSRFToken(
         token=csrf_token_value,
         user_id=current_user.id,
-        expires_at=CSRFToken.get_expiry_time(hours=24),
+        expires_at=CSRFToken.get_expiry_time(),
     )
     db.add(csrf_token)
     await db.commit()
 
-    logger.info("CSRF token refreshed for user: %s", current_user.username)
+    logger.info("CSRF token refreshed for user: %s", sanitize_for_log(current_user.username))
 
     return {"csrf_token": csrf_token_value}
 
@@ -327,7 +328,7 @@ async def update_current_user(
     await db.commit()
     await db.refresh(current_user)
 
-    logger.info("User updated their profile: %s", current_user.username)
+    logger.info("User updated their profile: %s", sanitize_for_log(current_user.username))
 
     return current_user
 
@@ -354,7 +355,7 @@ async def update_password(
 
     await db.commit()
 
-    logger.info("User changed password: %s", current_user.username)
+    logger.info("User changed password: %s", sanitize_for_log(current_user.username))
 
 
 # Admin-only endpoints
@@ -459,7 +460,11 @@ async def create_user(
     await db.commit()
     await db.refresh(new_user)
 
-    logger.info("Admin %s created new user: %s", current_user.username, new_user.username)
+    logger.info(
+        "Admin %s created new user: %s",
+        sanitize_for_log(current_user.username),
+        sanitize_for_log(new_user.username),
+    )
 
     return new_user
 
@@ -559,7 +564,11 @@ async def update_user(
     await db.commit()
     await db.refresh(user)
 
-    logger.info("Admin %s updated user: %s", current_user.username, user.username)
+    logger.info(
+        "Admin %s updated user: %s",
+        sanitize_for_log(current_user.username),
+        sanitize_for_log(user.username),
+    )
 
     return user
 
@@ -603,7 +612,11 @@ async def delete_user(
     await db.delete(user)
     await db.commit()
 
-    logger.info("Admin %s deleted user: %s", current_user.username, user.username)
+    logger.info(
+        "Admin %s deleted user: %s",
+        sanitize_for_log(current_user.username),
+        sanitize_for_log(user.username),
+    )
 
 
 @router.put("/users/{user_id}/password", status_code=status.HTTP_204_NO_CONTENT)
@@ -641,4 +654,8 @@ async def admin_reset_user_password(
 
     await db.commit()
 
-    logger.info("Admin %s reset password for user: %s", current_user.username, user.username)
+    logger.info(
+        "Admin %s reset password for user: %s",
+        sanitize_for_log(current_user.username),
+        sanitize_for_log(user.username),
+    )

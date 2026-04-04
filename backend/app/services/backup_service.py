@@ -15,6 +15,7 @@ from urllib.parse import unquote, urlparse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.settings_service import SettingsService
+from app.utils.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
 
@@ -408,7 +409,7 @@ class BackupService:
                 value = setting_data.get("value")
 
                 if not key:
-                    logger.warning("Skipping setting with no key: %s", setting_data)
+                    logger.warning("Skipping setting with no key during restore")
                     continue
 
                 # Update setting in database
@@ -428,7 +429,7 @@ class BackupService:
 
         await db.commit()
 
-        logger.info("Restored %s settings from %s", restored_count, filename)
+        logger.info("Restored %s settings from %s", restored_count, sanitize_for_log(filename))
 
         return {
             "restored_count": restored_count,
@@ -487,7 +488,7 @@ class BackupService:
             logger.info("Created safety backup: %s", safety_filename)
 
         # Extract backup
-        logger.info("Restoring full backup from: %s", filename)
+        logger.info("Restoring full backup from: %s", sanitize_for_log(filename))
 
         with tarfile.open(backup_path, "r:gz") as tar:
             members = tar.getmembers()
@@ -524,7 +525,7 @@ class BackupService:
                     normalized_parts,
                 )
 
-        logger.info("Successfully restored full backup from %s", filename)
+        logger.info("Successfully restored full backup from %s", sanitize_for_log(filename))
 
         return {
             "safety_backup": safety_filename,
@@ -589,7 +590,7 @@ class BackupService:
         # Delete the file
         backup_path.unlink()
 
-        logger.info("Deleted backup: %s", filename)
+        logger.info("Deleted backup: %s", sanitize_for_log(filename))
 
     # ------------------------------------------------------------------ #
     # Internal helpers

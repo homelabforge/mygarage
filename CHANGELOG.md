@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix broken admin password reset endpoint (ImportError on every call)
 - Enforce magic byte validation for photo uploads
 - Reject privileged fields (`is_admin`, `is_active`) on self-update endpoint
+- Reduce JWT session lifetime from 24h to 2h; centralize JWT, cookie, and CSRF expiry from single config value
+- Sanitize ~70 logger call sites to prevent log injection via usernames, device IDs, emails, and filenames
+- Redact structured data from logs (OCR output, OIDC token responses, settings dicts)
+- Document `MYGARAGE_SECRET_KEY` environment variable override in startup logs and settings UI
 
 ## [2.25.2] - 2026-03-31
 

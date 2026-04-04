@@ -92,10 +92,11 @@ async def exchange_code_for_tokens(
                 timeout=10.0,
             )
 
-            # Log response details for debugging
             if response.status_code != 200:
-                logger.error("Token exchange failed with status %s", response.status_code)
-                logger.error("Response body: %s", response.text)
+                logger.error(
+                    "Token exchange failed with status %s (body redacted)",
+                    response.status_code,
+                )
 
             response.raise_for_status()
             tokens = response.json()
@@ -104,10 +105,10 @@ async def exchange_code_for_tokens(
             return tokens
 
     except httpx.HTTPStatusError as e:
-        logger.error("HTTP error during token exchange: %s", e.response.status_code)
-        logger.error("Response body: %s", e.response.text)
-        # Don't log request data - it contains authorization code and redirect_uri
-        logger.error("Token exchange failed - check OIDC provider configuration")
+        logger.error(
+            "Token exchange failed with status %s - check OIDC provider configuration",
+            e.response.status_code,
+        )
         return None  # Intentional fallback
     except httpx.TimeoutException:
         logger.error("Token exchange request timed out")

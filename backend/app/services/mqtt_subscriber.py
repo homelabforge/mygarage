@@ -19,6 +19,7 @@ from app.services.settings_service import SettingsService
 from app.services.telemetry_service import TelemetryService
 from app.utils.autopid_normalizer import normalize_autopid_data
 from app.utils.datetime_utils import utc_now
+from app.utils.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
 
@@ -121,7 +122,7 @@ class MQTTSubscriber:
         """
         topic = f"{self._topic_prefix}/{device_id}/cmd"
         await self.publish(topic, command)
-        logger.info("Sent command to device %s: %s", device_id, command)
+        logger.info("Sent command to device %s: %s", sanitize_for_log(device_id), command)
 
     async def _get_config(self) -> dict[str, Any] | None:
         """Get MQTT configuration from settings."""
@@ -246,7 +247,7 @@ class MQTTSubscriber:
         # Parse topic to extract device_id and message type
         parts = topic.split("/")
         if len(parts) < 3:
-            logger.debug("Ignoring malformed topic: %s", topic)
+            logger.debug("Ignoring malformed topic: %s", sanitize_for_log(topic))
             return
 
         # Expected: prefix/device_id/...
@@ -265,8 +266,8 @@ class MQTTSubscriber:
 
         logger.debug(
             "MQTT message: device=%s, subtopic=%s, data=%s",
-            device_id,
-            subtopic,
+            sanitize_for_log(device_id),
+            sanitize_for_log(subtopic),
             data,
         )
 
@@ -280,7 +281,7 @@ class MQTTSubscriber:
                 elif subtopic == "can/rx":
                     await self._handle_telemetry(db, device_id, data)
                 else:
-                    logger.debug("Ignoring unknown subtopic: %s", subtopic)
+                    logger.debug("Ignoring unknown subtopic: %s", sanitize_for_log(subtopic))
                     return
 
                 await db.commit()
@@ -306,7 +307,7 @@ class MQTTSubscriber:
         device, is_new = await livelink_service.auto_discover_device(device_id)
 
         if is_new:
-            logger.info("Auto-discovered new device via MQTT: %s", device_id)
+            logger.info("Auto-discovered new device via MQTT: %s", sanitize_for_log(device_id))
 
         # Map status to ecu_status — only explicit values, not coerced
         if status == "online":
@@ -324,7 +325,10 @@ class MQTTSubscriber:
                 # ECU came online — if pending offline, WiFi recovered (clear pending)
                 if device.pending_offline_at:
                     await livelink_service.clear_pending_offline(device_id)
-                    logger.debug("Cleared pending offline for %s (WiFi recovered)", device_id)
+                    logger.debug(
+                        "Cleared pending offline for %s (WiFi recovered)",
+                        sanitize_for_log(device_id),
+                    )
                 else:
                     # Not pending — genuine ECU online, start session
                     session_service = SessionService(db)
@@ -335,7 +339,7 @@ class MQTTSubscriber:
                     await livelink_service.set_pending_offline(device_id)
                     logger.debug(
                         "Set pending offline for %s (grace period: %ds)",
-                        device_id,
+                        sanitize_for_log(device_id),
                         grace_seconds,
                     )
                 else:
@@ -350,7 +354,7 @@ class MQTTSubscriber:
             ecu_status=ecu_status,
         )
 
-        logger.debug("Updated device %s status: ecu=%s", device_id, ecu_status)
+        logger.debug("Updated device %s status: ecu=%s", sanitize_for_log(device_id), ecu_status)
 
     async def _handle_battery(
         self,
@@ -402,11 +406,13 @@ class MQTTSubscriber:
         if not device:
             # Auto-discover but don't process telemetry until linked
             device, _ = await livelink_service.auto_discover_device(device_id)
-            logger.debug("Device %s not linked, skipping telemetry", device_id)
+            logger.debug("Device %s not linked, skipping telemetry", sanitize_for_log(device_id))
             return
 
         if not device.vin:
-            logger.debug("Device %s not linked to vehicle, skipping telemetry", device_id)
+            logger.debug(
+                "Device %s not linked to vehicle, skipping telemetry", sanitize_for_log(device_id)
+            )
             return
 
         if not device.enabled:
@@ -415,7 +421,9 @@ class MQTTSubscriber:
         # If device has a pending offline, receiving telemetry means WiFi recovered
         if device.pending_offline_at:
             await livelink_service.clear_pending_offline(device_id)
-            logger.debug("Cleared pending offline for %s (telemetry received)", device_id)
+            logger.debug(
+                "Cleared pending offline for %s (telemetry received)", sanitize_for_log(device_id)
+            )
 
         # Infer ECU status from telemetry: if we're receiving data, ECU must be on
         # This handles WiCAN devices that don't send explicit can/status messages
@@ -428,7 +436,7 @@ class MQTTSubscriber:
             await session_service.handle_ecu_online(device.vin, device_id)
             logger.info(
                 "ECU online inferred from telemetry for device %s, started session",
-                device_id,
+                sanitize_for_log(device_id),
             )
 
         # Update last_seen and ECU status (after session detection)
@@ -470,7 +478,7 @@ class MQTTSubscriber:
         logger.debug(
             "Stored %d telemetry parameters for device %s",
             store_result.stored_count,
-            device_id,
+            sanitize_for_log(device_id),
         )
 
 

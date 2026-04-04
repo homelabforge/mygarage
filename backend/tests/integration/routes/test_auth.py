@@ -4,6 +4,7 @@ Integration tests for authentication routes.
 Tests user registration, login, logout, and protected endpoints.
 """
 
+import jwt
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import delete, select  # noqa: F401
@@ -480,3 +481,67 @@ class TestAdminPasswordReset:
             headers=auth_headers,
         )
         assert response.status_code == 422
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+@pytest.mark.asyncio
+class TestSessionLifetime:
+    """Test that JWT, cookie, and CSRF lifetimes are aligned."""
+
+    async def test_login_cookie_max_age(self, client: AsyncClient, test_user):
+        """Test login response cookie Max-Age matches configured lifetime."""
+        response = await client.post(
+            "/api/auth/login",
+            json={"username": test_user["username"], "password": "testpassword123"},
+        )
+        assert response.status_code == 200
+
+        cookie_header = response.headers.get("set-cookie", "")
+        assert f"max-age={settings.jwt_cookie_max_age}" in cookie_header.lower()
+
+    async def test_login_jwt_exp(self, client: AsyncClient, test_user):
+        """Test login JWT exp claim matches configured lifetime."""
+        response = await client.post(
+            "/api/auth/login",
+            json={"username": test_user["username"], "password": "testpassword123"},
+        )
+        assert response.status_code == 200
+
+        token = response.json()["access_token"]
+        payload = jwt.decode(token, options={"verify_signature": False})
+
+        expected_seconds = settings.access_token_expire_minutes * 60
+        actual_seconds = payload["exp"] - payload.get("iat", payload["exp"] - expected_seconds)
+        assert abs(actual_seconds - expected_seconds) < 5
+
+    async def test_login_csrf_expiry(self, client: AsyncClient, test_user, db_session):
+        """Test CSRF token expiry matches configured lifetime."""
+        from app.models.csrf_token import CSRFToken
+        from app.utils.datetime_utils import utc_now
+
+        response = await client.post(
+            "/api/auth/login",
+            json={"username": test_user["username"], "password": "testpassword123"},
+        )
+        assert response.status_code == 200
+
+        csrf_token_value = response.json()["csrf_token"]
+        result = await db_session.execute(
+            select(CSRFToken).where(CSRFToken.token == csrf_token_value)
+        )
+        csrf_record = result.scalar_one()
+
+        now = utc_now()
+        expected_minutes = settings.access_token_expire_minutes
+        delta_minutes = (csrf_record.expires_at - now).total_seconds() / 60
+        assert abs(delta_minutes - expected_minutes) < 1
+
+    async def test_login_expires_in_matches_config(self, client: AsyncClient, test_user):
+        """Test login response expires_in matches configured lifetime."""
+        response = await client.post(
+            "/api/auth/login",
+            json={"username": test_user["username"], "password": "testpassword123"},
+        )
+        assert response.status_code == 200
+        assert response.json()["expires_in"] == settings.access_token_expire_minutes * 60

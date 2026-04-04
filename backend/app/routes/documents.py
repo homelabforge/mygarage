@@ -21,6 +21,7 @@ from app.schemas.document import (
 )
 from app.services.auth import get_vehicle_or_403, require_auth
 from app.services.file_upload_service import DOCUMENT_UPLOAD_CONFIG, FileUploadService
+from app.utils.logging_utils import sanitize_for_log, sanitize_path_for_log
 
 logger = logging.getLogger(__name__)
 
@@ -167,13 +168,13 @@ async def delete_document(
         file_path = Path(document.file_path)
         if file_path.exists():
             file_path.unlink()
-            logger.info("Deleted document file: %s", file_path)
+            logger.info("Deleted document file: %s", sanitize_path_for_log(file_path))
 
         # Delete from database
         await db.execute(delete(Document).where(Document.id == document_id))
         await db.commit()
 
-        logger.info("Deleted document %s for vehicle %s", document_id, vin)
+        logger.info("Deleted document %s for vehicle %s", document_id, sanitize_for_log(vin))
         return None
 
     except HTTPException:

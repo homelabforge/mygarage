@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.livelink_device import LiveLinkDevice
 from app.services.settings_service import SettingsService
 from app.utils.datetime_utils import utc_now
+from app.utils.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +105,7 @@ class LiveLinkService:
         device.updated_at = utc_now()
         await self.db.commit()
 
-        logger.info("Generated new device token for device %s", device_id)
+        logger.info("Generated new device token for device %s", sanitize_for_log(device_id))
         return token
 
     async def revoke_device_token(self, device_id: str) -> bool:
@@ -120,7 +121,7 @@ class LiveLinkService:
         device.updated_at = utc_now()
         await self.db.commit()
 
-        logger.info("Revoked device token for device %s", device_id)
+        logger.info("Revoked device token for device %s", sanitize_for_log(device_id))
         return True
 
     async def validate_device_token(self, device_id: str, token: str) -> bool:
@@ -263,7 +264,7 @@ class LiveLinkService:
         self.db.add(device)
         await self.db.flush()
 
-        logger.info("Auto-discovered new WiCAN device: %s", device_id)
+        logger.info("Auto-discovered new WiCAN device: %s", sanitize_for_log(device_id))
         return device, True
 
     async def link_device_to_vehicle(self, device_id: str, vin: str) -> bool:
@@ -279,7 +280,9 @@ class LiveLinkService:
         device.updated_at = utc_now()
         await self.db.commit()
 
-        logger.info("Linked device %s to vehicle %s", device_id, vin)
+        logger.info(
+            "Linked device %s to vehicle %s", sanitize_for_log(device_id), sanitize_for_log(vin)
+        )
         return True
 
     async def unlink_device(self, device_id: str) -> bool:
@@ -298,7 +301,11 @@ class LiveLinkService:
         device.updated_at = utc_now()
         await self.db.commit()
 
-        logger.info("Unlinked device %s from vehicle %s", device_id, old_vin)
+        logger.info(
+            "Unlinked device %s from vehicle %s",
+            sanitize_for_log(device_id),
+            sanitize_for_log(old_vin),
+        )
         return True
 
     async def update_device(
@@ -338,7 +345,7 @@ class LiveLinkService:
         await self.db.delete(device)
         await self.db.commit()
 
-        logger.info("Deleted device %s", device_id)
+        logger.info("Deleted device %s", sanitize_for_log(device_id))
         return True
 
     async def update_device_status(
