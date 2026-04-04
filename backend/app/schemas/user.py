@@ -6,7 +6,7 @@ import re
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
 from app.constants.i18n import SUPPORTED_CURRENCIES, SUPPORTED_LANGUAGES
 
@@ -78,8 +78,41 @@ class UserCreate(UserBase):
         return v
 
 
-class UserUpdate(BaseModel):
-    """Schema for updating a user."""
+class UserSelfUpdate(BaseModel):
+    """Schema for users updating their own profile. Rejects privileged fields."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    email: EmailStr | None = Field(None, max_length=255)
+    full_name: str | None = Field(None, max_length=255)
+    unit_preference: str | None = Field(None, pattern="^(imperial|metric)$")
+    show_both_units: bool | None = None
+    mobile_quick_entry_enabled: bool | None = None
+    # i18n preferences
+    language: str | None = Field(None, max_length=10)
+    currency_code: str | None = Field(None, max_length=3)
+
+    @field_validator("language")
+    @classmethod
+    def validate_language(cls, v: Any) -> Any:
+        """Validate language against supported allowlist."""
+        if v is not None and v not in SUPPORTED_LANGUAGES:
+            raise ValueError(f"Unsupported language: {v}. Supported: {sorted(SUPPORTED_LANGUAGES)}")
+        return v
+
+    @field_validator("currency_code")
+    @classmethod
+    def validate_currency_code(cls, v: Any) -> Any:
+        """Validate currency code against supported allowlist."""
+        if v is not None and v not in SUPPORTED_CURRENCIES:
+            raise ValueError(
+                f"Unsupported currency: {v}. Supported: {sorted(SUPPORTED_CURRENCIES)}"
+            )
+        return v
+
+
+class AdminUserUpdate(BaseModel):
+    """Schema for admin updating any user. Includes privileged fields."""
 
     email: EmailStr | None = Field(None, max_length=255)
     full_name: str | None = Field(None, max_length=255)
@@ -116,7 +149,7 @@ class UserUpdate(BaseModel):
         return v
 
     @model_validator(mode="after")
-    def validate_relationship_custom(self) -> UserUpdate:
+    def validate_relationship_custom(self) -> AdminUserUpdate:
         """Validate that relationship_custom is only set when relationship is 'other'."""
         if self.relationship_custom and self.relationship != "other":
             raise ValueError("relationship_custom can only be set when relationship is 'other'")
@@ -142,6 +175,28 @@ class UserPasswordUpdate(BaseModel):
     """Schema for updating user password."""
 
     current_password: str = Field(..., min_length=1, max_length=100)
+    new_password: str = Field(..., min_length=8, max_length=100)
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_password(cls, v: Any) -> Any:
+        """Validate password strength."""
+        if len(v) < 8:
+            raise ValueError("Password must be at least 8 characters long")
+        if not re.search(r"[A-Z]", v):
+            raise ValueError("Password must contain at least one uppercase letter")
+        if not re.search(r"[a-z]", v):
+            raise ValueError("Password must contain at least one lowercase letter")
+        if not re.search(r"\d", v):
+            raise ValueError("Password must contain at least one digit")
+        if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", v):
+            raise ValueError("Password must contain at least one special character")
+        return v
+
+
+class AdminPasswordReset(BaseModel):
+    """Schema for admin password reset."""
+
     new_password: str = Field(..., min_length=8, max_length=100)
 
     @field_validator("new_password")

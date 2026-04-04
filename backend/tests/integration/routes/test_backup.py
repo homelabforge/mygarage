@@ -400,3 +400,41 @@ class TestBackupRoutes:
         assert data["success"] is True
         assert data["backup"]["type"] == "full"
         assert data["backup"]["filename"].endswith(".tar.gz")
+
+    async def test_backup_non_admin_forbidden(self, client: AsyncClient, non_admin_headers):
+        """Test that non-admin users get 403 on all backup endpoints."""
+        # GET /stats
+        response = await client.get("/api/backup/stats", headers=non_admin_headers)
+        assert response.status_code == 403
+
+        # POST /create
+        response = await client.post("/api/backup/create", headers=non_admin_headers)
+        assert response.status_code == 403
+
+        # GET /list
+        response = await client.get("/api/backup/list", headers=non_admin_headers)
+        assert response.status_code == 403
+
+        # GET /download
+        response = await client.get("/api/backup/download/test.json", headers=non_admin_headers)
+        assert response.status_code == 403
+
+        # POST /restore
+        response = await client.post("/api/backup/restore/test.json", headers=non_admin_headers)
+        assert response.status_code == 403
+
+        # DELETE
+        response = await client.delete("/api/backup/test.json", headers=non_admin_headers)
+        assert response.status_code == 403
+
+        # POST /upload
+        response = await client.post(
+            "/api/backup/upload",
+            headers=non_admin_headers,
+            files={"file": ("test.json", BytesIO(b"{}"), "application/json")},
+        )
+        assert response.status_code == 403
+
+        # POST /create-full
+        response = await client.post("/api/backup/create-full", headers=non_admin_headers)
+        assert response.status_code == 403

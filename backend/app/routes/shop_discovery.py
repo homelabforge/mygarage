@@ -71,7 +71,7 @@ async def search_nearby_shops(
 
     except Exception as e:
         logger.error("Shop search failed: %s", str(e))
-        raise HTTPException(status_code=500, detail=f"Failed to search for shops: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to search for shops")
 
 
 @router.post("/save", response_model=AddressBookEntryResponse, status_code=201)

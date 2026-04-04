@@ -205,8 +205,8 @@ async def upload_window_sticker(
         with open(file_path, "wb") as f:
             f.write(content)
         logger.info("Saved window sticker to: %s", file_path)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Failed to save file")
 
     # Extract data using OCR with manufacturer-specific parser
     ocr_service = WindowStickerOCRService()

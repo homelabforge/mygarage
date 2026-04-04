@@ -243,6 +243,6 @@ async def ingest_wican_payload(
         logger.error("Error processing payload from %s: %s", device_id, e)
         await db.rollback()
         # Still return 202 - we accepted it even if processing failed
-        results["processing_error"] = str(e)
+        results["processing_error"] = True
 
     return results

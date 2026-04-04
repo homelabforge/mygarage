@@ -36,6 +36,7 @@ class FirmwareService:
             Dict with latest version info or error message
         """
         try:
+            # Hardcoded URL — no SSRF risk. Not routed through url_validation.py for this reason.
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.get(
                     GITHUB_RELEASES_URL,

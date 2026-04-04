@@ -417,3 +417,66 @@ class TestCookieSecureFlag:
         cookie_header = login_response.headers.get("set-cookie", "")
         assert settings.jwt_cookie_name in cookie_header
         assert "; secure" in cookie_header.lower()
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+@pytest.mark.asyncio
+class TestAdminPasswordReset:
+    """Test admin password reset endpoint."""
+
+    async def test_admin_reset_password_success(
+        self, client: AsyncClient, auth_headers, non_admin_user
+    ):
+        """Test that an admin can reset another user's password."""
+        response = await client.put(
+            f"/api/auth/users/{non_admin_user['id']}/password",
+            json={"new_password": "NewSecureP@ss1"},
+            headers=auth_headers,
+        )
+        assert response.status_code == 204
+
+    async def test_admin_reset_password_weak(
+        self, client: AsyncClient, auth_headers, non_admin_user
+    ):
+        """Test that weak passwords are rejected with 422."""
+        response = await client.put(
+            f"/api/auth/users/{non_admin_user['id']}/password",
+            json={"new_password": "weak"},
+            headers=auth_headers,
+        )
+        assert response.status_code == 422
+
+    async def test_admin_reset_password_oidc_user(
+        self, client: AsyncClient, auth_headers, db_session
+    ):
+        """Test that password reset is rejected for OIDC users."""
+        # Create an OIDC user
+        oidc_user = User(
+            username="oidcuser",
+            email="oidc@example.com",
+            hashed_password="unused",
+            is_active=True,
+            is_admin=False,
+            auth_method="oidc",
+        )
+        db_session.add(oidc_user)
+        await db_session.commit()
+        await db_session.refresh(oidc_user)
+
+        response = await client.put(
+            f"/api/auth/users/{oidc_user.id}/password",
+            json={"new_password": "NewSecureP@ss1"},
+            headers=auth_headers,
+        )
+        assert response.status_code == 400
+        assert "OIDC" in response.json()["detail"]
+
+    async def test_self_update_rejects_privileged_fields(self, client: AsyncClient, auth_headers):
+        """Test that PUT /api/auth/me rejects is_admin/is_active with 422."""
+        response = await client.put(
+            "/api/auth/me",
+            json={"is_admin": True},
+            headers=auth_headers,
+        )
+        assert response.status_code == 422
