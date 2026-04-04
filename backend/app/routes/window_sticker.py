@@ -216,7 +216,7 @@ async def upload_window_sticker(
             vin=vin,
             make=vehicle.make,
         )
-        logger.info("Extracted data from window sticker: %s", extracted_data)
+        logger.info("Extracted %d fields from window sticker", len(extracted_data))
     except Exception as e:
         logger.error("OCR extraction failed: %s", e)
         extracted_data = {}

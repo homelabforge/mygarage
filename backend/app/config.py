@@ -87,13 +87,17 @@ class Settings(BaseSettings):
     # JWT Authentication
     secret_key: str = Field(default_factory=get_or_create_secret_key)
     algorithm: str = "HS256"
-    access_token_expire_minutes: int = 60 * 24  # 24 hours
+    access_token_expire_minutes: int = 120  # 2 hours
 
     # JWT Cookie Settings (Security Enhancement v2.10.0)
     jwt_cookie_name: str = "mygarage_token"
     jwt_cookie_httponly: bool = True
     jwt_cookie_samesite: str = "lax"  # Options: "lax", "strict", "none"
-    jwt_cookie_max_age: int = 60 * 24 * 60  # 24 hours in seconds
+
+    @property
+    def jwt_cookie_max_age(self) -> int:
+        """Cookie max-age in seconds, derived from token expiry."""
+        return self.access_token_expire_minutes * 60
 
     @property
     def jwt_cookie_secure(self) -> bool:

@@ -91,7 +91,7 @@
   },
   "secretKey": {
     "label": "Secret Key:",
-    "description": "Automatically generated and stored securely at {{path}}. No manual configuration needed. The key persists across application restarts."
+    "description": "Automatically generated and stored at {{path}}, or set via the MYGARAGE_SECRET_KEY environment variable. The key persists across application restarts."
   },
   "stats": {
     "serviceRecords": "Service Records",

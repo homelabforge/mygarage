@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
 from app.utils.datetime_utils import utc_now
+from app.utils.logging_utils import sanitize_for_log
 
 from .state import store_oidc_state
 
@@ -142,7 +143,7 @@ async def create_or_update_user_from_oidc(
 
     if user:
         # Update existing OIDC user
-        logger.info("Found existing OIDC user: %s", user.username)
+        logger.info("Found existing OIDC user: %s", sanitize_for_log(user.username))
         user.full_name = full_name or user.full_name
         user.last_login = utc_now()
         user.oidc_provider = provider_name
@@ -156,7 +157,7 @@ async def create_or_update_user_from_oidc(
 
     if user:
         # Link OIDC to existing local account
-        logger.info("Linking OIDC account to existing user: %s", user.username)
+        logger.info("Linking OIDC account to existing user: %s", sanitize_for_log(user.username))
         user.oidc_subject = sub
         user.oidc_provider = provider_name
         user.auth_method = "oidc"  # Primary auth method is now OIDC
@@ -174,7 +175,9 @@ async def create_or_update_user_from_oidc(
         # Username match found but no OIDC link exists
         if user.hashed_password is None:
             # OIDC-only user (no password) - raise explicit error
-            logger.error("Username match for OIDC-only user (no password): %s", username)
+            logger.error(
+                "Username match for OIDC-only user (no password): %s", sanitize_for_log(username)
+            )
             raise ValueError(
                 f"Username '{username}' exists as SSO-only account. Contact support to link this account."
             )
@@ -182,14 +185,16 @@ async def create_or_update_user_from_oidc(
             # Already linked to different OIDC account - conflict
             logger.error(
                 "Username conflict: %s already linked to different OIDC account",
-                username,
+                sanitize_for_log(username),
             )
             raise ValueError(
                 f"Username '{username}' is already linked to a different account. Please contact support."
             )
         else:
             # Valid candidate for username-based linking - requires password verification
-            logger.info("Username match requires password verification: %s", username)
+            logger.info(
+                "Username match requires password verification: %s", sanitize_for_log(username)
+            )
             from app.exceptions import PendingLinkRequiredError
 
             raise PendingLinkRequiredError(
@@ -199,11 +204,13 @@ async def create_or_update_user_from_oidc(
     # Check if auto-create is enabled
     auto_create = config.get("auto_create_users", "true").lower() == "true"
     if not auto_create:
-        logger.warning("User not found for email %s and auto-create is disabled", email)
+        logger.warning(
+            "User not found for email %s and auto-create is disabled", sanitize_for_log(email)
+        )
         return None
 
     # Create new user from OIDC claims
-    logger.info("Creating new user from OIDC claims: %s", email)
+    logger.info("Creating new user from OIDC claims: %s", sanitize_for_log(email))
 
     # Determine if user should be admin based on groups
     is_admin = False
@@ -249,5 +256,5 @@ async def create_or_update_user_from_oidc(
     await db.commit()
     await db.refresh(user)
 
-    logger.info("Created new OIDC user: %s (admin=%s)", user.username, is_admin)
+    logger.info("Created new OIDC user: %s (admin=%s)", sanitize_for_log(user.username), is_admin)
     return user

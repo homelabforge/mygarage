@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.dtc_definition import DTCDefinition
 from app.models.vehicle_dtc import VehicleDTC
 from app.utils.datetime_utils import utc_now
+from app.utils.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
 
@@ -165,7 +166,9 @@ class DTCService:
         self.db.add(dtc)
         await self.db.flush()
 
-        logger.info("New DTC detected for vehicle %s: %s", vin, code)
+        logger.info(
+            "New DTC detected for vehicle %s: %s", sanitize_for_log(vin), sanitize_for_log(code)
+        )
         return dtc
 
     async def clear_dtc(
@@ -198,7 +201,9 @@ class DTCService:
                 dtc.user_notes = f"Cleared: {notes}"
 
         await self.db.commit()
-        logger.info("DTC %s cleared for vehicle %s", dtc.code, dtc.vin)
+        logger.info(
+            "DTC %s cleared for vehicle %s", sanitize_for_log(dtc.code), sanitize_for_log(dtc.vin)
+        )
         return dtc
 
     async def update_dtc(

@@ -14,6 +14,7 @@ from app.database import get_db, is_sqlite
 from app.models.user import User
 from app.services.auth import get_current_admin_user
 from app.services.backup_service import BackupService
+from app.utils.logging_utils import sanitize_for_log
 
 router = APIRouter(prefix="/api/backup", tags=["Backup"])
 logger = logging.getLogger(__name__)
@@ -362,7 +363,9 @@ async def upload_backup(
         with open(backup_path, "wb") as f:
             f.write(content)
 
-        logger.info("Uploaded backup: %s (original: %s)", safe_filename, file.filename)
+        logger.info(
+            "Uploaded backup: %s (original: %s)", safe_filename, sanitize_for_log(file.filename)
+        )
 
         # Get file stats
         stat = backup_path.stat()

@@ -29,6 +29,7 @@ from app.models.user import User
 from app.services import oidc as oidc_service
 from app.services.auth import create_access_token, get_current_user
 from app.utils.datetime_utils import utc_now
+from app.utils.logging_utils import sanitize_for_log
 from app.utils.request_scheme import get_cookie_secure, get_request_scheme
 
 logger = logging.getLogger(__name__)
@@ -234,7 +235,7 @@ async def oidc_callback(
 
         if isinstance(e, PendingLinkRequiredError):
             # Username match requires password verification
-            logger.info("Pending link required for username: %s", e.username)
+            logger.info("Pending link required for username: %s", sanitize_for_log(e.username))
 
             # Create pending link token
             pending_token = await oidc_service.create_pending_link_token(
@@ -282,7 +283,7 @@ async def oidc_callback(
     csrf_token = CSRFToken(
         token=csrf_token_value,
         user_id=user.id,
-        expires_at=CSRFToken.get_expiry_time(hours=24),  # Same as JWT expiry
+        expires_at=CSRFToken.get_expiry_time(),
     )
     db.add(csrf_token)
     await db.commit()
@@ -294,7 +295,7 @@ async def oidc_callback(
         expires_delta=access_token_expires,
     )
 
-    logger.info("OIDC login successful for user: %s", user.username)
+    logger.info("OIDC login successful for user: %s", sanitize_for_log(user.username))
 
     # Set httpOnly cookie and redirect with CSRF token (Security Enhancement v2.10.0)
     # Frontend needs CSRF token for state-changing requests
@@ -412,7 +413,7 @@ async def link_oidc_account(
 
     # Check if user is active
     if not user.is_active:
-        logger.warning("OIDC link attempt for inactive user: %s", user.username)
+        logger.warning("OIDC link attempt for inactive user: %s", sanitize_for_log(user.username))
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User account is disabled",
@@ -442,7 +443,7 @@ async def link_oidc_account(
     csrf_token = CSRFToken(
         token=csrf_token_value,
         user_id=user.id,
-        expires_at=CSRFToken.get_expiry_time(hours=24),  # Same as JWT expiry
+        expires_at=CSRFToken.get_expiry_time(),
     )
     db.add(csrf_token)
     await db.commit()
@@ -454,7 +455,7 @@ async def link_oidc_account(
         expires_delta=access_token_expires,
     )
 
-    logger.info("OIDC account linked successfully for user: %s", user.username)
+    logger.info("OIDC account linked successfully for user: %s", sanitize_for_log(user.username))
 
     # Set httpOnly cookie
     response.set_cookie(

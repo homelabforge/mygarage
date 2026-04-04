@@ -49,6 +49,10 @@ class CSRFToken(Base):
         return utc_now() > self.expires_at
 
     @classmethod
-    def get_expiry_time(cls, hours: int = 24) -> datetime:
-        """Get expiry timestamp for a new token (default 24 hours)."""
-        return utc_now() + timedelta(hours=hours)
+    def get_expiry_time(cls, minutes: int | None = None) -> datetime:
+        """Get expiry timestamp, defaults to configured session lifetime."""
+        if minutes is None:
+            from app.config import settings
+
+            minutes = settings.access_token_expire_minutes
+        return utc_now() + timedelta(minutes=minutes)

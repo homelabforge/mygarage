@@ -18,6 +18,7 @@ from app.models.settings import Setting
 from app.models.user import User
 from app.services.auth import verify_password
 from app.utils.datetime_utils import utc_now
+from app.utils.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +90,7 @@ async def create_pending_link_token(
 
     logger.info(
         "Created pending link token for username: %s (expires in %s minutes)",
-        username,
+        sanitize_for_log(username),
         expire_minutes,
     )
     return token
@@ -134,7 +135,7 @@ async def validate_and_consume_pending_link(
 
     # Check if expired
     if pending_link.is_expired():
-        logger.warning("Pending link token expired: %s", pending_link.username)
+        logger.warning("Pending link token expired: %s", sanitize_for_log(pending_link.username))
         await db.delete(pending_link)
         await db.commit()
         return (None, "Link expired, please log in again")
@@ -148,7 +149,10 @@ async def validate_and_consume_pending_link(
 
     # Check attempt count
     if pending_link.attempt_count >= max_attempts:
-        logger.warning("Max password attempts exceeded for username: %s", pending_link.username)
+        logger.warning(
+            "Max password attempts exceeded for username: %s",
+            sanitize_for_log(pending_link.username),
+        )
         await db.delete(pending_link)
         await db.commit()
         return (None, "Too many failed attempts. Please log in again.")
@@ -158,14 +162,17 @@ async def validate_and_consume_pending_link(
     user = result.scalar_one_or_none()
 
     if not user:
-        logger.error("User not found for pending link: %s", pending_link.username)
+        logger.error("User not found for pending link: %s", sanitize_for_log(pending_link.username))
         await db.delete(pending_link)
         await db.commit()
         return (None, "Link expired, please log in again")
 
     # Security check: user must have a password (not OIDC-only)
     if user.hashed_password is None:
-        logger.error("Username match for OIDC-only user (no password): %s", pending_link.username)
+        logger.error(
+            "Username match for OIDC-only user (no password): %s",
+            sanitize_for_log(pending_link.username),
+        )
         await db.delete(pending_link)
         await db.commit()
         return (None, "Link expired, please log in again")
@@ -185,7 +192,7 @@ async def validate_and_consume_pending_link(
     if user.oidc_subject and user.oidc_subject != sub:
         logger.error(
             "Username conflict: %s already linked to different OIDC account",
-            pending_link.username,
+            sanitize_for_log(pending_link.username),
         )
         await db.delete(pending_link)
         await db.commit()
@@ -203,7 +210,7 @@ async def validate_and_consume_pending_link(
         remaining = max_attempts - pending_link.attempt_count
         logger.warning(
             "Invalid password attempt for username: %s (%s/%s)",
-            pending_link.username,
+            sanitize_for_log(pending_link.username),
             pending_link.attempt_count,
             max_attempts,
         )
@@ -216,7 +223,10 @@ async def validate_and_consume_pending_link(
         return (None, f"Invalid password. {remaining} attempt(s) remaining.")
 
     # Password correct - link accounts
-    logger.info("Password verified, linking OIDC account to user: %s", pending_link.username)
+    logger.info(
+        "Password verified, linking OIDC account to user: %s",
+        sanitize_for_log(pending_link.username),
+    )
 
     # Merge claims
     all_claims = {**claims}
@@ -240,5 +250,7 @@ async def validate_and_consume_pending_link(
     await db.commit()
     await db.refresh(user)
 
-    logger.info("Successfully linked OIDC account to existing user: %s", user.username)
+    logger.info(
+        "Successfully linked OIDC account to existing user: %s", sanitize_for_log(user.username)
+    )
     return (user, None)
