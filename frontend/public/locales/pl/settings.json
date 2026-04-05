@@ -108,5 +108,138 @@
     "displayError": "Nie udało się zapisać preferencji wyświetlania",
     "mobileSaved": "Preferencje interfejsu mobilnego zostały zapisane!",
     "mobileError": "Nie udało się zapisać preferencji interfejsu mobilnego"
+  },
+  "files": {
+    "title": "Zarządzanie plikami",
+    "description": "Konfiguracja limitów przesyłania plików, dozwolonych typów plików i ustawień przechowywania.",
+    "loading": "Ładowanie ustawień plików...",
+    "loadError": "Nie udało się załadować ustawień plików",
+    "maxUploadSize": "Maksymalny rozmiar przesyłania (MB)",
+    "maxUploadSizeDesc": "Maksymalny dozwolony rozmiar pliku do przesłania w megabajtach.",
+    "allowedPhotoTypes": "Dozwolone typy zdjęć",
+    "allowedPhotoTypesDesc": "Wybierz formaty obrazów, które mogą być przesyłane jako zdjęcia pojazdów.",
+    "allowedAttachmentTypes": "Dozwolone typy załączników",
+    "allowedAttachmentTypesDesc": "Wybierz formaty plików, które mogą być przesyłane jako załączniki dokumentów.",
+    "storageInfo": "Informacje o przechowywaniu",
+    "dataDirectory": "Katalog danych",
+    "photosDirectory": "Katalog zdjęć",
+    "documentsDirectory": "Katalog dokumentów",
+    "windowSticker": "Naklejka okienna",
+    "windowStickerDesc": "Konfiguracja przesyłania i przetwarzania OCR naklejek okiennych (etykiet Monroney).",
+    "enableWindowSticker": "Włącz przesyłanie naklejek okiennych",
+    "enableWindowStickerDesc": "Pozwól użytkownikom przesyłać naklejki okienne w celu automatycznego wyodrębniania danych.",
+    "enableOCR": "Włącz przetwarzanie OCR",
+    "enableOCRDesc": "Automatyczne wyodrębnianie danych o cenach i specyfikacjach z przesłanych naklejek okiennych.",
+    "aboutWindowStickers": "O naklejkach okiennych"
+  },
+  "integrations": {
+    "loading": "Ładowanie ustawień integracji...",
+    "loadError": "Nie udało się załadować ustawień integracji",
+    "loadProvidersError": "Nie udało się załadować listy dostawców",
+    "nhtsa": "Wycofania NHTSA",
+    "nhtsaDesc": "Automatyczne sprawdzanie wycofań pojazdów przez Krajową Administrację Bezpieczeństwa Ruchu Drogowego.",
+    "enableNHTSA": "Włącz integrację NHTSA",
+    "enableNHTSADesc": "Sprawdzaj wycofania pojazdów za pomocą bazy danych NHTSA.",
+    "enableAutoCheck": "Automatyczne sprawdzanie wycofań",
+    "enableAutoCheckDesc": "Automatycznie sprawdzaj nowe wycofania w zaplanowanych odstępach czasu.",
+    "daily": "Codziennie",
+    "weeklyRecommended": "Co tydzień (zalecane)",
+    "biWeekly": "Co dwa tygodnie",
+    "monthly": "Co miesiąc",
+    "quarterly": "Co kwartał",
+    "recallCheckIntervalDesc": "Jak często automatycznie sprawdzać nowe wycofania.",
+    "nhtsaApiUrlDesc": "Punkt końcowy API NHTSA do wyszukiwania wycofań. Zmieniaj tylko w przypadku korzystania z proxy lub niestandardowego punktu końcowego.",
+    "testingConnection": "Testowanie...",
+    "testNHTSA": "Testuj połączenie NHTSA",
+    "testNHTSADesc": "Testuje łączność z API NHTSA przez dekodowanie przykładowego numeru VIN.",
+    "nhtsaTestSuccess": "Połączenie z API NHTSA udane!",
+    "nhtsaTestFailed": "Nie udało się połączyć z API NHTSA. Sprawdź URL i spróbuj ponownie.",
+    "carComplaints": "CarComplaints",
+    "carComplaintsDesc": "Linki do danych o reklamacjach konsumenckich dla Twoich pojazdów.",
+    "enableCarComplaints": "Włącz integrację CarComplaints",
+    "enableCarComplaintsDesc": "Dodaj linki do CarComplaints.com w celu badania znanych problemów z pojazdami.",
+    "aboutCarComplaints": "O CarComplaints",
+    "shopFinder": "Wyszukiwarka warsztatów",
+    "shopFinderDesc": "Konfiguracja dostawców punktów zainteresowania do wyszukiwania pobliskich warsztatów i centrów serwisowych.",
+    "provider": "Dostawca",
+    "active": "Aktywny",
+    "apiLimits": "Limity API",
+    "options": "Opcje",
+    "addService": "Dodaj dostawcę",
+    "providerRemoved": "Dostawca został pomyślnie usunięty",
+    "removeProviderError": "Nie udało się usunąć dostawcy",
+    "livelink": "LiveLink",
+    "livelinkDesc": "Telemetria pojazdów w czasie rzeczywistym za pomocą urządzeń WiCAN PRO OBD2.",
+    "livelinkLoading": "Ładowanie statusu LiveLink...",
+    "disabled": "Wyłączono",
+    "receivingData": "Odbieranie danych na żywo",
+    "noDevices": "Brak skonfigurowanych urządzeń",
+    "firmwareUpdate": "Dostępna aktualizacja oprogramowania dla jednego lub więcej urządzeń",
+    "configureLiveLink": "Konfiguruj LiveLink",
+    "configureDesc": "Zarządzaj urządzeniami WiCAN, ustawieniami MQTT i parametrami telemetrii.",
+    "aboutLiveLink": "O LiveLink"
+  },
+  "notifications": {
+    "loading": "Ładowanie ustawień powiadomień...",
+    "loadError": "Nie udało się załadować ustawień powiadomień",
+    "testFailed": "Nie udało się wysłać testowego powiadomienia przez {{service}}"
+  },
+  "ntfy": {
+    "enable": "Włącz powiadomienia ntfy"
+  },
+  "gotify": {
+    "enable": "Włącz powiadomienia Gotify",
+    "appToken": "Token aplikacji"
+  },
+  "pushover": {
+    "enable": "Włącz powiadomienia Pushover"
+  },
+  "slack": {
+    "enable": "Włącz powiadomienia Slack"
+  },
+  "discord": {
+    "enable": "Włącz powiadomienia Discord"
+  },
+  "telegram": {
+    "enable": "Włącz powiadomienia Telegram"
+  },
+  "email": {
+    "enable": "Włącz powiadomienia e-mail"
+  },
+  "events": {
+    "title": "Powiadomienia o zdarzeniach",
+    "enableServiceFirst": "Włącz co najmniej jedną usługę powiadomień"
+  },
+  "backup": {
+    "loading": "Ładowanie danych kopii zapasowych...",
+    "loadError": "Nie udało się załadować danych kopii zapasowych",
+    "settingsBackup": "Kopia zapasowa ustawień",
+    "settingsBackupDesc": "Tworzenie kopii zapasowych i przywracanie ustawień aplikacji jako pliki JSON.",
+    "databaseSize": "Rozmiar bazy danych",
+    "settingsBackups": "Kopie zapasowe ustawień",
+    "lastModified": "Ostatnia modyfikacja",
+    "never": "Nigdy",
+    "creatingBackup": "Tworzenie...",
+    "createSettingsBackup": "Utwórz kopię zapasową ustawień",
+    "uploadSettingsBackup": "Prześlij kopię zapasową ustawień",
+    "createSettingsError": "Nie udało się utworzyć kopii zapasowej ustawień",
+    "filename": "Nazwa pliku",
+    "size": "Rozmiar",
+    "created": "Utworzono",
+    "actions": "Akcje",
+    "download": "Pobierz",
+    "restore": "Przywróć",
+    "noSettingsBackups": "Brak kopii zapasowych ustawień. Utwórz pierwszą, aby rozpocząć.",
+    "fullDataBackup": "Pełna kopia zapasowa danych",
+    "fullDataBackupDesc": "Tworzenie kopii zapasowej całej bazy danych, zdjęć, dokumentów i załączników.",
+    "fullBackups": "Pełne kopie zapasowe",
+    "dataIncluded": "Zawarte dane",
+    "importantInfo": "Ważne informacje",
+    "creatingFullBackup": "Tworzenie...",
+    "createFullBackup": "Utwórz pełną kopię zapasową",
+    "uploadFullBackup": "Prześlij pełną kopię zapasową",
+    "createFullError": "Nie udało się utworzyć pełnej kopii zapasowej",
+    "restoreOverwrite": "Przywróć (nadpisuje wszystkie dane)",
+    "noFullBackups": "Brak pełnych kopii zapasowych. Utwórz pierwszą, aby rozpocząć."
   }
 }
