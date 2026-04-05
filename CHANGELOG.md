@@ -7,12 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.26.0] - 2026-04-05
+
 ### Changed
 - Replace react-big-calendar with Schedule-X — native TypeScript, React 19 support, zero lodash dependency, resolves all 9 npm audit vulnerabilities
 
 ### Fixed
 - Add missing i18n translation keys for File Management, Integrations, Notifications, and Backup & Restore settings tabs
 - Fix stale closure in calendar event fetching that caused "Failed to load calendar events" on filter changes
+
+### Security
+- Restrict all backup API endpoints to admin-only access
+- Fix information leakage via raw exception text in HTTP error responses
+- Fix broken admin password reset endpoint (ImportError on every call)
+- Enforce magic byte validation for photo uploads
+- Reject privileged fields (`is_admin`, `is_active`) on self-update endpoint
+- Reduce JWT session lifetime from 24h to 2h; centralize JWT, cookie, and CSRF expiry from single config value
+- Sanitize ~70 logger call sites to prevent log injection via usernames, device IDs, emails, and filenames
+- Redact structured data from logs (OCR output, OIDC token responses, settings dicts)
+- Document `MYGARAGE_SECRET_KEY` environment variable override in startup logs and settings UI
 
 ### Dev Dependencies
 - **@playwright/test**: 1.58.2 → 1.59.1
@@ -41,20 +54,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **react-router-dom**: 7.13.2 → 7.14.0
 - **recharts**: 3.8.0 → 3.8.1
 - **sqlalchemy**: 2.0.48 → 2.0.49
-
-### Fixed
-- Add missing i18n translation keys for File Management, Integrations, Notifications, and Backup & Restore settings tabs
-
-### Security
-- Restrict all backup API endpoints to admin-only access
-- Fix information leakage via raw exception text in HTTP error responses
-- Fix broken admin password reset endpoint (ImportError on every call)
-- Enforce magic byte validation for photo uploads
-- Reject privileged fields (`is_admin`, `is_active`) on self-update endpoint
-- Reduce JWT session lifetime from 24h to 2h; centralize JWT, cookie, and CSRF expiry from single config value
-- Sanitize ~70 logger call sites to prevent log injection via usernames, device IDs, emails, and filenames
-- Redact structured data from logs (OCR output, OIDC token responses, settings dicts)
-- Document `MYGARAGE_SECRET_KEY` environment variable override in startup logs and settings UI
 
 ## [2.25.2] - 2026-03-31
 
