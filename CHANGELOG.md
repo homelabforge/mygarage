@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Add missing i18n translation keys for File Management, Integrations, Notifications, and Backup & Restore settings tabs
+
 ### Security
 - Restrict all backup API endpoints to admin-only access
 - Fix information leakage via raw exception text in HTTP error responses

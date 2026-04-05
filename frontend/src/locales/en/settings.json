@@ -108,5 +108,138 @@
     "displayError": "Failed to save display preference",
     "mobileSaved": "Mobile preference saved!",
     "mobileError": "Failed to save mobile preference"
+  },
+  "files": {
+    "title": "File Management",
+    "description": "Configure file upload limits, allowed file types, and storage settings.",
+    "loading": "Loading file settings...",
+    "loadError": "Failed to load file settings",
+    "maxUploadSize": "Maximum Upload Size (MB)",
+    "maxUploadSizeDesc": "Maximum file size allowed for uploads in megabytes.",
+    "allowedPhotoTypes": "Allowed Photo Types",
+    "allowedPhotoTypesDesc": "Select which image formats can be uploaded as vehicle photos.",
+    "allowedAttachmentTypes": "Allowed Attachment Types",
+    "allowedAttachmentTypesDesc": "Select which file formats can be uploaded as document attachments.",
+    "storageInfo": "Storage Information",
+    "dataDirectory": "Data Directory",
+    "photosDirectory": "Photos Directory",
+    "documentsDirectory": "Documents Directory",
+    "windowSticker": "Window Sticker",
+    "windowStickerDesc": "Configure window sticker (Monroney label) upload and OCR processing.",
+    "enableWindowSticker": "Enable Window Sticker Upload",
+    "enableWindowStickerDesc": "Allow users to upload window stickers for automatic data extraction.",
+    "enableOCR": "Enable OCR Processing",
+    "enableOCRDesc": "Automatically extract pricing and specification data from uploaded window stickers.",
+    "aboutWindowStickers": "About Window Stickers"
+  },
+  "integrations": {
+    "loading": "Loading integration settings...",
+    "loadError": "Failed to load integration settings",
+    "loadProvidersError": "Failed to load POI providers",
+    "nhtsa": "NHTSA Recalls",
+    "nhtsaDesc": "Automatic vehicle recall checking via the National Highway Traffic Safety Administration.",
+    "enableNHTSA": "Enable NHTSA Integration",
+    "enableNHTSADesc": "Check for vehicle recalls using the NHTSA database.",
+    "enableAutoCheck": "Automatic Recall Checking",
+    "enableAutoCheckDesc": "Automatically check for new recalls on a scheduled interval.",
+    "daily": "Daily",
+    "weeklyRecommended": "Weekly (Recommended)",
+    "biWeekly": "Bi-Weekly",
+    "monthly": "Monthly",
+    "quarterly": "Quarterly",
+    "recallCheckIntervalDesc": "How often to automatically check for new recalls.",
+    "nhtsaApiUrlDesc": "The NHTSA API endpoint for recall lookups. Only change if using a proxy or custom endpoint.",
+    "testingConnection": "Testing...",
+    "testNHTSA": "Test NHTSA Connection",
+    "testNHTSADesc": "Tests connectivity to the NHTSA API by decoding a sample VIN.",
+    "nhtsaTestSuccess": "NHTSA API connection successful!",
+    "nhtsaTestFailed": "Failed to connect to the NHTSA API. Check the URL and try again.",
+    "carComplaints": "CarComplaints",
+    "carComplaintsDesc": "Links to consumer complaint data for your vehicles.",
+    "enableCarComplaints": "Enable CarComplaints Integration",
+    "enableCarComplaintsDesc": "Add links to CarComplaints.com for researching known vehicle issues.",
+    "aboutCarComplaints": "About CarComplaints",
+    "shopFinder": "Shop Finder",
+    "shopFinderDesc": "Configure point-of-interest providers for finding nearby auto shops and service centers.",
+    "provider": "Provider",
+    "active": "Active",
+    "apiLimits": "API Limits",
+    "options": "Options",
+    "addService": "Add Provider",
+    "providerRemoved": "Provider removed successfully",
+    "removeProviderError": "Failed to remove provider",
+    "livelink": "LiveLink",
+    "livelinkDesc": "Real-time vehicle telemetry via WiCAN PRO OBD2 devices.",
+    "livelinkLoading": "Loading LiveLink status...",
+    "disabled": "Disabled",
+    "receivingData": "Receiving live data",
+    "noDevices": "No devices configured",
+    "firmwareUpdate": "Firmware update available for one or more devices",
+    "configureLiveLink": "Configure LiveLink",
+    "configureDesc": "Manage WiCAN devices, MQTT settings, and telemetry parameters.",
+    "aboutLiveLink": "About LiveLink"
+  },
+  "notifications": {
+    "loading": "Loading notification settings...",
+    "loadError": "Failed to load notification settings",
+    "testFailed": "Failed to send test notification via {{service}}"
+  },
+  "ntfy": {
+    "enable": "Enable ntfy notifications"
+  },
+  "gotify": {
+    "enable": "Enable Gotify notifications",
+    "appToken": "Application Token"
+  },
+  "pushover": {
+    "enable": "Enable Pushover notifications"
+  },
+  "slack": {
+    "enable": "Enable Slack notifications"
+  },
+  "discord": {
+    "enable": "Enable Discord notifications"
+  },
+  "telegram": {
+    "enable": "Enable Telegram notifications"
+  },
+  "email": {
+    "enable": "Enable Email notifications"
+  },
+  "events": {
+    "title": "Event Notifications",
+    "enableServiceFirst": "Enable at least one notification service"
+  },
+  "backup": {
+    "loading": "Loading backup data...",
+    "loadError": "Failed to load backup data",
+    "settingsBackup": "Settings Backup",
+    "settingsBackupDesc": "Back up and restore your application settings as JSON files.",
+    "databaseSize": "Database Size",
+    "settingsBackups": "Settings Backups",
+    "lastModified": "Last Modified",
+    "never": "Never",
+    "creatingBackup": "Creating...",
+    "createSettingsBackup": "Create Settings Backup",
+    "uploadSettingsBackup": "Upload Settings Backup",
+    "createSettingsError": "Failed to create settings backup",
+    "filename": "Filename",
+    "size": "Size",
+    "created": "Created",
+    "actions": "Actions",
+    "download": "Download",
+    "restore": "Restore",
+    "noSettingsBackups": "No settings backups yet. Create one to get started.",
+    "fullDataBackup": "Full Data Backup",
+    "fullDataBackupDesc": "Back up your entire database, photos, documents, and attachments.",
+    "fullBackups": "Full Backups",
+    "dataIncluded": "Data Included",
+    "importantInfo": "Important Information",
+    "creatingFullBackup": "Creating...",
+    "createFullBackup": "Create Full Backup",
+    "uploadFullBackup": "Upload Full Backup",
+    "createFullError": "Failed to create full backup",
+    "restoreOverwrite": "Restore (overwrites all data)",
+    "noFullBackups": "No full backups yet. Create one to get started."
   }
 }
