@@ -1,37 +1,42 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Calendar as CalendarIcon, Filter, AlertCircle, CheckCircle, RotateCw, Clock, Wrench, Search, Download, Gauge, X, CheckSquare, Square, MessageCircle } from 'lucide-react'
-import { Calendar as BigCalendar, dateFnsLocalizer, View } from 'react-big-calendar'
-import { format, parse, startOfWeek, getDay, startOfMonth, endOfMonth, subMonths, addMonths, startOfDay, endOfDay, addDays, differenceInDays, isBefore, isAfter } from 'date-fns'
-import { enUS } from 'date-fns/locale'
+import { useCalendarApp, ScheduleXCalendar } from '@schedule-x/react'
+import { createViewDay, createViewWeek, createViewMonthGrid } from '@schedule-x/calendar'
+import { createEventsServicePlugin } from '@schedule-x/events-service'
+import { createCalendarControlsPlugin } from '@schedule-x/calendar-controls'
+import 'temporal-polyfill/global'
+import '@schedule-x/theme-default/dist/index.css'
+import { format, startOfMonth, endOfMonth, subMonths, addMonths, startOfDay, endOfDay, addDays, differenceInDays, isBefore, isAfter } from 'date-fns'
 import { toast } from 'sonner'
 import { useNavigate } from 'react-router-dom'
-import 'react-big-calendar/lib/css/react-big-calendar.css'
 import type { CalendarEvent, CalendarResponse } from '../types/calendar'
 import type { Vehicle } from '../types/vehicle'
 import api from '../services/api'
 
-// date-fns localizer for react-big-calendar
-const locales = {
-  'en-US': enUS,
-}
-
-const localizer = dateFnsLocalizer({
-  format,
-  parse,
-  startOfWeek,
-  getDay,
-  locales,
-})
-
-// Define event type for react-big-calendar
-interface BigCalendarEvent {
-  id: string
-  title: string
-  start: Date
-  end: Date
-  resource: CalendarEvent
-}
+// Map event type -> Schedule-X calendarId for per-type coloring
+const EVENT_CALENDARS = {
+  maintenance: {
+    colorName: 'maintenance',
+    lightColors: { main: '#3b82f6', container: '#dbeafe', onContainer: '#1e3a5f' },
+    darkColors: { main: '#60a5fa', onContainer: '#bfdbfe', container: '#1e3a8a' },
+  },
+  insurance: {
+    colorName: 'insurance',
+    lightColors: { main: '#ef4444', container: '#fee2e2', onContainer: '#7f1d1d' },
+    darkColors: { main: '#f87171', onContainer: '#fecaca', container: '#991b1b' },
+  },
+  warranty: {
+    colorName: 'warranty',
+    lightColors: { main: '#f59e0b', container: '#fef3c7', onContainer: '#78350f' },
+    darkColors: { main: '#fbbf24', onContainer: '#fde68a', container: '#92400e' },
+  },
+  service: {
+    colorName: 'service',
+    lightColors: { main: '#6b7280', container: '#f3f4f6', onContainer: '#374151' },
+    darkColors: { main: '#9ca3af', onContainer: '#d1d5db', container: '#4b5563' },
+  },
+} as const
 
 export default function CalendarPage() {
   const { t } = useTranslation('vehicles')
@@ -43,8 +48,54 @@ export default function CalendarPage() {
   const [selectedVehicles, setSelectedVehicles] = useState<string[]>([])
   const [selectedTypes, setSelectedTypes] = useState<string[]>(['maintenance', 'insurance', 'warranty'])
   const [showHistory, setShowHistory] = useState(false)
-  const [view, setView] = useState<View>('month')
   const [date, setDate] = useState(new Date())
+
+  // Schedule-X plugins (stable refs via useState initializer)
+  const [eventsService] = useState(() => createEventsServicePlugin())
+  const [calendarControls] = useState(() => createCalendarControlsPlugin())
+
+  // Detect dark mode from <html> class
+  const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
+
+  const calendar = useCalendarApp({
+    views: [createViewMonthGrid(), createViewWeek(), createViewDay()],
+    defaultView: 'month-grid',
+    selectedDate: Temporal.PlainDate.from(format(new Date(), 'yyyy-MM-dd')),
+    isDark,
+    calendars: EVENT_CALENDARS,
+    callbacks: {
+      onEventClick(calendarEvent) {
+        // calendarEvent._customData holds the original CalendarEvent
+        const original = calendarEvent._customData as CalendarEvent | undefined
+        if (!original) return
+        const [type] = original.id.split('-')
+        switch (type) {
+          case 'maintenance':
+            navigate(`/vehicles/${original.vehicle_vin}?tab=maintenance`)
+            break
+          case 'insurance':
+            navigate(`/vehicles/${original.vehicle_vin}?tab=insurance`)
+            break
+          case 'warranty':
+            navigate(`/vehicles/${original.vehicle_vin}?tab=warranties`)
+            break
+          case 'service':
+            navigate(`/vehicles/${original.vehicle_vin}?tab=service`)
+            break
+        }
+      },
+      onRangeUpdate(range) {
+        // range.start may be a Temporal object or string like "2026-06-01 00:00"
+        // Extract YYYY-MM-DD and use noon to avoid timezone edge cases
+        const dateStr = String(range.start).slice(0, 10)
+        const parsed = new Date(dateStr + 'T12:00:00')
+        if (!isNaN(parsed.getTime())) {
+          setDate(parsed)
+        }
+      },
+    },
+    plugins: [eventsService, calendarControls],
+  })
 
   // Phase 3 state
   const [searchQuery, setSearchQuery] = useState('')
@@ -119,7 +170,7 @@ export default function CalendarPage() {
       setLoading(false)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [date, selectedVehicles, selectedTypes, showHistory])
+  }, [date, selectedVehicles, selectedTypes, showHistory, cachedStartDate, cachedEndDate])
 
   useEffect(() => {
     loadVehicles()
@@ -148,19 +199,22 @@ export default function CalendarPage() {
     )
   }, [events, searchQuery])
 
-  // Convert CalendarEvents to BigCalendar format (use filtered events for search)
-  const bigCalendarEvents: BigCalendarEvent[] = useMemo(() => {
-    return filteredEvents.map(event => {
-      const eventDate = new Date(event.date)
+  // Sync filtered events into Schedule-X events service
+  useEffect(() => {
+    const sxEvents = filteredEvents.map(event => {
+      const dateStr = event.date.split('T')[0]
+      const pd = Temporal.PlainDate.from(dateStr)
       return {
         id: event.id,
         title: event.title,
-        start: eventDate,
-        end: eventDate,
-        resource: event,
+        start: pd,
+        end: pd,
+        calendarId: event.type as string,
+        _customData: event,
       }
     })
-  }, [filteredEvents])
+    eventsService.set(sxEvents)
+  }, [filteredEvents, eventsService])
 
   // Get upcoming events (next 30 days, not completed)
   const upcomingEvents = useMemo(() => {
@@ -177,27 +231,7 @@ export default function CalendarPage() {
       .slice(0, 10)
   }, [filteredEvents])
 
-  // Handle event click
-  const handleEventClick = (event: BigCalendarEvent) => {
-    const calendarEvent = event.resource
-    const [type] = calendarEvent.id.split('-')
-
-    // Navigate to appropriate detail page
-    switch (type) {
-      case 'maintenance':
-        navigate(`/vehicles/${calendarEvent.vehicle_vin}?tab=maintenance`)
-        break
-      case 'insurance':
-        navigate(`/vehicles/${calendarEvent.vehicle_vin}?tab=insurance`)
-        break
-      case 'warranty':
-        navigate(`/vehicles/${calendarEvent.vehicle_vin}?tab=warranties`)
-        break
-      case 'service':
-        navigate(`/vehicles/${calendarEvent.vehicle_vin}?tab=service`)
-        break
-    }
-  }
+  // Event click is handled via Schedule-X callbacks.onEventClick in useCalendarApp config above
 
   // Quick complete reminder
   const handleQuickComplete = async (eventId: string, e: React.MouseEvent) => {
@@ -307,47 +341,7 @@ export default function CalendarPage() {
     setShowNotesModal(true)
   }
 
-  // Custom event style getter
-  const eventStyleGetter = (event: BigCalendarEvent) => {
-    const calendarEvent = event.resource
-    let backgroundColor = '#3b82f6' // default blue
-    let borderColor = '#3b82f6'
-
-    // Color by type
-    switch (calendarEvent.type) {
-      case 'insurance':
-        backgroundColor = '#ef4444' // red
-        borderColor = '#ef4444'
-        break
-      case 'warranty':
-        backgroundColor = '#f59e0b' // amber
-        borderColor = '#f59e0b'
-        break
-      case 'maintenance':
-        backgroundColor = '#3b82f6' // blue
-        borderColor = '#3b82f6'
-        break
-      case 'service':
-        backgroundColor = '#6b7280' // gray (muted)
-        borderColor = '#6b7280'
-        break
-    }
-
-    // Add urgency indicator
-    if (calendarEvent.urgency === 'overdue') {
-      borderColor = '#dc2626' // darker red border
-    }
-
-    return {
-      style: {
-        backgroundColor,
-        borderLeft: `4px solid ${borderColor}`,
-        color: '#fff',
-        borderRadius: '4px',
-        opacity: calendarEvent.is_completed ? 0.5 : calendarEvent.urgency === 'historical' ? 0.6 : 1,
-      }
-    }
-  }
+  // Event styling is handled via Schedule-X calendars config (per-type colors defined in EVENT_CALENDARS)
 
   // Toggle vehicle filter
   const toggleVehicle = (vin: string) => {
@@ -587,22 +581,8 @@ export default function CalendarPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Calendar */}
           <div className="lg:col-span-2 bg-garage-surface border border-garage-border rounded-lg p-4 relative">
-            <div className="calendar-container" style={{ height: 600 }}>
-              <BigCalendar
-                localizer={localizer}
-                events={bigCalendarEvents}
-                startAccessor="start"
-                endAccessor="end"
-                view={view}
-                onView={setView}
-                date={date}
-                onNavigate={setDate}
-                onSelectEvent={handleEventClick}
-                eventPropGetter={eventStyleGetter}
-                popup
-                views={['month', 'week', 'day', 'agenda']}
-                style={{ height: '100%' }}
-              />
+            <div className="sx-calendar-wrapper" style={{ height: 600 }}>
+              <ScheduleXCalendar calendarApp={calendar} />
             </div>
             {loading && (
               <div className="absolute inset-0 bg-garage-bg/50 backdrop-blur-xs flex items-center justify-center rounded-lg">

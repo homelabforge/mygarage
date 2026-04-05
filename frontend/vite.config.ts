@@ -42,7 +42,7 @@ export default defineConfig({
         manualChunks(id: string) {
           if (id.includes('node_modules/react-dom') || id.includes('node_modules/react/') || id.includes('node_modules/react-router-dom')) return 'react-vendor'
           if (id.includes('node_modules/recharts')) return 'charts'
-          if (id.includes('node_modules/react-big-calendar') || id.includes('node_modules/date-fns')) return 'calendar'
+          if (id.includes('node_modules/@schedule-x/') || id.includes('node_modules/temporal-polyfill') || id.includes('node_modules/date-fns')) return 'calendar'
           if (id.includes('node_modules/lucide-react') || id.includes('node_modules/sonner')) return 'ui'
           if (id.includes('node_modules/react-hook-form') || id.includes('node_modules/zod') || id.includes('node_modules/@hookform')) return 'forms'
           if (id.includes('node_modules/@tanstack/react-query')) return 'query'

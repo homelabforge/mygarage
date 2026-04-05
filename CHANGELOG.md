@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Replace react-big-calendar with Schedule-X — native TypeScript, React 19 support, zero lodash dependency, resolves all 9 npm audit vulnerabilities
+
+### Fixed
+- Add missing i18n translation keys for File Management, Integrations, Notifications, and Backup & Restore settings tabs
+- Fix stale closure in calendar event fetching that caused "Failed to load calendar events" on filter changes
+
+### Dev Dependencies
+- **@playwright/test**: 1.58.2 → 1.59.1
+- **@typescript-eslint/eslint-plugin**: 8.57.2 → 8.58.0
+- **@typescript-eslint/parser**: 8.57.2 → 8.58.0
+- **@vitest/coverage-v8**: 4.1.1 → 4.1.2
+- **@vitest/ui**: 4.1.1 → 4.1.2
+- **eslint**: 10.1.0 → 10.2.0
+- **ruff**: 0.15.7 → 0.15.9
+- **typescript-eslint**: 8.57.2 → 8.58.0
+- **vite**: 8.0.2 → 8.0.3
+- **vitest**: 4.1.1 → 4.1.2
+
+### App Dependencies
+- **@tanstack/react-query**: 5.95.2 → 5.96.2
+- **@tanstack/react-query-devtools**: 5.95.2 → 5.96.2
+- **axios**: 1.13.6 → 1.14.0
+- **fastapi**: 0.135.2 → 0.135.3
+- **i18next**: 25.10.9 → 26.0.3
+- **i18next-http-backend**: 3.0.2 → 3.0.4
+- **lucide-react**: 1.6.0 → 1.7.0
+- **pandas**: 3.0.1 → 3.0.2
+- **pillow**: 12.1.1 → 12.2.0
+- **react-hook-form**: 7.72.0 → 7.72.1
+- **react-i18next**: 16.6.6 → 17.0.2
+- **react-router-dom**: 7.13.2 → 7.14.0
+- **recharts**: 3.8.0 → 3.8.1
+- **sqlalchemy**: 2.0.48 → 2.0.49
+
 ### Fixed
 - Add missing i18n translation keys for File Management, Integrations, Notifications, and Backup & Restore settings tabs
 
