@@ -1,13 +1,30 @@
-name: CI
+name: Publish
+
+# Tag-triggered publish workflow.
+#
+# Sequencing: test-* → docker → release
+# - All test-* jobs must pass before docker
+# - docker push must succeed before release
+# This guarantees: a tag never publishes a GitHub release without a matching
+# image in GHCR. If the docker push fails, no release is created.
+#
+# Replaces the previous race between release.yml and docker-build.yml,
+# both of which fired on tag push without any CI gate.
 
 on:
   push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main, develop ]
+    tags:
+      - 'v*.*.*'
 
 permissions:
-  contents: read
+  contents: write
+  packages: write
+  attestations: write
+  id-token: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: homelabforge/mygarage
 
 jobs:
   test-backend:
@@ -49,7 +66,7 @@ jobs:
 
       - name: Check for raw vehicle existence queries in routes (tripwire)
         run: |
-          # Temporary tripwire — catches common auth bypass patterns
+          # Tripwire: catches common auth bypass patterns
           # Primary regression protection is the non-owner 403 integration tests
           FOUND=0
           if grep -rPn 'select\(Vehicle\)\.where\(Vehicle\.vin' backend/app/routes/ | grep -v 'analytics.py' | grep -v 'vehicles.py' | grep -v 'dashboard.py' | grep -v 'quick_entry.py' | grep -v 'calendar.py'; then
@@ -69,12 +86,6 @@ jobs:
           cd backend
           timeout 20m pytest tests/ -v --tb=short --cov=app --cov-report=term-missing --cov-report=xml
 
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@75cd11691c0faa626561e295848008c8a7dddffe # v5
-        with:
-          files: ./backend/coverage.xml
-          flags: backend
-
   test-frontend:
     name: Frontend Tests
     runs-on: ubuntu-latest
@@ -91,7 +102,7 @@ jobs:
       - name: Install dependencies
         run: |
           cd frontend
-          if [ "${{ github.actor }}" = "dependabot[bot]" ]; then bun install; else bun install --frozen-lockfile; fi
+          bun install --frozen-lockfile
 
       - name: Run TypeScript type checking
         run: |
@@ -112,12 +123,6 @@ jobs:
         run: |
           cd frontend
           bun run test:coverage
-
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@75cd11691c0faa626561e295848008c8a7dddffe # v5
-        with:
-          files: ./frontend/coverage/coverage-final.json
-          flags: frontend
 
   test-e2e:
     name: E2E Tests
@@ -149,7 +154,7 @@ jobs:
       - name: Install frontend dependencies
         run: |
           cd frontend
-          if [ "${{ github.actor }}" = "dependabot[bot]" ]; then bun install; else bun install --frozen-lockfile; fi
+          bun install --frozen-lockfile
 
       - name: Install Playwright browsers
         run: |
@@ -208,18 +213,17 @@ jobs:
       - name: Install frontend dependencies
         run: |
           cd frontend
-          if [ "${{ github.actor }}" = "dependabot[bot]" ]; then bun install; else bun install --frozen-lockfile; fi
+          bun install --frozen-lockfile
 
       - name: Check API types freshness
         run: |
           cd frontend
           bun run check:api-freshness
 
-  docker-build-test:
-    name: Docker Build Test
+  docker:
+    name: Build and Push Docker Image
     runs-on: ubuntu-latest
-    env:
-      BUILDKIT_PROGRESS: plain
+    needs: [test-backend, test-frontend, test-e2e, api-types-freshness]
 
     steps:
       - name: Checkout code
@@ -228,12 +232,102 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
-      - name: Build Docker image
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          MAJOR=$(echo "$VERSION" | cut -d. -f1)
+          MINOR=$(echo "$VERSION" | cut -d. -f1-2)
+          {
+            echo "version=$VERSION"
+            echo "major=$MAJOR"
+            echo "minor=$MINOR"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build and push Docker image
+        id: push
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
-          push: false
-          tags: mygarage:test
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.minor }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.major }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          provenance: false
+          platforms: linux/amd64
+          # Note: ARM64 support temporarily disabled due to pymupdf build issues with Python 3.14
+
+      - name: Generate artifact attestation
+        # Attestation only works on public repos or enterprise orgs.
+        # continue-on-error: Sigstore/Rekor outages should not block deploys.
+        if: github.event.repository.visibility == 'public'
+        continue-on-error: true
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [docker]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Extract changelog for this version
+        id: changelog
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+
+          # Extract changelog section for this version
+          CHANGELOG=$(awk -v ver="$VERSION" '
+            /^## \[.*\]/ {
+              if (found) exit
+              if ($0 ~ "\\[" ver "\\]") found=1
+              next
+            }
+            found { print }
+          ' CHANGELOG.md)
+
+          # Write to file for GitHub release
+          echo "$CHANGELOG" > release_notes.md
+
+      - name: Check if pre-release
+        id: prerelease
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          if [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe # v2
+        with:
+          name: MyGarage v${{ steps.version.outputs.version }}
+          body_path: release_notes.md
+          draft: false
+          prerelease: ${{ steps.prerelease.outputs.prerelease }}
+          generate_release_notes: true
