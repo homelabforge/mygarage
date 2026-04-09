@@ -1,6 +1,17 @@
 name: "MyGarage CodeQL Config"
 
-# Use security-extended queries
+# Path filters to exclude test files from analysis
+paths-ignore:
+  - "**/tests/**"
+  - "**/__tests__/**"
+  - "**/test_*.py"
+  - "**/*.test.ts"
+  - "**/*.test.tsx"
+  - "**/*.spec.ts"
+
+# Only run security-tagged queries — filters out code quality rules
+# (py/empty-except, py/mixed-returns, etc.) that are not actionable here.
+# Sanitizer barriers in sanitizers.yml handle the remaining false positives.
 query-filters:
   - include:
       tags contain: security
