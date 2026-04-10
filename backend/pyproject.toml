@@ -44,7 +44,7 @@ dev = [
     "pytest-cov>=7.1.0",
     "pyjwt>=2.12.1",  # Test-only: used by tests/integration/routes/test_auth.py to decode JWT exp/iat claims without verification. Production auth uses authlib.jose.
     "pyright>=1.1.400",
-    "ruff>=0.15.9",
+    "ruff>=0.15.10",
     "pandas-stubs>=3.0.0.260204",
     "types-Pillow>=10.2.0.20240822",
 ]
