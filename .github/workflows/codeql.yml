@@ -80,10 +80,6 @@ jobs:
         config-file: .github/codeql/codeql-config.yml
         source-root: ${{ matrix.language == 'python' && 'backend' || 'frontend' }}
 
-    # Autobuild (works for Python and JavaScript without compilation)
-    - name: Autobuild
-      uses: github/codeql-action/autobuild@c10b8064de6f491fea524254123dbe5e09572f13 # v4
-
     # Perform CodeQL Analysis
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@c10b8064de6f491fea524254123dbe5e09572f13 # v4
@@ -100,19 +96,6 @@ jobs:
         name: codeql-results-${{ matrix.language }}
         path: sarif-results
         retention-days: 30
-
-    # Filter results for PR comments (optional enhancement)
-    - name: Filter SARIF for pull requests
-      if: github.event_name == 'pull_request'
-      uses: advanced-security/filter-sarif@f3b8118a9349d88f7b1c0c488476411145b6270d # v1
-      with:
-        patterns: |
-          -**/*.test.js
-          -**/*.spec.ts
-          -**/tests/**
-          -**/__tests__/**
-        input: sarif-results/${{ matrix.language }}.sarif
-        output: sarif-results/${{ matrix.language }}-filtered.sarif
 
   # Summary job (runs after both languages complete)
   summary:
