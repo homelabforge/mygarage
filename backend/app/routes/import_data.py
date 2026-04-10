@@ -105,7 +105,7 @@ def parse_decimal(value: str) -> Decimal | None:
 
     try:
         return Decimal(value.strip())
-    except (InvalidOperation, ValueError):
+    except InvalidOperation, ValueError:
         raise ValueError(f"Invalid decimal value: {value}")
 
 

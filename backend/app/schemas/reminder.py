@@ -17,7 +17,7 @@ class ReminderCreate(BaseModel):
     line_item_id: int | None = None
 
     @model_validator(mode="after")
-    def validate_fields_for_type(self) -> "ReminderCreate":
+    def validate_fields_for_type(self) -> ReminderCreate:
         """Ensure required fields are present based on reminder type."""
         if self.reminder_type in ("date", "both", "smart") and not self.due_date:
             raise ValueError("due_date required for this reminder type")

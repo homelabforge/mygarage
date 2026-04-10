@@ -113,7 +113,7 @@ class MitsubishiWindowStickerParser(BaseWindowStickerParser):
                 price = Decimal(price_str)
                 if 50 < price < 30000:
                     data.options_detail[name] = price
-            except (ValueError, Exception):
+            except ValueError, Exception:
                 continue
 
     def _extract_mitsubishi_equipment(self, text: str, data: WindowStickerData) -> None:

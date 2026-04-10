@@ -66,7 +66,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         try:
             ph.verify(hashed_password, plain_password)
             return True
-        except (VerifyMismatchError, InvalidHashError):
+        except VerifyMismatchError, InvalidHashError:
             return False
     else:
         # Legacy bcrypt hash - use bcrypt for verification
@@ -161,7 +161,7 @@ async def get_current_user(
 
         try:
             user_id = int(user_id_str)
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             logger.error("Invalid user_id format: %s", user_id_str)
             raise credentials_exception
 

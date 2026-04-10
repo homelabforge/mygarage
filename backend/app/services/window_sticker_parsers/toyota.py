@@ -125,7 +125,7 @@ class ToyotaWindowStickerParser(BaseWindowStickerParser):
                     price = Decimal(price_str)
                     if 50 < price < 50000:  # Reasonable option price range
                         data.options_detail[name] = price
-                except (ValueError, Exception):
+                except ValueError, Exception:
                     continue
 
     def _extract_toyota_colors(self, text: str) -> tuple[str | None, str | None]:

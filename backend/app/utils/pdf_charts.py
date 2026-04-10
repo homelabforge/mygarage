@@ -63,7 +63,7 @@ def _to_float(val: Any) -> float:
         return 0.0
     try:
         return float(str(val))
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return 0.0
 
 

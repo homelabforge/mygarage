@@ -25,7 +25,7 @@ try:
     test_file.touch()
     test_file.unlink()
     HAS_WRITE_ACCESS = True
-except (PermissionError, OSError):
+except PermissionError, OSError:
     HAS_WRITE_ACCESS = False
 
 

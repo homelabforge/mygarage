@@ -121,7 +121,7 @@ def resolve_hostname(hostname: str) -> str | None:
             # Extract IP from sockaddr (sockaddr format differs between IPv4/IPv6)
             ip_address = addr_info[0][4][0]
             return ip_address
-    except (socket.gaierror, socket.herror, OSError):
+    except socket.gaierror, socket.herror, OSError:
         # DNS resolution failed
         return None
     return None
@@ -244,7 +244,7 @@ def validate_url_for_ssrf(
     try:
         # Convert IDN to ASCII (punycode)
         hostname_ascii = hostname.encode("idna").decode("ascii").lower()
-    except (UnicodeError, UnicodeDecodeError):
+    except UnicodeError, UnicodeDecodeError:
         raise ValueError(f"Invalid hostname: {hostname}")
 
     # Check against localhost hostnames

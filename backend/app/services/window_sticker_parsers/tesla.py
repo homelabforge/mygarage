@@ -124,7 +124,7 @@ class TeslaWindowStickerParser(BaseWindowStickerParser):
                         price = Decimal(groups[0].replace(",", ""))
                         if default_name and price > 0:
                             data.options_detail[default_name] = price
-                    except (ValueError, Exception):
+                    except ValueError, Exception:
                         pass  # Skip malformed price data - OCR extraction is best-effort
                 elif len(groups) == 2:
                     # Name and price
@@ -133,7 +133,7 @@ class TeslaWindowStickerParser(BaseWindowStickerParser):
                         price = Decimal(groups[1].replace(",", ""))
                         if name and price > 0:
                             data.options_detail[name] = price
-                    except (ValueError, Exception):
+                    except ValueError, Exception:
                         pass  # Skip malformed price data - OCR extraction is best-effort
 
     def _extract_tesla_colors(self, text: str) -> tuple[str | None, str | None]:

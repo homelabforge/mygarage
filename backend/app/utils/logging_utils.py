@@ -210,7 +210,7 @@ def mask_coordinates(latitude: float, longitude: float) -> str:
         lat_masked = round(float(latitude), 2)
         lon_masked = round(float(longitude), 2)
         return f"~{lat_masked}, ~{lon_masked}"
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return "~?.??, ~?.??"
 
 

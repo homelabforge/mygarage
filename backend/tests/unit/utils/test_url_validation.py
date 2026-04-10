@@ -355,7 +355,7 @@ class TestSecurityScenarios:
         try:
             # This may or may not work depending on how urllib handles it
             validate_url_for_ssrf("http://2130706433/")
-        except (SSRFProtectionError, ValueError):
+        except SSRFProtectionError, ValueError:
             pass  # Expected - either parsed and blocked, or invalid
 
     def test_ipv6_in_url(self):

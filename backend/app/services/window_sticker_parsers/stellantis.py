@@ -134,7 +134,7 @@ class StellantisWindowStickerParser(BaseWindowStickerParser):
                     price = Decimal(price_str)
                     if price > 0:  # Only include positive prices
                         data.options_detail[item_name] = price
-                except (ValueError, decimal.InvalidOperation):
+                except ValueError, decimal.InvalidOperation:
                     continue
 
         # Also extract package contents

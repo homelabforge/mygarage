@@ -194,7 +194,7 @@ class NHTSAService:
             return None
         try:
             return int(value)
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             return None
 
     async def get_vehicle_recalls(self, vin: str, db: AsyncSession) -> list[dict[str, Any]]:

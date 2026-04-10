@@ -81,7 +81,7 @@ def validate_path_within_base(
 
         return resolved_path
 
-    except (ValueError, RuntimeError):
+    except ValueError, RuntimeError:
         logger.warning(
             "Path traversal attempt detected: %s outside %s",
             sanitize_for_log(file_path),

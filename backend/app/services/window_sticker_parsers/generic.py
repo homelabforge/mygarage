@@ -149,7 +149,7 @@ class GenericWindowStickerParser(BaseWindowStickerParser):
                     # Reasonable option price range
                     if 25 < price < 50000:
                         data.options_detail[name] = price
-                except (ValueError, Exception):
+                except ValueError, Exception:
                     continue
 
     def _extract_generic_equipment(self, text: str, data: WindowStickerData) -> None:
@@ -231,6 +231,6 @@ class GenericWindowStickerParser(BaseWindowStickerParser):
                     # Validate it's a reasonable vehicle price
                     if 1000 < price < 1000000:
                         return price
-                except (ValueError, IndexError, Exception):
+                except ValueError, IndexError, Exception:
                     continue
         return None

@@ -101,7 +101,7 @@ class BaseDocumentParser(ABC):
                 try:
                     value = match.group(1).replace(",", "").replace("$", "")
                     return Decimal(value)
-                except (ValueError, IndexError, decimal.InvalidOperation):
+                except ValueError, IndexError, decimal.InvalidOperation:
                     continue
         return None
 

@@ -125,7 +125,7 @@ def calculate_check_digit(vin: str) -> str | None:
             return "X"
         else:
             return str(remainder)
-    except (KeyError, ValueError):
+    except KeyError, ValueError:
         return None
 
 

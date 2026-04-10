@@ -536,7 +536,7 @@ def format_currency(amount: object) -> str:
     try:
         val = float(str(amount))
         return f"${val:,.2f}"
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return "N/A"
 
 
@@ -549,7 +549,7 @@ def format_currency_short(amount: object) -> str:
         if val >= 10000:
             return f"${val:,.0f}"
         return f"${val:,.2f}"
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return "N/A"
 
 
@@ -564,5 +564,5 @@ def format_currency_compact(amount: object) -> str:
         if val >= 100:
             return f"${val:,.0f}"
         return f"${val:,.2f}"
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return "$0"
