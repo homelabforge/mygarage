@@ -20,7 +20,7 @@
     "e2e:headed": "playwright test --headed",
     "e2e:debug": "playwright test --debug",
     "e2e:report": "playwright show-report",
-    "generate:schema": "cd ../backend && PYTHONPATH=. python3 scripts/export_openapi.py ../frontend/src/types/openapi.json",
+    "generate:schema": "cd ../backend && PYTHONPATH=. uv run python scripts/export_openapi.py ../frontend/src/types/openapi.json",
     "generate:types": "bunx openapi-typescript src/types/openapi.json -o src/types/api.generated.ts",
     "generate:api": "bun run generate:schema && bun run generate:types",
     "check:api-freshness": "bun run generate:api && git diff --exit-code src/types/openapi.json src/types/api.generated.ts"
