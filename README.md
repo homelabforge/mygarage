@@ -50,6 +50,12 @@ Self-hosted vehicle maintenance tracking with VIN decoding, service records, fue
 
 ---
 
+## Translations
+
+See [Translation Status](TRANSLATIONS.md) for language support and how to contribute.
+
+---
+
 ## License
 
 MIT License - see [LICENSE](LICENSE) file for details.
