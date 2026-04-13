@@ -10,12 +10,23 @@
  * Exit code: 1 if any missing keys found, 0 otherwise.
  */
 
-import { readdirSync, readFileSync, existsSync } from 'fs'
-import { join, resolve } from 'path'
+import { existsSync } from 'fs'
+import { join } from 'path'
+import {
+  LOCALES_DIR,
+  discoverLanguages,
+  discoverNamespaces,
+  flattenKeys,
+  getNestedValue,
+  loadEnglishData,
+  loadJson,
+} from './translation-utils'
 
-const ROOT = resolve(import.meta.dirname, '..')
-const EN_DIR = join(ROOT, 'src', 'locales', 'en')
-const LOCALES_DIR = join(ROOT, 'public', 'locales')
+/** Extract {{variable}} interpolation placeholders from a string. */
+function extractInterpolations(value: string): Set<string> {
+  const matches = value.match(/\{\{(\w+)\}\}/g) || []
+  return new Set(matches)
+}
 
 interface Issue {
   lang: string
@@ -25,57 +36,9 @@ interface Issue {
   detail?: string
 }
 
-/** Extract {{variable}} interpolation placeholders from a string. */
-function extractInterpolations(value: string): Set<string> {
-  const matches = value.match(/\{\{(\w+)\}\}/g) || []
-  return new Set(matches)
-}
-
-/** Recursively flatten a nested JSON object into dot-separated keys. */
-function flattenKeys(obj: Record<string, unknown>, prefix = ''): string[] {
-  const keys: string[] = []
-  for (const [k, v] of Object.entries(obj)) {
-    const fullKey = prefix ? `${prefix}.${k}` : k
-    if (v && typeof v === 'object' && !Array.isArray(v)) {
-      keys.push(...flattenKeys(v as Record<string, unknown>, fullKey))
-    } else {
-      keys.push(fullKey)
-    }
-  }
-  return keys
-}
-
-/** Get value at a dot-separated path from a nested object. */
-function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
-  const parts = path.split('.')
-  let current: unknown = obj
-  for (const part of parts) {
-    if (current && typeof current === 'object') {
-      current = (current as Record<string, unknown>)[part]
-    } else {
-      return undefined
-    }
-  }
-  return current
-}
-
-function loadJson(path: string): Record<string, unknown> {
-  return JSON.parse(readFileSync(path, 'utf-8'))
-}
-
-// Discover namespaces from English canonical files
-const namespaces = readdirSync(EN_DIR)
-  .filter(f => f.endsWith('.json'))
-  .map(f => f.replace('.json', ''))
-
-// Discover non-English languages
-const languages = existsSync(LOCALES_DIR)
-  ? readdirSync(LOCALES_DIR).filter(d => {
-      const full = join(LOCALES_DIR, d)
-      try { return Bun.file(full).size === undefined || readdirSync(full).length > 0 } catch { return false }
-    })
-  : []
-
+const namespaces = discoverNamespaces()
+const languages = discoverLanguages()
+const { totalKeys, keysByNamespace, valuesByNamespace } = loadEnglishData(namespaces)
 const issues: Issue[] = []
 
 console.log('Translation Validation Report')
@@ -85,14 +48,13 @@ console.log(`Target languages: ${languages.join(', ') || 'none'}`)
 console.log()
 
 for (const ns of namespaces) {
-  const enPath = join(EN_DIR, `${ns}.json`)
-  const enData = loadJson(enPath)
-  const enKeys = flattenKeys(enData)
+  const enKeys = keysByNamespace.get(ns)!
+  const enValues = valuesByNamespace.get(ns)!
+
   for (const lang of languages) {
     const langPath = join(LOCALES_DIR, lang, `${ns}.json`)
 
     if (!existsSync(langPath)) {
-      // Entire namespace file missing
       for (const key of enKeys) {
         issues.push({ lang, namespace: ns, type: 'missing', key })
       }
@@ -102,18 +64,14 @@ for (const ns of namespaces) {
     const langData = loadJson(langPath)
     const langKeys = new Set(flattenKeys(langData))
 
-    // Check for missing keys
     for (const key of enKeys) {
       if (!langKeys.has(key)) {
         issues.push({ lang, namespace: ns, type: 'missing', key })
       } else {
         const val = getNestedValue(langData, key)
-        // Check if value is empty or same as English (placeholder)
-        const enVal = getNestedValue(enData, key)
+        const enVal = enValues.get(key)
         if (val === '' || val === null) {
           issues.push({ lang, namespace: ns, type: 'empty', key })
-        } else if (val === enVal) {
-          // Same as English — likely a placeholder (not counted as translated)
         }
 
         // Check interpolation variables are preserved
@@ -153,29 +111,24 @@ for (const lang of languages) {
   const extra = langIssues.filter(i => i.type === 'extra')
   const interpolation = langIssues.filter(i => i.type === 'interpolation')
 
-  const totalEnKeys = namespaces.reduce((sum: number, ns: string) => {
-    const enData = loadJson(join(EN_DIR, `${ns}.json`))
-    return sum + flattenKeys(enData).length
-  }, 0)
-
   // Count actually translated keys (not same as English, not missing, not empty)
   let actuallyTranslated = 0
   for (const ns of namespaces) {
-    const enPath2 = join(EN_DIR, `${ns}.json`)
-    const langPath2 = join(LOCALES_DIR, lang, `${ns}.json`)
-    if (!existsSync(langPath2)) continue
-    const enData2 = loadJson(enPath2)
-    const langData2 = loadJson(langPath2)
-    for (const key of flattenKeys(enData2)) {
-      const enVal = getNestedValue(enData2, key)
-      const langVal = getNestedValue(langData2, key)
+    const enKeys = keysByNamespace.get(ns)!
+    const enValues = valuesByNamespace.get(ns)!
+    const langPath = join(LOCALES_DIR, lang, `${ns}.json`)
+    if (!existsSync(langPath)) continue
+    const langData = loadJson(langPath)
+    for (const key of enKeys) {
+      const enVal = enValues.get(key)
+      const langVal = getNestedValue(langData, key)
       if (langVal && langVal !== '' && langVal !== enVal) actuallyTranslated++
     }
   }
 
-  const pct = totalEnKeys > 0 ? Math.round((actuallyTranslated / totalEnKeys) * 100) : 0
+  const pct = totalKeys > 0 ? Math.round((actuallyTranslated / totalKeys) * 100) : 0
 
-  console.log(`[${lang}] ${pct}% translated (${actuallyTranslated}/${totalEnKeys} keys)`)
+  console.log(`[${lang}] ${pct}% translated (${actuallyTranslated}/${totalKeys} keys)`)
 
   if (missing.length > 0) {
     console.log(`  Missing (${missing.length}):`)

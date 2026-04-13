@@ -11,6 +11,7 @@ Self-hosted vehicle maintenance tracking with VIN decoding, service records, fue
 [![React 19](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev)
 [![Bun 1.3.11](https://img.shields.io/badge/Bun-1.3.11-000000?logo=bun&logoColor=white)](https://bun.sh)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Translations](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/homelabforge/mygarage/main/.github/badges/translations.json)](TRANSLATIONS.md)
 [![Discord](https://img.shields.io/badge/Discord-Community-5865F2?logo=discord&logoColor=white)](https://discord.gg/6XttnVgG)
 
 ![MyGarage Dashboard](docs/screenshots/dashboard.png)
@@ -60,12 +61,6 @@ MIT License - see [LICENSE](LICENSE) file for details.
 Built for homelabbers who want to track vehicle maintenance without sending data to third-party services.
 
 VIN decoding powered by the [NHTSA vPIC API](https://vpic.nhtsa.dot.gov/).
-
-### Community Contributors
-
-| Contributor | Contribution |
-|-------------|-------------|
-| [Antonio (f0rZzZ)](https://github.com/f0rZzZ) | Polish, Russian, and Ukrainian translations |
 
 ### Development Assistance
 

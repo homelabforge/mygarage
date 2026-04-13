@@ -15,6 +15,7 @@
     "test:run": "vitest run",
     "type-check": "tsc --noEmit",
     "validate:translations": "bun run scripts/validate-translations.ts",
+    "generate:translation-status": "bun run scripts/generate-translation-status.ts",
     "e2e": "playwright test",
     "e2e:ui": "playwright test --ui",
     "e2e:headed": "playwright test --headed",
