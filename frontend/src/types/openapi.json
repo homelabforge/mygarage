@@ -17717,7 +17717,7 @@
   "info": {
     "description": "Self-hosted vehicle maintenance tracking application",
     "title": "MyGarage",
-    "version": "2.26.0"
+    "version": "2.26.1"
   },
   "openapi": "3.1.0",
   "paths": {
