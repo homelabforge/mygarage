@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Dockerfile Dependencies
+- **oven/bun**: 1.3.11-alpine → 1.3.12-alpine
+
+### Dev Dependencies
+- **@typescript-eslint/eslint-plugin**: 8.58.0 → 8.58.2
+- **@typescript-eslint/parser**: 8.58.0 → 8.58.2
+- **@vitest/coverage-v8**: 4.1.2 → 4.1.4
+- **@vitest/ui**: 4.1.2 → 4.1.4
+- **autoprefixer**: 10.4.27 → 10.5.0
+- **globals**: 17.4.0 → 17.5.0
+- **jsdom**: 29.0.1 → 29.0.2
+- **pyright**: 1.1.400 → 1.1.408
+- **pytest**: 9.0.2 → 9.0.3
+- **typescript-eslint**: 8.58.0 → 8.58.2
+- **vite**: 8.0.3 → 8.0.8
+- **vitest**: 4.1.2 → 4.1.4
+
+### App Dependencies
+- **@schedule-x/calendar**: 4.3.1 → 4.4.0
+- **@schedule-x/calendar-controls**: 4.3.1 → 4.4.0
+- **@schedule-x/events-service**: 4.3.1 → 4.4.0
+- **@schedule-x/theme-default**: 4.3.1 → 4.4.0
+- **@tanstack/react-query**: 5.96.2 → 5.99.0
+- **@tanstack/react-query-devtools**: 5.96.2 → 5.99.0
+- **authlib**: 1.6.9 → 1.6.10
+- **axios**: 1.14.0 → 1.15.0
+- **i18next**: 26.0.3 → 26.0.4
+- **lucide-react**: 1.7.0 → 1.8.0
+- **pydantic**: 2.12.5 → 2.13.0
+- **python-multipart**: 0.0.22 → 0.0.26
+- **react**: 19.2.4 → 19.2.5
+- **react-dom**: 19.2.4 → 19.2.5
+- **react-is**: 19.2.4 → 19.2.5
+- **react-router-dom**: 7.14.0 → 7.14.1
+
+### HTTP Servers
+- **granian**: 2.7.2 → 2.7.3
+
 ## [2.26.0] - 2026-04-05
 
 ### Changed
