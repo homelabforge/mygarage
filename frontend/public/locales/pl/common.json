@@ -44,7 +44,8 @@
     "noAccount": "Nie masz konta?",
     "registerLink": "Zarejestruj się tutaj",
     "oidcSignIn": "Zaloguj się przez {{provider}}",
-    "error": "Nieprawidłowa nazwa użytkownika lub hasło"
+    "error": "Nieprawidłowa nazwa użytkownika lub hasło",
+    "continueWithPassword": "Lub kontynuuj z hasłem"
   },
   "oidc": {
     "signingIn": "Trwa logowanie...",
@@ -62,5 +63,54 @@
     "notFound": "Żądany zasób nie został znaleziony.",
     "validation": "Sprawdź wprowadzone dane i spróbuj ponownie."
   },
-  "footer": "MyGarage v{{version}} — Lokalny system śledzenia konserwacji pojazdów"
+  "footer": "MyGarage v{{version}} — Lokalny system śledzenia konserwacji pojazdów",
+  "auth": {
+    "tagline": "Lokalny system śledzenia konserwacji pojazdów"
+  },
+  "addressBook": {
+    "title": "Książka adresowa",
+    "subtitle": "Warsztaty, dostawcy części, dealerzy i kontakty ubezpieczeniowe",
+    "searchPlaceholder": "Szukaj kontaktów...",
+    "allCategories": "Wszystkie kategorie",
+    "categoryService": "Serwis",
+    "categoryParts": "Części",
+    "categoryDealer": "Dealer",
+    "categoryInsurance": "Ubezpieczenie",
+    "categoryOther": "Inne",
+    "addContact": "Dodaj kontakt",
+    "addFirstContact": "Dodaj pierwszy kontakt",
+    "editContact": "Edytuj kontakt",
+    "loading": "Ładowanie kontaktów...",
+    "noContacts": "Brak kontaktów.",
+    "noMatchingContacts": "Brak kontaktów spełniających kryteria.",
+    "confirmDelete": "Usunąć ten kontakt?",
+    "deleteError": "Nie udało się usunąć kontaktu",
+    "businessName": "Nazwa firmy",
+    "contactName": "Osoba kontaktowa",
+    "category": "Kategoria",
+    "selectCategory": "Wybierz kategorię...",
+    "email": "Email",
+    "phone": "Telefon",
+    "website": "Strona internetowa",
+    "streetAddress": "Ulica",
+    "city": "Miasto",
+    "state": "Województwo",
+    "zipCode": "Kod pocztowy",
+    "notes": "Notatki",
+    "notesPlaceholder": "Dodatkowe notatki o tym kontakcie..."
+  },
+  "poiFinder": {
+    "title": "Znajdź punkty zainteresowania",
+    "subtitle": "Znajdź warsztaty, stacje ładowania EV, paliwa i usługi RV w pobliżu",
+    "categories": "Kategorie",
+    "searchRadius": "Promień wyszukiwania",
+    "recentlyUsed": "Ostatnio używane",
+    "useMyLocation": "Użyj mojej lokalizacji",
+    "enableCategory": "Włącz co najmniej jedną kategorię, aby wyszukać",
+    "searching": "Wyszukiwanie w pobliżu...",
+    "searchingHint": "Może to zająć kilka sekund w zależności od dostawcy.",
+    "newSearch": "Nowe wyszukiwanie",
+    "noPOIsFound": "Nie znaleziono punktów zainteresowania",
+    "noPOIsHint": "Spróbuj większego promienia lub włącz więcej kategorii."
+  }
 }
