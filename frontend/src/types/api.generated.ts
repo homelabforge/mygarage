@@ -373,6 +373,61 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/me/widget-keys": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Widget Keys
+         * @description List the current user's widget keys (metadata only, never secrets).
+         *
+         *     Revoked keys remain in the list with `revoked_at` populated so the user
+         *     retains an audit trail of previously-issued keys.
+         */
+        get: operations["list_widget_keys_api_auth_me_widget_keys_get"];
+        put?: never;
+        /**
+         * Create Widget Key
+         * @description Create a widget key for the current user.
+         *
+         *     The plaintext secret is returned ONCE in this response. Only the SHA-256
+         *     hash plus an 8-char display prefix are persisted; the full value is not
+         *     retrievable after this call.
+         */
+        post: operations["create_widget_key_api_auth_me_widget_keys_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/me/widget-keys/{key_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Revoke Widget Key
+         * @description Soft-revoke a widget key by setting `revoked_at`.
+         *
+         *     Returns 404 (not 403) for keys owned by another user to avoid confirming
+         *     existence. Revoking an already-revoked key is a no-op and still returns
+         *     204 — idempotent from the client's perspective.
+         */
+        delete: operations["revoke_widget_key_api_auth_me_widget_keys__key_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/oidc/callback": {
         parameters: {
             query?: never;
@@ -12745,6 +12800,82 @@ export interface components {
             sta_ip?: string | null;
         };
         /**
+         * WidgetKeyCreate
+         * @description Request body for POST /api/auth/me/widget-keys.
+         */
+        WidgetKeyCreate: {
+            /** Allowed Vins */
+            allowed_vins?: string[] | null;
+            /**
+             * Name
+             * @description User label
+             */
+            name: string;
+            /**
+             * Scope
+             * @default all_vehicles
+             * @enum {string}
+             */
+            scope: "all_vehicles" | "selected_vins";
+        };
+        /**
+         * WidgetKeyCreated
+         * @description Response to creation — includes the plaintext `secret` ONCE.
+         */
+        WidgetKeyCreated: {
+            /** Allowed Vins */
+            allowed_vins: string[] | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Id */
+            id: number;
+            /** Key Prefix */
+            key_prefix: string;
+            /** Last Used At */
+            last_used_at: string | null;
+            /** Name */
+            name: string;
+            /** Revoked At */
+            revoked_at: string | null;
+            /** Scope */
+            scope: string;
+            /** Secret */
+            secret: string;
+        };
+        /** WidgetKeyList */
+        WidgetKeyList: {
+            /** Keys */
+            keys: components["schemas"]["WidgetKeySummary"][];
+        };
+        /**
+         * WidgetKeySummary
+         * @description Metadata-only view of a widget key. Hash and plaintext never exposed.
+         */
+        WidgetKeySummary: {
+            /** Allowed Vins */
+            allowed_vins: string[] | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Id */
+            id: number;
+            /** Key Prefix */
+            key_prefix: string;
+            /** Last Used At */
+            last_used_at: string | null;
+            /** Name */
+            name: string;
+            /** Revoked At */
+            revoked_at: string | null;
+            /** Scope */
+            scope: string;
+        };
+        /**
          * WidgetSummary
          * @description Garage-wide aggregates scoped to the key owner's vehicles.
          */
@@ -13555,6 +13686,88 @@ export interface operations {
                 "application/json": components["schemas"]["UserPasswordUpdate"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_widget_keys_api_auth_me_widget_keys_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WidgetKeyList"];
+                };
+            };
+        };
+    };
+    create_widget_key_api_auth_me_widget_keys_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WidgetKeyCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WidgetKeyCreated"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_widget_key_api_auth_me_widget_keys__key_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             204: {

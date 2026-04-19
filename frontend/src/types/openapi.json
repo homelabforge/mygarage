@@ -17108,6 +17108,219 @@
         "title": "WiCANStatus",
         "type": "object"
       },
+      "WidgetKeyCreate": {
+        "description": "Request body for POST /api/auth/me/widget-keys.",
+        "properties": {
+          "allowed_vins": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allowed Vins"
+          },
+          "name": {
+            "description": "User label",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "scope": {
+            "default": "all_vehicles",
+            "enum": [
+              "all_vehicles",
+              "selected_vins"
+            ],
+            "title": "Scope",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "WidgetKeyCreate",
+        "type": "object"
+      },
+      "WidgetKeyCreated": {
+        "description": "Response to creation \u2014 includes the plaintext `secret` ONCE.",
+        "properties": {
+          "allowed_vins": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allowed Vins"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "key_prefix": {
+            "title": "Key Prefix",
+            "type": "string"
+          },
+          "last_used_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Used At"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          },
+          "scope": {
+            "title": "Scope",
+            "type": "string"
+          },
+          "secret": {
+            "title": "Secret",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "key_prefix",
+          "scope",
+          "allowed_vins",
+          "created_at",
+          "last_used_at",
+          "revoked_at",
+          "secret"
+        ],
+        "title": "WidgetKeyCreated",
+        "type": "object"
+      },
+      "WidgetKeyList": {
+        "properties": {
+          "keys": {
+            "items": {
+              "$ref": "#/components/schemas/WidgetKeySummary"
+            },
+            "title": "Keys",
+            "type": "array"
+          }
+        },
+        "required": [
+          "keys"
+        ],
+        "title": "WidgetKeyList",
+        "type": "object"
+      },
+      "WidgetKeySummary": {
+        "description": "Metadata-only view of a widget key. Hash and plaintext never exposed.",
+        "properties": {
+          "allowed_vins": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allowed Vins"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "key_prefix": {
+            "title": "Key Prefix",
+            "type": "string"
+          },
+          "last_used_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Used At"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          },
+          "scope": {
+            "title": "Scope",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "key_prefix",
+          "scope",
+          "allowed_vins",
+          "created_at",
+          "last_used_at",
+          "revoked_at"
+        ],
+        "title": "WidgetKeySummary",
+        "type": "object"
+      },
       "WidgetSummary": {
         "description": "Garage-wide aggregates scoped to the key owner's vehicles.",
         "properties": {
@@ -18925,6 +19138,119 @@
         "summary": "Update Password",
         "tags": [
           "Authentication"
+        ]
+      }
+    },
+    "/api/auth/me/widget-keys": {
+      "get": {
+        "description": "List the current user's widget keys (metadata only, never secrets).\n\nRevoked keys remain in the list with `revoked_at` populated so the user\nretains an audit trail of previously-issued keys.",
+        "operationId": "list_widget_keys_api_auth_me_widget_keys_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WidgetKeyList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Widget Keys",
+        "tags": [
+          "widget-keys"
+        ]
+      },
+      "post": {
+        "description": "Create a widget key for the current user.\n\nThe plaintext secret is returned ONCE in this response. Only the SHA-256\nhash plus an 8-char display prefix are persisted; the full value is not\nretrievable after this call.",
+        "operationId": "create_widget_key_api_auth_me_widget_keys_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WidgetKeyCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WidgetKeyCreated"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Widget Key",
+        "tags": [
+          "widget-keys"
+        ]
+      }
+    },
+    "/api/auth/me/widget-keys/{key_id}": {
+      "delete": {
+        "description": "Soft-revoke a widget key by setting `revoked_at`.\n\nReturns 404 (not 403) for keys owned by another user to avoid confirming\nexistence. Revoking an already-revoked key is a no-op and still returns\n204 \u2014 idempotent from the client's perspective.",
+        "operationId": "revoke_widget_key_api_auth_me_widget_keys__key_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key_id",
+            "required": true,
+            "schema": {
+              "title": "Key Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Revoke Widget Key",
+        "tags": [
+          "widget-keys"
         ]
       }
     },
