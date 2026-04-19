@@ -13,6 +13,7 @@ import {
   Archive,
 } from 'lucide-react'
 import api from '@/services/api'
+import { formatAPITimestamp } from '@/utils/parseAPITimestamp'
 
 interface BackupFile {
   filename: string
@@ -187,8 +188,8 @@ export default function SettingsBackupTab() {
     }
   }
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString()
+  const formatDate = (dateString: string): string => {
+    return formatAPITimestamp(dateString, (d) => d.toLocaleString())
   }
 
   const formatSize = (sizeMb: number) => {

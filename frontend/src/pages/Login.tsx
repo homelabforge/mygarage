@@ -24,6 +24,10 @@ export default function Login() {
   const [oidcEnabled, setOidcEnabled] = useState(false)
   const [oidcProviderName, setOidcProviderName] = useState('')
   const [oidcLoading, setOidcLoading] = useState(true)
+  // When OIDC is enabled, default the password form hidden behind a toggle —
+  // SSO is primary. When OIDC is disabled (or the check fails) show the
+  // password form immediately since it's the only option.
+  const [showPasswordForm, setShowPasswordForm] = useState(false)
   const { login } = useAuth()
   const navigate = useNavigate()
 
@@ -33,11 +37,14 @@ export default function Login() {
       try {
         const response = await fetch('/api/auth/oidc/config')
         const data = await response.json()
-        setOidcEnabled(data.enabled || false)
+        const enabled = Boolean(data.enabled)
+        setOidcEnabled(enabled)
         setOidcProviderName(data.provider_name || 'SSO')
+        if (!enabled) setShowPasswordForm(true)
       } catch {
         // OIDC not available, just use regular login
         setOidcEnabled(false)
+        setShowPasswordForm(true)
       } finally {
         setOidcLoading(false)
       }
@@ -81,7 +88,7 @@ export default function Login() {
           </div>
         )}
 
-        {/* SSO Button */}
+        {/* SSO Button + optional toggle to reveal the password form */}
         {!oidcLoading && oidcEnabled && (
           <>
             <button
@@ -93,85 +100,94 @@ export default function Login() {
               {t('login.oidcSignIn', { provider: oidcProviderName })}
             </button>
 
-            {/* Divider */}
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-garage-border"></div>
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-garage-surface text-garage-text-muted">Or continue with password</span>
-              </div>
-            </div>
+            {!showPasswordForm && (
+              <button
+                type="button"
+                onClick={() => setShowPasswordForm(true)}
+                className="relative w-full text-center text-sm text-garage-text-muted hover:text-garage-text transition-colors py-2"
+              >
+                <span className="absolute inset-0 flex items-center" aria-hidden="true">
+                  <div className="w-full border-t border-garage-border"></div>
+                </span>
+                <span className="relative px-2 bg-garage-surface">
+                  {t('login.continueWithPassword')}
+                </span>
+              </button>
+            )}
           </>
         )}
 
-        {/* Username Field */}
-        <div>
-          <label htmlFor="username" className="block text-sm font-medium text-garage-text mb-2">
-            {t('login.usernameOrEmail')}
-          </label>
-          <input
-            id="username"
-            type="text"
-            {...registerField('username')}
-            className={`w-full px-4 py-3 bg-garage-bg border rounded-lg text-garage-text placeholder-garage-text-muted focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent ${
-              errors.username ? 'border-red-500' : 'border-garage-border'
-            }`}
-            placeholder="Enter your username or email"
-            autoComplete="username"
-            disabled={isSubmitting}
-          />
-          <FormError error={errors.username} />
-        </div>
+        {showPasswordForm && (
+          <>
+            {/* Username Field */}
+            <div>
+              <label htmlFor="username" className="block text-sm font-medium text-garage-text mb-2">
+                {t('login.usernameOrEmail')}
+              </label>
+              <input
+                id="username"
+                type="text"
+                {...registerField('username')}
+                className={`w-full px-4 py-3 bg-garage-bg border rounded-lg text-garage-text placeholder-garage-text-muted focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent ${
+                  errors.username ? 'border-red-500' : 'border-garage-border'
+                }`}
+                placeholder="Enter your username or email"
+                autoComplete="username"
+                disabled={isSubmitting}
+              />
+              <FormError error={errors.username} />
+            </div>
 
-        {/* Password Field */}
-        <div>
-          <label htmlFor="password" className="block text-sm font-medium text-garage-text mb-2">
-            {t('login.password')}
-          </label>
-          <div className="relative">
-            <input
-              id="password"
-              type={showPassword ? 'text' : 'password'}
-              {...registerField('password')}
-              className={`w-full px-4 py-3 pr-12 bg-garage-bg border rounded-lg text-garage-text placeholder-garage-text-muted focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent ${
-                errors.password ? 'border-red-500' : 'border-garage-border'
-              }`}
-              placeholder="Enter your password"
-              autoComplete="current-password"
-              disabled={isSubmitting}
-            />
+            {/* Password Field */}
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-garage-text mb-2">
+                {t('login.password')}
+              </label>
+              <div className="relative">
+                <input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  {...registerField('password')}
+                  className={`w-full px-4 py-3 pr-12 bg-garage-bg border rounded-lg text-garage-text placeholder-garage-text-muted focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent ${
+                    errors.password ? 'border-red-500' : 'border-garage-border'
+                  }`}
+                  placeholder="Enter your password"
+                  autoComplete="current-password"
+                  disabled={isSubmitting}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-garage-text-muted hover:text-garage-text transition-colors"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
+              <FormError error={errors.password} />
+            </div>
+
+            {/* Submit Button */}
             <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-garage-text-muted hover:text-garage-text transition-colors"
-              aria-label={showPassword ? 'Hide password' : 'Show password'}
-              tabIndex={-1}
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 btn-primary-auth font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              {isSubmitting ? (
+                <>
+                  <Loader className="w-5 h-5 animate-spin" />
+                  Signing in...
+                </>
+              ) : (
+                <>
+                  <LogIn className="w-5 h-5" />
+                  {t('login.submit')}
+                </>
+              )}
             </button>
-          </div>
-          <FormError error={errors.password} />
-        </div>
-
-        {/* Submit Button */}
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="w-full flex items-center justify-center gap-2 px-4 py-3 btn-primary-auth font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {isSubmitting ? (
-            <>
-              <Loader className="w-5 h-5 animate-spin" />
-              Signing in...
-            </>
-          ) : (
-            <>
-              <LogIn className="w-5 h-5" />
-              {t('login.submit')}
-            </>
-          )}
-        </button>
+          </>
+        )}
       </form>
     </AuthPageLayout>
   )

@@ -1,26 +1,26 @@
 import { useState } from 'react'
 import { Key, Plus, Trash2, AlertCircle } from 'lucide-react'
+import { formatDistanceToNow } from 'date-fns'
 import {
   isAuthDisabledError,
   useRevokeWidgetKey,
   useWidgetKeys,
 } from '@/hooks/queries/useWidgetKeys'
+import { parseAPITimestamp } from '@/utils/parseAPITimestamp'
 import CreateWidgetKeyModal from '../modals/CreateWidgetKeyModal'
 import type { WidgetKeySummary } from '@/types/widgetKey'
 
-function formatRelative(date: string | null): string {
-  if (!date) return 'never'
-  const d = new Date(date)
-  if (Number.isNaN(d.getTime())) return 'never'
-  const diffMs = Date.now() - d.getTime()
-  const minutes = Math.floor(diffMs / 60_000)
-  if (minutes < 1) return 'just now'
-  if (minutes < 60) return `${minutes}m ago`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
-  const days = Math.floor(hours / 24)
-  if (days < 30) return `${days}d ago`
-  return d.toLocaleDateString()
+const STALE_THRESHOLD_DAYS = 90
+const STALE_THRESHOLD_MS = STALE_THRESHOLD_DAYS * 24 * 60 * 60 * 1000
+
+function formatRelative(value: string | null | undefined): string {
+  const d = parseAPITimestamp(value)
+  return d ? formatDistanceToNow(d, { addSuffix: true }) : 'never'
+}
+
+function isStale(lastUsedAt: string | null | undefined): boolean {
+  const d = parseAPITimestamp(lastUsedAt)
+  return d != null && Date.now() - d.getTime() > STALE_THRESHOLD_MS
 }
 
 function scopeLabel(key: WidgetKeySummary): string {
@@ -32,11 +32,10 @@ function scopeLabel(key: WidgetKeySummary): string {
 }
 
 /**
- * User-scoped widget API keys. Rendered inside the Integrations tab rather
- * than a new top-level settings page: a key here IS the integration with
- * homepage-style dashboards.
+ * User-scoped API keys for external integrations. Rendered inside the
+ * Integrations tab; a key here IS the integration with external dashboards.
  */
-export default function WidgetKeysPanel() {
+export default function WidgetKeysPanel(): React.ReactElement {
   const [modalOpen, setModalOpen] = useState(false)
   const [pendingRevokeId, setPendingRevokeId] = useState<number | null>(null)
   const keysQuery = useWidgetKeys()
@@ -44,7 +43,7 @@ export default function WidgetKeysPanel() {
 
   const disabledByAuthMode = isAuthDisabledError(keysQuery.error)
 
-  async function handleRevoke(id: number) {
+  async function handleRevoke(id: number): Promise<void> {
     setPendingRevokeId(id)
     try {
       await revokeMutation.mutateAsync(id)
@@ -54,17 +53,15 @@ export default function WidgetKeysPanel() {
   }
 
   return (
-    <section className="space-y-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5 shadow-sm">
+    <section className="space-y-4 rounded-lg border border-garage-border bg-garage-surface p-6">
       <header className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-3">
-          <Key className="mt-0.5 h-5 w-5 text-gray-500" />
+          <Key className="mt-0.5 h-5 w-5 text-garage-text-muted" />
           <div>
-            <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">
-              Homepage / Widget API Keys
-            </h3>
-            <p className="mt-0.5 text-sm text-gray-600 dark:text-gray-400">
-              Read-only keys used by gethomepage and other dashboards to show your
-              garage data. Each key grants access to the vehicles you select.
+            <h3 className="text-base font-semibold text-garage-text">API Keys</h3>
+            <p className="mt-0.5 text-sm text-garage-text-muted">
+              Read-only API keys for external integrations. Each key grants access to the
+              vehicles you select.
             </p>
           </div>
         </div>
@@ -72,7 +69,7 @@ export default function WidgetKeysPanel() {
           type="button"
           onClick={() => setModalOpen(true)}
           disabled={disabledByAuthMode}
-          className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+          className="btn btn-primary inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Plus className="h-4 w-4" />
           New Key
@@ -80,10 +77,10 @@ export default function WidgetKeysPanel() {
       </header>
 
       {disabledByAuthMode ? (
-        <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20 p-4 text-sm text-amber-900 dark:text-amber-100">
+        <div className="flex items-start gap-3 rounded-lg border border-warning-500/40 bg-warning-500/10 p-4 text-sm text-warning-500">
           <AlertCircle className="h-5 w-5 flex-shrink-0" />
           <div>
-            <p className="font-medium">Widget keys require authenticated users.</p>
+            <p className="font-medium">API keys require authenticated users.</p>
             <p className="mt-1">
               Switch auth mode to <code>local</code> or <code>oidc</code> in the system
               settings to enable.
@@ -91,38 +88,36 @@ export default function WidgetKeysPanel() {
           </div>
         </div>
       ) : keysQuery.isLoading ? (
-        <p className="text-sm text-gray-500 dark:text-gray-400">Loading keys…</p>
+        <p className="text-sm text-garage-text-muted">Loading keys…</p>
       ) : keysQuery.isError ? (
-        <p className="text-sm text-red-600 dark:text-red-400">
-          Couldn't load keys. Try refreshing.
-        </p>
+        <p className="text-sm text-danger-500">Couldn&apos;t load keys. Try refreshing.</p>
       ) : keysQuery.data && keysQuery.data.keys.length > 0 ? (
-        <ul className="divide-y divide-gray-200 dark:divide-gray-700 overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
+        <ul className="divide-y divide-garage-border overflow-hidden rounded-lg border border-garage-border">
           {keysQuery.data.keys.map((k) => {
             const revoked = Boolean(k.revoked_at)
+            const stale = !revoked && isStale(k.last_used_at)
             return (
               <li
                 key={k.id}
                 className={`flex items-center gap-4 px-4 py-3 ${
-                  revoked ? 'bg-gray-50 dark:bg-gray-800/50 text-gray-500' : ''
+                  revoked ? 'bg-garage-bg text-garage-text-muted' : ''
                 }`}
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="font-medium text-gray-900 dark:text-gray-100">
-                      {k.name}
-                    </span>
-                    {revoked && (
-                      <span className="rounded-full bg-gray-200 dark:bg-gray-700 px-2 py-0.5 text-xs text-gray-700 dark:text-gray-300">
-                        revoked
-                      </span>
-                    )}
+                    <span className="font-medium text-garage-text">{k.name}</span>
+                    {revoked && <span className="badge badge-neutral">revoked</span>}
+                    {stale && <span className="badge badge-warning">stale</span>}
                   </div>
-                  <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+                  <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-garage-text-muted">
                     <code>{k.key_prefix}…</code>
                     <span>{scopeLabel(k)}</span>
                     <span>created {formatRelative(k.created_at)}</span>
-                    <span>last used {formatRelative(k.last_used_at)}</span>
+                    <span>
+                      {k.last_used_at
+                        ? `last used ${formatRelative(k.last_used_at)}`
+                        : 'never used'}
+                    </span>
                   </div>
                 </div>
                 {!revoked && (
@@ -130,7 +125,7 @@ export default function WidgetKeysPanel() {
                     type="button"
                     onClick={() => handleRevoke(k.id)}
                     disabled={pendingRevokeId === k.id}
-                    className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/20 px-2.5 py-1.5 text-xs font-medium text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/40 disabled:opacity-50"
+                    className="inline-flex items-center gap-1 rounded-lg border border-danger-500/40 bg-danger-500/10 px-2.5 py-1.5 text-xs font-medium text-danger-500 hover:bg-danger-500/20 disabled:opacity-50"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                     {pendingRevokeId === k.id ? 'Revoking…' : 'Revoke'}
@@ -141,8 +136,8 @@ export default function WidgetKeysPanel() {
           })}
         </ul>
       ) : (
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          No widget keys yet. Create one to start polling your garage from a dashboard.
+        <p className="text-sm text-garage-text-muted">
+          No API keys yet. Create one to start polling your garage from a dashboard.
         </p>
       )}
 
@@ -153,18 +148,23 @@ export default function WidgetKeysPanel() {
   )
 }
 
-function WidgetKeysHelp() {
+function WidgetKeysHelp(): React.ReactElement {
   const [open, setOpen] = useState(false)
   return (
     <details
       open={open}
       onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}
-      className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 text-sm"
+      className="rounded-lg border border-garage-border bg-garage-bg p-4 text-sm"
     >
-      <summary className="cursor-pointer font-medium text-gray-900 dark:text-gray-100">
-        How do I use this with gethomepage?
+      <summary className="cursor-pointer font-medium text-garage-text">
+        Example: gethomepage integration
       </summary>
-      <div className="mt-3 space-y-3 text-gray-700 dark:text-gray-300">
+      <div className="mt-3 space-y-3 text-garage-text-muted">
+        <p>
+          Any HTTP client can call the widget endpoints with an <code>X-API-Key</code>{' '}
+          header — gethomepage, Grafana, custom scripts, or your own dashboard. The
+          example below is for gethomepage; adapt as needed.
+        </p>
         <p>
           Copy the key once at creation time and store it in your homepage secrets
           directory. Homepage widgets display up to 4 fields per tile — pick which ones

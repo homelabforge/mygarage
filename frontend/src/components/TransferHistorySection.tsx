@@ -8,6 +8,7 @@ import { ArrowRight, ChevronDown, ChevronUp, Clock, Loader2, History } from 'luc
 import { familyService } from '@/services/familyService'
 import type { VehicleTransferResponse } from '@/types/family'
 import { formatRelationship } from '@/types/family'
+import { formatAPITimestamp } from '@/utils/parseAPITimestamp'
 
 interface TransferHistorySectionProps {
   vin: string
@@ -44,11 +45,15 @@ export default function TransferHistorySection({ vin }: TransferHistorySectionPr
   }
 
   const formatDate = (dateString: string): string => {
-    return new Date(dateString).toLocaleDateString(undefined, {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    })
+    return formatAPITimestamp(
+      dateString,
+      (d) =>
+        d.toLocaleDateString(undefined, {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+        }),
+    )
   }
 
   const getDisplayName = (user: { username: string; full_name?: string | null }): string => {

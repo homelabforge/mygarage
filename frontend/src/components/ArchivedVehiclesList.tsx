@@ -12,6 +12,7 @@ import { useTranslation } from 'react-i18next'
 import { Eye, EyeOff, RotateCcw, Trash2, AlertTriangle } from 'lucide-react'
 import api from '@/services/api'
 import { toast } from 'sonner'
+import { formatAPITimestamp } from '@/utils/parseAPITimestamp'
 import type { Vehicle, VehicleListResponse } from '@/types/vehicle'
 
 export default function ArchivedVehiclesList() {
@@ -209,10 +210,11 @@ export default function ArchivedVehiclesList() {
                   </span>
                 </td>
                 <td className="px-4 py-3 text-sm text-garage-text-muted">
-                  {vehicle.archived_at
-                    ? new Date(vehicle.archived_at).toLocaleDateString()
-                    : 'N/A'
-                  }
+                  {formatAPITimestamp(
+                    vehicle.archived_at,
+                    (d) => d.toLocaleDateString(),
+                    'N/A',
+                  )}
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center justify-end gap-2">

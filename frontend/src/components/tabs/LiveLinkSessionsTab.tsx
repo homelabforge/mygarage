@@ -19,6 +19,7 @@ import {
 import { livelinkService } from '@/services/livelinkService'
 import type { DriveSession, DriveSessionListResponse } from '@/types/livelink'
 import { useUnitPreference } from '@/hooks/useUnitPreference'
+import { formatAPITimestamp } from '@/utils/parseAPITimestamp'
 
 interface LiveLinkSessionsTabProps {
   vin: string
@@ -164,24 +165,30 @@ function SessionCard({
             <Calendar className="w-5 h-5 text-primary" />
             <div className="text-left">
               <div className="text-garage-text font-medium">
-                {new Date(session.started_at).toLocaleDateString(undefined, {
-                  weekday: 'short',
-                  month: 'short',
-                  day: 'numeric',
-                })}
+                {formatAPITimestamp(session.started_at, (d) =>
+                  d.toLocaleDateString(undefined, {
+                    weekday: 'short',
+                    month: 'short',
+                    day: 'numeric',
+                  }),
+                )}
               </div>
               <div className="text-xs text-garage-text-muted">
-                {new Date(session.started_at).toLocaleTimeString(undefined, {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
+                {formatAPITimestamp(session.started_at, (d) =>
+                  d.toLocaleTimeString(undefined, {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  }),
+                )}
                 {session.ended_at && (
                   <>
                     {' → '}
-                    {new Date(session.ended_at).toLocaleTimeString(undefined, {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
+                    {formatAPITimestamp(session.ended_at, (d) =>
+                      d.toLocaleTimeString(undefined, {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      }),
+                    )}
                   </>
                 )}
               </div>

@@ -9,7 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Widget API keys and read-only `/api/widget/*` endpoints for gethomepage integration. Users can generate per-user keys from **Settings → Integrations → Homepage / Widget API Keys** and poll `summary`, `vehicles`, and `vehicle/{vin}` for tile data. Keys are SHA-256 hashed at rest, revocable, and scoped to either all of the user's vehicles or a selected subset (ownership is re-checked at every request). Requires `auth_mode=local` or `oidc`.
+- Widget API keys and read-only `/api/widget/*` endpoints for gethomepage integration. Users can generate per-user keys from **Settings → Integrations → API Keys** and poll `summary`, `vehicles`, and `vehicle/{vin}` for tile data. Keys are SHA-256 hashed at rest, revocable, and scoped to either all of the user's vehicles or a selected subset (ownership is re-checked at every request). Requires `auth_mode=local` or `oidc`.
+- Stale badge on API keys that haven't been used in 90+ days.
+
+### Changed
+
+- Login screen now shows the SSO button and a "Continue with password" toggle when OIDC is enabled, instead of rendering both options simultaneously.
+- Integrations tab: "Homepage / Widget API Keys" renamed to "API Keys" with consumer-agnostic copy; panel redesigned to match the rest of Settings and spans the full row inside the integrations grid.
+
+### Fixed
+
+- Missing translations on Address Book, Find POI, and the login footer — pages previously rendered raw i18n keys (`addressBook.title`, `poiFinder.title`, `auth.tagline`).
+- API-key timestamps showing "just now" on hours-old rows. Timestamps across widget keys, drive sessions, DTCs, photos, archived vehicles, transfers, backups, and telemetry charts now render at the correct wall-clock time regardless of the user's timezone.
+- Insurance and warranty expiry filters and family-dashboard service dates were off-by-one day for users west of UTC.
 
 ## [2.26.1] - 2026-04-13
 

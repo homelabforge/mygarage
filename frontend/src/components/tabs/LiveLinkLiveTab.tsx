@@ -26,6 +26,7 @@ import {
   getParamDisplayName,
 } from '@/utils/telemetryUnits'
 import type { UnitSystem } from '@/utils/units'
+import { formatAPITimestamp } from '@/utils/parseAPITimestamp'
 
 interface LiveLinkLiveTabProps {
   vin: string
@@ -228,7 +229,7 @@ function GaugeCard({ value, unitSystem }: GaugeCardProps) {
         )}
       </div>
       <div className="text-xs text-garage-text-muted mt-1">
-        {new Date(value.timestamp).toLocaleTimeString()}
+        {formatAPITimestamp(value.timestamp, (d) => d.toLocaleTimeString())}
       </div>
     </div>
   )

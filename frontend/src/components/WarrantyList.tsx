@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import type { WarrantyRecord } from '../types/warranty'
 import { useWarrantyRecords, useDeleteWarrantyRecord } from '../hooks/queries/useWarrantyRecords'
-import { formatDateForDisplay } from '../utils/dateUtils'
+import { formatDateForDisplay, formatDateForInput } from '../utils/dateUtils'
 import { useDateLocale } from '../hooks/useDateLocale'
 
 interface WarrantyListProps {
@@ -40,7 +40,9 @@ export default function WarrantyList({ vin, onAddClick, onEditClick }: WarrantyL
 
   const isExpired = (endDate: string | null): boolean => {
     if (!endDate) return false
-    return new Date(endDate) < new Date()
+    // end_date is a backend `date` (YYYY-MM-DD). Lexicographic compare against
+    // today's local YYYY-MM-DD avoids UTC-midnight drift for users west of UTC.
+    return endDate < formatDateForInput()
   }
 
   if (isLoading) {

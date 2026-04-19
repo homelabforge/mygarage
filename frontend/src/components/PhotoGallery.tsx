@@ -14,6 +14,7 @@ import { toast } from 'sonner'
 import type { Photo } from '../types/photo'
 import vehicleService from '../services/vehicleService'
 import { useOnlineStatus } from '../hooks/useOnlineStatus'
+import { formatAPITimestamp } from '../utils/parseAPITimestamp'
 
 interface PhotoGalleryProps {
   vin: string
@@ -294,7 +295,7 @@ function PhotoGallery({ vin, onAddClick }: PhotoGalleryProps) {
                         {photo.caption ? photo.caption : <span className="text-garage-text-muted italic">No caption</span>}
                       </p>
                       <div className="flex items-center justify-between text-xs text-garage-text-muted">
-                        <span>{photo.uploaded_at ? new Date(photo.uploaded_at).toLocaleDateString() : ''}</span>
+                        <span>{formatAPITimestamp(photo.uploaded_at, (d) => d.toLocaleDateString())}</span>
                         {photo.id && (
                           <button
                             onClick={() => startEditing(photo)}

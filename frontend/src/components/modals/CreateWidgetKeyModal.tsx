@@ -81,15 +81,15 @@ export default function CreateWidgetKeyModal({ isOpen, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="w-full max-w-xl rounded-xl bg-white dark:bg-gray-900 shadow-xl">
-        <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 px-6 py-4">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-            {revealed ? 'Widget Key Created' : 'New Widget API Key'}
+      <div className="w-full max-w-xl rounded-lg bg-garage-surface border border-garage-border shadow-xl">
+        <div className="flex items-center justify-between border-b border-garage-border px-6 py-4">
+          <h2 className="text-lg font-semibold text-garage-text">
+            {revealed ? 'API Key Created' : 'New API Key'}
           </h2>
           <button
             type="button"
             onClick={close}
-            className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
+            className="rounded-lg p-1 text-garage-text-muted hover:bg-garage-bg"
             aria-label="Close"
           >
             <X className="h-5 w-5" />
@@ -98,9 +98,9 @@ export default function CreateWidgetKeyModal({ isOpen, onClose }: Props) {
 
         {revealed ? (
           <div className="space-y-4 p-6">
-            <div className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/20 p-4">
-              <AlertTriangle className="h-5 w-5 flex-shrink-0 text-red-600 dark:text-red-400" />
-              <div className="text-sm text-red-800 dark:text-red-200">
+            <div className="flex items-start gap-3 rounded-lg border border-danger-500/40 bg-danger-500/10 p-4">
+              <AlertTriangle className="h-5 w-5 flex-shrink-0 text-danger-500" />
+              <div className="text-sm text-danger-500">
                 <p className="font-semibold">Copy this key now.</p>
                 <p className="mt-1">
                   This is the only time it will be shown. If you lose it, revoke this key and
@@ -109,17 +109,17 @@ export default function CreateWidgetKeyModal({ isOpen, onClose }: Props) {
               </div>
             </div>
 
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label className="block text-sm font-medium text-garage-text">
               API Key
             </label>
             <div className="flex items-center gap-2">
-              <code className="flex-1 overflow-x-auto rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100">
+              <code className="flex-1 overflow-x-auto rounded-lg border border-garage-border bg-garage-bg px-3 py-2 text-sm text-garage-text">
                 {revealed.secret}
               </code>
               <button
                 type="button"
                 onClick={copySecret}
-                className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                className="btn btn-primary inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium"
               >
                 {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                 {copied ? 'Copied' : 'Copy'}
@@ -130,7 +130,7 @@ export default function CreateWidgetKeyModal({ isOpen, onClose }: Props) {
               <button
                 type="button"
                 onClick={close}
-                className="rounded-lg bg-gray-100 dark:bg-gray-800 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700"
+                className="btn btn-secondary rounded-lg px-4 py-2 text-sm font-medium"
               >
                 Done
               </button>
@@ -139,7 +139,7 @@ export default function CreateWidgetKeyModal({ isOpen, onClose }: Props) {
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4 p-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label className="block text-sm font-medium text-garage-text">
                 Name
               </label>
               <input
@@ -148,15 +148,15 @@ export default function CreateWidgetKeyModal({ isOpen, onClose }: Props) {
                 onChange={(e) => setName(e.target.value)}
                 maxLength={100}
                 placeholder="e.g. Homepage"
-                className="mt-1 w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="mt-1 w-full rounded-lg border border-garage-border bg-garage-surface px-3 py-2 text-sm text-garage-text placeholder-garage-text-muted focus:outline-none focus:ring-2 focus:ring-primary-500"
               />
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              <p className="mt-1 text-xs text-garage-text-muted">
                 A label to help you identify this key later.
               </p>
             </div>
 
             <fieldset className="space-y-2">
-              <legend className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              <legend className="text-sm font-medium text-garage-text">
                 Scope
               </legend>
               <label className="flex items-start gap-2 text-sm">
@@ -169,8 +169,8 @@ export default function CreateWidgetKeyModal({ isOpen, onClose }: Props) {
                   className="mt-1"
                 />
                 <span>
-                  <span className="text-gray-900 dark:text-gray-100">All my vehicles</span>
-                  <span className="block text-xs text-gray-500 dark:text-gray-400">
+                  <span className="text-garage-text">All my vehicles</span>
+                  <span className="block text-xs text-garage-text-muted">
                     Key sees every vehicle you currently own. New vehicles are included
                     automatically.
                   </span>
@@ -186,8 +186,8 @@ export default function CreateWidgetKeyModal({ isOpen, onClose }: Props) {
                   className="mt-1"
                 />
                 <span>
-                  <span className="text-gray-900 dark:text-gray-100">Selected vehicles only</span>
-                  <span className="block text-xs text-gray-500 dark:text-gray-400">
+                  <span className="text-garage-text">Selected vehicles only</span>
+                  <span className="block text-xs text-garage-text-muted">
                     Pick the exact vehicles this key is allowed to read.
                   </span>
                 </span>
@@ -195,9 +195,9 @@ export default function CreateWidgetKeyModal({ isOpen, onClose }: Props) {
             </fieldset>
 
             {scope === 'selected_vins' && (
-              <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-3">
+              <div className="rounded-lg border border-garage-border bg-garage-bg p-3">
                 {vehiclesQuery.isLoading ? (
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Loading vehicles…</p>
+                  <p className="text-sm text-garage-text-muted">Loading vehicles…</p>
                 ) : vehiclesQuery.data && vehiclesQuery.data.vehicles.length > 0 ? (
                   <div className="space-y-1 max-h-48 overflow-y-auto">
                     {vehiclesQuery.data.vehicles.map((v) => {
@@ -206,7 +206,7 @@ export default function CreateWidgetKeyModal({ isOpen, onClose }: Props) {
                       return (
                         <label
                           key={vin}
-                          className="flex items-center gap-2 text-sm text-gray-900 dark:text-gray-100"
+                          className="flex items-center gap-2 text-sm text-garage-text"
                         >
                           <input
                             type="checkbox"
@@ -217,26 +217,26 @@ export default function CreateWidgetKeyModal({ isOpen, onClose }: Props) {
                               )
                             }
                           />
-                          <Car className="h-4 w-4 text-gray-500" />
+                          <Car className="h-4 w-4 text-garage-text-muted" />
                           <span>
                             {v.year ? `${v.year} ` : ''}
                             {v.make ?? ''} {v.model ?? ''}
                           </span>
-                          <code className="ml-auto text-xs text-gray-500">{vin}</code>
+                          <code className="ml-auto text-xs text-garage-text-muted">{vin}</code>
                         </label>
                       )
                     })}
                   </div>
                 ) : (
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    You don't own any vehicles yet.
+                  <p className="text-sm text-garage-text-muted">
+                    You don&apos;t own any vehicles yet.
                   </p>
                 )}
               </div>
             )}
 
             {errorMessage && (
-              <div className="rounded-lg border border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/20 px-3 py-2 text-sm text-red-800 dark:text-red-200">
+              <div className="rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2 text-sm text-danger-500">
                 {errorMessage}
               </div>
             )}
@@ -245,14 +245,14 @@ export default function CreateWidgetKeyModal({ isOpen, onClose }: Props) {
               <button
                 type="button"
                 onClick={close}
-                className="rounded-lg bg-gray-100 dark:bg-gray-800 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700"
+                className="btn btn-secondary rounded-lg px-4 py-2 text-sm font-medium"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={submitDisabled}
-                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                className="btn btn-primary rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {createMutation.isPending ? 'Creating…' : 'Create Key'}
               </button>

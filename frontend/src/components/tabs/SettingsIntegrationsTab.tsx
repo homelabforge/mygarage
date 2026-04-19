@@ -204,10 +204,7 @@ export default function SettingsIntegrationsTab() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Widget API Keys — user-scoped read keys for homepage-style dashboards. */}
-      <WidgetKeysPanel />
-
+    <div className="max-w-6xl mx-auto space-y-6">
       {/* Success/Error Messages */}
       {message && (
         <div
@@ -228,6 +225,11 @@ export default function SettingsIntegrationsTab() {
 
       {/* Integration Cards Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* API Keys — user-scoped read keys for external integrations. Spans full row. */}
+        <div className="lg:col-span-2">
+          <WidgetKeysPanel />
+        </div>
+
         {/* NHTSA Integration */}
         <div className="bg-garage-surface rounded-lg border border-garage-border p-6">
         <div className="flex items-start gap-3 mb-6">
@@ -540,25 +542,26 @@ export default function SettingsIntegrationsTab() {
             </div>
           </div>
         </div>
-
-        <AddProviderModal
-          isOpen={isAddProviderModalOpen}
-          onClose={() => setIsAddProviderModalOpen(false)}
-          onProviderAdded={loadProviders}
-        />
-
-        <EditProviderModal
-          isOpen={isEditModalOpen}
-          provider={selectedProvider}
-          onClose={() => setIsEditModalOpen(false)}
-          onSave={loadProviders}
-        />
-
-        <LiveLinkSettingsModal
-          isOpen={isLiveLinkModalOpen}
-          onClose={() => setIsLiveLinkModalOpen(false)}
-        />
       </div>
+
+      {/* Modals — rendered at the tab root, outside the grid */}
+      <AddProviderModal
+        isOpen={isAddProviderModalOpen}
+        onClose={() => setIsAddProviderModalOpen(false)}
+        onProviderAdded={loadProviders}
+      />
+
+      <EditProviderModal
+        isOpen={isEditModalOpen}
+        provider={selectedProvider}
+        onClose={() => setIsEditModalOpen(false)}
+        onSave={loadProviders}
+      />
+
+      <LiveLinkSettingsModal
+        isOpen={isLiveLinkModalOpen}
+        onClose={() => setIsLiveLinkModalOpen(false)}
+      />
     </div>
   )
 }

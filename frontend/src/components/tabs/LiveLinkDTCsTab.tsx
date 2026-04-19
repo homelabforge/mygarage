@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import { livelinkService } from '@/services/livelinkService'
 import type { VehicleDTC, VehicleDTCListResponse } from '@/types/livelink'
+import { formatAPITimestamp } from '@/utils/parseAPITimestamp'
 
 interface LiveLinkDTCsTabProps {
   vin: string
@@ -179,10 +180,10 @@ export default function LiveLinkDTCsTab({ vin }: LiveLinkDTCsTabProps) {
                       {dtc.description || t('livelink.dtcs.unknownCode')}
                     </p>
                     <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-garage-text-muted">
-                      <span>{t('livelink.dtcs.firstSeen')}: {new Date(dtc.first_seen).toLocaleDateString()}</span>
-                      <span>{t('livelink.dtcs.lastSeen')}: {new Date(dtc.last_seen).toLocaleDateString()}</span>
+                      <span>{t('livelink.dtcs.firstSeen')}: {formatAPITimestamp(dtc.first_seen, (d) => d.toLocaleDateString())}</span>
+                      <span>{t('livelink.dtcs.lastSeen')}: {formatAPITimestamp(dtc.last_seen, (d) => d.toLocaleDateString())}</span>
                       {dtc.cleared_at && (
-                        <span>{t('livelink.dtcs.clearedAt')}: {new Date(dtc.cleared_at).toLocaleDateString()}</span>
+                        <span>{t('livelink.dtcs.clearedAt')}: {formatAPITimestamp(dtc.cleared_at, (d) => d.toLocaleDateString())}</span>
                       )}
                       {dtc.category && <span>{t('livelink.dtcs.category')}: {dtc.category}</span>}
                     </div>

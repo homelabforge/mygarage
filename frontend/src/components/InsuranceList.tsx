@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import type { InsurancePolicy } from '../types/insurance'
 import { useInsuranceRecords, useDeleteInsuranceRecord } from '../hooks/queries/useInsuranceRecords'
-import { formatDateForDisplay } from '../utils/dateUtils'
+import { formatDateForDisplay, formatDateForInput } from '../utils/dateUtils'
 import { useDateLocale } from '../hooks/useDateLocale'
 import { formatCurrency } from '../utils/formatUtils'
 import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
@@ -42,7 +42,11 @@ export default function InsuranceList({ vin, onAddClick, onEditClick }: Insuranc
   }
 
   const isExpired = (endDate: string): boolean => {
-    return new Date(endDate) < new Date()
+    // end_date is a backend `date` (YYYY-MM-DD), not a datetime. Compare as
+    // calendar days in the user's local timezone via lexicographic YYYY-MM-DD
+    // comparison — avoids the UTC-midnight drift a Date-based compare would
+    // introduce for users west of UTC.
+    return endDate < formatDateForInput()
   }
 
   if (isLoading) {

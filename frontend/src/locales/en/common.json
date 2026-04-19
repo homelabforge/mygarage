@@ -34,6 +34,7 @@
     "noAccount": "Don't have an account?",
     "registerLink": "Register here",
     "oidcSignIn": "Sign in with {{provider}}",
+    "continueWithPassword": "Or continue with password",
     "error": "Invalid username or password"
   },
   "register": {
@@ -54,6 +55,55 @@
     "error": "Authentication failed",
     "linkAccount": "Link Account",
     "linkDescription": "Link your existing account with your SSO identity"
+  },
+  "auth": {
+    "tagline": "Self-hosted vehicle maintenance tracker"
+  },
+  "addressBook": {
+    "title": "Address Book",
+    "subtitle": "Service shops, parts suppliers, dealers, and insurance contacts",
+    "searchPlaceholder": "Search contacts...",
+    "allCategories": "All Categories",
+    "categoryService": "Service",
+    "categoryParts": "Parts",
+    "categoryDealer": "Dealer",
+    "categoryInsurance": "Insurance",
+    "categoryOther": "Other",
+    "addContact": "Add Contact",
+    "addFirstContact": "Add Your First Contact",
+    "editContact": "Edit Contact",
+    "loading": "Loading contacts...",
+    "noContacts": "No contacts yet.",
+    "noMatchingContacts": "No contacts match your filters.",
+    "confirmDelete": "Delete this contact?",
+    "deleteError": "Failed to delete contact",
+    "businessName": "Business Name",
+    "contactName": "Contact Name",
+    "category": "Category",
+    "selectCategory": "Select a category...",
+    "email": "Email",
+    "phone": "Phone",
+    "website": "Website",
+    "streetAddress": "Street Address",
+    "city": "City",
+    "state": "State",
+    "zipCode": "ZIP Code",
+    "notes": "Notes",
+    "notesPlaceholder": "Additional notes about this contact..."
+  },
+  "poiFinder": {
+    "title": "Find Points of Interest",
+    "subtitle": "Discover auto shops, EV charging, fuel, and RV services nearby",
+    "categories": "Categories",
+    "searchRadius": "Search Radius",
+    "recentlyUsed": "Recently Used",
+    "useMyLocation": "Use My Location",
+    "enableCategory": "Enable at least one category to search",
+    "searching": "Searching nearby...",
+    "searchingHint": "This may take a few seconds depending on your provider.",
+    "newSearch": "New Search",
+    "noPOIsFound": "No points of interest found",
+    "noPOIsHint": "Try a larger radius or enable more categories."
   },
   "errors": {
     "generic": "Something went wrong. Please try again.",

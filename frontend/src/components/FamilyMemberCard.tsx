@@ -12,6 +12,7 @@ import {
 import type { FamilyMemberData, FamilyVehicleSummary } from '@/types/family'
 import type { User as UserType } from '@/types/user'
 import { formatRelationship } from '@/types/family'
+import { formatDateForDisplay } from '@/utils/dateUtils'
 
 interface FamilyMemberCardProps {
   member: FamilyMemberData
@@ -71,7 +72,7 @@ function VehicleSummaryRow({ vehicle }: { vehicle: FamilyVehicleSummary }) {
           <>
             <p className="text-sm text-garage-text truncate">{vehicle.last_service_description}</p>
             <p className="text-xs text-garage-text-muted">
-              {new Date(vehicle.last_service_date).toLocaleDateString()}
+              {formatDateForDisplay(vehicle.last_service_date)}
             </p>
           </>
         ) : (

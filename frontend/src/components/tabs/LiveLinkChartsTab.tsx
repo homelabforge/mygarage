@@ -18,6 +18,7 @@ import {
 import { BarChart3, RefreshCw, Download, Calendar } from 'lucide-react'
 import { livelinkService } from '@/services/livelinkService'
 import type { TelemetryQueryResponse, LiveLinkParameter } from '@/types/livelink'
+import { parseAPITimestampMs } from '@/utils/parseAPITimestamp'
 // Unit preference hook available for future unit conversion
 // import { useUnitPreference } from '@/hooks/useUnitPreference'
 
@@ -149,7 +150,9 @@ export default function LiveLinkChartsTab({ vin }: LiveLinkChartsTabProps) {
     telemetry.series.forEach((series) => {
       series.data.forEach((point) => {
         const key = point.timestamp
-        const existing = dataMap.get(key) || { timestamp: new Date(point.timestamp).getTime() }
+        const ts = parseAPITimestampMs(point.timestamp)
+        if (ts == null) return
+        const existing = dataMap.get(key) || { timestamp: ts }
         existing[series.param_key] = point.value
         dataMap.set(key, existing)
       })
