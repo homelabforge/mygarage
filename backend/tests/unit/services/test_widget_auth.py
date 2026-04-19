@@ -20,11 +20,14 @@ from app.services.widget_auth import (
     DISPLAY_PREFIX_LEN,
     LAST_USED_THROTTLE,
     WIDGET_KEY_PREFIX,
+    WIDGET_RATE_LIMIT,
     display_prefix,
     generate_widget_key,
     hash_widget_key,
     require_auth_enabled,
     require_widget_key,
+    widget_key_func,
+    widget_limiter,
 )
 from app.utils.datetime_utils import utc_now
 
@@ -260,3 +263,68 @@ class TestRequireWidgetKey:
         await db_session.refresh(key)
         assert key.last_used_at is not None
         assert key.last_used_at > aged
+
+
+class TestWidgetKeyFunc:
+    """slowapi key function — one bucket per widget key, IP fallback otherwise."""
+
+    @staticmethod
+    def _req(header_value: str | None = None, remote_addr: str = "198.51.100.42"):
+        """Build a minimal Request stand-in that slowapi's helpers accept."""
+        from starlette.datastructures import Headers
+        from starlette.requests import Request
+
+        raw_headers: list[tuple[bytes, bytes]] = []
+        if header_value is not None:
+            raw_headers.append((b"x-api-key", header_value.encode()))
+        scope = {
+            "type": "http",
+            "headers": raw_headers,
+            "client": (remote_addr, 0),
+        }
+        # Rebuild Headers so get_remote_address sees the normalized form.
+        req = Request(scope)  # type: ignore[arg-type]
+        assert isinstance(req.headers, Headers)
+        return req
+
+    def test_widget_key_bucket(self):
+        plaintext = f"{WIDGET_KEY_PREFIX}abcdefGHIJK1234567"
+        req = self._req(header_value=plaintext)
+        bucket = widget_key_func(req)
+        assert bucket.startswith("widget:")
+        # 16-char truncated SHA-256 hex follows the prefix.
+        assert len(bucket) == len("widget:") + 16
+
+    def test_same_key_produces_same_bucket(self):
+        plaintext = f"{WIDGET_KEY_PREFIX}samebucketstable"
+        assert widget_key_func(self._req(plaintext)) == widget_key_func(self._req(plaintext))
+
+    def test_different_keys_produce_different_buckets(self):
+        a = widget_key_func(self._req(f"{WIDGET_KEY_PREFIX}oneone"))
+        b = widget_key_func(self._req(f"{WIDGET_KEY_PREFIX}twotwo"))
+        assert a != b
+
+    def test_plaintext_never_in_bucket(self):
+        plaintext = f"{WIDGET_KEY_PREFIX}secret-not-leaked-12345"
+        bucket = widget_key_func(self._req(plaintext))
+        # The plaintext (and any non-trivial substring of it) must not appear.
+        assert "secret-not-leaked" not in bucket
+        assert plaintext not in bucket
+
+    def test_ip_fallback_when_header_missing(self):
+        req = self._req(header_value=None, remote_addr="203.0.113.9")
+        assert widget_key_func(req) == "ip:203.0.113.9"
+
+    def test_ip_fallback_when_prefix_wrong(self):
+        req = self._req(header_value="ll_notaWidgetKey", remote_addr="203.0.113.9")
+        assert widget_key_func(req) == "ip:203.0.113.9"
+
+
+class TestWidgetLimiter:
+    """Limiter configuration sanity — actual 429 enforcement is integration-tested."""
+
+    def test_limiter_uses_widget_key_func(self):
+        assert widget_limiter._key_func is widget_key_func  # type: ignore[attr-defined]
+
+    def test_rate_limit_constant(self):
+        assert WIDGET_RATE_LIMIT == "60/minute"

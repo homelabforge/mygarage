@@ -18,7 +18,9 @@ import logging
 import secrets
 from datetime import timedelta
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, Request, status
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -34,6 +36,8 @@ WIDGET_KEY_PREFIX = "mgwk_"
 WIDGET_KEY_RANDOM_BYTES = 32
 DISPLAY_PREFIX_LEN = 12
 LAST_USED_THROTTLE = timedelta(seconds=60)
+WIDGET_RATE_LIMIT = "60/minute"
+_RATE_LIMIT_KEY_HASH_LEN = 16
 
 
 def generate_widget_key() -> str:
@@ -49,6 +53,25 @@ def hash_widget_key(plaintext: str) -> str:
 def display_prefix(plaintext: str) -> str:
     """Short public prefix shown in the UI to help users identify keys."""
     return plaintext[:DISPLAY_PREFIX_LEN]
+
+
+def widget_key_func(request: Request) -> str:
+    """Derive a slowapi bucket identifier from the X-API-Key header.
+
+    Hashes the key so plaintext secrets never land in the limiter's in-memory
+    store. Falls back to the caller's IP when the header is missing or has the
+    wrong prefix — that path covers unauthenticated probes before
+    `require_widget_key` rejects them, keeping attackers behind a rate limit
+    while they brute-force the key space.
+    """
+    api_key = request.headers.get("X-API-Key", "")
+    if api_key.startswith(WIDGET_KEY_PREFIX):
+        digest = hashlib.sha256(api_key.encode()).hexdigest()[:_RATE_LIMIT_KEY_HASH_LEN]
+        return f"widget:{digest}"
+    return f"ip:{get_remote_address(request)}"
+
+
+widget_limiter = Limiter(key_func=widget_key_func)
 
 
 def _unauthorized() -> HTTPException:
