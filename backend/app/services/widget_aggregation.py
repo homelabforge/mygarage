@@ -24,7 +24,7 @@ Design rules:
 from datetime import date as date_type
 from decimal import Decimal
 
-from sqlalchemy import case, func, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.document import Document
@@ -55,6 +55,16 @@ def _vehicle_label(vehicle: Vehicle) -> str:
     return " ".join(parts) if parts else vehicle.vin
 
 
+def _visible_vehicle_filter():
+    """Visibility predicate matching dashboard UI: active OR archived-but-visible.
+
+    Archived vehicles with `archived_visible=False` are hidden from the user's
+    dashboard ([routes/dashboard.py:204-208]); widgets follow the same rule so
+    polled data mirrors what the user actually sees.
+    """
+    return or_(Vehicle.archived_at.is_(None), Vehicle.archived_visible.is_(True))
+
+
 class WidgetAggregationService:
     """SQL-first widget data access scoped to a single user."""
 
@@ -66,12 +76,16 @@ class WidgetAggregationService:
     # -------------------------------------------------------------------------
 
     async def _effective_vins(self, user_id: int, allowed_vins: list[str] | None) -> list[str]:
-        """Currently-owned VINs the key is allowed to see.
+        """Currently-owned, user-visible VINs the key is allowed to see.
 
-        Re-derived per request so ownership transfers and archive changes
-        invalidate access without any key-side bookkeeping.
+        Re-derived per request so ownership transfers and archive visibility
+        changes invalidate access without any key-side bookkeeping. Archived
+        vehicles with `archived_visible=False` are excluded to match the
+        dashboard UI's filter.
         """
-        stmt = select(Vehicle.vin).where(Vehicle.user_id == user_id)
+        stmt = (
+            select(Vehicle.vin).where(Vehicle.user_id == user_id).where(_visible_vehicle_filter())
+        )
         if allowed_vins is not None:
             stmt = stmt.where(Vehicle.vin.in_(allowed_vins))
         return list((await self.db.execute(stmt)).scalars().all())
@@ -82,11 +96,17 @@ class WidgetAggregationService:
 
     async def summary(self, user_id: int, allowed_vins: list[str] | None) -> WidgetSummary:
         """Return aggregate counts across all vehicles the key can see."""
-        vehicles_stmt = select(
-            func.count().label("total"),
-            func.sum(case((Vehicle.archived_at.is_(None), 1), else_=0)).label("active"),
-            func.sum(case((Vehicle.archived_at.is_not(None), 1), else_=0)).label("archived"),
-        ).where(Vehicle.user_id == user_id)
+        # archived_vehicles counts only archived-but-visible rows; hidden
+        # archives are not part of the user's garage view so they don't count.
+        vehicles_stmt = (
+            select(
+                func.count().label("total"),
+                func.sum(case((Vehicle.archived_at.is_(None), 1), else_=0)).label("active"),
+                func.sum(case((Vehicle.archived_at.is_not(None), 1), else_=0)).label("archived"),
+            )
+            .where(Vehicle.user_id == user_id)
+            .where(_visible_vehicle_filter())
+        )
         if allowed_vins is not None:
             vehicles_stmt = vehicles_stmt.where(Vehicle.vin.in_(allowed_vins))
         row = (await self.db.execute(vehicles_stmt)).one()
@@ -136,8 +156,11 @@ class WidgetAggregationService:
     async def list_vehicles(
         self, user_id: int, allowed_vins: list[str] | None
     ) -> list[WidgetVehicleRef]:
-        """Minimal VIN + label list for UI discovery."""
-        stmt = select(Vehicle).where(Vehicle.user_id == user_id)
+        """Minimal VIN + label list for UI discovery.
+
+        Excludes archived vehicles with `archived_visible=False`.
+        """
+        stmt = select(Vehicle).where(Vehicle.user_id == user_id).where(_visible_vehicle_filter())
         if allowed_vins is not None:
             stmt = stmt.where(Vehicle.vin.in_(allowed_vins))
         vehicles = (await self.db.execute(stmt)).scalars().all()
@@ -154,7 +177,11 @@ class WidgetAggregationService:
 
         The route maps None → 404 (not 403) to avoid confirming existence.
         """
-        stmt = select(Vehicle).where(Vehicle.vin == vin, Vehicle.user_id == user_id)
+        stmt = (
+            select(Vehicle)
+            .where(Vehicle.vin == vin, Vehicle.user_id == user_id)
+            .where(_visible_vehicle_filter())
+        )
         if allowed_vins is not None:
             stmt = stmt.where(Vehicle.vin.in_(allowed_vins))
         vehicle = (await self.db.execute(stmt)).scalar_one_or_none()

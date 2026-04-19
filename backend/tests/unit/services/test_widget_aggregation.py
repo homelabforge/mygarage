@@ -552,3 +552,60 @@ class TestPhotoCountFromDb:
         assert result.photos == 3
         summary = await svc.summary(aggregation_user.id, allowed_vins=None)
         assert summary.total_photos == 3
+
+
+class TestArchiveVisibility:
+    """Archived vehicles with archived_visible=False must not appear in widgets."""
+
+    @pytest.mark.asyncio
+    async def test_vehicle_lookup_excludes_hidden_archive(self, db_session, aggregation_user):
+        from datetime import datetime
+
+        hidden = await _make_vehicle(db_session, aggregation_user, archived_at=datetime(2026, 1, 1))
+        hidden.archived_visible = False
+        await db_session.commit()
+
+        svc = WidgetAggregationService(db_session)
+        result = await svc.vehicle(aggregation_user.id, hidden.vin, allowed_vins=None)
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_list_excludes_hidden_archive(self, db_session, aggregation_user):
+        from datetime import datetime
+
+        hidden = await _make_vehicle(db_session, aggregation_user, archived_at=datetime(2026, 1, 1))
+        hidden.archived_visible = False
+        await db_session.commit()
+
+        svc = WidgetAggregationService(db_session)
+        vins = [v.vin for v in await svc.list_vehicles(aggregation_user.id, allowed_vins=None)]
+        assert hidden.vin not in vins
+
+    @pytest.mark.asyncio
+    async def test_visible_archive_still_counted(self, db_session, aggregation_user):
+        """Archived-but-visible must still appear (matches dashboard behavior)."""
+        from datetime import datetime
+
+        visible_archive = await _make_vehicle(
+            db_session, aggregation_user, archived_at=datetime(2026, 1, 1)
+        )
+        # archived_visible defaults to True on the model.
+        svc = WidgetAggregationService(db_session)
+        result = await svc.vehicle(aggregation_user.id, visible_archive.vin, allowed_vins=None)
+        assert result is not None
+
+    @pytest.mark.asyncio
+    async def test_summary_counts_only_visible_vehicles(self, db_session, aggregation_user):
+        from datetime import datetime
+
+        svc = WidgetAggregationService(db_session)
+        baseline = await svc.summary(aggregation_user.id, allowed_vins=None)
+
+        hidden = await _make_vehicle(db_session, aggregation_user, archived_at=datetime(2026, 1, 1))
+        hidden.archived_visible = False
+        await db_session.commit()
+
+        after = await svc.summary(aggregation_user.id, allowed_vins=None)
+        # Hidden archive adds nothing to totals.
+        assert after.total_vehicles == baseline.total_vehicles
+        assert after.archived_vehicles == baseline.archived_vehicles

@@ -25,6 +25,7 @@ from app.services.widget_auth import (
     display_prefix,
     generate_widget_key,
     hash_widget_key,
+    widget_limiter,
 )
 from app.utils.datetime_utils import utc_now
 
@@ -367,3 +368,49 @@ class TestFanOutRegressionOverApi:
         after = (await client.get("/api/widget/summary", headers={"X-API-Key": plaintext})).json()
         assert after["total_service_records"] - baseline["total_service_records"] == n_service
         assert after["total_fuel_records"] - baseline["total_fuel_records"] == n_fuel
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+class TestRateLimiting:
+    """slowapi enforcement on /api/widget/*.
+
+    WIDGET_RATE_LIMIT is 60/minute per key-hash bucket. Exhausting the bucket
+    in a tight loop and asserting the next call returns 429 verifies the
+    limiter is wired up end-to-end, not just unit-tested in isolation.
+    """
+
+    async def test_429_after_limit_exhausted(
+        self, client: AsyncClient, db_session, widget_owner, set_auth_mode
+    ):
+        await set_auth_mode("local")
+        plaintext = await _make_key(db_session, widget_owner)
+        # Wipe limiter state so this test's 60-req budget starts fresh even if
+        # earlier tests consumed it for the same bucket.
+        widget_limiter.reset()
+        try:
+            # Burn 60 successful requests to hit the per-minute ceiling.
+            for i in range(60):
+                resp = await client.get("/api/widget/summary", headers={"X-API-Key": plaintext})
+                assert resp.status_code == 200, f"request {i} unexpectedly {resp.status_code}"
+            # 61st must be 429.
+            over = await client.get("/api/widget/summary", headers={"X-API-Key": plaintext})
+            assert over.status_code == 429
+        finally:
+            widget_limiter.reset()
+
+    async def test_reset_between_tests(
+        self, client: AsyncClient, db_session, widget_owner, set_auth_mode
+    ):
+        """Smoke check that widget_limiter.reset() really clears the bucket.
+
+        Without it, this test would inherit the 60-hit bucket from the prior
+        test and 429 immediately — which would also confirm reset works by
+        regression if someone removed it. Keeping the explicit reset makes
+        the intent visible.
+        """
+        await set_auth_mode("local")
+        plaintext = await _make_key(db_session, widget_owner)
+        widget_limiter.reset()
+        resp = await client.get("/api/widget/summary", headers={"X-API-Key": plaintext})
+        assert resp.status_code == 200
