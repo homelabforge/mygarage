@@ -17108,6 +17108,251 @@
         "title": "WiCANStatus",
         "type": "object"
       },
+      "WidgetSummary": {
+        "description": "Garage-wide aggregates scoped to the key owner's vehicles.",
+        "properties": {
+          "active_vehicles": {
+            "title": "Active Vehicles",
+            "type": "integer"
+          },
+          "archived_vehicles": {
+            "title": "Archived Vehicles",
+            "type": "integer"
+          },
+          "total_documents": {
+            "title": "Total Documents",
+            "type": "integer"
+          },
+          "total_fuel_records": {
+            "title": "Total Fuel Records",
+            "type": "integer"
+          },
+          "total_notes": {
+            "title": "Total Notes",
+            "type": "integer"
+          },
+          "total_overdue_maintenance": {
+            "title": "Total Overdue Maintenance",
+            "type": "integer"
+          },
+          "total_photos": {
+            "title": "Total Photos",
+            "type": "integer"
+          },
+          "total_service_records": {
+            "title": "Total Service Records",
+            "type": "integer"
+          },
+          "total_upcoming_maintenance": {
+            "title": "Total Upcoming Maintenance",
+            "type": "integer"
+          },
+          "total_vehicles": {
+            "title": "Total Vehicles",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total_vehicles",
+          "active_vehicles",
+          "archived_vehicles",
+          "total_overdue_maintenance",
+          "total_upcoming_maintenance",
+          "total_service_records",
+          "total_fuel_records",
+          "total_documents",
+          "total_notes",
+          "total_photos"
+        ],
+        "title": "WidgetSummary",
+        "type": "object"
+      },
+      "WidgetVehicle": {
+        "description": "Per-vehicle rollup. Four of these fields render as a homepage tile.",
+        "properties": {
+          "average_mpg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Mpg"
+          },
+          "documents": {
+            "title": "Documents",
+            "type": "integer"
+          },
+          "fuel_records": {
+            "title": "Fuel Records",
+            "type": "integer"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "last_fuel_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Fuel Date"
+          },
+          "last_service_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Service Date"
+          },
+          "make": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Make"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "notes": {
+            "title": "Notes",
+            "type": "integer"
+          },
+          "odometer": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Odometer"
+          },
+          "odometer_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Odometer Date"
+          },
+          "overdue_maintenance": {
+            "title": "Overdue Maintenance",
+            "type": "integer"
+          },
+          "photos": {
+            "title": "Photos",
+            "type": "integer"
+          },
+          "recent_mpg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recent Mpg"
+          },
+          "service_records": {
+            "title": "Service Records",
+            "type": "integer"
+          },
+          "upcoming_maintenance": {
+            "title": "Upcoming Maintenance",
+            "type": "integer"
+          },
+          "year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year"
+          }
+        },
+        "required": [
+          "label",
+          "upcoming_maintenance",
+          "overdue_maintenance",
+          "service_records",
+          "fuel_records",
+          "documents",
+          "notes",
+          "photos"
+        ],
+        "title": "WidgetVehicle",
+        "type": "object"
+      },
+      "WidgetVehicleList": {
+        "properties": {
+          "vehicles": {
+            "items": {
+              "$ref": "#/components/schemas/WidgetVehicleRef"
+            },
+            "title": "Vehicles",
+            "type": "array"
+          }
+        },
+        "required": [
+          "vehicles"
+        ],
+        "title": "WidgetVehicleList",
+        "type": "object"
+      },
+      "WidgetVehicleRef": {
+        "description": "Minimal VIN + label pair used by the discovery list.",
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "vin": {
+            "title": "Vin",
+            "type": "string"
+          }
+        },
+        "required": [
+          "vin",
+          "label"
+        ],
+        "title": "WidgetVehicleRef",
+        "type": "object"
+      },
       "WindowStickerDataUpdate": {
         "description": "Schema for updating window sticker extracted data.",
         "properties": {
@@ -31560,6 +31805,165 @@
         "summary": "Validate Vin Endpoint",
         "tags": [
           "VIN"
+        ]
+      }
+    },
+    "/api/widget/summary": {
+      "get": {
+        "description": "Aggregate counts across all vehicles the key can see.",
+        "operationId": "get_summary_api_widget_summary_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WidgetSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Summary",
+        "tags": [
+          "widget"
+        ]
+      }
+    },
+    "/api/widget/vehicle/{vin}": {
+      "get": {
+        "description": "Per-vehicle rollup. Returns 404 (not 403) for out-of-scope VINs to\navoid confirming their existence.",
+        "operationId": "get_widget_vehicle_api_widget_vehicle__vin__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vin",
+            "required": true,
+            "schema": {
+              "title": "Vin",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WidgetVehicle"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Widget Vehicle",
+        "tags": [
+          "widget"
+        ]
+      }
+    },
+    "/api/widget/vehicles": {
+      "get": {
+        "description": "VIN + label pairs for the key's accessible vehicles.",
+        "operationId": "list_widget_vehicles_api_widget_vehicles_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WidgetVehicleList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Widget Vehicles",
+        "tags": [
+          "widget"
         ]
       }
     },
