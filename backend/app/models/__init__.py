@@ -35,6 +35,7 @@ from app.models.vehicle_telemetry import (
 from app.models.vehicle_transfer import VehicleTransfer
 from app.models.vendor import Vendor
 from app.models.warranty import WarrantyRecord
+from app.models.widget_api_key import WidgetApiKey
 
 __all__ = [
     # Vehicles
@@ -76,4 +77,6 @@ __all__ = [
     "Reminder",
     "ServiceVisit",
     "ServiceLineItem",
+    # Integrations
+    "WidgetApiKey",
 ]
