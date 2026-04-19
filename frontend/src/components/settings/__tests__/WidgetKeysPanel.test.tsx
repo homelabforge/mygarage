@@ -64,7 +64,7 @@ describe('WidgetKeysPanel', () => {
     expect(screen.queryByText(/Homepage \/ Widget/i)).not.toBeInTheDocument()
   })
 
-  it('reframes the help block as a gethomepage example', () => {
+  it('does not render a gethomepage example block (covered in wiki)', () => {
     useWidgetKeysMock.mockReturnValue({
       isLoading: false,
       isError: false,
@@ -72,8 +72,7 @@ describe('WidgetKeysPanel', () => {
       error: null,
     })
     render(<WidgetKeysPanel />)
-    expect(screen.getByText(/Example: gethomepage integration/i)).toBeInTheDocument()
-    // Original consumer-specific copy should be gone
+    expect(screen.queryByText(/gethomepage/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/How do I use this with gethomepage\?/i)).not.toBeInTheDocument()
   })
 

@@ -141,75 +141,7 @@ export default function WidgetKeysPanel(): React.ReactElement {
         </p>
       )}
 
-      <WidgetKeysHelp />
-
       <CreateWidgetKeyModal isOpen={modalOpen} onClose={() => setModalOpen(false)} />
     </section>
-  )
-}
-
-function WidgetKeysHelp(): React.ReactElement {
-  const [open, setOpen] = useState(false)
-  return (
-    <details
-      open={open}
-      onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}
-      className="rounded-lg border border-garage-border bg-garage-bg p-4 text-sm"
-    >
-      <summary className="cursor-pointer font-medium text-garage-text">
-        Example: gethomepage integration
-      </summary>
-      <div className="mt-3 space-y-3 text-garage-text-muted">
-        <p>
-          Any HTTP client can call the widget endpoints with an <code>X-API-Key</code>{' '}
-          header — gethomepage, Grafana, custom scripts, or your own dashboard. The
-          example below is for gethomepage; adapt as needed.
-        </p>
-        <p>
-          Copy the key once at creation time and store it in your homepage secrets
-          directory. Homepage widgets display up to 4 fields per tile — pick which ones
-          via the <code>mappings:</code> block.
-        </p>
-        <p className="font-medium">Summary tile example:</p>
-        <pre className="overflow-x-auto rounded bg-gray-900 text-gray-100 p-3 text-xs">{`- MyGarage:
-    icon: mdi-car
-    href: https://mygarage.example.com
-    container: mygarage
-    description: Vehicle maintenance
-    widget:
-      type: customapi
-      url: http://mygarage:8000/api/widget/summary
-      headers:
-        X-API-Key: "{{HOMEPAGE_FILE_MYGARAGE_KEY}}"
-      mappings:
-        - field: total_vehicles
-          label: Vehicles
-        - field: total_overdue_maintenance
-          label: Overdue
-        - field: total_upcoming_maintenance
-          label: Upcoming
-        - field: total_fuel_records
-          label: Fill-ups`}</pre>
-        <p className="font-medium">Per-vehicle tile:</p>
-        <pre className="overflow-x-auto rounded bg-gray-900 text-gray-100 p-3 text-xs">{`- "2023 Civic":
-    icon: mdi-car-hatchback
-    href: https://mygarage.example.com/vehicles/1HGCM82633A004352
-    widget:
-      type: customapi
-      url: http://mygarage:8000/api/widget/vehicle/1HGCM82633A004352
-      headers:
-        X-API-Key: "{{HOMEPAGE_FILE_MYGARAGE_KEY}}"
-      mappings:
-        - field: odometer
-          label: Miles
-          format: number
-        - field: recent_mpg
-          label: MPG
-        - field: overdue_maintenance
-          label: Overdue
-        - field: upcoming_maintenance
-          label: Upcoming`}</pre>
-      </div>
-    </details>
   )
 }
