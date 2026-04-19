@@ -8,6 +8,7 @@ import type { LiveLinkSettings, LiveLinkDeviceListResponse, DeviceFirmwareStatus
 import AddProviderModal from '../modals/AddProviderModal'
 import EditProviderModal from '../modals/EditProviderModal'
 import LiveLinkSettingsModal from '../modals/LiveLinkSettingsModal'
+import WidgetKeysPanel from '../settings/WidgetKeysPanel'
 
 // Sample VIN for testing NHTSA API connection
 const TEST_VIN = '1HGCM82633A123456'
@@ -204,6 +205,9 @@ export default function SettingsIntegrationsTab() {
 
   return (
     <div className="space-y-6">
+      {/* Widget API Keys — user-scoped read keys for homepage-style dashboards. */}
+      <WidgetKeysPanel />
+
       {/* Success/Error Messages */}
       {message && (
         <div
