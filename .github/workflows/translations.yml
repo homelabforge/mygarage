@@ -6,17 +6,26 @@ on:
     paths:
       - 'frontend/src/locales/**'
       - 'frontend/public/locales/**'
+  pull_request:
+    paths:
+      - 'frontend/src/locales/**'
+      - 'frontend/public/locales/**'
 
 concurrency:
   group: translations
   cancel-in-progress: true
 
+# Read-only — this workflow verifies the committed status files are up to
+# date, rather than auto-pushing. Protected-branch rules reject bot pushes
+# (required status checks can't pass on the bot's own commit yet), so any
+# auto-commit attempt loops forever. Regenerate locally before pushing:
+#   cd frontend && bun run generate:translation-status
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  update-translation-status:
-    name: Update Translation Status
+  verify-translation-status:
+    name: Verify Translation Status
     runs-on: ubuntu-latest
 
     steps:
@@ -31,17 +40,20 @@ jobs:
       - name: Install dependencies
         run: cd frontend && bun install --frozen-lockfile
 
-      - name: Generate translation status
+      - name: Regenerate translation status
         run: cd frontend && bun run generate:translation-status
 
-      - name: Commit updated status
+      - name: Verify committed status matches regenerated
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add TRANSLATIONS.md .github/badges/translations.json
-          if git diff --cached --quiet; then
-            echo "No changes to commit"
+          if git diff --quiet TRANSLATIONS.md .github/badges/translations.json; then
+            echo "✓ Translation status files are up to date"
           else
-            git commit -m "docs: update translation status"
-            git push
+            echo "✗ TRANSLATIONS.md or .github/badges/translations.json is out of date."
+            echo ""
+            echo "Regenerate locally and commit:"
+            echo "  cd frontend && bun run generate:translation-status"
+            echo ""
+            echo "Drift:"
+            git diff TRANSLATIONS.md .github/badges/translations.json
+            exit 1
           fi
