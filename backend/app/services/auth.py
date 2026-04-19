@@ -7,9 +7,11 @@ from typing import Any
 
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerifyMismatchError
-from authlib.jose import JoseError, jwt
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from joserfc import jwt
+from joserfc.errors import JoseError
+from joserfc.jwk import OctKey
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -113,9 +115,8 @@ def create_access_token(data: dict[str, Any], expires_delta: timedelta | None = 
 
     to_encode.update({"exp": expire, "iat": datetime.now(UTC)})
     header = {"alg": settings.algorithm}
-    encoded_jwt = jwt.encode(header, to_encode, settings.secret_key)
-    # jwt.encode from authlib always returns bytes
-    return encoded_jwt.decode("utf-8")
+    key = OctKey.import_key(settings.secret_key)
+    return jwt.encode(header, to_encode, key)
 
 
 async def get_current_user(
@@ -143,17 +144,18 @@ async def get_current_user(
     logger.debug("Processing authentication token")
 
     try:
-        payload = jwt.decode(token, settings.secret_key)
+        key = OctKey.import_key(settings.secret_key)
+        claims = jwt.decode(token, key).claims
 
         # Explicitly validate expiration (defense-in-depth)
-        exp = payload.get("exp")
+        exp = claims.get("exp")
         if exp is not None:
             if datetime.now(UTC).timestamp() > exp:
                 logger.debug("Token has expired")
                 raise credentials_exception
 
-        user_id_str: str | None = payload.get("sub")
-        username: str | None = payload.get("username")
+        user_id_str: str | None = claims.get("sub")
+        username: str | None = claims.get("username")
 
         if user_id_str is None or username is None:
             logger.error("Token missing user_id or username")

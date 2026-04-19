@@ -12,9 +12,9 @@ import secrets
 from datetime import timedelta
 
 import httpx
-from authlib.jose import JoseError
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import RedirectResponse
+from joserfc.errors import JoseError
 from pydantic import BaseModel
 from slowapi import Limiter
 from slowapi.util import get_remote_address

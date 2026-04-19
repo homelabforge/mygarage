@@ -8,7 +8,9 @@ import logging
 from typing import Any
 
 import httpx
-from authlib.jose import JoseError, JsonWebKey, jwt
+from joserfc import jwt
+from joserfc.errors import JoseError
+from joserfc.jwk import KeySet
 
 from app.exceptions import SSRFProtectionError
 from app.utils.url_validation import validate_oidc_url
@@ -157,19 +159,20 @@ async def verify_id_token(
             jwks = response.json()
 
         # Create key set
-        key_set = JsonWebKey.import_key_set(jwks)
+        key_set = KeySet.import_key_set(jwks)
 
-        # Decode and verify ID token
-        claims = jwt.decode(
-            id_token,
-            key_set,
-            claims_options={
-                "iss": {"essential": True, "value": config.get("issuer_url", "")},
-                "aud": {"essential": True, "value": config.get("client_id", "")},
-                "nonce": {"essential": True, "value": nonce},
-            },
+        # Decode and verify signature (joserfc auto-selects key by kid from header)
+        token_obj = jwt.decode(id_token, key_set)
+        claims = token_obj.claims
+
+        # Validate standard + provider-specific claims (iss/aud/nonce) and
+        # time-based claims (exp/nbf/iat) in one pass.
+        claims_registry = jwt.JWTClaimsRegistry(
+            iss={"essential": True, "value": config.get("issuer_url", "")},
+            aud={"essential": True, "value": config.get("client_id", "")},
+            nonce={"essential": True, "value": nonce},
         )
-        claims.validate()
+        claims_registry.validate(claims)
 
         logger.info("Successfully verified ID token for subject: %s", claims.get("sub"))
         return dict(claims)

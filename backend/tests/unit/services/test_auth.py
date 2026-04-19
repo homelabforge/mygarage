@@ -7,7 +7,9 @@ Tests password hashing, JWT token generation, and token verification.
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from authlib.jose import JoseError, jwt
+from joserfc import jwt
+from joserfc.errors import JoseError
+from joserfc.jwk import OctKey
 
 from app.config import settings
 from app.services.auth import (
@@ -114,7 +116,7 @@ class TestJWTTokens:
         token = create_access_token(data, expires_delta=expires_delta)
 
         # Decode token to verify expiration
-        payload = jwt.decode(token, settings.secret_key)
+        payload = jwt.decode(token, OctKey.import_key(settings.secret_key)).claims
         exp_timestamp = payload["exp"]
 
         # Expiration should be approximately 30 minutes from now
@@ -129,7 +131,7 @@ class TestJWTTokens:
         data = {"sub": "123", "username": "testuser"}
         token = create_access_token(data)
 
-        payload = jwt.decode(token, settings.secret_key)
+        payload = jwt.decode(token, OctKey.import_key(settings.secret_key)).claims
         exp_timestamp = payload["exp"]
 
         # Should use default from settings
@@ -144,7 +146,7 @@ class TestJWTTokens:
         data = {"sub": "123", "username": "testuser"}
         token = create_access_token(data)
 
-        payload = jwt.decode(token, settings.secret_key)
+        payload = jwt.decode(token, OctKey.import_key(settings.secret_key)).claims
         assert "iat" in payload
         assert "exp" in payload
 
@@ -160,7 +162,7 @@ class TestJWTTokens:
         }
         token = create_access_token(data)
 
-        payload = jwt.decode(token, settings.secret_key)
+        payload = jwt.decode(token, OctKey.import_key(settings.secret_key)).claims
         assert payload["sub"] == "123"
         assert payload["username"] == "testuser"
         assert payload["email"] == "test@example.com"
@@ -171,14 +173,14 @@ class TestJWTTokens:
         token = create_access_token(data)
 
         # Decode token
-        payload = jwt.decode(token, settings.secret_key)
+        payload = jwt.decode(token, OctKey.import_key(settings.secret_key)).claims
 
         assert payload["sub"] == "123"
         assert payload["username"] == "testuser"
         assert "exp" in payload
         assert "iat" in payload
 
-    @pytest.mark.skip(reason="authlib jwt.decode() does not validate expiration by default")
+    @pytest.mark.skip(reason="jwt.decode() does not validate expiration; use JWTClaimsRegistry")
     def test_decode_token_expired(self):
         """Test that expired tokens raise an error."""
         data = {"sub": "123", "username": "testuser"}
@@ -187,7 +189,7 @@ class TestJWTTokens:
 
         # Decoding should raise an error for expired token
         with pytest.raises(JoseError):
-            jwt.decode(token, settings.secret_key)
+            jwt.decode(token, OctKey.import_key(settings.secret_key))
 
     def test_decode_token_invalid_signature(self):
         """Test that tokens with invalid signatures raise an error."""
@@ -196,7 +198,7 @@ class TestJWTTokens:
 
         # Try to decode with wrong secret key
         with pytest.raises(JoseError):
-            jwt.decode(token, "wrong-secret-key")
+            jwt.decode(token, OctKey.import_key("wrong-secret-key"))
 
     def test_decode_token_tampered(self):
         """Test that tampered tokens raise an error."""
@@ -207,14 +209,14 @@ class TestJWTTokens:
         tampered_token = token[:-5] + "XXXXX"
 
         with pytest.raises(JoseError):
-            jwt.decode(tampered_token, settings.secret_key)
+            jwt.decode(tampered_token, OctKey.import_key(settings.secret_key))
 
     def test_create_access_token_empty_data(self):
         """Test creating token with minimal data."""
         data = {"sub": "123"}
         token = create_access_token(data)
 
-        payload = jwt.decode(token, settings.secret_key)
+        payload = jwt.decode(token, OctKey.import_key(settings.secret_key)).claims
         assert payload["sub"] == "123"
         assert "exp" in payload
         assert "iat" in payload
