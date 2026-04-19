@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Widget API keys and read-only `/api/widget/*` endpoints for gethomepage integration. Users can generate per-user keys from **Settings → Integrations → Homepage / Widget API Keys** and poll `summary`, `vehicles`, and `vehicle/{vin}` for tile data. Keys are SHA-256 hashed at rest, revocable, and scoped to either all of the user's vehicles or a selected subset (ownership is re-checked at every request). Requires `auth_mode=local` or `oidc`.
+
 ## [2.26.1] - 2026-04-13
 
 ### Dockerfile Dependencies
