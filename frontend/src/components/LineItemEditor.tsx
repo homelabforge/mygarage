@@ -4,6 +4,7 @@ import { Trash2, ChevronDown, ChevronUp, Clipboard, Wrench, Bell } from 'lucide-
 import type { ServiceVisitFormLineItem } from '../types/serviceVisit'
 import type { ReminderDraft } from '../types/reminder'
 import InspectionResult from './InspectionResult'
+import CurrencyInputPrefix from './common/CurrencyInputPrefix'
 
 // Service suggestions per category
 const SERVICE_SUGGESTIONS: Record<string, string[]> = {
@@ -174,7 +175,7 @@ export default function LineItemEditor({
             <div>
               <label className="block text-sm font-medium text-garage-text mb-1">{t('lineItemEditor.cost')}</label>
               <div className="relative">
-                <span className="absolute left-3 top-2 text-garage-text-muted">$</span>
+                <CurrencyInputPrefix />
                 <input
                   type="number"
                   value={item.cost ?? ''}

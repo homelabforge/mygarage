@@ -4,6 +4,7 @@ import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Save } from 'lucide-react'
 import FormModalWrapper from './FormModalWrapper'
+import CurrencyInputPrefix from './common/CurrencyInputPrefix'
 import type { TollTransaction, TollTransactionCreate, TollTransactionUpdate, TollTag } from '../types/toll'
 import { tollTransactionSchema, type TollTransactionFormData } from '../schemas/tollTransaction'
 import { FormError } from './FormError'
@@ -102,7 +103,7 @@ export default function TollTransactionForm({ vin, tollTags, transaction, onClos
                 {t('common:amount')} <span className="text-danger">*</span>
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-garage-text-muted">$</span>
+                <CurrencyInputPrefix className="absolute left-3 top-1/2 -translate-y-1/2 text-garage-text-muted" />
                 <input
                   type="number"
                   id="amount"

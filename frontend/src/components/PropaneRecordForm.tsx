@@ -11,6 +11,7 @@ import { useCreatePropaneRecord, useUpdatePropaneRecord } from '../hooks/queries
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { UnitConverter, UnitFormatter } from '../utils/units'
 import { formatDateForInput } from '../utils/dateUtils'
+import CurrencyInputPrefix from './common/CurrencyInputPrefix'
 
 const TANK_SIZES = [
   { label: '20 lb (portable)', value: 20, gallons: 4.7 },
@@ -280,7 +281,7 @@ export default function PropaneRecordForm({
                 {t('fuel.pricePer')} {UnitFormatter.getVolumeUnit(system)}
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-2 text-garage-text-muted">$</span>
+                <CurrencyInputPrefix />
                 <input
                   type="number"
                   id="price_per_unit"
@@ -302,7 +303,7 @@ export default function PropaneRecordForm({
                 Total Cost
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-2 text-garage-text-muted">$</span>
+                <CurrencyInputPrefix />
                 <input
                   type="number"
                   id="cost"

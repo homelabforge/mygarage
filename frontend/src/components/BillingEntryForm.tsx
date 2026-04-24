@@ -4,6 +4,7 @@ import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Save } from 'lucide-react'
 import FormModalWrapper from './FormModalWrapper'
+import CurrencyInputPrefix from './common/CurrencyInputPrefix'
 import type {
   SpotRentalBilling,
   SpotRentalBillingCreate,
@@ -149,7 +150,7 @@ export default function BillingEntryForm({
               {t('spotRental.monthlyRate')}
             </label>
             <div className="relative">
-              <span className="absolute left-3 top-2 text-garage-text-muted">$</span>
+              <CurrencyInputPrefix />
               <input
                 type="number"
                 id="monthly_rate"
@@ -174,7 +175,7 @@ export default function BillingEntryForm({
                 Electric
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-2 text-garage-text-muted">$</span>
+                <CurrencyInputPrefix />
                 <input
                   type="number"
                   id="electric"
@@ -197,7 +198,7 @@ export default function BillingEntryForm({
                 Water
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-2 text-garage-text-muted">$</span>
+                <CurrencyInputPrefix />
                 <input
                   type="number"
                   id="water"
@@ -220,7 +221,7 @@ export default function BillingEntryForm({
                 Waste
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-2 text-garage-text-muted">$</span>
+                <CurrencyInputPrefix />
                 <input
                   type="number"
                   id="waste"
@@ -244,7 +245,7 @@ export default function BillingEntryForm({
               {t('common:total')}
             </label>
             <div className="relative">
-              <span className="absolute left-3 top-2 text-garage-text-muted">$</span>
+              <CurrencyInputPrefix />
               <input
                 type="number"
                 id="total"

@@ -66,7 +66,11 @@ def _safe_int(val: Any) -> int:
         return 0
 
 
-def generate_garage_analytics_pdf(garage_data: dict[str, Any]) -> BytesIO:
+def generate_garage_analytics_pdf(
+    garage_data: dict[str, Any],
+    currency_code: str = "USD",
+    locale: str = "en-US",
+) -> BytesIO:
     """Generate a branded garage-wide analytics PDF report.
 
     Args:
@@ -148,25 +152,25 @@ def generate_garage_analytics_pdf(garage_data: dict[str, Any]) -> BytesIO:
     kpi_cards = [
         {
             "label": "Garage Value",
-            "value": format_currency_short(garage_value),
+            "value": format_currency_short(garage_value, currency_code, locale),
             "sub": f"{vehicle_count} vehicle{'s' if vehicle_count != 1 else ''}",
             "color": "blue",
         },
         {
             "label": "Operating Cost",
-            "value": format_currency_short(operating_cost),
+            "value": format_currency_short(operating_cost, currency_code, locale),
             "sub": "Maintenance + Fuel + Insurance + Taxes",
             "color": "green",
         },
         {
             "label": "Total Maintenance",
-            "value": format_currency_short(total_maintenance),
+            "value": format_currency_short(total_maintenance, currency_code, locale),
             "sub": "Service records",
             "color": "amber",
         },
         {
             "label": "Total Fuel",
-            "value": format_currency_short(total_fuel),
+            "value": format_currency_short(total_fuel, currency_code, locale),
             "sub": "Fuel records",
             "color": "red",
         },
@@ -220,18 +224,21 @@ def generate_garage_analytics_pdf(garage_data: dict[str, Any]) -> BytesIO:
             nickname = str(v.get("nickname", ""))
             display_name = nickname if nickname else name
 
+            fc_compact = lambda val: Paragraph(  # noqa: E731
+                format_currency_compact(val, currency_code, locale), amt_style
+            )
             table_rows.append(
                 [
                     Paragraph(display_name, name_style),
-                    Paragraph(format_currency_compact(v.get("purchase_price", 0)), amt_style),
-                    Paragraph(format_currency_compact(v.get("total_maintenance", 0)), amt_style),
-                    Paragraph(format_currency_compact(v.get("total_upgrades", 0)), amt_style),
-                    Paragraph(format_currency_compact(v.get("total_inspection", 0)), amt_style),
-                    Paragraph(format_currency_compact(v.get("total_collision", 0)), amt_style),
-                    Paragraph(format_currency_compact(v.get("total_detailing", 0)), amt_style),
-                    Paragraph(format_currency_compact(v.get("total_fuel", 0)), amt_style),
-                    Paragraph(format_currency_compact(v.get("total_def", 0)), amt_style),
-                    Paragraph(format_currency_compact(v.get("total_cost", 0)), amt_style),
+                    fc_compact(v.get("purchase_price", 0)),
+                    fc_compact(v.get("total_maintenance", 0)),
+                    fc_compact(v.get("total_upgrades", 0)),
+                    fc_compact(v.get("total_inspection", 0)),
+                    fc_compact(v.get("total_collision", 0)),
+                    fc_compact(v.get("total_detailing", 0)),
+                    fc_compact(v.get("total_fuel", 0)),
+                    fc_compact(v.get("total_def", 0)),
+                    fc_compact(v.get("total_cost", 0)),
                 ]
             )
 

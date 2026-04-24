@@ -12,7 +12,6 @@ import {
   TrendingUp,
   TrendingDown,
   Minus,
-  DollarSign,
   Fuel,
   Wrench,
   Calendar,
@@ -59,12 +58,14 @@ import AnalyticsHelpModal from '../components/AnalyticsHelpModal'
 import { formatCurrencyZero as formatCurrency } from '../utils/formatUtils'
 import { formatDateForDisplay } from '../utils/dateUtils'
 import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
+import { useCurrencySymbol } from '../hooks/useCurrencySymbol'
 import { useDateLocale } from '../hooks/useDateLocale'
 
 export default function Analytics() {
   const { vin } = useParams<{ vin: string }>()
   const { system, showBoth } = useUnitPreference()
   const { currencyCode, locale } = useCurrencyPreference()
+  const currencySymbol = useCurrencySymbol()
   const dateLocale = useDateLocale()
   const [analytics, setAnalytics] = useState<VehicleAnalytics | null>(null)
   const [vendorAnalytics, setVendorAnalytics] = useState<VendorAnalyticsSummary | null>(null)
@@ -403,7 +404,10 @@ export default function Analytics() {
               CSV
             </button>
             <button
-              onClick={() => window.open(`/api/analytics/vehicles/${vin}/export`, '_blank')}
+              onClick={() => {
+                const params = new URLSearchParams({ currency_code: currencyCode, locale })
+                window.open(`/api/analytics/vehicles/${vin}/export?${params.toString()}`, '_blank')
+              }}
               className="px-4 py-2 bg-garage-surface border border-garage-border text-garage-text rounded-lg hover:bg-garage-surface-light transition-colors flex items-center gap-2"
             >
               <Download className="w-4 h-4" />
@@ -422,9 +426,8 @@ export default function Analytics() {
       {/* Cost Projection & Fuel Alerts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
         <div className="bg-garage-surface border border-garage-border rounded-lg p-6">
-          <div className="flex items-center justify-between mb-4">
+          <div className="mb-4">
             <h3 className="text-lg font-semibold text-garage-text">Cost Projection</h3>
-            <DollarSign className="w-5 h-5 text-garage-text-muted" />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
@@ -510,9 +513,8 @@ export default function Analytics() {
       {/* Summary Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <div className="bg-garage-surface border border-garage-border rounded-lg p-6">
-          <div className="flex items-center justify-between mb-2">
+          <div className="mb-2">
             <h3 className="text-sm font-medium text-garage-text-muted">Total Cost</h3>
-            <DollarSign className="w-5 h-5 text-garage-text-muted" />
           </div>
           <p className="text-2xl font-bold text-garage-text">
             {formatCurrency(cost_analysis.total_cost, { currencyCode, locale })}
@@ -700,7 +702,7 @@ export default function Analytics() {
                 <YAxis
                   stroke="#9E9E9E"
                   style={{ fontSize: '12px' }}
-                  label={{ value: 'Cost ($)', angle: -90, position: 'insideLeft', fill: '#9E9E9E' }}
+                  label={{ value: `Cost (${currencySymbol})`, angle: -90, position: 'insideLeft', fill: '#9E9E9E' }}
                 />
                 <Tooltip
                   cursor={false}
@@ -968,7 +970,7 @@ export default function Analytics() {
                 <YAxis
                   stroke="#9E9E9E"
                   style={{ fontSize: '12px' }}
-                  label={{ value: 'Cost ($)', angle: -90, position: 'insideLeft', fill: '#9E9E9E' }}
+                  label={{ value: `Cost (${currencySymbol})`, angle: -90, position: 'insideLeft', fill: '#9E9E9E' }}
                 />
                 <Tooltip
                   cursor={false}
@@ -1221,8 +1223,7 @@ export default function Analytics() {
       {/* Spot Rental Analysis for Fifth Wheels and RVs */}
       {hasPropane && spotRental && spotRental.billing_count > 0 && (
         <div className="bg-garage-surface border border-garage-border rounded-lg p-6 mb-8">
-          <div className="flex items-center gap-2 mb-4">
-            <DollarSign className="w-5 h-5 text-garage-text-muted" />
+          <div className="mb-4">
             <h2 className="text-xl font-bold text-garage-text">Spot Rental Analysis</h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -1427,7 +1428,7 @@ export default function Analytics() {
                   type="number"
                   stroke="#9E9E9E"
                   style={{ fontSize: '12px' }}
-                  label={{ value: 'Total Spent ($)', position: 'insideBottom', offset: -5, fill: '#9E9E9E' }}
+                  label={{ value: `Total Spent (${currencySymbol})`, position: 'insideBottom', offset: -5, fill: '#9E9E9E' }}
                 />
                 <YAxis
                   type="category"

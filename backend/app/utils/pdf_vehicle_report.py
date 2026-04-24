@@ -21,6 +21,7 @@ from reportlab.platypus import (
     TableStyle,
 )
 
+from app.utils.currency import get_currency_symbol
 from app.utils.pdf_charts import (
     render_donut_chart,
     render_monthly_spending_chart,
@@ -90,6 +91,8 @@ def generate_vehicle_analytics_pdf(
     analytics_data: dict[str, Any],
     vendor_data: dict[str, Any] | None = None,
     seasonal_data: dict[str, Any] | None = None,
+    currency_code: str = "USD",
+    locale: str = "en-US",
 ) -> BytesIO:
     """Generate a branded vehicle analytics PDF report.
 
@@ -97,6 +100,8 @@ def generate_vehicle_analytics_pdf(
         analytics_data: VehicleAnalytics.model_dump() output.
         vendor_data: VendorAnalyticsSummary.model_dump() output, or None.
         seasonal_data: SeasonalAnalyticsSummary.model_dump() output, or None.
+        currency_code: ISO 4217 currency code (default "USD") used in PDF rendering.
+        locale: BCP 47 locale for currency symbol selection (default "en-US").
 
     Returns:
         BytesIO containing the PDF document.
@@ -171,25 +176,33 @@ def generate_vehicle_analytics_pdf(
     kpi_cards = [
         {
             "label": "Total Cost",
-            "value": format_currency_short(total_cost),
+            "value": format_currency_short(total_cost, currency_code, locale),
             "sub": f"{service_count} services · {fuel_count} fuel",
             "color": "blue",
         },
         {
             "label": "Cost Per Mile",
-            "value": f"${cost_per_mile:.2f}" if cost_per_mile else "N/A",
+            "value": (
+                f"{get_currency_symbol(currency_code, locale)}{cost_per_mile:.2f}"
+                if cost_per_mile
+                else "N/A"
+            ),
             "sub_html": _trend_badge_html(trend_dir),
             "color": "green",
         },
         {
             "label": "Avg Monthly",
-            "value": format_currency_short(avg_monthly),
-            "sub": f"3-mo rolling: {format_currency(rolling_3m)}" if rolling_3m else "",
+            "value": format_currency_short(avg_monthly, currency_code, locale),
+            "sub": (
+                f"3-mo rolling: {format_currency(rolling_3m, currency_code, locale)}"
+                if rolling_3m
+                else ""
+            ),
             "color": "amber",
         },
         {
             "label": "Projected 12-Mo",
-            "value": format_currency_short(projected_12m),
+            "value": format_currency_short(projected_12m, currency_code, locale),
             "sub": "Based on recent avg",
             "color": "red",
         },
@@ -240,8 +253,14 @@ def generate_vehicle_analytics_pdf(
                 [
                     Paragraph(str(svc.get("service_type", "")), cell_style),
                     Paragraph(str(svc.get("count", 0)), cell_style),
-                    Paragraph(format_currency_compact(svc.get("total_cost", 0)), amt_style),
-                    Paragraph(format_currency_compact(svc.get("average_cost", 0)), amt_style),
+                    Paragraph(
+                        format_currency_compact(svc.get("total_cost", 0), currency_code, locale),
+                        amt_style,
+                    ),
+                    Paragraph(
+                        format_currency_compact(svc.get("average_cost", 0), currency_code, locale),
+                        amt_style,
+                    ),
                 ]
             )
 
@@ -331,6 +350,8 @@ def generate_vehicle_analytics_pdf(
             vendors=vendors,
             most_used=most_used,
             highest_spend=highest_spend,
+            currency_code=currency_code,
+            locale=locale,
         )
         story.extend(vendor_flowables)
         story.append(Spacer(1, SECTION_SPACING))
@@ -345,7 +366,7 @@ def generate_vehicle_analytics_pdf(
         story.append(
             make_section_header(
                 "Seasonal Spending",
-                annotation=f"Annual avg: {format_currency(annual_avg)}",
+                annotation=f"Annual avg: {format_currency(annual_avg, currency_code, locale)}",
             )
         )
         story.append(Spacer(1, 10))
@@ -354,6 +375,8 @@ def generate_vehicle_analytics_pdf(
             seasons=seasons,
             highest_season=highest,
             lowest_season=lowest,
+            currency_code=currency_code,
+            locale=locale,
         )
         story.append(KeepTogether([season_grid]))
         story.append(Spacer(1, SECTION_SPACING))

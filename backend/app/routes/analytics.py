@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -970,13 +970,18 @@ async def get_garage_analytics(
 @limiter.limit(settings.rate_limit_exports)
 async def export_garage_analytics_pdf(
     request: Request,
+    currency_code: str = Query("USD", description="ISO 4217 code; defaults to USD."),
+    locale: str = Query("en-US", description="BCP 47 locale; defaults to en-US."),
     db: AsyncSession = Depends(get_db),
     current_user: User | None = Depends(require_auth),
 ):
     """
     Export garage analytics as PDF report.
     """
+    from app.utils.currency import normalize_pdf_currency_params
     from app.utils.pdf_garage_report import generate_garage_analytics_pdf
+
+    safe_code, safe_locale = normalize_pdf_currency_params(currency_code, locale)
 
     # Get garage analytics first
     garage_data = await get_garage_analytics(db, current_user)
@@ -985,7 +990,9 @@ async def export_garage_analytics_pdf(
         raise HTTPException(status_code=404, detail="No vehicles found in garage")
 
     # Use model_dump() to pass all fields through (fixes data flow bug)
-    pdf_buffer = generate_garage_analytics_pdf(garage_data.model_dump())
+    pdf_buffer = generate_garage_analytics_pdf(
+        garage_data.model_dump(), currency_code=safe_code, locale=safe_locale
+    )
 
     # Return as file download
     return StreamingResponse(
@@ -1291,6 +1298,8 @@ async def compare_periods(
 async def export_analytics_pdf(
     request: Request,
     vin: str,
+    currency_code: str = Query("USD", description="ISO 4217 code; defaults to USD."),
+    locale: str = Query("en-US", description="BCP 47 locale; defaults to en-US."),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_auth),
 ):
@@ -1308,7 +1317,10 @@ async def export_analytics_pdf(
     """
     from fastapi.responses import StreamingResponse
 
+    from app.utils.currency import normalize_pdf_currency_params
     from app.utils.pdf_vehicle_report import generate_vehicle_analytics_pdf
+
+    safe_code, safe_locale = normalize_pdf_currency_params(currency_code, locale)
 
     # Verify vehicle access
     vehicle = await get_vehicle_or_403(vin, current_user, db)
@@ -1343,6 +1355,8 @@ async def export_analytics_pdf(
         analytics_data=analytics_data,
         vendor_data=vendor_data,
         seasonal_data=seasonal_data,
+        currency_code=safe_code,
+        locale=safe_locale,
     )
 
     # Return PDF as streaming response

@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, type SyntheticEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Save, Plus, AlertTriangle, Paperclip } from 'lucide-react'
 import FormModalWrapper from './FormModalWrapper'
+import CurrencyInputPrefix from './common/CurrencyInputPrefix'
 import { toast } from 'sonner'
 import type { ServiceVisit, ServiceVisitCreate, ServiceVisitFormData, ServiceVisitFormLineItem, ServiceLineItemCreate, ServiceLineItemUpdate, ServiceCategory } from '../types/serviceVisit'
 import type { VehicleType } from '../types/vehicle'
@@ -433,7 +434,7 @@ export default function ServiceVisitForm({
               <div>
                 <label className="block text-sm font-medium text-garage-text mb-1">{t('service.tax')}</label>
                 <div className="relative">
-                  <span className="absolute left-3 top-2 text-garage-text-muted">$</span>
+                  <CurrencyInputPrefix />
                   <input
                     type="number"
                     value={formData.tax_amount ?? ''}
@@ -449,7 +450,7 @@ export default function ServiceVisitForm({
               <div>
                 <label className="block text-sm font-medium text-garage-text mb-1">{t('service.shopSupplies')}</label>
                 <div className="relative">
-                  <span className="absolute left-3 top-2 text-garage-text-muted">$</span>
+                  <CurrencyInputPrefix />
                   <input
                     type="number"
                     value={formData.shop_supplies ?? ''}
@@ -465,7 +466,7 @@ export default function ServiceVisitForm({
               <div>
                 <label className="block text-sm font-medium text-garage-text mb-1">{t('service.miscFees')}</label>
                 <div className="relative">
-                  <span className="absolute left-3 top-2 text-garage-text-muted">$</span>
+                  <CurrencyInputPrefix />
                   <input
                     type="number"
                     value={formData.misc_fees ?? ''}

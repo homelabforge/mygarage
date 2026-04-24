@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Edit, Trash2, Plus, AlertCircle, Droplets, TrendingDown, DollarSign } from 'lucide-react'
+import { Edit, Trash2, Plus, AlertCircle, Droplets, TrendingDown } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateForDisplay } from '../utils/dateUtils'
 import { formatCurrency } from '../utils/formatUtils'
@@ -156,7 +156,6 @@ export default function DEFRecordList({ vin }: DEFRecordListProps) {
           {analytics.avg_cost_per_gallon !== null && (
             <div className="bg-garage-surface border border-garage-border rounded-lg p-3">
               <div className="flex items-center gap-1 text-xs text-garage-text-muted mb-1">
-                <DollarSign className="w-3 h-3" />
                 <span>{UnitFormatter.getCostPerVolumeLabel(system)}</span>
               </div>
               <div className="text-lg font-semibold text-garage-text">
@@ -169,7 +168,6 @@ export default function DEFRecordList({ vin }: DEFRecordListProps) {
           {analytics.total_cost !== null && (
             <div className="bg-garage-surface border border-garage-border rounded-lg p-3">
               <div className="flex items-center gap-1 text-xs text-garage-text-muted mb-1">
-                <DollarSign className="w-3 h-3" />
                 <span>{t('defList.totalSpent')}</span>
               </div>
               <div className="text-lg font-semibold text-garage-text">

@@ -11,6 +11,7 @@ import { useCreateDEFRecord, useUpdateDEFRecord } from '../hooks/queries/useDEFR
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { UnitConverter, UnitFormatter } from '../utils/units'
 import { formatDateForInput } from '../utils/dateUtils'
+import CurrencyInputPrefix from './common/CurrencyInputPrefix'
 
 const FILL_LEVEL_PRESETS = [
   { label: 'Full', value: 100 },
@@ -277,7 +278,7 @@ export default function DEFRecordForm({
                 {t('fuel.pricePer')}/{UnitFormatter.getVolumeUnit(system)}
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-2 text-garage-text-muted">$</span>
+                <CurrencyInputPrefix />
                 <input
                   type="number"
                   id="price_per_unit"
@@ -299,7 +300,7 @@ export default function DEFRecordForm({
                 {t('common:totalCost')}
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-2 text-garage-text-muted">$</span>
+                <CurrencyInputPrefix />
                 <input
                   type="number"
                   id="cost"

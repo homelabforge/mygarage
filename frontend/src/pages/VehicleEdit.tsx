@@ -8,6 +8,7 @@ import api from '../services/api'
 import type { Vehicle } from '../types/vehicle'
 import { vehicleEditSchema, type VehicleEditFormData, VEHICLE_TYPES } from '../schemas/vehicle'
 import { FormError } from '../components/FormError'
+import CurrencyInputPrefix from '../components/common/CurrencyInputPrefix'
 
 export default function VehicleEdit() {
   const { t } = useTranslation('vehicles')
@@ -550,7 +551,7 @@ export default function VehicleEdit() {
                 {t('edit.purchasePrice')}
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-2 text-garage-text-muted">$</span>
+                <CurrencyInputPrefix />
                 <input
                   type="number"
                   id="purchase_price"
@@ -588,7 +589,7 @@ export default function VehicleEdit() {
                 {t('edit.soldPrice')}
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-2 text-garage-text-muted">$</span>
+                <CurrencyInputPrefix />
                 <input
                   type="number"
                   id="sold_price"

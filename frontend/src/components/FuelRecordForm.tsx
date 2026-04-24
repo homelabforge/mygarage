@@ -12,6 +12,7 @@ import api from '../services/api'
 import { useCreateFuelRecord, useUpdateFuelRecord } from '../hooks/queries/useFuelRecords'
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { UnitConverter, UnitFormatter } from '../utils/units'
+import CurrencyInputPrefix from './common/CurrencyInputPrefix'
 import { formatDateForInput } from '../utils/dateUtils'
 
 interface FuelRecordFormProps {
@@ -312,7 +313,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
                 {priceLabel}
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-2 text-garage-text-muted">$</span>
+                <CurrencyInputPrefix />
                 <input
                   type="number"
                   id="price_per_unit"
@@ -335,7 +336,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
               {t('common:totalCost')}
             </label>
             <div className="relative">
-              <span className="absolute left-3 top-2 text-garage-text-muted">$</span>
+              <CurrencyInputPrefix />
               <input
                 type="number"
                 id="cost"

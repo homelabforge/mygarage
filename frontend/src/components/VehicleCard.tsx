@@ -5,7 +5,7 @@
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
-import { Car, Calendar, DollarSign, FileText } from 'lucide-react'
+import { Car, Calendar, FileText } from 'lucide-react'
 import type { Vehicle } from '../types/vehicle'
 import { formatCurrency } from '../utils/formatUtils'
 import { formatDateForDisplay } from '../utils/dateUtils'
@@ -88,8 +88,7 @@ function VehicleCard({ vehicle }: VehicleCardProps) {
 
           {/* Purchase Price */}
           {vehicle.purchase_price && (
-            <div className="flex items-center space-x-2 text-xs text-garage-text-muted">
-              <DollarSign className="w-3.5 h-3.5" />
+            <div className="text-xs text-garage-text-muted">
               <span>{formatCurrency(vehicle.purchase_price, { currencyCode, locale, wholeDollars: true })}</span>
             </div>
           )}

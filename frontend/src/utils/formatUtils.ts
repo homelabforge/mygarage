@@ -2,6 +2,36 @@
  * Shared formatting utilities for currency and numbers.
  */
 
+const GENERIC_CURRENCY_SIGN = '¤'
+
+/**
+ * Build the Intl-formatted currency string, swapping the generic ¤ sign for
+ * the code and falling back to `<CODE> <value>` if Intl throws.
+ */
+function formatWithIntl(
+  num: number,
+  currencyCode: string,
+  locale: string,
+  wholeDollars: boolean
+): string {
+  const digits = wholeDollars ? 0 : 2
+  try {
+    const formatted = new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency: currencyCode,
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+    }).format(num)
+    // Intl emits ¤ for ISO "no currency" codes (e.g. XXX). Swap for the code.
+    if (formatted.includes(GENERIC_CURRENCY_SIGN)) {
+      return formatted.replace(GENERIC_CURRENCY_SIGN, currencyCode)
+    }
+    return formatted
+  } catch {
+    return `${currencyCode} ${num.toFixed(digits)}`
+  }
+}
+
 /**
  * Format a value as currency using Intl.NumberFormat.
  *
@@ -41,12 +71,7 @@ export function formatCurrency(
   if (isNaN(num)) return fallback
   if (num === 0 && !zeroIsValid) return fallback
 
-  return new Intl.NumberFormat(locale, {
-    style: 'currency',
-    currency: currencyCode,
-    minimumFractionDigits: wholeDollars ? 0 : 2,
-    maximumFractionDigits: wholeDollars ? 0 : 2,
-  }).format(num)
+  return formatWithIntl(num, currencyCode, locale, wholeDollars)
 }
 
 /**
@@ -57,11 +82,6 @@ export function formatCurrencyZero(
   options: { currencyCode?: string; locale?: string } = {}
 ): string {
   const { currencyCode = 'USD', locale = 'en-US' } = options
-  const zeroFormatted = new Intl.NumberFormat(locale, {
-    style: 'currency',
-    currency: currencyCode,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(0)
+  const zeroFormatted = formatWithIntl(0, currencyCode, locale, false)
   return formatCurrency(value, { fallback: zeroFormatted, zeroIsValid: true, currencyCode, locale })
 }

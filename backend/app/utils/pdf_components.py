@@ -528,6 +528,8 @@ def make_vendor_list(
     vendors: list[dict[str, Any]],
     most_used: str | None = None,
     highest_spend: str | None = None,
+    currency_code: str = "USD",
+    locale: str = "en-US",
 ) -> list:
     """Create a list of vendor cards.
 
@@ -538,7 +540,7 @@ def make_vendor_list(
 
     for i, vendor in enumerate(vendors):
         name = vendor.get("vendor_name", "Unknown")
-        total = format_currency(vendor.get("total_spent", 0))
+        total = format_currency(vendor.get("total_spent", 0), currency_code, locale)
         count = vendor.get("service_count", 0)
 
         # Build detail text
@@ -615,6 +617,8 @@ def make_season_row(
     seasons: list[dict[str, Any]],
     highest_season: str | None = None,
     lowest_season: str | None = None,
+    currency_code: str = "USD",
+    locale: str = "en-US",
 ) -> Table:
     """Create a 4-column grid of seasonal spending cards."""
     styles = get_styles()
@@ -622,7 +626,7 @@ def make_season_row(
     cells = []
     for season in seasons:
         name = season.get("season", "")
-        total = format_currency(season.get("total_cost", 0))
+        total = format_currency(season.get("total_cost", 0), currency_code, locale)
         count = season.get("service_count", 0)
         variance = float(str(season.get("variance_from_annual", 0)))
 

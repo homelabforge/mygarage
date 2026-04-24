@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Fuel, Plus, Edit, Trash2, DollarSign, Calendar, Gauge, TrendingUp, Search, Download, Upload, Truck } from 'lucide-react'
+import { Fuel, Plus, Edit, Trash2, Calendar, Gauge, TrendingUp, Search, Download, Upload, Truck } from 'lucide-react'
 import { toast } from 'sonner'
 import type { FuelRecord } from '../types/fuel'
 import type { Vehicle } from '../types/vehicle'
@@ -265,7 +265,6 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick }: FuelRec
             {totalCost > 0 && (
               <div className="bg-garage-surface border border-garage-border rounded-lg p-3">
                 <div className="flex items-center gap-1 text-xs text-garage-text-muted mb-1">
-                  <DollarSign className="w-3 h-3" />
                   <span>{t('fuelList.totalSpent')}</span>
                 </div>
                 <div className="text-lg font-semibold text-garage-text">
@@ -381,8 +380,7 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick }: FuelRec
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       {record.cost ? (
-                        <div className="flex items-center gap-2 text-sm text-garage-text">
-                          <DollarSign className="w-4 h-4 text-garage-text-muted" />
+                        <div className="text-sm text-garage-text">
                           {formatCurrency(parseFloat(record.cost.toString()), { currencyCode, locale })}
                         </div>
                       ) : (

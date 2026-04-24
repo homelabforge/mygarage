@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Edit, Trash2, Plus, AlertCircle, Fuel, DollarSign, Droplets } from 'lucide-react'
+import { Edit, Trash2, Plus, AlertCircle, Fuel, Droplets } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateForDisplay } from '../utils/dateUtils'
 import { formatCurrency } from '../utils/formatUtils'
@@ -129,7 +129,6 @@ export default function PropaneRecordList({ vin }: PropaneRecordListProps) {
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4">
             <div className="bg-garage-surface border border-garage-border rounded-lg p-3">
               <div className="flex items-center gap-1 text-xs text-garage-text-muted mb-1">
-                <DollarSign className="w-3 h-3" />
                 <span>{t('propaneList.totalSpent')}</span>
               </div>
               <div className="text-lg font-semibold text-garage-text">
@@ -148,7 +147,6 @@ export default function PropaneRecordList({ vin }: PropaneRecordListProps) {
             {avgCostPerGallon !== null && (
               <div className="bg-garage-surface border border-garage-border rounded-lg p-3">
                 <div className="flex items-center gap-1 text-xs text-garage-text-muted mb-1">
-                  <DollarSign className="w-3 h-3" />
                   <span>{UnitFormatter.getCostPerVolumeLabel(system)}</span>
                 </div>
                 <div className="text-lg font-semibold text-garage-text">

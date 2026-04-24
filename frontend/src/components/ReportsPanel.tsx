@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { FileText, Download, Calendar, FileSpreadsheet } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '../services/api'
+import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
 
 interface ReportsPanelProps {
   vin: string
@@ -12,6 +13,7 @@ export default function ReportsPanel({ vin }: ReportsPanelProps) {
   const [endDate, setEndDate] = useState('')
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
   const [isGenerating, setIsGenerating] = useState(false)
+  const { currencyCode, locale } = useCurrencyPreference()
 
   const currentYear = new Date().getFullYear()
   const years = Array.from({ length: 10 }, (_, i) => currentYear - i)
@@ -19,15 +21,17 @@ export default function ReportsPanel({ vin }: ReportsPanelProps) {
   const handleDownloadPDF = async (reportType: string) => {
     setIsGenerating(true)
     try {
-      let url = `/vehicles/${vin}/reports/${reportType}-pdf?`
-
+      const params = new URLSearchParams()
       if (reportType === 'service-history') {
-        if (startDate) url += `start_date=${startDate}&`
-        if (endDate) url += `end_date=${endDate}&`
+        if (startDate) params.set('start_date', startDate)
+        if (endDate) params.set('end_date', endDate)
       } else {
-        url += `year=${selectedYear}`
+        params.set('year', String(selectedYear))
       }
+      params.set('currency_code', currencyCode)
+      params.set('locale', locale)
 
+      const url = `/vehicles/${vin}/reports/${reportType}-pdf?${params.toString()}`
       const response = await api.get(url, { responseType: 'blob' })
 
       const blob = response.data

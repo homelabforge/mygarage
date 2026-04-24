@@ -23,6 +23,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - API-key timestamps showing "just now" on hours-old rows. Timestamps across widget keys, drive sessions, DTCs, photos, archived vehicles, transfers, backups, and telemetry charts now render at the correct wall-clock time regardless of the user's timezone.
 - Insurance and warranty expiry filters and family-dashboard service dates were off-by-one day for users west of UTC.
 
+## [2.26.2] - 2026-04-24
+
+### Fixed
+
+- Currency symbol now respects the user's currency preference across forms, lists, analytics charts, and PDF reports (#68).
+
 ## [2.26.1] - 2026-04-13
 
 ### Dockerfile Dependencies

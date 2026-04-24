@@ -791,8 +791,7 @@ export default function VehicleDetail() {
                   <p className="text-garage-text font-medium mt-1">{formatDate(vehicle.purchase_date)}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-garage-text-muted flex items-center space-x-2">
-                    <DollarSign className="w-4 h-4" />
+                  <p className="text-sm text-garage-text-muted">
                     <span>Purchase Price</span>
                   </p>
                   <p className="text-garage-text font-medium mt-1">{formatCurrency(vehicle.purchase_price, { currencyCode, locale, fallback: 'Not specified' })}</p>
@@ -813,8 +812,7 @@ export default function VehicleDetail() {
                     <p className="text-garage-text font-medium mt-1">{formatDate(vehicle.sold_date)}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-garage-text-muted flex items-center space-x-2">
-                      <DollarSign className="w-4 h-4" />
+                    <p className="text-sm text-garage-text-muted">
                       <span>Sale Price</span>
                     </p>
                     <p className="text-garage-text font-medium mt-1">{formatCurrency(vehicle.sold_price, { currencyCode, locale, fallback: 'Not specified' })}</p>

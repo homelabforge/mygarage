@@ -28,9 +28,11 @@ class PDFReportGenerator:
     and pdf_garage_report.py.
     """
 
-    def __init__(self):
+    def __init__(self, currency_code: str = "USD", locale: str = "en-US"):
         self.styles = getSampleStyleSheet()
         self._setup_custom_styles()
+        self.currency_code = currency_code
+        self.locale = locale
 
     def _setup_custom_styles(self):
         """Setup custom paragraph styles."""
@@ -68,10 +70,13 @@ class PDFReportGenerator:
         )
 
     def _format_currency(self, amount: Decimal | None) -> str:
-        """Format decimal as currency."""
+        """Format decimal as currency using the instance's currency_code/locale."""
+        from app.utils.currency import get_currency_symbol
+
         if amount is None:
             return "N/A"
-        return f"${float(amount):,.2f}"
+        symbol = get_currency_symbol(self.currency_code, self.locale)
+        return f"{symbol}{float(amount):,.2f}"
 
     def _format_date(self, date_obj: date_type | None) -> str:
         """Format date object."""
