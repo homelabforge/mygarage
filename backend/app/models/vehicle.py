@@ -77,9 +77,9 @@ class Vehicle(Base):
     msrp_base: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
     msrp_options: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
     msrp_total: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
-    fuel_economy_city: Mapped[int | None] = mapped_column(Integer)
-    fuel_economy_highway: Mapped[int | None] = mapped_column(Integer)
-    fuel_economy_combined: Mapped[int | None] = mapped_column(Integer)
+    fuel_economy_city_l_per_100km: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
+    fuel_economy_highway_l_per_100km: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
+    fuel_economy_combined_l_per_100km: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
     standard_equipment: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     optional_equipment: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     assembly_location: Mapped[str | None] = mapped_column(String(100))
@@ -115,9 +115,9 @@ class Vehicle(Base):
     archive_notes: Mapped[str | None] = mapped_column(String(1000))
     archived_visible: Mapped[bool] = mapped_column(Boolean, server_default="1")
     # DEF tracking
-    def_tank_capacity_gallons: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
-    # Milestone notification tracking
-    last_milestone_notified: Mapped[int | None] = mapped_column(Integer)
+    def_tank_capacity_liters: Mapped[Decimal | None] = mapped_column(Numeric(6, 2))
+    # Milestone notification tracking (km, per migration 053)
+    last_milestone_notified_km: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime | None] = mapped_column(DateTime, onupdate=func.now())
 
@@ -197,13 +197,13 @@ class TrailerDetails(Base):
     vin: Mapped[str] = mapped_column(
         String(17), ForeignKey("vehicles.vin", ondelete="CASCADE"), primary_key=True
     )
-    gvwr: Mapped[int | None] = mapped_column(Integer)
+    gvwr_kg: Mapped[Decimal | None] = mapped_column(Numeric(7, 2))
     hitch_type: Mapped[str | None] = mapped_column(String(30))
     axle_count: Mapped[int | None] = mapped_column(Integer)
     brake_type: Mapped[str | None] = mapped_column(String(20))
-    length_ft: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
-    width_ft: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
-    height_ft: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
+    length_m: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
+    width_m: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
+    height_m: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
     tow_vehicle_vin: Mapped[str | None] = mapped_column(
         String(17), ForeignKey("vehicles.vin", ondelete="SET NULL")
     )

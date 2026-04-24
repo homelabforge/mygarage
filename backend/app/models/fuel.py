@@ -33,14 +33,16 @@ class FuelRecord(Base):
         String(17), ForeignKey("vehicles.vin", ondelete="CASCADE"), nullable=False
     )
     date: Mapped[dt.date] = mapped_column(Date, nullable=False)
-    mileage: Mapped[int | None] = mapped_column(Integer)
-    gallons: Mapped[Decimal | None] = mapped_column(Numeric(8, 3))
-    propane_gallons: Mapped[Decimal | None] = mapped_column(Numeric(8, 3))
-    tank_size_lb: Mapped[Decimal | None] = mapped_column(Numeric(6, 2))
+    odometer_km: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    liters: Mapped[Decimal | None] = mapped_column(Numeric(9, 3))
+    propane_liters: Mapped[Decimal | None] = mapped_column(Numeric(9, 3))
+    tank_size_kg: Mapped[Decimal | None] = mapped_column(Numeric(6, 2))
     tank_quantity: Mapped[int | None] = mapped_column(Integer)
     kwh: Mapped[Decimal | None] = mapped_column(Numeric(8, 3))
     cost: Mapped[Decimal | None] = mapped_column(Numeric(8, 2))
     price_per_unit: Mapped[Decimal | None] = mapped_column(Numeric(6, 3))
+    # Per-row classifier added by migration 053. Drives unit-aware price math.
+    price_basis: Mapped[str | None] = mapped_column(String(12))
     fuel_type: Mapped[str | None] = mapped_column(String(50))
     is_full_tank: Mapped[bool] = mapped_column(Boolean, default=True)
     missed_fillup: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -58,7 +60,7 @@ class FuelRecord(Base):
     __table_args__ = (
         Index("idx_fuel_records_vin", "vin"),
         Index("idx_fuel_records_date", "date"),
-        Index("idx_fuel_records_mileage", "mileage"),  # For mileage-based queries
+        Index("idx_fuel_records_odometer_km", "odometer_km"),  # For mileage-based queries
         Index("idx_fuel_vin_date", "vin", "date"),  # Composite for common queries
         Index("idx_fuel_is_full_tank", "is_full_tank"),  # For MPG calculations
         Index("idx_fuel_full_tank_vin", "vin", "is_full_tank"),  # Optimized MPG queries

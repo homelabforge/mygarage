@@ -1,4 +1,7 @@
-"""Pydantic schemas for DEF (Diesel Exhaust Fluid) Record operations."""
+"""Pydantic schemas for DEF (Diesel Exhaust Fluid) Record operations.
+
+Canonical units (since v2.26.2): kilometers + liters.
+"""
 
 from datetime import date as date_type
 from datetime import datetime
@@ -8,15 +11,17 @@ from pydantic import BaseModel, Field
 
 
 class DEFRecordBase(BaseModel):
-    """Base DEF record schema with common fields."""
+    """Base DEF record schema with common fields (metric canonical)."""
 
     date: date_type = Field(..., description="Purchase/fill date")
-    mileage: int | None = Field(None, description="Odometer reading", ge=0, le=9999999)
-    gallons: Decimal | None = Field(
-        None, description="DEF volume added in gallons", ge=0, le=999.999, decimal_places=3
+    odometer_km: Decimal | None = Field(
+        None, description="Odometer reading in kilometers", ge=0, le=99999999.99
+    )
+    liters: Decimal | None = Field(
+        None, description="DEF volume added in liters", ge=0, le=9999.999, decimal_places=3
     )
     cost: Decimal | None = Field(None, description="Total cost", ge=0, le=99999.99)
-    price_per_unit: Decimal | None = Field(None, description="Cost per gallon", ge=0, le=999.999)
+    price_per_unit: Decimal | None = Field(None, description="Cost per liter", ge=0, le=999.999)
     fill_level: Decimal | None = Field(
         None,
         description="Tank level after adding DEF (0.00=empty, 1.00=full)",
@@ -39,10 +44,10 @@ class DEFRecordCreate(DEFRecordBase):
                 {
                     "vin": "3C7WRTCL8NG123456",
                     "date": "2026-02-10",
-                    "mileage": 55000,
-                    "gallons": 5.5,
+                    "odometer_km": 88514,
+                    "liters": 20.82,
                     "cost": 24.75,
-                    "price_per_unit": 4.50,
+                    "price_per_unit": 1.189,
                     "fill_level": 1.0,
                     "source": "Truck Stop / Station Nozzle",
                     "brand": "BlueDEF",
@@ -56,12 +61,14 @@ class DEFRecordUpdate(BaseModel):
     """Schema for updating an existing DEF record."""
 
     date: date_type | None = Field(None, description="Purchase/fill date")
-    mileage: int | None = Field(None, description="Odometer reading", ge=0, le=9999999)
-    gallons: Decimal | None = Field(
-        None, description="DEF volume added in gallons", ge=0, le=999.999, decimal_places=3
+    odometer_km: Decimal | None = Field(
+        None, description="Odometer reading in kilometers", ge=0, le=99999999.99
+    )
+    liters: Decimal | None = Field(
+        None, description="DEF volume added in liters", ge=0, le=9999.999, decimal_places=3
     )
     cost: Decimal | None = Field(None, description="Total cost", ge=0, le=99999.99)
-    price_per_unit: Decimal | None = Field(None, description="Cost per gallon", ge=0, le=999.999)
+    price_per_unit: Decimal | None = Field(None, description="Cost per liter", ge=0, le=999.999)
     fill_level: Decimal | None = Field(
         None,
         description="Tank level after adding DEF (0.00=empty, 1.00=full)",
@@ -92,10 +99,10 @@ class DEFRecordResponse(DEFRecordBase):
                     "id": 1,
                     "vin": "3C7WRTCL8NG123456",
                     "date": "2026-02-10",
-                    "mileage": 55000,
-                    "gallons": "5.500",
+                    "odometer_km": 88514,
+                    "liters": "20.820",
                     "cost": "24.75",
-                    "price_per_unit": "4.500",
+                    "price_per_unit": "1.189",
                     "fill_level": "1.00",
                     "source": "Truck Stop / Station Nozzle",
                     "brand": "BlueDEF",
@@ -122,8 +129,8 @@ class DEFRecordListResponse(BaseModel):
                             "id": 1,
                             "vin": "3C7WRTCL8NG123456",
                             "date": "2026-02-10",
-                            "mileage": 55000,
-                            "gallons": "5.500",
+                            "odometer_km": 88514,
+                            "liters": "20.820",
                             "cost": "24.75",
                             "fill_level": "1.00",
                             "source": "Truck Stop / Station Nozzle",
@@ -139,15 +146,15 @@ class DEFRecordListResponse(BaseModel):
 
 
 class DEFAnalytics(BaseModel):
-    """DEF analytics and consumption predictions."""
+    """DEF analytics and consumption predictions (metric canonical)."""
 
-    total_gallons: Decimal | None = None
+    total_liters: Decimal | None = None
     total_cost: Decimal | None = None
-    avg_cost_per_gallon: Decimal | None = None
-    gallons_per_1000_miles: Decimal | None = None
+    avg_cost_per_liter: Decimal | None = None
+    liters_per_1000_km: Decimal | None = None
     avg_purchase_frequency_days: int | None = None
-    estimated_remaining_gallons: Decimal | None = None
-    estimated_miles_remaining: int | None = None
+    estimated_remaining_liters: Decimal | None = None
+    estimated_km_remaining: Decimal | None = None
     estimated_days_remaining: int | None = None
     last_fill_level: Decimal | None = None
     record_count: int = 0

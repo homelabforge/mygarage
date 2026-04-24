@@ -3,6 +3,7 @@ from __future__ import annotations
 """Warranty record database model."""
 
 from datetime import date, datetime
+from decimal import Decimal
 
 from sqlalchemy import (
     CheckConstraint,
@@ -11,6 +12,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    Numeric,
     String,
     Text,
 )
@@ -33,7 +35,7 @@ class WarrantyRecord(Base):
     provider: Mapped[str | None] = mapped_column(String(100))
     start_date: Mapped[date] = mapped_column(Date, nullable=False)
     end_date: Mapped[date | None] = mapped_column(Date)
-    mileage_limit: Mapped[int | None] = mapped_column(Integer)
+    mileage_limit_km: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
     coverage_details: Mapped[str | None] = mapped_column(Text)
     policy_number: Mapped[str | None] = mapped_column(String(50))
     notes: Mapped[str | None] = mapped_column(Text)

@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import datetime as dt
 from datetime import datetime
+from decimal import Decimal
 
-from sqlalchemy import Date, DateTime, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import Date, DateTime, ForeignKey, Index, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -22,7 +23,7 @@ class OdometerRecord(Base):
         String(17), ForeignKey("vehicles.vin", ondelete="CASCADE"), nullable=False
     )
     date: Mapped[dt.date] = mapped_column(Date, nullable=False)
-    mileage: Mapped[int] = mapped_column(Integer, nullable=False)
+    odometer_km: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     notes: Mapped[str | None] = mapped_column(Text)
     source: Mapped[str] = mapped_column(
         String(20), default="manual"
@@ -35,9 +36,9 @@ class OdometerRecord(Base):
     __table_args__ = (
         Index("idx_odometer_records_vin", "vin"),
         Index("idx_odometer_records_date", "date"),
-        Index("idx_odometer_records_mileage", "mileage"),  # For mileage queries
+        Index("idx_odometer_records_odometer_km", "odometer_km"),  # For mileage queries
         Index("idx_odometer_vin_date", "vin", "date"),  # Composite for common queries
-        Index("idx_odometer_vin_mileage", "vin", "mileage"),  # For mileage tracking
+        Index("idx_odometer_vin_odometer_km", "vin", "odometer_km"),  # For mileage tracking
         Index("idx_odometer_source", "source"),  # For filtering by source
     )
 

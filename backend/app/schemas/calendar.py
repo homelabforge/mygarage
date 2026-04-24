@@ -1,6 +1,7 @@
-"""Calendar schemas for MyGarage API."""
+"""Calendar schemas for MyGarage API (metric canonical since v2.26.2)."""
 
 from datetime import date as date_type
+from decimal import Decimal
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -27,18 +28,18 @@ class CalendarEvent(BaseModel):
     is_recurring: bool = Field(default=False, description="Whether event recurs")
     is_completed: bool = Field(default=False, description="Whether event is completed")
     is_estimated: bool = Field(
-        default=False, description="Whether date is estimated from mileage (Phase 3)"
+        default=False, description="Whether date is estimated from odometer_km (Phase 3)"
     )
     category: Literal["maintenance", "legal", "financial", "history"] = Field(
         ..., description="Event category"
     )
     notes: str | None = Field(None, description="Event notes/comments (Phase 3)")
-    due_mileage: int | None = Field(
-        None, description="Due mileage for mileage-based reminders (Phase 3)"
+    due_mileage_km: Decimal | None = Field(
+        None, description="Due odometer reading (km) for mileage-based reminders (Phase 3)"
     )
     status: str | None = Field(None, description="Maintenance status (overdue, due_soon, etc.)")
     days_until_due: int | None = Field(None, description="Days until due date")
-    miles_until_due: int | None = Field(None, description="Miles until due mileage")
+    km_until_due: Decimal | None = Field(None, description="Kilometers until due odometer reading")
 
 
 class CalendarSummary(BaseModel):

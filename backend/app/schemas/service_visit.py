@@ -158,7 +158,9 @@ class ServiceVisitBase(BaseModel):
     """Base service visit schema."""
 
     date: date_type = Field(..., description="Visit date")
-    mileage: int | None = Field(None, description="Odometer reading", ge=0)
+    odometer_km: Decimal | None = Field(
+        None, description="Odometer reading in kilometers", ge=0, le=99999999.99
+    )
     notes: str | None = Field(None, description="Visit notes", max_length=5000)
     service_category: ServiceCategory | None = Field(None, description="Primary service category")
     insurance_claim_number: str | None = Field(
@@ -218,7 +220,7 @@ class ServiceVisitCreate(ServiceVisitBase):
             "examples": [
                 {
                     "date": "2026-01-15",
-                    "mileage": 92500,
+                    "odometer_km": 148864,
                     "service_category": "Maintenance",
                     "vendor_id": 1,
                     "notes": "Regular maintenance visit",
@@ -245,7 +247,9 @@ class ServiceVisitUpdate(BaseModel):
     """Schema for updating an existing service visit."""
 
     date: date_type | None = Field(None, description="Visit date")
-    mileage: int | None = Field(None, description="Odometer reading", ge=0)
+    odometer_km: Decimal | None = Field(
+        None, description="Odometer reading in kilometers", ge=0, le=99999999.99
+    )
     notes: str | None = Field(None, description="Visit notes", max_length=5000)
     service_category: ServiceCategory | None = Field(None, description="Primary service category")
     insurance_claim_number: str | None = Field(
@@ -328,7 +332,7 @@ class ServiceVisitResponse(ServiceVisitBase):
                     "vin": "ML32A5HJ9KH009478",
                     "vendor_id": 1,
                     "date": "2026-01-15",
-                    "mileage": 92500,
+                    "odometer_km": 148864,
                     "total_cost": "112.23",
                     "calculated_total_cost": "112.23",
                     "notes": "Regular maintenance visit",
