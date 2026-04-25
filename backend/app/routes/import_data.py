@@ -44,6 +44,7 @@ from app.models.user import User
 from app.models.vendor import Vendor
 from app.services.auth import get_vehicle_or_403, require_auth
 from app.utils.file_validation import validate_csv_upload
+from app.utils.logging_utils import sanitize_for_log
 from app.utils.units import UnitConverter
 
 
@@ -819,7 +820,7 @@ async def import_vehicle_json(
         logger.warning(
             "JSON import for vin=%s detected legacy v2 backup (no export_version "
             "marker); converting imperial values to metric on ingest.",
-            vin,
+            sanitize_for_log(vin),
         )
 
     def _maybe_mi_to_km(val: Any) -> Decimal | None:
