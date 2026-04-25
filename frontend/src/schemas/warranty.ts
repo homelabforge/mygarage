@@ -12,8 +12,7 @@ export const WARRANTY_TYPES = [
 
 const mileageLimitSchema = z
   .number()
-  .int('Mileage must be a whole number')
-  .min(0, 'Mileage cannot be negative')
+  .min(0, 'Distance cannot be negative')
   .or(z.nan())
   .transform(val => isNaN(val) ? undefined : val)
   .optional()
@@ -23,7 +22,7 @@ export const warrantySchema = z.object({
   provider: z.string().optional(),
   start_date: z.string().min(1, 'Start date is required'),
   end_date: z.string().optional(),
-  mileage_limit: mileageLimitSchema,
+  mileage_limit_km: mileageLimitSchema,
   coverage_details: z.string().optional(),
   policy_number: z.string().optional(),
   notes: z.string().optional(),

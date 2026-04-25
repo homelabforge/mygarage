@@ -3,7 +3,6 @@
 import hashlib
 import json
 import logging
-import re
 from dataclasses import dataclass, field
 from datetime import date as date_type
 from datetime import datetime, timedelta
@@ -29,9 +28,7 @@ from app.models.vehicle_telemetry import (
     VehicleTelemetry,
     VehicleTelemetryLatest,
 )
-from app.services.settings_service import SettingsService
 from app.services.telemetry_validator import TelemetryValidator
-from app.utils.units import UnitConverter
 
 
 @dataclass
@@ -51,10 +48,6 @@ ODOMETER_PID_PATTERNS = [
     "DISTANCE_TOTAL",
     "TOTAL_DISTANCE",
 ]
-
-# Regex to detect standard OBD2 PID-prefixed param keys (e.g. "A6-Odometer", "0D-VehicleSpeed").
-# Standard OBD2 PIDs always report in metric units per SAE J1979.
-_OBD2_PID_PREFIX_RE = re.compile(r"^[0-9A-Fa-f]{1,2}-")
 
 logger = logging.getLogger(__name__)
 
@@ -224,49 +217,49 @@ class TelemetryService:
         return False
 
     async def _sanitize_odometer_value(self, vin: str, value: float) -> float | None:
-        """Sanitize an odometer value, returning None if invalid.
+        """Sanitize an odometer value (km), returning None if invalid.
 
         Applies the same sanity checks as _sync_odometer_from_telemetry:
-        - Absolute cap at 1 million miles
-        - Reject unreasonable jumps (>10,000 from existing max)
+        - Absolute cap at ~1.6 million km (1M mi equivalent)
+        - Reject unreasonable jumps (>16,000 km from existing max)
         - Reject negative/zero values
 
         Returns:
             Sanitized value if valid, None if should be rejected
         """
-        mileage = int(round(value))
+        odometer_km = int(round(value))
 
         # Reject zero/negative
-        if mileage <= 0:
+        if odometer_km <= 0:
             return None
 
-        # Absolute cap at 1 million miles
-        if mileage > 1_000_000:
+        # Absolute cap at ~1.6M km (no vehicle reaches this)
+        if odometer_km > 1_600_000:
             logger.warning(
-                "Rejected odometer %d for %s: exceeds 1M mile cap",
-                mileage,
+                "Rejected odometer %d km for %s: exceeds 1.6M km cap",
+                odometer_km,
                 vin[:8],
             )
             return None
 
-        # Query max existing mileage to check for unreasonable jumps
+        # Query max existing odometer_km to check for unreasonable jumps
         max_result = await self.db.execute(
-            select(func.max(OdometerRecord.mileage)).where(OdometerRecord.vin == vin)
+            select(func.max(OdometerRecord.odometer_km)).where(OdometerRecord.vin == vin)
         )
-        max_mileage = max_result.scalar() or 0
+        max_odometer_km = max_result.scalar() or 0
 
         # Reject values that are unreasonably higher than existing max
         # (prevents overflow values like 0xFFFFFF from being displayed)
-        if max_mileage > 0 and mileage > max_mileage + 10_000:
+        if max_odometer_km > 0 and odometer_km > float(max_odometer_km) + 16_000:
             logger.warning(
-                "Rejected odometer %d for %s: unreasonable jump from %d",
-                mileage,
+                "Rejected odometer %d km for %s: unreasonable jump from %s",
+                odometer_km,
                 vin[:8],
-                max_mileage,
+                max_odometer_km,
             )
             return None
 
-        return float(mileage)
+        return float(odometer_km)
 
     # =========================================================================
     # Telemetry Storage
@@ -409,53 +402,39 @@ class TelemetryService:
             return  # No odometer PID found
 
         # Standard OBD2 PIDs (e.g. A6-Odometer) report in metric per SAE J1979.
-        # Convert to the system's distance unit if needed.
-        if _OBD2_PID_PREFIX_RE.match(odometer_key):
-            distance_setting = await SettingsService.get(self.db, "distance_unit")
-            distance_unit = distance_setting.value if distance_setting else "miles"
-            if distance_unit == "miles":
-                converted = UnitConverter.km_to_miles(odometer_value)
-                if converted is None:
-                    return
-                logger.debug(
-                    "Converting OBD2 odometer %.1f km → %.1f mi for %s",
-                    odometer_value,
-                    converted,
-                    vin[:8],
-                )
-                odometer_value = converted
+        # Storage is now metric (km) directly — no conversion needed.
 
-        mileage = int(round(odometer_value))
-        if mileage <= 0:
+        odometer_km = int(round(odometer_value))
+        if odometer_km <= 0:
             return  # Invalid odometer reading
 
-        # Sanity check: absolute cap at 1 million miles (no vehicle reaches this)
-        if mileage > 1_000_000:
+        # Sanity check: absolute cap at ~1.6M km (no vehicle reaches this)
+        if odometer_km > 1_600_000:
             logger.warning(
-                "Rejected odometer %d for %s: exceeds 1M mile cap",
-                mileage,
+                "Rejected odometer %d km for %s: exceeds 1.6M km cap",
+                odometer_km,
                 vin[:8],
             )
             return
 
-        # Query max existing mileage for this VIN to avoid duplicate values
+        # Query max existing odometer_km for this VIN to avoid duplicate values
         max_result = await self.db.execute(
-            select(func.max(OdometerRecord.mileage)).where(OdometerRecord.vin == vin)
+            select(func.max(OdometerRecord.odometer_km)).where(OdometerRecord.vin == vin)
         )
-        max_mileage = max_result.scalar() or 0
+        max_odometer_km = max_result.scalar() or 0
 
         # Sanity check: reject unreasonable jumps (prevents overflow values like 0xFFFFFF)
-        if max_mileage > 0 and mileage > max_mileage + 10_000:
+        if max_odometer_km > 0 and odometer_km > float(max_odometer_km) + 16_000:
             logger.warning(
-                "Rejected odometer %d for %s: unreasonable jump from %d",
-                mileage,
+                "Rejected odometer %d km for %s: unreasonable jump from %s",
+                odometer_km,
                 vin[:8],
-                max_mileage,
+                max_odometer_km,
             )
             return
 
         # Only proceed if this is a new higher reading
-        if mileage <= max_mileage:
+        if odometer_km <= float(max_odometer_km):
             return  # Skip - not a new higher reading than existing records
 
         # Cap date to today (don't allow future dates from device clock issues)
@@ -473,7 +452,7 @@ class TelemetryService:
         if existing:
             # Only update if this is a LiveLink record (don't overwrite manual entries)
             if existing.source == "livelink":
-                existing.mileage = mileage
+                existing.odometer_km = odometer_km
                 existing.notes = f"Auto-updated from LiveLink ({odometer_key})"
             # else: manual entry, don't overwrite
         else:
@@ -481,15 +460,15 @@ class TelemetryService:
             odometer_record = OdometerRecord(
                 vin=vin,
                 date=record_date,
-                mileage=mileage,
+                odometer_km=odometer_km,
                 source="livelink",
                 notes=f"Auto-recorded from LiveLink ({odometer_key})",
             )
             self.db.add(odometer_record)
             logger.info(
-                "Created odometer record for %s: %d from %s",
+                "Created odometer record for %s: %d km from %s",
                 vin[:8],
-                mileage,
+                odometer_km,
                 odometer_key,
             )
 

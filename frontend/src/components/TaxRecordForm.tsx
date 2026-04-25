@@ -4,6 +4,7 @@ import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Save } from 'lucide-react'
 import FormModalWrapper from './FormModalWrapper'
+import CurrencyInputPrefix from './common/CurrencyInputPrefix'
 import type { TaxRecord, TaxRecordCreate, TaxRecordUpdate } from '../types/tax'
 import { taxRecordSchema, type TaxRecordFormData, TAX_TYPES } from '../schemas/tax'
 import { FormError } from './FormError'
@@ -119,7 +120,7 @@ export default function TaxRecordForm({ vin, record, onClose, onSuccess }: TaxRe
                 {t('common:amount')} <span className="text-danger">*</span>
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-2 text-garage-text-muted">$</span>
+                <CurrencyInputPrefix />
                 <input
                   type="number"
                   id="amount"

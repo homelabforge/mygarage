@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Fuel, Plus, Edit, Trash2, DollarSign, Calendar, Gauge, TrendingUp, Search, Download, Upload, Truck } from 'lucide-react'
+import { Fuel, Plus, Edit, Trash2, Calendar, Gauge, TrendingUp, Search, Download, Upload, Truck } from 'lucide-react'
 import { toast } from 'sonner'
 import type { FuelRecord } from '../types/fuel'
 import type { Vehicle } from '../types/vehicle'
@@ -33,7 +33,7 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick }: FuelRec
   const importMutation = useImportFuelCSV(vin)
 
   const records = useMemo(() => data?.records ?? [], [data?.records])
-  const averageMpg = data?.average_mpg != null ? parseFloat(String(data.average_mpg)) : null
+  const averageEconomy = data?.average_l_per_100km != null ? parseFloat(String(data.average_l_per_100km)) : null
 
   // Fetch vehicle data to determine fuel type
   useEffect(() => {
@@ -231,23 +231,25 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick }: FuelRec
       {/* Inline Analytics Cards */}
       {records.length > 0 && (() => {
         const totalCost = records.reduce((sum, r) => sum + (r.cost ? parseFloat(String(r.cost)) : 0), 0)
-        const totalGallons = records.reduce((sum, r) => sum + (r.gallons ? parseFloat(String(r.gallons)) : 0), 0)
-        const avgCostPerGallon = totalGallons > 0 ? totalCost / totalGallons : null
-        const mileages = records.filter(r => r.mileage).map(r => r.mileage!)
-        const costPer1kMiles = mileages.length >= 2
-          ? (totalCost / (Math.max(...mileages) - Math.min(...mileages))) * 1000
+        const totalLiters = records.reduce((sum, r) => sum + (r.liters ? parseFloat(String(r.liters)) : 0), 0)
+        const avgCostPerLiter = totalLiters > 0 ? totalCost / totalLiters : null
+        const odometers = records
+          .map(r => r.odometer_km != null ? parseFloat(String(r.odometer_km)) : null)
+          .filter((v): v is number => v != null && !isNaN(v))
+        const costPerKm = odometers.length >= 2
+          ? totalCost / (Math.max(...odometers) - Math.min(...odometers))
           : null
 
         return (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {averageMpg !== null && (
+            {averageEconomy !== null && (
               <div className="bg-garage-surface border border-garage-border rounded-lg p-3">
                 <div className="flex items-center gap-1 text-xs text-garage-text-muted mb-1">
                   <TrendingUp className="w-3 h-3" />
                   <span>{t('fuelList.avgFuelEconomy')}</span>
                 </div>
                 <div className="text-lg font-semibold text-garage-text">
-                  {UnitFormatter.formatFuelEconomy(averageMpg, system, showBoth)}
+                  {UnitFormatter.formatFuelEconomy(averageEconomy, system, showBoth)}
                 </div>
                 <div className="flex items-center gap-2 mt-1">
                   <label className="flex items-center gap-1 cursor-pointer">
@@ -265,36 +267,35 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick }: FuelRec
             {totalCost > 0 && (
               <div className="bg-garage-surface border border-garage-border rounded-lg p-3">
                 <div className="flex items-center gap-1 text-xs text-garage-text-muted mb-1">
-                  <DollarSign className="w-3 h-3" />
                   <span>{t('fuelList.totalSpent')}</span>
                 </div>
                 <div className="text-lg font-semibold text-garage-text">
                   {formatCurrency(totalCost, { currencyCode, locale })}
                 </div>
                 <p className="text-xs text-garage-text-muted">
-                  {UnitFormatter.formatVolumeTotal(totalGallons, system)}
+                  {UnitFormatter.formatVolumeTotal(totalLiters, system)}
                 </p>
               </div>
             )}
-            {avgCostPerGallon !== null && (
+            {avgCostPerLiter !== null && (
               <div className="bg-garage-surface border border-garage-border rounded-lg p-3">
                 <div className="flex items-center gap-1 text-xs text-garage-text-muted mb-1">
                   <Gauge className="w-3 h-3" />
                   <span>{UnitFormatter.getCostPerVolumeLabel(system)}</span>
                 </div>
                 <div className="text-lg font-semibold text-garage-text">
-                  {avgCostPerGallon !== null && UnitFormatter.formatCostPerVolume(avgCostPerGallon, system, currencyCode, locale)}
+                  {avgCostPerLiter !== null && UnitFormatter.formatCostPerVolume(avgCostPerLiter, system, currencyCode, locale)}
                 </div>
               </div>
             )}
-            {costPer1kMiles !== null && isFinite(costPer1kMiles) && (
+            {costPerKm !== null && isFinite(costPerKm) && (
               <div className="bg-garage-surface border border-garage-border rounded-lg p-3">
                 <div className="flex items-center gap-1 text-xs text-garage-text-muted mb-1">
                   <Truck className="w-3 h-3" />
                   <span>{UnitFormatter.getCostPerDistanceLabel(system)}</span>
                 </div>
                 <div className="text-lg font-semibold text-garage-text">
-                  {costPer1kMiles !== null && UnitFormatter.formatCostPerDistance(costPer1kMiles, system, currencyCode, locale)}
+                  {costPerKm !== null && UnitFormatter.formatCostPerDistance(costPerKm, system, currencyCode, locale)}
                 </div>
               </div>
             )}
@@ -359,21 +360,21 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick }: FuelRec
                       </div>
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
-                      {record.mileage ? (
+                      {record.odometer_km != null ? (
                         <div className="flex items-center gap-2 text-sm text-garage-text">
                           <Gauge className="w-4 h-4 text-garage-text-muted" />
-                          {UnitFormatter.formatDistance(record.mileage, system, showBoth)}
+                          {UnitFormatter.formatDistance(parseFloat(String(record.odometer_km)), system, showBoth)}
                         </div>
                       ) : (
                         <span className="text-sm text-garage-text-muted">-</span>
                       )}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-garage-text">
-                      {record.gallons ? UnitFormatter.formatVolume(parseFloat(record.gallons.toString()), system, showBoth) : '-'}
+                      {record.liters ? UnitFormatter.formatVolume(parseFloat(record.liters.toString()), system, showBoth) : '-'}
                     </td>
                     {showPropaneColumn && (
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-garage-text">
-                        {record.propane_gallons ? UnitFormatter.formatVolume(parseFloat(record.propane_gallons.toString()), system, showBoth) : '-'}
+                        {record.propane_liters ? UnitFormatter.formatVolume(parseFloat(record.propane_liters.toString()), system, showBoth) : '-'}
                       </td>
                     )}
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-garage-text">
@@ -381,8 +382,7 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick }: FuelRec
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       {record.cost ? (
-                        <div className="flex items-center gap-2 text-sm text-garage-text">
-                          <DollarSign className="w-4 h-4 text-garage-text-muted" />
+                        <div className="text-sm text-garage-text">
                           {formatCurrency(parseFloat(record.cost.toString()), { currencyCode, locale })}
                         </div>
                       ) : (
@@ -390,9 +390,9 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick }: FuelRec
                       )}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
-                      {record.mpg ? (
+                      {record.l_per_100km ? (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                          {UnitFormatter.formatFuelEconomy(parseFloat(record.mpg.toString()), system, showBoth)}
+                          {UnitFormatter.formatFuelEconomy(parseFloat(record.l_per_100km.toString()), system, showBoth)}
                         </span>
                       ) : (
                         <span className="text-sm text-garage-text-muted">-</span>

@@ -10,6 +10,7 @@ import { FormError } from './FormError'
 import { useCreateOdometerRecord, useUpdateOdometerRecord } from '../hooks/queries/useOdometerRecords'
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { UnitConverter, UnitFormatter } from '../utils/units'
+import { toCanonicalKm } from '../utils/decimalSafe'
 import { formatDateForInput } from '../utils/dateUtils'
 import { useFormSubmit } from '../hooks/useFormSubmit'
 
@@ -28,15 +29,11 @@ export default function OdometerRecordForm({ vin, record, onClose, onSuccess }: 
   const { system } = useUnitPreference()
 
   const submitFn = useCallback(async (data: OdometerRecordFormData) => {
-    // Convert from user's unit system to imperial (canonical storage format)
-    // Mileage must be rounded to integer - backend stores as INT
-    const convertedMileage = system === 'metric' && data.mileage
-      ? UnitConverter.kmToMiles(data.mileage)
-      : data.mileage
+    // Convert user-entered value to canonical km for the API.
     const payload: OdometerRecordCreate | OdometerRecordUpdate = {
       vin,
       date: data.date,
-      mileage: convertedMileage != null ? Math.round(convertedMileage) : undefined,
+      odometer_km: toCanonicalKm(data.odometer_km, system) ?? undefined,
       notes: data.notes,
     }
 
@@ -57,12 +54,12 @@ export default function OdometerRecordForm({ vin, record, onClose, onSuccess }: 
     resolver: zodResolver(odometerRecordSchema) as Resolver<OdometerRecordFormData>,
     defaultValues: {
       date: formatDateForInput(record?.date),
-      mileage: system === 'metric' && record?.mileage
-        ? (() => {
-            const km = UnitConverter.milesToKm(record.mileage)
-            return km != null ? Math.round(km) : undefined
-          })()
-        : record?.mileage ?? undefined,
+      odometer_km: (() => {
+        const stored = record?.odometer_km
+        const num = stored == null ? undefined : (typeof stored === 'string' ? parseFloat(stored) : stored)
+        if (num == null || isNaN(num)) return undefined
+        return system === 'imperial' ? UnitConverter.kmToMiles(num) ?? undefined : num
+      })(),
       notes: record?.notes || '',
     },
   })
@@ -93,20 +90,21 @@ export default function OdometerRecordForm({ vin, record, onClose, onSuccess }: 
           </div>
 
           <div>
-            <label htmlFor="mileage" className="block text-sm font-medium text-garage-text mb-1">
+            <label htmlFor="odometer_km" className="block text-sm font-medium text-garage-text mb-1">
               {t('common:mileage')} ({UnitFormatter.getDistanceUnit(system)}) <span className="text-danger">*</span>
             </label>
             <input
               type="number"
-              id="mileage"
-              {...register('mileage', { valueAsNumber: true })}
+              id="odometer_km"
+              {...register('odometer_km', { valueAsNumber: true })}
+              step="0.1"
               placeholder={system === 'imperial' ? '45000' : '72420'}
               className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
-                errors.mileage ? 'border-red-500' : 'border-garage-border'
+                errors.odometer_km ? 'border-red-500' : 'border-garage-border'
               }`}
               disabled={isSubmitting}
             />
-            <FormError error={errors.mileage} />
+            <FormError error={errors.odometer_km} />
           </div>
 
           <div>

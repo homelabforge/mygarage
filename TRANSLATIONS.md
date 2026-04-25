@@ -2,16 +2,16 @@
 
 MyGarage supports multiple languages through community contributions. This page is automatically updated by CI.
 
-> Last updated: 2026-04-19
+> Last updated: 2026-04-25
 
 ## Overview
 
 | | Language | Code | Progress | Keys |
 |---|----------|------|----------|------|
-| 🇺🇸 | English | `en` | `████████████████████` 100% | 1270/1270 |
-| 🇺🇦 | Ukrainian | `uk` | `████████████████████` 100% | 1264/1270 |
-| 🇷🇺 | Russian | `ru` | `████████████████████` 100% | 1264/1270 |
-| 🇵🇱 | Polish | `pl` | `████████████████████` 99% | 1253/1270 |
+| 🇺🇸 | English | `en` | `████████████████████` 100% | 1300/1300 |
+| 🇷🇺 | Russian | `ru` | `████████████████████` 100% | 1294/1300 |
+| 🇺🇦 | Ukrainian | `uk` | `████████████████████` 100% | 1294/1300 |
+| 🇵🇱 | Polish | `pl` | `████████████████████` 99% | 1283/1300 |
 
 **Overall: 100%** across 3 languages
 

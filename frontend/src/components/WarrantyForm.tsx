@@ -10,6 +10,9 @@ import { FormError } from './FormError'
 import { useCreateWarrantyRecord, useUpdateWarrantyRecord } from '../hooks/queries/useWarrantyRecords'
 import { formatDateForInput } from '../utils/dateUtils'
 import { useFormSubmit } from '../hooks/useFormSubmit'
+import { useUnitPreference } from '../hooks/useUnitPreference'
+import { UnitConverter, UnitFormatter } from '../utils/units'
+import { toCanonicalKm } from '../utils/decimalSafe'
 
 interface WarrantyFormProps {
   vin: string
@@ -23,15 +26,16 @@ export default function WarrantyForm({ vin, record, onClose, onSuccess }: Warran
   const isEdit = !!record
   const createMutation = useCreateWarrantyRecord(vin)
   const updateMutation = useUpdateWarrantyRecord(vin)
+  const { system } = useUnitPreference()
 
   const submitFn = useCallback(async (data: WarrantyFormData) => {
-    // Zod has already validated and coerced mileage_limit - no parseInt/isNaN needed!
+    // Convert user-entered mileage limit to canonical km.
     const payload: WarrantyRecordCreate | WarrantyRecordUpdate = {
       warranty_type: data.warranty_type,
       provider: data.provider,
       start_date: data.start_date,
       end_date: data.end_date,
-      mileage_limit: data.mileage_limit,
+      mileage_limit_km: toCanonicalKm(data.mileage_limit_km, system) ?? undefined,
       coverage_details: data.coverage_details,
       policy_number: data.policy_number,
       notes: data.notes,
@@ -42,7 +46,7 @@ export default function WarrantyForm({ vin, record, onClose, onSuccess }: Warran
     } else {
       await createMutation.mutateAsync(payload as WarrantyRecordCreate)
     }
-  }, [isEdit, record, createMutation, updateMutation])
+  }, [isEdit, record, system, createMutation, updateMutation])
 
   const { error, handleSubmit: onSubmit } = useFormSubmit(submitFn, { onSuccess, onClose })
 
@@ -57,7 +61,15 @@ export default function WarrantyForm({ vin, record, onClose, onSuccess }: Warran
       provider: record?.provider || '',
       start_date: formatDateForInput(record?.start_date),
       end_date: formatDateForInput(record?.end_date === '' || record?.end_date === null ? undefined : record?.end_date),
-      mileage_limit: record?.mileage_limit ?? undefined,
+      mileage_limit_km: (() => {
+        const lim = record?.mileage_limit_km
+        if (lim == null) return undefined
+        const num = typeof lim === 'string' ? parseFloat(lim) : lim
+        if (isNaN(num)) return undefined
+        return system === 'imperial'
+          ? Math.round(UnitConverter.kmToMiles(num) ?? num)
+          : Math.round(num)
+      })(),
       coverage_details: record?.coverage_details || '',
       policy_number: record?.policy_number || '',
       notes: record?.notes || '',
@@ -140,19 +152,19 @@ export default function WarrantyForm({ vin, record, onClose, onSuccess }: Warran
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label htmlFor="mileage_limit" className="block text-sm font-medium text-garage-text mb-1">
-                {t('warranty.mileageLimit')}
+              <label htmlFor="mileage_limit_km" className="block text-sm font-medium text-garage-text mb-1">
+                {t('warranty.mileageLimit')} ({UnitFormatter.getDistanceUnit(system)})
               </label>
               <input
                 type="number"
-                id="mileage_limit"
-                {...register('mileage_limit', { valueAsNumber: true })}
-                className={`input w-full ${errors.mileage_limit ? 'border-red-500' : ''}`}
+                id="mileage_limit_km"
+                {...register('mileage_limit_km', { valueAsNumber: true })}
+                className={`input w-full ${errors.mileage_limit_km ? 'border-red-500' : ''}`}
                 placeholder="e.g., 100000"
                 min="0"
                 disabled={isSubmitting}
               />
-              <FormError error={errors.mileage_limit} />
+              <FormError error={errors.mileage_limit_km} />
             </div>
 
             <div>

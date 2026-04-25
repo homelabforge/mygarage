@@ -7,21 +7,23 @@ import { z } from 'zod'
 
 // Numeric validators - required number fields
 // Using direct number validation (forms use valueAsNumber: true)
-export const mileageSchema = z
+// Odometer stored in km (Decimal) on backend; form accepts decimals. Imperial
+// users enter miles (displayed via UnitConverter) and the submit path converts
+// to km via toCanonicalKm.
+export const odometerSchema = z
   .number()
-  .int('Mileage must be a whole number')
-  .min(0, 'Mileage cannot be negative')
-  .max(9999999, 'Mileage too large')
+  .min(0, 'Odometer cannot be negative')
+  .max(9999999, 'Odometer value too large')
 
 export const currencySchema = z
   .number()
   .min(0, 'Amount cannot be negative')
   .max(99999.99, 'Amount too large')
 
-export const gallonsSchema = z
+export const volumeSchema = z
   .number()
-  .min(0, 'Gallons cannot be negative')
-  .max(999.999, 'Gallons too large')
+  .min(0, 'Volume cannot be negative')
+  .max(9999.999, 'Volume too large')
 
 export const pricePerUnitSchema = z
   .number()
@@ -53,11 +55,10 @@ export const vinSchema = z
 // Optional numeric fields - define as base schema then make optional
 // Forms use valueAsNumber: true, so empty fields become NaN
 // Transform NaN to undefined for optional fields
-export const optionalMileageSchema = z
+export const optionalOdometerSchema = z
   .number()
-  .int('Mileage must be a whole number')
-  .min(0, 'Mileage cannot be negative')
-  .max(9999999, 'Mileage too large')
+  .min(0, 'Odometer cannot be negative')
+  .max(9999999, 'Odometer value too large')
   .or(z.nan())
   .transform(val => isNaN(val) ? undefined : val)
   .optional()
@@ -70,10 +71,10 @@ export const optionalCurrencySchema = z
   .transform(val => isNaN(val) ? undefined : val)
   .optional()
 
-export const optionalGallonsSchema = z
+export const optionalVolumeSchema = z
   .number()
-  .min(0, 'Gallons cannot be negative')
-  .max(999.999, 'Gallons too large')
+  .min(0, 'Volume cannot be negative')
+  .max(9999.999, 'Volume too large')
   .or(z.nan())
   .transform(val => isNaN(val) ? undefined : val)
   .optional()

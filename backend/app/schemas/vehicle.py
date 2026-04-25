@@ -53,8 +53,8 @@ class VehicleBase(BaseModel):
     transmission_type: str | None = Field(None, description="Transmission type", max_length=50)
     transmission_speeds: str | None = Field(None, description="Transmission speeds", max_length=20)
     # DEF tracking
-    def_tank_capacity_gallons: Decimal | None = Field(
-        None, description="DEF tank capacity in gallons", ge=0, le=999.99
+    def_tank_capacity_liters: Decimal | None = Field(
+        None, description="DEF tank capacity in liters", ge=0, le=9999.99
     )
 
 
@@ -134,9 +134,9 @@ class VehicleResponse(VehicleBase):
     msrp_base: Decimal | None = None
     msrp_options: Decimal | None = None
     msrp_total: Decimal | None = None
-    fuel_economy_city: int | None = None
-    fuel_economy_highway: int | None = None
-    fuel_economy_combined: int | None = None
+    fuel_economy_city_l_per_100km: Decimal | None = None
+    fuel_economy_highway_l_per_100km: Decimal | None = None
+    fuel_economy_combined_l_per_100km: Decimal | None = None
     standard_equipment: dict[str, Any] | None = None
     optional_equipment: dict[str, Any] | None = None
     assembly_location: str | None = None
@@ -222,13 +222,13 @@ class VehicleListResponse(BaseModel):
 class TrailerDetailsBase(BaseModel):
     """Base schema for trailer details."""
 
-    gvwr: int | None = Field(None, description="Gross Vehicle Weight Rating (lbs)")
+    gvwr_kg: Decimal | None = Field(None, description="Gross Vehicle Weight Rating (kg)")
     hitch_type: str | None = Field(None, description="Hitch type")
     axle_count: int | None = Field(None, description="Number of axles", ge=1, le=10)
     brake_type: str | None = Field(None, description="Brake type")
-    length_ft: Decimal | None = Field(None, description="Length in feet")
-    width_ft: Decimal | None = Field(None, description="Width in feet")
-    height_ft: Decimal | None = Field(None, description="Height in feet")
+    length_m: Decimal | None = Field(None, description="Length in meters")
+    width_m: Decimal | None = Field(None, description="Width in meters")
+    height_m: Decimal | None = Field(None, description="Height in meters")
     tow_vehicle_vin: str | None = Field(
         None, description="VIN of tow vehicle", min_length=17, max_length=17
     )

@@ -160,14 +160,14 @@ class FamilyDashboardService:
         )
         last_service = last_service_result.scalar_one_or_none()
 
-        # Get current mileage for schedule status calculations
+        # Get current odometer (km) for schedule status calculations
         odometer_result = await self.db.execute(
-            select(OdometerRecord.mileage)
+            select(OdometerRecord.odometer_km)
             .where(OdometerRecord.vin == vehicle.vin)
             .order_by(OdometerRecord.date.desc())
             .limit(1)
         )
-        current_mileage = odometer_result.scalar_one_or_none()
+        current_odometer_km = odometer_result.scalar_one_or_none()
 
         # Get pending reminders for this vehicle
         reminder_result = await self.db.execute(
@@ -185,7 +185,11 @@ class FamilyDashboardService:
             is_overdue = False
             if reminder.due_date and reminder.due_date <= today:
                 is_overdue = True
-            if reminder.due_mileage and current_mileage and current_mileage >= reminder.due_mileage:
+            if (
+                reminder.due_mileage_km
+                and current_odometer_km
+                and current_odometer_km >= reminder.due_mileage_km
+            ):
                 is_overdue = True
 
             if is_overdue:

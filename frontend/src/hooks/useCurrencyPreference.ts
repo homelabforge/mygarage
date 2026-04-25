@@ -10,6 +10,7 @@ import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
 import { languageToLocale } from '../constants/i18n'
+import { formatCurrency as formatCurrencyShared } from '../utils/formatUtils'
 
 interface CurrencyPreference {
   currencyCode: string
@@ -31,22 +32,7 @@ export function useCurrencyPreference(): CurrencyPreference {
     (
       value: number | string | null | undefined,
       options: { fallback?: string; wholeDollars?: boolean; zeroIsValid?: boolean } = {}
-    ): string => {
-      const { fallback = '-', wholeDollars = false, zeroIsValid = false } = options
-
-      if (value === null || value === undefined) return fallback
-
-      const num = typeof value === 'string' ? parseFloat(value) : value
-      if (isNaN(num)) return fallback
-      if (num === 0 && !zeroIsValid) return fallback
-
-      return new Intl.NumberFormat(locale, {
-        style: 'currency',
-        currency: currencyCode,
-        minimumFractionDigits: wholeDollars ? 0 : 2,
-        maximumFractionDigits: wholeDollars ? 0 : 2,
-      }).format(num)
-    },
+    ): string => formatCurrencyShared(value, { ...options, currencyCode, locale }),
     [currencyCode, locale]
   )
 

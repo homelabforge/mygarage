@@ -35,7 +35,7 @@ class TestServiceVisitRoutes:
             f"/api/vehicles/{test_vehicle['vin']}/service-visits",
             json={
                 "date": "2024-01-15",
-                "mileage": 50000,
+                "odometer_km": 80467.0,
                 "service_category": "Maintenance",
                 "notes": "Regular maintenance visit",
                 "line_items": [
@@ -59,14 +59,14 @@ class TestServiceVisitRoutes:
         assert response.status_code == 200
         data = response.json()
         assert data["id"] == visit["id"]
-        assert data["mileage"] == 50000
+        assert float(data["odometer_km"]) == 80467.0
         assert data["service_category"] == "Maintenance"
 
     async def test_create_service_visit(self, client: AsyncClient, auth_headers, test_vehicle):
         """Test creating a new service visit."""
         payload = {
             "date": datetime.now().date().isoformat(),
-            "mileage": 55000,
+            "odometer_km": 88513.7,
             "service_category": "Maintenance",
             "notes": "Test service visit",
             "line_items": [
@@ -92,7 +92,7 @@ class TestServiceVisitRoutes:
 
         assert response.status_code == 201
         data = response.json()
-        assert data["mileage"] == payload["mileage"]
+        assert float(data["odometer_km"]) == payload["odometer_km"]
         assert data["service_category"] == payload["service_category"]
         assert "id" in data
         assert "created_at" in data
@@ -105,7 +105,7 @@ class TestServiceVisitRoutes:
             f"/api/vehicles/{test_vehicle['vin']}/service-visits",
             json={
                 "date": "2024-02-01",
-                "mileage": 52000,
+                "odometer_km": 83685.68,
                 "service_category": "Inspection",
                 "line_items": [
                     {
@@ -123,7 +123,7 @@ class TestServiceVisitRoutes:
         # Update the visit
         update_data = {
             "notes": "Updated notes after inspection",
-            "mileage": 52100,
+            "odometer_km": 83846.61,
         }
 
         response = await client.put(
@@ -135,7 +135,7 @@ class TestServiceVisitRoutes:
         assert response.status_code == 200
         data = response.json()
         assert data["notes"] == "Updated notes after inspection"
-        assert data["mileage"] == 52100
+        assert float(data["odometer_km"]) == 83846.61
 
     async def test_delete_service_visit(self, client: AsyncClient, auth_headers, test_vehicle):
         """Test deleting a service visit."""
@@ -144,7 +144,7 @@ class TestServiceVisitRoutes:
             f"/api/vehicles/{test_vehicle['vin']}/service-visits",
             json={
                 "date": "2024-03-01",
-                "mileage": 53000,
+                "odometer_km": 85295.02,
                 "line_items": [
                     {
                         "description": "Test Service",
@@ -184,7 +184,7 @@ class TestServiceVisitRoutes:
         # line_items is required and must have at least 1 item
         invalid_payload = {
             "date": "2024-01-15",
-            "mileage": 50000,
+            "odometer_km": 80467.0,
             "line_items": [],  # Empty line items should fail
         }
 
@@ -222,7 +222,7 @@ class TestServiceVisitRoutes:
             f"/api/vehicles/{test_vehicle['vin']}/service-visits",
             json={
                 "date": "2024-04-01",
-                "mileage": 54000,
+                "odometer_km": 86904.36,
                 "line_items": [
                     {
                         "description": "Initial Service",
@@ -268,7 +268,7 @@ class TestServiceVisitRoutes:
             f"/api/vehicles/{test_vehicle['vin']}/service-visits",
             json={
                 "date": "2024-05-01",
-                "mileage": 55000,
+                "odometer_km": 88513.7,
                 "line_items": [
                     {"description": "Service 1", "cost": 50.00},
                     {"description": "Service 2", "cost": 75.00},
@@ -301,7 +301,7 @@ class TestServiceVisitRoutes:
         """Test creating a service visit with inspection items."""
         payload = {
             "date": datetime.now().date().isoformat(),
-            "mileage": 56000,
+            "odometer_km": 90123.04,
             "service_category": "Inspection",
             "line_items": [
                 {
@@ -333,7 +333,7 @@ class TestServiceVisitRoutes:
         """Test that service visit costs are calculated correctly."""
         payload = {
             "date": datetime.now().date().isoformat(),
-            "mileage": 57000,
+            "odometer_km": 91732.38,
             "tax_amount": 10.00,
             "shop_supplies": 5.00,
             "line_items": [
@@ -362,7 +362,7 @@ class TestServiceVisitRoutes:
                 f"/api/vehicles/{test_vehicle['vin']}/service-visits",
                 json={
                     "date": f"2024-0{i + 1}-15",
-                    "mileage": 60000 + (i * 1000),
+                    "odometer_km": 96560.4 + (i * 1000),
                     "line_items": [{"description": f"Service {i}", "cost": 50.00}],
                 },
                 headers=auth_headers,
@@ -384,7 +384,7 @@ class TestServiceVisitRoutes:
         """Create visit without total_cost; verify it's populated from line items + fees."""
         payload = {
             "date": "2024-08-01",
-            "mileage": 80000,
+            "odometer_km": 128747.2,
             "tax_amount": 5.00,
             "shop_supplies": 2.50,
             "line_items": [
@@ -408,7 +408,7 @@ class TestServiceVisitRoutes:
         """Create visit with explicit total_cost that differs; verify computed value wins."""
         payload = {
             "date": "2024-08-02",
-            "mileage": 80100,
+            "odometer_km": 128908.13,
             "total_cost": 999.99,  # Wrong value — should be overwritten
             "line_items": [
                 {"description": "Alignment", "cost": 89.00},
@@ -433,7 +433,7 @@ class TestServiceVisitRoutes:
             f"/api/vehicles/{test_vehicle['vin']}/service-visits",
             json={
                 "date": "2024-08-03",
-                "mileage": 80200,
+                "odometer_km": 129069.07,
                 "line_items": [{"description": "Oil Change", "cost": 45.00}],
             },
             headers=auth_headers,
@@ -465,7 +465,7 @@ class TestServiceVisitRoutes:
                 f"/api/vehicles/{test_vehicle['vin']}/service-visits",
                 json={
                     "date": f"2024-06-{i + 1:02d}",
-                    "mileage": 70000 + (i * 100),
+                    "odometer_km": 112653.8 + (i * 100),
                     "service_category": category,
                     "line_items": [{"description": f"{category} service", "cost": 100.00}],
                 },

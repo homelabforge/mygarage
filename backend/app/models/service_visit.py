@@ -40,7 +40,7 @@ class ServiceVisit(Base):
     )
     vendor_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("vendors.id"))
     date: Mapped[dt.date] = mapped_column(Date, nullable=False)
-    mileage: Mapped[int | None] = mapped_column(Integer)
+    odometer_km: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
     total_cost: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
     tax_amount: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
     shop_supplies: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))

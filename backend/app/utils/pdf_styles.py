@@ -529,40 +529,54 @@ def get_mpl_font_dir() -> Path | None:
     return None
 
 
-def format_currency(amount: object) -> str:
-    """Format a value as currency. Handles Decimal, str, float, int, and None."""
+def format_currency(amount: object, currency_code: str = "USD", locale: str = "en-US") -> str:
+    """Format a value as currency. Handles Decimal, str, float, int, and None.
+
+    `currency_code` and `locale` are resolved via backend.app.utils.currency.
+    """
+    from app.utils.currency import get_currency_symbol
+
+    symbol = get_currency_symbol(currency_code, locale)
     if amount is None:
         return "N/A"
     try:
         val = float(str(amount))
-        return f"${val:,.2f}"
+        return f"{symbol}{val:,.2f}"
     except ValueError, TypeError:
         return "N/A"
 
 
-def format_currency_short(amount: object) -> str:
+def format_currency_short(amount: object, currency_code: str = "USD", locale: str = "en-US") -> str:
     """Format currency without cents for large display values."""
+    from app.utils.currency import get_currency_symbol
+
+    symbol = get_currency_symbol(currency_code, locale)
     if amount is None:
         return "N/A"
     try:
         val = float(str(amount))
         if val >= 10000:
-            return f"${val:,.0f}"
-        return f"${val:,.2f}"
+            return f"{symbol}{val:,.0f}"
+        return f"{symbol}{val:,.2f}"
     except ValueError, TypeError:
         return "N/A"
 
 
-def format_currency_compact(amount: object) -> str:
-    """Format currency compactly for tight table columns. No cents for values >= $100."""
+def format_currency_compact(
+    amount: object, currency_code: str = "USD", locale: str = "en-US"
+) -> str:
+    """Format currency compactly for tight table columns. No cents for values >= 100 units."""
+    from app.utils.currency import get_currency_symbol
+
+    symbol = get_currency_symbol(currency_code, locale)
     if amount is None:
-        return "$0"
+        return f"{symbol}0"
     try:
         val = float(str(amount))
         if val == 0:
-            return "$0"
+            return f"{symbol}0"
         if val >= 100:
-            return f"${val:,.0f}"
-        return f"${val:,.2f}"
+            return f"{symbol}{val:,.0f}"
+        return f"{symbol}{val:,.2f}"
     except ValueError, TypeError:
-        return "$0"
+        return f"{symbol}0"

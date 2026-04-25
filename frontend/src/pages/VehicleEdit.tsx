@@ -8,6 +8,10 @@ import api from '../services/api'
 import type { Vehicle } from '../types/vehicle'
 import { vehicleEditSchema, type VehicleEditFormData, VEHICLE_TYPES } from '../schemas/vehicle'
 import { FormError } from '../components/FormError'
+import CurrencyInputPrefix from '../components/common/CurrencyInputPrefix'
+import { useUnitPreference } from '../hooks/useUnitPreference'
+import { UnitConverter, UnitFormatter } from '../utils/units'
+import { toCanonicalLiters } from '../utils/decimalSafe'
 
 export default function VehicleEdit() {
   const { t } = useTranslation('vehicles')
@@ -18,6 +22,7 @@ export default function VehicleEdit() {
   const [vehicle, setVehicle] = useState<Vehicle | null>(null)
 
   const [defEnabled, setDefEnabled] = useState(false)
+  const { system } = useUnitPreference()
 
   const {
     register,
@@ -58,12 +63,18 @@ export default function VehicleEdit() {
         sold_price: data.sold_price,
         // Always include fuel_type (for propane on fifth wheels)
         fuel_type: data.fuel_type,
-        def_tank_capacity_gallons: data.def_tank_capacity_gallons != null ? Number(data.def_tank_capacity_gallons) : undefined,
+        def_tank_capacity_liters: (() => {
+          const cap = data.def_tank_capacity_liters
+          if (cap == null) return undefined
+          const num = typeof cap === 'string' ? parseFloat(cap) : Number(cap)
+          if (isNaN(num)) return undefined
+          return system === 'imperial' ? UnitConverter.litersToGallons(num) ?? num : num
+        })(),
       }
 
       // Initialize DEF enabled state from stored value (not fuel type)
       // Diesel hint message handles the suggestion if DEF tracking is off
-      const hasTankCap = data.def_tank_capacity_gallons != null && Number(data.def_tank_capacity_gallons) > 0
+      const hasTankCap = data.def_tank_capacity_liters != null && Number(data.def_tank_capacity_liters) > 0
       setDefEnabled(hasTankCap)
 
       // Only include VIN decoded and engine fields for motorized vehicles
@@ -85,7 +96,7 @@ export default function VehicleEdit() {
     } finally {
       setLoading(false)
     }
-  }, [vin, reset])
+  }, [vin, reset, system])
 
   useEffect(() => {
     fetchVehicle()
@@ -96,13 +107,19 @@ export default function VehicleEdit() {
 
     setError(null)
 
-    // If DEF tracking is enabled but no tank capacity entered, set to 0.01
-    if (defEnabled && (!data.def_tank_capacity_gallons || data.def_tank_capacity_gallons <= 0)) {
-      data.def_tank_capacity_gallons = 0.01
+    // If DEF tracking is enabled but no tank capacity entered, set to a tiny
+    // sentinel positive number (canonical liters).
+    if (defEnabled && (!data.def_tank_capacity_liters || data.def_tank_capacity_liters <= 0)) {
+      data.def_tank_capacity_liters = 0.01
     }
     // If DEF tracking is disabled, send null to explicitly clear the field
     if (!defEnabled) {
-      data.def_tank_capacity_gallons = null
+      data.def_tank_capacity_liters = null
+    } else if (data.def_tank_capacity_liters != null) {
+      // User-entered value is in their display unit (L for metric, gal for
+      // imperial). Convert to canonical liters before submit.
+      const canonical = toCanonicalLiters(data.def_tank_capacity_liters, system)
+      data.def_tank_capacity_liters = canonical ?? data.def_tank_capacity_liters
     }
 
     try {
@@ -465,7 +482,7 @@ export default function VehicleEdit() {
                   onChange={(e) => {
                     setDefEnabled(e.target.checked)
                     if (!e.target.checked) {
-                      setValue('def_tank_capacity_gallons', undefined)
+                      setValue('def_tank_capacity_liters', undefined)
                     }
                   }}
                   className="w-4 h-4 rounded border-garage-border bg-garage-bg text-primary focus:ring-primary"
@@ -482,23 +499,23 @@ export default function VehicleEdit() {
               {defEnabled && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label htmlFor="def_tank_capacity_gallons" className="block text-sm font-medium text-garage-text mb-1">
-                      {t('edit.defTankCapacity')}
+                    <label htmlFor="def_tank_capacity_liters" className="block text-sm font-medium text-garage-text mb-1">
+                      {t('edit.defTankCapacity')} ({UnitFormatter.getVolumeUnit(system)})
                     </label>
                     <input
                       type="number"
-                      id="def_tank_capacity_gallons"
-                      {...register('def_tank_capacity_gallons', { valueAsNumber: true })}
+                      id="def_tank_capacity_liters"
+                      {...register('def_tank_capacity_liters', { valueAsNumber: true })}
                       className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-garage-text"
-                      placeholder="5.0"
+                      placeholder={system === 'imperial' ? '5.0' : '19.0'}
                       step="0.01"
                       min="0"
-                      max="999.99"
+                      max="9999.99"
                     />
                     <p className="text-xs text-garage-text-muted mt-1">
                       {t('edit.defTankCapacityHint')}
                     </p>
-                    <FormError error={errors.def_tank_capacity_gallons} />
+                    <FormError error={errors.def_tank_capacity_liters} />
                   </div>
                 </div>
               )}
@@ -550,7 +567,7 @@ export default function VehicleEdit() {
                 {t('edit.purchasePrice')}
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-2 text-garage-text-muted">$</span>
+                <CurrencyInputPrefix />
                 <input
                   type="number"
                   id="purchase_price"
@@ -588,7 +605,7 @@ export default function VehicleEdit() {
                 {t('edit.soldPrice')}
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-2 text-garage-text-muted">$</span>
+                <CurrencyInputPrefix />
                 <input
                   type="number"
                   id="sold_price"

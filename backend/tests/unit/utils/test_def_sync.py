@@ -40,7 +40,7 @@ class TestDEFSync:
             db=db_session,
             vin=test_vehicle["vin"],
             date=date(2024, 6, 15),
-            mileage=50000,
+            odometer_km=Decimal("80467.20"),
             fill_level=Decimal("0.75"),
             fuel_record_id=999,
         )
@@ -48,7 +48,7 @@ class TestDEFSync:
         assert result is not None
         assert result.vin == test_vehicle["vin"]
         assert result.date == date(2024, 6, 15)
-        assert result.mileage == 50000
+        assert result.odometer_km == Decimal("80467.20")
         assert result.fill_level == Decimal("0.75")
         assert result.entry_type == "auto_fuel_sync"
         assert result.origin_fuel_record_id == 999
@@ -62,7 +62,7 @@ class TestDEFSync:
             db=db_session,
             vin=test_vehicle["vin"],
             date=date(2024, 6, 15),
-            mileage=50000,
+            odometer_km=Decimal("80467.20"),
             fill_level=Decimal("0.75"),
             fuel_record_id=999,
         )
@@ -74,7 +74,7 @@ class TestDEFSync:
             db=db_session,
             vin=test_vehicle["vin"],
             date=date(2024, 6, 20),
-            mileage=50500,
+            odometer_km=Decimal("81271.67"),
             fill_level=Decimal("0.50"),
             fuel_record_id=999,
         )
@@ -83,7 +83,7 @@ class TestDEFSync:
         assert updated.id == initial_id  # Same record updated
         assert updated.fill_level == Decimal("0.50")
         assert updated.date == date(2024, 6, 20)
-        assert updated.mileage == 50500
+        assert updated.odometer_km == Decimal("81271.67")
 
     async def test_sync_with_none_mileage(
         self, db_session: AsyncSession, test_vehicle, clean_def_records
@@ -93,13 +93,13 @@ class TestDEFSync:
             db=db_session,
             vin=test_vehicle["vin"],
             date=date(2024, 7, 1),
-            mileage=None,
+            odometer_km=None,
             fill_level=Decimal("0.50"),
             fuel_record_id=1000,
         )
 
         assert result is not None
-        assert result.mileage is None
+        assert result.odometer_km is None
         assert result.fill_level == Decimal("0.50")
 
     async def test_sync_different_fuel_records_create_separate(
@@ -110,7 +110,7 @@ class TestDEFSync:
             db=db_session,
             vin=test_vehicle["vin"],
             date=date(2024, 6, 1),
-            mileage=49000,
+            odometer_km=Decimal("78857.66"),
             fill_level=Decimal("0.90"),
             fuel_record_id=100,
         )
@@ -119,7 +119,7 @@ class TestDEFSync:
             db=db_session,
             vin=test_vehicle["vin"],
             date=date(2024, 7, 1),
-            mileage=51000,
+            odometer_km=Decimal("82076.34"),
             fill_level=Decimal("0.60"),
             fuel_record_id=101,
         )
@@ -146,7 +146,7 @@ class TestDeleteDEFForFuelRecord:
             db=db_session,
             vin=test_vehicle["vin"],
             date=date(2024, 8, 1),
-            mileage=55000,
+            odometer_km=Decimal("88513.92"),
             fill_level=Decimal("0.80"),
             fuel_record_id=200,
         )
@@ -178,7 +178,7 @@ class TestDeleteDEFForFuelRecord:
             db=db_session,
             vin=test_vehicle["vin"],
             date=date(2024, 9, 1),
-            mileage=56000,
+            odometer_km=Decimal("90122.85"),
             fill_level=Decimal("0.65"),
             fuel_record_id=300,
         )

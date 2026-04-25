@@ -24,7 +24,7 @@ def visits_to_dataframe(
         spot_rental_billings: Optional list of SpotRentalBilling objects
 
     Returns:
-        DataFrame with columns: date, cost, type, vendor, mileage, service_type, etc.
+        DataFrame with columns: date, cost, type, vendor, odometer_km, service_type, etc.
     """
     # Convert service visits — one row per visit
     service_data = []
@@ -45,7 +45,7 @@ def visits_to_dataframe(
                 "cost": float(total),
                 "type": "service",
                 "vendor": visit.vendor.name if visit.vendor else "Unknown",
-                "mileage": visit.mileage,
+                "odometer_km": visit.odometer_km,
                 "service_type": service_type_label,
                 "service_category": visit.service_category or "Maintenance",
                 "description": visit.notes,
@@ -62,9 +62,9 @@ def visits_to_dataframe(
                     "cost": float(record.cost),
                     "type": "fuel",
                     "vendor": "Fuel Station",
-                    "mileage": record.mileage,
+                    "odometer_km": record.odometer_km,
                     "service_type": "Fuel",
-                    "gallons": float(record.gallons) if record.gallons else None,
+                    "liters": float(record.liters) if record.liters else None,
                 }
             )
 
@@ -79,7 +79,7 @@ def visits_to_dataframe(
                         "cost": float(record.cost),
                         "type": "def",
                         "vendor": record.source or "DEF",
-                        "mileage": record.mileage,
+                        "odometer_km": record.odometer_km,
                         "service_type": "DEF",
                     }
                 )
@@ -95,7 +95,7 @@ def visits_to_dataframe(
                         "cost": float(record.total),
                         "type": "spot_rental",
                         "vendor": "RV Park",
-                        "mileage": None,
+                        "odometer_km": None,
                         "service_type": "Spot Rental",
                         "description": record.notes or "Monthly RV spot rental",
                     }
@@ -111,11 +111,11 @@ def visits_to_dataframe(
                 "cost",
                 "type",
                 "vendor",
-                "mileage",
+                "odometer_km",
                 "service_type",
                 "service_category",
                 "description",
-                "gallons",
+                "liters",
             ]
         )
 

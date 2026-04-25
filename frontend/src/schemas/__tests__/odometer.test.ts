@@ -4,7 +4,7 @@ import { odometerRecordSchema } from '../odometer'
 describe('Odometer Record Schema', () => {
   const validOdometer = {
     date: '2024-03-01',
-    mileage: 52340,
+    odometer_km: 52340,
   }
 
   it('validates valid odometer record', () => {
@@ -21,7 +21,7 @@ describe('Odometer Record Schema', () => {
   })
 
   it('requires date', () => {
-    const result = odometerRecordSchema.safeParse({ mileage: 52340 })
+    const result = odometerRecordSchema.safeParse({ odometer_km: 52340 })
     expect(result.success).toBe(false)
   })
 
@@ -41,23 +41,25 @@ describe('Odometer Record Schema', () => {
   it('rejects negative mileage', () => {
     const result = odometerRecordSchema.safeParse({
       ...validOdometer,
-      mileage: -1,
+      odometer_km: -1,
     })
     expect(result.success).toBe(false)
   })
 
-  it('rejects non-integer mileage', () => {
+  it('accepts non-integer odometer_km (canonical km Decimal)', () => {
+    // Under metric-canonical, odometer_km is a Decimal in km.
+    // Non-integer values are valid (e.g. mile-to-km conversions).
     const result = odometerRecordSchema.safeParse({
       ...validOdometer,
-      mileage: 52340.5,
+      odometer_km: 52340.5,
     })
-    expect(result.success).toBe(false)
+    expect(result.success).toBe(true)
   })
 
   it('rejects mileage exceeding max', () => {
     const result = odometerRecordSchema.safeParse({
       ...validOdometer,
-      mileage: 10000000,
+      odometer_km: 10000000,
     })
     expect(result.success).toBe(false)
   })

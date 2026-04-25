@@ -1,4 +1,5 @@
 from datetime import date as date_type
+from decimal import Decimal
 from pathlib import Path
 
 from fastapi import APIRouter, Depends
@@ -19,7 +20,7 @@ from app.models.user import User
 from app.models.vehicle_share import VehicleShare
 from app.schemas.dashboard import DashboardResponse, VehicleStatistics
 from app.services.auth import optional_auth
-from app.services.fuel_service import calculate_mpg
+from app.services.fuel_service import calculate_l_per_100km
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
@@ -81,18 +82,18 @@ async def calculate_vehicle_stats(
         .limit(1)
     )
 
-    # Get latest odometer reading and date
+    # Get latest odometer_km reading and date
     latest_odometer_record = await db.execute(
-        select(OdometerRecord.mileage, OdometerRecord.date)
+        select(OdometerRecord.odometer_km, OdometerRecord.date)
         .where(OdometerRecord.vin == vehicle.vin)
         .order_by(OdometerRecord.date.desc())
         .limit(1)
     )
     latest_odometer = latest_odometer_record.first()
-    latest_odometer_reading: int | None = None
+    latest_odometer_km: Decimal | None = None
     latest_odometer_date: date_type | None = None
     if latest_odometer:
-        latest_odometer_reading = latest_odometer[0]
+        latest_odometer_km = latest_odometer[0]
         latest_odometer_date = latest_odometer[1]
 
     # Count upcoming and overdue reminders
@@ -102,14 +103,14 @@ async def calculate_vehicle_stats(
     )
     pending_reminders = pending_reminders_result.scalars().all()
 
-    # Get current mileage for overdue check
-    current_mileage_record = await db.execute(
-        select(OdometerRecord.mileage)
+    # Get current odometer_km for overdue check
+    current_odometer_record = await db.execute(
+        select(OdometerRecord.odometer_km)
         .where(OdometerRecord.vin == vehicle.vin)
         .order_by(OdometerRecord.date.desc())
         .limit(1)
     )
-    current_mileage = current_mileage_record.scalar_one_or_none()
+    current_odometer_km = current_odometer_record.scalar_one_or_none()
 
     upcoming_count = 0
     overdue_count = 0
@@ -117,32 +118,37 @@ async def calculate_vehicle_stats(
         is_overdue = False
         if reminder.due_date and reminder.due_date <= today:
             is_overdue = True
-        if reminder.due_mileage and current_mileage and current_mileage >= reminder.due_mileage:
+        if (
+            reminder.due_mileage_km
+            and current_odometer_km
+            and current_odometer_km >= reminder.due_mileage_km
+        ):
             is_overdue = True
         if is_overdue:
             overdue_count += 1
         else:
             upcoming_count += 1
 
-    # Calculate average MPG from fuel records
+    # Calculate average L/100km from fuel records
     fuel_records_result = await db.execute(
         select(FuelRecord).where(FuelRecord.vin == vehicle.vin).order_by(FuelRecord.date.desc())
     )
     fuel_records_list = list(fuel_records_result.scalars().all())
 
-    mpg_values = []
+    l_per_100km_values: list[Decimal] = []
     for i in range(len(fuel_records_list)):
         if i < len(fuel_records_list) - 1:
-            mpg = calculate_mpg(fuel_records_list[i], fuel_records_list[i + 1])
-            if mpg:
-                mpg_values.append(float(mpg))
+            value = calculate_l_per_100km(fuel_records_list[i], fuel_records_list[i + 1])
+            if value:
+                l_per_100km_values.append(value)
 
-    average_mpg: float | None = None
-    recent_mpg: float | None = None
-    if mpg_values:
-        average_mpg = round(sum(mpg_values) / len(mpg_values), 2)
-        # Recent MPG is average of last 3 fill-ups
-        recent_mpg = round(sum(mpg_values[:3]) / min(3, len(mpg_values)), 2)
+    average_l_per_100km: Decimal | None = None
+    recent_l_per_100km: Decimal | None = None
+    if l_per_100km_values:
+        average_l_per_100km = round(sum(l_per_100km_values) / Decimal(len(l_per_100km_values)), 2)
+        # Recent L/100km is average of last 3 fill-ups
+        recent_window = l_per_100km_values[:3]
+        recent_l_per_100km = round(sum(recent_window) / Decimal(len(recent_window)), 2)
 
     # Get main photo URL from Vehicle.main_photo field
     main_photo_url: str | None = None
@@ -169,12 +175,12 @@ async def calculate_vehicle_stats(
         total_photos=photo_count or 0,
         latest_service_date=latest_service,
         latest_fuel_date=latest_fuel,
-        latest_odometer_reading=latest_odometer_reading,
+        latest_odometer_km=latest_odometer_km,
         latest_odometer_date=latest_odometer_date,
         upcoming_maintenance_count=upcoming_count or 0,
         overdue_maintenance_count=overdue_count or 0,
-        average_mpg=average_mpg,
-        recent_mpg=recent_mpg,
+        average_l_per_100km=average_l_per_100km,
+        recent_l_per_100km=recent_l_per_100km,
         archived_at=vehicle.archived_at,
         archived_visible=vehicle.archived_visible,
         is_shared_with_me=is_shared_with_me,

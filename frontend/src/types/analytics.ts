@@ -43,16 +43,16 @@ export type AnomalySeverity = NonNullable<AnomalyAlert['severity']>
 
 export interface PropaneAnalysis {
   total_spent: string
-  total_gallons: string
-  avg_price_per_gallon: string | null
+  total_liters: string
+  avg_price_per_liter: string | null
   record_count: number
   monthly_trend: Array<{
     year: number
     month: number
     month_name: string
     total_cost: number
-    total_gallons: number
-    avg_price_per_gallon: number
+    total_liters: number
+    avg_price_per_liter: number
   }>
 }
 
@@ -74,8 +74,8 @@ export interface SpotRentalAnalysis {
 
 export interface DEFAnalysis {
   total_spent: string
-  total_gallons: string
-  avg_cost_per_gallon: string | null
-  gallons_per_1000_miles: string | null
+  total_liters: string
+  avg_cost_per_liter: string | null
+  liters_per_1000_km: string | null
   record_count: number
 }

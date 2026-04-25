@@ -40,6 +40,7 @@ from app.schemas.widget import (
     WidgetVehicle,
     WidgetVehicleRef,
 )
+from app.utils.units import UnitConverter
 
 RECENT_MPG_WINDOW = 3
 AVERAGE_MPG_WINDOW = 10
@@ -238,8 +239,14 @@ class WidgetAggregationService:
         return int(count or 0), latest
 
     async def _latest_odometer(self, vin: str) -> tuple[int | None, date_type | None]:
+        """Return latest odometer reading for `vin` as imperial miles + date.
+
+        LEGACY-COMPAT: storage column is now `odometer_km` (Decimal). The widget
+        endpoints predate v3 and must keep returning miles to avoid breaking
+        pre-v3 dashboard clients. We convert at the read boundary.
+        """
         stmt = (
-            select(OdometerRecord.mileage, OdometerRecord.date)
+            select(OdometerRecord.odometer_km, OdometerRecord.date)
             .where(OdometerRecord.vin == vin)
             .order_by(OdometerRecord.date.desc(), OdometerRecord.id.desc())
             .limit(1)
@@ -247,68 +254,82 @@ class WidgetAggregationService:
         row = (await self.db.execute(stmt)).first()
         if row is None:
             return None, None
-        return int(row.mileage), row.date
+        miles = UnitConverter.km_to_miles(row.odometer_km)
+        return (int(round(miles)) if miles is not None else None), row.date
+
+    async def _latest_odometer_km(self, vin: str) -> int | None:
+        """Internal: latest odometer reading for `vin` in km (for SQL comparisons)."""
+        stmt = (
+            select(OdometerRecord.odometer_km)
+            .where(OdometerRecord.vin == vin)
+            .order_by(OdometerRecord.date.desc(), OdometerRecord.id.desc())
+            .limit(1)
+        )
+        row = (await self.db.execute(stmt)).first()
+        if row is None or row.odometer_km is None:
+            return None
+        return int(row.odometer_km)
 
     async def _reminder_counts(self, vin: str) -> tuple[int, int]:
         """Return (overdue, upcoming) for a single VIN."""
-        current_mileage, _ = await self._latest_odometer(vin)
-        overdue, upcoming = await self._overdue_upcoming([vin], current_mileage)
+        current_odometer_km = await self._latest_odometer_km(vin)
+        overdue, upcoming = await self._overdue_upcoming([vin], current_odometer_km)
         return overdue, upcoming
 
     async def _reminder_totals(self, vins: list[str]) -> tuple[int, int]:
         """Sum overdue and upcoming pending reminders across `vins`.
 
         Overdue derivation per reminder:
-          (due_date <= today) OR (due_mileage <= latest odometer for that VIN)
-        Each VIN's current mileage comes from a separate latest-odometer query;
+          (due_date <= today) OR (due_mileage_km <= latest odometer_km for that VIN)
+        Each VIN's current odometer_km comes from a separate latest-odometer query;
         the reminder query then filters with a per-VIN comparison.
         """
         if not vins:
             return 0, 0
 
-        # Per-VIN latest mileage for mileage-based overdue checks.
-        mileage_by_vin: dict[str, int] = {}
+        # Per-VIN latest odometer_km for mileage-based overdue checks.
+        odometer_by_vin: dict[str, int] = {}
         for vin in vins:
-            mileage, _ = await self._latest_odometer(vin)
-            if mileage is not None:
-                mileage_by_vin[vin] = mileage
+            current_km = await self._latest_odometer_km(vin)
+            if current_km is not None:
+                odometer_by_vin[vin] = current_km
 
         overdue_total = 0
         upcoming_total = 0
         for vin in vins:
-            current_mileage = mileage_by_vin.get(vin)
-            overdue, upcoming = await self._overdue_upcoming([vin], current_mileage)
+            current_odometer_km = odometer_by_vin.get(vin)
+            overdue, upcoming = await self._overdue_upcoming([vin], current_odometer_km)
             overdue_total += overdue
             upcoming_total += upcoming
         return overdue_total, upcoming_total
 
     async def _overdue_upcoming(
-        self, vins: list[str], current_mileage: int | None
+        self, vins: list[str], current_odometer_km: int | None
     ) -> tuple[int, int]:
         """Classify pending reminders for the given VIN(s).
 
         A reminder counts as overdue when either its due_date is on or before
-        today, or its due_mileage is at or below the vehicle's current mileage.
-        Everything else pending counts as upcoming. Matches the Python
-        derivation in `routes/dashboard.py`.
+        today, or its due_mileage_km is at or below the vehicle's current
+        odometer_km. Everything else pending counts as upcoming. Matches the
+        Python derivation in `routes/dashboard.py`.
         """
         if not vins:
             return 0, 0
         today = date_type.today()
-        stmt = select(Reminder.due_date, Reminder.due_mileage).where(
+        stmt = select(Reminder.due_date, Reminder.due_mileage_km).where(
             Reminder.vin.in_(vins), Reminder.status == "pending"
         )
         rows = (await self.db.execute(stmt)).all()
         overdue = 0
         upcoming = 0
-        for due_date, due_mileage in rows:
+        for due_date, due_mileage_km in rows:
             is_overdue = False
             if due_date is not None and due_date <= today:
                 is_overdue = True
             if (
-                due_mileage is not None
-                and current_mileage is not None
-                and current_mileage >= due_mileage
+                due_mileage_km is not None
+                and current_odometer_km is not None
+                and current_odometer_km >= due_mileage_km
             ):
                 is_overdue = True
             if is_overdue:
@@ -320,45 +341,55 @@ class WidgetAggregationService:
     async def _mpg(self, vin: str) -> tuple[float | None, float | None]:
         """Return (recent_mpg, average_mpg) bounded to last 10 full-tank fill-ups.
 
+        LEGACY-COMPAT: source columns are now `odometer_km` and `liters`. Per-pair
+        consumption is computed in metric (L/100km) and converted to MPG only at
+        the response boundary so the legacy widget keys continue to read in MPG.
+
         Behavioral parity with `fuel_service.calculate_mpg` +
         `get_previous_full_tank`:
           - Only consecutive full-tank records count
-          - Needs prior mileage and gallons > 0
+          - Needs prior odometer_km and liters > 0
           - Skip pairs where distance <= 0
         We fetch 11 rows (one more than AVERAGE_MPG_WINDOW) so we can form up
         to 10 consecutive pairs.
         """
         fetch_limit = AVERAGE_MPG_WINDOW + 1
         stmt = (
-            select(FuelRecord.mileage, FuelRecord.gallons, FuelRecord.date)
+            select(FuelRecord.odometer_km, FuelRecord.liters, FuelRecord.date)
             .where(
                 FuelRecord.vin == vin,
                 FuelRecord.is_full_tank.is_(True),
-                FuelRecord.mileage.is_not(None),
+                FuelRecord.odometer_km.is_not(None),
             )
             .order_by(FuelRecord.date.desc(), FuelRecord.id.desc())
             .limit(fetch_limit)
         )
         rows = (await self.db.execute(stmt)).all()
         # rows[0] is newest. Pair i uses rows[i] (current) and rows[i+1] (prev full tank).
-        pair_mpgs: list[Decimal] = []
+        pair_l100km: list[Decimal] = []
         for i in range(len(rows) - 1):
-            cur_mileage, cur_gallons, _ = rows[i]
-            prev_mileage, _, _ = rows[i + 1]
-            if cur_gallons is None or cur_mileage is None or prev_mileage is None:
+            cur_km, cur_liters, _ = rows[i]
+            prev_km, _, _ = rows[i + 1]
+            if cur_liters is None or cur_km is None or prev_km is None:
                 continue
-            if cur_gallons <= 0:
+            if cur_liters <= 0:
                 continue
-            distance = cur_mileage - prev_mileage
-            if distance <= 0:
+            distance_km = cur_km - prev_km
+            if distance_km <= 0:
                 continue
-            pair_mpgs.append(Decimal(distance) / cur_gallons)
+            # liters per 100 km
+            pair_l100km.append((cur_liters / Decimal(str(distance_km))) * Decimal("100"))
 
-        if not pair_mpgs:
+        if not pair_l100km:
             return None, None
 
-        recent_slice = pair_mpgs[:RECENT_MPG_WINDOW]
-        average_slice = pair_mpgs[:AVERAGE_MPG_WINDOW]
-        recent = float(round(sum(recent_slice) / len(recent_slice), 2))
-        average = float(round(sum(average_slice) / len(average_slice), 2))
+        recent_slice = pair_l100km[:RECENT_MPG_WINDOW]
+        average_slice = pair_l100km[:AVERAGE_MPG_WINDOW]
+        recent_l100km = sum(recent_slice) / len(recent_slice)
+        average_l100km = sum(average_slice) / len(average_slice)
+
+        recent_mpg = UnitConverter.l100km_to_mpg(recent_l100km)
+        average_mpg = UnitConverter.l100km_to_mpg(average_l100km)
+        recent = float(round(Decimal(str(recent_mpg)), 2)) if recent_mpg is not None else None
+        average = float(round(Decimal(str(average_mpg)), 2)) if average_mpg is not None else None
         return recent, average

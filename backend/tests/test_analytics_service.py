@@ -11,15 +11,43 @@ from app.services import analytics_service
 
 
 def _make_fuel_record(**kwargs):
-    """Create a mock FuelRecord-like object with sensible defaults."""
+    """Create a mock FuelRecord-like object with sensible defaults.
+
+    Metric-canonical: ``odometer_km`` and ``liters``. The kwargs aliases
+    ``mileage``/``gallons``/``propane_gallons``/``tank_size_lb`` are accepted
+    (and quietly converted via mile→km / gal→L / lb→kg) so older test
+    fixtures continue to work after the rename.
+    """
+    # Aliases: convert imperial-named kwargs to metric attributes
+    if "mileage" in kwargs:
+        miles = kwargs.pop("mileage")
+        kwargs["odometer_km"] = (
+            None if miles is None else Decimal(str(round(float(miles) * 1.60934, 2)))
+        )
+    if "gallons" in kwargs:
+        gallons = kwargs.pop("gallons")
+        kwargs["liters"] = (
+            None if gallons is None else Decimal(str(round(float(gallons) * 3.78541, 2)))
+        )
+    if "propane_gallons" in kwargs:
+        pg = kwargs.pop("propane_gallons")
+        kwargs["propane_liters"] = (
+            None if pg is None else Decimal(str(round(float(pg) * 3.78541, 2)))
+        )
+    if "tank_size_lb" in kwargs:
+        lb = kwargs.pop("tank_size_lb")
+        # 30 lb tank ≈ 13.61 kg; we want the int-bucketed key to work,
+        # so round to whole kg here.
+        kwargs["tank_size_kg"] = None if lb is None else Decimal(str(round(float(lb) * 0.453592)))
+
     defaults = {
         "id": 1,
         "vin": "1HGBH41JXMN109186",
         "date": date(2024, 1, 15),
-        "mileage": 50000,
-        "gallons": Decimal("12.5"),
-        "propane_gallons": None,
-        "tank_size_lb": None,
+        "odometer_km": Decimal("80467.20"),  # 50000 mi
+        "liters": Decimal("47.32"),  # 12.5 gal
+        "propane_liters": None,
+        "tank_size_kg": None,
         "tank_quantity": None,
         "kwh": None,
         "cost": Decimal("45.00"),
@@ -190,15 +218,15 @@ class TestCalculateFuelEconomy:
 
         # First record is baseline (no diff), so 2 data points
         assert len(df) == 2
-        assert "average_mpg" in stats
-        assert "best_mpg" in stats
-        assert "worst_mpg" in stats
-        assert "recent_mpg" in stats
+        assert "average_l_per_100km" in stats
+        assert "best_l_per_100km" in stats
+        assert "worst_l_per_100km" in stats
+        assert "recent_l_per_100km" in stats
         assert "trend" in stats
 
-        # MPG: 300/12=25, 300/12.5=24
-        assert stats["average_mpg"] > Decimal("0")
-        assert stats["best_mpg"] >= stats["worst_mpg"]
+        # L/100km: lower is better, so best <= worst
+        assert stats["average_l_per_100km"] > Decimal("0")
+        assert stats["best_l_per_100km"] <= stats["worst_l_per_100km"]
 
     def test_insufficient_records(self):
         """Test that fewer than 2 records returns empty."""
@@ -239,9 +267,9 @@ class TestCalculateFuelEconomy:
 
         df, stats = analytics_service.calculate_fuel_economy_with_pandas(records)
 
-        # Only the normal trip (300 mi / 12 gal = 25 MPG) should remain
+        # Only the normal trip (482.80 km / 45.42 L ≈ 9.41 L/100km) should remain
         assert len(df) == 1
-        assert stats["average_mpg"] == Decimal("25.0")
+        assert stats["average_l_per_100km"] == Decimal("9.41")
 
     def test_filters_negative_miles(self):
         """Test that negative mileage diffs are filtered (odometer correction)."""
@@ -577,11 +605,13 @@ class TestCalculatePropaneCosts:
         result = analytics_service.calculate_propane_costs(records)
 
         assert result["total_spent"] == Decimal("46.50")
-        assert result["total_gallons"] == Decimal("15.50")  # 7.5 + 8.0
+        # 7.5 gal → 28.39 L; 8.0 gal → 30.28 L; total ≈ 58.67 L
+        assert result["total_liters"] == Decimal("58.67")
         assert result["record_count"] == 2
-        assert result["avg_price_per_gallon"] is not None
+        assert result["avg_price_per_liter"] is not None
         assert len(result["monthly_trend"]) == 2
-        assert "30" in result["tank_breakdown"]
+        # 30 lb → 14 kg (rounded)
+        assert "14" in result["tank_breakdown"]
 
     def test_no_propane_records(self):
         """Test with no propane records (only gasoline)."""
@@ -600,7 +630,7 @@ class TestCalculatePropaneCosts:
         result = analytics_service.calculate_propane_costs([])
 
         assert result["total_spent"] == Decimal("0.00")
-        assert result["total_gallons"] == Decimal("0.00")
+        assert result["total_liters"] == Decimal("0.00")
         assert result["record_count"] == 0
 
     def test_tank_breakdown_multiple_sizes(self):
@@ -628,10 +658,12 @@ class TestCalculatePropaneCosts:
 
         result = analytics_service.calculate_propane_costs(records)
 
-        assert "30" in result["tank_breakdown"]
-        assert "40" in result["tank_breakdown"]
-        assert result["tank_breakdown"]["30"]["total_gallons"] == 7.0
-        assert result["tank_breakdown"]["40"]["total_gallons"] == 10.0
+        # 30 lb → 14 kg, 40 lb → 18 kg (rounded)
+        assert "14" in result["tank_breakdown"]
+        assert "18" in result["tank_breakdown"]
+        # 7.0 gal → 26.50 L, 10.0 gal → 37.85 L
+        assert result["tank_breakdown"]["14"]["total_liters"] == 26.5
+        assert result["tank_breakdown"]["18"]["total_liters"] == 37.85
 
     def test_refill_frequency(self):
         """Test refill frequency calculation with multiple fills of same tank."""
@@ -667,8 +699,9 @@ class TestCalculatePropaneCosts:
 
         result = analytics_service.calculate_propane_costs(records)
 
-        assert "30" in result["refill_frequency"]
-        freq = result["refill_frequency"]["30"]
+        # 30 lb → 14 kg
+        assert "14" in result["refill_frequency"]
+        freq = result["refill_frequency"]["14"]
         assert freq["avg_days_between"] > 0
         assert freq["min_days"] == 14  # Jan 1 → Jan 15
         assert freq["max_days"] == 30  # Jan 15 → Feb 14
@@ -692,11 +725,16 @@ def _make_line_item(**kwargs):
 
 def _make_service_visit(**kwargs):
     """Create a mock ServiceVisit-like object with computed calculated_total_cost."""
+    if "mileage" in kwargs:
+        miles = kwargs.pop("mileage")
+        kwargs["odometer_km"] = (
+            None if miles is None else Decimal(str(round(float(miles) * 1.60934, 2)))
+        )
     defaults = {
         "id": 1,
         "vin": "1HGBH41JXMN109186",
         "date": date(2024, 1, 15),
-        "mileage": 50000,
+        "odometer_km": Decimal("80467.20"),
         "total_cost": None,
         "tax_amount": None,
         "shop_supplies": None,
@@ -725,12 +763,22 @@ def _make_service_visit(**kwargs):
 
 def _make_def_record(**kwargs):
     """Create a mock DEFRecord-like object."""
+    if "mileage" in kwargs:
+        miles = kwargs.pop("mileage")
+        kwargs["odometer_km"] = (
+            None if miles is None else Decimal(str(round(float(miles) * 1.60934, 2)))
+        )
+    if "gallons" in kwargs:
+        gallons = kwargs.pop("gallons")
+        kwargs["liters"] = (
+            None if gallons is None else Decimal(str(round(float(gallons) * 3.78541, 2)))
+        )
     defaults = {
         "id": 1,
         "vin": "1HGBH41JXMN109186",
         "date": date(2024, 1, 15),
-        "mileage": 50000,
-        "gallons": Decimal("2.5"),
+        "odometer_km": Decimal("80467.20"),
+        "liters": Decimal("9.46"),  # 2.5 gal
         "cost": Decimal("18.75"),
         "price_per_unit": Decimal("7.50"),
         "fill_level": 0.85,

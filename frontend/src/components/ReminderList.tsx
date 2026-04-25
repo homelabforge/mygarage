@@ -12,6 +12,8 @@ import { formatDateForDisplay } from '../utils/dateUtils'
 import { useDateLocale } from '../hooks/useDateLocale'
 import ReminderForm from './ReminderForm'
 import type { Reminder, ReminderStatus } from '../types/reminder'
+import { useUnitPreference } from '../hooks/useUnitPreference'
+import { UnitFormatter } from '../utils/units'
 
 interface ReminderListProps {
   vin: string
@@ -33,6 +35,7 @@ const TYPE_ICONS: Record<string, typeof Bell> = {
 export default function ReminderList({ vin }: ReminderListProps) {
   const { t } = useTranslation('vehicles')
   const dateLocale = useDateLocale()
+  const { system, showBoth } = useUnitPreference()
   const [activeStatus, setActiveStatus] = useState<ReminderStatus | 'all'>('pending')
   const [showForm, setShowForm] = useState(false)
   const [editingReminder, setEditingReminder] = useState<Reminder | undefined>()
@@ -149,9 +152,9 @@ export default function ReminderList({ vin }: ReminderListProps) {
                             {t('reminderList.due')}: {formatDate(reminder.due_date)}
                           </span>
                         )}
-                        {reminder.due_mileage && (
+                        {reminder.due_mileage_km && (
                           <span className="text-xs text-garage-text-muted">
-                            {t('reminderList.due')}: {reminder.due_mileage.toLocaleString()} mi
+                            {t('reminderList.due')}: {UnitFormatter.formatDistance(parseFloat(String(reminder.due_mileage_km)), system, showBoth)}
                           </span>
                         )}
                         {reminder.estimated_due_date && (

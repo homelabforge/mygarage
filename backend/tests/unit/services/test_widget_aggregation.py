@@ -6,8 +6,11 @@ Focused on two risks Codex flagged:
    has records in more than one child table. If the service ever migrates to
    a multi-LEFT-JOIN query, these tests catch the cartesian explosion.
 2. MPG parity: the window-function/bounded-lookback MPG must produce the same
-   numbers as `fuel_service.calculate_mpg` + `get_previous_full_tank` given
-   identical inputs, including every exclusion branch.
+   numbers as `fuel_service.calculate_l_per_100km` (converted to MPG) +
+   `get_previous_full_tank` given identical inputs, including every exclusion
+   branch. Storage is metric (odometer_km/liters); the widget layer is the
+   LEGACY-COMPAT surface that emits MPG/miles for clients that haven't
+   migrated yet.
 """
 
 import uuid
@@ -27,8 +30,18 @@ from app.models.reminder import Reminder
 from app.models.service_visit import ServiceVisit
 from app.models.user import User
 from app.models.vehicle import Vehicle
-from app.services.fuel_service import calculate_mpg
+from app.services.fuel_service import calculate_l_per_100km
 from app.services.widget_aggregation import WidgetAggregationService
+
+
+# Conversion helpers — all storage is metric, but legacy widget output is imperial.
+def _mi_to_km(miles: float | int) -> Decimal:
+    return Decimal(str(round(float(miles) * 1.60934, 2)))
+
+
+def _gal_to_l(gallons: float | int | Decimal) -> Decimal:
+    return Decimal(str(round(float(gallons) * 3.78541, 2)))
+
 
 TEST_PASSWORD_HASH = (
     "$argon2id$v=19$m=102400,t=2,p=8$NNbLa8SMLODWY2Es68EvLw"
@@ -97,8 +110,8 @@ class TestFanOutRegression:
                 FuelRecord(
                     vin=vin,
                     date=date(2026, 2, 1) + timedelta(days=i),
-                    mileage=10000 + i * 300,
-                    gallons=Decimal("10.0"),
+                    odometer_km=_mi_to_km(10000 + i * 300),
+                    liters=_gal_to_l(Decimal("10.0")),
                     price_per_unit=Decimal("3.50"),
                     cost=Decimal("35.00"),
                     is_full_tank=True,
@@ -148,8 +161,8 @@ class TestFanOutRegression:
                 FuelRecord(
                     vin=vin,
                     date=date(2026, 2, 1) + timedelta(days=i),
-                    mileage=20000 + i * 300,
-                    gallons=Decimal("10.0"),
+                    odometer_km=_mi_to_km(20000 + i * 300),
+                    liters=_gal_to_l(Decimal("10.0")),
                     price_per_unit=Decimal("3.50"),
                     cost=Decimal("35.00"),
                     is_full_tank=True,
@@ -179,8 +192,8 @@ class TestMpgParity:
             FuelRecord(
                 vin=vin,
                 date=date(2026, 1, 1),
-                mileage=10000,
-                gallons=Decimal("10.0"),
+                odometer_km=_mi_to_km(10000),
+                liters=_gal_to_l(Decimal("10.0")),
                 price_per_unit=Decimal("3.50"),
                 cost=Decimal("35.00"),
                 is_full_tank=True,
@@ -188,8 +201,8 @@ class TestMpgParity:
             FuelRecord(
                 vin=vin,
                 date=date(2026, 1, 15),
-                mileage=10300,  # +300 mi / 10 gal = 30.0 MPG
-                gallons=Decimal("10.0"),
+                odometer_km=_mi_to_km(10300),  # +300 mi / 10 gal = 30.0 MPG
+                liters=_gal_to_l(Decimal("10.0")),
                 price_per_unit=Decimal("3.50"),
                 cost=Decimal("35.00"),
                 is_full_tank=True,
@@ -197,8 +210,8 @@ class TestMpgParity:
             FuelRecord(
                 vin=vin,
                 date=date(2026, 1, 30),
-                mileage=10620,  # +320 mi / 8 gal = 40.0 MPG
-                gallons=Decimal("8.0"),
+                odometer_km=_mi_to_km(10620),  # +320 mi / 8 gal = 40.0 MPG
+                liters=_gal_to_l(Decimal("8.0")),
                 price_per_unit=Decimal("3.50"),
                 cost=Decimal("28.00"),
                 is_full_tank=True,
@@ -211,15 +224,24 @@ class TestMpgParity:
         svc = WidgetAggregationService(db_session)
         result = await svc.vehicle(aggregation_user.id, vin, allowed_vins=None)
 
-        # Reference: pairwise calculate_mpg() on the same data.
-        ref_newest = calculate_mpg(records[2], records[1])
-        ref_second = calculate_mpg(records[1], records[0])
-        assert ref_newest == Decimal("40.00")
-        assert ref_second == Decimal("30.00")
+        # Reference: pairwise calculate_l_per_100km() on the same data,
+        # converted back to MPG for the legacy widget contract.
+        # 10000→10300 mi (30 MPG) → 7.84 L/100km
+        # 10300→10620 mi (40 MPG) → 5.88 L/100km
+        ref_newest = calculate_l_per_100km(records[2], records[1])
+        ref_second = calculate_l_per_100km(records[1], records[0])
+        assert ref_newest is not None
+        assert ref_second is not None
+        # Lower L/100km = better fuel economy
+        assert ref_newest < ref_second
 
         assert result is not None
-        assert result.recent_mpg == pytest.approx(35.0)
-        assert result.average_mpg == pytest.approx(35.0)
+        # Widget averages L/100km first then converts to MPG, so the legacy
+        # output is the MPG equivalent of the harmonic mean — not 35.0.
+        # Two pairs at 30 MPG (7.84 L/100km) and 40 MPG (5.88 L/100km)
+        # → mean L/100km ≈ 6.86 → MPG ≈ 34.3.
+        assert result.recent_mpg == pytest.approx(34.3, abs=0.1)
+        assert result.average_mpg == pytest.approx(34.3, abs=0.1)
 
     @pytest.mark.asyncio
     async def test_partial_tank_excluded(self, db_session, aggregation_user):
@@ -232,8 +254,8 @@ class TestMpgParity:
                 FuelRecord(
                     vin=vin,
                     date=date(2026, 1, 1),
-                    mileage=10000,
-                    gallons=Decimal("10.0"),
+                    odometer_km=_mi_to_km(10000),
+                    liters=_gal_to_l(Decimal("10.0")),
                     price_per_unit=Decimal("3.50"),
                     cost=Decimal("35.00"),
                     is_full_tank=True,
@@ -242,8 +264,8 @@ class TestMpgParity:
                 FuelRecord(
                     vin=vin,
                     date=date(2026, 1, 10),
-                    mileage=10100,
-                    gallons=Decimal("5.0"),
+                    odometer_km=_mi_to_km(10100),
+                    liters=_gal_to_l(Decimal("5.0")),
                     price_per_unit=Decimal("3.50"),
                     cost=Decimal("17.50"),
                     is_full_tank=False,
@@ -251,8 +273,10 @@ class TestMpgParity:
                 FuelRecord(
                     vin=vin,
                     date=date(2026, 1, 20),
-                    mileage=10300,  # Pair is (10300, 10000); +300 / 10 gal = 30.0 MPG
-                    gallons=Decimal("10.0"),
+                    odometer_km=_mi_to_km(
+                        10300
+                    ),  # Pair is (10300, 10000); +300 / 10 gal = 30.0 MPG
+                    liters=_gal_to_l(Decimal("10.0")),
                     price_per_unit=Decimal("3.50"),
                     cost=Decimal("35.00"),
                     is_full_tank=True,
@@ -277,8 +301,8 @@ class TestMpgParity:
                 FuelRecord(
                     vin=vin,
                     date=date(2026, 1, 1),
-                    mileage=10000,
-                    gallons=Decimal("10.0"),
+                    odometer_km=_mi_to_km(10000),
+                    liters=_gal_to_l(Decimal("10.0")),
                     price_per_unit=Decimal("3.50"),
                     cost=Decimal("35.00"),
                     is_full_tank=True,
@@ -287,8 +311,8 @@ class TestMpgParity:
                 FuelRecord(
                     vin=vin,
                     date=date(2026, 1, 10),
-                    mileage=10000,
-                    gallons=Decimal("10.0"),
+                    odometer_km=_mi_to_km(10000),
+                    liters=_gal_to_l(Decimal("10.0")),
                     price_per_unit=Decimal("3.50"),
                     cost=Decimal("35.00"),
                     is_full_tank=True,
@@ -313,8 +337,8 @@ class TestMpgParity:
             FuelRecord(
                 vin=vin,
                 date=date(2026, 1, 1),
-                mileage=10000,
-                gallons=Decimal("10.0"),
+                odometer_km=_mi_to_km(10000),
+                liters=_gal_to_l(Decimal("10.0")),
                 price_per_unit=Decimal("3.50"),
                 cost=Decimal("35.00"),
                 is_full_tank=True,
@@ -354,8 +378,8 @@ class TestMpgParity:
                 FuelRecord(
                     vin=vin,
                     date=day,
-                    mileage=mileage,
-                    gallons=Decimal("10.0"),
+                    odometer_km=_mi_to_km(mileage),
+                    liters=_gal_to_l(Decimal("10.0")),
                     price_per_unit=Decimal("3.50"),
                     cost=Decimal("35.00"),
                     is_full_tank=True,
@@ -368,8 +392,8 @@ class TestMpgParity:
                 FuelRecord(
                     vin=vin,
                     date=day,
-                    mileage=mileage,
-                    gallons=Decimal("10.0"),
+                    odometer_km=_mi_to_km(mileage),
+                    liters=_gal_to_l(Decimal("10.0")),
                     price_per_unit=Decimal("3.50"),
                     cost=Decimal("35.00"),
                     is_full_tank=True,
@@ -463,7 +487,11 @@ class TestReminderClassification:
         vin = vehicle.vin
 
         # Current odometer = 50000; reminders due at/under 50000 by mileage are overdue.
-        db_session.add(OdometerRecord(vin=vin, date=date.today(), mileage=50000, source="manual"))
+        db_session.add(
+            OdometerRecord(
+                vin=vin, date=date.today(), odometer_km=_mi_to_km(50000), source="manual"
+            )
+        )
 
         past = date.today() - timedelta(days=5)
         future = date.today() + timedelta(days=30)
@@ -481,7 +509,7 @@ class TestReminderClassification:
                     vin=vin,
                     title="overdue by mileage",
                     reminder_type="mileage",
-                    due_mileage=40000,
+                    due_mileage_km=_mi_to_km(40000),
                     status="pending",
                 ),
                 Reminder(
@@ -495,7 +523,7 @@ class TestReminderClassification:
                     vin=vin,
                     title="upcoming mileage",
                     reminder_type="mileage",
-                    due_mileage=60000,
+                    due_mileage_km=_mi_to_km(60000),
                     status="pending",
                 ),
                 # A completed reminder must be ignored.

@@ -15,18 +15,24 @@ from app.services.def_service import DEFRecordService
 
 
 def _make_mock_vehicle(tank_capacity=None):
-    """Create a mock vehicle with DEF tank capacity."""
+    """Create a mock vehicle with DEF tank capacity (liters, metric canonical)."""
     vehicle = MagicMock()
-    vehicle.def_tank_capacity_gallons = tank_capacity
+    vehicle.def_tank_capacity_liters = tank_capacity
     return vehicle
 
 
-def _make_mock_record(record_date, mileage, gallons, cost, fill_level=None):
-    """Create a mock DEF record."""
+def _make_mock_record(record_date, mileage_mi, gallons, cost, fill_level=None):
+    """Create a mock DEF record (metric canonical: km/liters).
+
+    Accepts imperial inputs (miles, gallons) for fixture continuity and
+    converts to km/liters on the mock attributes.
+    """
     record = MagicMock()
     record.date = record_date
-    record.mileage = mileage
-    record.gallons = gallons
+    record.odometer_km = (
+        None if mileage_mi is None else Decimal(str(round(float(mileage_mi) * 1.60934, 2)))
+    )
+    record.liters = None if gallons is None else Decimal(str(round(float(gallons) * 3.78541, 2)))
     record.cost = cost
     record.fill_level = fill_level
     return record
@@ -59,7 +65,7 @@ class TestDEFAnalytics:
         assert isinstance(result, DEFAnalytics)
         assert result.record_count == 0
         assert result.data_confidence == "insufficient"
-        assert result.total_gallons is None
+        assert result.total_liters is None
         assert result.total_cost is None
 
     async def test_analytics_insufficient_data(self):
@@ -87,9 +93,9 @@ class TestDEFAnalytics:
             result = await service.get_def_analytics("TEST_VIN", MagicMock())
 
         assert result.record_count == 2
-        assert result.total_gallons is not None
+        assert result.total_liters is not None
         assert result.total_cost is not None
-        assert result.gallons_per_1000_miles is None
+        assert result.liters_per_1000_km is None
         assert result.data_confidence == "insufficient"
 
     async def test_analytics_confidence_levels(self):
@@ -122,7 +128,7 @@ class TestDEFAnalytics:
             result = await service.get_def_analytics("TEST_VIN", MagicMock())
 
         assert result.record_count == 5
-        assert result.total_gallons is not None
+        assert result.total_liters is not None
 
     async def test_analytics_frequency_excludes_auto_sync(self):
         """Test that avg_purchase_frequency_days only counts purchase records.
@@ -209,7 +215,7 @@ class TestDEFSchemaValidation:
             )
 
     async def test_negative_gallons_rejected(self):
-        """Test that negative gallons value is rejected."""
+        """Test that negative liters value is rejected (metric canonical)."""
         from pydantic import ValidationError
 
         from app.schemas.def_record import DEFRecordCreate
@@ -218,7 +224,7 @@ class TestDEFSchemaValidation:
             DEFRecordCreate(
                 vin="3C7WRTCL8NG123456",
                 date=date(2024, 1, 1),
-                gallons=Decimal("-1.0"),
+                liters=Decimal("-1.0"),
             )
 
     async def test_update_schema_all_optional(self):
@@ -228,7 +234,7 @@ class TestDEFSchemaValidation:
         # Empty update should be valid
         update = DEFRecordUpdate()
         assert update.date is None
-        assert update.gallons is None
+        assert update.liters is None
         assert update.cost is None
 
     async def test_create_requires_date_and_vin(self):

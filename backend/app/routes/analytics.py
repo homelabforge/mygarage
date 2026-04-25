@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -230,34 +230,34 @@ async def get_cost_analysis(db: AsyncSession, vin: str) -> CostAnalysis:
             )
         )
 
-    # Calculate cost per mile
-    all_mileages = []
+    # Calculate cost per km
+    all_odometers: list[Decimal] = []
 
     # Get odometer readings
     odometer_result = await db.execute(
-        select(OdometerRecord.mileage)
+        select(OdometerRecord.odometer_km)
         .where(OdometerRecord.vin == vin)
         .order_by(OdometerRecord.date)
     )
-    all_mileages.extend([r for r in odometer_result.scalars().all()])
+    all_odometers.extend([r for r in odometer_result.scalars().all()])
 
-    # Get mileage from fuel records
+    # Get odometer_km from fuel records
     for record in fuel_records:
-        if record.mileage:
-            all_mileages.append(record.mileage)
+        if record.odometer_km:
+            all_odometers.append(record.odometer_km)
 
-    # Get mileage from service visits
+    # Get odometer_km from service visits
     for visit in service_visits:
-        if visit.mileage:
-            all_mileages.append(visit.mileage)
+        if visit.odometer_km:
+            all_odometers.append(visit.odometer_km)
 
-    cost_per_mile = None
-    if len(all_mileages) >= 2:
-        min_mileage = min(all_mileages)
-        max_mileage = max(all_mileages)
-        miles_driven = max_mileage - min_mileage
-        if miles_driven > 0:
-            cost_per_mile = total_cost / miles_driven
+    cost_per_km = None
+    if len(all_odometers) >= 2:
+        min_km = min(all_odometers)
+        max_km = max(all_odometers)
+        km_driven = max_km - min_km
+        if km_driven > 0:
+            cost_per_km = total_cost / Decimal(str(km_driven))
 
     # Detect cost anomalies
     anomalies = []
@@ -303,7 +303,7 @@ async def get_cost_analysis(db: AsyncSession, vin: str) -> CostAnalysis:
         fuel_count=len(fuel_records),
         def_count=len(def_records),
         months_tracked=months_tracked,
-        cost_per_mile=cost_per_mile,
+        cost_per_km=cost_per_km,
         rolling_avg_3m=rolling_avgs.get("rolling_3m"),
         rolling_avg_6m=rolling_avgs.get("rolling_6m"),
         rolling_avg_12m=rolling_avgs.get("rolling_12m"),
@@ -341,62 +341,70 @@ async def get_fuel_economy_trend(db: AsyncSession, vin: str) -> FuelEconomyTrend
     if not fuel_records:
         return FuelEconomyTrend()
 
-    # Use pandas for fuel economy calculation
-    mpg_df, stats = analytics_service.calculate_fuel_economy_with_pandas(fuel_records)
+    # Use pandas for fuel economy calculation (metric L/100km)
+    fuel_df, stats = analytics_service.calculate_fuel_economy_with_pandas(fuel_records)
 
-    if mpg_df.empty or not stats:
+    if fuel_df.empty or not stats:
         return FuelEconomyTrend()
 
     # Convert DataFrame to data points
     data_points = []
-    for _, row in mpg_df.iterrows():
+    for _, row in fuel_df.iterrows():
         data_points.append(
             FuelEconomyDataPoint(
                 date=row["date"].date(),
-                mpg=Decimal(str(round(row["mpg"], 2))),
-                mileage=int(row["mileage"]),
-                gallons=Decimal(str(round(row["gallons"], 3))),
+                l_per_100km=Decimal(str(round(row["l_per_100km"], 2))),
+                odometer_km=Decimal(str(round(row["odometer_km"], 2))),
+                liters=Decimal(str(round(row["liters"], 3))),
                 cost=Decimal(str(round(row["cost"], 2))),
             )
         )
 
     return FuelEconomyTrend(
-        average_mpg=stats.get("average_mpg"),
-        best_mpg=stats.get("best_mpg"),
-        worst_mpg=stats.get("worst_mpg"),
-        recent_mpg=stats.get("recent_mpg"),
+        average_l_per_100km=stats.get("average_l_per_100km"),
+        best_l_per_100km=stats.get("best_l_per_100km"),
+        worst_l_per_100km=stats.get("worst_l_per_100km"),
+        recent_l_per_100km=stats.get("recent_l_per_100km"),
         trend=stats.get("trend", "stable"),
         data_points=data_points,
     )
 
 
 def build_fuel_alerts(fuel_economy: FuelEconomyTrend) -> list[FuelEfficiencyAlert]:
-    """Generate alert messages based on fuel economy trends."""
+    """Generate alert messages based on fuel economy trends.
+
+    Metric semantics: lower L/100km = better. Recent value *higher* than the
+    baseline means consumption is up (efficiency dropping).
+    """
     alerts: list[FuelEfficiencyAlert] = []
 
-    avg = fuel_economy.average_mpg
-    recent = fuel_economy.recent_mpg
+    avg = fuel_economy.average_l_per_100km
+    recent = fuel_economy.recent_l_per_100km
 
     if avg and recent and Decimal(str(avg)) > 0:
         avg_dec = Decimal(str(avg))
         recent_dec = Decimal(str(recent))
-        drop_percent = (avg_dec - recent_dec) / avg_dec
+        # Positive rise_percent ⇒ consumption increased ⇒ efficiency dropped.
+        rise_percent = (recent_dec - avg_dec) / avg_dec
 
         severity = None
-        if drop_percent >= Decimal("0.20"):
+        if rise_percent >= Decimal("0.20"):
             severity = "critical"
-        elif drop_percent >= Decimal("0.10"):
+        elif rise_percent >= Decimal("0.10"):
             severity = "warning"
 
         if severity:
-            percent_value = int(drop_percent * 100)
+            percent_value = int(rise_percent * 100)
             alerts.append(
                 FuelEfficiencyAlert(
                     title="Fuel economy dropping",
                     severity=severity,
-                    message=f"Recent MPG ({recent_dec:.1f}) is {percent_value}% lower than your baseline ({avg_dec:.1f}).",
-                    recent_mpg=recent_dec,
-                    baseline_mpg=avg_dec,
+                    message=(
+                        f"Recent consumption ({recent_dec:.1f} L/100km) is {percent_value}% "
+                        f"higher than your baseline ({avg_dec:.1f} L/100km)."
+                    ),
+                    recent_l_per_100km=recent_dec,
+                    baseline_l_per_100km=avg_dec,
                 )
             )
 
@@ -405,9 +413,12 @@ def build_fuel_alerts(fuel_economy: FuelEconomyTrend) -> list[FuelEfficiencyAler
             FuelEfficiencyAlert(
                 title="Efficiency trend declining",
                 severity="info",
-                message="Recent fill-ups show a downward MPG trend. Consider checking tire pressure or air filters.",
-                recent_mpg=fuel_economy.recent_mpg,
-                baseline_mpg=fuel_economy.average_mpg,
+                message=(
+                    "Recent fill-ups show rising L/100km consumption. Consider checking "
+                    "tire pressure or air filters."
+                ),
+                recent_l_per_100km=fuel_economy.recent_l_per_100km,
+                baseline_l_per_100km=fuel_economy.average_l_per_100km,
             )
         )
 
@@ -416,9 +427,12 @@ def build_fuel_alerts(fuel_economy: FuelEconomyTrend) -> list[FuelEfficiencyAler
             FuelEfficiencyAlert(
                 title="Insufficient fuel data",
                 severity="info",
-                message="Log at least three full-tank fuel entries to unlock detailed MPG insights.",
-                recent_mpg=None,
-                baseline_mpg=None,
+                message=(
+                    "Log at least three full-tank fuel entries to unlock detailed "
+                    "fuel-economy insights."
+                ),
+                recent_l_per_100km=None,
+                baseline_l_per_100km=None,
             )
         )
 
@@ -447,15 +461,15 @@ async def get_service_history_timeline(db: AsyncSession, vin: str) -> list[Servi
     timeline = []
     for i, (visit, item) in enumerate(items):
         days_since_last = None
-        miles_since_last = None
+        km_since_last: Decimal | None = None
 
         # Find previous item with matching description
         for prev_visit, prev_item in items[i + 1 :]:
             if prev_item.description == item.description:
                 if visit.date and prev_visit.date:
                     days_since_last = (visit.date - prev_visit.date).days
-                if visit.mileage and prev_visit.mileage:
-                    miles_since_last = visit.mileage - prev_visit.mileage
+                if visit.odometer_km and prev_visit.odometer_km:
+                    km_since_last = visit.odometer_km - prev_visit.odometer_km
                 break
 
         timeline.append(
@@ -463,11 +477,11 @@ async def get_service_history_timeline(db: AsyncSession, vin: str) -> list[Servi
                 date=visit.date,
                 service_type=item.description,
                 description=visit.notes,
-                mileage=visit.mileage,
+                odometer_km=visit.odometer_km,
                 cost=item.cost,
                 vendor_name=visit.vendor.name if visit.vendor else None,
                 days_since_last=days_since_last,
-                miles_since_last=miles_since_last,
+                km_since_last=km_since_last,
             )
         )
 
@@ -476,7 +490,7 @@ async def get_service_history_timeline(db: AsyncSession, vin: str) -> list[Servi
 
 @cached(ttl_seconds=600)  # Cache for 10 minutes
 async def get_maintenance_predictions(
-    db: AsyncSession, vin: str, current_mileage: int | None = None
+    db: AsyncSession, vin: str, current_odometer_km: Decimal | None = None
 ) -> list[MaintenancePrediction]:
     """Predict upcoming maintenance based on service visit line items."""
 
@@ -489,22 +503,22 @@ async def get_maintenance_predictions(
     )
     visits = list(result.scalars().all())
 
-    # Get current mileage if not provided
-    if not current_mileage:
+    # Get current odometer_km if not provided
+    if not current_odometer_km:
         odometer_result = await db.execute(
-            select(OdometerRecord.mileage)
+            select(OdometerRecord.odometer_km)
             .where(OdometerRecord.vin == vin)
             .order_by(OdometerRecord.date.desc())
             .limit(1)
         )
-        current_mileage = odometer_result.scalar_one_or_none()
+        current_odometer_km = odometer_result.scalar_one_or_none()
 
-    # Flatten visits → line items as (date, mileage, description)
-    flat_items: list[tuple[date_type, int | None, str]] = []
+    # Flatten visits → line items as (date, odometer_km, description)
+    flat_items: list[tuple[date_type, Decimal | None, str]] = []
     for visit in visits:
         for li in visit.line_items:
             if li.description:
-                flat_items.append((visit.date, visit.mileage, li.description))
+                flat_items.append((visit.date, visit.odometer_km, li.description))
 
     # Group by description and calculate intervals
     service_intervals: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -513,8 +527,8 @@ async def get_maintenance_predictions(
     flat_items.sort(key=lambda x: x[0])
 
     for i in range(len(flat_items) - 1):
-        curr_date, curr_mileage_val, curr_desc = flat_items[i + 1]
-        prev_date, prev_mileage_val, prev_desc = flat_items[i]
+        curr_date, curr_km_val, curr_desc = flat_items[i + 1]
+        prev_date, prev_km_val, prev_desc = flat_items[i]
 
         if curr_desc == prev_desc:
             interval_data: dict[str, Any] = {}
@@ -523,9 +537,9 @@ async def get_maintenance_predictions(
                 interval_data["days"] = (curr_date - prev_date).days
                 interval_data["date"] = curr_date
 
-            if curr_mileage_val and prev_mileage_val:
-                interval_data["miles"] = curr_mileage_val - prev_mileage_val
-                interval_data["mileage"] = curr_mileage_val
+            if curr_km_val and prev_km_val:
+                interval_data["km"] = curr_km_val - prev_km_val
+                interval_data["odometer_km"] = curr_km_val
 
             if interval_data:
                 service_intervals[curr_desc].append(interval_data)
@@ -540,21 +554,23 @@ async def get_maintenance_predictions(
 
         # Calculate average intervals
         day_intervals = [i["days"] for i in intervals if "days" in i]
-        mile_intervals = [i["miles"] for i in intervals if "miles" in i]
+        km_intervals = [i["km"] for i in intervals if "km" in i]
 
-        if not day_intervals and not mile_intervals:
+        if not day_intervals and not km_intervals:
             continue
 
         avg_days = int(sum(day_intervals) / len(day_intervals)) if day_intervals else None
-        avg_miles = int(sum(mile_intervals) / len(mile_intervals)) if mile_intervals else None
+        avg_km: Decimal | None = (
+            sum(km_intervals, Decimal("0")) / Decimal(len(km_intervals)) if km_intervals else None
+        )
 
         # Find most recent service of this type
         most_recent_date = None
-        most_recent_mileage = None
-        for item_date, item_mileage, item_desc in reversed(flat_items):
+        most_recent_km: Decimal | None = None
+        for item_date, item_km, item_desc in reversed(flat_items):
             if item_desc == service_type:
                 most_recent_date = item_date
-                most_recent_mileage = item_mileage
+                most_recent_km = item_km
                 break
 
         if not most_recent_date:
@@ -567,11 +583,11 @@ async def get_maintenance_predictions(
             predicted_date = most_recent_date + timedelta(days=avg_days)
             days_until_due = (predicted_date - today).days
 
-        predicted_mileage = None
-        miles_until_due = None
-        if avg_miles and most_recent_mileage and current_mileage:
-            predicted_mileage = most_recent_mileage + avg_miles
-            miles_until_due = predicted_mileage - current_mileage
+        predicted_odometer_km: Decimal | None = None
+        km_until_due: Decimal | None = None
+        if avg_km and most_recent_km and current_odometer_km:
+            predicted_odometer_km = most_recent_km + avg_km
+            km_until_due = predicted_odometer_km - current_odometer_km
 
         # Determine confidence based on consistency of intervals
         confidence = "low"
@@ -588,15 +604,15 @@ async def get_maintenance_predictions(
             MaintenancePrediction(
                 service_type=service_type,
                 predicted_date=predicted_date,
-                predicted_mileage=predicted_mileage,
+                predicted_odometer_km=predicted_odometer_km,
                 days_until_due=days_until_due,
-                miles_until_due=miles_until_due,
+                km_until_due=km_until_due,
                 average_interval_days=avg_days,
-                average_interval_miles=avg_miles,
+                average_interval_km=avg_km,
                 confidence=confidence,
                 has_schedule_item=False,
                 schedule_item_next_date=None,
-                schedule_item_next_mileage=None,
+                schedule_item_next_odometer_km=None,
             )
         )
 
@@ -625,14 +641,14 @@ async def get_vehicle_analytics(
     cost_analysis = await get_cost_analysis(db, vin)
     cost_projection = build_cost_projection(cost_analysis)
 
-    # Get fuel economy trends (skip for fifth wheels - they don't have MPG tracking)
+    # Get fuel economy trends (skip for fifth wheels - they don't track L/100km)
     if is_fifth_wheel:
         fuel_economy = FuelEconomyTrend(
             data_points=[],
-            average_mpg=None,
-            best_mpg=None,
-            worst_mpg=None,
-            recent_mpg=None,
+            average_l_per_100km=None,
+            best_l_per_100km=None,
+            worst_l_per_100km=None,
+            recent_l_per_100km=None,
             trend="stable",
         )
         fuel_alerts = []
@@ -643,33 +659,33 @@ async def get_vehicle_analytics(
     # Get service history timeline
     service_history = await get_service_history_timeline(db, vin)
 
-    # Calculate summary stats - get odometer records first to get current mileage
+    # Calculate summary stats - get odometer records first to get current odometer_km
     odometer_result = await db.execute(
-        select(OdometerRecord.mileage, OdometerRecord.date)
+        select(OdometerRecord.odometer_km, OdometerRecord.date)
         .where(OdometerRecord.vin == vin)
         .order_by(OdometerRecord.date)
     )
     odometer_records = list(odometer_result.all())
 
-    # Get current mileage from latest odometer record
-    current_mileage = odometer_records[-1][0] if odometer_records else None
+    # Get current odometer_km from latest odometer record
+    current_odometer_km = odometer_records[-1][0] if odometer_records else None
 
     # Get maintenance predictions
-    predictions = await get_maintenance_predictions(db, vin, current_mileage)
+    predictions = await get_maintenance_predictions(db, vin, current_odometer_km)
 
-    total_miles_driven = None
-    average_miles_per_month = None
+    total_km_driven: Decimal | None = None
+    average_km_per_month: Decimal | None = None
     days_owned = None
 
     if len(odometer_records) >= 2:
         first_reading, first_date = odometer_records[0]
         last_reading, last_date = odometer_records[-1]
 
-        total_miles_driven = last_reading - first_reading
+        total_km_driven = last_reading - first_reading
         days_owned = (last_date - first_date).days
 
         if days_owned > 0:
-            average_miles_per_month = int((total_miles_driven / days_owned) * 30)
+            average_km_per_month = (total_km_driven / Decimal(str(days_owned))) * Decimal("30")
     elif vehicle.purchase_date:
         days_owned = (date_type.today() - vehicle.purchase_date).days
 
@@ -696,27 +712,25 @@ async def get_vehicle_analytics(
     )
     all_def_records = def_result.scalars().all()
     if all_def_records:
-        total_def_gallons = sum((r.gallons for r in all_def_records if r.gallons), Decimal("0.00"))
+        total_def_liters = sum((r.liters for r in all_def_records if r.liters), Decimal("0.00"))
         total_def_spent = sum((r.cost for r in all_def_records if r.cost), Decimal("0.00"))
-        avg_cost_per_gallon = total_def_spent / total_def_gallons if total_def_gallons > 0 else None
+        avg_cost_per_liter = total_def_spent / total_def_liters if total_def_liters > 0 else None
 
-        # Calculate gallons per 1,000 miles
-        gallons_per_1000_miles = None
-        def_mileages = [r.mileage for r in all_def_records if r.mileage is not None]
-        if len(def_mileages) >= 2:
-            min_mi = min(def_mileages)
-            max_mi = max(def_mileages)
-            miles_span = max_mi - min_mi
-            if miles_span > 0:
-                gallons_per_1000_miles = float(total_def_gallons) / miles_span * 1000
+        # Calculate liters per 1,000 km
+        liters_per_1000_km = None
+        def_odometers = [r.odometer_km for r in all_def_records if r.odometer_km is not None]
+        if len(def_odometers) >= 2:
+            min_km = min(def_odometers)
+            max_km = max(def_odometers)
+            km_span = max_km - min_km
+            if km_span > 0:
+                liters_per_1000_km = float(total_def_liters) / float(km_span) * 1000
 
         def_analysis = {
             "total_spent": str(total_def_spent),
-            "total_gallons": str(total_def_gallons),
-            "avg_cost_per_gallon": str(avg_cost_per_gallon) if avg_cost_per_gallon else None,
-            "gallons_per_1000_miles": (
-                f"{gallons_per_1000_miles:.1f}" if gallons_per_1000_miles else None
-            ),
+            "total_liters": str(total_def_liters),
+            "avg_cost_per_liter": str(avg_cost_per_liter) if avg_cost_per_liter else None,
+            "liters_per_1000_km": (f"{liters_per_1000_km:.1f}" if liters_per_1000_km else None),
             "record_count": len(all_def_records),
         }
 
@@ -730,8 +744,8 @@ async def get_vehicle_analytics(
         fuel_alerts=fuel_alerts,
         service_history=service_history,
         predictions=predictions,
-        total_miles_driven=total_miles_driven,
-        average_miles_per_month=average_miles_per_month,
+        total_km_driven=total_km_driven,
+        average_km_per_month=average_km_per_month,
         days_owned=days_owned,
         propane_analysis=propane_analysis,
         spot_rental_analysis=spot_rental_analysis,
@@ -970,13 +984,18 @@ async def get_garage_analytics(
 @limiter.limit(settings.rate_limit_exports)
 async def export_garage_analytics_pdf(
     request: Request,
+    currency_code: str = Query("USD", description="ISO 4217 code; defaults to USD."),
+    locale: str = Query("en-US", description="BCP 47 locale; defaults to en-US."),
     db: AsyncSession = Depends(get_db),
     current_user: User | None = Depends(require_auth),
 ):
     """
     Export garage analytics as PDF report.
     """
+    from app.utils.currency import normalize_pdf_currency_params
     from app.utils.pdf_garage_report import generate_garage_analytics_pdf
+
+    safe_code, safe_locale = normalize_pdf_currency_params(currency_code, locale)
 
     # Get garage analytics first
     garage_data = await get_garage_analytics(db, current_user)
@@ -985,7 +1004,9 @@ async def export_garage_analytics_pdf(
         raise HTTPException(status_code=404, detail="No vehicles found in garage")
 
     # Use model_dump() to pass all fields through (fixes data flow bug)
-    pdf_buffer = generate_garage_analytics_pdf(garage_data.model_dump())
+    pdf_buffer = generate_garage_analytics_pdf(
+        garage_data.model_dump(), currency_code=safe_code, locale=safe_locale
+    )
 
     # Return as file download
     return StreamingResponse(
@@ -1205,10 +1226,10 @@ async def compare_periods(
         df, period1_start, period1_end, period2_start, period2_end
     )
 
-    # Calculate MPG for both periods if fuel records exist
-    period1_mpg = None
-    period2_mpg = None
-    mpg_change_pct = None
+    # Calculate L/100km for both periods if fuel records exist
+    period1_l_per_100km = None
+    period2_l_per_100km = None
+    l_per_100km_change_pct = None
 
     if fuel_records:
         period1_fuel = [r for r in fuel_records if period1_start <= r.date <= period1_end]
@@ -1217,15 +1238,17 @@ async def compare_periods(
         if period1_fuel:
             _, p1_stats = analytics_service.calculate_fuel_economy_with_pandas(period1_fuel)
             if p1_stats:
-                period1_mpg = p1_stats.get("average_mpg")
+                period1_l_per_100km = p1_stats.get("average_l_per_100km")
 
         if period2_fuel:
             _, p2_stats = analytics_service.calculate_fuel_economy_with_pandas(period2_fuel)
             if p2_stats:
-                period2_mpg = p2_stats.get("average_mpg")
+                period2_l_per_100km = p2_stats.get("average_l_per_100km")
 
-        if period1_mpg and period2_mpg:
-            mpg_change_pct = (period2_mpg - period1_mpg) / period1_mpg * 100
+        if period1_l_per_100km and period2_l_per_100km:
+            l_per_100km_change_pct = (
+                (period2_l_per_100km - period1_l_per_100km) / period1_l_per_100km * 100
+            )
 
     if not period1_label:
         period1_label = f"{period1_start.strftime('%b %Y')} - {period1_end.strftime('%b %Y')}"
@@ -1280,9 +1303,9 @@ async def compare_periods(
         service_count_change=comparison["period2_service_count"]
         - comparison["period1_service_count"],
         category_changes=category_changes,
-        period1_avg_mpg=period1_mpg,
-        period2_avg_mpg=period2_mpg,
-        mpg_change_percent=mpg_change_pct,
+        period1_avg_l_per_100km=period1_l_per_100km,
+        period2_avg_l_per_100km=period2_l_per_100km,
+        l_per_100km_change_percent=l_per_100km_change_pct,
     )
 
 
@@ -1291,6 +1314,8 @@ async def compare_periods(
 async def export_analytics_pdf(
     request: Request,
     vin: str,
+    currency_code: str = Query("USD", description="ISO 4217 code; defaults to USD."),
+    locale: str = Query("en-US", description="BCP 47 locale; defaults to en-US."),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_auth),
 ):
@@ -1308,7 +1333,10 @@ async def export_analytics_pdf(
     """
     from fastapi.responses import StreamingResponse
 
+    from app.utils.currency import normalize_pdf_currency_params
     from app.utils.pdf_vehicle_report import generate_vehicle_analytics_pdf
+
+    safe_code, safe_locale = normalize_pdf_currency_params(currency_code, locale)
 
     # Verify vehicle access
     vehicle = await get_vehicle_or_403(vin, current_user, db)
@@ -1343,6 +1371,8 @@ async def export_analytics_pdf(
         analytics_data=analytics_data,
         vendor_data=vendor_data,
         seasonal_data=seasonal_data,
+        currency_code=safe_code,
+        locale=safe_locale,
     )
 
     # Return PDF as streaming response

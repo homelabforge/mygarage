@@ -20,6 +20,9 @@ logger = logging.getLogger(__name__)
 # Check if PaddleOCR is enabled
 PADDLEOCR_ENABLED = os.getenv("ENABLE_PADDLEOCR", "false").lower() == "true"
 
+# US MPG -> L/100km conversion factor (235.214583 / mpg = L/100km)
+_MPG_TO_L100KM = Decimal("235.214583")
+
 
 class WindowStickerOCRService:
     """Service for extracting data from window sticker documents."""
@@ -378,13 +381,22 @@ class WindowStickerOCRService:
         if data.optional_equipment:
             result["optional_equipment"] = {"items": data.optional_equipment}
 
-        # Fuel economy
+        # Fuel economy: parser extracts raw MPG (US imperial). Vehicle columns
+        # are metric L/100km since the v3 metric-canonical migration. Convert at
+        # this boundary so downstream consumers (the route field_mappings) can
+        # assign directly to the new column names.
         if data.fuel_economy_city:
-            result["fuel_economy_city"] = data.fuel_economy_city
+            result["fuel_economy_city_l_per_100km"] = round(
+                _MPG_TO_L100KM / Decimal(str(data.fuel_economy_city)), 2
+            )
         if data.fuel_economy_highway:
-            result["fuel_economy_highway"] = data.fuel_economy_highway
+            result["fuel_economy_highway_l_per_100km"] = round(
+                _MPG_TO_L100KM / Decimal(str(data.fuel_economy_highway)), 2
+            )
         if data.fuel_economy_combined:
-            result["fuel_economy_combined"] = data.fuel_economy_combined
+            result["fuel_economy_combined_l_per_100km"] = round(
+                _MPG_TO_L100KM / Decimal(str(data.fuel_economy_combined)), 2
+            )
 
         # Vehicle specs
         if data.engine_description:

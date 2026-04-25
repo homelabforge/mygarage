@@ -26,7 +26,7 @@ class TestOdometerRecordRoutes:
         data = response.json()
         assert "records" in data
         assert "total" in data
-        assert "latest_mileage" in data
+        assert "latest_odometer_km" in data
         assert isinstance(data["records"], list)
 
     async def test_get_odometer_record_by_id(self, client: AsyncClient, auth_headers, test_vehicle):
@@ -37,7 +37,7 @@ class TestOdometerRecordRoutes:
             json={
                 "vin": test_vehicle["vin"],
                 "date": "2024-01-15",
-                "mileage": 50000,
+                "odometer_km": 80467.0,
                 "notes": "Monthly reading",
             },
             headers=auth_headers,
@@ -54,7 +54,7 @@ class TestOdometerRecordRoutes:
         assert response.status_code == 200
         data = response.json()
         assert data["id"] == record["id"]
-        assert data["mileage"] == 50000
+        assert float(data["odometer_km"]) == 80467.0
         assert data["notes"] == "Monthly reading"
 
     async def test_create_odometer_record(self, client: AsyncClient, auth_headers, test_vehicle):
@@ -62,7 +62,7 @@ class TestOdometerRecordRoutes:
         payload = {
             "vin": test_vehicle["vin"],
             "date": datetime.now().date().isoformat(),
-            "mileage": 55000,
+            "odometer_km": 88513.7,
             "notes": "Test odometer reading",
         }
         response = await client.post(
@@ -73,7 +73,7 @@ class TestOdometerRecordRoutes:
 
         assert response.status_code == 201
         data = response.json()
-        assert data["mileage"] == payload["mileage"]
+        assert float(data["odometer_km"]) == payload["odometer_km"]
         assert data["notes"] == payload["notes"]
         assert "id" in data
         assert "created_at" in data
@@ -86,7 +86,7 @@ class TestOdometerRecordRoutes:
             json={
                 "vin": test_vehicle["vin"],
                 "date": "2024-02-01",
-                "mileage": 52000,
+                "odometer_km": 83685.68,
                 "notes": "Original reading",
             },
             headers=auth_headers,
@@ -95,7 +95,7 @@ class TestOdometerRecordRoutes:
 
         # Update the record
         update_data = {
-            "mileage": 52100,
+            "odometer_km": 83846.61,
             "notes": "Corrected reading",
         }
 
@@ -107,7 +107,7 @@ class TestOdometerRecordRoutes:
 
         assert response.status_code == 200
         data = response.json()
-        assert data["mileage"] == 52100
+        assert float(data["odometer_km"]) == 83846.61
         assert data["notes"] == "Corrected reading"
 
     async def test_delete_odometer_record(self, client: AsyncClient, auth_headers, test_vehicle):
@@ -118,7 +118,7 @@ class TestOdometerRecordRoutes:
             json={
                 "vin": test_vehicle["vin"],
                 "date": "2024-02-15",
-                "mileage": 53000,
+                "odometer_km": 85295.02,
             },
             headers=auth_headers,
         )
@@ -152,7 +152,7 @@ class TestOdometerRecordRoutes:
         invalid_payload = {
             "vin": test_vehicle["vin"],
             "date": "2024-01-15",
-            "mileage": -1000,  # Negative mileage should fail
+            "odometer_km": -1609.34,  # Negative mileage should fail
         }
 
         response = await client.post(
@@ -174,7 +174,7 @@ class TestOdometerRecordRoutes:
                 json={
                     "vin": test_vehicle["vin"],
                     "date": (datetime.now() - timedelta(days=i * 30)).date().isoformat(),
-                    "mileage": 60000 + (i * 1000),
+                    "odometer_km": 96560.4 + (i * 1000),
                 },
                 headers=auth_headers,
             )
@@ -205,9 +205,9 @@ class TestOdometerRecordRoutes:
         # Use far-future dates to ensure this is the latest record
         # Create multiple odometer records with different dates
         records = [
-            {"date": "2030-01-01", "mileage": 140000},
-            {"date": "2030-02-01", "mileage": 142000},
-            {"date": "2030-03-01", "mileage": 144000},  # Latest by date
+            {"date": "2030-01-01", "odometer_km": 225307.6},
+            {"date": "2030-02-01", "odometer_km": 228526.28},
+            {"date": "2030-03-01", "odometer_km": 231744.96},  # Latest by date
         ]
 
         for record in records:
@@ -216,7 +216,7 @@ class TestOdometerRecordRoutes:
                 json={
                     "vin": test_vehicle["vin"],
                     "date": record["date"],
-                    "mileage": record["mileage"],
+                    "odometer_km": record["odometer_km"],
                 },
                 headers=auth_headers,
             )
@@ -230,24 +230,24 @@ class TestOdometerRecordRoutes:
         assert response.status_code == 200
         data = response.json()
         # Latest mileage should be from the most recent date
-        assert data["latest_mileage"] == 144000
+        assert float(data["latest_odometer_km"]) == 231744.96
 
     async def test_odometer_record_ordering(self, client: AsyncClient, auth_headers, test_vehicle):
         """Test that odometer records are ordered by date descending."""
-        # Create records out of order
-        dates_and_mileages = [
-            ("2024-02-01", 42000),
-            ("2024-01-01", 40000),
-            ("2024-03-01", 44000),
+        # Create records out of order (km values)
+        dates_and_kms = [
+            ("2024-02-01", 67592.28),
+            ("2024-01-01", 64373.6),
+            ("2024-03-01", 70810.96),
         ]
 
-        for date, mileage in dates_and_mileages:
+        for date, km in dates_and_kms:
             await client.post(
                 f"/api/vehicles/{test_vehicle['vin']}/odometer",
                 json={
                     "vin": test_vehicle["vin"],
                     "date": date,
-                    "mileage": mileage,
+                    "odometer_km": km,
                 },
                 headers=auth_headers,
             )
@@ -277,7 +277,7 @@ class TestOdometerRecordRoutes:
             json={
                 "vin": test_vehicle["vin"],
                 "date": "2024-04-01",
-                "mileage": 70000,
+                "odometer_km": 112653.8,
             },
             headers=auth_headers,
         )
@@ -291,7 +291,7 @@ class TestOdometerRecordRoutes:
             json={
                 "vin": test_vehicle["vin"],
                 "date": "2024-04-15",
-                "mileage": 71000,
+                "odometer_km": 114263.14,
                 "notes": "Annual inspection reading",
             },
             headers=auth_headers,
@@ -310,7 +310,7 @@ class TestOdometerRecordRoutes:
             json={
                 "vin": test_vehicle["vin"],
                 "date": "2024-05-01",
-                "mileage": 75000,
+                "odometer_km": 120700.5,
                 "notes": "Original notes",
             },
             headers=auth_headers,
@@ -326,5 +326,5 @@ class TestOdometerRecordRoutes:
 
         assert response.status_code == 200
         data = response.json()
-        assert data["mileage"] == 75000  # Unchanged
+        assert float(data["odometer_km"]) == 120700.5  # Unchanged
         assert data["notes"] == "Updated notes only"

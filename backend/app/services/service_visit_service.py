@@ -160,7 +160,7 @@ class ServiceVisitService:
                 vin=vin,
                 vendor_id=visit_data.vendor_id,
                 date=visit_data.date,
-                mileage=visit_data.mileage,
+                odometer_km=visit_data.odometer_km,
                 total_cost=visit_data.total_cost,
                 tax_amount=visit_data.tax_amount,
                 shop_supplies=visit_data.shop_supplies,
@@ -221,13 +221,13 @@ class ServiceVisitService:
             logger.info("Created service visit %s for %s", visit.id, sanitize_for_log(vin))
 
             # Auto-sync odometer
-            if visit.date and visit.mileage:
+            if visit.date and visit.odometer_km:
                 try:
                     await sync_odometer_from_record(
                         db=self.db,
                         vin=vin,
                         date=visit.date,
-                        mileage=visit.mileage,
+                        odometer_km=visit.odometer_km,
                         source_type="service_visit",
                         source_id=visit.id,
                     )
@@ -386,13 +386,13 @@ class ServiceVisitService:
             logger.info("Updated service visit %s for %s", visit_id, sanitize_for_log(vin))
 
             # Auto-sync odometer
-            if visit.date and visit.mileage:
+            if visit.date and visit.odometer_km:
                 try:
                     await sync_odometer_from_record(
                         db=self.db,
                         vin=vin,
                         date=visit.date,
-                        mileage=visit.mileage,
+                        odometer_km=visit.odometer_km,
                         source_type="service_visit",
                         source_id=visit.id,
                     )
@@ -653,7 +653,7 @@ class ServiceVisitService:
             vin=visit.vin,
             vendor_id=visit.vendor_id,
             date=visit.date,
-            mileage=visit.mileage,
+            odometer_km=visit.odometer_km,
             total_cost=visit.total_cost,
             tax_amount=visit.tax_amount,
             shop_supplies=visit.shop_supplies,

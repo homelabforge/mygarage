@@ -1,6 +1,10 @@
-"""Pydantic schemas for Vehicle Reminder operations."""
+"""Pydantic schemas for Vehicle Reminder operations.
+
+Canonical units (since v2.26.2): kilometers (Decimal NUMERIC(10,2)).
+"""
 
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -12,7 +16,7 @@ class ReminderCreate(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
     reminder_type: Literal["date", "mileage", "both", "smart"]
     due_date: date | None = None
-    due_mileage: int | None = Field(None, gt=0)
+    due_mileage_km: Decimal | None = Field(None, gt=0, le=99999999.99)
     notes: str | None = None
     line_item_id: int | None = None
 
@@ -21,8 +25,8 @@ class ReminderCreate(BaseModel):
         """Ensure required fields are present based on reminder type."""
         if self.reminder_type in ("date", "both", "smart") and not self.due_date:
             raise ValueError("due_date required for this reminder type")
-        if self.reminder_type in ("mileage", "both", "smart") and not self.due_mileage:
-            raise ValueError("due_mileage required for this reminder type")
+        if self.reminder_type in ("mileage", "both", "smart") and not self.due_mileage_km:
+            raise ValueError("due_mileage_km required for this reminder type")
         return self
 
 
@@ -37,7 +41,7 @@ class ReminderUpdate(BaseModel):
     title: str | None = Field(None, min_length=1, max_length=200)
     reminder_type: Literal["date", "mileage", "both", "smart"] | None = None
     due_date: date | None = None
-    due_mileage: int | None = Field(None, gt=0)
+    due_mileage_km: Decimal | None = Field(None, gt=0, le=99999999.99)
     notes: str | None = None
 
 
@@ -52,7 +56,7 @@ class ReminderResponse(BaseModel):
     title: str
     reminder_type: str
     due_date: date | None
-    due_mileage: int | None
+    due_mileage_km: Decimal | None
     status: str
     notes: str | None
     estimated_due_date: date | None = None

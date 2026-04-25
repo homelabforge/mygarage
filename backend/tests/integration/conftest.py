@@ -49,8 +49,8 @@ async def test_vehicle_with_records(test_vehicle, db_session):
         FuelRecord(
             vin=test_vehicle["vin"],
             date=(datetime.now() - timedelta(days=30)).date(),
-            mileage=14000,
-            gallons=Decimal("12.0"),
+            odometer_km=Decimal("22530.76"),  # 14000 mi
+            liters=Decimal("45.425"),  # 12.0 gal
             cost=Decimal("42.00"),
             price_per_unit=Decimal("3.50"),
             fuel_type="Regular",
@@ -60,8 +60,8 @@ async def test_vehicle_with_records(test_vehicle, db_session):
         FuelRecord(
             vin=test_vehicle["vin"],
             date=(datetime.now() - timedelta(days=15)).date(),
-            mileage=14366,
-            gallons=Decimal("11.5"),
+            odometer_km=Decimal("23119.55"),  # 14366 mi
+            liters=Decimal("43.532"),  # 11.5 gal
             cost=Decimal("40.25"),
             price_per_unit=Decimal("3.50"),
             fuel_type="Regular",
@@ -71,8 +71,8 @@ async def test_vehicle_with_records(test_vehicle, db_session):
         FuelRecord(
             vin=test_vehicle["vin"],
             date=datetime.now().date(),
-            mileage=15000,
-            gallons=Decimal("12.5"),
+            odometer_km=Decimal("24140.10"),  # 15000 mi
+            liters=Decimal("47.318"),  # 12.5 gal
             cost=Decimal("45.50"),
             price_per_unit=Decimal("3.64"),
             fuel_type="Regular",
@@ -87,7 +87,7 @@ async def test_vehicle_with_records(test_vehicle, db_session):
         vendor_id=jiffy_vendor.id,
         service_category="Maintenance",
         date=(datetime.now() - timedelta(days=90)).date(),
-        mileage=12000,
+        odometer_km=Decimal("19312.08"),  # 12000 mi
         total_cost=Decimal("45.99"),
         notes="5W-30 synthetic oil",
     )
@@ -96,7 +96,7 @@ async def test_vehicle_with_records(test_vehicle, db_session):
         vendor_id=discount_vendor.id,
         service_category="Maintenance",
         date=(datetime.now() - timedelta(days=45)).date(),
-        mileage=13500,
+        odometer_km=Decimal("21726.09"),  # 13500 mi
         total_cost=Decimal("25.00"),
         notes="Rotated and balanced",
     )
@@ -137,7 +137,7 @@ def sample_service_payload():
         "service_type": "Oil Change",
         "service_category": "Maintenance",
         "date": datetime.now().date().isoformat(),
-        "mileage": 15000,
+        "odometer_km": 24140.10,  # 15000 mi
         "cost": 45.99,
         "vendor_name": "Test Garage",
         "notes": "Test service record",
@@ -149,8 +149,8 @@ def sample_fuel_payload():
     """Sample payload for creating a fuel record."""
     return {
         "date": datetime.now().date().isoformat(),
-        "mileage": 15000,
-        "gallons": 12.5,
+        "odometer_km": 24140.10,  # 15000 mi
+        "liters": 47.318,  # 12.5 gal
         "cost": 45.50,
         "price_per_unit": 3.64,
         "fuel_type": "Regular",
@@ -165,8 +165,8 @@ def sample_def_payload():
     """Sample payload for creating a DEF record."""
     return {
         "date": datetime.now().date().isoformat(),
-        "mileage": 16000,
-        "gallons": 2.5,
+        "odometer_km": 25749.44,  # 16000 mi
+        "liters": 9.464,  # 2.5 gal
         "cost": 18.75,
         "price_per_unit": 7.50,
         "fill_level": 0.85,

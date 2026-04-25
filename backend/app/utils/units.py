@@ -1,9 +1,11 @@
 """Unit conversion utilities for imperial/metric conversion.
 
-Canonical storage format: IMPERIAL
-- All database values are stored in imperial units
-- Conversion happens at API boundary (input → imperial, imperial → output)
-- This ensures data consistency and simplifies queries/aggregations
+Canonical storage format: SI METRIC (kilometers, liters, kilograms, etc.)
+- All database values are stored in metric units (per migration 053)
+- Conversion happens at the API/UI boundary for users on imperial preferences
+- Display callers use the float-returning `*_to_*` methods (rounded for UI)
+- Write callers (forms, importers, migrations) use `to_canonical_decimal()`
+  to avoid float precision loss when storing user input
 
 Supported conversions:
 - Volume: gallons ↔ liters
@@ -26,13 +28,16 @@ Numeric = int | float | Decimal | None
 class UnitConverter:
     """Unit conversion between imperial and metric systems."""
 
-    # Conversion factors (imperial to metric)
+    # Conversion factors (imperial to metric).
+    # NB: LBS_TO_KG matches migration 053's exact factor (was 0.453592, now 0.45359237).
     GALLONS_TO_LITERS = Decimal("3.78541")
     MILES_TO_KM = Decimal("1.60934")
     FEET_TO_METERS = Decimal("0.3048")
     PSI_TO_BAR = Decimal("0.0689476")
-    LBS_TO_KG = Decimal("0.453592")
+    LBS_TO_KG = Decimal("0.45359237")
     LBFT_TO_NM = Decimal("1.35582")
+    # L/100km = MPG_TO_L100KM_NUMERATOR / MPG (reciprocal — division, not multiplication).
+    MPG_TO_L100KM_NUMERATOR = Decimal("235.214")
 
     @staticmethod
     def to_decimal(value: Numeric) -> Decimal | None:
@@ -45,10 +50,75 @@ class UnitConverter:
 
     @staticmethod
     def round_result(value: Decimal | None, decimals: int = 2) -> float | None:
-        """Round and convert Decimal to float for JSON serialization."""
+        """Round and convert Decimal to float for JSON serialization.
+
+        Use this for DISPLAY callers only. Write callers should use
+        `to_canonical_decimal()` so the stored value never loses precision.
+        """
         if value is None:
             return None
         return float(round(value, decimals))
+
+    # ========== DECIMAL-SAFE WRITE-PATH HELPERS ==========
+
+    @classmethod
+    def to_canonical_decimal(cls, value: Numeric, from_unit: str) -> Decimal | None:
+        """Convert a user-entered value into the canonical metric Decimal.
+
+        Use this on the API write path so the stored value matches what the
+        user typed (no float coercion, no display-rounding drift).
+
+        `from_unit` declares what unit the input is in:
+            - 'km'        → already metric, pass through as Decimal
+            - 'mi'        → multiply by MILES_TO_KM
+            - 'L'         → already metric, pass through
+            - 'gal'       → multiply by GALLONS_TO_LITERS
+            - 'kg'        → already metric
+            - 'lb'        → multiply by LBS_TO_KG
+            - 'm'         → already metric
+            - 'ft'        → multiply by FEET_TO_METERS
+            - 'C'         → already metric
+            - 'F'         → (val - 32) * 5/9
+            - 'kPa'       → already metric
+            - 'PSI'       → multiply by PSI_TO_BAR (then * 100 for kPa? — see helper)
+            - 'Nm'        → already metric
+            - 'lbft'      → multiply by LBFT_TO_NM
+            - 'L/100km'   → already metric
+            - 'MPG'       → 235.214 / value
+
+        Returns None for None input. Raises ValueError for unknown units so a
+        typo at a call site fails loudly instead of silently corrupting data.
+        """
+        val = cls.to_decimal(value)
+        if val is None:
+            return None
+
+        match from_unit:
+            case "km" | "L" | "kg" | "m" | "C" | "kPa" | "Nm" | "L/100km":
+                return val
+            case "mi":
+                return val * cls.MILES_TO_KM
+            case "gal":
+                return val * cls.GALLONS_TO_LITERS
+            case "lb":
+                return val * cls.LBS_TO_KG
+            case "ft":
+                return val * cls.FEET_TO_METERS
+            case "F":
+                return (val - Decimal("32")) * Decimal("5") / Decimal("9")
+            case "PSI":
+                return val * cls.PSI_TO_BAR
+            case "lbft":
+                return val * cls.LBFT_TO_NM
+            case "MPG":
+                if val == 0:
+                    return None
+                return cls.MPG_TO_L100KM_NUMERATOR / val
+            case _:
+                raise ValueError(
+                    f"Unknown source unit {from_unit!r}; expected one of "
+                    "km/mi/L/gal/kg/lb/m/ft/C/F/kPa/PSI/Nm/lbft/L_100km/MPG"
+                )
 
     # ========== VOLUME CONVERSIONS ==========
 

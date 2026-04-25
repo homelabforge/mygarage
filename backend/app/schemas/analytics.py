@@ -39,24 +39,24 @@ class ServiceTypeCostBreakdown(BaseModel):
 
 
 class FuelEconomyDataPoint(BaseModel):
-    """Single fuel economy data point."""
+    """Single fuel economy data point (metric canonical)."""
 
     date: date_type
-    mpg: Decimal
-    mileage: int
-    gallons: Decimal
+    l_per_100km: Decimal
+    odometer_km: Decimal
+    liters: Decimal
     cost: Decimal
 
     model_config = {"from_attributes": True}
 
 
 class FuelEconomyTrend(BaseModel):
-    """Fuel economy trend analysis."""
+    """Fuel economy trend analysis (metric canonical — lower L/100km is better)."""
 
-    average_mpg: Decimal | None = None
-    best_mpg: Decimal | None = None
-    worst_mpg: Decimal | None = None
-    recent_mpg: Decimal | None = None  # Last 5 fill-ups
+    average_l_per_100km: Decimal | None = None
+    best_l_per_100km: Decimal | None = None
+    worst_l_per_100km: Decimal | None = None
+    recent_l_per_100km: Decimal | None = None  # Last 5 fill-ups
     trend: str = "stable"  # "improving", "declining", "stable"
     data_points: list[FuelEconomyDataPoint] = []
 
@@ -69,11 +69,11 @@ class ServiceHistoryItem(BaseModel):
     date: date_type
     service_type: str
     description: str | None = None
-    mileage: int | None = None
+    odometer_km: Decimal | None = None
     cost: Decimal | None = None
     vendor_name: str | None = None
     days_since_last: int | None = None
-    miles_since_last: int | None = None
+    km_since_last: Decimal | None = None
 
     model_config = {"from_attributes": True}
 
@@ -83,17 +83,17 @@ class MaintenancePrediction(BaseModel):
 
     service_type: str
     predicted_date: date_type | None = None
-    predicted_mileage: int | None = None
+    predicted_odometer_km: Decimal | None = None
     days_until_due: int | None = None
-    miles_until_due: int | None = None
+    km_until_due: Decimal | None = None
     average_interval_days: int | None = None
-    average_interval_miles: int | None = None
+    average_interval_km: Decimal | None = None
     confidence: str = "low"  # "high", "medium", "low"
 
     # Fields to integrate schedule items with AI predictions
     has_schedule_item: bool = False
     schedule_item_next_date: date_type | None = None
-    schedule_item_next_mileage: int | None = None
+    schedule_item_next_odometer_km: Decimal | None = None
 
     model_config = {"from_attributes": True}
 
@@ -123,7 +123,7 @@ class CostAnalysis(BaseModel):
     fuel_count: int = 0
     def_count: int = 0
     months_tracked: int = 0
-    cost_per_mile: Decimal | None = None
+    cost_per_km: Decimal | None = None
 
     # Rolling averages
     rolling_avg_3m: Decimal | None = None
@@ -157,8 +157,8 @@ class FuelEfficiencyAlert(BaseModel):
     title: str
     severity: Literal["info", "warning", "critical"] = "info"
     message: str
-    recent_mpg: Decimal | None = None
-    baseline_mpg: Decimal | None = None
+    recent_l_per_100km: Decimal | None = None
+    baseline_l_per_100km: Decimal | None = None
 
     model_config = {"from_attributes": True}
 
@@ -185,8 +185,8 @@ class VehicleAnalytics(BaseModel):
     predictions: list[MaintenancePrediction] = []
 
     # Summary Stats
-    total_miles_driven: int | None = None
-    average_miles_per_month: int | None = None
+    total_km_driven: Decimal | None = None
+    average_km_per_month: Decimal | None = None
     days_owned: int | None = None
 
     # Fifth Wheel / RV Specific (optional)
@@ -360,9 +360,9 @@ class PeriodComparison(BaseModel):
     # Category breakdowns
     category_changes: list[CategoryChange] = []
 
-    # Fuel economy (if applicable)
-    period1_avg_mpg: Decimal | None = None
-    period2_avg_mpg: Decimal | None = None
-    mpg_change_percent: Decimal | None = None
+    # Fuel economy (if applicable; lower L/100km is better)
+    period1_avg_l_per_100km: Decimal | None = None
+    period2_avg_l_per_100km: Decimal | None = None
+    l_per_100km_change_percent: Decimal | None = None
 
     model_config = {"from_attributes": True}

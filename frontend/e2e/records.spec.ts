@@ -26,7 +26,7 @@ test.describe('Fuel Record Workflow', () => {
     // Fill in the form fields
     const today = new Date().toISOString().split('T')[0]
     await page.locator('#date').fill(today)
-    await page.locator('#gallons').fill('12.5')
+    await page.locator('#liters').fill('47.318')
     await page.locator('#cost').fill('43.75')
 
     // Submit the form
@@ -59,9 +59,9 @@ test.describe('Fuel Record Workflow', () => {
 
     const today = new Date().toISOString().split('T')[0]
     await page.locator('#date').fill(today)
-    await page.locator('#mileage').fill('50000')
-    await page.locator('#gallons').fill('15.0')
-    await page.locator('#price_per_unit').fill('3.50')
+    await page.locator('#odometer_km').fill('80467')
+    await page.locator('#liters').fill('56.781')
+    await page.locator('#price_per_unit').fill('0.925')
 
     await page.getByRole('button', { name: /create/i }).click()
     await expect(page.getByText('Add Fuel Record')).not.toBeVisible({ timeout: 10000 })

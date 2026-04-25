@@ -13,6 +13,9 @@ import FormModalWrapper from './FormModalWrapper'
 import { toast } from 'sonner'
 import { useCreateReminder, useUpdateReminder } from '../hooks/useReminders'
 import type { Reminder, ReminderType } from '../types/reminder'
+import { useUnitPreference } from '../hooks/useUnitPreference'
+import { UnitConverter, UnitFormatter } from '../utils/units'
+import { toCanonicalKm } from '../utils/decimalSafe'
 
 interface ReminderFormProps {
   vin: string
@@ -35,6 +38,11 @@ export default function ReminderForm({ vin, reminder, currentMileage, onClose, o
   const createMutation = useCreateReminder(vin)
   const updateMutation = useUpdateReminder(vin)
   const hasMileage = currentMileage != null && currentMileage > 0
+  const { system } = useUnitPreference()
+  // currentMileage is in canonical km. Convert to user display unit when present.
+  const currentDisplay = currentMileage != null
+    ? (system === 'imperial' ? UnitConverter.kmToMiles(currentMileage) ?? currentMileage : currentMileage)
+    : null
 
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -44,22 +52,26 @@ export default function ReminderForm({ vin, reminder, currentMileage, onClose, o
   )
   const [dueDate, setDueDate] = useState(reminder?.due_date ?? '')
 
-  // For edits: reverse-compute interval from absolute target
+  // For edits: reverse-compute interval (in user display unit) from absolute
+  // canonical km target.
   const initialInterval = (() => {
-    if (!reminder?.due_mileage) return undefined
-    if (hasMileage) {
-      const remaining = reminder.due_mileage - currentMileage
-      return remaining > 0 ? remaining : 0
+    const dueKm = reminder?.due_mileage_km
+    if (dueKm == null) return undefined
+    const dueKmNum = typeof dueKm === 'string' ? parseFloat(dueKm) : dueKm
+    if (isNaN(dueKmNum)) return undefined
+    const remainingKm = currentMileage != null ? Math.max(0, dueKmNum - currentMileage) : dueKmNum
+    if (system === 'imperial') {
+      return Math.round(UnitConverter.kmToMiles(remainingKm) ?? remainingKm)
     }
-    return reminder.due_mileage
+    return Math.round(remainingKm)
   })()
   const [mileageInterval, setMileageInterval] = useState<number | undefined>(initialInterval)
 
   const [notes, setNotes] = useState(reminder?.notes ?? '')
 
-  // Compute target for display
-  const absoluteTarget = hasMileage && mileageInterval
-    ? currentMileage + mileageInterval
+  // Compute target for display in user's units
+  const absoluteTarget = hasMileage && mileageInterval && currentDisplay != null
+    ? currentDisplay + mileageInterval
     : mileageInterval
 
   const handleSubmit = async (e: SyntheticEvent<HTMLFormElement>) => {
@@ -81,10 +93,12 @@ export default function ReminderForm({ vin, reminder, currentMileage, onClose, o
       return
     }
 
-    // Convert interval to absolute target
-    const due_mileage = hasMileage && mileageInterval
-      ? currentMileage + mileageInterval
-      : mileageInterval
+    // Convert user-entered interval (display unit) to canonical km, then add
+    // baseline canonical km for absolute target.
+    const intervalKm = toCanonicalKm(mileageInterval ?? null, system)
+    const due_mileage_km = hasMileage && intervalKm != null
+      ? currentMileage + intervalKm
+      : intervalKm ?? undefined
 
     setSubmitting(true)
     try {
@@ -94,7 +108,7 @@ export default function ReminderForm({ vin, reminder, currentMileage, onClose, o
           title,
           reminder_type: reminderType,
           due_date: dueDate || undefined,
-          due_mileage,
+          due_mileage_km,
           notes: notes || undefined,
         })
         toast.success(t('reminder.updated'))
@@ -103,7 +117,7 @@ export default function ReminderForm({ vin, reminder, currentMileage, onClose, o
           title,
           reminder_type: reminderType,
           due_date: dueDate || undefined,
-          due_mileage,
+          due_mileage_km,
           notes: notes || undefined,
         })
         toast.success(t('reminder.created'))
@@ -187,20 +201,20 @@ export default function ReminderForm({ vin, reminder, currentMileage, onClose, o
         {['mileage', 'both', 'smart'].includes(reminderType) && (
           <div>
             <label className="block text-sm font-medium text-garage-text mb-1">
-              {hasMileage ? t('reminder.milesUntilDue') : t('reminder.dueMileage')} <span className="text-danger">*</span>
+              {hasMileage ? t('reminder.milesUntilDue') : t('reminder.dueMileage')} ({UnitFormatter.getDistanceUnit(system)}) <span className="text-danger">*</span>
             </label>
             <input
               type="number"
               value={mileageInterval ?? ''}
               onChange={(e) => setMileageInterval(e.target.value ? parseInt(e.target.value) : undefined)}
               min="1"
-              placeholder={hasMileage ? 'e.g., 5000' : 'e.g., 92000'}
+              placeholder={hasMileage ? 'e.g., 5000' : (system === 'imperial' ? 'e.g., 92000' : 'e.g., 148000')}
               disabled={submitting}
               className="w-full px-3 py-2 border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text"
             />
-            {hasMileage && mileageInterval ? (
+            {hasMileage && mileageInterval && currentDisplay != null ? (
               <p className="text-xs text-garage-text-muted mt-1">
-                Current: {currentMileage.toLocaleString()} + {mileageInterval.toLocaleString()} = {absoluteTarget?.toLocaleString()} mi target
+                Current: {Math.round(currentDisplay).toLocaleString()} + {mileageInterval.toLocaleString()} = {Math.round(absoluteTarget ?? 0).toLocaleString()} {UnitFormatter.getDistanceUnit(system)} target
               </p>
             ) : !hasMileage ? (
               <p className="text-xs text-warning mt-1">{t('reminder.noOdometerData')}</p>

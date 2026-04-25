@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Edit, Trash2, Plus, AlertCircle, Fuel, DollarSign, Droplets } from 'lucide-react'
+import { Edit, Trash2, Plus, AlertCircle, Fuel, Droplets } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateForDisplay } from '../utils/dateUtils'
 import { formatCurrency } from '../utils/formatUtils'
@@ -119,17 +119,16 @@ export default function PropaneRecordList({ vin }: PropaneRecordListProps) {
           const cost = typeof r.cost === 'string' ? parseFloat(r.cost) : (r.cost || 0)
           return sum + (isNaN(cost) ? 0 : cost)
         }, 0)
-        const totalGallons = records.reduce((sum, r) => {
-          const gal = typeof r.propane_gallons === 'string' ? parseFloat(r.propane_gallons) : (r.propane_gallons || 0)
-          return sum + (isNaN(gal) ? 0 : gal)
+        const totalLiters = records.reduce((sum, r) => {
+          const l = typeof r.propane_liters === 'string' ? parseFloat(r.propane_liters) : (r.propane_liters || 0)
+          return sum + (isNaN(l) ? 0 : l)
         }, 0)
-        const avgCostPerGallon = totalGallons > 0 ? totalCost / totalGallons : null
+        const avgCostPerLiter = totalLiters > 0 ? totalCost / totalLiters : null
 
         return (
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4">
             <div className="bg-garage-surface border border-garage-border rounded-lg p-3">
               <div className="flex items-center gap-1 text-xs text-garage-text-muted mb-1">
-                <DollarSign className="w-3 h-3" />
                 <span>{t('propaneList.totalSpent')}</span>
               </div>
               <div className="text-lg font-semibold text-garage-text">
@@ -142,17 +141,16 @@ export default function PropaneRecordList({ vin }: PropaneRecordListProps) {
                 <span>{system === 'metric' ? t('propaneList.totalLiters') : t('propaneList.totalGallons')}</span>
               </div>
               <div className="text-lg font-semibold text-garage-text">
-                {UnitFormatter.formatVolumeTotal(totalGallons, system).replace(' total', '')}
+                {UnitFormatter.formatVolumeTotal(totalLiters, system).replace(' total', '')}
               </div>
             </div>
-            {avgCostPerGallon !== null && (
+            {avgCostPerLiter !== null && (
               <div className="bg-garage-surface border border-garage-border rounded-lg p-3">
                 <div className="flex items-center gap-1 text-xs text-garage-text-muted mb-1">
-                  <DollarSign className="w-3 h-3" />
                   <span>{UnitFormatter.getCostPerVolumeLabel(system)}</span>
                 </div>
                 <div className="text-lg font-semibold text-garage-text">
-                  {avgCostPerGallon !== null && UnitFormatter.formatCostPerVolume(avgCostPerGallon, system, currencyCode, locale)}
+                  {avgCostPerLiter !== null && UnitFormatter.formatCostPerVolume(avgCostPerLiter, system, currencyCode, locale)}
                 </div>
               </div>
             )}
@@ -201,7 +199,7 @@ export default function PropaneRecordList({ vin }: PropaneRecordListProps) {
                       {formatDateForDisplay(record.date)}
                     </td>
                     <td className="px-4 py-3 text-sm text-garage-text text-right font-medium">
-                      {formatVolume(record.propane_gallons ?? undefined)}
+                      {formatVolume(record.propane_liters ?? undefined)}
                     </td>
                     <td className="px-4 py-3 text-sm text-garage-text text-right">
                       {formatCurrency(record.price_per_unit, { currencyCode, locale })}

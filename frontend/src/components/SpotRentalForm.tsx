@@ -4,6 +4,7 @@ import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Save } from 'lucide-react'
 import FormModalWrapper from './FormModalWrapper'
+import CurrencyInputPrefix from './common/CurrencyInputPrefix'
 import type { SpotRental, SpotRentalCreate, SpotRentalUpdate } from '../types/spotRental'
 import type { AddressBookEntry } from '../types/addressBook'
 import { spotRentalSchema, type SpotRentalFormData } from '../schemas/spotRental'
@@ -305,7 +306,7 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
                 {rateType === 'nightly' ? 'Nightly' : rateType === 'weekly' ? 'Weekly' : 'Monthly'} Rate
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-2 text-garage-text-muted">$</span>
+                <CurrencyInputPrefix />
                 <input
                   type="number"
                   id="rate_amount"
@@ -334,7 +335,7 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
                 {t('spotRental.electric')}
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-2 text-garage-text-muted">$</span>
+                <CurrencyInputPrefix />
                 <input
                   type="number"
                   id="electric"
@@ -355,7 +356,7 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
                 {t('spotRental.water')}
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-2 text-garage-text-muted">$</span>
+                <CurrencyInputPrefix />
                 <input
                   type="number"
                   id="water"
@@ -376,7 +377,7 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
                 {t('spotRental.waste')}
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-2 text-garage-text-muted">$</span>
+                <CurrencyInputPrefix />
                 <input
                   type="number"
                   id="waste"
@@ -398,7 +399,7 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
               {t('common:totalCost')}
             </label>
             <div className="relative">
-              <span className="absolute left-3 top-2 text-garage-text-muted">$</span>
+              <CurrencyInputPrefix />
               <input
                 type="number"
                 id="total_cost"

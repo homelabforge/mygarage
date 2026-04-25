@@ -8,7 +8,6 @@ import {
   Plus,
   Edit,
   Trash2,
-  DollarSign,
   Calendar,
   Gauge,
   Search,
@@ -372,17 +371,16 @@ export default function ServiceVisitList({
                     )}
                   </div>
 
-                  {/* Mileage */}
-                  {visit.mileage && (
+                  {/* Odometer */}
+                  {visit.odometer_km != null && (
                     <div className="flex items-center gap-1 text-sm text-garage-text-muted">
                       <Gauge className="w-4 h-4" />
-                      <span>{UnitFormatter.formatDistance(visit.mileage, system, showBoth)}</span>
+                      <span>{UnitFormatter.formatDistance(parseFloat(String(visit.odometer_km)), system, showBoth)}</span>
                     </div>
                   )}
 
                   {/* Total cost */}
-                  <div className="flex items-center gap-1 text-sm text-garage-text font-medium min-w-[80px] justify-end">
-                    <DollarSign className="w-4 h-4 text-garage-text-muted" />
+                  <div className="text-sm text-garage-text font-medium min-w-[80px] text-right">
                     <span>{totalCost > 0 ? formatCurrency(totalCost, { currencyCode, locale }) : '-'}</span>
                   </div>
 

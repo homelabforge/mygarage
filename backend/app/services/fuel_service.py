@@ -1,4 +1,9 @@
-"""Fuel record business logic service layer with MPG calculation."""
+"""Fuel record business logic service layer with L/100km calculation.
+
+Canonical units (since v2.26.2): SI metric. Fuel economy surfaces as
+L/100 km (lower is better). Imperial display is done client-side via the
+frontend UnitFormatter.
+"""
 
 # pyright: reportReturnType=false, reportOptionalOperand=false
 
@@ -22,50 +27,54 @@ from app.utils.odometer_sync import sync_odometer_from_record
 logger = logging.getLogger(__name__)
 
 
-def calculate_mpg(current_record: FuelRecord, previous_record: FuelRecord | None) -> Decimal | None:
-    """
-    Calculate MPG for a fuel record.
+# Propane-by-weight → liters conversion factor.
+# Derived from: gal = lb/4.24 (old imperial formula, 4.24 lb/gal density of propane)
+#   L_per_kg = (1/0.45359237) / 4.24 * 3.78541  ≈  1.96850 L/kg
+PROPANE_LITERS_PER_KG = Decimal("1.9685")
+
+
+def calculate_l_per_100km(
+    current_record: FuelRecord, previous_record: FuelRecord | None
+) -> Decimal | None:
+    """Calculate L/100km for a fuel record.
 
     Logic:
     - Only calculate for full tank fill-ups
     - Skip if no previous full tank fill-up
-    - Skip if no mileage recorded
-    - MPG = (current_mileage - previous_mileage) / current_gallons
+    - Skip if no odometer recorded
+    - L/100km = current_liters / (distance_km / 100)
 
-    This follows the lubelog pattern for MPG calculation.
+    Lower values are better fuel economy.
     """
-    # Only calculate MPG for full tank fill-ups
+    # Only calculate for full tank fill-ups
     if not current_record.is_full_tank:
         return None
 
-    # Need mileage and gallons
-    if not current_record.mileage or not current_record.gallons:
+    # Need odometer_km and liters on current record
+    if not current_record.odometer_km or not current_record.liters:
         return None
 
     # Need a previous record to calculate distance
-    if not previous_record or not previous_record.mileage:
+    if not previous_record or not previous_record.odometer_km:
         return None
 
-    # Calculate miles driven
-    miles_driven = current_record.mileage - previous_record.mileage
+    distance_km = current_record.odometer_km - previous_record.odometer_km
 
     # Sanity check
-    if miles_driven <= 0 or current_record.gallons <= 0:
+    if distance_km <= 0 or current_record.liters <= 0:
         return None
 
-    # Calculate MPG
-    mpg = Decimal(miles_driven) / current_record.gallons
-    return round(mpg, 2)
+    l_per_100km = (current_record.liters / distance_km) * Decimal("100")
+    return round(l_per_100km, 2)
 
 
 async def get_previous_full_tank(
-    db: AsyncSession, vin: str, current_date: date_type, current_mileage: int | None
+    db: AsyncSession,
+    vin: str,
+    current_date: date_type,
+    current_odometer_km: Decimal | None,
 ) -> FuelRecord | None:
-    """
-    Get the most recent previous full tank fill-up.
-
-    Used for MPG calculation - we need the last full tank to know how far we traveled.
-    """
+    """Get the most recent previous full tank fill-up."""
     query = (
         select(FuelRecord)
         .where(FuelRecord.vin == vin)
@@ -73,8 +82,8 @@ async def get_previous_full_tank(
         .where(FuelRecord.date < current_date)
     )
 
-    if current_mileage:
-        query = query.where(FuelRecord.mileage < current_mileage)
+    if current_odometer_km:
+        query = query.where(FuelRecord.odometer_km < current_odometer_km)
 
     query = query.order_by(FuelRecord.date.desc()).limit(1)
 
@@ -83,29 +92,25 @@ async def get_previous_full_tank(
 
 
 @cached(ttl_seconds=300)  # Cache for 5 minutes
-async def calculate_average_mpg(
+async def calculate_average_l_per_100km(
     db: AsyncSession, vin: str, exclude_hauling: bool = True
 ) -> Decimal | None:
-    """
-    Calculate average MPG across all fuel records with MPG data.
+    """Calculate average L/100km across all full-tank fuel records.
 
     Args:
         db: Database session
         vin: Vehicle VIN
-        exclude_hauling: If True (default), exclude records where is_hauling=True for more accurate daily MPG
-
-    Note: Results are cached for 5 minutes to improve performance.
-    Cache is invalidated when fuel records are created/updated/deleted.
+        exclude_hauling: If True (default), exclude is_hauling=True records
+            for more representative daily-driving economy
     """
     query = (
         select(FuelRecord)
         .where(FuelRecord.vin == vin)
         .where(FuelRecord.is_full_tank.is_(True))
-        .where(FuelRecord.mileage.isnot(None))
-        .where(FuelRecord.gallons.isnot(None))
+        .where(FuelRecord.odometer_km.isnot(None))
+        .where(FuelRecord.liters.isnot(None))
     )
 
-    # Optionally exclude hauling records for normal MPG calculation
     if exclude_hauling:
         query = query.where(FuelRecord.is_hauling.is_(False))
 
@@ -117,20 +122,20 @@ async def calculate_average_mpg(
     if len(records) < 2:
         return None
 
-    mpg_values = []
+    values = []
     for i in range(1, len(records)):
-        mpg = calculate_mpg(records[i], records[i - 1])
-        if mpg:
-            mpg_values.append(mpg)
+        value = calculate_l_per_100km(records[i], records[i - 1])
+        if value:
+            values.append(value)
 
-    if not mpg_values:
+    if not values:
         return None
 
-    return round(sum(mpg_values) / len(mpg_values), 2)
+    return round(sum(values) / len(values), 2)
 
 
 class FuelRecordService:
-    """Service for managing fuel record business logic with MPG calculations."""
+    """Service for managing fuel record business logic with L/100km calculations."""
 
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -143,31 +148,14 @@ class FuelRecordService:
         limit: int = 100,
         include_hauling: bool = False,
     ) -> tuple[list[FuelRecordResponse], int, Decimal | None]:
-        """
-        Get all fuel records for a vehicle with MPG calculations.
-
-        Args:
-            vin: Vehicle VIN
-            current_user: The authenticated user
-            skip: Number of records to skip (pagination)
-            limit: Maximum number of records to return
-            include_hauling: Include towing/hauling records in MPG calculation
-
-        Returns:
-            Tuple of (fuel record responses with MPG, total count, average MPG)
-
-        Raises:
-            HTTPException: 404 if vehicle not found, 403 if not authorized
-        """
+        """List fuel records with per-record L/100km + vehicle-wide average."""
         from app.services.auth import get_vehicle_or_403
 
         vin = vin.upper().strip()
 
         try:
-            # Check vehicle ownership (raises 403 if unauthorized)
             _ = await get_vehicle_or_403(vin, current_user, self.db)
 
-            # Get fuel records
             result = await self.db.execute(
                 select(FuelRecord)
                 .where(FuelRecord.vin == vin)
@@ -177,48 +165,44 @@ class FuelRecordService:
             )
             records = result.scalars().all()
 
-            # Get all full tank records for this VIN to avoid N+1 queries
             full_tank_result = await self.db.execute(
                 select(FuelRecord)
                 .where(FuelRecord.vin == vin)
                 .where(FuelRecord.is_full_tank.is_(True))
-                .where(FuelRecord.mileage.isnot(None))
+                .where(FuelRecord.odometer_km.isnot(None))
                 .order_by(FuelRecord.date.asc())
             )
             full_tank_records = full_tank_result.scalars().all()
 
-            # Calculate MPG for each record
             responses = []
             for record in records:
-                mpg = None
-                if record.is_full_tank and record.mileage:
-                    # Find previous full tank from our pre-fetched list
+                value = None
+                if record.is_full_tank and record.odometer_km:
                     prev_record = None
                     for ft_record in reversed(full_tank_records):
                         if ft_record.date < record.date and (
-                            not record.mileage or ft_record.mileage < record.mileage
+                            not record.odometer_km or ft_record.odometer_km < record.odometer_km
                         ):
                             prev_record = ft_record
                             break
 
                     if prev_record:
-                        mpg = calculate_mpg(record, prev_record)
+                        value = calculate_l_per_100km(record, prev_record)
 
-                # Build response
                 record_dict = record.__dict__.copy()
-                record_dict["mpg"] = mpg
+                record_dict["l_per_100km"] = value
                 responses.append(FuelRecordResponse(**record_dict))
 
-            # Get total count
             count_result = await self.db.execute(
                 select(func.count()).select_from(FuelRecord).where(FuelRecord.vin == vin)
             )
             total = count_result.scalar()
 
-            # Calculate average MPG
-            avg_mpg = await calculate_average_mpg(self.db, vin, exclude_hauling=not include_hauling)
+            avg_value = await calculate_average_l_per_100km(
+                self.db, vin, exclude_hauling=not include_hauling
+            )
 
-            return responses, total, avg_mpg
+            return responses, total, avg_value
 
         except HTTPException:
             raise
@@ -233,25 +217,10 @@ class FuelRecordService:
     async def get_fuel_record(
         self, vin: str, record_id: int, current_user: User
     ) -> tuple[FuelRecord, Decimal | None]:
-        """
-        Get a specific fuel record by ID with MPG calculation.
-
-        Args:
-            vin: Vehicle VIN
-            record_id: Fuel record ID
-            current_user: The authenticated user
-
-        Returns:
-            Tuple of (FuelRecord object, calculated MPG)
-
-        Raises:
-            HTTPException: 404 if not found, 403 if not authorized
-        """
+        """Get a specific fuel record with L/100km."""
         from app.services.auth import get_vehicle_or_403
 
         vin = vin.upper().strip()
-
-        # Check vehicle ownership (raises 403 if unauthorized)
         await get_vehicle_or_403(vin, current_user, self.db)
 
         result = await self.db.execute(
@@ -262,56 +231,42 @@ class FuelRecordService:
         if not record:
             raise HTTPException(status_code=404, detail=f"Fuel record {record_id} not found")
 
-        # Calculate MPG
-        mpg = None
+        value = None
         if record.is_full_tank:
-            prev_record = await get_previous_full_tank(self.db, vin, record.date, record.mileage)
-            mpg = calculate_mpg(record, prev_record)
+            prev_record = await get_previous_full_tank(
+                self.db, vin, record.date, record.odometer_km
+            )
+            value = calculate_l_per_100km(record, prev_record)
 
-        return record, mpg
+        return record, value
 
     async def create_fuel_record(
         self, vin: str, record_data: FuelRecordCreate, current_user: User
     ) -> tuple[FuelRecord, Decimal | None]:
-        """
-        Create a new fuel record with MPG calculation.
-
-        Args:
-            vin: Vehicle VIN
-            record_data: Fuel record creation data
-            current_user: The authenticated user
-
-        Returns:
-            Tuple of (created FuelRecord object, calculated MPG)
-
-        Raises:
-            HTTPException: 404 if vehicle not found, 403 if not authorized
-        """
+        """Create a new fuel record with L/100km calc."""
         from app.services.auth import get_vehicle_or_403
 
         vin = vin.upper().strip()
 
         try:
-            # Check vehicle ownership (raises 403 if unauthorized)
             _ = await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
 
-            # Create fuel record
             record_dict = record_data.model_dump()
             record_dict["vin"] = vin
 
             # Pop DEF fill level before creating FuelRecord (not a fuel table column)
             def_fill_level = record_dict.pop("def_fill_level", None)
 
-            # Auto-calculate propane_gallons if tank data provided but gallons not
+            # Auto-calculate propane_liters if tank-by-weight data provided
             if (
-                record_dict.get("tank_size_lb") is not None
+                record_dict.get("tank_size_kg") is not None
                 and record_dict.get("tank_quantity") is not None
-                and record_dict.get("propane_gallons") is None
+                and record_dict.get("propane_liters") is None
             ):
-                calculated = (
-                    float(record_dict["tank_size_lb"]) / 4.24 * record_dict["tank_quantity"]
-                )
-                record_dict["propane_gallons"] = Decimal(str(round(calculated, 3)))
+                tank_kg = Decimal(str(record_dict["tank_size_kg"]))
+                qty = Decimal(str(record_dict["tank_quantity"]))
+                calculated = tank_kg * PROPANE_LITERS_PER_KG * qty
+                record_dict["propane_liters"] = calculated.quantize(Decimal("0.001"))
 
             record = FuelRecord(**record_dict)
 
@@ -319,29 +274,27 @@ class FuelRecordService:
             await self.db.commit()
             await self.db.refresh(record)
 
-            # Calculate MPG
-            mpg = None
+            value = None
             if record.is_full_tank:
                 prev_record = await get_previous_full_tank(
-                    self.db, vin, record.date, record.mileage
+                    self.db, vin, record.date, record.odometer_km
                 )
-                mpg = calculate_mpg(record, prev_record)
+                value = calculate_l_per_100km(record, prev_record)
 
             logger.info(
-                "Created fuel record %s for %s (MPG: %s)",
+                "Created fuel record %s for %s (L/100km: %s)",
                 record.id,
                 sanitize_for_log(vin),
-                mpg,
+                value,
             )
 
-            # Auto-sync odometer if mileage provided
-            if record.date and record.mileage:
+            if record.date and record.odometer_km:
                 try:
                     await sync_odometer_from_record(
                         db=self.db,
                         vin=vin,
                         date=record.date,
-                        mileage=record.mileage,
+                        odometer_km=record.odometer_km,
                         source_type="fuel",
                         source_id=record.id,
                     )
@@ -352,14 +305,13 @@ class FuelRecordService:
                         sanitize_for_log(e),
                     )
 
-            # Auto-sync DEF observation if fill level provided
             if def_fill_level is not None:
                 try:
                     await sync_def_from_fuel_record(
                         db=self.db,
                         vin=vin,
                         date=record.date,
-                        mileage=record.mileage,
+                        odometer_km=record.odometer_km,
                         fill_level=def_fill_level,
                         fuel_record_id=record.id,
                     )
@@ -370,10 +322,9 @@ class FuelRecordService:
                         sanitize_for_log(e),
                     )
 
-            # Invalidate analytics cache for this vehicle
             await invalidate_cache_for_vehicle(vin)
 
-            return record, mpg
+            return record, value
 
         except HTTPException:
             raise
@@ -401,30 +352,14 @@ class FuelRecordService:
         record_data: FuelRecordUpdate,
         current_user: User,
     ) -> tuple[FuelRecord, Decimal | None]:
-        """
-        Update an existing fuel record.
-
-        Args:
-            vin: Vehicle VIN
-            record_id: Fuel record ID
-            record_data: Fuel record update data
-            current_user: The authenticated user
-
-        Returns:
-            Tuple of (updated FuelRecord object, calculated MPG)
-
-        Raises:
-            HTTPException: 404 if not found, 403 if not authorized
-        """
+        """Update a fuel record; recompute L/100km."""
         from app.services.auth import get_vehicle_or_403
 
         vin = vin.upper().strip()
 
         try:
-            # Check vehicle ownership (raises 403 if unauthorized)
             await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
 
-            # Get existing record
             result = await self.db.execute(
                 select(FuelRecord).where(FuelRecord.id == record_id).where(FuelRecord.vin == vin)
             )
@@ -433,25 +368,23 @@ class FuelRecordService:
             if not record:
                 raise HTTPException(status_code=404, detail=f"Fuel record {record_id} not found")
 
-            # Update fields
             update_data = record_data.model_dump(exclude_unset=True)
-
-            # Pop DEF fill level before applying to FuelRecord (not a fuel table column)
             def_fill_level = update_data.pop("def_fill_level", None)
             def_fill_level_was_sent = "def_fill_level" in record_data.model_fields_set
 
-            # Auto-calculate propane_gallons if tank data provided/updated but gallons not
+            # Auto-calculate propane_liters if tank-by-weight data provided/updated
             if (
-                update_data.get("tank_size_lb") is not None
+                update_data.get("tank_size_kg") is not None
                 and update_data.get("tank_quantity") is not None
-                and update_data.get("propane_gallons") is None
+                and update_data.get("propane_liters") is None
             ):
-                # Check if we have both tank fields (either from update or existing record)
-                tank_size = update_data.get("tank_size_lb", record.tank_size_lb)
+                tank_size = update_data.get("tank_size_kg", record.tank_size_kg)
                 tank_qty = update_data.get("tank_quantity", record.tank_quantity)
                 if tank_size is not None and tank_qty is not None:
-                    calculated = float(tank_size) / 4.24 * tank_qty
-                    update_data["propane_gallons"] = Decimal(str(round(calculated, 3)))
+                    calculated = (
+                        Decimal(str(tank_size)) * PROPANE_LITERS_PER_KG * Decimal(str(tank_qty))
+                    )
+                    update_data["propane_liters"] = calculated.quantize(Decimal("0.001"))
 
             for field, value in update_data.items():
                 setattr(record, field, value)
@@ -459,24 +392,22 @@ class FuelRecordService:
             await self.db.commit()
             await self.db.refresh(record)
 
-            # Calculate MPG
-            mpg = None
+            value = None
             if record.is_full_tank:
                 prev_record = await get_previous_full_tank(
-                    self.db, vin, record.date, record.mileage
+                    self.db, vin, record.date, record.odometer_km
                 )
-                mpg = calculate_mpg(record, prev_record)
+                value = calculate_l_per_100km(record, prev_record)
 
             logger.info("Updated fuel record %s for %s", record_id, sanitize_for_log(vin))
 
-            # Auto-sync odometer if mileage and date are present
-            if record.date and record.mileage:
+            if record.date and record.odometer_km:
                 try:
                     await sync_odometer_from_record(
                         db=self.db,
                         vin=vin,
                         date=record.date,
-                        mileage=record.mileage,
+                        odometer_km=record.odometer_km,
                         source_type="fuel",
                         source_id=record.id,
                     )
@@ -487,21 +418,18 @@ class FuelRecordService:
                         sanitize_for_log(e),
                     )
 
-            # Auto-sync DEF observation based on what was sent
             if def_fill_level_was_sent:
                 try:
                     if def_fill_level is not None:
-                        # Value provided — create or update linked DEF record
                         await sync_def_from_fuel_record(
                             db=self.db,
                             vin=vin,
                             date=record.date,
-                            mileage=record.mileage,
+                            odometer_km=record.odometer_km,
                             fill_level=def_fill_level,
                             fuel_record_id=record.id,
                         )
                     else:
-                        # Explicitly sent as null — remove linked DEF record
                         from app.models.def_record import DEFRecord
 
                         await self.db.execute(
@@ -515,10 +443,9 @@ class FuelRecordService:
                         sanitize_for_log(e),
                     )
 
-            # Invalidate analytics cache for this vehicle
             await invalidate_cache_for_vehicle(vin)
 
-            return record, mpg
+            return record, value
 
         except HTTPException:
             raise
@@ -542,26 +469,14 @@ class FuelRecordService:
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
     async def delete_fuel_record(self, vin: str, record_id: int, current_user: User) -> None:
-        """
-        Delete a fuel record.
-
-        Args:
-            vin: Vehicle VIN
-            record_id: Fuel record ID
-            current_user: The authenticated user
-
-        Raises:
-            HTTPException: 404 if not found, 403 if not authorized
-        """
+        """Delete a fuel record and any linked DEF auto-synced record."""
         from app.services.auth import get_vehicle_or_403
 
         vin = vin.upper().strip()
 
         try:
-            # Check vehicle ownership (raises 403 if unauthorized)
             await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
 
-            # Check if record exists
             result = await self.db.execute(
                 select(FuelRecord).where(FuelRecord.id == record_id).where(FuelRecord.vin == vin)
             )
@@ -570,14 +485,11 @@ class FuelRecordService:
             if not record:
                 raise HTTPException(status_code=404, detail=f"Fuel record {record_id} not found")
 
-            # Delete linked DEF record first (same transaction for atomicity)
             from app.models.def_record import DEFRecord
 
             await self.db.execute(
                 delete(DEFRecord).where(DEFRecord.origin_fuel_record_id == record_id)
             )
-
-            # Delete fuel record
             await self.db.execute(
                 delete(FuelRecord).where(FuelRecord.id == record_id).where(FuelRecord.vin == vin)
             )
@@ -585,7 +497,6 @@ class FuelRecordService:
 
             logger.info("Deleted fuel record %s for %s", record_id, sanitize_for_log(vin))
 
-            # Invalidate analytics cache for this vehicle
             await invalidate_cache_for_vehicle(vin)
 
         except HTTPException:
@@ -608,3 +519,8 @@ class FuelRecordService:
                 sanitize_for_log(e),
             )
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
+
+
+# Back-compat aliases for v1 widget endpoints (kept until v3.2.0).
+calculate_mpg = calculate_l_per_100km
+calculate_average_mpg = calculate_average_l_per_100km

@@ -1,5 +1,6 @@
 from datetime import date as date_type
 from datetime import datetime
+from decimal import Decimal
 
 from pydantic import BaseModel
 
@@ -22,19 +23,19 @@ class VehicleStatistics(BaseModel):
     total_notes: int
     total_photos: int
 
-    # Recent activity
+    # Recent activity (metric-canonical: km)
     latest_service_date: date_type | None = None
     latest_fuel_date: date_type | None = None
-    latest_odometer_reading: int | None = None
+    latest_odometer_km: Decimal | None = None
     latest_odometer_date: date_type | None = None
 
     # Upcoming maintenance
     upcoming_maintenance_count: int
     overdue_maintenance_count: int
 
-    # Fuel statistics
-    average_mpg: float | None = None
-    recent_mpg: float | None = None
+    # Fuel statistics (metric-canonical: L/100km)
+    average_l_per_100km: Decimal | None = None
+    recent_l_per_100km: Decimal | None = None
 
     # Archive status
     archived_at: datetime | None = None

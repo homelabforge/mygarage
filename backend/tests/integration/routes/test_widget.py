@@ -356,8 +356,8 @@ class TestFanOutRegressionOverApi:
                 FuelRecord(
                     vin=v.vin,
                     date=date(2026, 2, 1) + timedelta(days=i),
-                    mileage=10000 + i * 300,
-                    gallons=Decimal("10.0"),
+                    odometer_km=Decimal(str(round((10000 + i * 300) * 1.60934, 2))),
+                    liters=Decimal("37.854"),
                     price_per_unit=Decimal("3.50"),
                     cost=Decimal("35.00"),
                     is_full_tank=True,

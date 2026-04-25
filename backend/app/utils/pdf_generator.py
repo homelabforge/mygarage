@@ -28,9 +28,11 @@ class PDFReportGenerator:
     and pdf_garage_report.py.
     """
 
-    def __init__(self):
+    def __init__(self, currency_code: str = "USD", locale: str = "en-US"):
         self.styles = getSampleStyleSheet()
         self._setup_custom_styles()
+        self.currency_code = currency_code
+        self.locale = locale
 
     def _setup_custom_styles(self):
         """Setup custom paragraph styles."""
@@ -68,10 +70,13 @@ class PDFReportGenerator:
         )
 
     def _format_currency(self, amount: Decimal | None) -> str:
-        """Format decimal as currency."""
+        """Format decimal as currency using the instance's currency_code/locale."""
+        from app.utils.currency import get_currency_symbol
+
         if amount is None:
             return "N/A"
-        return f"${float(amount):,.2f}"
+        symbol = get_currency_symbol(self.currency_code, self.locale)
+        return f"{symbol}{float(amount):,.2f}"
 
     def _format_date(self, date_obj: date_type | None) -> str:
         """Format date object."""
@@ -120,7 +125,7 @@ class PDFReportGenerator:
             story.append(Spacer(1, 0.1 * inch))
 
             # Table headers
-            table_data = [["Date", "Mileage", "Type", "Description", "Cost", "Vendor"]]
+            table_data = [["Date", "Odometer (km)", "Type", "Description", "Cost", "Vendor"]]
 
             # Table rows
             total_cost = Decimal("0")
@@ -129,10 +134,11 @@ class PDFReportGenerator:
                 if cost:
                     total_cost += Decimal(str(cost))
 
+                odometer_km_value = record.get("odometer_km")
                 table_data.append(
                     [
                         self._format_date(record.get("date")),
-                        f"{record.get('mileage', 'N/A'):,}" if record.get("mileage") else "N/A",
+                        f"{odometer_km_value:,}" if odometer_km_value else "N/A",
                         record.get("service_type", "N/A"),
                         Paragraph(record.get("description", "N/A")[:50], self.styles["Normal"]),
                         self._format_currency(cost),

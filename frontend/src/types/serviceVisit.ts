@@ -44,7 +44,7 @@ export interface ServiceVisitFormLineItem {
 export interface ServiceVisitFormData {
   vendor_id: number | undefined
   date: string
-  mileage: number | undefined
+  odometer_km: number | undefined
   notes: string
   insurance_claim_number: string
   tax_amount: number | undefined

@@ -103,6 +103,7 @@ export default function GarageAnalytics() {
     try {
       const response = await api.get('/analytics/garage/export', {
         responseType: 'blob',
+        params: { currency_code: currencyCode, locale },
       })
 
       const blob = new Blob([response.data], { type: 'application/pdf' })

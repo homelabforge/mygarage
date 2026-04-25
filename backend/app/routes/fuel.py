@@ -49,11 +49,11 @@ async def list_fuel_records(
     - Admin users can access all fuel records
     """
     service = FuelRecordService(db)
-    responses, total, avg_mpg = await service.list_fuel_records(
+    responses, total, avg_value = await service.list_fuel_records(
         vin, current_user, skip, limit, include_hauling
     )
 
-    return FuelRecordListResponse(records=responses, total=total, average_mpg=avg_mpg)
+    return FuelRecordListResponse(records=responses, total=total, average_l_per_100km=avg_value)
 
 
 @router.get("/{record_id}", response_model=FuelRecordResponse)
@@ -84,9 +84,9 @@ async def get_fuel_record(
     service = FuelRecordService(db)
     record, mpg = await service.get_fuel_record(vin, record_id, current_user)
 
-    # Build response with MPG
+    # Build response with L/100km
     record_dict = record.__dict__.copy()
-    record_dict["mpg"] = mpg
+    record_dict["l_per_100km"] = mpg
 
     return FuelRecordResponse(**record_dict)
 
@@ -108,9 +108,9 @@ async def create_fuel_record(
     service = FuelRecordService(db)
     record, mpg = await service.create_fuel_record(vin, record_data, current_user)
 
-    # Build response with MPG
+    # Build response with L/100km
     record_dict = record.__dict__.copy()
-    record_dict["mpg"] = mpg
+    record_dict["l_per_100km"] = mpg
 
     return FuelRecordResponse(**record_dict)
 
@@ -133,9 +133,9 @@ async def update_fuel_record(
     service = FuelRecordService(db)
     record, mpg = await service.update_fuel_record(vin, record_id, record_data, current_user)
 
-    # Build response with MPG
+    # Build response with L/100km
     record_dict = record.__dict__.copy()
-    record_dict["mpg"] = mpg
+    record_dict["l_per_100km"] = mpg
 
     return FuelRecordResponse(**record_dict)
 

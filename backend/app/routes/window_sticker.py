@@ -39,9 +39,9 @@ class WindowStickerDataUpdate(BaseModel):
     msrp_options: Decimal | None = None
     msrp_total: Decimal | None = None
     destination_charge: Decimal | None = None
-    fuel_economy_city: int | None = None
-    fuel_economy_highway: int | None = None
-    fuel_economy_combined: int | None = None
+    fuel_economy_city_l_per_100km: Decimal | None = None
+    fuel_economy_highway_l_per_100km: Decimal | None = None
+    fuel_economy_combined_l_per_100km: Decimal | None = None
     standard_equipment: dict[str, Any] | None = None
     optional_equipment: dict[str, Any] | None = None
     assembly_location: str | None = None
@@ -61,9 +61,9 @@ class WindowStickerResponse(BaseModel):
     msrp_options: Decimal | None
     msrp_total: Decimal | None
     destination_charge: Decimal | None
-    fuel_economy_city: int | None
-    fuel_economy_highway: int | None
-    fuel_economy_combined: int | None
+    fuel_economy_city_l_per_100km: Decimal | None
+    fuel_economy_highway_l_per_100km: Decimal | None
+    fuel_economy_combined_l_per_100km: Decimal | None
     standard_equipment: dict[str, Any] | None
     optional_equipment: dict[str, Any] | None
     assembly_location: str | None
@@ -231,9 +231,9 @@ async def upload_window_sticker(
         ("msrp_options", "msrp_options"),
         ("msrp_total", "msrp_total"),
         ("destination_charge", "destination_charge"),
-        ("fuel_economy_city", "fuel_economy_city"),
-        ("fuel_economy_highway", "fuel_economy_highway"),
-        ("fuel_economy_combined", "fuel_economy_combined"),
+        ("fuel_economy_city_l_per_100km", "fuel_economy_city_l_per_100km"),
+        ("fuel_economy_highway_l_per_100km", "fuel_economy_highway_l_per_100km"),
+        ("fuel_economy_combined_l_per_100km", "fuel_economy_combined_l_per_100km"),
         ("standard_equipment", "standard_equipment"),
         ("optional_equipment", "optional_equipment"),
         ("assembly_location", "assembly_location"),
@@ -387,9 +387,9 @@ async def delete_window_sticker(
         "msrp_options",
         "msrp_total",
         "destination_charge",
-        "fuel_economy_city",
-        "fuel_economy_highway",
-        "fuel_economy_combined",
+        "fuel_economy_city_l_per_100km",
+        "fuel_economy_highway_l_per_100km",
+        "fuel_economy_combined_l_per_100km",
         "standard_equipment",
         "optional_equipment",
         "assembly_location",

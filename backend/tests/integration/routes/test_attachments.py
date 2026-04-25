@@ -29,12 +29,12 @@ requires_write_access = pytest.mark.skipif(
 
 
 @pytest.fixture
-async def service_visit(client: AsyncClient, auth_headers, test_vehicle):
+async def service_record(client: AsyncClient, auth_headers, test_vehicle):
     """Create a service visit for attachment tests."""
     payload = {
         "vin": test_vehicle["vin"],
         "date": "2024-06-15",
-        "mileage": 50000,
+        "odometer_km": 80467.0,
         "vendor_name": "Test Auto Shop",
         "total_cost": 150.00,
         "line_items": [
@@ -83,11 +83,11 @@ class TestServiceVisitAttachments:
     """Test service visit attachment endpoints."""
 
     async def test_list_visit_attachments_empty(
-        self, client: AsyncClient, auth_headers, service_visit
+        self, client: AsyncClient, auth_headers, service_record
     ):
         """Test listing attachments for a service visit with no attachments."""
         response = await client.get(
-            f"/api/service-visits/{service_visit['id']}/attachments",
+            f"/api/service-visits/{service_record['id']}/attachments",
             headers=auth_headers,
         )
 
@@ -98,12 +98,12 @@ class TestServiceVisitAttachments:
         assert data["total"] == 0
 
     @requires_write_access
-    async def test_upload_visit_attachment(self, client: AsyncClient, auth_headers, service_visit):
+    async def test_upload_visit_attachment(self, client: AsyncClient, auth_headers, service_record):
         """Test uploading an attachment to a service visit."""
         file_data = create_test_file("work-order.pdf")
 
         response = await client.post(
-            f"/api/service-visits/{service_visit['id']}/attachments",
+            f"/api/service-visits/{service_record['id']}/attachments",
             headers=auth_headers,
             files={"file": file_data},
         )
@@ -111,18 +111,18 @@ class TestServiceVisitAttachments:
         assert response.status_code == 201
         data = response.json()
         assert data["record_type"] == "service_visit"
-        assert data["record_id"] == service_visit["id"]
+        assert data["record_id"] == service_record["id"]
         assert data["file_type"] == "application/pdf"
 
     @requires_write_access
     async def test_list_visit_attachments_after_upload(
-        self, client: AsyncClient, auth_headers, service_visit
+        self, client: AsyncClient, auth_headers, service_record
     ):
         """Test listing service visit attachments after uploading."""
         # Upload an attachment
         file_data = create_test_file("invoice.pdf")
         upload_response = await client.post(
-            f"/api/service-visits/{service_visit['id']}/attachments",
+            f"/api/service-visits/{service_record['id']}/attachments",
             headers=auth_headers,
             files={"file": file_data},
         )
@@ -130,7 +130,7 @@ class TestServiceVisitAttachments:
 
         # List attachments
         response = await client.get(
-            f"/api/service-visits/{service_visit['id']}/attachments",
+            f"/api/service-visits/{service_record['id']}/attachments",
             headers=auth_headers,
         )
 
@@ -162,9 +162,9 @@ class TestServiceVisitAttachments:
 
         assert response.status_code == 404
 
-    async def test_visit_attachment_unauthorized(self, client: AsyncClient, service_visit):
+    async def test_visit_attachment_unauthorized(self, client: AsyncClient, service_record):
         """Test that unauthenticated users cannot access service visit attachments."""
-        response = await client.get(f"/api/service-visits/{service_visit['id']}/attachments")
+        response = await client.get(f"/api/service-visits/{service_record['id']}/attachments")
         assert response.status_code == 401
 
 
@@ -181,7 +181,7 @@ class TestAttachmentResponses:
         file_data = create_test_file("structure-test.pdf")
 
         response = await client.post(
-            f"/api/service/{service_record['id']}/attachments",
+            f"/api/service-visits/{service_record['id']}/attachments",
             headers=auth_headers,
             files={"file": file_data},
         )
@@ -213,14 +213,14 @@ class TestAttachmentResponses:
         for i in range(2):
             file_data = create_test_file(f"list-test-{i}.pdf")
             await client.post(
-                f"/api/service/{service_record['id']}/attachments",
+                f"/api/service-visits/{service_record['id']}/attachments",
                 headers=auth_headers,
                 files={"file": file_data},
             )
 
         # List attachments
         response = await client.get(
-            f"/api/service/{service_record['id']}/attachments",
+            f"/api/service-visits/{service_record['id']}/attachments",
             headers=auth_headers,
         )
 

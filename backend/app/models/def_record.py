@@ -32,8 +32,8 @@ class DEFRecord(Base):
         String(17), ForeignKey("vehicles.vin", ondelete="CASCADE"), nullable=False
     )
     date: Mapped[dt.date] = mapped_column(Date, nullable=False)
-    mileage: Mapped[int | None] = mapped_column(Integer)
-    gallons: Mapped[Decimal | None] = mapped_column(Numeric(8, 3))
+    odometer_km: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    liters: Mapped[Decimal | None] = mapped_column(Numeric(9, 3))
     cost: Mapped[Decimal | None] = mapped_column(Numeric(8, 2))
     price_per_unit: Mapped[Decimal | None] = mapped_column(Numeric(6, 3))
     fill_level: Mapped[Decimal | None] = mapped_column(Numeric(3, 2))
@@ -55,7 +55,7 @@ class DEFRecord(Base):
         Index("idx_def_records_vin", "vin"),
         Index("idx_def_records_date", "date"),
         Index("idx_def_records_vin_date", "vin", "date"),
-        Index("idx_def_records_mileage", "mileage"),
+        Index("idx_def_records_odometer_km", "odometer_km"),
         Index("idx_def_entry_type", "entry_type"),
         Index("idx_def_origin_fuel_record_id", "origin_fuel_record_id"),
     )

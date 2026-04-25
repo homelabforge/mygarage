@@ -86,7 +86,13 @@ const stats: LanguageStats[] = languages.map(lang => {
     missing,
     empty,
   }
-}).sort((a, b) => b.percentage - a.percentage)
+}).sort((a, b) => {
+  // Primary: completion descending. Secondary: language code ascending for
+  // deterministic ordering when languages tie (avoids CI/local drift in
+  // TRANSLATIONS.md when readdir() orders differ across filesystems).
+  if (b.percentage !== a.percentage) return b.percentage - a.percentage
+  return a.code.localeCompare(b.code)
+})
 
 // Overall percentage (average across languages)
 const overallPct = languages.length > 0

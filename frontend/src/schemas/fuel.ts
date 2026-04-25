@@ -1,8 +1,8 @@
 import { z } from 'zod'
 import {
   dateSchema,
-  optionalMileageSchema,
-  optionalGallonsSchema,
+  optionalOdometerSchema,
+  optionalVolumeSchema,
   optionalCurrencySchema,
   optionalPricePerUnitSchema,
   optionalKwhSchema,
@@ -14,14 +14,17 @@ import {
  * See: backend/app/schemas/fuel.py
  */
 
+export const PRICE_BASIS_VALUES = ['per_volume', 'per_weight', 'per_kwh', 'per_tank'] as const
+
 export const fuelRecordSchema = z.object({
   date: dateSchema,
-  mileage: optionalMileageSchema,
-  gallons: optionalGallonsSchema,
-  propane_gallons: optionalGallonsSchema,
+  odometer_km: optionalOdometerSchema,
+  liters: optionalVolumeSchema,
+  propane_liters: optionalVolumeSchema,
   kwh: optionalKwhSchema,
   cost: optionalCurrencySchema,
   price_per_unit: optionalPricePerUnitSchema,
+  price_basis: z.enum(PRICE_BASIS_VALUES).optional(),
   fuel_type: z.string().max(50, 'Fuel type too long').optional(),
   is_full_tank: z.boolean(),
   missed_fillup: z.boolean(),

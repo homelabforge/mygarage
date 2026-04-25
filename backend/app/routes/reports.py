@@ -37,6 +37,8 @@ async def download_service_history_pdf(
     vin: str,
     start_date: str | None = Query(None, description="Start date (YYYY-MM-DD)"),
     end_date: str | None = Query(None, description="End date (YYYY-MM-DD)"),
+    currency_code: str = Query("USD", description="ISO 4217 code; defaults to USD."),
+    locale: str = Query("en-US", description="BCP 47 locale; defaults to en-US."),
     db: AsyncSession = Depends(get_db),
     current_user: User | None = Depends(require_auth),
 ):
@@ -76,7 +78,7 @@ async def download_service_history_pdf(
                 records_data.append(
                     {
                         "date": visit.date,
-                        "mileage": visit.mileage,
+                        "odometer_km": visit.odometer_km,
                         "service_category": visit.service_category,
                         "service_type": item.description,
                         "cost": item.cost,
@@ -88,7 +90,7 @@ async def download_service_history_pdf(
             records_data.append(
                 {
                     "date": visit.date,
-                    "mileage": visit.mileage,
+                    "odometer_km": visit.odometer_km,
                     "service_category": visit.service_category,
                     "service_type": visit.notes or "Service",
                     "cost": visit.calculated_total_cost,
@@ -97,7 +99,10 @@ async def download_service_history_pdf(
             )
 
     # Generate PDF
-    pdf_gen = PDFReportGenerator()
+    from app.utils.currency import normalize_pdf_currency_params
+
+    safe_code, safe_locale = normalize_pdf_currency_params(currency_code, locale)
+    pdf_gen = PDFReportGenerator(currency_code=safe_code, locale=safe_locale)
     pdf_buffer = pdf_gen.generate_service_history_pdf(vehicle_info, records_data, start_dt, end_dt)
 
     # Return as downloadable file
@@ -113,6 +118,8 @@ async def download_service_history_pdf(
 async def download_cost_summary_pdf(
     vin: str,
     year: int = Query(..., description="Year for cost summary"),
+    currency_code: str = Query("USD", description="ISO 4217 code; defaults to USD."),
+    locale: str = Query("en-US", description="BCP 47 locale; defaults to en-US."),
     db: AsyncSession = Depends(get_db),
     current_user: User | None = Depends(require_auth),
 ):
@@ -193,7 +200,10 @@ async def download_cost_summary_pdf(
     cost_data["upgrade_total"] = (upgrade_stats.total or 0) if upgrade_stats else 0
 
     # Generate PDF
-    pdf_gen = PDFReportGenerator()
+    from app.utils.currency import normalize_pdf_currency_params
+
+    safe_code, safe_locale = normalize_pdf_currency_params(currency_code, locale)
+    pdf_gen = PDFReportGenerator(currency_code=safe_code, locale=safe_locale)
     pdf_buffer = pdf_gen.generate_cost_summary_pdf(vehicle_info, cost_data, year)
 
     # Return as downloadable file
@@ -209,6 +219,8 @@ async def download_cost_summary_pdf(
 async def download_tax_deduction_pdf(
     vin: str,
     year: int = Query(..., description="Tax year"),
+    currency_code: str = Query("USD", description="ISO 4217 code; defaults to USD."),
+    locale: str = Query("en-US", description="BCP 47 locale; defaults to en-US."),
     db: AsyncSession = Depends(get_db),
     current_user: User | None = Depends(require_auth),
 ):
@@ -246,7 +258,10 @@ async def download_tax_deduction_pdf(
                 )
 
     # Generate PDF
-    pdf_gen = PDFReportGenerator()
+    from app.utils.currency import normalize_pdf_currency_params
+
+    safe_code, safe_locale = normalize_pdf_currency_params(currency_code, locale)
+    pdf_gen = PDFReportGenerator(currency_code=safe_code, locale=safe_locale)
     pdf_buffer = pdf_gen.generate_tax_deduction_pdf(vehicle_info, deductible_records, year)
 
     # Return as downloadable file
@@ -308,7 +323,7 @@ async def download_service_history_csv(
             writer.writerow(
                 [
                     visit.date.strftime("%Y-%m-%d") if visit.date else "",
-                    visit.mileage or "",
+                    visit.odometer_km or "",
                     visit.service_category or "",
                     item.description or "",
                     f"{float(item.cost):.2f}" if item.cost else "",
@@ -342,7 +357,7 @@ async def download_all_records_csv(
     writer = csv.writer(output)
 
     # Write header
-    writer.writerow(["Date", "Type", "Category", "Description", "Cost", "Mileage", "Vendor"])
+    writer.writerow(["Date", "Type", "Category", "Description", "Cost", "Odometer (km)", "Vendor"])
 
     # Query and write service visits with line items
     visit_query = _service_visits_query(vin)
@@ -368,7 +383,7 @@ async def download_all_records_csv(
                     category,
                     item.description or "",
                     f"{float(item.cost):.2f}" if item.cost else "",
-                    visit.mileage or "",
+                    visit.odometer_km or "",
                     vendor_name,
                 ]
             )
@@ -384,9 +399,9 @@ async def download_all_records_csv(
                 record.date.strftime("%Y-%m-%d") if record.date else "",
                 "Fuel",
                 "Fuel",
-                f"{record.gallons}gal" if record.gallons else "",
+                f"{record.liters}L" if record.liters else "",
                 f"{float(record.cost):.2f}" if record.cost else "",
-                record.mileage or "",
+                record.odometer_km or "",
                 "",  # No station field in FuelRecord model
             ]
         )

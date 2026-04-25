@@ -5,6 +5,7 @@ Tests auto-syncing of odometer records from service/fuel records.
 """
 
 from datetime import date
+from decimal import Decimal
 
 import pytest
 import pytest_asyncio
@@ -45,19 +46,19 @@ class TestOdometerSync:
     ):
         """Test that sync creates a new odometer record when none exists."""
         test_date = date(2024, 1, 15)
-        mileage = 50000
+        odometer_km = Decimal("80467.20")
 
         result = await sync_odometer_from_record(
             db=db_session,
             vin=test_vehicle["vin"],
             date=test_date,
-            mileage=mileage,
+            odometer_km=odometer_km,
             source_type="service",
             source_id=1,
         )
 
         assert result is not None
-        assert result.mileage == mileage
+        assert result.odometer_km == odometer_km
         assert result.vin == test_vehicle["vin"]
         assert result.date == test_date
         assert result.notes is not None
@@ -70,7 +71,7 @@ class TestOdometerSync:
             db=db_session,
             vin=test_vehicle["vin"],
             date=date(2024, 2, 1),
-            mileage=None,
+            odometer_km=None,
             source_type="fuel",
             source_id=1,
         )
@@ -88,7 +89,7 @@ class TestOdometerSync:
             db=db_session,
             vin=test_vehicle["vin"],
             date=test_date,
-            mileage=51000,
+            odometer_km=Decimal("82076.34"),
             source_type="service",
             source_id=1,
         )
@@ -100,14 +101,14 @@ class TestOdometerSync:
             db=db_session,
             vin=test_vehicle["vin"],
             date=test_date,
-            mileage=51500,
+            odometer_km=Decimal("82880.86"),
             source_type="fuel",
             source_id=2,
         )
 
         assert updated is not None
         assert updated.id == initial_id  # Same record updated
-        assert updated.mileage == 51500
+        assert updated.odometer_km == Decimal("82880.86")
         assert updated.notes is not None
         assert "[AUTO-SYNC from fuel #2]" in updated.notes
         assert updated.source == "fuel"
@@ -122,7 +123,7 @@ class TestOdometerSync:
         manual_record = OdometerRecord(
             vin=test_vehicle["vin"],
             date=test_date,
-            mileage=52000,
+            odometer_km=Decimal("83685.81"),
             notes="Manual entry from inspection",
             source="manual",
         )
@@ -134,7 +135,7 @@ class TestOdometerSync:
             db=db_session,
             vin=test_vehicle["vin"],
             date=test_date,
-            mileage=52500,
+            odometer_km=Decimal("84490.33"),
             source_type="service",
             source_id=1,
         )
@@ -149,7 +150,7 @@ class TestOdometerSync:
             .where(OdometerRecord.date == test_date)
         )
         record = query.scalar_one()
-        assert record.mileage == 52000
+        assert record.odometer_km == Decimal("83685.81")
         assert record.notes is not None
         assert "Manual entry" in record.notes
 
@@ -167,7 +168,7 @@ class TestOdometerSync:
         livelink_record = OdometerRecord(
             vin=test_vehicle["vin"],
             date=test_date,
-            mileage=7924,  # km stored as miles (the bug this fixes)
+            odometer_km=Decimal("12752.07"),  # km stored as miles (the bug this fixes)
             source="livelink",
             notes="Auto-updated from LiveLink (A6-Odometer)",
         )
@@ -181,14 +182,14 @@ class TestOdometerSync:
             db=db_session,
             vin=test_vehicle["vin"],
             date=test_date,
-            mileage=4908,
+            odometer_km=Decimal("7898.66"),
             source_type="fuel",
             source_id=42,
         )
 
         assert result is not None
         assert result.id == record_id  # Same record updated, not a new one
-        assert result.mileage == 4908
+        assert result.odometer_km == Decimal("7898.66")
         assert result.source == "fuel"
         assert result.notes is not None
         assert "[AUTO-SYNC from fuel #42]" in result.notes
@@ -201,7 +202,7 @@ class TestOdometerSync:
             db=db_session,
             vin=test_vehicle["vin"],
             date=date(2024, 5, 1),
-            mileage=53000,
+            odometer_km=Decimal("85294.85"),
             source_type="service",
             source_id=42,
         )
@@ -217,7 +218,7 @@ class TestOdometerSync:
             db=db_session,
             vin=test_vehicle["vin"],
             date=date(2024, 5, 15),
-            mileage=53500,
+            odometer_km=Decimal("86099.37"),
             source_type="fuel",
             source_id=99,
         )
@@ -237,7 +238,7 @@ class TestOdometerSync:
         manual_record = OdometerRecord(
             vin=test_vehicle["vin"],
             date=test_date,
-            mileage=54000,
+            odometer_km=Decimal("86903.89"),
             notes=None,  # No notes = manual entry
             source="manual",
         )
@@ -249,7 +250,7 @@ class TestOdometerSync:
             db=db_session,
             vin=test_vehicle["vin"],
             date=test_date,
-            mileage=54500,
+            odometer_km=Decimal("87708.41"),
             source_type="service",
             source_id=1,
         )
@@ -268,7 +269,7 @@ class TestOdometerSync:
             db=db_session,
             vin=test_vehicle["vin"],
             date=date1,
-            mileage=55000,
+            odometer_km=Decimal("88513.92"),
             source_type="service",
             source_id=1,
         )
@@ -277,7 +278,7 @@ class TestOdometerSync:
             db=db_session,
             vin=test_vehicle["vin"],
             date=date2,
-            mileage=55500,
+            odometer_km=Decimal("89318.44"),
             source_type="fuel",
             source_id=2,
         )

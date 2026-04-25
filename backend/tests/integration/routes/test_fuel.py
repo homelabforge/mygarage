@@ -28,7 +28,7 @@ class TestFuelRecordRoutes:
         data = response.json()
         assert "records" in data
         assert "total" in data
-        assert "average_mpg" in data
+        assert "average_l_per_100km" in data
         assert isinstance(data["records"], list)
 
     async def test_get_fuel_record_by_id(
@@ -43,9 +43,9 @@ class TestFuelRecordRoutes:
             json={
                 "vin": vehicle["vin"],
                 "date": "2024-01-15",
-                "gallons": 12.5,
+                "liters": 47.318,
                 "cost": 45.00,
-                "mileage": 15500,
+                "odometer_km": 24944.77,
                 "is_full_tank": True,
                 "price_per_unit": 3.60,
             },
@@ -64,7 +64,7 @@ class TestFuelRecordRoutes:
         data = response.json()
         assert data["id"] == record["id"]
         # Decimal fields are serialized as strings
-        assert float(data["gallons"]) == 12.5
+        assert float(data["liters"]) == pytest.approx(47.318, abs=0.01)
         assert float(data["cost"]) == 45.00
 
     async def test_create_fuel_record(
@@ -82,11 +82,11 @@ class TestFuelRecordRoutes:
         assert response.status_code == 201
         data = response.json()
         # Decimal fields are serialized as strings
-        assert float(data["gallons"]) == payload["gallons"]
+        assert float(data["liters"]) == pytest.approx(payload["liters"], abs=0.01)
         assert float(data["cost"]) == payload["cost"]
         assert "id" in data
-        # MPG might be null for first record
-        assert "mpg" in data
+        # L/100km might be null for first record
+        assert "l_per_100km" in data
 
     async def test_update_fuel_record(
         self, client: AsyncClient, auth_headers, test_vehicle_with_records
@@ -100,9 +100,9 @@ class TestFuelRecordRoutes:
             json={
                 "vin": vehicle["vin"],
                 "date": "2024-01-15",
-                "gallons": 12.5,
+                "liters": 47.318,
                 "cost": 45.00,
-                "mileage": 15500,
+                "odometer_km": 24944.77,
                 "is_full_tank": True,
                 "price_per_unit": 3.60,
             },
@@ -139,9 +139,9 @@ class TestFuelRecordRoutes:
             json={
                 "vin": vehicle["vin"],
                 "date": "2024-01-15",
-                "gallons": 12.5,
+                "liters": 47.318,
                 "cost": 45.00,
-                "mileage": 15500,
+                "odometer_km": 24944.77,
                 "is_full_tank": True,
                 "price_per_unit": 3.60,
             },
@@ -174,9 +174,9 @@ class TestFuelRecordRoutes:
             json={
                 "vin": vehicle["vin"],
                 "date": "2024-01-01",
-                "gallons": 12.0,
+                "liters": 45.425,
                 "cost": 43.20,
-                "mileage": 10000,
+                "odometer_km": 16093.40,
                 "is_full_tank": True,
                 "price_per_unit": 3.60,
             },
@@ -184,18 +184,18 @@ class TestFuelRecordRoutes:
         )
         assert first_response.status_code == 201
         first_record = first_response.json()
-        # First record should have no MPG (no previous record)
-        assert first_record["mpg"] is None
+        # First record should have no L/100km (no previous record)
+        assert first_record["l_per_100km"] is None
 
-        # Second fill-up (should calculate MPG)
+        # Second fill-up (should calculate L/100km)
         second_response = await client.post(
             f"/api/vehicles/{vehicle['vin']}/fuel",
             json={
                 "vin": vehicle["vin"],
                 "date": "2024-01-15",
-                "gallons": 12.0,
+                "liters": 45.425,
                 "cost": 43.20,
-                "mileage": 10300,  # 300 miles driven
+                "odometer_km": 16576.20,  # ~300 mi (482.80 km) driven
                 "is_full_tank": True,
                 "price_per_unit": 3.60,
             },
@@ -203,9 +203,9 @@ class TestFuelRecordRoutes:
         )
         assert second_response.status_code == 201
         second_record = second_response.json()
-        # 300 miles / 12 gallons = 25 MPG
-        assert second_record["mpg"] is not None
-        assert float(second_record["mpg"]) == pytest.approx(25.0, rel=0.1)
+        # 25 MPG = 9.41 L/100km (235.214 / 25)
+        assert second_record["l_per_100km"] is not None
+        assert float(second_record["l_per_100km"]) == pytest.approx(9.41, rel=0.1)
 
     async def test_partial_fillup_no_mpg(self, client: AsyncClient, auth_headers, test_vehicle):
         """Test that partial fill-ups don't calculate MPG."""
@@ -217,9 +217,9 @@ class TestFuelRecordRoutes:
             json={
                 "vin": vehicle["vin"],
                 "date": "2024-01-01",
-                "gallons": 12.0,
+                "liters": 45.425,
                 "cost": 43.20,
-                "mileage": 10000,
+                "odometer_km": 16093.40,
                 "is_full_tank": True,
                 "price_per_unit": 3.60,
             },
@@ -232,9 +232,9 @@ class TestFuelRecordRoutes:
             json={
                 "vin": vehicle["vin"],
                 "date": "2024-01-15",
-                "gallons": 8.0,
+                "liters": 30.283,
                 "cost": 28.80,
-                "mileage": 10300,
+                "odometer_km": 16576.20,
                 "is_full_tank": False,  # Partial
                 "price_per_unit": 3.60,
             },
@@ -242,8 +242,8 @@ class TestFuelRecordRoutes:
         )
         assert partial_response.status_code == 201
         partial_record = partial_response.json()
-        # Partial fill-ups should not have MPG
-        assert partial_record["mpg"] is None
+        # Partial fill-ups should not have L/100km
+        assert partial_record["l_per_100km"] is None
 
     async def test_fuel_record_unauthorized(self, client: AsyncClient, test_vehicle_with_records):
         """Test that unauthenticated users cannot access fuel records."""
@@ -259,9 +259,9 @@ class TestFuelRecordRoutes:
         invalid_payload = {
             "vin": test_vehicle["vin"],
             "date": "2024-01-15",
-            "gallons": -12.5,  # Negative gallons should fail
+            "liters": -47.318,  # Negative liters should fail
             "cost": 45.00,
-            "mileage": 15500,
+            "odometer_km": 24944.77,
             "is_full_tank": True,
         }
 
@@ -301,9 +301,9 @@ class TestFuelRecordRoutes:
             json={
                 "vin": vehicle["vin"],
                 "date": "2024-01-01",
-                "gallons": 12.0,
+                "liters": 45.425,
                 "cost": 43.20,
-                "mileage": 10000,
+                "odometer_km": 16093.40,
                 "is_full_tank": True,
                 "is_hauling": False,
             },
@@ -316,9 +316,9 @@ class TestFuelRecordRoutes:
             json={
                 "vin": vehicle["vin"],
                 "date": "2024-01-15",
-                "gallons": 15.0,
+                "liters": 56.781,
                 "cost": 54.00,
-                "mileage": 10250,
+                "odometer_km": 16495.74,
                 "is_full_tank": True,
                 "is_hauling": True,
             },
@@ -333,8 +333,8 @@ class TestFuelRecordRoutes:
 
         assert response.status_code == 200
         data = response.json()
-        # Average MPG should exclude hauling records
-        assert "average_mpg" in data
+        # Average L/100km should exclude hauling records
+        assert "average_l_per_100km" in data
 
 
 @pytest.mark.integration
@@ -356,9 +356,9 @@ class TestFuelDEFSync:
             json={
                 "vin": vin,
                 "date": "2024-08-01",
-                "gallons": 15.0,
+                "liters": 56.781,
                 "cost": 54.00,
-                "mileage": 60000,
+                "odometer_km": 96560.40,
                 "is_full_tank": True,
                 "def_fill_level": 0.50,
             },
@@ -382,7 +382,7 @@ class TestFuelDEFSync:
         synced = auto_records[-1]
         assert synced["origin_fuel_record_id"] == fuel_record["id"]
         assert float(synced["fill_level"]) == pytest.approx(0.50, abs=0.01)
-        assert synced["mileage"] == 60000
+        assert float(synced["odometer_km"]) == pytest.approx(96560.40, abs=0.01)
         assert synced["date"] == "2024-08-01"
 
     async def test_create_fuel_without_def_no_def_record(
@@ -404,9 +404,9 @@ class TestFuelDEFSync:
             json={
                 "vin": vin,
                 "date": "2024-08-05",
-                "gallons": 12.0,
+                "liters": 45.425,
                 "cost": 43.20,
-                "mileage": 60500,
+                "odometer_km": 97364.87,
                 "is_full_tank": True,
             },
             headers=auth_headers,
@@ -432,9 +432,9 @@ class TestFuelDEFSync:
             json={
                 "vin": vin,
                 "date": "2024-09-01",
-                "gallons": 14.0,
+                "liters": 52.996,
                 "cost": 50.00,
-                "mileage": 62000,
+                "odometer_km": 99779.08,
                 "is_full_tank": True,
                 "def_fill_level": 0.75,
             },
@@ -476,9 +476,9 @@ class TestFuelDEFSync:
             json={
                 "vin": vin,
                 "date": "2024-10-01",
-                "gallons": 13.0,
+                "liters": 49.210,
                 "cost": 47.00,
-                "mileage": 64000,
+                "odometer_km": 102997.76,
                 "is_full_tank": True,
                 "def_fill_level": 0.60,
             },
@@ -529,9 +529,9 @@ class TestFuelDEFSync:
             json={
                 "vin": vin,
                 "date": "2024-11-01",
-                "gallons": 16.0,
+                "liters": 60.567,
                 "cost": 58.00,
-                "mileage": 66000,
+                "odometer_km": 106216.44,
                 "is_full_tank": True,
                 "def_fill_level": 0.80,
             },
@@ -579,7 +579,7 @@ class TestFuelDEFSync:
             json={
                 "vin": vin,
                 "date": "2024-12-01",
-                "gallons": 2.5,
+                "liters": 9.464,
                 "cost": 15.00,
                 "fill_level": 1.0,
             },
@@ -596,9 +596,9 @@ class TestFuelDEFSync:
             json={
                 "vin": vin,
                 "date": "2024-12-15",
-                "gallons": 14.0,
+                "liters": 52.996,
                 "cost": 50.00,
-                "mileage": 68000,
+                "odometer_km": 109435.12,
                 "is_full_tank": True,
                 "def_fill_level": 0.50,
             },

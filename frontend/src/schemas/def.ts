@@ -4,15 +4,15 @@ import {
   dateSchema,
   notesSchema,
   optionalCurrencySchema,
-  optionalGallonsSchema,
-  optionalMileageSchema,
+  optionalVolumeSchema,
+  optionalOdometerSchema,
   optionalPricePerUnitSchema,
 } from './shared'
 
 export const defRecordSchema = z.object({
   date: dateSchema,
-  mileage: optionalMileageSchema,
-  gallons: optionalGallonsSchema,
+  odometer_km: optionalOdometerSchema,
+  liters: optionalVolumeSchema,
   price_per_unit: optionalPricePerUnitSchema,
   cost: optionalCurrencySchema,
   fill_level: z

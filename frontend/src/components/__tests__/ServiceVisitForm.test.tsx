@@ -17,6 +17,15 @@ vi.mock('../../hooks/useUnitPreference', () => ({
   useUnitPreference: () => ({ system: 'imperial', showBoth: false }),
 }))
 
+// Mock currency preference hook (CurrencyInputPrefix depends on it, which needs AuthProvider)
+vi.mock('../../hooks/useCurrencyPreference', () => ({
+  useCurrencyPreference: () => ({
+    currencyCode: 'USD',
+    locale: 'en-US',
+    formatCurrency: () => '$0.00',
+  }),
+}))
+
 // Mock components that make additional API calls or are complex to render
 vi.mock('../VendorSearch', () => ({
   default: () => <div data-testid="vendor-search" />,
