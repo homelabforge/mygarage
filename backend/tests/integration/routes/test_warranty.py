@@ -36,7 +36,7 @@ class TestWarrantyRecordRoutes:
                 "provider": "Honda",
                 "start_date": "2024-01-01",
                 "end_date": "2029-01-01",
-                "mileage_limit": 60000,
+                "mileage_limit_km": 96560.4,
                 "coverage_details": "Engine, transmission, drivetrain",
                 "policy_number": "HND-PT-12345",
             },
@@ -55,7 +55,7 @@ class TestWarrantyRecordRoutes:
         data = response.json()
         assert data["id"] == record["id"]
         assert data["warranty_type"] == "Powertrain"
-        assert data["mileage_limit"] == 60000
+        assert float(data["mileage_limit_km"]) == 96560.4
 
     async def test_create_warranty(self, client: AsyncClient, auth_headers, test_vehicle):
         """Test creating a new warranty record."""
@@ -64,7 +64,7 @@ class TestWarrantyRecordRoutes:
             "provider": "Honda",
             "start_date": datetime.now().date().isoformat(),
             "end_date": (datetime.now() + timedelta(days=365 * 3)).date().isoformat(),
-            "mileage_limit": 36000,
+            "mileage_limit_km": 57936.24,
             "coverage_details": "Comprehensive coverage excluding wear items",
             "notes": "Factory warranty",
         }
@@ -78,7 +78,7 @@ class TestWarrantyRecordRoutes:
         data = response.json()
         assert data["warranty_type"] == payload["warranty_type"]
         assert data["provider"] == payload["provider"]
-        assert data["mileage_limit"] == payload["mileage_limit"]
+        assert float(data["mileage_limit_km"]) == payload["mileage_limit_km"]
         assert "id" in data
         assert "created_at" in data
 
@@ -91,7 +91,7 @@ class TestWarrantyRecordRoutes:
                 "warranty_type": "Extended",
                 "start_date": "2024-01-01",
                 "end_date": "2027-01-01",
-                "mileage_limit": 100000,
+                "mileage_limit_km": 160934.0,
             },
             headers=auth_headers,
         )
@@ -99,7 +99,7 @@ class TestWarrantyRecordRoutes:
 
         # Update the record
         update_data = {
-            "mileage_limit": 125000,
+            "mileage_limit_km": 201167.5,
             "notes": "Extended coverage purchased",
             "policy_number": "EXT-12345",
         }
@@ -112,7 +112,7 @@ class TestWarrantyRecordRoutes:
 
         assert response.status_code == 200
         data = response.json()
-        assert data["mileage_limit"] == 125000
+        assert float(data["mileage_limit_km"]) == 201167.5
         assert data["notes"] == "Extended coverage purchased"
         assert data["policy_number"] == "EXT-12345"
 
@@ -158,7 +158,7 @@ class TestWarrantyRecordRoutes:
         invalid_payload = {
             "warranty_type": "Test",
             "start_date": "2024-01-01",
-            "mileage_limit": -1000,  # Negative mileage should fail
+            "mileage_limit_km": -1609.34,  # Negative mileage should fail
         }
 
         response = await client.post(
@@ -215,7 +215,7 @@ class TestWarrantyRecordRoutes:
         assert data["warranty_type"] == "Other"
         assert data["provider"] is None
         assert data["end_date"] is None
-        assert data["mileage_limit"] is None
+        assert data["mileage_limit_km"] is None
 
     async def test_warranty_ordering(self, client: AsyncClient, auth_headers, test_vehicle):
         """Test that warranties are ordered by start_date descending."""
@@ -290,7 +290,7 @@ class TestWarrantyRecordRoutes:
             "provider": "Third Party Warranty Co",
             "start_date": "2024-01-01",
             "end_date": "2030-01-01",
-            "mileage_limit": 150000,
+            "mileage_limit_km": 241401.0,
             "coverage_details": "Covers engine, transmission, drivetrain, electronics, A/C",
             "policy_number": "TPW-2024-12345-EXT",
             "notes": "Purchased at time of sale, transferable to new owner",
@@ -304,4 +304,7 @@ class TestWarrantyRecordRoutes:
         assert response.status_code == 201
         data = response.json()
         for key, value in payload.items():
-            assert data[key] == value
+            if key == "mileage_limit_km":
+                assert float(data[key]) == value
+            else:
+                assert data[key] == value

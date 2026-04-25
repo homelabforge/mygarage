@@ -84,9 +84,9 @@ async def get_fuel_record(
     service = FuelRecordService(db)
     record, mpg = await service.get_fuel_record(vin, record_id, current_user)
 
-    # Build response with MPG
+    # Build response with L/100km
     record_dict = record.__dict__.copy()
-    record_dict["mpg"] = mpg
+    record_dict["l_per_100km"] = mpg
 
     return FuelRecordResponse(**record_dict)
 
@@ -108,9 +108,9 @@ async def create_fuel_record(
     service = FuelRecordService(db)
     record, mpg = await service.create_fuel_record(vin, record_data, current_user)
 
-    # Build response with MPG
+    # Build response with L/100km
     record_dict = record.__dict__.copy()
-    record_dict["mpg"] = mpg
+    record_dict["l_per_100km"] = mpg
 
     return FuelRecordResponse(**record_dict)
 
@@ -133,9 +133,9 @@ async def update_fuel_record(
     service = FuelRecordService(db)
     record, mpg = await service.update_fuel_record(vin, record_id, record_data, current_user)
 
-    # Build response with MPG
+    # Build response with L/100km
     record_dict = record.__dict__.copy()
-    record_dict["mpg"] = mpg
+    record_dict["l_per_100km"] = mpg
 
     return FuelRecordResponse(**record_dict)
 

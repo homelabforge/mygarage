@@ -353,7 +353,7 @@ class TestWriteAuthEnforcement:
         try:
             response = await client.post(
                 f"/api/vehicles/{vehicle.vin}/odometer",
-                json={"vin": vehicle.vin, "date": "2024-01-01", "mileage": 10000},
+                json={"vin": vehicle.vin, "date": "2024-01-01", "odometer_km": 16093.40},
                 headers=nonadmin_headers,
             )
             assert response.status_code == 403
@@ -372,7 +372,7 @@ class TestWriteAuthEnforcement:
         try:
             response = await client.put(
                 f"/api/vehicles/{vehicle.vin}/odometer/9999",
-                json={"date": "2024-01-01", "mileage": 10001},
+                json={"date": "2024-01-01", "odometer_km": 16095.01},
                 headers=nonadmin_headers,
             )
             assert response.status_code == 403

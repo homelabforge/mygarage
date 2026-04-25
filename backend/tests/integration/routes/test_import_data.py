@@ -103,7 +103,7 @@ class TestImportRoutes:
         assert response.status_code == 200
         data = response.json()
         assert data["error_count"] == 1
-        assert "Reading/Mileage is required" in data["errors"][0]
+        assert "Reading is required" in data["errors"][0]
 
     async def test_import_warranties_csv(self, client: AsyncClient, auth_headers, test_vehicle):
         """Test importing warranty records from CSV.

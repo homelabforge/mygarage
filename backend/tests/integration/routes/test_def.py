@@ -41,7 +41,7 @@ class TestDEFRecordRoutes:
         assert response.status_code == 201
         data = response.json()
         assert "id" in data
-        assert float(data["gallons"]) == payload["gallons"]
+        assert float(data["liters"]) == pytest.approx(payload["liters"], abs=0.01)
         assert float(data["cost"]) == payload["cost"]
         assert float(data["fill_level"]) == payload["fill_level"]
         assert data["source"] == payload["source"]
@@ -85,7 +85,7 @@ class TestDEFRecordRoutes:
         assert response.status_code == 200
         data = response.json()
         assert data["id"] == record["id"]
-        assert float(data["gallons"]) == payload["gallons"]
+        assert float(data["liters"]) == pytest.approx(payload["liters"], abs=0.01)
 
     async def test_get_def_record_not_found(self, client: AsyncClient, auth_headers, test_vehicle):
         """Test retrieving a non-existent DEF record."""
@@ -171,7 +171,7 @@ class TestDEFRecordRoutes:
             json={
                 "vin": fake_vin,
                 "date": "2024-01-15",
-                "gallons": 2.5,
+                "liters": 9.464,
             },
             headers=auth_headers,
         )
@@ -233,24 +233,24 @@ class TestDEFAnalytics:
             {
                 "vin": test_vehicle["vin"],
                 "date": "2024-01-01",
-                "mileage": 10000,
-                "gallons": 2.5,
+                "odometer_km": 16093.40,
+                "liters": 9.464,
                 "cost": 15.00,
                 "fill_level": 1.0,
             },
             {
                 "vin": test_vehicle["vin"],
                 "date": "2024-02-01",
-                "mileage": 12000,
-                "gallons": 2.5,
+                "odometer_km": 19312.08,
+                "liters": 9.464,
                 "cost": 16.00,
                 "fill_level": 0.75,
             },
             {
                 "vin": test_vehicle["vin"],
                 "date": "2024-03-01",
-                "mileage": 14000,
-                "gallons": 2.5,
+                "odometer_km": 22530.76,
+                "liters": 9.464,
                 "cost": 14.50,
                 "fill_level": 0.50,
             },
@@ -272,5 +272,5 @@ class TestDEFAnalytics:
         assert response.status_code == 200
         data = response.json()
         assert data["record_count"] >= 3
-        assert data["total_gallons"] is not None
+        assert data["total_liters"] is not None
         assert data["total_cost"] is not None

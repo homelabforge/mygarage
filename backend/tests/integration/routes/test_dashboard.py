@@ -109,7 +109,7 @@ class TestDashboardRoutes:
             f"/api/vehicles/{test_vehicle['vin']}/service-visits",
             json={
                 "date": "2024-06-15",
-                "mileage": 55000,
+                "odometer_km": 88513.7,
                 "service_category": "Maintenance",
                 "notes": "Dashboard Test Service",
                 "line_items": [
@@ -139,10 +139,9 @@ class TestDashboardRoutes:
             json={
                 "vin": test_vehicle["vin"],
                 "date": "2024-06-15",
-                "mileage": 56000,
-                "gallons": 12.5,
-                "price_per_gallon": 3.50,
-                "total_cost": 43.75,
+                "odometer_km": 90123.04,
+                "liters": 47.318,
+                "cost": 43.75,
                 "fuel_type": "Regular",
             },
             headers=auth_headers,
@@ -208,7 +207,7 @@ class TestDashboardRoutes:
             f"/api/vehicles/{test_vehicle['vin']}/service-visits",
             json={
                 "date": "2024-07-15",
-                "mileage": 60000,
+                "odometer_km": 96560.4,
                 "service_category": "Maintenance",
                 "notes": "Latest Date Test",
                 "line_items": [
