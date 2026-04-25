@@ -10,14 +10,20 @@ import { FormError } from './FormError'
 import { useCreatePropaneRecord, useUpdatePropaneRecord } from '../hooks/queries/usePropaneRecords'
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { UnitConverter, UnitFormatter } from '../utils/units'
+import { toCanonicalKg, toCanonicalLiters } from '../utils/decimalSafe'
 import { formatDateForInput } from '../utils/dateUtils'
 import CurrencyInputPrefix from './common/CurrencyInputPrefix'
 
+// Propane density: 1 kg ≈ 1.968 L (1 gal ≈ 1.923 kg, 1 gal = 3.78541 L).
+const KG_TO_LITERS = 1.968
+
+// Tank sizes in kg (canonical). Display label is rendered with locale-aware
+// units at render time.
 const TANK_SIZES = [
-  { label: '20 lb (portable)', value: 20, gallons: 4.7 },
-  { label: '33 lb (portable)', value: 33, gallons: 7.8 },
-  { label: '100 lb (RV)', value: 100, gallons: 23.6 },
-  { label: '420 lb (RV)', value: 420, gallons: 99.1 },
+  { kg: 9.07,   labelMetric: '9 kg (portable)',   labelImperial: '20 lb (portable)' },
+  { kg: 14.97,  labelMetric: '15 kg (portable)',  labelImperial: '33 lb (portable)' },
+  { kg: 45.36,  labelMetric: '45 kg (RV)',        labelImperial: '100 lb (RV)' },
+  { kg: 190.51, labelMetric: '190 kg (RV)',       labelImperial: '420 lb (RV)' },
 ] as const
 
 interface PropaneRecordFormProps {
@@ -57,15 +63,15 @@ export default function PropaneRecordForm({
     resolver: zodResolver(propaneRecordSchema) as Resolver<PropaneRecordFormData>,
     defaultValues: {
       date: formatDateForInput(record?.date),
-      propane_gallons: (() => {
-        if (!record?.propane_gallons) return undefined
-        const gallons = typeof record.propane_gallons === 'string'
-          ? parseFloat(record.propane_gallons)
-          : record.propane_gallons
-        if (isNaN(gallons)) return undefined
-        return system === 'metric'
-          ? UnitConverter.gallonsToLiters(gallons) ?? undefined
-          : gallons
+      propane_liters: (() => {
+        if (record?.propane_liters == null) return undefined
+        const liters = typeof record.propane_liters === 'string'
+          ? parseFloat(record.propane_liters)
+          : record.propane_liters
+        if (isNaN(liters)) return undefined
+        return system === 'imperial'
+          ? UnitConverter.litersToGallons(liters) ?? undefined
+          : liters
       })(),
       price_per_unit: (() => {
         if (!record?.price_per_unit) return undefined
@@ -83,15 +89,22 @@ export default function PropaneRecordForm({
       })(),
       vendor: extractVendor(record?.notes ?? undefined) || '',
       notes: record?.notes?.replace(/^Vendor: .+?\n/, '') || '',
-      tank_size_lb: record?.tank_size_lb ? parseFloat(record.tank_size_lb.toString()) : undefined,
+      tank_size_kg: (() => {
+        if (record?.tank_size_kg == null) return undefined
+        const kg = typeof record.tank_size_kg === 'string'
+          ? parseFloat(record.tank_size_kg)
+          : record.tank_size_kg
+        if (isNaN(kg)) return undefined
+        return system === 'imperial' ? UnitConverter.kgToLbs(kg) ?? undefined : kg
+      })(),
       tank_quantity: record?.tank_quantity ?? undefined,
     },
   })
 
-  // Watch gallons and price for auto-calculation
-  const gallons = watch('propane_gallons')
+  // Watch volume and price for auto-calculation
+  const propaneVolume = watch('propane_liters')
   const pricePerUnit = watch('price_per_unit')
-  const tankSizeLb = watch('tank_size_lb')
+  const tankSizeDisplay = watch('tank_size_kg')
   const tankQuantity = watch('tank_quantity')
 
   const [isInitialMount, setIsInitialMount] = useState(true)
@@ -102,31 +115,36 @@ export default function PropaneRecordForm({
       return
     }
 
-    if (gallons && pricePerUnit) {
-      const gallonsNum = typeof gallons === 'number' ? gallons : parseFloat(String(gallons))
+    if (propaneVolume && pricePerUnit) {
+      const volNum = typeof propaneVolume === 'number' ? propaneVolume : parseFloat(String(propaneVolume))
       const priceNum = typeof pricePerUnit === 'number' ? pricePerUnit : parseFloat(String(pricePerUnit))
 
-      if (!isNaN(gallonsNum) && !isNaN(priceNum)) {
-        const total = gallonsNum * priceNum
+      if (!isNaN(volNum) && !isNaN(priceNum)) {
+        const total = volNum * priceNum
         setValue('cost', parseFloat(total.toFixed(2)))
       }
     }
-  }, [gallons, pricePerUnit, setValue, isInitialMount])
+  }, [propaneVolume, pricePerUnit, setValue, isInitialMount])
 
-  // Auto-calculate propane_gallons from tank data
+  // Auto-calculate propane volume from tank data.
+  // tank_size_kg field actually holds the user's displayed tank weight (kg or lb).
   useEffect(() => {
     if (isInitialMount) return
 
-    if (tankSizeLb && tankQuantity) {
-      const calculated = (parseFloat(tankSizeLb.toString()) / 4.24) * tankQuantity
-      const convertedValue = system === 'metric'
-        ? UnitConverter.gallonsToLiters(calculated)
-        : calculated
-      if (convertedValue !== null) {
-        setValue('propane_gallons', parseFloat(convertedValue.toFixed(3)))
+    if (tankSizeDisplay && tankQuantity) {
+      const tankNum = parseFloat(tankSizeDisplay.toString())
+      // Convert to canonical kg, then to liters via density, then back to user's
+      // displayed volume unit.
+      const kg = system === 'imperial' ? (UnitConverter.lbsToKg(tankNum) ?? tankNum) : tankNum
+      const totalLiters = kg * tankQuantity * KG_TO_LITERS
+      const displayVolume = system === 'imperial'
+        ? UnitConverter.litersToGallons(totalLiters)
+        : totalLiters
+      if (displayVolume !== null && displayVolume !== undefined) {
+        setValue('propane_liters', parseFloat(displayVolume.toFixed(3)))
       }
     }
-  }, [tankSizeLb, tankQuantity, system, setValue, isInitialMount])
+  }, [tankSizeDisplay, tankQuantity, system, setValue, isInitialMount])
 
   const onSubmit = async (data: PropaneRecordFormData) => {
     setError(null)
@@ -138,18 +156,17 @@ export default function PropaneRecordForm({
         finalNotes = `Vendor: ${data.vendor.trim()}\n${finalNotes}`.trim()
       }
 
-      // We're using fuel_records table but ONLY propane_gallons field
+      // We're using fuel_records table but ONLY propane_liters field
       const payload: FuelRecordCreate | FuelRecordUpdate = {
         vin,
         date: data.date,
-        mileage: undefined,  // Never set for propane
-        gallons: undefined,  // Never set for propane
-        propane_gallons: system === 'metric' && data.propane_gallons
-          ? UnitConverter.litersToGallons(data.propane_gallons) ?? data.propane_gallons
-          : data.propane_gallons,
-        tank_size_lb: data.tank_size_lb,
+        odometer_km: undefined,  // Never set for propane
+        liters: undefined,  // Never set for propane
+        propane_liters: toCanonicalLiters(data.propane_liters, system) ?? undefined,
+        tank_size_kg: toCanonicalKg(data.tank_size_kg, system) ?? undefined,
         tank_quantity: data.tank_quantity,
         price_per_unit: data.price_per_unit,
+        price_basis: 'per_tank',
         cost: data.cost,
         fuel_type: 'Propane',  // Always propane
         is_full_tank: false,  // Not relevant for propane
@@ -206,21 +223,27 @@ export default function PropaneRecordForm({
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label htmlFor="tank_size_lb" className="block text-sm font-medium text-garage-text mb-1">
-                  {t('propane.tankSize')}
+                <label htmlFor="tank_size_kg" className="block text-sm font-medium text-garage-text mb-1">
+                  {t('propane.tankSize')} ({UnitFormatter.getWeightUnit(system)})
                 </label>
                 <select
-                  id="tank_size_lb"
-                  {...register('tank_size_lb', { valueAsNumber: true })}
+                  id="tank_size_kg"
+                  {...register('tank_size_kg', { valueAsNumber: true })}
                   className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text border-garage-border"
                   disabled={isSubmitting}
                 >
                   <option value="">  {t('propane.selectTankSize')}  </option>
-                  {TANK_SIZES.map(tank => (
-                    <option key={tank.value} value={tank.value}>
-                      {tank.label}
-                    </option>
-                  ))}
+                  {TANK_SIZES.map(tank => {
+                    const value = system === 'imperial'
+                      ? Math.round(UnitConverter.kgToLbs(tank.kg) ?? 0)
+                      : tank.kg
+                    const label = system === 'imperial' ? tank.labelImperial : tank.labelMetric
+                    return (
+                      <option key={tank.kg} value={value}>
+                        {label}
+                      </option>
+                    )
+                  })}
                 </select>
               </div>
 
@@ -244,35 +267,40 @@ export default function PropaneRecordForm({
               </div>
             </div>
 
-            {/* Calculated Gallons Hint */}
-            {tankSizeLb && tankQuantity && (
-              <p className="text-xs text-garage-text-muted mt-2">
-                Auto-calculated: {((parseFloat(tankSizeLb.toString()) / 4.24) * tankQuantity).toFixed(2)} gallons
-                {system === 'metric' && UnitConverter.gallonsToLiters((parseFloat(tankSizeLb.toString()) / 4.24) * tankQuantity) && (
-                  ` (${UnitConverter.gallonsToLiters((parseFloat(tankSizeLb.toString()) / 4.24) * tankQuantity)?.toFixed(2)} L)`
-                )}
-              </p>
-            )}
+            {/* Calculated volume hint */}
+            {tankSizeDisplay && tankQuantity && (() => {
+              const tankNum = parseFloat(tankSizeDisplay.toString())
+              const kg = system === 'imperial' ? (UnitConverter.lbsToKg(tankNum) ?? tankNum) : tankNum
+              const totalLiters = kg * tankQuantity * KG_TO_LITERS
+              const display = system === 'imperial'
+                ? UnitConverter.litersToGallons(totalLiters)
+                : totalLiters
+              return (
+                <p className="text-xs text-garage-text-muted mt-2">
+                  Auto-calculated: {display?.toFixed(2)} {UnitFormatter.getVolumeUnit(system)}
+                </p>
+              )
+            })()}
           </div>
 
-          {/* Propane Gallons Field */}
+          {/* Propane volume field */}
           <div>
-            <label htmlFor="propane_gallons" className="block text-sm font-medium text-garage-text mb-1">
+            <label htmlFor="propane_liters" className="block text-sm font-medium text-garage-text mb-1">
               Propane ({UnitFormatter.getVolumeUnit(system)})
             </label>
             <input
               type="number"
-              id="propane_gallons"
-              {...register('propane_gallons', { valueAsNumber: true })}
+              id="propane_liters"
+              {...register('propane_liters', { valueAsNumber: true })}
               min="0"
               step="0.001"
               placeholder={system === 'imperial' ? '10.500' : '39.750'}
               className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
-                errors.propane_gallons ? 'border-red-500' : 'border-garage-border'
+                errors.propane_liters ? 'border-red-500' : 'border-garage-border'
               }`}
               disabled={isSubmitting}
             />
-            <FormError error={errors.propane_gallons} />
+            <FormError error={errors.propane_liters} />
           </div>
 
           <div className="grid grid-cols-2 gap-4">

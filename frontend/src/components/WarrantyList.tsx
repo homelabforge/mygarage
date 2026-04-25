@@ -5,6 +5,8 @@ import type { WarrantyRecord } from '../types/warranty'
 import { useWarrantyRecords, useDeleteWarrantyRecord } from '../hooks/queries/useWarrantyRecords'
 import { formatDateForDisplay, formatDateForInput } from '../utils/dateUtils'
 import { useDateLocale } from '../hooks/useDateLocale'
+import { useUnitPreference } from '../hooks/useUnitPreference'
+import { UnitFormatter } from '../utils/units'
 
 interface WarrantyListProps {
   vin: string
@@ -17,6 +19,7 @@ export default function WarrantyList({ vin, onAddClick, onEditClick }: WarrantyL
   const { data: warranties = [], isLoading, error } = useWarrantyRecords(vin)
   const deleteMutation = useDeleteWarrantyRecord(vin)
   const dateLocale = useDateLocale()
+  const { system, showBoth } = useUnitPreference()
 
   const handleDelete = (warrantyId: number) => {
     if (!confirm(t('warrantyList.confirmDelete'))) {
@@ -145,10 +148,10 @@ export default function WarrantyList({ vin, onAddClick, onEditClick }: WarrantyL
                     {warranty.end_date ? formatDate(warranty.end_date) : 'N/A'}
                   </p>
                 </div>
-                {warranty.mileage_limit && (
+                {warranty.mileage_limit_km && (
                   <div>
                     <p className="text-xs text-garage-text-muted mb-1">{t('warrantyList.mileageLimit')}</p>
-                    <p className="text-sm text-garage-text">{warranty.mileage_limit.toLocaleString()} mi</p>
+                    <p className="text-sm text-garage-text">{UnitFormatter.formatDistance(parseFloat(String(warranty.mileage_limit_km)), system, showBoth)}</p>
                   </div>
                 )}
                 {warranty.policy_number && (

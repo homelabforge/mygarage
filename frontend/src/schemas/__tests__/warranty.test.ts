@@ -17,7 +17,7 @@ describe('Warranty Schema', () => {
       ...validWarranty,
       provider: 'Ford Motor Company',
       end_date: '2027-01-15',
-      mileage_limit: 36000,
+      mileage_limit_km: 36000,
       coverage_details: 'Full bumper-to-bumper coverage',
       policy_number: 'W-12345',
       notes: 'Transferable to new owner',
@@ -38,7 +38,7 @@ describe('Warranty Schema', () => {
   it('rejects negative mileage_limit', () => {
     const result = warrantySchema.safeParse({
       ...validWarranty,
-      mileage_limit: -1000,
+      mileage_limit_km: -1000,
     })
     expect(result.success).toBe(false)
   })
@@ -46,19 +46,21 @@ describe('Warranty Schema', () => {
   it('transforms NaN mileage_limit to undefined', () => {
     const result = warrantySchema.safeParse({
       ...validWarranty,
-      mileage_limit: NaN,
+      mileage_limit_km: NaN,
     })
     expect(result.success).toBe(true)
     if (result.success) {
-      expect(result.data.mileage_limit).toBeUndefined()
+      expect(result.data.mileage_limit_km).toBeUndefined()
     }
   })
 
-  it('rejects non-integer mileage_limit', () => {
+  it('accepts non-integer mileage_limit_km (canonical km Decimal)', () => {
+    // Under metric-canonical, mileage_limit_km is a Decimal in km.
+    // Non-integer values are valid (e.g. converted from integer miles).
     const result = warrantySchema.safeParse({
       ...validWarranty,
-      mileage_limit: 36000.5,
+      mileage_limit_km: 36000.5,
     })
-    expect(result.success).toBe(false)
+    expect(result.success).toBe(true)
   })
 })

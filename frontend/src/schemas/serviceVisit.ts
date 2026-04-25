@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import {
   dateSchema,
-  optionalMileageSchema,
+  optionalOdometerSchema,
   optionalCurrencySchema,
 } from './shared'
 // Service categories matching backend Literal type
@@ -52,7 +52,7 @@ export const serviceVisitSchema = z.object({
     .or(z.nan())
     .transform(val => (typeof val === 'number' && isNaN(val) ? undefined : val)),
   date: dateSchema,
-  mileage: optionalMileageSchema,
+  odometer_km: optionalOdometerSchema,
   notes: z.string().max(5000, 'Notes too long (max 5000 characters)').optional(),
   insurance_claim_number: z
     .string()

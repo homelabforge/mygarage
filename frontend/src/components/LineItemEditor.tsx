@@ -5,6 +5,8 @@ import type { ServiceVisitFormLineItem } from '../types/serviceVisit'
 import type { ReminderDraft } from '../types/reminder'
 import InspectionResult from './InspectionResult'
 import CurrencyInputPrefix from './common/CurrencyInputPrefix'
+import { useUnitPreference } from '../hooks/useUnitPreference'
+import { UnitConverter, UnitFormatter } from '../utils/units'
 
 // Service suggestions per category
 const SERVICE_SUGGESTIONS: Record<string, string[]> = {
@@ -39,8 +41,13 @@ export default function LineItemEditor({
   currentMileage,
 }: LineItemEditorProps) {
   const { t } = useTranslation('vehicles')
+  const { system } = useUnitPreference()
   const [expanded, setExpanded] = useState(true)
   const [showSuggestions, setShowSuggestions] = useState(false)
+  // currentMileage is in canonical km; show user's display unit.
+  const currentDisplay = currentMileage != null
+    ? (system === 'imperial' ? UnitConverter.kmToMiles(currentMileage) ?? currentMileage : currentMileage)
+    : null
 
   const suggestions = item.category ? SERVICE_SUGGESTIONS[item.category] || [] : []
   const filteredSuggestions = suggestions.filter(s =>
@@ -54,7 +61,7 @@ export default function LineItemEditor({
         title: item.description || 'Service reminder',
         reminder_type: 'date',
         due_date: undefined,
-        due_mileage: undefined,
+        due_mileage_km: undefined,
         notes: undefined,
       }
       onChange(index, 'reminderDraft', draft)
@@ -319,23 +326,46 @@ export default function LineItemEditor({
                     {['mileage', 'both', 'smart'].includes(item.reminderDraft.reminder_type) && (
                       <div>
                         <label className="block text-xs font-medium text-garage-text mb-1">
-                          {currentMileage ? 'Miles Until Due' : 'Due Mileage (odometer)'}
+                          {currentMileage ? `Distance Until Due (${UnitFormatter.getDistanceUnit(system)})` : `Due Odometer (${UnitFormatter.getDistanceUnit(system)})`}
                         </label>
                         <input
                           type="number"
-                          value={item.reminderDraft.due_mileage ?? ''}
-                          onChange={(e) => handleReminderFieldChange('due_mileage', e.target.value ? parseInt(e.target.value) : undefined)}
+                          value={(() => {
+                            const km = item.reminderDraft?.due_mileage_km
+                            if (km == null) return ''
+                            const num = typeof km === 'string' ? parseFloat(km) : km
+                            if (isNaN(num)) return ''
+                            return system === 'imperial'
+                              ? Math.round(UnitConverter.kmToMiles(num) ?? num)
+                              : Math.round(num)
+                          })()}
+                          onChange={(e) => {
+                            const val = e.target.value ? parseInt(e.target.value) : undefined
+                            // Convert user-entered display value to canonical km.
+                            const km = val != null
+                              ? (system === 'imperial' ? UnitConverter.milesToKm(val) ?? val : val)
+                              : undefined
+                            handleReminderFieldChange('due_mileage_km', km)
+                          }}
                           min="1"
-                          placeholder={currentMileage ? 'e.g., 5000' : 'e.g., 92000'}
+                          placeholder={currentMileage ? 'e.g., 5000' : (system === 'imperial' ? 'e.g., 92000' : 'e.g., 148000')}
                           disabled={disabled}
                           className="w-full px-2 py-1.5 text-sm border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-surface text-garage-text"
                         />
-                        {currentMileage && item.reminderDraft.due_mileage ? (
-                          <p className="text-xs text-garage-text-muted mt-1">
-                            Current: {currentMileage.toLocaleString()} + {item.reminderDraft.due_mileage.toLocaleString()} = {(currentMileage + item.reminderDraft.due_mileage).toLocaleString()} mi target
-                          </p>
-                        ) : !currentMileage ? (
-                          <p className="text-xs text-warning mt-1">No odometer data — enter absolute target mileage</p>
+                        {currentMileage && item.reminderDraft.due_mileage_km != null && currentDisplay != null ? (() => {
+                          const dueKmRaw = item.reminderDraft.due_mileage_km
+                          const dueKm = typeof dueKmRaw === 'string' ? parseFloat(dueKmRaw) : dueKmRaw
+                          if (dueKm == null || isNaN(dueKm)) return null
+                          const intervalDisplay = system === 'imperial'
+                            ? Math.round(UnitConverter.kmToMiles(dueKm) ?? dueKm)
+                            : Math.round(dueKm)
+                          return (
+                            <p className="text-xs text-garage-text-muted mt-1">
+                              Current: {Math.round(currentDisplay).toLocaleString()} + {intervalDisplay.toLocaleString()} = {(Math.round(currentDisplay) + intervalDisplay).toLocaleString()} {UnitFormatter.getDistanceUnit(system)} target
+                            </p>
+                          )
+                        })() : !currentMileage ? (
+                          <p className="text-xs text-warning mt-1">No odometer data — enter absolute target distance</p>
                         ) : null}
                       </div>
                     )}

@@ -153,11 +153,11 @@ function VehicleStatisticsCard({ stats }: VehicleStatisticsCardProps) {
                   value={formatDate(stats.latest_fuel_date)}
                 />
               )}
-              {stats.latest_odometer_reading && (
+              {stats.latest_odometer_km && (
                 <ActivityRow
                   icon={<Gauge className="w-3.5 h-3.5" />}
                   label={t('vehicleStats.latestOdometer')}
-                  value={UnitFormatter.formatDistance(stats.latest_odometer_reading, system, false)}
+                  value={UnitFormatter.formatDistance(parseFloat(String(stats.latest_odometer_km)), system, false)}
                 />
               )}
             </div>
@@ -165,7 +165,7 @@ function VehicleStatisticsCard({ stats }: VehicleStatisticsCardProps) {
         )}
 
         {/* Fuel Economy */}
-        {stats.average_mpg && (
+        {stats.average_l_per_100km && (
           <div className="border-t border-garage-border pt-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -175,12 +175,12 @@ function VehicleStatisticsCard({ stats }: VehicleStatisticsCardProps) {
                 </span>
               </div>
               <span className="text-lg font-bold text-garage-text">
-                {UnitFormatter.formatFuelEconomy(stats.average_mpg, system, false)}
+                {UnitFormatter.formatFuelEconomy(parseFloat(String(stats.average_l_per_100km)), system, false)}
               </span>
             </div>
-            {stats.recent_mpg && stats.recent_mpg !== stats.average_mpg && (
+            {stats.recent_l_per_100km && stats.recent_l_per_100km !== stats.average_l_per_100km && (
               <div className="text-xs text-garage-text-muted mt-1">
-                {t('vehicleStats.recent')}: {UnitFormatter.formatFuelEconomy(stats.recent_mpg, system, false)}
+                {t('vehicleStats.recent')}: {UnitFormatter.formatFuelEconomy(parseFloat(String(stats.recent_l_per_100km)), system, false)}
               </div>
             )}
           </div>

@@ -27,7 +27,9 @@ export default function OdometerRecordList({ vin, onAddClick, onEditClick }: Odo
   const importMutation = useImportOdometerCSV(vin)
 
   const records = data?.records ?? []
-  const latestMileage = data?.latest_mileage ?? null
+  const latestOdometerKm = data?.latest_odometer_km != null
+    ? (typeof data.latest_odometer_km === 'string' ? parseFloat(data.latest_odometer_km) : data.latest_odometer_km)
+    : null
 
   const handleExportCSV = async () => {
     setExporting(true)
@@ -173,7 +175,7 @@ export default function OdometerRecordList({ vin, onAddClick, onEditClick }: Odo
         </div>
       </div>
 
-      {latestMileage !== null && (
+      {latestOdometerKm !== null && (
         <div className="bg-primary/10 border border-primary rounded-lg p-4">
           <div className="flex items-center gap-3">
             <div className="bg-primary/20 rounded-full p-3">
@@ -182,7 +184,7 @@ export default function OdometerRecordList({ vin, onAddClick, onEditClick }: Odo
             <div>
               <p className="text-sm text-garage-text-muted">{t('odometerList.latestMileage')}</p>
               <p className="text-2xl font-bold text-garage-text">
-                {UnitFormatter.formatDistance(latestMileage, system, showBoth)}
+                {UnitFormatter.formatDistance(latestOdometerKm, system, showBoth)}
               </p>
             </div>
           </div>
@@ -228,7 +230,7 @@ export default function OdometerRecordList({ vin, onAddClick, onEditClick }: Odo
                     <td className="px-4 py-3 whitespace-nowrap">
                       <div className="flex items-center gap-2 text-sm font-medium text-garage-text">
                         <Gauge className="w-4 h-4 text-garage-text-muted" />
-                        {UnitFormatter.formatDistance(record.mileage, system, showBoth)}
+                        {UnitFormatter.formatDistance(parseFloat(String(record.odometer_km)), system, showBoth)}
                         {(record as Record<string, unknown>).source === 'livelink' && (
                           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs bg-primary/10 text-primary" title="Auto-tracked by LiveLink">
                             <Radio className="w-3 h-3" />

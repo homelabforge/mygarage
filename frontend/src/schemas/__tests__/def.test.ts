@@ -14,8 +14,8 @@ describe('DEF Record Schema', () => {
   it('validates DEF record with all optional fields', () => {
     const result = defRecordSchema.safeParse({
       ...validDef,
-      mileage: 45000,
-      gallons: 2.5,
+      odometer_km: 45000,
+      liters: 2.5,
       price_per_unit: 3.99,
       cost: 9.98,
       fill_level: 75,
@@ -61,7 +61,7 @@ describe('DEF Record Schema', () => {
   it('rejects negative mileage', () => {
     const result = defRecordSchema.safeParse({
       ...validDef,
-      mileage: -100,
+      odometer_km: -100,
     })
     expect(result.success).toBe(false)
   })

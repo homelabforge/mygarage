@@ -15,6 +15,7 @@ import { useCreateServiceVisit, useUpdateServiceVisit } from '../hooks/queries/u
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { useLatestMileage } from '../hooks/useLatestMileage'
 import { UnitConverter, UnitFormatter } from '../utils/units'
+import { toCanonicalKm } from '../utils/decimalSafe'
 
 interface ServiceVisitFormProps {
   vin: string
@@ -72,7 +73,11 @@ export default function ServiceVisitForm({
       return {
         vendor_id: visit.vendor_id ?? undefined,
         date: visit.date.split('T')[0],
-        mileage: system === 'metric' && visit.mileage ? UnitConverter.milesToKm(Number(visit.mileage)) ?? Number(visit.mileage) : visit.mileage ? Number(visit.mileage) : undefined,
+        odometer_km: visit.odometer_km != null
+          ? (system === 'imperial'
+              ? UnitConverter.kmToMiles(Number(visit.odometer_km)) ?? Number(visit.odometer_km)
+              : Number(visit.odometer_km))
+          : undefined,
         notes: visit.notes || '',
         insurance_claim_number: visit.insurance_claim_number || '',
         tax_amount: visit.tax_amount !== undefined && visit.tax_amount !== null ? Number(visit.tax_amount) : undefined,
@@ -98,7 +103,7 @@ export default function ServiceVisitForm({
     return {
       vendor_id: undefined,
       date: dateStr,
-      mileage: undefined,
+      odometer_km: undefined,
       notes: '',
       insurance_claim_number: '',
       tax_amount: undefined,
@@ -194,17 +199,16 @@ export default function ServiceVisitForm({
 
     setSubmitting(true)
     try {
-      // Convert mileage from user's unit system to imperial
-      // Mileage must be rounded to integer - backend stores as INT
-      const convertedMileage = system === 'metric' && formData.mileage
-        ? UnitConverter.kmToMiles(formData.mileage)
-        : formData.mileage
-      const mileage = convertedMileage != null ? Math.round(convertedMileage) : undefined
+      // Convert user-entered odometer to canonical km for the API.
+      const odometerKm = toCanonicalKm(formData.odometer_km, system) ?? undefined
 
-      // Convert reminder mileage interval to absolute odometer target
-      const toAbsoluteMileage = (interval: number | undefined | null): number | undefined => {
-        if (!interval) return undefined
-        return currentMileage ? currentMileage + interval : interval
+      // Reminder due_mileage_km interval is already canonical km (LineItemEditor
+      // converts on input). Add to current km baseline for absolute target.
+      const toAbsoluteKm = (interval: number | string | null | undefined): number | undefined => {
+        if (interval == null) return undefined
+        const num = typeof interval === 'string' ? parseFloat(interval) : interval
+        if (isNaN(num)) return undefined
+        return currentMileage ? currentMileage + num : num
       }
 
       if (isEdit && visit) {
@@ -225,7 +229,7 @@ export default function ServiceVisitForm({
             title: item.reminderDraft.title,
             reminder_type: item.reminderDraft.reminder_type,
             due_date: item.reminderDraft.due_date,
-            due_mileage: toAbsoluteMileage(item.reminderDraft.due_mileage),
+            due_mileage_km: toAbsoluteKm(item.reminderDraft.due_mileage_km),
             notes: item.reminderDraft.notes,
           } : undefined,
         }))
@@ -234,7 +238,7 @@ export default function ServiceVisitForm({
           id: visit.id,
           vendor_id: formData.vendor_id,
           date: formData.date,
-          mileage,
+          odometer_km: odometerKm,
           notes: formData.notes || undefined,
           insurance_claim_number: formData.insurance_claim_number || undefined,
           tax_amount: formData.tax_amount,
@@ -259,7 +263,7 @@ export default function ServiceVisitForm({
             title: item.reminderDraft.title,
             reminder_type: item.reminderDraft.reminder_type,
             due_date: item.reminderDraft.due_date,
-            due_mileage: toAbsoluteMileage(item.reminderDraft.due_mileage),
+            due_mileage_km: toAbsoluteKm(item.reminderDraft.due_mileage_km),
             notes: item.reminderDraft.notes,
           } : undefined,
         }))
@@ -267,7 +271,7 @@ export default function ServiceVisitForm({
         const payload: ServiceVisitCreate = {
           vendor_id: formData.vendor_id,
           date: formData.date,
-          mileage,
+          odometer_km: odometerKm,
           notes: formData.notes || undefined,
           insurance_claim_number: formData.insurance_claim_number || undefined,
           tax_amount: formData.tax_amount,
@@ -330,9 +334,10 @@ export default function ServiceVisitForm({
                   </label>
                   <input
                     type="number"
-                    value={formData.mileage ?? ''}
-                    onChange={(e) => handleFieldChange('mileage', e.target.value ? parseFloat(e.target.value) : undefined)}
+                    value={formData.odometer_km ?? ''}
+                    onChange={(e) => handleFieldChange('odometer_km', e.target.value ? parseFloat(e.target.value) : undefined)}
                     min="0"
+                    step="0.1"
                     placeholder={system === 'imperial' ? '45000' : '72420'}
                     disabled={submitting}
                     className="w-full px-3 py-2 border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text"

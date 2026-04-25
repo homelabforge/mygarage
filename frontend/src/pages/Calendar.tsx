@@ -13,6 +13,8 @@ import { useNavigate } from 'react-router-dom'
 import type { CalendarEvent, CalendarResponse } from '../types/calendar'
 import type { Vehicle } from '../types/vehicle'
 import api from '../services/api'
+import { useUnitPreference } from '../hooks/useUnitPreference'
+import { UnitFormatter, UnitConverter } from '../utils/units'
 
 // Map event type -> Schedule-X calendarId for per-type coloring
 const EVENT_CALENDARS = {
@@ -41,6 +43,7 @@ const EVENT_CALENDARS = {
 export default function CalendarPage() {
   const { t } = useTranslation('vehicles')
   const navigate = useNavigate()
+  const { system } = useUnitPreference()
   const [events, setEvents] = useState<CalendarEvent[]>([])
   const [summary, setSummary] = useState({ total: 0, overdue: 0, upcoming_7_days: 0, upcoming_30_days: 0 })
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
@@ -644,10 +647,10 @@ export default function CalendarPage() {
                             </span>
                           )}
                           {/* Phase 3: Mileage badge */}
-                          {event.due_mileage && (
+                          {event.due_mileage_km && (
                             <span className="flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-blue-500/20 text-blue-500">
                               <Gauge className="w-3 h-3" />
-                              {event.due_mileage.toLocaleString()} mi
+                              {UnitFormatter.formatDistance(parseFloat(event.due_mileage_km), system)}
                             </span>
                           )}
                           <span className={`text-xs font-medium ${
@@ -664,7 +667,7 @@ export default function CalendarPage() {
                           {formatDate(event.date)} • {getDaysUntil(event.date)}
                         </p>
                         {/* Maintenance detail fields */}
-                        {event.type === 'maintenance' && (event.status || event.miles_until_due !== undefined) && (
+                        {event.type === 'maintenance' && (event.status || event.km_until_due != null) && (
                           <div className="flex flex-wrap gap-1.5 mt-1.5">
                             {event.status && (
                               <span className={`text-xs px-1.5 py-0.5 rounded ${
@@ -678,17 +681,26 @@ export default function CalendarPage() {
                                  event.status === 'overdue' ? 'Overdue' : 'On Track'}
                               </span>
                             )}
-                            {event.miles_until_due != null && (
-                              <span className={`text-xs px-1.5 py-0.5 rounded ${
-                                event.miles_until_due <= 0 ? 'bg-danger/20 text-danger' :
-                                event.miles_until_due <= 500 ? 'bg-warning/20 text-warning' :
-                                'bg-garage-bg text-garage-text-muted'
-                              }`}>
-                                {event.miles_until_due <= 0
-                                  ? `${Math.abs(event.miles_until_due).toLocaleString()} mi over`
-                                  : `${event.miles_until_due.toLocaleString()} mi left`}
-                              </span>
-                            )}
+                            {(() => {
+                              if (event.km_until_due == null) return null
+                              const km = parseFloat(event.km_until_due)
+                              if (isNaN(km)) return null
+                              const distanceUnit = UnitFormatter.getDistanceUnit(system)
+                              // 500 mi ≈ 805 km warning threshold; convert to display unit for thresholds.
+                              const warnThresholdInDisplay = 500
+                              const displayValue = system === 'imperial' ? (UnitConverter.kmToMiles(km) ?? 0) : km
+                              return (
+                                <span className={`text-xs px-1.5 py-0.5 rounded ${
+                                  displayValue <= 0 ? 'bg-danger/20 text-danger' :
+                                  displayValue <= warnThresholdInDisplay ? 'bg-warning/20 text-warning' :
+                                  'bg-garage-bg text-garage-text-muted'
+                                }`}>
+                                  {displayValue <= 0
+                                    ? `${Math.abs(displayValue).toLocaleString()} ${distanceUnit} over`
+                                    : `${displayValue.toLocaleString()} ${distanceUnit} left`}
+                                </span>
+                              )
+                            })()}
                           </div>
                         )}
                       </div>
@@ -809,9 +821,9 @@ export default function CalendarPage() {
                     <p className="text-sm text-garage-text-muted">
                       {selectedEventForNotes.vehicle_nickname} • {formatDate(selectedEventForNotes.date)}
                     </p>
-                    {selectedEventForNotes.due_mileage && (
+                    {selectedEventForNotes.due_mileage_km && (
                       <p className="text-sm text-garage-text-muted mt-2">
-                        Due at: {selectedEventForNotes.due_mileage.toLocaleString()} miles
+                        Due at: {UnitFormatter.formatDistance(parseFloat(selectedEventForNotes.due_mileage_km), system)}
                       </p>
                     )}
                   </div>

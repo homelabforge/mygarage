@@ -9,10 +9,10 @@ export function usePropaneRecords(vin: string) {
       const { data } = await api.get<FuelRecordListResponse>(
         `/vehicles/${vin}/fuel`
       )
-      // Filter to only records with propane_gallons and no regular gallons
+      // Filter to only records with propane_liters and no regular liters
       const propaneRecords = (data.records || []).filter((r: FuelRecord) => {
-        const propaneGallons = typeof r.propane_gallons === 'string' ? parseFloat(r.propane_gallons) : r.propane_gallons
-        return propaneGallons && propaneGallons > 0 && !r.gallons
+        const propaneLiters = typeof r.propane_liters === 'string' ? parseFloat(r.propane_liters) : r.propane_liters
+        return propaneLiters && propaneLiters > 0 && !r.liters
       })
       return { records: propaneRecords, total: propaneRecords.length }
     },

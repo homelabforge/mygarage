@@ -202,8 +202,8 @@ export default function Analytics() {
     rows.push(['Months Tracked', cost_analysis.months_tracked.toString()])
     rows.push(['Service Count', cost_analysis.service_count.toString()])
     rows.push(['Fuel Count', cost_analysis.fuel_count.toString()])
-    if (cost_analysis.cost_per_mile) {
-      rows.push(['Cost Per Mile', formatCurrency(cost_analysis.cost_per_mile, { currencyCode, locale })])
+    if (cost_analysis.cost_per_km) {
+      rows.push([UnitFormatter.getCostPerDistanceLabel(system), UnitFormatter.formatCostPerDistance(parseFloat(String(cost_analysis.cost_per_km)), system, currencyCode, locale)])
     }
     rows.push([]) // Empty row
 
@@ -466,9 +466,9 @@ export default function Analytics() {
                     <span className="text-xs uppercase tracking-wide">{alert.severity}</span>
                   </div>
                   <p className="text-sm">{alert.message}</p>
-                  {(alert.recent_mpg || alert.baseline_mpg) && (
+                  {(alert.recent_l_per_100km || alert.baseline_l_per_100km) && (
                     <p className="text-xs mt-2">
-                      Recent: {alert.recent_mpg ? UnitFormatter.formatFuelEconomy(parseFloat(alert.recent_mpg), system, showBoth) : '—'} • Baseline: {alert.baseline_mpg ? UnitFormatter.formatFuelEconomy(parseFloat(alert.baseline_mpg), system, showBoth) : '—'}
+                      Recent: {alert.recent_l_per_100km ? UnitFormatter.formatFuelEconomy(parseFloat(alert.recent_l_per_100km), system, showBoth) : '—'} • Baseline: {alert.baseline_l_per_100km ? UnitFormatter.formatFuelEconomy(parseFloat(alert.baseline_l_per_100km), system, showBoth) : '—'}
                     </p>
                   )}
                 </div>
@@ -544,7 +544,7 @@ export default function Analytics() {
               <Fuel className="w-5 h-5 text-garage-text-muted" />
             </div>
             <p className="text-2xl font-bold text-garage-text">
-              {fuel_economy.average_mpg ? UnitFormatter.formatFuelEconomy(parseFloat(fuel_economy.average_mpg), system, showBoth) : 'N/A'}
+              {fuel_economy.average_l_per_100km ? UnitFormatter.formatFuelEconomy(parseFloat(fuel_economy.average_l_per_100km), system, showBoth) : 'N/A'}
             </p>
             <div className="flex items-center gap-2 mt-1">
               {getTrendIcon(fuel_economy.trend)}
@@ -556,15 +556,15 @@ export default function Analytics() {
         {isMotorized && (
           <div className="bg-garage-surface border border-garage-border rounded-lg p-6">
             <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-garage-text-muted">Cost Per Mile</h3>
+              <h3 className="text-sm font-medium text-garage-text-muted">{UnitFormatter.getCostPerDistanceLabel(system)}</h3>
               <LineChart className="w-5 h-5 text-garage-text-muted" />
             </div>
             <p className="text-2xl font-bold text-garage-text">
-              {cost_analysis.cost_per_mile ? formatCurrency(cost_analysis.cost_per_mile, { currencyCode, locale }) : 'N/A'}
+              {cost_analysis.cost_per_km ? UnitFormatter.formatCostPerDistance(parseFloat(String(cost_analysis.cost_per_km)), system, currencyCode, locale) : 'N/A'}
             </p>
-            {analytics.total_miles_driven && (
+            {analytics.total_km_driven && (
               <p className="text-xs text-garage-text-muted mt-1">
-                {UnitFormatter.formatDistance(analytics.total_miles_driven, system, showBoth)} driven
+                {UnitFormatter.formatDistance(parseFloat(String(analytics.total_km_driven)), system, showBoth)} driven
               </p>
             )}
           </div>
@@ -817,8 +817,8 @@ export default function Analytics() {
                       {prediction.predicted_date && (
                         <span className="text-garage-text-muted">{formatDate(prediction.predicted_date)}</span>
                       )}
-                      {prediction.predicted_mileage && (
-                        <span className="text-garage-text-muted">@ {UnitFormatter.formatDistance(prediction.predicted_mileage, system, false)}</span>
+                      {prediction.predicted_odometer_km && (
+                        <span className="text-garage-text-muted">@ {UnitFormatter.formatDistance(parseFloat(String(prediction.predicted_odometer_km)), system, false)}</span>
                       )}
                     </div>
                     {/* Scheduled Maintenance if exists */}
@@ -828,8 +828,8 @@ export default function Analytics() {
                         {prediction.schedule_item_next_date && (
                           <span className="text-garage-text-muted">{formatDate(prediction.schedule_item_next_date)}</span>
                         )}
-                        {prediction.schedule_item_next_mileage && (
-                          <span className="text-garage-text-muted">@ {UnitFormatter.formatDistance(prediction.schedule_item_next_mileage, system, false)}</span>
+                        {prediction.schedule_item_next_odometer_km && (
+                          <span className="text-garage-text-muted">@ {UnitFormatter.formatDistance(parseFloat(String(prediction.schedule_item_next_odometer_km)), system, false)}</span>
                         )}
                       </div>
                     )}
@@ -847,9 +847,9 @@ export default function Analytics() {
                        `${prediction.days_until_due} days`}
                     </p>
                   )}
-                  {prediction.miles_until_due != null && (
+                  {prediction.km_until_due != null && (
                     <p className="text-xs text-garage-text-muted mt-1">
-                      {prediction.miles_until_due < 0 ? 'Past mileage' : UnitFormatter.formatDistance(prediction.miles_until_due, system, false)}
+                      {parseFloat(prediction.km_until_due) < 0 ? 'Past mileage' : UnitFormatter.formatDistance(parseFloat(prediction.km_until_due), system, false)}
                     </p>
                   )}
                 </div>
@@ -1042,19 +1042,19 @@ export default function Analytics() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
             <div className="text-center p-4 bg-garage-bg rounded-lg">
               <p className="text-sm text-garage-text-muted mb-1">Average</p>
-              <p className="text-2xl font-bold text-garage-text">{fuel_economy.average_mpg ? UnitFormatter.formatFuelEconomy(parseFloat(fuel_economy.average_mpg), system, showBoth) : 'N/A'}</p>
+              <p className="text-2xl font-bold text-garage-text">{fuel_economy.average_l_per_100km ? UnitFormatter.formatFuelEconomy(parseFloat(fuel_economy.average_l_per_100km), system, showBoth) : 'N/A'}</p>
             </div>
             <div className="text-center p-4 bg-garage-bg rounded-lg">
               <p className="text-sm text-garage-text-muted mb-1">Best</p>
-              <p className="text-2xl font-bold text-green-500">{fuel_economy.best_mpg ? UnitFormatter.formatFuelEconomy(parseFloat(fuel_economy.best_mpg), system, showBoth) : 'N/A'}</p>
+              <p className="text-2xl font-bold text-green-500">{fuel_economy.best_l_per_100km ? UnitFormatter.formatFuelEconomy(parseFloat(fuel_economy.best_l_per_100km), system, showBoth) : 'N/A'}</p>
             </div>
             <div className="text-center p-4 bg-garage-bg rounded-lg">
               <p className="text-sm text-garage-text-muted mb-1">Worst</p>
-              <p className="text-2xl font-bold text-red-500">{fuel_economy.worst_mpg ? UnitFormatter.formatFuelEconomy(parseFloat(fuel_economy.worst_mpg), system, showBoth) : 'N/A'}</p>
+              <p className="text-2xl font-bold text-red-500">{fuel_economy.worst_l_per_100km ? UnitFormatter.formatFuelEconomy(parseFloat(fuel_economy.worst_l_per_100km), system, showBoth) : 'N/A'}</p>
             </div>
             <div className="text-center p-4 bg-garage-bg rounded-lg">
               <p className="text-sm text-garage-text-muted mb-1">Latest Fill-Up</p>
-              <p className="text-2xl font-bold text-primary">{fuel_economy.recent_mpg ? UnitFormatter.formatFuelEconomy(parseFloat(fuel_economy.recent_mpg), system, showBoth) : 'N/A'}</p>
+              <p className="text-2xl font-bold text-primary">{fuel_economy.recent_l_per_100km ? UnitFormatter.formatFuelEconomy(parseFloat(fuel_economy.recent_l_per_100km), system, showBoth) : 'N/A'}</p>
             </div>
           </div>
 
@@ -1064,14 +1064,15 @@ export default function Analytics() {
             <ResponsiveContainer width="100%" height={300}>
               <RechartsLineChart
                 data={fuel_economy.data_points.map(point => {
-                  const rawMpg = parseFloat(point.mpg);
+                  const rawLPer100km = parseFloat(point.l_per_100km);
+                  const km = parseFloat(point.odometer_km);
                   return {
                     date: formatDateForDisplay(point.date, { month: 'short', day: 'numeric' }, dateLocale),
-                    mpg: rawMpg,
-                    displayFuelEconomy: !isNaN(rawMpg) && rawMpg > 0
-                      ? (system === 'metric' ? UnitConverter.mpgToL100km(rawMpg) : rawMpg)
+                    lPer100km: rawLPer100km,
+                    displayFuelEconomy: !isNaN(rawLPer100km) && rawLPer100km > 0
+                      ? (system === 'metric' ? rawLPer100km : UnitConverter.l100kmToMpg(rawLPer100km))
                       : null,
-                    mileage: point.mileage,
+                    odometer_km: isNaN(km) ? null : km,
                   };
                 })}
                 margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
@@ -1096,11 +1097,11 @@ export default function Analytics() {
                         <div style={{ backgroundColor: '#1a1f28', border: '1px solid #3a4050', borderRadius: '8px', padding: '12px', color: '#e4e6eb' }}>
                           <p style={{ fontWeight: '600', marginBottom: '8px' }}>{label}</p>
                           <p style={{ fontSize: '14px', color: '#9ca3af' }}>
-                            {UnitFormatter.formatFuelEconomy(payload[0].payload.mpg as number, system, showBoth)}
+                            {UnitFormatter.formatFuelEconomy(payload[0].payload.lPer100km as number, system, showBoth)}
                           </p>
-                          {payload[0].payload.mileage && (
+                          {payload[0].payload.odometer_km != null && (
                             <p style={{ fontSize: '12px', color: '#9ca3af', marginTop: '4px' }}>
-                              {UnitFormatter.formatDistance(payload[0].payload.mileage, system, false)}
+                              {UnitFormatter.formatDistance(payload[0].payload.odometer_km as number, system, false)}
                             </p>
                           )}
                         </div>
@@ -1141,9 +1142,9 @@ export default function Analytics() {
                 {fuel_economy.data_points.slice(-10).reverse().map((point, idx) => (
                   <tr key={idx} className="border-b border-garage-border/50">
                     <td className="py-2 px-4 text-sm text-garage-text">{formatDate(point.date)}</td>
-                    <td className="py-2 px-4 text-sm text-garage-text text-right font-medium">{UnitFormatter.formatFuelEconomy(parseFloat(point.mpg), system, showBoth)}</td>
-                    <td className="py-2 px-4 text-sm text-garage-text text-right">{UnitFormatter.formatDistance(point.mileage, system, false)}</td>
-                    <td className="py-2 px-4 text-sm text-garage-text text-right">{UnitFormatter.formatVolume(parseFloat(point.gallons), system, false)}</td>
+                    <td className="py-2 px-4 text-sm text-garage-text text-right font-medium">{UnitFormatter.formatFuelEconomy(parseFloat(point.l_per_100km), system, showBoth)}</td>
+                    <td className="py-2 px-4 text-sm text-garage-text text-right">{UnitFormatter.formatDistance(parseFloat(point.odometer_km), system, false)}</td>
+                    <td className="py-2 px-4 text-sm text-garage-text text-right">{UnitFormatter.formatVolume(parseFloat(point.liters), system, false)}</td>
                     <td className="py-2 px-4 text-sm text-garage-text text-right">{formatCurrency(point.cost, { currencyCode, locale })}</td>
                   </tr>
                 ))}
@@ -1170,14 +1171,14 @@ export default function Analytics() {
             <div className="text-center p-4 bg-garage-bg rounded-lg">
               <p className="text-sm text-garage-text-muted mb-1">{system === 'metric' ? 'Total Liters' : 'Total Gallons'}</p>
               <p className="text-2xl font-bold text-garage-text">
-                {UnitFormatter.formatVolumeTotal(parseFloat(propane.total_gallons), system).replace(' total', '')}
+                {UnitFormatter.formatVolumeTotal(parseFloat(propane.total_liters), system).replace(' total', '')}
               </p>
             </div>
             <div className="text-center p-4 bg-garage-bg rounded-lg">
               <p className="text-sm text-garage-text-muted mb-1">Avg Price/{UnitFormatter.getVolumeUnit(system)}</p>
               <p className="text-2xl font-bold text-primary">
-                {propane.avg_price_per_gallon
-                  ? UnitFormatter.formatCostPerVolume(parseFloat(propane.avg_price_per_gallon), system, currencyCode, locale)
+                {propane.avg_price_per_liter
+                  ? UnitFormatter.formatCostPerVolume(parseFloat(propane.avg_price_per_liter), system, currencyCode, locale)
                   : 'N/A'}
               </p>
             </div>
@@ -1311,22 +1312,22 @@ export default function Analytics() {
             <div className="text-center p-4 bg-garage-bg rounded-lg">
               <p className="text-sm text-garage-text-muted mb-1">{system === 'metric' ? 'Total Liters' : 'Total Gallons'}</p>
               <p className="text-2xl font-bold text-garage-text">
-                {UnitFormatter.formatVolumeTotal(parseFloat(defAnalysis.total_gallons), system).replace(' total', '')}
+                {UnitFormatter.formatVolumeTotal(parseFloat(defAnalysis.total_liters), system).replace(' total', '')}
               </p>
             </div>
             <div className="text-center p-4 bg-garage-bg rounded-lg">
               <p className="text-sm text-garage-text-muted mb-1">{UnitFormatter.getCostPerVolumeLabel(system)}</p>
               <p className="text-2xl font-bold text-garage-text">
-                {defAnalysis.avg_cost_per_gallon
-                  ? UnitFormatter.formatCostPerVolume(parseFloat(defAnalysis.avg_cost_per_gallon), system, currencyCode, locale)
+                {defAnalysis.avg_cost_per_liter
+                  ? UnitFormatter.formatCostPerVolume(parseFloat(defAnalysis.avg_cost_per_liter), system, currencyCode, locale)
                   : '-'}
               </p>
             </div>
             <div className="text-center p-4 bg-garage-bg rounded-lg">
               <p className="text-sm text-garage-text-muted mb-1">Consumption Rate</p>
               <p className="text-2xl font-bold text-primary">
-                {defAnalysis.gallons_per_1000_miles
-                  ? `${UnitFormatter.formatVolumePerDistance(parseFloat(defAnalysis.gallons_per_1000_miles), system)} ${UnitFormatter.getVolumePerDistanceLabel(system)}`
+                {defAnalysis.liters_per_1000_km
+                  ? `${UnitFormatter.formatVolumePerDistance(parseFloat(defAnalysis.liters_per_1000_km), system)} ${UnitFormatter.getVolumePerDistanceLabel(system)}`
                   : '-'}
               </p>
             </div>
@@ -1355,16 +1356,16 @@ export default function Analytics() {
                     <p className="text-sm text-garage-text-muted mb-2">{item.description}</p>
                   )}
                   <div className="flex items-center gap-4 text-xs text-garage-text-muted">
-                    {item.mileage && <span>{UnitFormatter.formatDistance(item.mileage, system, false)}</span>}
+                    {item.odometer_km && <span>{UnitFormatter.formatDistance(parseFloat(item.odometer_km), system, false)}</span>}
                     {item.vendor_name && <span>{item.vendor_name}</span>}
                     {item.days_since_last && (
                       <span className="text-primary">
                         {item.days_since_last} days since last {item.service_type.toLowerCase()}
                       </span>
                     )}
-                    {item.miles_since_last && (
+                    {item.km_since_last && (
                       <span className="text-primary">
-                        {UnitFormatter.formatDistance(item.miles_since_last, system, false)} since last
+                        {UnitFormatter.formatDistance(parseFloat(item.km_since_last), system, false)} since last
                       </span>
                     )}
                   </div>
@@ -1751,11 +1752,11 @@ export default function Analytics() {
                           {comparisonData.period1_service_count}
                         </span>
                       </div>
-                      {comparisonData.period1_avg_mpg && (
+                      {comparisonData.period1_avg_l_per_100km && (
                         <div className="flex justify-between">
                           <span className="text-garage-text-muted">Avg Fuel Economy:</span>
                           <span className="font-medium text-garage-text">
-                            {UnitFormatter.formatFuelEconomy(parseFloat(comparisonData.period1_avg_mpg), system, showBoth)}
+                            {UnitFormatter.formatFuelEconomy(parseFloat(comparisonData.period1_avg_l_per_100km), system, showBoth)}
                           </span>
                         </div>
                       )}
@@ -1780,11 +1781,11 @@ export default function Analytics() {
                           {comparisonData.period2_service_count}
                         </span>
                       </div>
-                      {comparisonData.period2_avg_mpg && (
+                      {comparisonData.period2_avg_l_per_100km && (
                         <div className="flex justify-between">
                           <span className="text-garage-text-muted">Avg Fuel Economy:</span>
                           <span className="font-medium text-garage-text">
-                            {UnitFormatter.formatFuelEconomy(parseFloat(comparisonData.period2_avg_mpg), system, showBoth)}
+                            {UnitFormatter.formatFuelEconomy(parseFloat(comparisonData.period2_avg_l_per_100km), system, showBoth)}
                           </span>
                         </div>
                       )}
@@ -1823,16 +1824,18 @@ export default function Analytics() {
                       </p>
                     </div>
 
-                    {comparisonData.mpg_change_percent && (
+                    {comparisonData.l_per_100km_change_percent && (
                       <div className="text-center p-4 bg-garage-surface rounded-lg">
                         <p className="text-sm text-garage-text-muted mb-1">Fuel Economy Change</p>
+                        {/* L/100km: lower is better, so a NEGATIVE change is good (success).
+                            Sign flip vs the old MPG-canonical version. */}
                         <p className={`text-2xl font-bold ${
-                          parseFloat(comparisonData.mpg_change_percent) > 0
+                          parseFloat(comparisonData.l_per_100km_change_percent) < 0
                             ? 'text-success'
                             : 'text-danger'
                         }`}>
-                          {parseFloat(comparisonData.mpg_change_percent) > 0 ? '+' : ''}
-                          {comparisonData.mpg_change_percent}%
+                          {parseFloat(comparisonData.l_per_100km_change_percent) > 0 ? '+' : ''}
+                          {comparisonData.l_per_100km_change_percent}%
                         </p>
                       </div>
                     )}

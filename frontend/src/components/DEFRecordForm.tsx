@@ -10,6 +10,7 @@ import { FormError } from './FormError'
 import { useCreateDEFRecord, useUpdateDEFRecord } from '../hooks/queries/useDEFRecords'
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { UnitConverter, UnitFormatter } from '../utils/units'
+import { toCanonicalKm, toCanonicalLiters } from '../utils/decimalSafe'
 import { formatDateForInput } from '../utils/dateUtils'
 import CurrencyInputPrefix from './common/CurrencyInputPrefix'
 
@@ -72,16 +73,15 @@ export default function DEFRecordForm({
     resolver: zodResolver(defRecordSchema) as Resolver<DefRecordFormData>,
     defaultValues: {
       date: formatDateForInput(record?.date),
-      mileage: system === 'metric' && record?.mileage
-        ? (() => {
-            const km = UnitConverter.milesToKm(record.mileage)
-            return km != null ? Math.round(km) : undefined
-          })()
-        : record?.mileage ?? undefined,
-      gallons: (() => {
-        const g = parseDecimal(record?.gallons)
-        if (g === undefined) return undefined
-        return system === 'metric' ? (UnitConverter.gallonsToLiters(g) ?? g) : g
+      odometer_km: (() => {
+        const stored = parseDecimal(record?.odometer_km)
+        if (stored === undefined) return undefined
+        return system === 'imperial' ? UnitConverter.kmToMiles(stored) ?? undefined : stored
+      })(),
+      liters: (() => {
+        const l = parseDecimal(record?.liters)
+        if (l === undefined) return undefined
+        return system === 'imperial' ? (UnitConverter.litersToGallons(l) ?? l) : l
       })(),
       price_per_unit: parseDecimal(record?.price_per_unit),
       cost: parseDecimal(record?.cost),
@@ -95,8 +95,8 @@ export default function DEFRecordForm({
     },
   })
 
-  // Watch gallons and price for auto-calculation
-  const gallons = watch('gallons')
+  // Watch volume and price for auto-calculation
+  const liters = watch('liters')
   const pricePerUnit = watch('price_per_unit')
 
   const [isInitialMount, setIsInitialMount] = useState(true)
@@ -107,32 +107,26 @@ export default function DEFRecordForm({
       return
     }
 
-    if (gallons && pricePerUnit) {
-      const gallonsNum = typeof gallons === 'number' ? gallons : parseFloat(String(gallons))
+    if (liters && pricePerUnit) {
+      const litersNum = typeof liters === 'number' ? liters : parseFloat(String(liters))
       const priceNum = typeof pricePerUnit === 'number' ? pricePerUnit : parseFloat(String(pricePerUnit))
 
-      if (!isNaN(gallonsNum) && !isNaN(priceNum)) {
-        const total = gallonsNum * priceNum
+      if (!isNaN(litersNum) && !isNaN(priceNum)) {
+        const total = litersNum * priceNum
         setValue('cost', parseFloat(total.toFixed(2)))
       }
     }
-  }, [gallons, pricePerUnit, setValue, isInitialMount])
+  }, [liters, pricePerUnit, setValue, isInitialMount])
 
   const onSubmit = async (data: DefRecordFormData) => {
     setError(null)
 
     try {
-      const convertedMileage = system === 'metric' && data.mileage
-        ? UnitConverter.kmToMiles(data.mileage)
-        : data.mileage
-
       const payload = {
         vin,
         date: data.date,
-        mileage: convertedMileage != null ? Math.round(convertedMileage) : undefined,
-        gallons: system === 'metric' && data.gallons
-          ? UnitConverter.litersToGallons(data.gallons) ?? data.gallons
-          : data.gallons,
+        odometer_km: toCanonicalKm(data.odometer_km, system) ?? undefined,
+        liters: toCanonicalLiters(data.liters, system) ?? undefined,
         price_per_unit: data.price_per_unit,
         cost: data.cost,
         fill_level: data.fill_level !== undefined ? data.fill_level / 100 : undefined, // Convert % to 0.00-1.00
@@ -181,22 +175,22 @@ export default function DEFRecordForm({
             </div>
 
             <div>
-              <label htmlFor="mileage" className="block text-sm font-medium text-garage-text mb-1">
+              <label htmlFor="odometer_km" className="block text-sm font-medium text-garage-text mb-1">
                 {t('common:mileage')} ({UnitFormatter.getDistanceUnit(system)})
               </label>
               <input
                 type="number"
-                id="mileage"
-                {...register('mileage', { valueAsNumber: true })}
+                id="odometer_km"
+                {...register('odometer_km', { valueAsNumber: true })}
                 min="0"
-                step="1"
+                step="0.1"
                 placeholder="55000"
                 className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
-                  errors.mileage ? 'border-red-500' : 'border-garage-border'
+                  errors.odometer_km ? 'border-red-500' : 'border-garage-border'
                 }`}
                 disabled={isSubmitting}
               />
-              <FormError error={errors.mileage} />
+              <FormError error={errors.odometer_km} />
             </div>
           </div>
 
@@ -255,22 +249,22 @@ export default function DEFRecordForm({
           {/* Volume and Pricing */}
           <div className="grid grid-cols-3 gap-4">
             <div>
-              <label htmlFor="gallons" className="block text-sm font-medium text-garage-text mb-1">
+              <label htmlFor="liters" className="block text-sm font-medium text-garage-text mb-1">
                 {UnitFormatter.getVolumeUnit(system)}
               </label>
               <input
                 type="number"
-                id="gallons"
-                {...register('gallons', { valueAsNumber: true })}
+                id="liters"
+                {...register('liters', { valueAsNumber: true })}
                 min="0"
                 step="0.001"
                 placeholder="5.500"
                 className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
-                  errors.gallons ? 'border-red-500' : 'border-garage-border'
+                  errors.liters ? 'border-red-500' : 'border-garage-border'
                 }`}
                 disabled={isSubmitting}
               />
-              <FormError error={errors.gallons} />
+              <FormError error={errors.liters} />
             </div>
 
             <div>

@@ -1468,17 +1468,18 @@
             "description": "Additional details",
             "title": "Description"
           },
-          "due_mileage": {
+          "due_mileage_km": {
             "anyOf": [
               {
-                "type": "integer"
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "description": "Due mileage for mileage-based reminders (Phase 3)",
-            "title": "Due Mileage"
+            "description": "Due odometer reading (km) for mileage-based reminders (Phase 3)",
+            "title": "Due Mileage Km"
           },
           "id": {
             "description": "Unique identifier in format 'type-id'",
@@ -1493,7 +1494,7 @@
           },
           "is_estimated": {
             "default": false,
-            "description": "Whether date is estimated from mileage (Phase 3)",
+            "description": "Whether date is estimated from odometer_km (Phase 3)",
             "title": "Is Estimated",
             "type": "boolean"
           },
@@ -1503,17 +1504,18 @@
             "title": "Is Recurring",
             "type": "boolean"
           },
-          "miles_until_due": {
+          "km_until_due": {
             "anyOf": [
               {
-                "type": "integer"
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "description": "Miles until due mileage",
-            "title": "Miles Until Due"
+            "description": "Kilometers until due odometer reading",
+            "title": "Km Until Due"
           },
           "notes": {
             "anyOf": [
@@ -1719,7 +1721,7 @@
             "title": "Average Monthly Cost",
             "type": "string"
           },
-          "cost_per_mile": {
+          "cost_per_km": {
             "anyOf": [
               {
                 "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
@@ -1729,7 +1731,7 @@
                 "type": "null"
               }
             ],
-            "title": "Cost Per Mile"
+            "title": "Cost Per Km"
           },
           "def_count": {
             "default": 0,
@@ -1867,9 +1869,9 @@
         "type": "object"
       },
       "DEFAnalytics": {
-        "description": "DEF analytics and consumption predictions.",
+        "description": "DEF analytics and consumption predictions (metric canonical).",
         "properties": {
-          "avg_cost_per_gallon": {
+          "avg_cost_per_liter": {
             "anyOf": [
               {
                 "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
@@ -1879,7 +1881,7 @@
                 "type": "null"
               }
             ],
-            "title": "Avg Cost Per Gallon"
+            "title": "Avg Cost Per Liter"
           },
           "avg_purchase_frequency_days": {
             "anyOf": [
@@ -1908,18 +1910,7 @@
             ],
             "title": "Estimated Days Remaining"
           },
-          "estimated_miles_remaining": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Estimated Miles Remaining"
-          },
-          "estimated_remaining_gallons": {
+          "estimated_km_remaining": {
             "anyOf": [
               {
                 "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
@@ -1929,9 +1920,9 @@
                 "type": "null"
               }
             ],
-            "title": "Estimated Remaining Gallons"
+            "title": "Estimated Km Remaining"
           },
-          "gallons_per_1000_miles": {
+          "estimated_remaining_liters": {
             "anyOf": [
               {
                 "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
@@ -1941,7 +1932,7 @@
                 "type": "null"
               }
             ],
-            "title": "Gallons Per 1000 Miles"
+            "title": "Estimated Remaining Liters"
           },
           "last_fill_level": {
             "anyOf": [
@@ -1954,6 +1945,18 @@
               }
             ],
             "title": "Last Fill Level"
+          },
+          "liters_per_1000_km": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Liters Per 1000 Km"
           },
           "record_count": {
             "default": 0,
@@ -1972,7 +1975,7 @@
             ],
             "title": "Total Cost"
           },
-          "total_gallons": {
+          "total_liters": {
             "anyOf": [
               {
                 "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
@@ -1982,7 +1985,7 @@
                 "type": "null"
               }
             ],
-            "title": "Total Gallons"
+            "title": "Total Liters"
           }
         },
         "title": "DEFAnalytics",
@@ -1996,9 +1999,9 @@
             "cost": 24.75,
             "date": "2026-02-10",
             "fill_level": 1.0,
-            "gallons": 5.5,
-            "mileage": 55000,
-            "price_per_unit": 4.5,
+            "liters": 20.82,
+            "odometer_km": 88514,
+            "price_per_unit": 1.189,
             "source": "Truck Stop / Station Nozzle",
             "vin": "3C7WRTCL8NG123456"
           }
@@ -2059,10 +2062,10 @@
             "description": "Tank level after adding DEF (0.00=empty, 1.00=full)",
             "title": "Fill Level"
           },
-          "gallons": {
+          "liters": {
             "anyOf": [
               {
-                "maximum": 999.999,
+                "maximum": 9999.999,
                 "minimum": 0.0,
                 "type": "number"
               },
@@ -2074,22 +2077,8 @@
                 "type": "null"
               }
             ],
-            "description": "DEF volume added in gallons",
-            "title": "Gallons"
-          },
-          "mileage": {
-            "anyOf": [
-              {
-                "maximum": 9999999.0,
-                "minimum": 0.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Odometer reading",
-            "title": "Mileage"
+            "description": "DEF volume added in liters",
+            "title": "Liters"
           },
           "notes": {
             "anyOf": [
@@ -2102,6 +2091,24 @@
             ],
             "description": "Additional notes",
             "title": "Notes"
+          },
+          "odometer_km": {
+            "anyOf": [
+              {
+                "maximum": 99999999.99,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Odometer reading in kilometers",
+            "title": "Odometer Km"
           },
           "price_per_unit": {
             "anyOf": [
@@ -2118,7 +2125,7 @@
                 "type": "null"
               }
             ],
-            "description": "Cost per gallon",
+            "description": "Cost per liter",
             "title": "Price Per Unit"
           },
           "source": {
@@ -2160,9 +2167,9 @@
                 "created_at": "2026-02-10T14:30:00",
                 "date": "2026-02-10",
                 "fill_level": "1.00",
-                "gallons": "5.500",
                 "id": 1,
-                "mileage": 55000,
+                "liters": "20.820",
+                "odometer_km": 88514,
                 "source": "Truck Stop / Station Nozzle",
                 "vin": "3C7WRTCL8NG123456"
               }
@@ -2199,10 +2206,10 @@
             "created_at": "2026-02-10T14:30:00",
             "date": "2026-02-10",
             "fill_level": "1.00",
-            "gallons": "5.500",
             "id": 1,
-            "mileage": 55000,
-            "price_per_unit": "4.500",
+            "liters": "20.820",
+            "odometer_km": 88514,
+            "price_per_unit": "1.189",
             "source": "Truck Stop / Station Nozzle",
             "vin": "3C7WRTCL8NG123456"
           }
@@ -2263,7 +2270,11 @@
             "description": "Tank level after adding DEF (0.00=empty, 1.00=full)",
             "title": "Fill Level"
           },
-          "gallons": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "liters": {
             "anyOf": [
               {
                 "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,3}0*$",
@@ -2273,26 +2284,8 @@
                 "type": "null"
               }
             ],
-            "description": "DEF volume added in gallons",
-            "title": "Gallons"
-          },
-          "id": {
-            "title": "Id",
-            "type": "integer"
-          },
-          "mileage": {
-            "anyOf": [
-              {
-                "maximum": 9999999.0,
-                "minimum": 0.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Odometer reading",
-            "title": "Mileage"
+            "description": "DEF volume added in liters",
+            "title": "Liters"
           },
           "notes": {
             "anyOf": [
@@ -2305,6 +2298,19 @@
             ],
             "description": "Additional notes",
             "title": "Notes"
+          },
+          "odometer_km": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Odometer reading in kilometers",
+            "title": "Odometer Km"
           },
           "origin_fuel_record_id": {
             "anyOf": [
@@ -2327,7 +2333,7 @@
                 "type": "null"
               }
             ],
-            "description": "Cost per gallon",
+            "description": "Cost per liter",
             "title": "Price Per Unit"
           },
           "source": {
@@ -2428,10 +2434,10 @@
             "description": "Tank level after adding DEF (0.00=empty, 1.00=full)",
             "title": "Fill Level"
           },
-          "gallons": {
+          "liters": {
             "anyOf": [
               {
-                "maximum": 999.999,
+                "maximum": 9999.999,
                 "minimum": 0.0,
                 "type": "number"
               },
@@ -2443,22 +2449,8 @@
                 "type": "null"
               }
             ],
-            "description": "DEF volume added in gallons",
-            "title": "Gallons"
-          },
-          "mileage": {
-            "anyOf": [
-              {
-                "maximum": 9999999.0,
-                "minimum": 0.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Odometer reading",
-            "title": "Mileage"
+            "description": "DEF volume added in liters",
+            "title": "Liters"
           },
           "notes": {
             "anyOf": [
@@ -2471,6 +2463,24 @@
             ],
             "description": "Additional notes",
             "title": "Notes"
+          },
+          "odometer_km": {
+            "anyOf": [
+              {
+                "maximum": 99999999.99,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Odometer reading in kilometers",
+            "title": "Odometer Km"
           },
           "price_per_unit": {
             "anyOf": [
@@ -2487,7 +2497,7 @@
                 "type": "null"
               }
             ],
-            "description": "Cost per gallon",
+            "description": "Cost per liter",
             "title": "Price Per Unit"
           },
           "source": {
@@ -3950,7 +3960,7 @@
         "type": "object"
       },
       "FuelEconomyDataPoint": {
-        "description": "Single fuel economy data point.",
+        "description": "Single fuel economy data point (metric canonical).",
         "properties": {
           "cost": {
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
@@ -3962,35 +3972,36 @@
             "title": "Date",
             "type": "string"
           },
-          "gallons": {
+          "l_per_100km": {
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Gallons",
+            "title": "L Per 100Km",
             "type": "string"
           },
-          "mileage": {
-            "title": "Mileage",
-            "type": "integer"
-          },
-          "mpg": {
+          "liters": {
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Mpg",
+            "title": "Liters",
+            "type": "string"
+          },
+          "odometer_km": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Odometer Km",
             "type": "string"
           }
         },
         "required": [
           "date",
-          "mpg",
-          "mileage",
-          "gallons",
+          "l_per_100km",
+          "odometer_km",
+          "liters",
           "cost"
         ],
         "title": "FuelEconomyDataPoint",
         "type": "object"
       },
       "FuelEconomyTrend": {
-        "description": "Fuel economy trend analysis.",
+        "description": "Fuel economy trend analysis (metric canonical \u2014 lower L/100km is better).",
         "properties": {
-          "average_mpg": {
+          "average_l_per_100km": {
             "anyOf": [
               {
                 "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
@@ -4000,9 +4011,9 @@
                 "type": "null"
               }
             ],
-            "title": "Average Mpg"
+            "title": "Average L Per 100Km"
           },
-          "best_mpg": {
+          "best_l_per_100km": {
             "anyOf": [
               {
                 "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
@@ -4012,7 +4023,7 @@
                 "type": "null"
               }
             ],
-            "title": "Best Mpg"
+            "title": "Best L Per 100Km"
           },
           "data_points": {
             "default": [],
@@ -4022,7 +4033,7 @@
             "title": "Data Points",
             "type": "array"
           },
-          "recent_mpg": {
+          "recent_l_per_100km": {
             "anyOf": [
               {
                 "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
@@ -4032,14 +4043,14 @@
                 "type": "null"
               }
             ],
-            "title": "Recent Mpg"
+            "title": "Recent L Per 100Km"
           },
           "trend": {
             "default": "stable",
             "title": "Trend",
             "type": "string"
           },
-          "worst_mpg": {
+          "worst_l_per_100km": {
             "anyOf": [
               {
                 "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
@@ -4049,7 +4060,7 @@
                 "type": "null"
               }
             ],
-            "title": "Worst Mpg"
+            "title": "Worst L Per 100Km"
           }
         },
         "title": "FuelEconomyTrend",
@@ -4058,7 +4069,7 @@
       "FuelEfficiencyAlert": {
         "description": "Alert describing changes in fuel efficiency.",
         "properties": {
-          "baseline_mpg": {
+          "baseline_l_per_100km": {
             "anyOf": [
               {
                 "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
@@ -4068,13 +4079,13 @@
                 "type": "null"
               }
             ],
-            "title": "Baseline Mpg"
+            "title": "Baseline L Per 100Km"
           },
           "message": {
             "title": "Message",
             "type": "string"
           },
-          "recent_mpg": {
+          "recent_l_per_100km": {
             "anyOf": [
               {
                 "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
@@ -4084,7 +4095,7 @@
                 "type": "null"
               }
             ],
-            "title": "Recent Mpg"
+            "title": "Recent L Per 100Km"
           },
           "severity": {
             "default": "info",
@@ -4114,11 +4125,12 @@
           {
             "cost": 35.7,
             "date": "2025-01-15",
-            "gallons": 10.5,
             "is_full_tank": true,
-            "mileage": 45000,
+            "liters": 39.747,
             "missed_fillup": false,
-            "price_per_unit": 3.4,
+            "odometer_km": 72420.33,
+            "price_basis": "per_volume",
+            "price_per_unit": 0.898,
             "vin": "ML32A5HJ9KH009478"
           }
         ],
@@ -4178,24 +4190,6 @@
             "description": "Fuel type (Gasoline, Diesel, etc.)",
             "title": "Fuel Type"
           },
-          "gallons": {
-            "anyOf": [
-              {
-                "maximum": 999.999,
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Fuel amount in gallons",
-            "title": "Gallons"
-          },
           "is_full_tank": {
             "default": true,
             "description": "Full tank fill-up",
@@ -4226,19 +4220,23 @@
             "description": "Energy amount in kilowatt-hours",
             "title": "Kwh"
           },
-          "mileage": {
+          "liters": {
             "anyOf": [
               {
-                "maximum": 9999999.0,
+                "maximum": 9999.999,
                 "minimum": 0.0,
-                "type": "integer"
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,3}0*$",
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "description": "Odometer reading",
-            "title": "Mileage"
+            "description": "Fuel amount in liters",
+            "title": "Liters"
           },
           "missed_fillup": {
             "default": false,
@@ -4258,6 +4256,37 @@
             "description": "Additional notes",
             "title": "Notes"
           },
+          "odometer_km": {
+            "anyOf": [
+              {
+                "maximum": 99999999.99,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Odometer reading in kilometers",
+            "title": "Odometer Km"
+          },
+          "price_basis": {
+            "anyOf": [
+              {
+                "maxLength": 12,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Price denominator: per_volume / per_weight / per_tank / per_kwh",
+            "title": "Price Basis"
+          },
           "price_per_unit": {
             "anyOf": [
               {
@@ -4273,13 +4302,13 @@
                 "type": "null"
               }
             ],
-            "description": "Price per gallon",
+            "description": "Price per unit; denominator depends on price_basis (per_volume=per liter, per_weight=per kg, per_kwh=per kWh, per_tank=per tank)",
             "title": "Price Per Unit"
           },
-          "propane_gallons": {
+          "propane_liters": {
             "anyOf": [
               {
-                "maximum": 999.999,
+                "maximum": 9999.999,
                 "minimum": 0.0,
                 "type": "number"
               },
@@ -4291,8 +4320,8 @@
                 "type": "null"
               }
             ],
-            "description": "Propane amount in gallons",
-            "title": "Propane Gallons"
+            "description": "Propane amount in liters",
+            "title": "Propane Liters"
           },
           "tank_quantity": {
             "anyOf": [
@@ -4307,10 +4336,10 @@
             "description": "Number of propane tanks",
             "title": "Tank Quantity"
           },
-          "tank_size_lb": {
+          "tank_size_kg": {
             "anyOf": [
               {
-                "maximum": 999.99,
+                "maximum": 9999.99,
                 "minimum": 0.0,
                 "type": "number"
               },
@@ -4322,8 +4351,8 @@
                 "type": "null"
               }
             ],
-            "description": "Propane tank size in pounds",
-            "title": "Tank Size Lb"
+            "description": "Propane tank size in kilograms",
+            "title": "Tank Size Kg"
           },
           "vin": {
             "description": "Vehicle VIN",
@@ -4344,17 +4373,17 @@
         "description": "Schema for fuel record list response.",
         "examples": [
           {
-            "average_mpg": "32.5",
+            "average_l_per_100km": "7.24",
             "records": [
               {
                 "cost": "35.70",
                 "created_at": "2025-01-15T14:30:00",
                 "date": "2025-01-15",
-                "gallons": "10.500",
                 "id": 1,
                 "is_full_tank": true,
-                "mileage": 45000,
-                "mpg": "32.5",
+                "l_per_100km": "7.24",
+                "liters": "39.747",
+                "odometer_km": 72420.33,
                 "vin": "ML32A5HJ9KH009478"
               }
             ],
@@ -4362,7 +4391,7 @@
           }
         ],
         "properties": {
-          "average_mpg": {
+          "average_l_per_100km": {
             "anyOf": [
               {
                 "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
@@ -4372,8 +4401,8 @@
                 "type": "null"
               }
             ],
-            "description": "Average MPG across all records",
-            "title": "Average Mpg"
+            "description": "Average fuel consumption (L/100 km) across all records",
+            "title": "Average L Per 100Km"
           },
           "records": {
             "items": {
@@ -4395,20 +4424,21 @@
         "type": "object"
       },
       "FuelRecordResponse": {
-        "description": "Schema for fuel record response.",
+        "description": "Schema for fuel record response (metric canonical).",
         "examples": [
           {
             "cost": "35.70",
             "created_at": "2025-01-15T14:30:00",
             "date": "2025-01-15",
-            "gallons": "10.500",
             "id": 1,
             "is_full_tank": true,
             "is_hauling": false,
-            "mileage": 45000,
+            "l_per_100km": "7.24",
+            "liters": "39.747",
             "missed_fillup": false,
-            "mpg": "32.5",
-            "price_per_unit": "3.400",
+            "odometer_km": 72420.33,
+            "price_basis": "per_volume",
+            "price_per_unit": "0.898",
             "vin": "ML32A5HJ9KH009478"
           }
         ],
@@ -4450,19 +4480,6 @@
             "description": "Fuel type (Gasoline, Diesel, etc.)",
             "title": "Fuel Type"
           },
-          "gallons": {
-            "anyOf": [
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Fuel amount in gallons",
-            "title": "Gallons"
-          },
           "id": {
             "title": "Id",
             "type": "integer"
@@ -4492,27 +4509,7 @@
             "description": "Energy amount in kilowatt-hours",
             "title": "Kwh"
           },
-          "mileage": {
-            "anyOf": [
-              {
-                "maximum": 9999999.0,
-                "minimum": 0.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Odometer reading",
-            "title": "Mileage"
-          },
-          "missed_fillup": {
-            "default": false,
-            "description": "Skipped recording a fill-up",
-            "title": "Missed Fillup",
-            "type": "boolean"
-          },
-          "mpg": {
+          "l_per_100km": {
             "anyOf": [
               {
                 "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
@@ -4522,8 +4519,27 @@
                 "type": "null"
               }
             ],
-            "description": "Calculated miles per gallon",
-            "title": "Mpg"
+            "description": "Calculated fuel economy (L/100 km)",
+            "title": "L Per 100Km"
+          },
+          "liters": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,3}0*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Fuel amount in liters",
+            "title": "Liters"
+          },
+          "missed_fillup": {
+            "default": false,
+            "description": "Skipped recording a fill-up",
+            "title": "Missed Fillup",
+            "type": "boolean"
           },
           "notes": {
             "anyOf": [
@@ -4537,6 +4553,32 @@
             "description": "Additional notes",
             "title": "Notes"
           },
+          "odometer_km": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Odometer reading in kilometers",
+            "title": "Odometer Km"
+          },
+          "price_basis": {
+            "anyOf": [
+              {
+                "maxLength": 12,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Price denominator: per_volume / per_weight / per_tank / per_kwh",
+            "title": "Price Basis"
+          },
           "price_per_unit": {
             "anyOf": [
               {
@@ -4547,10 +4589,10 @@
                 "type": "null"
               }
             ],
-            "description": "Price per gallon",
+            "description": "Price per unit; denominator depends on price_basis (per_volume=per liter, per_weight=per kg, per_kwh=per kWh, per_tank=per tank)",
             "title": "Price Per Unit"
           },
-          "propane_gallons": {
+          "propane_liters": {
             "anyOf": [
               {
                 "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,3}0*$",
@@ -4560,8 +4602,8 @@
                 "type": "null"
               }
             ],
-            "description": "Propane amount in gallons",
-            "title": "Propane Gallons"
+            "description": "Propane amount in liters",
+            "title": "Propane Liters"
           },
           "tank_quantity": {
             "anyOf": [
@@ -4576,7 +4618,7 @@
             "description": "Number of propane tanks",
             "title": "Tank Quantity"
           },
-          "tank_size_lb": {
+          "tank_size_kg": {
             "anyOf": [
               {
                 "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
@@ -4586,8 +4628,8 @@
                 "type": "null"
               }
             ],
-            "description": "Propane tank size in pounds",
-            "title": "Tank Size Lb"
+            "description": "Propane tank size in kilograms",
+            "title": "Tank Size Kg"
           },
           "vin": {
             "title": "Vin",
@@ -4604,7 +4646,7 @@
         "type": "object"
       },
       "FuelRecordUpdate": {
-        "description": "Schema for updating an existing fuel record.",
+        "description": "Schema for updating an existing fuel record (metric canonical).",
         "examples": [
           {
             "cost": 38.5,
@@ -4674,24 +4716,6 @@
             "description": "Fuel type (Gasoline, Diesel, etc.)",
             "title": "Fuel Type"
           },
-          "gallons": {
-            "anyOf": [
-              {
-                "maximum": 999.999,
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Fuel amount in gallons",
-            "title": "Gallons"
-          },
           "is_full_tank": {
             "anyOf": [
               {
@@ -4734,19 +4758,23 @@
             "description": "Energy amount in kilowatt-hours",
             "title": "Kwh"
           },
-          "mileage": {
+          "liters": {
             "anyOf": [
               {
-                "maximum": 9999999.0,
+                "maximum": 9999.999,
                 "minimum": 0.0,
-                "type": "integer"
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,3}0*$",
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "description": "Odometer reading",
-            "title": "Mileage"
+            "description": "Fuel amount in liters",
+            "title": "Liters"
           },
           "missed_fillup": {
             "anyOf": [
@@ -4772,6 +4800,36 @@
             "description": "Additional notes",
             "title": "Notes"
           },
+          "odometer_km": {
+            "anyOf": [
+              {
+                "maximum": 99999999.99,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Odometer reading in kilometers",
+            "title": "Odometer Km"
+          },
+          "price_basis": {
+            "anyOf": [
+              {
+                "maxLength": 12,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price Basis"
+          },
           "price_per_unit": {
             "anyOf": [
               {
@@ -4787,13 +4845,13 @@
                 "type": "null"
               }
             ],
-            "description": "Price per gallon",
+            "description": "Price per unit (see price_basis for denominator)",
             "title": "Price Per Unit"
           },
-          "propane_gallons": {
+          "propane_liters": {
             "anyOf": [
               {
-                "maximum": 999.999,
+                "maximum": 9999.999,
                 "minimum": 0.0,
                 "type": "number"
               },
@@ -4805,8 +4863,8 @@
                 "type": "null"
               }
             ],
-            "description": "Propane amount in gallons",
-            "title": "Propane Gallons"
+            "description": "Propane amount in liters",
+            "title": "Propane Liters"
           },
           "tank_quantity": {
             "anyOf": [
@@ -4821,10 +4879,10 @@
             "description": "Number of propane tanks",
             "title": "Tank Quantity"
           },
-          "tank_size_lb": {
+          "tank_size_kg": {
             "anyOf": [
               {
-                "maximum": 999.99,
+                "maximum": 9999.99,
                 "minimum": 0.0,
                 "type": "number"
               },
@@ -4836,8 +4894,8 @@
                 "type": "null"
               }
             ],
-            "description": "Propane tank size in pounds",
-            "title": "Tank Size Lb"
+            "description": "Propane tank size in kilograms",
+            "title": "Tank Size Kg"
           }
         },
         "title": "FuelRecordUpdate",
@@ -6506,16 +6564,17 @@
             ],
             "title": "Average Interval Days"
           },
-          "average_interval_miles": {
+          "average_interval_km": {
             "anyOf": [
               {
-                "type": "integer"
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Average Interval Miles"
+            "title": "Average Interval Km"
           },
           "confidence": {
             "default": "low",
@@ -6538,16 +6597,17 @@
             "title": "Has Schedule Item",
             "type": "boolean"
           },
-          "miles_until_due": {
+          "km_until_due": {
             "anyOf": [
               {
-                "type": "integer"
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Miles Until Due"
+            "title": "Km Until Due"
           },
           "predicted_date": {
             "anyOf": [
@@ -6561,16 +6621,17 @@
             ],
             "title": "Predicted Date"
           },
-          "predicted_mileage": {
+          "predicted_odometer_km": {
             "anyOf": [
               {
-                "type": "integer"
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Predicted Mileage"
+            "title": "Predicted Odometer Km"
           },
           "schedule_item_next_date": {
             "anyOf": [
@@ -6584,16 +6645,17 @@
             ],
             "title": "Schedule Item Next Date"
           },
-          "schedule_item_next_mileage": {
+          "schedule_item_next_odometer_km": {
             "anyOf": [
               {
-                "type": "integer"
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Schedule Item Next Mileage"
+            "title": "Schedule Item Next Odometer Km"
           },
           "service_type": {
             "title": "Service Type",
@@ -7036,8 +7098,8 @@
         "examples": [
           {
             "date": "2025-01-15",
-            "mileage": 45000,
             "notes": "Monthly reading",
+            "odometer_km": 72420.33,
             "vin": "ML32A5HJ9KH009478"
           }
         ],
@@ -7047,12 +7109,6 @@
             "format": "date",
             "title": "Date",
             "type": "string"
-          },
-          "mileage": {
-            "description": "Odometer reading",
-            "minimum": 0.0,
-            "title": "Mileage",
-            "type": "integer"
           },
           "notes": {
             "anyOf": [
@@ -7066,6 +7122,21 @@
             "description": "Additional notes",
             "title": "Notes"
           },
+          "odometer_km": {
+            "anyOf": [
+              {
+                "maximum": 99999999.99,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "description": "Odometer reading in kilometers",
+            "title": "Odometer Km"
+          },
           "vin": {
             "description": "Vehicle VIN",
             "maxLength": 17,
@@ -7076,7 +7147,7 @@
         },
         "required": [
           "date",
-          "mileage",
+          "odometer_km",
           "vin"
         ],
         "title": "OdometerRecordCreate",
@@ -7086,14 +7157,14 @@
         "description": "Schema for odometer record list response.",
         "examples": [
           {
-            "latest_mileage": 45000,
+            "latest_odometer_km": 72420.33,
             "records": [
               {
                 "created_at": "2025-01-15T09:00:00",
                 "date": "2025-01-15",
                 "id": 1,
-                "mileage": 45000,
                 "notes": "Monthly reading",
+                "odometer_km": 72420.33,
                 "vin": "ML32A5HJ9KH009478"
               }
             ],
@@ -7101,17 +7172,18 @@
           }
         ],
         "properties": {
-          "latest_mileage": {
+          "latest_odometer_km": {
             "anyOf": [
               {
-                "type": "integer"
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "description": "Most recent odometer reading",
-            "title": "Latest Mileage"
+            "description": "Most recent odometer reading in kilometers",
+            "title": "Latest Odometer Km"
           },
           "records": {
             "items": {
@@ -7139,8 +7211,8 @@
             "created_at": "2025-01-15T09:00:00",
             "date": "2025-01-15",
             "id": 1,
-            "mileage": 45000,
             "notes": "Monthly reading",
+            "odometer_km": 72420.33,
             "vin": "ML32A5HJ9KH009478"
           }
         ],
@@ -7160,12 +7232,6 @@
             "title": "Id",
             "type": "integer"
           },
-          "mileage": {
-            "description": "Odometer reading",
-            "minimum": 0.0,
-            "title": "Mileage",
-            "type": "integer"
-          },
           "notes": {
             "anyOf": [
               {
@@ -7178,6 +7244,12 @@
             "description": "Additional notes",
             "title": "Notes"
           },
+          "odometer_km": {
+            "description": "Odometer reading in kilometers",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Odometer Km",
+            "type": "string"
+          },
           "vin": {
             "title": "Vin",
             "type": "string"
@@ -7185,7 +7257,7 @@
         },
         "required": [
           "date",
-          "mileage",
+          "odometer_km",
           "id",
           "vin",
           "created_at"
@@ -7197,8 +7269,8 @@
         "description": "Schema for updating an existing odometer record.",
         "examples": [
           {
-            "mileage": 45100,
-            "notes": "Corrected reading"
+            "notes": "Corrected reading",
+            "odometer_km": 72420.33
           }
         ],
         "properties": {
@@ -7215,19 +7287,6 @@
             "description": "Reading date",
             "title": "Date"
           },
-          "mileage": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Odometer reading",
-            "title": "Mileage"
-          },
           "notes": {
             "anyOf": [
               {
@@ -7239,6 +7298,24 @@
             ],
             "description": "Additional notes",
             "title": "Notes"
+          },
+          "odometer_km": {
+            "anyOf": [
+              {
+                "maximum": 99999999.99,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Odometer reading in kilometers",
+            "title": "Odometer Km"
           }
         },
         "title": "OdometerRecordUpdate",
@@ -7669,7 +7746,7 @@
             "title": "Cost Change Percent",
             "type": "string"
           },
-          "mpg_change_percent": {
+          "l_per_100km_change_percent": {
             "anyOf": [
               {
                 "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
@@ -7679,9 +7756,9 @@
                 "type": "null"
               }
             ],
-            "title": "Mpg Change Percent"
+            "title": "L Per 100Km Change Percent"
           },
-          "period1_avg_mpg": {
+          "period1_avg_l_per_100km": {
             "anyOf": [
               {
                 "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
@@ -7691,7 +7768,7 @@
                 "type": "null"
               }
             ],
-            "title": "Period1 Avg Mpg"
+            "title": "Period1 Avg L Per 100Km"
           },
           "period1_end": {
             "format": "date",
@@ -7718,7 +7795,7 @@
             "title": "Period1 Total Cost",
             "type": "string"
           },
-          "period2_avg_mpg": {
+          "period2_avg_l_per_100km": {
             "anyOf": [
               {
                 "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
@@ -7728,7 +7805,7 @@
                 "type": "null"
               }
             ],
-            "title": "Period2 Avg Mpg"
+            "title": "Period2 Avg L Per 100Km"
           },
           "period2_end": {
             "format": "date",
@@ -8401,17 +8478,22 @@
             ],
             "title": "Due Date"
           },
-          "due_mileage": {
+          "due_mileage_km": {
             "anyOf": [
               {
                 "exclusiveMinimum": 0.0,
-                "type": "integer"
+                "maximum": 99999999.99,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Due Mileage"
+            "title": "Due Mileage Km"
           },
           "line_item_id": {
             "anyOf": [
@@ -8479,16 +8561,17 @@
             ],
             "title": "Due Date"
           },
-          "due_mileage": {
+          "due_mileage_km": {
             "anyOf": [
               {
-                "type": "integer"
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Due Mileage"
+            "title": "Due Mileage Km"
           },
           "estimated_due_date": {
             "anyOf": [
@@ -8569,7 +8652,7 @@
           "title",
           "reminder_type",
           "due_date",
-          "due_mileage",
+          "due_mileage_km",
           "status",
           "notes",
           "last_notified_at",
@@ -8594,17 +8677,22 @@
             ],
             "title": "Due Date"
           },
-          "due_mileage": {
+          "due_mileage_km": {
             "anyOf": [
               {
                 "exclusiveMinimum": 0.0,
-                "type": "integer"
+                "maximum": 99999999.99,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Due Mileage"
+            "title": "Due Mileage Km"
           },
           "notes": {
             "anyOf": [
@@ -8781,27 +8869,29 @@
             ],
             "title": "Description"
           },
-          "mileage": {
+          "km_since_last": {
             "anyOf": [
               {
-                "type": "integer"
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Mileage"
+            "title": "Km Since Last"
           },
-          "miles_since_last": {
+          "odometer_km": {
             "anyOf": [
               {
-                "type": "integer"
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Miles Since Last"
+            "title": "Odometer Km"
           },
           "service_type": {
             "title": "Service Type",
@@ -9337,8 +9427,8 @@
                 "notes": "Included with oil change"
               }
             ],
-            "mileage": 92500,
             "notes": "Regular maintenance visit",
+            "odometer_km": 148864,
             "service_category": "Maintenance",
             "vendor_id": 1
           }
@@ -9372,19 +9462,6 @@
             "title": "Line Items",
             "type": "array"
           },
-          "mileage": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Odometer reading",
-            "title": "Mileage"
-          },
           "misc_fees": {
             "anyOf": [
               {
@@ -9414,6 +9491,24 @@
             ],
             "description": "Visit notes",
             "title": "Notes"
+          },
+          "odometer_km": {
+            "anyOf": [
+              {
+                "maximum": 99999999.99,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Odometer reading in kilometers",
+            "title": "Odometer Km"
           },
           "service_category": {
             "anyOf": [
@@ -9553,8 +9648,8 @@
             "id": 1,
             "line_item_count": 2,
             "line_items": [],
-            "mileage": 92500,
             "notes": "Regular maintenance visit",
+            "odometer_km": 148864,
             "service_category": "Maintenance",
             "total_cost": "112.23",
             "vendor": {
@@ -9620,19 +9715,6 @@
             "title": "Line Items",
             "type": "array"
           },
-          "mileage": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Odometer reading",
-            "title": "Mileage"
-          },
           "misc_fees": {
             "anyOf": [
               {
@@ -9658,6 +9740,19 @@
             ],
             "description": "Visit notes",
             "title": "Notes"
+          },
+          "odometer_km": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Odometer reading in kilometers",
+            "title": "Odometer Km"
           },
           "service_category": {
             "anyOf": [
@@ -9824,19 +9919,6 @@
             "description": "Diff-based line items (if provided)",
             "title": "Line Items"
           },
-          "mileage": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Odometer reading",
-            "title": "Mileage"
-          },
           "misc_fees": {
             "anyOf": [
               {
@@ -9866,6 +9948,24 @@
             ],
             "description": "Visit notes",
             "title": "Notes"
+          },
+          "odometer_km": {
+            "anyOf": [
+              {
+                "maximum": 99999999.99,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Odometer reading in kilometers",
+            "title": "Odometer Km"
           },
           "service_category": {
             "anyOf": [
@@ -12711,19 +12811,7 @@
             "description": "Brake type",
             "title": "Brake Type"
           },
-          "gvwr": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Gross Vehicle Weight Rating (lbs)",
-            "title": "Gvwr"
-          },
-          "height_ft": {
+          "gvwr_kg": {
             "anyOf": [
               {
                 "type": "number"
@@ -12736,8 +12824,24 @@
                 "type": "null"
               }
             ],
-            "description": "Height in feet",
-            "title": "Height Ft"
+            "description": "Gross Vehicle Weight Rating (kg)",
+            "title": "Gvwr Kg"
+          },
+          "height_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Height in meters",
+            "title": "Height M"
           },
           "hitch_type": {
             "anyOf": [
@@ -12751,7 +12855,7 @@
             "description": "Hitch type",
             "title": "Hitch Type"
           },
-          "length_ft": {
+          "length_m": {
             "anyOf": [
               {
                 "type": "number"
@@ -12764,8 +12868,8 @@
                 "type": "null"
               }
             ],
-            "description": "Length in feet",
-            "title": "Length Ft"
+            "description": "Length in meters",
+            "title": "Length M"
           },
           "tow_vehicle_vin": {
             "anyOf": [
@@ -12788,7 +12892,7 @@
             "title": "Vin",
             "type": "string"
           },
-          "width_ft": {
+          "width_m": {
             "anyOf": [
               {
                 "type": "number"
@@ -12801,8 +12905,8 @@
                 "type": "null"
               }
             ],
-            "description": "Width in feet",
-            "title": "Width Ft"
+            "description": "Width in meters",
+            "title": "Width M"
           }
         },
         "required": [
@@ -12840,19 +12944,7 @@
             "description": "Brake type",
             "title": "Brake Type"
           },
-          "gvwr": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Gross Vehicle Weight Rating (lbs)",
-            "title": "Gvwr"
-          },
-          "height_ft": {
+          "gvwr_kg": {
             "anyOf": [
               {
                 "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
@@ -12862,8 +12954,21 @@
                 "type": "null"
               }
             ],
-            "description": "Height in feet",
-            "title": "Height Ft"
+            "description": "Gross Vehicle Weight Rating (kg)",
+            "title": "Gvwr Kg"
+          },
+          "height_m": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Height in meters",
+            "title": "Height M"
           },
           "hitch_type": {
             "anyOf": [
@@ -12877,7 +12982,7 @@
             "description": "Hitch type",
             "title": "Hitch Type"
           },
-          "length_ft": {
+          "length_m": {
             "anyOf": [
               {
                 "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
@@ -12887,8 +12992,8 @@
                 "type": "null"
               }
             ],
-            "description": "Length in feet",
-            "title": "Length Ft"
+            "description": "Length in meters",
+            "title": "Length M"
           },
           "tow_vehicle_vin": {
             "anyOf": [
@@ -12908,7 +13013,7 @@
             "title": "Vin",
             "type": "string"
           },
-          "width_ft": {
+          "width_m": {
             "anyOf": [
               {
                 "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
@@ -12918,8 +13023,8 @@
                 "type": "null"
               }
             ],
-            "description": "Width in feet",
-            "title": "Width Ft"
+            "description": "Width in meters",
+            "title": "Width M"
           }
         },
         "required": [
@@ -12957,19 +13062,7 @@
             "description": "Brake type",
             "title": "Brake Type"
           },
-          "gvwr": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Gross Vehicle Weight Rating (lbs)",
-            "title": "Gvwr"
-          },
-          "height_ft": {
+          "gvwr_kg": {
             "anyOf": [
               {
                 "type": "number"
@@ -12982,8 +13075,24 @@
                 "type": "null"
               }
             ],
-            "description": "Height in feet",
-            "title": "Height Ft"
+            "description": "Gross Vehicle Weight Rating (kg)",
+            "title": "Gvwr Kg"
+          },
+          "height_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Height in meters",
+            "title": "Height M"
           },
           "hitch_type": {
             "anyOf": [
@@ -12997,7 +13106,7 @@
             "description": "Hitch type",
             "title": "Hitch Type"
           },
-          "length_ft": {
+          "length_m": {
             "anyOf": [
               {
                 "type": "number"
@@ -13010,8 +13119,8 @@
                 "type": "null"
               }
             ],
-            "description": "Length in feet",
-            "title": "Length Ft"
+            "description": "Length in meters",
+            "title": "Length M"
           },
           "tow_vehicle_vin": {
             "anyOf": [
@@ -13027,7 +13136,7 @@
             "description": "VIN of tow vehicle",
             "title": "Tow Vehicle Vin"
           },
-          "width_ft": {
+          "width_m": {
             "anyOf": [
               {
                 "type": "number"
@@ -13040,8 +13149,8 @@
                 "type": "null"
               }
             ],
-            "description": "Width in feet",
-            "title": "Width Ft"
+            "description": "Width in meters",
+            "title": "Width M"
           }
         },
         "title": "TrailerDetailsUpdate",
@@ -13758,16 +13867,17 @@
       "VehicleAnalytics": {
         "description": "Complete vehicle analytics.",
         "properties": {
-          "average_miles_per_month": {
+          "average_km_per_month": {
             "anyOf": [
               {
-                "type": "integer"
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Average Miles Per Month"
+            "title": "Average Km Per Month"
           },
           "cost_analysis": {
             "$ref": "#/components/schemas/CostAnalysis"
@@ -13849,16 +13959,17 @@
             ],
             "title": "Spot Rental Analysis"
           },
-          "total_miles_driven": {
+          "total_km_driven": {
             "anyOf": [
               {
-                "type": "integer"
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Total Miles Driven"
+            "title": "Total Km Driven"
           },
           "vehicle_name": {
             "title": "Vehicle Name",
@@ -14012,10 +14123,10 @@
             "description": "Number of cylinders",
             "title": "Cylinders"
           },
-          "def_tank_capacity_gallons": {
+          "def_tank_capacity_liters": {
             "anyOf": [
               {
-                "maximum": 999.99,
+                "maximum": 9999.99,
                 "minimum": 0.0,
                 "type": "number"
               },
@@ -14027,8 +14138,8 @@
                 "type": "null"
               }
             ],
-            "description": "DEF tank capacity in gallons",
-            "title": "Def Tank Capacity Gallons"
+            "description": "DEF tank capacity in liters",
+            "title": "Def Tank Capacity Liters"
           },
           "displacement_l": {
             "anyOf": [
@@ -14802,7 +14913,7 @@
             "description": "Number of cylinders",
             "title": "Cylinders"
           },
-          "def_tank_capacity_gallons": {
+          "def_tank_capacity_liters": {
             "anyOf": [
               {
                 "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
@@ -14812,8 +14923,8 @@
                 "type": "null"
               }
             ],
-            "description": "DEF tank capacity in gallons",
-            "title": "Def Tank Capacity Gallons"
+            "description": "DEF tank capacity in liters",
+            "title": "Def Tank Capacity Liters"
           },
           "destination_charge": {
             "anyOf": [
@@ -14898,38 +15009,41 @@
             ],
             "title": "Exterior Color"
           },
-          "fuel_economy_city": {
+          "fuel_economy_city_l_per_100km": {
             "anyOf": [
               {
-                "type": "integer"
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Fuel Economy City"
+            "title": "Fuel Economy City L Per 100Km"
           },
-          "fuel_economy_combined": {
+          "fuel_economy_combined_l_per_100km": {
             "anyOf": [
               {
-                "type": "integer"
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Fuel Economy Combined"
+            "title": "Fuel Economy Combined L Per 100Km"
           },
-          "fuel_economy_highway": {
+          "fuel_economy_highway_l_per_100km": {
             "anyOf": [
               {
-                "type": "integer"
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Fuel Economy Highway"
+            "title": "Fuel Economy Highway L Per 100Km"
           },
           "fuel_type": {
             "anyOf": [
@@ -15515,16 +15629,17 @@
             "title": "Archived Visible",
             "type": "boolean"
           },
-          "average_mpg": {
+          "average_l_per_100km": {
             "anyOf": [
               {
-                "type": "number"
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Average Mpg"
+            "title": "Average L Per 100Km"
           },
           "is_shared_with_me": {
             "default": false,
@@ -15555,16 +15670,17 @@
             ],
             "title": "Latest Odometer Date"
           },
-          "latest_odometer_reading": {
+          "latest_odometer_km": {
             "anyOf": [
               {
-                "type": "integer"
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Latest Odometer Reading"
+            "title": "Latest Odometer Km"
           },
           "latest_service_date": {
             "anyOf": [
@@ -15615,16 +15731,17 @@
             "title": "Overdue Maintenance Count",
             "type": "integer"
           },
-          "recent_mpg": {
+          "recent_l_per_100km": {
             "anyOf": [
               {
-                "type": "number"
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Recent Mpg"
+            "title": "Recent L Per 100Km"
           },
           "share_permission": {
             "anyOf": [
@@ -15858,10 +15975,10 @@
             "description": "Number of cylinders",
             "title": "Cylinders"
           },
-          "def_tank_capacity_gallons": {
+          "def_tank_capacity_liters": {
             "anyOf": [
               {
-                "maximum": 999.99,
+                "maximum": 9999.99,
                 "minimum": 0.0,
                 "type": "number"
               },
@@ -15873,8 +15990,8 @@
                 "type": "null"
               }
             ],
-            "description": "DEF tank capacity in gallons",
-            "title": "Def Tank Capacity Gallons"
+            "description": "DEF tank capacity in liters",
+            "title": "Def Tank Capacity Liters"
           },
           "displacement_l": {
             "anyOf": [
@@ -16652,18 +16769,18 @@
             "title": "Id",
             "type": "integer"
           },
-          "mileage_limit": {
+          "mileage_limit_km": {
             "anyOf": [
               {
-                "minimum": 0.0,
-                "type": "integer"
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "description": "Mileage limit if applicable",
-            "title": "Mileage Limit"
+            "description": "Mileage limit in kilometers if applicable",
+            "title": "Mileage Limit Km"
           },
           "notes": {
             "anyOf": [
@@ -16755,18 +16872,23 @@
             "description": "Warranty end date",
             "title": "End Date"
           },
-          "mileage_limit": {
+          "mileage_limit_km": {
             "anyOf": [
               {
+                "maximum": 99999999.99,
                 "minimum": 0.0,
-                "type": "integer"
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "description": "Mileage limit if applicable",
-            "title": "Mileage Limit"
+            "description": "Mileage limit in kilometers if applicable",
+            "title": "Mileage Limit Km"
           },
           "notes": {
             "anyOf": [
@@ -16849,17 +16971,22 @@
             ],
             "title": "End Date"
           },
-          "mileage_limit": {
+          "mileage_limit_km": {
             "anyOf": [
               {
+                "maximum": 99999999.99,
                 "minimum": 0.0,
-                "type": "integer"
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Mileage Limit"
+            "title": "Mileage Limit Km"
           },
           "notes": {
             "anyOf": [
@@ -17606,38 +17733,50 @@
             ],
             "title": "Exterior Color"
           },
-          "fuel_economy_city": {
+          "fuel_economy_city_l_per_100km": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Fuel Economy City"
+            "title": "Fuel Economy City L Per 100Km"
           },
-          "fuel_economy_combined": {
+          "fuel_economy_combined_l_per_100km": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Fuel Economy Combined"
+            "title": "Fuel Economy Combined L Per 100Km"
           },
-          "fuel_economy_highway": {
+          "fuel_economy_highway_l_per_100km": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Fuel Economy Highway"
+            "title": "Fuel Economy Highway L Per 100Km"
           },
           "interior_color": {
             "anyOf": [
@@ -17804,38 +17943,41 @@
             ],
             "title": "Exterior Color"
           },
-          "fuel_economy_city": {
+          "fuel_economy_city_l_per_100km": {
             "anyOf": [
               {
-                "type": "integer"
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Fuel Economy City"
+            "title": "Fuel Economy City L Per 100Km"
           },
-          "fuel_economy_combined": {
+          "fuel_economy_combined_l_per_100km": {
             "anyOf": [
               {
-                "type": "integer"
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Fuel Economy Combined"
+            "title": "Fuel Economy Combined L Per 100Km"
           },
-          "fuel_economy_highway": {
+          "fuel_economy_highway_l_per_100km": {
             "anyOf": [
               {
-                "type": "integer"
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Fuel Economy Highway"
+            "title": "Fuel Economy Highway L Per 100Km"
           },
           "interior_color": {
             "anyOf": [
@@ -18057,9 +18199,9 @@
           "msrp_options",
           "msrp_total",
           "destination_charge",
-          "fuel_economy_city",
-          "fuel_economy_highway",
-          "fuel_economy_combined",
+          "fuel_economy_city_l_per_100km",
+          "fuel_economy_highway_l_per_100km",
+          "fuel_economy_combined_l_per_100km",
           "standard_equipment",
           "optional_equipment",
           "assembly_location",
@@ -18175,7 +18317,7 @@
   "info": {
     "description": "Self-hosted vehicle maintenance tracking application",
     "title": "MyGarage",
-    "version": "2.26.1"
+    "version": "2.26.2"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -18473,6 +18615,32 @@
       "get": {
         "description": "Export garage analytics as PDF report.",
         "operationId": "export_garage_analytics_pdf_api_analytics_garage_export_get",
+        "parameters": [
+          {
+            "description": "ISO 4217 code; defaults to USD.",
+            "in": "query",
+            "name": "currency_code",
+            "required": false,
+            "schema": {
+              "default": "USD",
+              "description": "ISO 4217 code; defaults to USD.",
+              "title": "Currency Code",
+              "type": "string"
+            }
+          },
+          {
+            "description": "BCP 47 locale; defaults to en-US.",
+            "in": "query",
+            "name": "locale",
+            "required": false,
+            "schema": {
+              "default": "en-US",
+              "description": "BCP 47 locale; defaults to en-US.",
+              "title": "Locale",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -18481,6 +18649,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "security": [
@@ -18673,6 +18851,30 @@
             "required": true,
             "schema": {
               "title": "Vin",
+              "type": "string"
+            }
+          },
+          {
+            "description": "ISO 4217 code; defaults to USD.",
+            "in": "query",
+            "name": "currency_code",
+            "required": false,
+            "schema": {
+              "default": "USD",
+              "description": "ISO 4217 code; defaults to USD.",
+              "title": "Currency Code",
+              "type": "string"
+            }
+          },
+          {
+            "description": "BCP 47 locale; defaults to en-US.",
+            "in": "query",
+            "name": "locale",
+            "required": false,
+            "schema": {
+              "default": "en-US",
+              "description": "BCP 47 locale; defaults to en-US.",
+              "title": "Locale",
               "type": "string"
             }
           }
@@ -27252,7 +27454,7 @@
     },
     "/api/vehicles/{vin}/odometer": {
       "get": {
-        "description": "Get all odometer records for a vehicle.\n\n**Path Parameters:**\n- **vin**: Vehicle VIN\n\n**Query Parameters:**\n- **skip**: Number of records to skip (pagination)\n- **limit**: Maximum number of records to return\n\n**Returns:**\n- List of odometer records with total count and latest mileage",
+        "description": "Get all odometer records for a vehicle.\n\n**Path Parameters:**\n- **vin**: Vehicle VIN\n\n**Query Parameters:**\n- **skip**: Number of records to skip (pagination)\n- **limit**: Maximum number of records to return\n\n**Returns:**\n- List of odometer records with total count and latest reading (km)",
         "operationId": "list_odometer_records_api_vehicles__vin__odometer_get",
         "parameters": [
           {
@@ -28700,6 +28902,30 @@
               "title": "Year",
               "type": "integer"
             }
+          },
+          {
+            "description": "ISO 4217 code; defaults to USD.",
+            "in": "query",
+            "name": "currency_code",
+            "required": false,
+            "schema": {
+              "default": "USD",
+              "description": "ISO 4217 code; defaults to USD.",
+              "title": "Currency Code",
+              "type": "string"
+            }
+          },
+          {
+            "description": "BCP 47 locale; defaults to en-US.",
+            "in": "query",
+            "name": "locale",
+            "required": false,
+            "schema": {
+              "default": "en-US",
+              "description": "BCP 47 locale; defaults to en-US.",
+              "title": "Locale",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -28864,6 +29090,30 @@
               "description": "End date (YYYY-MM-DD)",
               "title": "End Date"
             }
+          },
+          {
+            "description": "ISO 4217 code; defaults to USD.",
+            "in": "query",
+            "name": "currency_code",
+            "required": false,
+            "schema": {
+              "default": "USD",
+              "description": "ISO 4217 code; defaults to USD.",
+              "title": "Currency Code",
+              "type": "string"
+            }
+          },
+          {
+            "description": "BCP 47 locale; defaults to en-US.",
+            "in": "query",
+            "name": "locale",
+            "required": false,
+            "schema": {
+              "default": "en-US",
+              "description": "BCP 47 locale; defaults to en-US.",
+              "title": "Locale",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -28920,6 +29170,30 @@
               "description": "Tax year",
               "title": "Year",
               "type": "integer"
+            }
+          },
+          {
+            "description": "ISO 4217 code; defaults to USD.",
+            "in": "query",
+            "name": "currency_code",
+            "required": false,
+            "schema": {
+              "default": "USD",
+              "description": "ISO 4217 code; defaults to USD.",
+              "title": "Currency Code",
+              "type": "string"
+            }
+          },
+          {
+            "description": "BCP 47 locale; defaults to en-US.",
+            "in": "query",
+            "name": "locale",
+            "required": false,
+            "schema": {
+              "default": "en-US",
+              "description": "BCP 47 locale; defaults to en-US.",
+              "title": "Locale",
+              "type": "string"
             }
           }
         ],

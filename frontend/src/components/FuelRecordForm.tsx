@@ -12,6 +12,7 @@ import api from '../services/api'
 import { useCreateFuelRecord, useUpdateFuelRecord } from '../hooks/queries/useFuelRecords'
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { UnitConverter, UnitFormatter } from '../utils/units'
+import { toCanonicalKm, toCanonicalLiters } from '../utils/decimalSafe'
 import CurrencyInputPrefix from './common/CurrencyInputPrefix'
 import { formatDateForInput } from '../utils/dateUtils'
 
@@ -56,20 +57,18 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
     resolver: zodResolver(fuelRecordSchema) as Resolver<FuelRecordFormData>,
     defaultValues: {
       date: formatDateForInput(record?.date),
-      mileage: system === 'metric' && record?.mileage
-        ? (() => {
-            const km = UnitConverter.milesToKm(toNumber(record.mileage)!)
-            return km != null ? Math.round(km) : undefined
-          })()
-        : toNumber(record?.mileage),
-      gallons: system === 'metric' && record?.gallons
-        ? UnitConverter.gallonsToLiters(toNumber(record.gallons)!) ?? undefined
-        : toNumber(record?.gallons),
-      propane_gallons: system === 'metric' && record?.propane_gallons
-        ? UnitConverter.gallonsToLiters(toNumber(record.propane_gallons)!) ?? undefined
-        : toNumber(record?.propane_gallons),
+      odometer_km: system === 'imperial' && record?.odometer_km != null
+        ? UnitConverter.kmToMiles(toNumber(record.odometer_km)!) ?? undefined
+        : toNumber(record?.odometer_km),
+      liters: system === 'imperial' && record?.liters != null
+        ? UnitConverter.litersToGallons(toNumber(record.liters)!) ?? undefined
+        : toNumber(record?.liters),
+      propane_liters: system === 'imperial' && record?.propane_liters != null
+        ? UnitConverter.litersToGallons(toNumber(record.propane_liters)!) ?? undefined
+        : toNumber(record?.propane_liters),
       kwh: toNumber(record?.kwh),
       price_per_unit: toNumber(record?.price_per_unit),
+      price_basis: (record?.price_basis as 'per_volume' | 'per_weight' | 'per_kwh' | 'per_tank' | undefined) ?? undefined,
       cost: toNumber(record?.cost),
       fuel_type: record?.fuel_type || '',
       is_full_tank: record?.is_full_tank ?? true,
@@ -80,7 +79,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
   })
 
   // Watch for auto-calculation
-  const gallons = watch('gallons')
+  const liters = watch('liters')
   const kwh = watch('kwh')
   const pricePerUnit = watch('price_per_unit')
 
@@ -93,7 +92,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
 
         // Store fuel_type and DEF tank capacity for conditional rendering
         setVehicleFuelType(vehicleData.fuel_type || '')
-        const cap = vehicleData.def_tank_capacity_gallons
+        const cap = vehicleData.def_tank_capacity_liters
         setDefTankCapacity(cap ? (typeof cap === 'string' ? parseFloat(cap) : cap) : 0)
 
         // Auto-populate fuel_type from vehicle if not editing
@@ -117,8 +116,8 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
       return
     }
 
-    // Auto-calculate based on gallons or kwh
-    const volumeOrEnergy = gallons || kwh
+    // Auto-calculate based on liters or kwh
+    const volumeOrEnergy = liters || kwh
 
     if (volumeOrEnergy && pricePerUnit) {
       const volumeNum = typeof volumeOrEnergy === 'number' ? volumeOrEnergy : parseFloat(volumeOrEnergy)
@@ -129,29 +128,22 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
         setValue('cost', parseFloat(total.toFixed(2)))
       }
     }
-  }, [gallons, kwh, pricePerUnit, setValue, isInitialMount])
+  }, [liters, kwh, pricePerUnit, setValue, isInitialMount])
 
   const onSubmit = async (data: FuelRecordFormData) => {
     setError(null)
 
     try {
-      // Convert from user's unit system to imperial (canonical storage format)
-      // Mileage must be rounded to integer - backend stores as INT
-      const convertedMileage = system === 'metric' && data.mileage
-        ? UnitConverter.kmToMiles(data.mileage)
-        : data.mileage
+      // Convert user-entered values to canonical metric (SI) for the API.
       const payload: FuelRecordCreate | FuelRecordUpdate = {
         vin,
         date: data.date,
-        mileage: convertedMileage != null ? Math.round(convertedMileage) : undefined,
-        gallons: system === 'metric' && data.gallons
-          ? UnitConverter.litersToGallons(data.gallons) ?? data.gallons
-          : data.gallons,
-        propane_gallons: system === 'metric' && data.propane_gallons
-          ? UnitConverter.litersToGallons(data.propane_gallons) ?? data.propane_gallons
-          : data.propane_gallons,
+        odometer_km: toCanonicalKm(data.odometer_km, system) ?? undefined,
+        liters: toCanonicalLiters(data.liters, system) ?? undefined,
+        propane_liters: toCanonicalLiters(data.propane_liters, system) ?? undefined,
         kwh: data.kwh,
         price_per_unit: data.price_per_unit,
+        price_basis: data.price_basis,
         cost: data.cost,
         fuel_type: data.fuel_type,
         is_full_tank: data.is_full_tank,
@@ -222,21 +214,21 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
             </div>
 
             <div>
-              <label htmlFor="mileage" className="block text-sm font-medium text-garage-text mb-1">
+              <label htmlFor="odometer_km" className="block text-sm font-medium text-garage-text mb-1">
                 {t('common:mileage')} ({UnitFormatter.getDistanceUnit(system)})
               </label>
               <input
                 type="number"
-                id="mileage"
-                {...register('mileage', { valueAsNumber: true })}
+                id="odometer_km"
+                {...register('odometer_km', { valueAsNumber: true })}
                 min="0"
                 placeholder={system === 'imperial' ? '45000' : '72420'}
                 className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
-                  errors.mileage ? 'border-red-500' : 'border-garage-border'
+                  errors.odometer_km ? 'border-red-500' : 'border-garage-border'
                 }`}
                 disabled={isSubmitting}
               />
-              <FormError error={errors.mileage} />
+              <FormError error={errors.odometer_km} />
             </div>
           </div>
 
@@ -244,22 +236,22 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
             {/* Regular Fuel (Gallons) - Show for gas/diesel/hybrid */}
             {showGallons && (
               <div>
-                <label htmlFor="gallons" className="block text-sm font-medium text-garage-text mb-1">
+                <label htmlFor="liters" className="block text-sm font-medium text-garage-text mb-1">
                   {t('fuel.volume')} ({UnitFormatter.getVolumeUnit(system)})
                 </label>
                 <input
                   type="number"
-                  id="gallons"
-                  {...register('gallons', { valueAsNumber: true })}
+                  id="liters"
+                  {...register('liters', { valueAsNumber: true })}
                   min="0"
                   step="0.001"
                   placeholder={system === 'imperial' ? '12.500' : '47.318'}
                   className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
-                    errors.gallons ? 'border-red-500' : 'border-garage-border'
+                    errors.liters ? 'border-red-500' : 'border-garage-border'
                   }`}
                   disabled={isSubmitting}
                 />
-                <FormError error={errors.gallons} />
+                <FormError error={errors.liters} />
               </div>
             )}
 
@@ -288,22 +280,22 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
             {/* Propane - Show for propane vehicles */}
             {showPropane && (
               <div>
-                <label htmlFor="propane_gallons" className="block text-sm font-medium text-garage-text mb-1">
+                <label htmlFor="propane_liters" className="block text-sm font-medium text-garage-text mb-1">
                   {t('fuel.propane')} ({UnitFormatter.getVolumeUnit(system)})
                 </label>
                 <input
                   type="number"
-                  id="propane_gallons"
-                  {...register('propane_gallons', { valueAsNumber: true })}
+                  id="propane_liters"
+                  {...register('propane_liters', { valueAsNumber: true })}
                   min="0"
                   step="0.001"
                   placeholder="0.000"
                   className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
-                    errors.propane_gallons ? 'border-red-500' : 'border-garage-border'
+                    errors.propane_liters ? 'border-red-500' : 'border-garage-border'
                   }`}
                   disabled={isSubmitting}
                 />
-                <FormError error={errors.propane_gallons} />
+                <FormError error={errors.propane_liters} />
               </div>
             )}
 
@@ -329,6 +321,25 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
               </div>
               <FormError error={errors.price_per_unit} />
             </div>
+          </div>
+
+          <div>
+            <label htmlFor="price_basis" className="block text-sm font-medium text-garage-text mb-1">
+              {t('fuel.priceBasis', { defaultValue: 'Price basis' })}
+            </label>
+            <select
+              id="price_basis"
+              {...register('price_basis')}
+              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text border-garage-border"
+              disabled={isSubmitting}
+              defaultValue={isElectric ? 'per_kwh' : 'per_volume'}
+            >
+              <option value="per_volume">{t('fuel.priceBasisPerVolume', { defaultValue: 'Per volume (L/gal)' })}</option>
+              <option value="per_weight">{t('fuel.priceBasisPerWeight', { defaultValue: 'Per weight (kg/lb)' })}</option>
+              <option value="per_kwh">{t('fuel.priceBasisPerKwh', { defaultValue: 'Per kWh' })}</option>
+              <option value="per_tank">{t('fuel.priceBasisPerTank', { defaultValue: 'Per tank' })}</option>
+            </select>
+            <FormError error={errors.price_basis} />
           </div>
 
           <div>

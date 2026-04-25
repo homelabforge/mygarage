@@ -371,11 +371,11 @@ export default function ServiceVisitList({
                     )}
                   </div>
 
-                  {/* Mileage */}
-                  {visit.mileage && (
+                  {/* Odometer */}
+                  {visit.odometer_km != null && (
                     <div className="flex items-center gap-1 text-sm text-garage-text-muted">
                       <Gauge className="w-4 h-4" />
-                      <span>{UnitFormatter.formatDistance(visit.mileage, system, showBoth)}</span>
+                      <span>{UnitFormatter.formatDistance(parseFloat(String(visit.odometer_km)), system, showBoth)}</span>
                     </div>
                   )}
 

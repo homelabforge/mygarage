@@ -2,13 +2,13 @@ import { z } from 'zod'
 
 export const propaneRecordSchema = z.object({
   date: z.string().min(1, 'Date is required'),
-  propane_gallons: z
+  propane_liters: z
     .number()
     .positive('Propane must be greater than 0')
     .or(z.nan())
     .transform(val => isNaN(val) ? undefined : val)
     .optional(),
-  tank_size_lb: z
+  tank_size_kg: z
     .number()
     .positive('Tank size must be greater than 0')
     .or(z.nan())

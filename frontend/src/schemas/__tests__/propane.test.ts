@@ -14,8 +14,8 @@ describe('Propane Record Schema', () => {
   it('validates propane record with all optional fields', () => {
     const result = propaneRecordSchema.safeParse({
       ...validPropane,
-      propane_gallons: 7.5,
-      tank_size_lb: 30,
+      propane_liters: 7.5,
+      tank_size_kg: 30,
       tank_quantity: 2,
       price_per_unit: 4.50,
       cost: 33.75,
@@ -30,10 +30,10 @@ describe('Propane Record Schema', () => {
     expect(result.success).toBe(false)
   })
 
-  it('rejects non-positive propane_gallons', () => {
+  it('rejects non-positive propane_liters', () => {
     const result = propaneRecordSchema.safeParse({
       ...validPropane,
-      propane_gallons: 0,
+      propane_liters: 0,
     })
     expect(result.success).toBe(false)
   })
@@ -57,14 +57,14 @@ describe('Propane Record Schema', () => {
   it('transforms NaN numeric fields to undefined', () => {
     const result = propaneRecordSchema.safeParse({
       ...validPropane,
-      propane_gallons: NaN,
-      tank_size_lb: NaN,
+      propane_liters: NaN,
+      tank_size_kg: NaN,
       cost: NaN,
     })
     expect(result.success).toBe(true)
     if (result.success) {
-      expect(result.data.propane_gallons).toBeUndefined()
-      expect(result.data.tank_size_lb).toBeUndefined()
+      expect(result.data.propane_liters).toBeUndefined()
+      expect(result.data.tank_size_kg).toBeUndefined()
       expect(result.data.cost).toBeUndefined()
     }
   })

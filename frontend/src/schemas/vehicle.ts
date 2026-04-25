@@ -106,11 +106,11 @@ export const vehicleEditSchema = z.object({
   sold_date: optionalDateSchema,
   sold_price: soldPriceSchema,
 
-  // DEF Tracking
-  def_tank_capacity_gallons: z
+  // DEF Tracking — canonical liters
+  def_tank_capacity_liters: z
     .number()
     .min(0, 'Tank capacity cannot be negative')
-    .max(999.99, 'Tank capacity too large')
+    .max(9999.99, 'Tank capacity too large')
     .or(z.nan())
     .nullable()
     .optional()

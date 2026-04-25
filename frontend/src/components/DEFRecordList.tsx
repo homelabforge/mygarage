@@ -20,7 +20,7 @@ export default function DEFRecordList({ vin }: DEFRecordListProps) {
   const [showForm, setShowForm] = useState(false)
   const [editingRecord, setEditingRecord] = useState<DEFRecord | undefined>()
   const { t } = useTranslation('vehicles')
-  const { system } = useUnitPreference()
+  const { system, showBoth } = useUnitPreference()
   const { currencyCode, locale } = useCurrencyPreference()
 
   const { data: recordsData, isLoading, error } = useDEFRecords(vin)
@@ -118,16 +118,16 @@ export default function DEFRecordList({ vin }: DEFRecordListProps) {
       {analytics && analytics.record_count > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
           {/* Est Miles Remaining */}
-          {analytics.estimated_miles_remaining !== null && (
+          {analytics.estimated_km_remaining !== null && (
             <div className="bg-garage-surface border border-garage-border rounded-lg p-3">
               <div className="flex items-center gap-1 text-xs text-garage-text-muted mb-1">
                 <TrendingDown className="w-3 h-3" />
                 <span>Est. {UnitFormatter.getDistanceUnit(system)} Left</span>
               </div>
-              <div className={`text-lg font-semibold ${milesRemainingColor(analytics.estimated_miles_remaining ?? 0)}`}>
-                {system === 'metric'
-                  ? Math.round(UnitConverter.milesToKm(analytics.estimated_miles_remaining ?? 0) ?? 0).toLocaleString()
-                  : (analytics.estimated_miles_remaining ?? 0).toLocaleString()}
+              <div className={`text-lg font-semibold ${milesRemainingColor(parseNum(analytics.estimated_km_remaining) ?? 0)}`}>
+                {system === 'imperial'
+                  ? Math.round(UnitConverter.kmToMiles(parseNum(analytics.estimated_km_remaining) ?? 0) ?? 0).toLocaleString()
+                  : Math.round(parseNum(analytics.estimated_km_remaining) ?? 0).toLocaleString()}
               </div>
               {analytics.estimated_days_remaining !== null && (
                 <p className="text-xs text-garage-text-muted">
@@ -138,28 +138,28 @@ export default function DEFRecordList({ vin }: DEFRecordListProps) {
           )}
 
           {/* Consumption Rate */}
-          {analytics.gallons_per_1000_miles !== null && (
+          {analytics.liters_per_1000_km !== null && (
             <div className="bg-garage-surface border border-garage-border rounded-lg p-3">
               <div className="flex items-center gap-1 text-xs text-garage-text-muted mb-1">
                 <Droplets className="w-3 h-3" />
                 <span>{t('defList.consumption')}</span>
               </div>
               <div className="text-lg font-semibold text-garage-text">
-                {analytics.gallons_per_1000_miles !== null &&
-                  UnitFormatter.formatVolumePerDistance(parseNum(analytics.gallons_per_1000_miles) ?? 0, system)}
+                {analytics.liters_per_1000_km !== null &&
+                  UnitFormatter.formatVolumePerDistance(parseNum(analytics.liters_per_1000_km) ?? 0, system)}
               </div>
               <p className="text-xs text-garage-text-muted">{UnitFormatter.getVolumePerDistanceLabel(system)}</p>
             </div>
           )}
 
           {/* Avg Cost/Gallon */}
-          {analytics.avg_cost_per_gallon !== null && (
+          {analytics.avg_cost_per_liter !== null && (
             <div className="bg-garage-surface border border-garage-border rounded-lg p-3">
               <div className="flex items-center gap-1 text-xs text-garage-text-muted mb-1">
                 <span>{UnitFormatter.getCostPerVolumeLabel(system)}</span>
               </div>
               <div className="text-lg font-semibold text-garage-text">
-                {UnitFormatter.formatCostPerVolume(parseNum(analytics.avg_cost_per_gallon) ?? 0, system, currencyCode, locale)}
+                {UnitFormatter.formatCostPerVolume(parseNum(analytics.avg_cost_per_liter) ?? 0, system, currencyCode, locale)}
               </div>
             </div>
           )}
@@ -174,7 +174,7 @@ export default function DEFRecordList({ vin }: DEFRecordListProps) {
                 {formatCurrency(analytics.total_cost, { currencyCode, locale })}
               </div>
               <p className="text-xs text-garage-text-muted">
-                {UnitFormatter.formatVolumeTotal(parseNum(analytics.total_gallons) ?? 0, system)}
+                {UnitFormatter.formatVolumeTotal(parseNum(analytics.total_liters) ?? 0, system)}
               </p>
             </div>
           )}
@@ -268,10 +268,10 @@ export default function DEFRecordList({ vin }: DEFRecordListProps) {
                         )}
                       </td>
                       <td className="px-4 py-3 text-sm text-garage-text text-right">
-                        {record.mileage?.toLocaleString() || '-'}
+                        {record.odometer_km != null ? UnitFormatter.formatDistance(parseFloat(String(record.odometer_km)), system, showBoth) : '-'}
                       </td>
                       <td className="px-4 py-3 text-sm text-garage-text text-right font-medium">
-                        {formatVolume(record.gallons)}
+                        {formatVolume(record.liters)}
                       </td>
                       <td className="px-4 py-3 text-sm text-center">
                         {fillLevel !== null ? (

@@ -71,6 +71,8 @@ import TransferHistorySection from '../components/TransferHistorySection'
 import { useOnlineStatus } from '../hooks/useOnlineStatus'
 import { useAuth } from '../contexts/AuthContext'
 import { formatCurrency } from '../utils/formatUtils'
+import { useUnitPreference } from '../hooks/useUnitPreference'
+import { UnitFormatter } from '../utils/units'
 import { formatDateForDisplay } from '../utils/dateUtils'
 import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
 import { useDateLocale } from '../hooks/useDateLocale'
@@ -111,6 +113,7 @@ export default function VehicleDetail() {
   const { vin } = useParams<{ vin: string }>()
   const navigate = useNavigate()
   const { isAdmin } = useAuth()
+  const { system: unitSystem } = useUnitPreference()
   const dateLocale = useDateLocale()
   const [searchParams] = useSearchParams()
   const [vehicle, setVehicle] = useState<Vehicle | null>(null)
@@ -412,7 +415,7 @@ export default function VehicleDetail() {
 
   // Check if vehicle has DEF tracking (diesel vehicles or manually enabled)
   const hasDEF = vehicle?.fuel_type?.toLowerCase().includes('diesel') ||
-    (vehicle?.def_tank_capacity_gallons != null && Number(vehicle.def_tank_capacity_gallons) > 0)
+    (vehicle?.def_tank_capacity_liters != null && Number(vehicle.def_tank_capacity_liters) > 0)
 
   // Check if vehicle is RV, Fifth Wheel, or Travel Trailer (for spot rentals)
   const isRVOrFifthWheel = vehicle?.vehicle_type &&
@@ -988,26 +991,26 @@ export default function VehicleDetail() {
             )}
 
             {/* Fuel Economy */}
-            {(vehicle.fuel_economy_city || vehicle.fuel_economy_highway || vehicle.fuel_economy_combined) && (
+            {(vehicle.fuel_economy_city_l_per_100km || vehicle.fuel_economy_highway_l_per_100km || vehicle.fuel_economy_combined_l_per_100km) && (
               <div className="bg-garage-surface rounded-lg border border-garage-border p-6 break-inside-avoid">
                 <h2 className="text-xl font-semibold text-garage-text mb-4">{t('detail.fuelEconomy')}</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  {vehicle.fuel_economy_city && (
+                  {vehicle.fuel_economy_city_l_per_100km && (
                     <div>
                       <p className="text-sm text-garage-text-muted">City</p>
-                      <p className="text-garage-text font-medium">{vehicle.fuel_economy_city} MPG</p>
+                      <p className="text-garage-text font-medium">{UnitFormatter.formatFuelEconomy(parseFloat(vehicle.fuel_economy_city_l_per_100km), unitSystem)}</p>
                     </div>
                   )}
-                  {vehicle.fuel_economy_highway && (
+                  {vehicle.fuel_economy_highway_l_per_100km && (
                     <div>
                       <p className="text-sm text-garage-text-muted">Highway</p>
-                      <p className="text-garage-text font-medium">{vehicle.fuel_economy_highway} MPG</p>
+                      <p className="text-garage-text font-medium">{UnitFormatter.formatFuelEconomy(parseFloat(vehicle.fuel_economy_highway_l_per_100km), unitSystem)}</p>
                     </div>
                   )}
-                  {vehicle.fuel_economy_combined && (
+                  {vehicle.fuel_economy_combined_l_per_100km && (
                     <div>
                       <p className="text-sm text-garage-text-muted">Combined</p>
-                      <p className="text-garage-text font-medium">{vehicle.fuel_economy_combined} MPG</p>
+                      <p className="text-garage-text font-medium">{UnitFormatter.formatFuelEconomy(parseFloat(vehicle.fuel_economy_combined_l_per_100km), unitSystem)}</p>
                     </div>
                   )}
                 </div>

@@ -3961,7 +3961,7 @@ export interface paths {
          *     - **limit**: Maximum number of records to return
          *
          *     **Returns:**
-         *     - List of odometer records with total count and latest mileage
+         *     - List of odometer records with total count and latest reading (km)
          */
         get: operations["list_odometer_records_api_vehicles__vin__odometer_get"];
         put?: never;
@@ -5938,10 +5938,10 @@ export interface components {
              */
             description?: string | null;
             /**
-             * Due Mileage
-             * @description Due mileage for mileage-based reminders (Phase 3)
+             * Due Mileage Km
+             * @description Due odometer reading (km) for mileage-based reminders (Phase 3)
              */
-            due_mileage?: number | null;
+            due_mileage_km?: string | null;
             /**
              * Id
              * @description Unique identifier in format 'type-id'
@@ -5955,7 +5955,7 @@ export interface components {
             is_completed: boolean;
             /**
              * Is Estimated
-             * @description Whether date is estimated from mileage (Phase 3)
+             * @description Whether date is estimated from odometer_km (Phase 3)
              * @default false
              */
             is_estimated: boolean;
@@ -5966,10 +5966,10 @@ export interface components {
              */
             is_recurring: boolean;
             /**
-             * Miles Until Due
-             * @description Miles until due mileage
+             * Km Until Due
+             * @description Kilometers until due odometer reading
              */
-            miles_until_due?: number | null;
+            km_until_due?: string | null;
             /**
              * Notes
              * @description Event notes/comments (Phase 3)
@@ -6095,8 +6095,8 @@ export interface components {
              * @default 0.00
              */
             average_monthly_cost: string;
-            /** Cost Per Mile */
-            cost_per_mile?: string | null;
+            /** Cost Per Km */
+            cost_per_km?: string | null;
             /**
              * Def Count
              * @default 0
@@ -6187,11 +6187,11 @@ export interface components {
         };
         /**
          * DEFAnalytics
-         * @description DEF analytics and consumption predictions.
+         * @description DEF analytics and consumption predictions (metric canonical).
          */
         DEFAnalytics: {
-            /** Avg Cost Per Gallon */
-            avg_cost_per_gallon?: string | null;
+            /** Avg Cost Per Liter */
+            avg_cost_per_liter?: string | null;
             /** Avg Purchase Frequency Days */
             avg_purchase_frequency_days?: number | null;
             /**
@@ -6201,14 +6201,14 @@ export interface components {
             data_confidence: string;
             /** Estimated Days Remaining */
             estimated_days_remaining?: number | null;
-            /** Estimated Miles Remaining */
-            estimated_miles_remaining?: number | null;
-            /** Estimated Remaining Gallons */
-            estimated_remaining_gallons?: string | null;
-            /** Gallons Per 1000 Miles */
-            gallons_per_1000_miles?: string | null;
+            /** Estimated Km Remaining */
+            estimated_km_remaining?: string | null;
+            /** Estimated Remaining Liters */
+            estimated_remaining_liters?: string | null;
             /** Last Fill Level */
             last_fill_level?: string | null;
+            /** Liters Per 1000 Km */
+            liters_per_1000_km?: string | null;
             /**
              * Record Count
              * @default 0
@@ -6216,8 +6216,8 @@ export interface components {
             record_count: number;
             /** Total Cost */
             total_cost?: string | null;
-            /** Total Gallons */
-            total_gallons?: string | null;
+            /** Total Liters */
+            total_liters?: string | null;
         };
         /**
          * DEFRecordCreate
@@ -6227,9 +6227,9 @@ export interface components {
          *       "cost": 24.75,
          *       "date": "2026-02-10",
          *       "fill_level": 1,
-         *       "gallons": 5.5,
-         *       "mileage": 55000,
-         *       "price_per_unit": 4.5,
+         *       "liters": 20.82,
+         *       "odometer_km": 88514,
+         *       "price_per_unit": 1.189,
          *       "source": "Truck Stop / Station Nozzle",
          *       "vin": "3C7WRTCL8NG123456"
          *     }
@@ -6257,23 +6257,23 @@ export interface components {
              */
             fill_level?: number | string | null;
             /**
-             * Gallons
-             * @description DEF volume added in gallons
+             * Liters
+             * @description DEF volume added in liters
              */
-            gallons?: number | string | null;
-            /**
-             * Mileage
-             * @description Odometer reading
-             */
-            mileage?: number | null;
+            liters?: number | string | null;
             /**
              * Notes
              * @description Additional notes
              */
             notes?: string | null;
             /**
+             * Odometer Km
+             * @description Odometer reading in kilometers
+             */
+            odometer_km?: number | string | null;
+            /**
              * Price Per Unit
-             * @description Cost per gallon
+             * @description Cost per liter
              */
             price_per_unit?: number | string | null;
             /**
@@ -6298,9 +6298,9 @@ export interface components {
          *           "created_at": "2026-02-10T14:30:00",
          *           "date": "2026-02-10",
          *           "fill_level": "1.00",
-         *           "gallons": "5.500",
          *           "id": 1,
-         *           "mileage": 55000,
+         *           "liters": "20.820",
+         *           "odometer_km": 88514,
          *           "source": "Truck Stop / Station Nozzle",
          *           "vin": "3C7WRTCL8NG123456"
          *         }
@@ -6323,10 +6323,10 @@ export interface components {
          *       "created_at": "2026-02-10T14:30:00",
          *       "date": "2026-02-10",
          *       "fill_level": "1.00",
-         *       "gallons": "5.500",
          *       "id": 1,
-         *       "mileage": 55000,
-         *       "price_per_unit": "4.500",
+         *       "liters": "20.820",
+         *       "odometer_km": 88514,
+         *       "price_per_unit": "1.189",
          *       "source": "Truck Stop / Station Nozzle",
          *       "vin": "3C7WRTCL8NG123456"
          *     }
@@ -6363,28 +6363,28 @@ export interface components {
              * @description Tank level after adding DEF (0.00=empty, 1.00=full)
              */
             fill_level?: string | null;
-            /**
-             * Gallons
-             * @description DEF volume added in gallons
-             */
-            gallons?: string | null;
             /** Id */
             id: number;
             /**
-             * Mileage
-             * @description Odometer reading
+             * Liters
+             * @description DEF volume added in liters
              */
-            mileage?: number | null;
+            liters?: string | null;
             /**
              * Notes
              * @description Additional notes
              */
             notes?: string | null;
+            /**
+             * Odometer Km
+             * @description Odometer reading in kilometers
+             */
+            odometer_km?: string | null;
             /** Origin Fuel Record Id */
             origin_fuel_record_id?: number | null;
             /**
              * Price Per Unit
-             * @description Cost per gallon
+             * @description Cost per liter
              */
             price_per_unit?: string | null;
             /**
@@ -6425,23 +6425,23 @@ export interface components {
              */
             fill_level?: number | string | null;
             /**
-             * Gallons
-             * @description DEF volume added in gallons
+             * Liters
+             * @description DEF volume added in liters
              */
-            gallons?: number | string | null;
-            /**
-             * Mileage
-             * @description Odometer reading
-             */
-            mileage?: number | null;
+            liters?: number | string | null;
             /**
              * Notes
              * @description Additional notes
              */
             notes?: string | null;
             /**
+             * Odometer Km
+             * @description Odometer reading in kilometers
+             */
+            odometer_km?: number | string | null;
+            /**
              * Price Per Unit
-             * @description Cost per gallon
+             * @description Cost per liter
              */
             price_per_unit?: number | string | null;
             /**
@@ -7108,7 +7108,7 @@ export interface components {
         };
         /**
          * FuelEconomyDataPoint
-         * @description Single fuel economy data point.
+         * @description Single fuel economy data point (metric canonical).
          */
         FuelEconomyDataPoint: {
             /** Cost */
@@ -7118,48 +7118,48 @@ export interface components {
              * Format: date
              */
             date: string;
-            /** Gallons */
-            gallons: string;
-            /** Mileage */
-            mileage: number;
-            /** Mpg */
-            mpg: string;
+            /** L Per 100Km */
+            l_per_100km: string;
+            /** Liters */
+            liters: string;
+            /** Odometer Km */
+            odometer_km: string;
         };
         /**
          * FuelEconomyTrend
-         * @description Fuel economy trend analysis.
+         * @description Fuel economy trend analysis (metric canonical — lower L/100km is better).
          */
         FuelEconomyTrend: {
-            /** Average Mpg */
-            average_mpg?: string | null;
-            /** Best Mpg */
-            best_mpg?: string | null;
+            /** Average L Per 100Km */
+            average_l_per_100km?: string | null;
+            /** Best L Per 100Km */
+            best_l_per_100km?: string | null;
             /**
              * Data Points
              * @default []
              */
             data_points: components["schemas"]["FuelEconomyDataPoint"][];
-            /** Recent Mpg */
-            recent_mpg?: string | null;
+            /** Recent L Per 100Km */
+            recent_l_per_100km?: string | null;
             /**
              * Trend
              * @default stable
              */
             trend: string;
-            /** Worst Mpg */
-            worst_mpg?: string | null;
+            /** Worst L Per 100Km */
+            worst_l_per_100km?: string | null;
         };
         /**
          * FuelEfficiencyAlert
          * @description Alert describing changes in fuel efficiency.
          */
         FuelEfficiencyAlert: {
-            /** Baseline Mpg */
-            baseline_mpg?: string | null;
+            /** Baseline L Per 100Km */
+            baseline_l_per_100km?: string | null;
             /** Message */
             message: string;
-            /** Recent Mpg */
-            recent_mpg?: string | null;
+            /** Recent L Per 100Km */
+            recent_l_per_100km?: string | null;
             /**
              * Severity
              * @default info
@@ -7175,11 +7175,12 @@ export interface components {
          * @example {
          *       "cost": 35.7,
          *       "date": "2025-01-15",
-         *       "gallons": 10.5,
          *       "is_full_tank": true,
-         *       "mileage": 45000,
+         *       "liters": 39.747,
          *       "missed_fillup": false,
-         *       "price_per_unit": 3.4,
+         *       "odometer_km": 72420.33,
+         *       "price_basis": "per_volume",
+         *       "price_per_unit": 0.898,
          *       "vin": "ML32A5HJ9KH009478"
          *     }
          */
@@ -7206,11 +7207,6 @@ export interface components {
              */
             fuel_type?: string | null;
             /**
-             * Gallons
-             * @description Fuel amount in gallons
-             */
-            gallons?: number | string | null;
-            /**
              * Is Full Tank
              * @description Full tank fill-up
              * @default true
@@ -7228,10 +7224,10 @@ export interface components {
              */
             kwh?: number | string | null;
             /**
-             * Mileage
-             * @description Odometer reading
+             * Liters
+             * @description Fuel amount in liters
              */
-            mileage?: number | null;
+            liters?: number | string | null;
             /**
              * Missed Fillup
              * @description Skipped recording a fill-up
@@ -7244,25 +7240,35 @@ export interface components {
              */
             notes?: string | null;
             /**
+             * Odometer Km
+             * @description Odometer reading in kilometers
+             */
+            odometer_km?: number | string | null;
+            /**
+             * Price Basis
+             * @description Price denominator: per_volume / per_weight / per_tank / per_kwh
+             */
+            price_basis?: string | null;
+            /**
              * Price Per Unit
-             * @description Price per gallon
+             * @description Price per unit; denominator depends on price_basis (per_volume=per liter, per_weight=per kg, per_kwh=per kWh, per_tank=per tank)
              */
             price_per_unit?: number | string | null;
             /**
-             * Propane Gallons
-             * @description Propane amount in gallons
+             * Propane Liters
+             * @description Propane amount in liters
              */
-            propane_gallons?: number | string | null;
+            propane_liters?: number | string | null;
             /**
              * Tank Quantity
              * @description Number of propane tanks
              */
             tank_quantity?: number | null;
             /**
-             * Tank Size Lb
-             * @description Propane tank size in pounds
+             * Tank Size Kg
+             * @description Propane tank size in kilograms
              */
-            tank_size_lb?: number | string | null;
+            tank_size_kg?: number | string | null;
             /**
              * Vin
              * @description Vehicle VIN
@@ -7273,17 +7279,17 @@ export interface components {
          * FuelRecordListResponse
          * @description Schema for fuel record list response.
          * @example {
-         *       "average_mpg": "32.5",
+         *       "average_l_per_100km": "7.24",
          *       "records": [
          *         {
          *           "cost": "35.70",
          *           "created_at": "2025-01-15T14:30:00",
          *           "date": "2025-01-15",
-         *           "gallons": "10.500",
          *           "id": 1,
          *           "is_full_tank": true,
-         *           "mileage": 45000,
-         *           "mpg": "32.5",
+         *           "l_per_100km": "7.24",
+         *           "liters": "39.747",
+         *           "odometer_km": 72420.33,
          *           "vin": "ML32A5HJ9KH009478"
          *         }
          *       ],
@@ -7292,10 +7298,10 @@ export interface components {
          */
         FuelRecordListResponse: {
             /**
-             * Average Mpg
-             * @description Average MPG across all records
+             * Average L Per 100Km
+             * @description Average fuel consumption (L/100 km) across all records
              */
-            average_mpg?: string | null;
+            average_l_per_100km?: string | null;
             /** Records */
             records: components["schemas"]["FuelRecordResponse"][];
             /** Total */
@@ -7303,19 +7309,20 @@ export interface components {
         };
         /**
          * FuelRecordResponse
-         * @description Schema for fuel record response.
+         * @description Schema for fuel record response (metric canonical).
          * @example {
          *       "cost": "35.70",
          *       "created_at": "2025-01-15T14:30:00",
          *       "date": "2025-01-15",
-         *       "gallons": "10.500",
          *       "id": 1,
          *       "is_full_tank": true,
          *       "is_hauling": false,
-         *       "mileage": 45000,
+         *       "l_per_100km": "7.24",
+         *       "liters": "39.747",
          *       "missed_fillup": false,
-         *       "mpg": "32.5",
-         *       "price_per_unit": "3.400",
+         *       "odometer_km": 72420.33,
+         *       "price_basis": "per_volume",
+         *       "price_per_unit": "0.898",
          *       "vin": "ML32A5HJ9KH009478"
          *     }
          */
@@ -7341,11 +7348,6 @@ export interface components {
              * @description Fuel type (Gasoline, Diesel, etc.)
              */
             fuel_type?: string | null;
-            /**
-             * Gallons
-             * @description Fuel amount in gallons
-             */
-            gallons?: string | null;
             /** Id */
             id: number;
             /**
@@ -7366,10 +7368,15 @@ export interface components {
              */
             kwh?: string | null;
             /**
-             * Mileage
-             * @description Odometer reading
+             * L Per 100Km
+             * @description Calculated fuel economy (L/100 km)
              */
-            mileage?: number | null;
+            l_per_100km?: string | null;
+            /**
+             * Liters
+             * @description Fuel amount in liters
+             */
+            liters?: string | null;
             /**
              * Missed Fillup
              * @description Skipped recording a fill-up
@@ -7377,41 +7384,46 @@ export interface components {
              */
             missed_fillup: boolean;
             /**
-             * Mpg
-             * @description Calculated miles per gallon
-             */
-            mpg?: string | null;
-            /**
              * Notes
              * @description Additional notes
              */
             notes?: string | null;
             /**
+             * Odometer Km
+             * @description Odometer reading in kilometers
+             */
+            odometer_km?: string | null;
+            /**
+             * Price Basis
+             * @description Price denominator: per_volume / per_weight / per_tank / per_kwh
+             */
+            price_basis?: string | null;
+            /**
              * Price Per Unit
-             * @description Price per gallon
+             * @description Price per unit; denominator depends on price_basis (per_volume=per liter, per_weight=per kg, per_kwh=per kWh, per_tank=per tank)
              */
             price_per_unit?: string | null;
             /**
-             * Propane Gallons
-             * @description Propane amount in gallons
+             * Propane Liters
+             * @description Propane amount in liters
              */
-            propane_gallons?: string | null;
+            propane_liters?: string | null;
             /**
              * Tank Quantity
              * @description Number of propane tanks
              */
             tank_quantity?: number | null;
             /**
-             * Tank Size Lb
-             * @description Propane tank size in pounds
+             * Tank Size Kg
+             * @description Propane tank size in kilograms
              */
-            tank_size_lb?: string | null;
+            tank_size_kg?: string | null;
             /** Vin */
             vin: string;
         };
         /**
          * FuelRecordUpdate
-         * @description Schema for updating an existing fuel record.
+         * @description Schema for updating an existing fuel record (metric canonical).
          * @example {
          *       "cost": 38.5,
          *       "notes": "Premium fuel"
@@ -7439,11 +7451,6 @@ export interface components {
              */
             fuel_type?: string | null;
             /**
-             * Gallons
-             * @description Fuel amount in gallons
-             */
-            gallons?: number | string | null;
-            /**
              * Is Full Tank
              * @description Full tank fill-up
              */
@@ -7459,10 +7466,10 @@ export interface components {
              */
             kwh?: number | string | null;
             /**
-             * Mileage
-             * @description Odometer reading
+             * Liters
+             * @description Fuel amount in liters
              */
-            mileage?: number | null;
+            liters?: number | string | null;
             /**
              * Missed Fillup
              * @description Skipped recording a fill-up
@@ -7474,25 +7481,32 @@ export interface components {
              */
             notes?: string | null;
             /**
+             * Odometer Km
+             * @description Odometer reading in kilometers
+             */
+            odometer_km?: number | string | null;
+            /** Price Basis */
+            price_basis?: string | null;
+            /**
              * Price Per Unit
-             * @description Price per gallon
+             * @description Price per unit (see price_basis for denominator)
              */
             price_per_unit?: number | string | null;
             /**
-             * Propane Gallons
-             * @description Propane amount in gallons
+             * Propane Liters
+             * @description Propane amount in liters
              */
-            propane_gallons?: number | string | null;
+            propane_liters?: number | string | null;
             /**
              * Tank Quantity
              * @description Number of propane tanks
              */
             tank_quantity?: number | null;
             /**
-             * Tank Size Lb
-             * @description Propane tank size in pounds
+             * Tank Size Kg
+             * @description Propane tank size in kilograms
              */
-            tank_size_lb?: number | string | null;
+            tank_size_kg?: number | string | null;
         };
         /**
          * GarageAnalytics
@@ -8337,8 +8351,8 @@ export interface components {
         MaintenancePrediction: {
             /** Average Interval Days */
             average_interval_days?: number | null;
-            /** Average Interval Miles */
-            average_interval_miles?: number | null;
+            /** Average Interval Km */
+            average_interval_km?: string | null;
             /**
              * Confidence
              * @default low
@@ -8351,16 +8365,16 @@ export interface components {
              * @default false
              */
             has_schedule_item: boolean;
-            /** Miles Until Due */
-            miles_until_due?: number | null;
+            /** Km Until Due */
+            km_until_due?: string | null;
             /** Predicted Date */
             predicted_date?: string | null;
-            /** Predicted Mileage */
-            predicted_mileage?: number | null;
+            /** Predicted Odometer Km */
+            predicted_odometer_km?: string | null;
             /** Schedule Item Next Date */
             schedule_item_next_date?: string | null;
-            /** Schedule Item Next Mileage */
-            schedule_item_next_mileage?: number | null;
+            /** Schedule Item Next Odometer Km */
+            schedule_item_next_odometer_km?: string | null;
             /** Service Type */
             service_type: string;
         };
@@ -8580,8 +8594,8 @@ export interface components {
          * @description Schema for creating a new odometer record.
          * @example {
          *       "date": "2025-01-15",
-         *       "mileage": 45000,
          *       "notes": "Monthly reading",
+         *       "odometer_km": 72420.33,
          *       "vin": "ML32A5HJ9KH009478"
          *     }
          */
@@ -8593,15 +8607,15 @@ export interface components {
              */
             date: string;
             /**
-             * Mileage
-             * @description Odometer reading
-             */
-            mileage: number;
-            /**
              * Notes
              * @description Additional notes
              */
             notes?: string | null;
+            /**
+             * Odometer Km
+             * @description Odometer reading in kilometers
+             */
+            odometer_km: number | string;
             /**
              * Vin
              * @description Vehicle VIN
@@ -8612,14 +8626,14 @@ export interface components {
          * OdometerRecordListResponse
          * @description Schema for odometer record list response.
          * @example {
-         *       "latest_mileage": 45000,
+         *       "latest_odometer_km": 72420.33,
          *       "records": [
          *         {
          *           "created_at": "2025-01-15T09:00:00",
          *           "date": "2025-01-15",
          *           "id": 1,
-         *           "mileage": 45000,
          *           "notes": "Monthly reading",
+         *           "odometer_km": 72420.33,
          *           "vin": "ML32A5HJ9KH009478"
          *         }
          *       ],
@@ -8628,10 +8642,10 @@ export interface components {
          */
         OdometerRecordListResponse: {
             /**
-             * Latest Mileage
-             * @description Most recent odometer reading
+             * Latest Odometer Km
+             * @description Most recent odometer reading in kilometers
              */
-            latest_mileage?: number | null;
+            latest_odometer_km?: string | null;
             /** Records */
             records: components["schemas"]["OdometerRecordResponse"][];
             /** Total */
@@ -8644,8 +8658,8 @@ export interface components {
          *       "created_at": "2025-01-15T09:00:00",
          *       "date": "2025-01-15",
          *       "id": 1,
-         *       "mileage": 45000,
          *       "notes": "Monthly reading",
+         *       "odometer_km": 72420.33,
          *       "vin": "ML32A5HJ9KH009478"
          *     }
          */
@@ -8664,15 +8678,15 @@ export interface components {
             /** Id */
             id: number;
             /**
-             * Mileage
-             * @description Odometer reading
-             */
-            mileage: number;
-            /**
              * Notes
              * @description Additional notes
              */
             notes?: string | null;
+            /**
+             * Odometer Km
+             * @description Odometer reading in kilometers
+             */
+            odometer_km: string;
             /** Vin */
             vin: string;
         };
@@ -8680,8 +8694,8 @@ export interface components {
          * OdometerRecordUpdate
          * @description Schema for updating an existing odometer record.
          * @example {
-         *       "mileage": 45100,
-         *       "notes": "Corrected reading"
+         *       "notes": "Corrected reading",
+         *       "odometer_km": 72420.33
          *     }
          */
         OdometerRecordUpdate: {
@@ -8691,15 +8705,15 @@ export interface components {
              */
             date?: string | null;
             /**
-             * Mileage
-             * @description Odometer reading
-             */
-            mileage?: number | null;
-            /**
              * Notes
              * @description Additional notes
              */
             notes?: string | null;
+            /**
+             * Odometer Km
+             * @description Odometer reading in kilometers
+             */
+            odometer_km?: number | string | null;
         };
         /**
          * POIRecommendation
@@ -8865,10 +8879,10 @@ export interface components {
              * @default 0.00
              */
             cost_change_percent: string;
-            /** Mpg Change Percent */
-            mpg_change_percent?: string | null;
-            /** Period1 Avg Mpg */
-            period1_avg_mpg?: string | null;
+            /** L Per 100Km Change Percent */
+            l_per_100km_change_percent?: string | null;
+            /** Period1 Avg L Per 100Km */
+            period1_avg_l_per_100km?: string | null;
             /**
              * Period1 End
              * Format: date
@@ -8891,8 +8905,8 @@ export interface components {
              * @default 0.00
              */
             period1_total_cost: string;
-            /** Period2 Avg Mpg */
-            period2_avg_mpg?: string | null;
+            /** Period2 Avg L Per 100Km */
+            period2_avg_l_per_100km?: string | null;
             /**
              * Period2 End
              * Format: date
@@ -9169,8 +9183,8 @@ export interface components {
         ReminderCreate: {
             /** Due Date */
             due_date?: string | null;
-            /** Due Mileage */
-            due_mileage?: number | null;
+            /** Due Mileage Km */
+            due_mileage_km?: number | string | null;
             /** Line Item Id */
             line_item_id?: number | null;
             /** Notes */
@@ -9195,8 +9209,8 @@ export interface components {
             created_at: string;
             /** Due Date */
             due_date: string | null;
-            /** Due Mileage */
-            due_mileage: number | null;
+            /** Due Mileage Km */
+            due_mileage_km: string | null;
             /** Estimated Due Date */
             estimated_due_date?: string | null;
             /** Id */
@@ -9232,8 +9246,8 @@ export interface components {
         ReminderUpdate: {
             /** Due Date */
             due_date?: string | null;
-            /** Due Mileage */
-            due_mileage?: number | null;
+            /** Due Mileage Km */
+            due_mileage_km?: number | string | null;
             /** Notes */
             notes?: string | null;
             /** Reminder Type */
@@ -9310,10 +9324,10 @@ export interface components {
             days_since_last?: number | null;
             /** Description */
             description?: string | null;
-            /** Mileage */
-            mileage?: number | null;
-            /** Miles Since Last */
-            miles_since_last?: number | null;
+            /** Km Since Last */
+            km_since_last?: string | null;
+            /** Odometer Km */
+            odometer_km?: string | null;
             /** Service Type */
             service_type: string;
             /** Vendor Name */
@@ -9533,8 +9547,8 @@ export interface components {
          *           "notes": "Included with oil change"
          *         }
          *       ],
-         *       "mileage": 92500,
          *       "notes": "Regular maintenance visit",
+         *       "odometer_km": 148864,
          *       "service_category": "Maintenance",
          *       "vendor_id": 1
          *     }
@@ -9557,11 +9571,6 @@ export interface components {
              */
             line_items: components["schemas"]["ServiceLineItemCreate"][];
             /**
-             * Mileage
-             * @description Odometer reading
-             */
-            mileage?: number | null;
-            /**
              * Misc Fees
              * @description Miscellaneous fees (disposal, etc.)
              */
@@ -9571,6 +9580,11 @@ export interface components {
              * @description Visit notes
              */
             notes?: string | null;
+            /**
+             * Odometer Km
+             * @description Odometer reading in kilometers
+             */
+            odometer_km?: number | string | null;
             /**
              * Service Category
              * @description Primary service category
@@ -9632,8 +9646,8 @@ export interface components {
          *       "id": 1,
          *       "line_item_count": 2,
          *       "line_items": [],
-         *       "mileage": 92500,
          *       "notes": "Regular maintenance visit",
+         *       "odometer_km": 148864,
          *       "service_category": "Maintenance",
          *       "total_cost": "112.23",
          *       "vendor": {
@@ -9686,11 +9700,6 @@ export interface components {
              */
             line_items: components["schemas"]["ServiceLineItemResponse"][];
             /**
-             * Mileage
-             * @description Odometer reading
-             */
-            mileage?: number | null;
-            /**
              * Misc Fees
              * @description Miscellaneous fees (disposal, etc.)
              */
@@ -9700,6 +9709,11 @@ export interface components {
              * @description Visit notes
              */
             notes?: string | null;
+            /**
+             * Odometer Km
+             * @description Odometer reading in kilometers
+             */
+            odometer_km?: string | null;
             /**
              * Service Category
              * @description Primary service category
@@ -9758,11 +9772,6 @@ export interface components {
              */
             line_items?: components["schemas"]["ServiceLineItemUpdate"][] | null;
             /**
-             * Mileage
-             * @description Odometer reading
-             */
-            mileage?: number | null;
-            /**
              * Misc Fees
              * @description Miscellaneous fees (disposal, etc.)
              */
@@ -9772,6 +9781,11 @@ export interface components {
              * @description Visit notes
              */
             notes?: string | null;
+            /**
+             * Odometer Km
+             * @description Odometer reading in kilometers
+             */
+            odometer_km?: number | string | null;
             /**
              * Service Category
              * @description Primary service category
@@ -10949,25 +10963,25 @@ export interface components {
              */
             brake_type?: string | null;
             /**
-             * Gvwr
-             * @description Gross Vehicle Weight Rating (lbs)
+             * Gvwr Kg
+             * @description Gross Vehicle Weight Rating (kg)
              */
-            gvwr?: number | null;
+            gvwr_kg?: number | string | null;
             /**
-             * Height Ft
-             * @description Height in feet
+             * Height M
+             * @description Height in meters
              */
-            height_ft?: number | string | null;
+            height_m?: number | string | null;
             /**
              * Hitch Type
              * @description Hitch type
              */
             hitch_type?: string | null;
             /**
-             * Length Ft
-             * @description Length in feet
+             * Length M
+             * @description Length in meters
              */
-            length_ft?: number | string | null;
+            length_m?: number | string | null;
             /**
              * Tow Vehicle Vin
              * @description VIN of tow vehicle
@@ -10979,10 +10993,10 @@ export interface components {
              */
             vin: string;
             /**
-             * Width Ft
-             * @description Width in feet
+             * Width M
+             * @description Width in meters
              */
-            width_ft?: number | string | null;
+            width_m?: number | string | null;
         };
         /**
          * TrailerDetailsResponse
@@ -11000,25 +11014,25 @@ export interface components {
              */
             brake_type?: string | null;
             /**
-             * Gvwr
-             * @description Gross Vehicle Weight Rating (lbs)
+             * Gvwr Kg
+             * @description Gross Vehicle Weight Rating (kg)
              */
-            gvwr?: number | null;
+            gvwr_kg?: string | null;
             /**
-             * Height Ft
-             * @description Height in feet
+             * Height M
+             * @description Height in meters
              */
-            height_ft?: string | null;
+            height_m?: string | null;
             /**
              * Hitch Type
              * @description Hitch type
              */
             hitch_type?: string | null;
             /**
-             * Length Ft
-             * @description Length in feet
+             * Length M
+             * @description Length in meters
              */
-            length_ft?: string | null;
+            length_m?: string | null;
             /**
              * Tow Vehicle Vin
              * @description VIN of tow vehicle
@@ -11027,10 +11041,10 @@ export interface components {
             /** Vin */
             vin: string;
             /**
-             * Width Ft
-             * @description Width in feet
+             * Width M
+             * @description Width in meters
              */
-            width_ft?: string | null;
+            width_m?: string | null;
         };
         /**
          * TrailerDetailsUpdate
@@ -11048,35 +11062,35 @@ export interface components {
              */
             brake_type?: string | null;
             /**
-             * Gvwr
-             * @description Gross Vehicle Weight Rating (lbs)
+             * Gvwr Kg
+             * @description Gross Vehicle Weight Rating (kg)
              */
-            gvwr?: number | null;
+            gvwr_kg?: number | string | null;
             /**
-             * Height Ft
-             * @description Height in feet
+             * Height M
+             * @description Height in meters
              */
-            height_ft?: number | string | null;
+            height_m?: number | string | null;
             /**
              * Hitch Type
              * @description Hitch type
              */
             hitch_type?: string | null;
             /**
-             * Length Ft
-             * @description Length in feet
+             * Length M
+             * @description Length in meters
              */
-            length_ft?: number | string | null;
+            length_m?: number | string | null;
             /**
              * Tow Vehicle Vin
              * @description VIN of tow vehicle
              */
             tow_vehicle_vin?: string | null;
             /**
-             * Width Ft
-             * @description Width in feet
+             * Width M
+             * @description Width in meters
              */
-            width_ft?: number | string | null;
+            width_m?: number | string | null;
         };
         /**
          * TransferHistoryResponse
@@ -11390,8 +11404,8 @@ export interface components {
          * @description Complete vehicle analytics.
          */
         VehicleAnalytics: {
-            /** Average Miles Per Month */
-            average_miles_per_month?: number | null;
+            /** Average Km Per Month */
+            average_km_per_month?: string | null;
             cost_analysis: components["schemas"]["CostAnalysis"];
             cost_projection: components["schemas"]["CostProjection"];
             /** Days Owned */
@@ -11424,8 +11438,8 @@ export interface components {
             spot_rental_analysis?: {
                 [key: string]: unknown;
             } | null;
-            /** Total Miles Driven */
-            total_miles_driven?: number | null;
+            /** Total Km Driven */
+            total_km_driven?: string | null;
             /** Vehicle Name */
             vehicle_name: string;
             /** Vehicle Type */
@@ -11505,10 +11519,10 @@ export interface components {
              */
             cylinders?: number | null;
             /**
-             * Def Tank Capacity Gallons
-             * @description DEF tank capacity in gallons
+             * Def Tank Capacity Liters
+             * @description DEF tank capacity in liters
              */
-            def_tank_capacity_gallons?: number | string | null;
+            def_tank_capacity_liters?: number | string | null;
             /**
              * Displacement L
              * @description Engine displacement in liters
@@ -11871,10 +11885,10 @@ export interface components {
              */
             cylinders?: number | null;
             /**
-             * Def Tank Capacity Gallons
-             * @description DEF tank capacity in gallons
+             * Def Tank Capacity Liters
+             * @description DEF tank capacity in liters
              */
-            def_tank_capacity_gallons?: string | null;
+            def_tank_capacity_liters?: string | null;
             /** Destination Charge */
             destination_charge?: string | null;
             /**
@@ -11898,12 +11912,12 @@ export interface components {
             environmental_rating_smog?: string | null;
             /** Exterior Color */
             exterior_color?: string | null;
-            /** Fuel Economy City */
-            fuel_economy_city?: number | null;
-            /** Fuel Economy Combined */
-            fuel_economy_combined?: number | null;
-            /** Fuel Economy Highway */
-            fuel_economy_highway?: number | null;
+            /** Fuel Economy City L Per 100Km */
+            fuel_economy_city_l_per_100km?: string | null;
+            /** Fuel Economy Combined L Per 100Km */
+            fuel_economy_combined_l_per_100km?: string | null;
+            /** Fuel Economy Highway L Per 100Km */
+            fuel_economy_highway_l_per_100km?: string | null;
             /**
              * Fuel Type
              * @description Fuel type
@@ -12106,8 +12120,8 @@ export interface components {
              * @default true
              */
             archived_visible: boolean;
-            /** Average Mpg */
-            average_mpg?: number | null;
+            /** Average L Per 100Km */
+            average_l_per_100km?: string | null;
             /**
              * Is Shared With Me
              * @default false
@@ -12117,8 +12131,8 @@ export interface components {
             latest_fuel_date?: string | null;
             /** Latest Odometer Date */
             latest_odometer_date?: string | null;
-            /** Latest Odometer Reading */
-            latest_odometer_reading?: number | null;
+            /** Latest Odometer Km */
+            latest_odometer_km?: string | null;
             /** Latest Service Date */
             latest_service_date?: string | null;
             /** Main Photo Url */
@@ -12129,8 +12143,8 @@ export interface components {
             model?: string | null;
             /** Overdue Maintenance Count */
             overdue_maintenance_count: number;
-            /** Recent Mpg */
-            recent_mpg?: number | null;
+            /** Recent L Per 100Km */
+            recent_l_per_100km?: string | null;
             /** Share Permission */
             share_permission?: string | null;
             /** Shared By Username */
@@ -12229,10 +12243,10 @@ export interface components {
              */
             cylinders?: number | null;
             /**
-             * Def Tank Capacity Gallons
-             * @description DEF tank capacity in gallons
+             * Def Tank Capacity Liters
+             * @description DEF tank capacity in liters
              */
-            def_tank_capacity_gallons?: number | string | null;
+            def_tank_capacity_liters?: number | string | null;
             /**
              * Displacement L
              * @description Engine displacement in liters
@@ -12577,10 +12591,10 @@ export interface components {
             /** Id */
             id: number;
             /**
-             * Mileage Limit
-             * @description Mileage limit if applicable
+             * Mileage Limit Km
+             * @description Mileage limit in kilometers if applicable
              */
-            mileage_limit?: number | null;
+            mileage_limit_km?: string | null;
             /**
              * Notes
              * @description Additional notes
@@ -12626,10 +12640,10 @@ export interface components {
              */
             end_date?: string | null;
             /**
-             * Mileage Limit
-             * @description Mileage limit if applicable
+             * Mileage Limit Km
+             * @description Mileage limit in kilometers if applicable
              */
-            mileage_limit?: number | null;
+            mileage_limit_km?: number | string | null;
             /**
              * Notes
              * @description Additional notes
@@ -12666,8 +12680,8 @@ export interface components {
             coverage_details?: string | null;
             /** End Date */
             end_date?: string | null;
-            /** Mileage Limit */
-            mileage_limit?: number | null;
+            /** Mileage Limit Km */
+            mileage_limit_km?: number | string | null;
             /** Notes */
             notes?: string | null;
             /** Policy Number */
@@ -12967,12 +12981,12 @@ export interface components {
             destination_charge?: number | string | null;
             /** Exterior Color */
             exterior_color?: string | null;
-            /** Fuel Economy City */
-            fuel_economy_city?: number | null;
-            /** Fuel Economy Combined */
-            fuel_economy_combined?: number | null;
-            /** Fuel Economy Highway */
-            fuel_economy_highway?: number | null;
+            /** Fuel Economy City L Per 100Km */
+            fuel_economy_city_l_per_100km?: number | string | null;
+            /** Fuel Economy Combined L Per 100Km */
+            fuel_economy_combined_l_per_100km?: number | string | null;
+            /** Fuel Economy Highway L Per 100Km */
+            fuel_economy_highway_l_per_100km?: number | string | null;
             /** Interior Color */
             interior_color?: string | null;
             /** Msrp Base */
@@ -13009,12 +13023,12 @@ export interface components {
             environmental_rating_smog: string | null;
             /** Exterior Color */
             exterior_color: string | null;
-            /** Fuel Economy City */
-            fuel_economy_city: number | null;
-            /** Fuel Economy Combined */
-            fuel_economy_combined: number | null;
-            /** Fuel Economy Highway */
-            fuel_economy_highway: number | null;
+            /** Fuel Economy City L Per 100Km */
+            fuel_economy_city_l_per_100km: string | null;
+            /** Fuel Economy Combined L Per 100Km */
+            fuel_economy_combined_l_per_100km: string | null;
+            /** Fuel Economy Highway L Per 100Km */
+            fuel_economy_highway_l_per_100km: string | null;
             /** Interior Color */
             interior_color: string | null;
             /** Msrp Base */
@@ -13277,7 +13291,12 @@ export interface operations {
     };
     export_garage_analytics_pdf_api_analytics_garage_export_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description ISO 4217 code; defaults to USD. */
+                currency_code?: string;
+                /** @description BCP 47 locale; defaults to en-US. */
+                locale?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -13291,6 +13310,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -13366,7 +13394,12 @@ export interface operations {
     };
     export_analytics_pdf_api_analytics_vehicles__vin__export_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description ISO 4217 code; defaults to USD. */
+                currency_code?: string;
+                /** @description BCP 47 locale; defaults to en-US. */
+                locale?: string;
+            };
             header?: never;
             path: {
                 vin: string;
@@ -19577,6 +19610,10 @@ export interface operations {
             query: {
                 /** @description Year for cost summary */
                 year: number;
+                /** @description ISO 4217 code; defaults to USD. */
+                currency_code?: string;
+                /** @description BCP 47 locale; defaults to en-US. */
+                locale?: string;
             };
             header?: never;
             path: {
@@ -19649,6 +19686,10 @@ export interface operations {
                 start_date?: string | null;
                 /** @description End date (YYYY-MM-DD) */
                 end_date?: string | null;
+                /** @description ISO 4217 code; defaults to USD. */
+                currency_code?: string;
+                /** @description BCP 47 locale; defaults to en-US. */
+                locale?: string;
             };
             header?: never;
             path: {
@@ -19683,6 +19724,10 @@ export interface operations {
             query: {
                 /** @description Tax year */
                 year: number;
+                /** @description ISO 4217 code; defaults to USD. */
+                currency_code?: string;
+                /** @description BCP 47 locale; defaults to en-US. */
+                locale?: string;
             };
             header?: never;
             path: {
