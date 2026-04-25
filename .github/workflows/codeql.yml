@@ -81,8 +81,20 @@ jobs:
         source-root: ${{ matrix.language == 'python' && 'backend' || 'frontend' }}
 
     # Perform CodeQL Analysis
+    # CODEQL_ACTION_EXTRA_OPTIONS injects --additional-packs (search path)
+    # AND --extension-packs (consume the pack's data extensions) into the
+    # CLI's database run-queries call. Both flags are required: --additional-
+    # packs alone only puts the pack on the search path but does not enable
+    # its barrier rows. The codeql-action itself uses the same pair to
+    # register its internal pr-diff-range pack (see analyze.ts).
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@c10b8064de6f491fea524254123dbe5e09572f13 # v4
+      env:
+        CODEQL_ACTION_EXTRA_OPTIONS: >-
+          ${{ matrix.language == 'python' && format(
+            '{{"database":{{"run-queries":["--additional-packs={0}/.github/codeql","--extension-packs=homelabforge/mygarage-models"]}}}}',
+            github.workspace
+          ) || '{}' }}
       with:
         category: "/language:${{ matrix.language }}"
         output: sarif-results
