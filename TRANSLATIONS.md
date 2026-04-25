@@ -9,8 +9,8 @@ MyGarage supports multiple languages through community contributions. This page 
 | | Language | Code | Progress | Keys |
 |---|----------|------|----------|------|
 | 🇺🇸 | English | `en` | `████████████████████` 100% | 1300/1300 |
-| 🇺🇦 | Ukrainian | `uk` | `████████████████████` 100% | 1294/1300 |
 | 🇷🇺 | Russian | `ru` | `████████████████████` 100% | 1294/1300 |
+| 🇺🇦 | Ukrainian | `uk` | `████████████████████` 100% | 1294/1300 |
 | 🇵🇱 | Polish | `pl` | `████████████████████` 99% | 1283/1300 |
 
 **Overall: 100%** across 3 languages
