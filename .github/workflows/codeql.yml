@@ -81,6 +81,18 @@ jobs:
         source-root: ${{ matrix.language == 'python' && 'backend' || 'frontend' }}
         debug: ${{ matrix.language == 'python' }}
 
+    # Pre-install local model pack so its data extensions are available to
+    # the run-queries step. The codeql-action's packs: config key only
+    # accepts published packs, so we run codeql pack install on the local
+    # source directory and rely on the install putting it on the search path.
+    - name: Install local CodeQL model pack
+      if: matrix.language == 'python'
+      run: |
+        CODEQL_BIN=$(find /opt/hostedtoolcache/CodeQL -type f -name codeql -executable 2>/dev/null | head -1)
+        echo "Using CodeQL at: $CODEQL_BIN"
+        "$CODEQL_BIN" pack install ${{ github.workspace }}/.github/codeql/homelabforge/mygarage-models
+        "$CODEQL_BIN" pack ls --additional-packs=${{ github.workspace }}/.github/codeql || true
+
     # Perform CodeQL Analysis
     # CODEQL_ACTION_EXTRA_OPTIONS injects --additional-packs into the CLI call
     # so the local model pack at .github/codeql/mygarage-models is registered.
