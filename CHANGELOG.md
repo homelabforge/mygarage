@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Currency symbol now respects the user's currency preference across forms, lists, analytics charts, and PDF reports (#68).
 - Storage flipped to SI-metric canonical (km, L, kg, L/100km). Metric users no longer lose precision on round-trips and fuel cost/volume/price math now agrees end to end (#67). Legacy widget API and v2 backups continue to work.
 - About page rendered raw i18n keys (`about.tagline`, `about.whatIsTitle`, etc.) instead of translated strings — added the missing `about` block to `common.json` across all four locales (en/pl/ru/uk).
+- Migration 053 (#67) refused to start on databases retaining frozen audit backup tables (`*_records_backup*`) left by older migrations. The preflight scan now skips backup-named tables since they're not part of the active schema and their imperial column references are intentional historical snapshots.
 
 ## [2.26.1] - 2026-04-13
 

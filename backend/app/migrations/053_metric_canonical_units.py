@@ -496,6 +496,18 @@ def _run_sqlite_migration(engine) -> None:
         raw.close()
 
 
+def _is_legacy_backup_table(name: str) -> bool:
+    """Detect frozen audit/backup tables created by prior migrations.
+
+    Examples found in the wild: `collision_records_backup`,
+    `upgrade_records_backup`, `service_records_backup_20251229`. These are
+    historical snapshots — no FKs into the active schema, no application
+    code reads them — so any imperial column references are intentionally
+    frozen and the rebuild can ignore them.
+    """
+    return "_backup" in name
+
+
 def _scan_raw_sqlite_master_for_imperial_refs(cur) -> list[str]:
     """Scan sqlite_master for CHECK/trigger/view references to dropped columns."""
     cur.execute(
@@ -506,8 +518,11 @@ def _scan_raw_sqlite_master_for_imperial_refs(cur) -> list[str]:
     for type_, name, tbl, sql in cur.fetchall():
         if type_ == "table" and name in _ANTICIPATED_TABLES:
             continue
-        # Skip tables we rebuild — any imperial refs on them are handled by
-        # the rebuild CREATE TABLE redefining the schema from scratch.
+        # Skip frozen historical backup tables. Their imperial columns are
+        # intentionally preserved as audit data and aren't referenced by
+        # any active FK.
+        if _is_legacy_backup_table(name) or _is_legacy_backup_table(tbl):
+            continue
         for col in _DROPPED_COLUMNS:
             if re.search(rf"\b{col}\b", sql):
                 suspicious.append(f"{type_} {name} (on {tbl}) references `{col}`")
