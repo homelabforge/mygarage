@@ -1,3 +1,20 @@
+# CodeQL data-extension pack with project-specific sanitizer barriers.
+#
+# STATUS (2026-04-25): not currently active. The pack is structurally
+# correct per CodeQL docs (extensionTargets + dataExtensions, scoped
+# directory layout, valid barrierModel rows). However the CodeQL Action
+# v4 (CodeQL CLI 2.25.2) does not surface local source packs to the
+# resolve-extensions-by-pack stage, even with --additional-packs pointing
+# at the parent search root. Verified via debug-mode logs: our pack is
+# never considered alongside codeql/python-queries during extension
+# resolution. The codeql-action's packs: config key only accepts
+# published packs (scope/name@version from a registry), and there is
+# currently no supported route to register an unpublished pack via
+# action inputs or env vars.
+#
+# Files are kept on disk against future CodeQL Action support for local
+# packs. To re-attempt registration when that lands, point the action's
+# packs: input or model-extensions equivalent at this directory.
 name: homelabforge/mygarage-models
 version: 0.0.1
 library: true
