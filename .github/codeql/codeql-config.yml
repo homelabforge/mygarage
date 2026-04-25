@@ -11,11 +11,16 @@ paths-ignore:
 
 # Only run security-tagged queries — filters out code quality rules
 # (py/empty-except, py/mixed-returns, etc.) that are not actionable here.
-# Sanitizer barriers in sanitizers.yml handle the remaining false positives.
+# Sanitizer barriers in mygarage-models/sanitizers.yml handle remaining
+# false positives.
 query-filters:
   - include:
       tags contain: security
 
-# Register model extensions to recognize our sanitizer functions
-model-extensions:
-  - .github/codeql/sanitizers.yml
+# Local CodeQL model pack containing project-specific sanitizer barriers.
+# Path is relative to the repository root. Must be a directory containing
+# qlpack.yml + the data-extension YAML files; a bare .yml file referenced
+# via the unsupported "model-extensions:" key is silently dropped by the
+# CodeQL Action.
+packs:
+  - ./.github/codeql/mygarage-models
