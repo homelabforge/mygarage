@@ -79,6 +79,7 @@ jobs:
         queries: security-extended,security-and-quality
         config-file: .github/codeql/codeql-config.yml
         source-root: ${{ matrix.language == 'python' && 'backend' || 'frontend' }}
+        debug: ${{ matrix.language == 'python' }}
 
     # Perform CodeQL Analysis
     # CODEQL_ACTION_EXTRA_OPTIONS injects --additional-packs into the CLI call
