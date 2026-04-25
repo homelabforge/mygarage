@@ -85,10 +85,12 @@ jobs:
     # so the local model pack at .github/codeql/mygarage-models is registered.
     # The codeql-action's packs: config key only accepts published packs, so
     # this env-var passthrough is the supported escape hatch for local packs.
+    # NB: the action splits "database analyze" into separate run-queries and
+    # interpret-results invocations, so the flag must be set on run-queries.
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@c10b8064de6f491fea524254123dbe5e09572f13 # v4
       env:
-        CODEQL_ACTION_EXTRA_OPTIONS: '{"database":{"analyze":["--additional-packs=${{ github.workspace }}/.github/codeql"]}}'
+        CODEQL_ACTION_EXTRA_OPTIONS: '{"database":{"run-queries":["--additional-packs=${{ github.workspace }}/.github/codeql"]}}'
       with:
         category: "/language:${{ matrix.language }}"
         output: sarif-results
