@@ -81,8 +81,14 @@ jobs:
         source-root: ${{ matrix.language == 'python' && 'backend' || 'frontend' }}
 
     # Perform CodeQL Analysis
+    # CODEQL_ACTION_EXTRA_OPTIONS injects --additional-packs into the CLI call
+    # so the local model pack at .github/codeql/mygarage-models is registered.
+    # The codeql-action's packs: config key only accepts published packs, so
+    # this env-var passthrough is the supported escape hatch for local packs.
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@c10b8064de6f491fea524254123dbe5e09572f13 # v4
+      env:
+        CODEQL_ACTION_EXTRA_OPTIONS: '{"database":{"analyze":["--additional-packs=${{ github.workspace }}/.github/codeql"]}}'
       with:
         category: "/language:${{ matrix.language }}"
         output: sarif-results
