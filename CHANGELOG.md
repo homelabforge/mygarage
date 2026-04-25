@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.26.4] - 2026-04-25
+
+### Fixed
+
+- DEF and propane records displayed canonical liters as gallons on imperial accounts, and the DEF edit form showed canonical $/L in the $/gal field. Same regression as the fuel fix in v2.26.3.
+- Propane records were saved with `price_basis='per_tank'` while the form's UI and math were per-volume, so per-record price lookups were inconsistent with the rest of the app's metric-canonical storage. New saves now use `per_volume`; legacy records lazy-migrate on next edit.
+
 ## [2.26.3] - 2026-04-25
 
 ### Fixed
