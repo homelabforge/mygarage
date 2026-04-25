@@ -39,6 +39,14 @@ except Exception as e:
 finally:
     _tmpdir.cleanup()
 
+# Pin info.version to a constant so the committed openapi.json doesn't drift
+# every time pyproject.toml is bumped. The real version is still served by the
+# runtime FastAPI app (app.openapi() reads settings.app_version directly); this
+# strip only affects the file fed into openapi-typescript, which doesn't use
+# info.version. Without this, every release fails the api-types-freshness CI
+# gate until someone remembers to regenerate.
+schema.setdefault("info", {})["version"] = "0.0.0"
+
 output = json.dumps(schema, indent=2, sort_keys=True) + "\n"
 
 if len(sys.argv) < 2:
