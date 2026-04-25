@@ -1,0 +1,74 @@
+# End-to-end test stack — exercised by `tests/e2e/run.sh`.
+# Brings up Postgres + two mygarage instances (one PG-backed, one SQLite-backed)
+# from a freshly built image, then runs smoke.py against each.
+#
+# Project name is set to mygarage-e2e via run.sh so this can't collide with
+# the user's main homelab stack.
+
+services:
+  pg:
+    image: postgres:17-alpine
+    container_name: mygarage-e2e-pg
+    environment:
+      POSTGRES_DB: mygarage
+      POSTGRES_USER: mygarage
+      POSTGRES_PASSWORD: e2epass
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mygarage -d mygarage"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  app-pg:
+    image: mygarage:e2e
+    container_name: mygarage-e2e-app-pg
+    depends_on:
+      pg:
+        condition: service_healthy
+    environment:
+      MYGARAGE_DATABASE_URL: postgresql+asyncpg://mygarage:e2epass@pg:5432/mygarage
+      MYGARAGE_SECRET_KEY: e2e-secret-not-for-production
+      MYGARAGE_AUTH_MODE: local
+      MYGARAGE_TEST_MODE: "true"
+    volumes:
+      - app-pg-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8686/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+  app-sqlite:
+    image: mygarage:e2e
+    container_name: mygarage-e2e-app-sqlite
+    environment:
+      MYGARAGE_SECRET_KEY: e2e-secret-not-for-production
+      MYGARAGE_AUTH_MODE: local
+      MYGARAGE_TEST_MODE: "true"
+    volumes:
+      - app-sqlite-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8686/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+  # Smoke runner — invoked via `docker compose run --rm smoke <target-url>`.
+  # Lives in the same compose network so it reaches the apps by service name.
+  smoke:
+    image: python:3.14-slim
+    container_name: mygarage-e2e-smoke
+    depends_on:
+      app-pg:
+        condition: service_healthy
+      app-sqlite:
+        condition: service_healthy
+    volumes:
+      - ./smoke.py:/smoke.py:ro
+    entrypoint: ["sh", "-c", "pip install -q httpx && python /smoke.py \"$$@\"", "--"]
+
+volumes:
+  app-pg-data:
+  app-sqlite-data:
