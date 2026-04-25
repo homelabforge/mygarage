@@ -1,28 +1,33 @@
 extensions:
-  # Mark our sanitizer functions as barriers (sanitizers) for taint tracking
-  # This tells CodeQL that data passing through these functions is sanitized
+  # Mark our sanitizer functions as barriers (sanitizers) for taint tracking.
+  # Per CodeQL Python's ModelsAsData docs:
+  #   "The package name refers to the top-level module the import comes from,
+  #    and not a PyPI package. So for `from foo.bar import baz`, the package
+  #    will be `foo`."
+  # So for `from app.utils.logging_utils import sanitize_for_log`, the type is
+  # the top-level package "app" and the path walks down via Member tokens.
   - addsTo:
       pack: codeql/python-all
       extensible: barrierModel
     data:
       # Log injection barriers
-      - ["app.utils.logging_utils", "Member[sanitize_for_log].ReturnValue", "log-injection"]
-      - ["app.utils.logging_utils", "Member[sanitize_path_for_log].ReturnValue", "log-injection"]
-      - ["app.utils.logging_utils", "Member[sanitize_url_for_log].ReturnValue", "log-injection"]
-      - ["app.utils.logging_utils", "Member[sanitize_log_message].ReturnValue", "log-injection"]
-      # Masking functions for sensitive data (clear-text logging)
-      - ["app.utils.logging_utils", "Member[mask_vin].ReturnValue", "log-injection"]
-      - ["app.utils.logging_utils", "Member[mask_email].ReturnValue", "log-injection"]
-      - ["app.utils.logging_utils", "Member[mask_coordinates].ReturnValue", "log-injection"]
-      - ["app.utils.logging_utils", "Member[mask_api_key].ReturnValue", "log-injection"]
-      - ["app.utils.logging_utils", "Member[mask_credit_card].ReturnValue", "log-injection"]
-      - ["app.utils.logging_utils", "Member[mask_phone].ReturnValue", "log-injection"]
-      - ["app.utils.logging_utils", "Member[mask_license_plate].ReturnValue", "log-injection"]
-      # Also mark these as barriers for clear-text logging of sensitive data
-      - ["app.utils.logging_utils", "Member[mask_api_key].ReturnValue", "py/clear-text-logging-sensitive-data"]
-      - ["app.utils.logging_utils", "Member[mask_vin].ReturnValue", "py/clear-text-logging-sensitive-data"]
-      - ["app.utils.logging_utils", "Member[mask_email].ReturnValue", "py/clear-text-logging-sensitive-data"]
-      - ["app.utils.logging_utils", "Member[mask_coordinates].ReturnValue", "py/clear-text-logging-sensitive-data"]
-      - ["app.utils.logging_utils", "Member[mask_credit_card].ReturnValue", "py/clear-text-logging-sensitive-data"]
-      - ["app.utils.logging_utils", "Member[mask_phone].ReturnValue", "py/clear-text-logging-sensitive-data"]
-      - ["app.utils.logging_utils", "Member[mask_license_plate].ReturnValue", "py/clear-text-logging-sensitive-data"]
+      - ["app", "Member[utils].Member[logging_utils].Member[sanitize_for_log].ReturnValue", "log-injection"]
+      - ["app", "Member[utils].Member[logging_utils].Member[sanitize_path_for_log].ReturnValue", "log-injection"]
+      - ["app", "Member[utils].Member[logging_utils].Member[sanitize_url_for_log].ReturnValue", "log-injection"]
+      - ["app", "Member[utils].Member[logging_utils].Member[sanitize_log_message].ReturnValue", "log-injection"]
+      # Masking functions are also log-injection barriers (they also strip CR/LF)
+      - ["app", "Member[utils].Member[logging_utils].Member[mask_vin].ReturnValue", "log-injection"]
+      - ["app", "Member[utils].Member[logging_utils].Member[mask_email].ReturnValue", "log-injection"]
+      - ["app", "Member[utils].Member[logging_utils].Member[mask_coordinates].ReturnValue", "log-injection"]
+      - ["app", "Member[utils].Member[logging_utils].Member[mask_api_key].ReturnValue", "log-injection"]
+      - ["app", "Member[utils].Member[logging_utils].Member[mask_credit_card].ReturnValue", "log-injection"]
+      - ["app", "Member[utils].Member[logging_utils].Member[mask_phone].ReturnValue", "log-injection"]
+      - ["app", "Member[utils].Member[logging_utils].Member[mask_license_plate].ReturnValue", "log-injection"]
+      # Masking functions for clear-text logging of sensitive data
+      - ["app", "Member[utils].Member[logging_utils].Member[mask_api_key].ReturnValue", "clear-text-logging"]
+      - ["app", "Member[utils].Member[logging_utils].Member[mask_vin].ReturnValue", "clear-text-logging"]
+      - ["app", "Member[utils].Member[logging_utils].Member[mask_email].ReturnValue", "clear-text-logging"]
+      - ["app", "Member[utils].Member[logging_utils].Member[mask_coordinates].ReturnValue", "clear-text-logging"]
+      - ["app", "Member[utils].Member[logging_utils].Member[mask_credit_card].ReturnValue", "clear-text-logging"]
+      - ["app", "Member[utils].Member[logging_utils].Member[mask_phone].ReturnValue", "clear-text-logging"]
+      - ["app", "Member[utils].Member[logging_utils].Member[mask_license_plate].ReturnValue", "clear-text-logging"]
