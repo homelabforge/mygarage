@@ -10,7 +10,7 @@ import { FormError } from './FormError'
 import { useCreatePropaneRecord, useUpdatePropaneRecord } from '../hooks/queries/usePropaneRecords'
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { UnitConverter, UnitFormatter } from '../utils/units'
-import { toCanonicalKg, toCanonicalLiters } from '../utils/decimalSafe'
+import { toCanonicalKg, toCanonicalLiters, priceToDisplay, priceToCanonical } from '../utils/decimalSafe'
 import { formatDateForInput } from '../utils/dateUtils'
 import CurrencyInputPrefix from './common/CurrencyInputPrefix'
 
@@ -73,13 +73,13 @@ export default function PropaneRecordForm({
           ? UnitConverter.litersToGallons(liters) ?? undefined
           : liters
       })(),
-      price_per_unit: (() => {
-        if (!record?.price_per_unit) return undefined
-        const price = typeof record.price_per_unit === 'string'
-          ? parseFloat(record.price_per_unit)
-          : record.price_per_unit
-        return isNaN(price) ? undefined : price
-      })(),
+      // Read uses the record's stored basis so legacy records saved with
+      // basis='per_tank' (pre-fix bug — the form labeled the field $/gal
+      // or $/L but stored the user's typed value raw under per_tank) display
+      // the same value the user typed. Records saved with the corrected
+      // basis='per_volume' are converted from canonical $/L to $/gal for
+      // imperial users.
+      price_per_unit: priceToDisplay(record?.price_per_unit, system, record?.price_basis ?? 'per_volume') ?? undefined,
       cost: (() => {
         if (!record?.cost) return undefined
         const cost = typeof record.cost === 'string'
@@ -165,8 +165,13 @@ export default function PropaneRecordForm({
         propane_liters: toCanonicalLiters(data.propane_liters, system) ?? undefined,
         tank_size_kg: toCanonicalKg(data.tank_size_kg, system) ?? undefined,
         tank_quantity: data.tank_quantity,
-        price_per_unit: data.price_per_unit,
-        price_basis: 'per_tank',
+        // Form's price field is per-volume math (cost = volume × price), so
+        // store with basis='per_volume' and convert imperial $/gal entries
+        // to canonical $/L. Earlier code saved basis='per_tank' with raw
+        // values, which was inconsistent with the form's own math and the
+        // rest of the app's metric-canonical storage convention.
+        price_per_unit: priceToCanonical(data.price_per_unit, system, 'per_volume') ?? undefined,
+        price_basis: 'per_volume',
         cost: data.cost,
         fuel_type: 'Propane',  // Always propane
         is_full_tank: false,  // Not relevant for propane

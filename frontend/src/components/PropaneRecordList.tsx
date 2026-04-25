@@ -9,6 +9,7 @@ import type { FuelRecord } from '../types/fuel'
 import PropaneRecordForm from './PropaneRecordForm'
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { UnitFormatter } from '../utils/units'
+import { priceToDisplay } from '../utils/decimalSafe'
 import { usePropaneRecords, useDeletePropaneRecord } from '../hooks/queries/usePropaneRecords'
 import { useQueryClient } from '@tanstack/react-query'
 
@@ -197,7 +198,12 @@ export default function PropaneRecordList({ vin }: PropaneRecordListProps) {
                       {formatVolume(record.propane_liters ?? undefined)}
                     </td>
                     <td className="px-4 py-3 text-sm text-garage-text text-right">
-                      {formatCurrency(record.price_per_unit, { currencyCode, locale })}
+                      {record.price_per_unit
+                        ? formatCurrency(
+                            priceToDisplay(record.price_per_unit, system, record.price_basis ?? 'per_volume') ?? 0,
+                            { currencyCode, locale },
+                          )
+                        : '-'}
                     </td>
                     <td className="px-4 py-3 text-sm text-garage-text text-right font-semibold">
                       {formatCurrency(record.cost, { currencyCode, locale })}
