@@ -12,7 +12,7 @@ import api from '../services/api'
 import { useCreateFuelRecord, useUpdateFuelRecord } from '../hooks/queries/useFuelRecords'
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { UnitConverter, UnitFormatter } from '../utils/units'
-import { toCanonicalKm, toCanonicalLiters } from '../utils/decimalSafe'
+import { toCanonicalKm, toCanonicalLiters, priceToDisplay, priceToCanonical } from '../utils/decimalSafe'
 import CurrencyInputPrefix from './common/CurrencyInputPrefix'
 import { formatDateForInput } from '../utils/dateUtils'
 
@@ -67,7 +67,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
         ? UnitConverter.litersToGallons(toNumber(record.propane_liters)!) ?? undefined
         : toNumber(record?.propane_liters),
       kwh: toNumber(record?.kwh),
-      price_per_unit: toNumber(record?.price_per_unit),
+      price_per_unit: priceToDisplay(record?.price_per_unit, system, record?.price_basis) ?? undefined,
       price_basis: (record?.price_basis as 'per_volume' | 'per_weight' | 'per_kwh' | 'per_tank' | undefined) ?? undefined,
       cost: toNumber(record?.cost),
       fuel_type: record?.fuel_type || '',
@@ -142,7 +142,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
         liters: toCanonicalLiters(data.liters, system) ?? undefined,
         propane_liters: toCanonicalLiters(data.propane_liters, system) ?? undefined,
         kwh: data.kwh,
-        price_per_unit: data.price_per_unit,
+        price_per_unit: priceToCanonical(data.price_per_unit, system, data.price_basis) ?? undefined,
         price_basis: data.price_basis,
         cost: data.cost,
         fuel_type: data.fuel_type,

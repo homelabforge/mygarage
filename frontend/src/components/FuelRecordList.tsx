@@ -10,6 +10,7 @@ import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
 import api from '../services/api'
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { UnitFormatter } from '../utils/units'
+import { priceToDisplay } from '../utils/decimalSafe'
 import { useFuelRecords, useDeleteFuelRecord, useImportFuelCSV } from '../hooks/queries/useFuelRecords'
 
 interface FuelRecordListProps {
@@ -378,7 +379,12 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick }: FuelRec
                       </td>
                     )}
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-garage-text">
-                      {record.price_per_unit ? formatCurrency(parseFloat(record.price_per_unit.toString()), { currencyCode, locale }) : '-'}
+                      {record.price_per_unit
+                        ? formatCurrency(
+                            priceToDisplay(record.price_per_unit, system, record.price_basis) ?? 0,
+                            { currencyCode, locale },
+                          )
+                        : '-'}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       {record.cost ? (

@@ -34,12 +34,23 @@ def upgrade(engine=None):
         inspector = inspect(engine)
         print("Adding DEF tracking schema...")
 
+        # Fresh installs on 2.26.2+ get the post-mig053 canonical schema directly
+        # from Base.metadata.create_all, so def_records already has odometer_km/
+        # liters and vehicles has def_tank_capacity_liters. The legacy ALTER /
+        # CREATE INDEX statements below would then fail on missing columns
+        # (mileage, def_tank_capacity_gallons). Detect that case and no-op.
+        vehicle_cols = {col["name"] for col in inspector.get_columns("vehicles")}
+        is_canonical_install = "def_tank_capacity_liters" in vehicle_cols
+        if is_canonical_install and inspector.has_table("def_records"):
+            def_cols = {col["name"] for col in inspector.get_columns("def_records")}
+            if "odometer_km" in def_cols and "mileage" not in def_cols:
+                print("  → canonical (post-053) schema already in place, no legacy fields to add")
+                return
+
         # =========================================================================
         # 1. Add def_tank_capacity_gallons column to vehicles table
         # =========================================================================
-        existing_columns = {col["name"] for col in inspector.get_columns("vehicles")}
-
-        if "def_tank_capacity_gallons" in existing_columns:
+        if "def_tank_capacity_gallons" in vehicle_cols:
             print("  → def_tank_capacity_gallons column already exists, skipping")
         else:
             conn.execute(

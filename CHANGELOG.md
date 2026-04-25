@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.26.3] - 2026-04-25
+
+### Fixed
+
+- Fuel record price/gal displayed and saved as raw $/L on imperial accounts (regression from #67 in v2.26.2).
+- Fresh installs failed at migrations 038 and 048: `Base.metadata.create_all` produces the post-#67 canonical schema (`odometer_km`, `due_mileage_km`), but those migrations tried to create indexes on the now-removed legacy columns (`mileage`, `due_mileage`). Added column-existence guards so a fresh install completes all 53 migrations on both PostgreSQL and SQLite. Existing installs are unaffected (already-applied migrations stay skipped via `schema_migrations`).
+
 ## [2.26.2] - 2026-04-25
 
 ### Added

@@ -93,12 +93,17 @@ def upgrade(engine=None):
         conn.execute(
             text("CREATE INDEX IF NOT EXISTS ix_reminders_due_date ON vehicle_reminders (due_date)")
         )
-        conn.execute(
-            text(
-                "CREATE INDEX IF NOT EXISTS ix_reminders_due_mileage "
-                "ON vehicle_reminders (due_mileage)"
+        # Fresh installs on 2.26.2+ already have due_mileage_km (canonical) from
+        # Base.metadata.create_all + mig053; the legacy due_mileage column never
+        # exists. Only create the legacy index if the column is actually there.
+        reminder_cols = {c["name"] for c in inspect(engine).get_columns("vehicle_reminders")}
+        if "due_mileage" in reminder_cols:
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_reminders_due_mileage "
+                    "ON vehicle_reminders (due_mileage)"
+                )
             )
-        )
         print("✓ Indexes verified on vehicle_reminders")
 
         # DO NOT drop maintenance_schedule_items or maintenance_templates in Phase 1.
