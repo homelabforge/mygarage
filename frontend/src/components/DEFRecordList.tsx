@@ -67,15 +67,10 @@ export default function DEFRecordList({ vin }: DEFRecordListProps) {
     return isNaN(num) ? null : num
   }
 
-  const formatVolume = (gallons?: number | string | null): string => {
-    const num = parseNum(gallons)
+  const formatVolume = (liters?: number | string | null): string => {
+    const num = parseNum(liters)
     if (num === null) return '-'
-    if (system === 'metric') {
-      const liters = UnitConverter.gallonsToLiters(num)
-      if (liters === null) return '-'
-      return `${liters.toFixed(3)} ${UnitFormatter.getVolumeUnit(system)}`
-    }
-    return `${num.toFixed(3)} ${UnitFormatter.getVolumeUnit(system)}`
+    return UnitFormatter.formatVolume(num, system, showBoth)
   }
 
   const formatFillLevel = (level?: number | string | null): string => {

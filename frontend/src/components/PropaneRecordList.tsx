@@ -8,7 +8,7 @@ import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
 import type { FuelRecord } from '../types/fuel'
 import PropaneRecordForm from './PropaneRecordForm'
 import { useUnitPreference } from '../hooks/useUnitPreference'
-import { UnitConverter, UnitFormatter } from '../utils/units'
+import { UnitFormatter } from '../utils/units'
 import { usePropaneRecords, useDeletePropaneRecord } from '../hooks/queries/usePropaneRecords'
 import { useQueryClient } from '@tanstack/react-query'
 
@@ -60,16 +60,11 @@ export default function PropaneRecordList({ vin }: PropaneRecordListProps) {
     setShowForm(false)
   }
 
-  const formatVolume = (gallons?: number | string): string => {
-    if (!gallons) return '-'
-    const numGallons = typeof gallons === 'string' ? parseFloat(gallons) : gallons
-    if (isNaN(numGallons)) return '-'
-    if (system === 'metric') {
-      const liters = UnitConverter.gallonsToLiters(numGallons)
-      if (liters === null) return '-'
-      return `${liters.toFixed(3)} ${UnitFormatter.getVolumeUnit(system)}`
-    }
-    return `${numGallons.toFixed(3)} ${UnitFormatter.getVolumeUnit(system)}`
+  const formatVolume = (liters?: number | string): string => {
+    if (!liters) return '-'
+    const num = typeof liters === 'string' ? parseFloat(liters) : liters
+    if (isNaN(num)) return '-'
+    return UnitFormatter.formatVolume(num, system, false)
   }
 
   const extractVendor = (notes?: string): string => {

@@ -10,7 +10,7 @@ import { FormError } from './FormError'
 import { useCreateDEFRecord, useUpdateDEFRecord } from '../hooks/queries/useDEFRecords'
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { UnitConverter, UnitFormatter } from '../utils/units'
-import { toCanonicalKm, toCanonicalLiters } from '../utils/decimalSafe'
+import { toCanonicalKm, toCanonicalLiters, priceToDisplay, priceToCanonical } from '../utils/decimalSafe'
 import { formatDateForInput } from '../utils/dateUtils'
 import CurrencyInputPrefix from './common/CurrencyInputPrefix'
 
@@ -83,7 +83,7 @@ export default function DEFRecordForm({
         if (l === undefined) return undefined
         return system === 'imperial' ? (UnitConverter.litersToGallons(l) ?? l) : l
       })(),
-      price_per_unit: parseDecimal(record?.price_per_unit),
+      price_per_unit: priceToDisplay(record?.price_per_unit, system, 'per_volume') ?? undefined,
       cost: parseDecimal(record?.cost),
       fill_level: (() => {
         const fl = parseDecimal(record?.fill_level)
@@ -127,7 +127,7 @@ export default function DEFRecordForm({
         date: data.date,
         odometer_km: toCanonicalKm(data.odometer_km, system) ?? undefined,
         liters: toCanonicalLiters(data.liters, system) ?? undefined,
-        price_per_unit: data.price_per_unit,
+        price_per_unit: priceToCanonical(data.price_per_unit, system, 'per_volume') ?? undefined,
         cost: data.cost,
         fill_level: data.fill_level !== undefined ? data.fill_level / 100 : undefined, // Convert % to 0.00-1.00
         source: data.source || undefined,
