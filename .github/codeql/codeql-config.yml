@@ -11,10 +11,11 @@ paths-ignore:
 
 # Only run security-tagged queries — filters out code quality rules
 # (py/empty-except, py/mixed-returns, etc.) that are not actionable here.
-# Sanitizer barriers in mygarage-models/sanitizers.yml handle remaining
-# false positives. The model pack is registered via --additional-packs
-# in the workflow's CODEQL_ACTION_EXTRA_OPTIONS env var (the codeql-action
-# packs: key only accepts published packs, not local paths).
+# Sanitizer barriers in homelabforge/mygarage-models/sanitizers.yml
+# handle remaining false positives. The pack is registered via
+# --additional-packs in the workflow's CODEQL_ACTION_EXTRA_OPTIONS
+# env var (the codeql-action packs: key only accepts published packs,
+# not local paths).
 query-filters:
   - include:
       tags contain: security
