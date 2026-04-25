@@ -177,9 +177,30 @@ class MigrationRunner:
             except Exception as e:
                 logger.error("Migration '%s' failed: %s", name, e)
                 logger.error("Stopping migration run - fix errors and restart")
+                # Annotate the exception with the migration's FATAL flag so
+                # init_db() can decide whether to halt startup. Defaults to
+                # False (log-and-continue) when the migration module doesn't
+                # explicitly opt in.
+                fatal = self._migration_is_fatal(path)
+                try:
+                    e.__migration_fatal__ = fatal  # type: ignore[attr-defined]
+                except Exception:
+                    pass
                 raise
 
         logger.info("✓ All %s migration(s) applied successfully", successful)
+
+    def _migration_is_fatal(self, path: Path) -> bool:
+        """Return the migration module's FATAL flag (default: False)."""
+        try:
+            spec = importlib.util.spec_from_file_location(path.stem, path)
+            if spec is None or spec.loader is None:
+                return False
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            return bool(getattr(module, "FATAL", False))
+        except Exception:
+            return False
 
 
 def run_migrations(database_url: str, migrations_dir: Path) -> None:

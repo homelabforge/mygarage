@@ -220,7 +220,7 @@ class TestGenerateVehicleAnalyticsPdf:
         buf = generate_vehicle_analytics_pdf(data)
         text = _extract_text(buf.read())
         assert "TOTAL COST" in text
-        assert "COST PER MILE" in text
+        assert "COST PER KM" in text
         assert "AVG MONTHLY" in text
         assert "PROJECTED 12-MO" in text
 

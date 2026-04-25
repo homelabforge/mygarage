@@ -185,8 +185,8 @@ class VehicleAnalytics(BaseModel):
     predictions: list[MaintenancePrediction] = []
 
     # Summary Stats
-    total_miles_driven: int | None = None
-    average_miles_per_month: int | None = None
+    total_km_driven: Decimal | None = None
+    average_km_per_month: Decimal | None = None
     days_owned: int | None = None
 
     # Fifth Wheel / RV Specific (optional)

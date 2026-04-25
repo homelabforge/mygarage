@@ -1,4 +1,15 @@
-"""Data import routes for MyGarage."""
+"""Data import routes for MyGarage.
+
+CSV/JSON exports from v2.26.2+ carry a schema marker:
+  - CSV: leading `units_version` column on every row (= "3" for SI metric)
+  - JSON: top-level `"export_version"` and `"units"` keys
+
+This importer accepts both v3 (metric) and legacy v2 (imperial). When the
+marker is missing or `"2"`, imperial-named fields are read and converted
+on ingest. v3 reads new metric fields verbatim. The legacy ORM kwargs
+were already updated to the new column names so v2 fallback paths must
+convert before constructing the model.
+"""
 
 import csv
 import io
@@ -7,6 +18,7 @@ import logging
 from datetime import date as date_type
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
+from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from slowapi import Limiter
@@ -32,6 +44,42 @@ from app.models.user import User
 from app.models.vendor import Vendor
 from app.services.auth import get_vehicle_or_403, require_auth
 from app.utils.file_validation import validate_csv_upload
+from app.utils.units import UnitConverter
+
+
+# Conversion helpers for legacy-v2-CSV imports. Each takes a Decimal in the
+# imperial unit and returns the metric Decimal. None passes through.
+def _mi_to_km(value: Decimal | None) -> Decimal | None:
+    return value * UnitConverter.MILES_TO_KM if value is not None else None
+
+
+def _gal_to_l(value: Decimal | None) -> Decimal | None:
+    return value * UnitConverter.GALLONS_TO_LITERS if value is not None else None
+
+
+def _per_gal_to_per_l(value: Decimal | None) -> Decimal | None:
+    """Price/volume: $/gal → $/L (divide by 3.78541)."""
+    return value / UnitConverter.GALLONS_TO_LITERS if value is not None else None
+
+
+def _row_is_legacy_v2(row: dict) -> bool:
+    """Detect whether a CSV row was exported by a v2 (imperial) build.
+
+    v3+ exports include `units_version="3"`. v2 exports omit the column.
+    Treat empty/missing as legacy. Imperial-keyed columns (`Mileage`,
+    `Gallons`) without the marker also signal legacy.
+    """
+    version = (row.get("units_version") or "").strip()
+    if version == "3":
+        return False
+    if version and version != "3":
+        return True
+    # No marker → infer from column shape: "Mileage"/"Gallons" present without
+    # "Odometer (km)"/"Liters" means legacy.
+    has_imperial = bool(row.get("Mileage") or row.get("Gallons"))
+    has_metric = bool(row.get("Odometer (km)") or row.get("Liters"))
+    return has_imperial and not has_metric
+
 
 logger = logging.getLogger(__name__)
 
@@ -172,7 +220,10 @@ async def import_service_csv(
             # Use service_type or raw_category as description fallback
             if not description:
                 description = service_type or raw_category
-            mileage = parse_int(row.get("Mileage", ""))
+            # Legacy v2 CSV header is "Mileage" (miles); v3 uses "Odometer (km)".
+            # Convert legacy values to km on ingest so the metric ORM column is correct.
+            odometer_raw = parse_decimal(row.get("Odometer (km)", "") or row.get("Mileage", ""))
+            odometer_km = _mi_to_km(odometer_raw) if _row_is_legacy_v2(row) else odometer_raw
             cost = parse_decimal(row.get("Cost", ""))
             vendor_name = (
                 row.get("Vendor", "").strip() or row.get("Vendor Name", "").strip() or None
@@ -185,7 +236,7 @@ async def import_service_csv(
                     select(ServiceVisit).where(
                         ServiceVisit.vin == vin,
                         ServiceVisit.date == date,
-                        ServiceVisit.mileage == mileage,
+                        ServiceVisit.odometer_km == odometer_km,
                     )
                 )
                 if existing.scalar_one_or_none():
@@ -209,7 +260,7 @@ async def import_service_csv(
             visit = ServiceVisit(
                 vin=vin,
                 date=date,
-                mileage=mileage,
+                odometer_km=odometer_km,
                 service_category=category or "Maintenance",
                 vendor_id=vendor_id,
                 notes=notes,
@@ -263,12 +314,30 @@ async def import_fuel_csv(
                 import_result.add_error(row_num, "Date is required")
                 continue
 
-            # Parse optional fields
-            mileage = parse_int(row.get("Mileage", ""))
-            gallons = parse_decimal(row.get("Gallons", ""))
-            price_per_unit = parse_decimal(
-                row.get("Price Per Gallon", "") or row.get("Price/Gal", "")
+            # Parse optional fields. v3+ uses "Odometer (km)"/"Liters" with a
+            # `units_version` marker; legacy v2 uses "Mileage"/"Gallons" and
+            # the values must be converted from imperial to metric on ingest
+            # (the ORM column is metric — storing miles into odometer_km
+            # would lose ~38% of the distance).
+            legacy_v2 = _row_is_legacy_v2(row)
+
+            odometer_raw = parse_decimal(row.get("Odometer (km)", "") or row.get("Mileage", ""))
+            volume_raw = parse_decimal(row.get("Liters", "") or row.get("Gallons", ""))
+            price_raw = parse_decimal(
+                row.get("Price Per Liter", "")
+                or row.get("Price Per Gallon", "")
+                or row.get("Price/Gal", "")
             )
+
+            if legacy_v2:
+                odometer_km = _mi_to_km(odometer_raw)
+                liters = _gal_to_l(volume_raw)
+                price_per_unit = _per_gal_to_per_l(price_raw)
+            else:
+                odometer_km = odometer_raw
+                liters = volume_raw
+                price_per_unit = price_raw
+
             cost = parse_decimal(row.get("Total Cost", "") or row.get("Cost", ""))
             is_full_tank = parse_bool(row.get("Full Tank", "True"))
             missed_fillup = parse_bool(row.get("Missed Fill-up", "False"))
@@ -280,7 +349,7 @@ async def import_fuel_csv(
                     select(FuelRecord).where(
                         FuelRecord.vin == vin,
                         FuelRecord.date == date,
-                        FuelRecord.mileage == mileage,
+                        FuelRecord.odometer_km == odometer_km,
                     )
                 )
                 if existing.scalar_one_or_none():
@@ -291,8 +360,8 @@ async def import_fuel_csv(
             record = FuelRecord(
                 vin=vin,
                 date=date,
-                mileage=mileage,
-                gallons=gallons,
+                odometer_km=odometer_km,
+                liters=liters,
                 price_per_unit=price_per_unit,
                 cost=cost,
                 is_full_tank=is_full_tank,
@@ -336,9 +405,20 @@ async def import_def_csv(
                 import_result.add_error(row_num, "Date is required")
                 continue
 
-            mileage = parse_int(row.get("Mileage", ""))
-            gallons = parse_decimal(row.get("Gallons", ""))
-            price_per_unit = parse_decimal(row.get("Price Per Unit", ""))
+            # Legacy v2 CSV uses "Mileage"/"Gallons" (imperial); v3 uses
+            # "Odometer (km)"/"Liters". Legacy values are converted to metric.
+            legacy_v2 = _row_is_legacy_v2(row)
+            odometer_raw = parse_decimal(row.get("Odometer (km)", "") or row.get("Mileage", ""))
+            volume_raw = parse_decimal(row.get("Liters", "") or row.get("Gallons", ""))
+            price_raw = parse_decimal(row.get("Price Per Unit", ""))
+            if legacy_v2:
+                odometer_km = _mi_to_km(odometer_raw)
+                liters = _gal_to_l(volume_raw)
+                price_per_unit = _per_gal_to_per_l(price_raw)
+            else:
+                odometer_km = odometer_raw
+                liters = volume_raw
+                price_per_unit = price_raw
             cost = parse_decimal(row.get("Total Cost", "") or row.get("Cost", ""))
             fill_level = parse_decimal(row.get("Fill Level", ""))
             source = row.get("Source", "").strip() or None
@@ -350,7 +430,7 @@ async def import_def_csv(
                     select(DEFRecord).where(
                         DEFRecord.vin == vin,
                         DEFRecord.date == date,
-                        DEFRecord.mileage == mileage,
+                        DEFRecord.odometer_km == odometer_km,
                     )
                 )
                 if existing.scalar_one_or_none():
@@ -360,8 +440,8 @@ async def import_def_csv(
             record = DEFRecord(
                 vin=vin,
                 date=date,
-                mileage=mileage,
-                gallons=gallons,
+                odometer_km=odometer_km,
+                liters=liters,
                 price_per_unit=price_per_unit,
                 cost=cost,
                 fill_level=fill_level,
@@ -408,10 +488,15 @@ async def import_odometer_csv(
                 import_result.add_error(row_num, "Date is required")
                 continue
 
-            mileage = parse_int(row.get("Reading", "") or row.get("Mileage", ""))
-            if mileage is None:
-                import_result.add_error(row_num, "Reading/Mileage is required")
+            # Legacy v2 CSV uses "Mileage" (miles); v3 uses "Reading (km)"
+            # or "Reading". Convert legacy mileage → km on ingest.
+            odometer_raw = parse_decimal(
+                row.get("Reading (km)", "") or row.get("Reading", "") or row.get("Mileage", "")
+            )
+            if odometer_raw is None:
+                import_result.add_error(row_num, "Reading is required")
                 continue
+            odometer_km = _mi_to_km(odometer_raw) if _row_is_legacy_v2(row) else odometer_raw
 
             notes = row.get("Notes", "").strip() or None
 
@@ -421,7 +506,7 @@ async def import_odometer_csv(
                     select(OdometerRecord).where(
                         OdometerRecord.vin == vin,
                         OdometerRecord.date == date,
-                        OdometerRecord.mileage == mileage,
+                        OdometerRecord.odometer_km == odometer_km,
                     )
                 )
                 if existing.scalar_one_or_none():
@@ -429,7 +514,7 @@ async def import_odometer_csv(
                     continue
 
             # Create record
-            record = OdometerRecord(vin=vin, date=date, mileage=mileage, notes=notes)
+            record = OdometerRecord(vin=vin, date=date, odometer_km=odometer_km, notes=notes)
             db.add(record)
             import_result.add_success()
 
@@ -724,6 +809,37 @@ async def import_vehicle_json(
     except json.JSONDecodeError as e:
         raise HTTPException(status_code=400, detail=f"Invalid JSON: {str(e)}")
 
+    # Detect schema version. v3+ exports include `"export_version": "3"` and
+    # `"units": "metric"`. Pre-v3 backups omit both — treat as legacy v2 and
+    # convert imperial values to metric on ingest.
+    export_version = str(data.get("export_version") or "").strip()
+    units = str(data.get("units") or "").strip().lower()
+    is_legacy_v2 = export_version != "3" and units != "metric"
+    if is_legacy_v2:
+        logger.warning(
+            "JSON import for vin=%s detected legacy v2 backup (no export_version "
+            "marker); converting imperial values to metric on ingest.",
+            vin,
+        )
+
+    def _maybe_mi_to_km(val: Any) -> Decimal | None:
+        if val is None or val == "":
+            return None
+        d = Decimal(str(val))
+        return d * UnitConverter.MILES_TO_KM if is_legacy_v2 else d
+
+    def _maybe_gal_to_l(val: Any) -> Decimal | None:
+        if val is None or val == "":
+            return None
+        d = Decimal(str(val))
+        return d * UnitConverter.GALLONS_TO_LITERS if is_legacy_v2 else d
+
+    def _maybe_per_gal_to_per_l(val: Any) -> Decimal | None:
+        if val is None or val == "":
+            return None
+        d = Decimal(str(val))
+        return d / UnitConverter.GALLONS_TO_LITERS if is_legacy_v2 else d
+
     results = {
         "service_records": {"success": 0, "errors": 0, "skipped": 0},
         "fuel_records": {"success": 0, "errors": 0, "skipped": 0},
@@ -739,12 +855,17 @@ async def import_vehicle_json(
         try:
             date = datetime.fromisoformat(record_data["date"]).date()
 
+            # Legacy v2 used "mileage" (miles); v3 uses "odometer_km" (km).
+            imported_odometer_km = _maybe_mi_to_km(
+                record_data.get("odometer_km") or record_data.get("mileage")
+            )
+
             if skip_duplicates:
                 existing = await db.execute(
                     select(ServiceVisit).where(
                         ServiceVisit.vin == vin,
                         ServiceVisit.date == date,
-                        ServiceVisit.mileage == record_data.get("mileage"),
+                        ServiceVisit.odometer_km == imported_odometer_km,
                     )
                 )
                 if existing.scalar_one_or_none():
@@ -774,7 +895,7 @@ async def import_vehicle_json(
             visit = ServiceVisit(
                 vin=vin,
                 date=date,
-                mileage=record_data.get("mileage"),
+                odometer_km=imported_odometer_km,
                 service_category=category,
                 vendor_id=vendor_id,
                 notes=record_data.get("notes"),
@@ -799,12 +920,22 @@ async def import_vehicle_json(
         try:
             date = datetime.fromisoformat(record_data["date"]).date()
 
+            # v3 uses "odometer_km"/"liters"; legacy v2 uses "mileage"/"gallons"
+            # in imperial — convert via the helpers above.
+            imported_odometer_km = _maybe_mi_to_km(
+                record_data.get("odometer_km") or record_data.get("mileage")
+            )
+            imported_liters = _maybe_gal_to_l(
+                record_data.get("liters") or record_data.get("gallons")
+            )
+            imported_ppu = _maybe_per_gal_to_per_l(record_data.get("price_per_unit"))
+
             if skip_duplicates:
                 existing = await db.execute(
                     select(FuelRecord).where(
                         FuelRecord.vin == vin,
                         FuelRecord.date == date,
-                        FuelRecord.mileage == record_data.get("mileage"),
+                        FuelRecord.odometer_km == imported_odometer_km,
                     )
                 )
                 if existing.scalar_one_or_none():
@@ -814,13 +945,9 @@ async def import_vehicle_json(
             record = FuelRecord(
                 vin=vin,
                 date=date,
-                mileage=record_data.get("mileage"),
-                gallons=Decimal(str(record_data["gallons"]))
-                if record_data.get("gallons")
-                else None,
-                price_per_unit=Decimal(str(record_data["price_per_unit"]))
-                if record_data.get("price_per_unit")
-                else None,
+                odometer_km=imported_odometer_km,
+                liters=imported_liters,
+                price_per_unit=imported_ppu,
                 cost=Decimal(str(record_data["cost"])) if record_data.get("cost") else None,
                 is_full_tank=record_data.get("is_full_tank", True),
                 missed_fillup=record_data.get("missed_fillup", False),
@@ -837,12 +964,21 @@ async def import_vehicle_json(
         try:
             date = datetime.fromisoformat(record_data["date"]).date()
 
+            # v3 uses "odometer_km"/"liters"; legacy v2 uses "mileage"/"gallons".
+            imported_odometer_km = _maybe_mi_to_km(
+                record_data.get("odometer_km") or record_data.get("mileage")
+            )
+            imported_liters = _maybe_gal_to_l(
+                record_data.get("liters") or record_data.get("gallons")
+            )
+            imported_ppu = _maybe_per_gal_to_per_l(record_data.get("price_per_unit"))
+
             if skip_duplicates:
                 existing = await db.execute(
                     select(DEFRecord).where(
                         DEFRecord.vin == vin,
                         DEFRecord.date == date,
-                        DEFRecord.mileage == record_data.get("mileage"),
+                        DEFRecord.odometer_km == imported_odometer_km,
                     )
                 )
                 if existing.scalar_one_or_none():
@@ -852,13 +988,9 @@ async def import_vehicle_json(
             record = DEFRecord(
                 vin=vin,
                 date=date,
-                mileage=record_data.get("mileage"),
-                gallons=Decimal(str(record_data["gallons"]))
-                if record_data.get("gallons")
-                else None,
-                price_per_unit=Decimal(str(record_data["price_per_unit"]))
-                if record_data.get("price_per_unit")
-                else None,
+                odometer_km=imported_odometer_km,
+                liters=imported_liters,
+                price_per_unit=imported_ppu,
                 cost=Decimal(str(record_data["cost"])) if record_data.get("cost") else None,
                 fill_level=Decimal(str(record_data["fill_level"]))
                 if record_data.get("fill_level")
@@ -878,12 +1010,17 @@ async def import_vehicle_json(
         try:
             date = datetime.fromisoformat(record_data["date"]).date()
 
+            # v2 used "reading" (miles), v3 uses "odometer_km".
+            imported_odometer_km = _maybe_mi_to_km(
+                record_data.get("odometer_km") or record_data.get("reading")
+            )
+
             if skip_duplicates:
                 existing = await db.execute(
                     select(OdometerRecord).where(
                         OdometerRecord.vin == vin,
                         OdometerRecord.date == date,
-                        OdometerRecord.mileage == record_data["reading"],
+                        OdometerRecord.odometer_km == imported_odometer_km,
                     )
                 )
                 if existing.scalar_one_or_none():
@@ -893,7 +1030,7 @@ async def import_vehicle_json(
             record = OdometerRecord(
                 vin=vin,
                 date=date,
-                mileage=record_data["reading"],
+                odometer_km=imported_odometer_km,
                 notes=record_data.get("notes"),
             )
             db.add(record)
@@ -930,7 +1067,7 @@ async def import_vehicle_json(
                 title=reminder_data["description"],
                 reminder_type=reminder_type,
                 due_date=due_date,
-                due_mileage=recurrence_miles if has_miles else None,
+                due_mileage_km=recurrence_miles if has_miles else None,
                 status="pending",
                 notes=reminder_data.get("notes"),
             )

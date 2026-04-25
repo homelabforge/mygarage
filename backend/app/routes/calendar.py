@@ -1,6 +1,7 @@
 """Calendar routes for MyGarage API."""
 
 from datetime import date, timedelta
+from decimal import Decimal
 from io import StringIO
 from typing import Annotated, Literal
 
@@ -113,11 +114,11 @@ async def get_calendar_events(
             # Determine the event date from reminder fields
             event_date = reminder.due_date
             is_estimated = False
-            due_mileage = reminder.due_mileage
+            due_mileage_km = reminder.due_mileage_km
 
             # For mileage-only reminders, estimate date
-            if event_date is None and due_mileage is not None:
-                event_date = await estimate_date_from_mileage(reminder.vin, due_mileage, db)
+            if event_date is None and due_mileage_km is not None:
+                event_date = await estimate_date_from_mileage(reminder.vin, due_mileage_km, db)
                 is_estimated = event_date is not None
 
             # Skip if no date can be determined
@@ -144,17 +145,17 @@ async def get_calendar_events(
                 urgency = "low"
                 status = "on_track"
 
-            miles_until_due = None
-            if due_mileage is not None:
+            km_until_due: Decimal | None = None
+            if due_mileage_km is not None:
                 odo_result = await db.execute(
-                    select(OdometerRecord.mileage)
+                    select(OdometerRecord.odometer_km)
                     .where(OdometerRecord.vin == reminder.vin)
                     .order_by(OdometerRecord.date.desc())
                     .limit(1)
                 )
-                current_mileage = odo_result.scalar_one_or_none()
-                if current_mileage is not None:
-                    miles_until_due = due_mileage - current_mileage
+                current_odometer_km = odo_result.scalar_one_or_none()
+                if current_odometer_km is not None:
+                    km_until_due = due_mileage_km - current_odometer_km
 
             events.append(
                 CalendarEvent(
@@ -172,10 +173,10 @@ async def get_calendar_events(
                     is_estimated=is_estimated,
                     category="maintenance",
                     notes=reminder.notes,
-                    due_mileage=due_mileage,
+                    due_mileage_km=due_mileage_km,
                     status=status,
                     days_until_due=days_until_due,
-                    miles_until_due=miles_until_due,
+                    km_until_due=km_until_due,
                 )
             )
 
@@ -214,7 +215,7 @@ async def get_calendar_events(
                     is_estimated=False,
                     category="legal",
                     notes=None,
-                    due_mileage=None,
+                    due_mileage_km=None,
                 )
             )
 
@@ -255,7 +256,7 @@ async def get_calendar_events(
                     is_estimated=False,
                     category="legal",
                     notes=None,
-                    due_mileage=None,
+                    due_mileage_km=None,
                 )
             )
 
@@ -309,7 +310,7 @@ async def get_calendar_events(
                     is_estimated=False,
                     category="history",
                     notes=visit.notes,
-                    due_mileage=None,
+                    due_mileage_km=None,
                 )
             )
 
@@ -339,8 +340,8 @@ async def get_calendar_events(
     return CalendarResponse(events=events, summary=summary)
 
 
-async def calculate_average_miles_per_day(vin: str, db: AsyncSession) -> float | None:
-    """Calculate average miles per day for a vehicle based on odometer history."""
+async def calculate_average_km_per_day(vin: str, db: AsyncSession) -> float | None:
+    """Calculate average km per day for a vehicle based on odometer history."""
     # Get last 30 days of odometer readings (or all if less than 30 days of data)
     odometer_query = (
         select(OdometerRecord)
@@ -356,22 +357,24 @@ async def calculate_average_miles_per_day(vin: str, db: AsyncSession) -> float |
         # Not enough data to calculate average
         return None
 
-    # Calculate miles per day using oldest and newest records
+    # Calculate km per day using oldest and newest records
     oldest = records[-1]
     newest = records[0]
 
     days_diff = (newest.date - oldest.date).days
-    miles_diff = newest.mileage - oldest.mileage
+    km_diff = newest.odometer_km - oldest.odometer_km
 
-    if days_diff == 0 or miles_diff < 0:
+    if days_diff == 0 or km_diff < 0:
         return None
 
-    return miles_diff / days_diff
+    return float(km_diff) / days_diff
 
 
-async def estimate_date_from_mileage(vin: str, due_mileage: int, db: AsyncSession) -> date | None:
+async def estimate_date_from_mileage(
+    vin: str, due_mileage_km: Decimal, db: AsyncSession
+) -> date | None:
     """Estimate due date for a mileage-based reminder."""
-    # Get current mileage
+    # Get current odometer_km
     odometer_query = (
         select(OdometerRecord)
         .where(OdometerRecord.vin == vin)
@@ -385,22 +388,22 @@ async def estimate_date_from_mileage(vin: str, due_mileage: int, db: AsyncSessio
     if not current_record:
         return None
 
-    current_mileage = current_record.mileage
-    miles_remaining = due_mileage - current_mileage
+    current_odometer_km = current_record.odometer_km
+    km_remaining = due_mileage_km - current_odometer_km
 
-    if miles_remaining <= 0:
+    if km_remaining <= 0:
         # Already past due
         return date.today()
 
-    # Get average miles per day
-    avg_miles_per_day = await calculate_average_miles_per_day(vin, db)
+    # Get average km per day
+    avg_km_per_day = await calculate_average_km_per_day(vin, db)
 
-    if not avg_miles_per_day or avg_miles_per_day <= 0:
+    if not avg_km_per_day or avg_km_per_day <= 0:
         # Can't estimate without average
         return None
 
     # Calculate estimated days until due
-    days_until_due = int(miles_remaining / avg_miles_per_day)
+    days_until_due = int(float(km_remaining) / avg_km_per_day)
 
     return date.today() + timedelta(days=days_until_due)
 

@@ -78,7 +78,7 @@ async def download_service_history_pdf(
                 records_data.append(
                     {
                         "date": visit.date,
-                        "mileage": visit.mileage,
+                        "odometer_km": visit.odometer_km,
                         "service_category": visit.service_category,
                         "service_type": item.description,
                         "cost": item.cost,
@@ -90,7 +90,7 @@ async def download_service_history_pdf(
             records_data.append(
                 {
                     "date": visit.date,
-                    "mileage": visit.mileage,
+                    "odometer_km": visit.odometer_km,
                     "service_category": visit.service_category,
                     "service_type": visit.notes or "Service",
                     "cost": visit.calculated_total_cost,
@@ -323,7 +323,7 @@ async def download_service_history_csv(
             writer.writerow(
                 [
                     visit.date.strftime("%Y-%m-%d") if visit.date else "",
-                    visit.mileage or "",
+                    visit.odometer_km or "",
                     visit.service_category or "",
                     item.description or "",
                     f"{float(item.cost):.2f}" if item.cost else "",
@@ -357,7 +357,7 @@ async def download_all_records_csv(
     writer = csv.writer(output)
 
     # Write header
-    writer.writerow(["Date", "Type", "Category", "Description", "Cost", "Mileage", "Vendor"])
+    writer.writerow(["Date", "Type", "Category", "Description", "Cost", "Odometer (km)", "Vendor"])
 
     # Query and write service visits with line items
     visit_query = _service_visits_query(vin)
@@ -383,7 +383,7 @@ async def download_all_records_csv(
                     category,
                     item.description or "",
                     f"{float(item.cost):.2f}" if item.cost else "",
-                    visit.mileage or "",
+                    visit.odometer_km or "",
                     vendor_name,
                 ]
             )
@@ -399,9 +399,9 @@ async def download_all_records_csv(
                 record.date.strftime("%Y-%m-%d") if record.date else "",
                 "Fuel",
                 "Fuel",
-                f"{record.gallons}gal" if record.gallons else "",
+                f"{record.liters}L" if record.liters else "",
                 f"{float(record.cost):.2f}" if record.cost else "",
-                record.mileage or "",
+                record.odometer_km or "",
                 "",  # No station field in FuelRecord model
             ]
         )

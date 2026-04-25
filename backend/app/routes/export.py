@@ -32,13 +32,26 @@ router = APIRouter(prefix="/api/export", tags=["export"])
 # Initialize rate limiter for export endpoints
 limiter = Limiter(key_func=get_remote_address)
 
+# CSV/JSON export schema version. v3 = SI-metric canonical (issue #67).
+# - CSV exports prepend a `units_version` column with this value to every row.
+# - JSON exports include a top-level `"export_version"` + `"units"` field.
+# - The importer (`app/routes/import_data.py`) reads the marker and falls back
+#   to v2 imperial conversion when it's missing (legacy v2 backups).
+EXPORT_SCHEMA_VERSION = "3"
+EXPORT_UNITS = "metric"
+
 
 def generate_csv_stream(headers: list[str], rows: list[list[Any]]) -> io.StringIO:
-    """Generate CSV content as string stream"""
+    """Generate CSV content with a leading `units_version` column.
+
+    Every exported row is tagged with the schema version (currently "3" =
+    metric canonical) so the importer can detect format and route legacy
+    v2 imperial CSVs through the converter.
+    """
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(headers)
-    writer.writerows(rows)
+    writer.writerow(["units_version", *headers])
+    writer.writerows([[EXPORT_SCHEMA_VERSION, *row] for row in rows])
     output.seek(0)
     return output
 
@@ -69,7 +82,7 @@ async def export_service_records_csv(
         "Date",
         "Category",
         "Description",
-        "Mileage",
+        "Odometer (km)",
         "Cost",
         "Vendor",
         "Notes",
@@ -85,7 +98,7 @@ async def export_service_records_csv(
                         visit.date.isoformat() if visit.date else "",
                         visit.service_category or "",
                         item.description or "",
-                        visit.mileage or "",
+                        visit.odometer_km or "",
                         f"{item.cost:.2f}" if item.cost else "",
                         vendor_name,
                         item.notes or visit.notes or "",
@@ -98,7 +111,7 @@ async def export_service_records_csv(
                     visit.date.isoformat() if visit.date else "",
                     visit.service_category or "",
                     "",
-                    visit.mileage or "",
+                    visit.odometer_km or "",
                     f"{visit.calculated_total_cost:.2f}" if visit.calculated_total_cost else "",
                     vendor_name,
                     visit.notes or "",
@@ -138,9 +151,9 @@ async def export_fuel_records_csv(
     # Generate CSV
     headers = [
         "Date",
-        "Mileage",
-        "Gallons",
-        "Price Per Gallon",
+        "Odometer (km)",
+        "Liters",
+        "Price Per Liter",
         "Total Cost",
         "Full Tank",
         "Missed Fill-up",
@@ -154,8 +167,8 @@ async def export_fuel_records_csv(
         rows.append(
             [
                 record.date.isoformat() if record.date else "",
-                record.mileage or "",
-                f"{record.gallons:.3f}" if record.gallons else "",
+                record.odometer_km or "",
+                f"{record.liters:.3f}" if record.liters else "",
                 f"{record.price_per_unit:.3f}" if record.price_per_unit else "",
                 f"{record.cost:.2f}" if record.cost else "",
                 "Yes" if record.is_full_tank else "No",
@@ -196,8 +209,8 @@ async def export_def_records_csv(
 
     headers = [
         "Date",
-        "Mileage",
-        "Gallons",
+        "Odometer (km)",
+        "Liters",
         "Price Per Unit",
         "Total Cost",
         "Fill Level",
@@ -211,8 +224,8 @@ async def export_def_records_csv(
         rows.append(
             [
                 record.date.isoformat() if record.date else "",
-                record.mileage or "",
-                f"{record.gallons:.3f}" if record.gallons else "",
+                record.odometer_km or "",
+                f"{record.liters:.3f}" if record.liters else "",
                 f"{record.price_per_unit:.3f}" if record.price_per_unit else "",
                 f"{record.cost:.2f}" if record.cost else "",
                 f"{record.fill_level:.2f}" if record.fill_level else "",
@@ -252,14 +265,14 @@ async def export_odometer_records_csv(
     records = result.scalars().all()
 
     # Generate CSV
-    headers = ["Date", "Reading", "Notes"]
+    headers = ["Date", "Reading (km)", "Notes"]
 
     rows = []
     for record in records:
         rows.append(
             [
                 record.date.isoformat() if record.date else "",
-                record.mileage or "",
+                record.odometer_km or "",
                 record.notes or "",
             ]
         )
@@ -537,6 +550,8 @@ async def export_vehicle_json(
 
     # Build export data
     export_data = {
+        "export_version": EXPORT_SCHEMA_VERSION,
+        "units": EXPORT_UNITS,
         "export_date": datetime.now().isoformat(),
         "vehicle": {
             "vin": vehicle.vin,
@@ -555,7 +570,7 @@ async def export_vehicle_json(
                 "date": v.date.isoformat() if v.date else None,
                 "service_category": v.service_category,
                 "service_type": v.line_items[0].description if v.line_items else None,
-                "mileage": v.mileage,
+                "odometer_km": float(v.odometer_km) if v.odometer_km is not None else None,
                 "cost": float(v.calculated_total_cost) if v.calculated_total_cost else None,
                 "vendor_name": v.vendor.name if v.vendor else None,
                 "notes": v.notes,
@@ -565,8 +580,8 @@ async def export_vehicle_json(
         "fuel_records": [
             {
                 "date": r.date.isoformat() if r.date else None,
-                "mileage": r.mileage,
-                "gallons": float(r.gallons) if r.gallons else None,
+                "odometer_km": float(r.odometer_km) if r.odometer_km is not None else None,
+                "liters": float(r.liters) if r.liters else None,
                 "price_per_unit": float(r.price_per_unit) if r.price_per_unit else None,
                 "cost": float(r.cost) if r.cost else None,
                 "is_full_tank": r.is_full_tank,
@@ -580,8 +595,8 @@ async def export_vehicle_json(
         "def_records": [
             {
                 "date": r.date.isoformat() if r.date else None,
-                "mileage": r.mileage,
-                "gallons": float(r.gallons) if r.gallons else None,
+                "odometer_km": float(r.odometer_km) if r.odometer_km is not None else None,
+                "liters": float(r.liters) if r.liters else None,
                 "price_per_unit": float(r.price_per_unit) if r.price_per_unit else None,
                 "cost": float(r.cost) if r.cost else None,
                 "fill_level": float(r.fill_level) if r.fill_level else None,
@@ -594,7 +609,7 @@ async def export_vehicle_json(
         "odometer_records": [
             {
                 "date": r.date.isoformat() if r.date else None,
-                "reading": r.mileage,
+                "reading": float(r.odometer_km) if r.odometer_km is not None else None,
                 "notes": r.notes,
             }
             for r in odometer_records

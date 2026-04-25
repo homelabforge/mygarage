@@ -177,11 +177,11 @@ async def check_expiring_documents() -> None:
 async def check_odometer_milestones() -> None:
     """Check for odometer milestones and send notifications.
 
-    Runs daily at 10 AM UTC. Checks each vehicle's latest mileage against
-    milestone boundaries (every 10,000 miles). Uses last_milestone_notified
+    Runs daily at 10 AM UTC. Checks each vehicle's latest odometer_km against
+    milestone boundaries (every 10,000 km). Uses last_milestone_notified_km
     on the vehicle to prevent duplicate notifications.
     """
-    milestone_interval = 10_000
+    MILESTONE_INTERVAL_KM = 10_000  # noqa: N806 — constant value, intentionally uppercased
 
     async with AsyncSessionLocal() as db:
         try:
@@ -199,23 +199,25 @@ async def check_odometer_milestones() -> None:
 
             for vehicle in vehicles:
                 try:
-                    # Get latest mileage
+                    # Get latest odometer_km
                     odo_result = await db.execute(
-                        select(OdometerRecord.mileage)
+                        select(OdometerRecord.odometer_km)
                         .where(OdometerRecord.vin == vehicle.vin)
                         .order_by(OdometerRecord.date.desc())
                         .limit(1)
                     )
-                    current_mileage = odo_result.scalar_one_or_none()
-                    if not current_mileage:
+                    current_odometer_km = odo_result.scalar_one_or_none()
+                    if not current_odometer_km:
                         continue
 
-                    # Calculate the highest milestone crossed
-                    current_milestone = (current_mileage // milestone_interval) * milestone_interval
+                    # Calculate the highest milestone crossed (integer-floor on km)
+                    current_milestone = (
+                        int(current_odometer_km) // MILESTONE_INTERVAL_KM
+                    ) * MILESTONE_INTERVAL_KM
                     if current_milestone == 0:
                         continue
 
-                    last_notified = vehicle.last_milestone_notified or 0
+                    last_notified = int(vehicle.last_milestone_notified_km or 0)
 
                     if current_milestone > last_notified:
                         vehicle_name = (
@@ -225,9 +227,9 @@ async def check_odometer_milestones() -> None:
                             vehicle_name=vehicle_name,
                             milestone=current_milestone,
                         )
-                        vehicle.last_milestone_notified = current_milestone
+                        vehicle.last_milestone_notified_km = current_milestone
                         logger.info(
-                            "Milestone notification: %s reached %s miles",
+                            "Milestone notification: %s reached %s km",
                             vehicle_name,
                             f"{current_milestone:,}",
                         )

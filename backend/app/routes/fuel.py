@@ -49,11 +49,11 @@ async def list_fuel_records(
     - Admin users can access all fuel records
     """
     service = FuelRecordService(db)
-    responses, total, avg_mpg = await service.list_fuel_records(
+    responses, total, avg_value = await service.list_fuel_records(
         vin, current_user, skip, limit, include_hauling
     )
 
-    return FuelRecordListResponse(records=responses, total=total, average_mpg=avg_mpg)
+    return FuelRecordListResponse(records=responses, total=total, average_l_per_100km=avg_value)
 
 
 @router.get("/{record_id}", response_model=FuelRecordResponse)

@@ -119,14 +119,14 @@ class DEFRecordService:
                 sanitize_for_log(vin),
             )
 
-            # Auto-sync odometer if mileage provided
-            if record.date and record.mileage:
+            # Auto-sync odometer if odometer_km provided
+            if record.date and record.odometer_km:
                 try:
                     await sync_odometer_from_record(
                         db=self.db,
                         vin=vin,
                         date=record.date,
-                        mileage=record.mileage,
+                        odometer_km=record.odometer_km,
                         source_type="def",
                         source_id=record.id,
                     )
@@ -192,14 +192,14 @@ class DEFRecordService:
 
             logger.info("Updated DEF record %s for %s", record_id, sanitize_for_log(vin))
 
-            # Auto-sync odometer if mileage and date are present
-            if record.date and record.mileage:
+            # Auto-sync odometer if odometer_km and date are present
+            if record.date and record.odometer_km:
                 try:
                     await sync_odometer_from_record(
                         db=self.db,
                         vin=vin,
                         date=record.date,
-                        mileage=record.mileage,
+                        odometer_km=record.odometer_km,
                         source_type="def",
                         source_id=record.id,
                     )
@@ -303,12 +303,12 @@ class DEFRecordService:
             return DEFAnalytics(record_count=0, data_confidence="insufficient")
 
         # Basic aggregates
-        total_gallons = sum((r.gallons for r in records if r.gallons is not None), Decimal("0"))
+        total_liters = sum((r.liters for r in records if r.liters is not None), Decimal("0"))
         total_cost = sum((r.cost for r in records if r.cost is not None), Decimal("0"))
 
-        avg_cost_per_gallon: Decimal | None = None
-        if total_gallons > 0 and total_cost > 0:
-            avg_cost_per_gallon = round(total_cost / total_gallons, 3)
+        avg_cost_per_liter: Decimal | None = None
+        if total_liters > 0 and total_cost > 0:
+            avg_cost_per_liter = round(total_cost / total_liters, 3)
 
         # Last known fill level
         last_fill_level: Decimal | None = None
@@ -325,75 +325,77 @@ class DEFRecordService:
             if total_days > 0:
                 avg_purchase_frequency_days = total_days // (len(purchase_records) - 1)
 
-        # Consumption rate: gallons per 1000 miles
-        # Requires minimum 3 records with mileage, and span > 500 miles
-        mileage_records = [r for r in records if r.mileage is not None and r.gallons is not None]
-        gallons_per_1000_miles: Decimal | None = None
+        # Consumption rate: liters per 1000 km
+        # Requires minimum 3 records with odometer_km, and span > ~800 km
+        odometer_records = [
+            r for r in records if r.odometer_km is not None and r.liters is not None
+        ]
+        liters_per_1000_km: Decimal | None = None
         data_confidence = "insufficient"
 
-        if len(mileage_records) >= 3:
-            mileages = [r.mileage for r in mileage_records if r.mileage is not None]
-            min_mileage = min(mileages)
-            max_mileage = max(mileages)
-            mileage_span = max_mileage - min_mileage
+        if len(odometer_records) >= 3:
+            odometers = [r.odometer_km for r in odometer_records if r.odometer_km is not None]
+            min_km = min(odometers)
+            max_km = max(odometers)
+            km_span = max_km - min_km
 
-            if mileage_span >= 500:
-                total_gallons_with_mileage = sum(
-                    (r.gallons for r in mileage_records if r.gallons is not None),
+            if km_span >= Decimal("800"):
+                total_liters_with_odometer = sum(
+                    (r.liters for r in odometer_records if r.liters is not None),
                     Decimal("0"),
                 )
-                if total_gallons_with_mileage > 0:
-                    gallons_per_1000_miles = round(
-                        total_gallons_with_mileage / Decimal(str(mileage_span)) * 1000, 2
+                if total_liters_with_odometer > 0:
+                    liters_per_1000_km = round(
+                        total_liters_with_odometer / Decimal(str(km_span)) * 1000, 2
                     )
 
-            if len(mileage_records) >= 5 and mileage_span >= 2000:
+            if len(odometer_records) >= 5 and km_span >= Decimal("3200"):
                 data_confidence = "high"
-            elif len(mileage_records) >= 3:
+            elif len(odometer_records) >= 3:
                 data_confidence = "low"
 
-        # Estimated remaining gallons (requires fill_level and tank capacity)
-        estimated_remaining_gallons: Decimal | None = None
-        estimated_miles_remaining: int | None = None
+        # Estimated remaining liters (requires fill_level and tank capacity)
+        estimated_remaining_liters: Decimal | None = None
+        estimated_km_remaining: int | None = None
         estimated_days_remaining: int | None = None
 
         if last_fill_level is not None:
-            # Get vehicle tank capacity
+            # Get vehicle tank capacity (liters)
             vehicle_result = await self.db.execute(
-                select(Vehicle.def_tank_capacity_gallons).where(Vehicle.vin == vin)
+                select(Vehicle.def_tank_capacity_liters).where(Vehicle.vin == vin)
             )
             tank_capacity = vehicle_result.scalar_one_or_none()
 
             if tank_capacity is not None and tank_capacity > 0:
-                estimated_remaining_gallons = round(last_fill_level * tank_capacity, 2)
+                estimated_remaining_liters = round(last_fill_level * tank_capacity, 2)
 
-                # Estimated miles remaining
-                if gallons_per_1000_miles is not None and gallons_per_1000_miles > 0:
-                    miles_remaining = estimated_remaining_gallons / (gallons_per_1000_miles / 1000)
-                    estimated_miles_remaining = int(miles_remaining)
+                # Estimated km remaining
+                if liters_per_1000_km is not None and liters_per_1000_km > 0:
+                    km_remaining = estimated_remaining_liters / (liters_per_1000_km / 1000)
+                    estimated_km_remaining = int(km_remaining)
 
-                    # Estimated days remaining (from average daily miles)
-                    if len(mileage_records) >= 2:
-                        mileages_sorted = sorted(mileage_records, key=lambda r: r.date)
-                        total_miles = (
-                            mileages_sorted[-1].mileage - mileages_sorted[0].mileage  # type: ignore[operator]
+                    # Estimated days remaining (from average daily km)
+                    if len(odometer_records) >= 2:
+                        odometers_sorted = sorted(odometer_records, key=lambda r: r.date)
+                        total_km = (
+                            odometers_sorted[-1].odometer_km - odometers_sorted[0].odometer_km  # type: ignore[operator]
                         )
-                        total_days = (mileages_sorted[-1].date - mileages_sorted[0].date).days
-                        if total_days > 0 and total_miles > 0:
-                            avg_daily_miles = Decimal(str(total_miles)) / Decimal(str(total_days))
-                            if avg_daily_miles > 0:
+                        total_days = (odometers_sorted[-1].date - odometers_sorted[0].date).days
+                        if total_days > 0 and total_km > 0:
+                            avg_daily_km = Decimal(str(total_km)) / Decimal(str(total_days))
+                            if avg_daily_km > 0:
                                 estimated_days_remaining = int(
-                                    Decimal(str(estimated_miles_remaining)) / avg_daily_miles
+                                    Decimal(str(estimated_km_remaining)) / avg_daily_km
                                 )
 
         return DEFAnalytics(
-            total_gallons=total_gallons if total_gallons > 0 else None,
+            total_liters=total_liters if total_liters > 0 else None,
             total_cost=total_cost if total_cost > 0 else None,
-            avg_cost_per_gallon=avg_cost_per_gallon,
-            gallons_per_1000_miles=gallons_per_1000_miles,
+            avg_cost_per_liter=avg_cost_per_liter,
+            liters_per_1000_km=liters_per_1000_km,
             avg_purchase_frequency_days=avg_purchase_frequency_days,
-            estimated_remaining_gallons=estimated_remaining_gallons,
-            estimated_miles_remaining=estimated_miles_remaining,
+            estimated_remaining_liters=estimated_remaining_liters,
+            estimated_km_remaining=estimated_km_remaining,
             estimated_days_remaining=estimated_days_remaining,
             last_fill_level=last_fill_level,
             record_count=record_count,

@@ -121,4 +121,11 @@ async def init_db():
         import traceback
 
         traceback.print_exc()
-        # Don't fail startup - log error and continue
+        # If the failing migration set FATAL = True, the runner annotates the
+        # raised exception with __migration_fatal__. Re-raise so the app does
+        # NOT serve requests against a half-migrated schema. Migration 053
+        # (metric-canonical storage) opts in to this behaviour.
+        if getattr(e, "__migration_fatal__", False):
+            raise
+        # Otherwise: log-and-continue (preserves the historical behaviour for
+        # additive migrations that are safe to run alongside the old schema).

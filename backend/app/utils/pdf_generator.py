@@ -125,7 +125,7 @@ class PDFReportGenerator:
             story.append(Spacer(1, 0.1 * inch))
 
             # Table headers
-            table_data = [["Date", "Mileage", "Type", "Description", "Cost", "Vendor"]]
+            table_data = [["Date", "Odometer (km)", "Type", "Description", "Cost", "Vendor"]]
 
             # Table rows
             total_cost = Decimal("0")
@@ -134,10 +134,11 @@ class PDFReportGenerator:
                 if cost:
                     total_cost += Decimal(str(cost))
 
+                odometer_km_value = record.get("odometer_km")
                 table_data.append(
                     [
                         self._format_date(record.get("date")),
-                        f"{record.get('mileage', 'N/A'):,}" if record.get("mileage") else "N/A",
+                        f"{odometer_km_value:,}" if odometer_km_value else "N/A",
                         record.get("service_type", "N/A"),
                         Paragraph(record.get("description", "N/A")[:50], self.styles["Normal"]),
                         self._format_currency(cost),

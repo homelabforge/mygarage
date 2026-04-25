@@ -2,6 +2,7 @@
 
 import logging
 from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
 
 from fastapi import HTTPException
 from sqlalchemy import func, select
@@ -21,7 +22,7 @@ NOTIFICATION_COOLDOWN = timedelta(hours=24)
 
 
 def validate_reminder_state(
-    reminder_type: str, due_date: date | None, due_mileage: int | None
+    reminder_type: str, due_date: date | None, due_mileage_km: Decimal | None
 ) -> None:
     """Shared validation for both create and the final merged state on update.
 
@@ -29,20 +30,20 @@ def validate_reminder_state(
     """
     if reminder_type in ("date", "both", "smart") and not due_date:
         raise ValueError("due_date required for this reminder type")
-    if reminder_type in ("mileage", "both", "smart") and not due_mileage:
-        raise ValueError("due_mileage required for this reminder type")
+    if reminder_type in ("mileage", "both", "smart") and not due_mileage_km:
+        raise ValueError("due_mileage_km required for this reminder type")
 
 
 async def calculate_driving_rate(vin: str, db: AsyncSession) -> float | None:
-    """Calculate average miles/day from last 90 days of OdometerRecord.
+    """Calculate average km/day from last 90 days of OdometerRecord.
 
     Returns None if fewer than 2 records in the window.
     """
     cutoff = date.today() - timedelta(days=90)
     result = await db.execute(
         select(
-            func.min(OdometerRecord.mileage),
-            func.max(OdometerRecord.mileage),
+            func.min(OdometerRecord.odometer_km),
+            func.max(OdometerRecord.odometer_km),
             func.min(OdometerRecord.date),
             func.max(OdometerRecord.date),
             func.count(OdometerRecord.id),
@@ -51,7 +52,7 @@ async def calculate_driving_rate(vin: str, db: AsyncSession) -> float | None:
         .where(OdometerRecord.date >= cutoff)
     )
     row = result.one()
-    min_miles, max_miles, min_date, max_date, count = row
+    min_km, max_km, min_date, max_date, count = row
 
     if count < 2 or min_date == max_date:
         return None
@@ -60,13 +61,13 @@ async def calculate_driving_rate(vin: str, db: AsyncSession) -> float | None:
     if days_span <= 0:
         return None
 
-    return (max_miles - min_miles) / days_span
+    return float(max_km - min_km) / days_span
 
 
-async def get_current_mileage(vin: str, db: AsyncSession) -> int | None:
-    """Get the most recent odometer reading for a vehicle."""
+async def get_current_mileage(vin: str, db: AsyncSession) -> Decimal | None:
+    """Get the most recent odometer reading (km) for a vehicle."""
     result = await db.execute(
-        select(OdometerRecord.mileage)
+        select(OdometerRecord.odometer_km)
         .where(OdometerRecord.vin == vin)
         .order_by(OdometerRecord.date.desc(), OdometerRecord.id.desc())
         .limit(1)
@@ -76,15 +77,15 @@ async def get_current_mileage(vin: str, db: AsyncSession) -> int | None:
 
 
 def calculate_smart_estimated_date(
-    current_mileage: int,
-    target_mileage: int,
-    avg_miles_per_day: float,
+    current_odometer_km: Decimal,
+    target_odometer_km: Decimal,
+    avg_km_per_day: float,
     hard_date: date,
 ) -> date:
-    """Estimate when mileage target will be hit. Never later than hard_date."""
-    if target_mileage <= current_mileage:
+    """Estimate when km target will be hit. Never later than hard_date."""
+    if target_odometer_km <= current_odometer_km:
         return date.today()
-    days = (target_mileage - current_mileage) / avg_miles_per_day
+    days = float(target_odometer_km - current_odometer_km) / avg_km_per_day
     estimated = date.today() + timedelta(days=days)
     return min(estimated, hard_date)
 
@@ -126,7 +127,7 @@ async def create_reminder(
     if effective_line_item_id:
         await _validate_line_item_vin(effective_line_item_id, vin, db)
 
-    validate_reminder_state(data.reminder_type, data.due_date, data.due_mileage)
+    validate_reminder_state(data.reminder_type, data.due_date, data.due_mileage_km)
 
     reminder = Reminder(
         vin=vin,
@@ -134,7 +135,7 @@ async def create_reminder(
         title=data.title,
         reminder_type=data.reminder_type,
         due_date=data.due_date,
-        due_mileage=data.due_mileage,
+        due_mileage_km=data.due_mileage_km,
         notes=data.notes,
     )
     db.add(reminder)
@@ -154,10 +155,10 @@ async def update_reminder(reminder: Reminder, data: ReminderUpdate, db: AsyncSes
         else reminder.reminder_type
     )
     final_date = data.due_date if "due_date" in set_fields else reminder.due_date
-    final_miles = data.due_mileage if "due_mileage" in set_fields else reminder.due_mileage
+    final_km = data.due_mileage_km if "due_mileage_km" in set_fields else reminder.due_mileage_km
 
     try:
-        validate_reminder_state(final_type, final_date, final_miles)
+        validate_reminder_state(final_type, final_date, final_km)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
 
@@ -167,8 +168,8 @@ async def update_reminder(reminder: Reminder, data: ReminderUpdate, db: AsyncSes
         reminder.reminder_type = final_type  # type: ignore[assignment]
     if "due_date" in set_fields:
         reminder.due_date = final_date
-    if "due_mileage" in set_fields:
-        reminder.due_mileage = final_miles
+    if "due_mileage_km" in set_fields:
+        reminder.due_mileage_km = final_km
     if "notes" in set_fields:
         reminder.notes = data.notes
 
@@ -180,10 +181,10 @@ async def enrich_with_estimate(reminder: Reminder, db: AsyncSession) -> Reminder
     response = ReminderResponse.model_validate(reminder)
     if reminder.reminder_type == "smart" and reminder.status == "pending":
         rate = await calculate_driving_rate(reminder.vin, db)
-        current = await get_current_mileage(reminder.vin, db)
-        if rate and current and reminder.due_mileage and reminder.due_date:
+        latest_odometer_km = await get_current_mileage(reminder.vin, db)
+        if rate and latest_odometer_km and reminder.due_mileage_km and reminder.due_date:
             response.estimated_due_date = calculate_smart_estimated_date(
-                current, reminder.due_mileage, rate, reminder.due_date
+                latest_odometer_km, reminder.due_mileage_km, rate, reminder.due_date
             )
     return response
 
@@ -235,17 +236,17 @@ async def check_due_reminders(db: AsyncSession) -> None:
                 should_notify = True
 
         # Mileage-based check
-        if reminder.reminder_type in ("mileage", "both") and reminder.due_mileage:
-            current = await get_current_mileage(reminder.vin, db)
-            if current and current >= reminder.due_mileage:
+        if reminder.reminder_type in ("mileage", "both") and reminder.due_mileage_km:
+            latest_odometer_km = await get_current_mileage(reminder.vin, db)
+            if latest_odometer_km and latest_odometer_km >= reminder.due_mileage_km:
                 should_notify = True
 
         # Smart: check estimated date or mileage
         if reminder.reminder_type == "smart":
             # Check mileage
-            if reminder.due_mileage:
-                current = await get_current_mileage(reminder.vin, db)
-                if current and current >= reminder.due_mileage:
+            if reminder.due_mileage_km:
+                latest_odometer_km = await get_current_mileage(reminder.vin, db)
+                if latest_odometer_km and latest_odometer_km >= reminder.due_mileage_km:
                     should_notify = True
 
             # Check date (hard cap)
@@ -253,12 +254,12 @@ async def check_due_reminders(db: AsyncSession) -> None:
                 should_notify = True
 
             # Check estimated date (within 7 days)
-            if not should_notify and reminder.due_mileage and reminder.due_date:
+            if not should_notify and reminder.due_mileage_km and reminder.due_date:
                 rate = await calculate_driving_rate(reminder.vin, db)
-                current = await get_current_mileage(reminder.vin, db)
-                if rate and current:
+                latest_odometer_km = await get_current_mileage(reminder.vin, db)
+                if rate and latest_odometer_km:
                     est = calculate_smart_estimated_date(
-                        current, reminder.due_mileage, rate, reminder.due_date
+                        latest_odometer_km, reminder.due_mileage_km, rate, reminder.due_date
                     )
                     if (est - today).days <= 7:
                         should_notify = True
@@ -291,8 +292,8 @@ def _build_reminder_message(reminder: Reminder) -> str:
     parts = [f"Service reminder: {reminder.title}"]
     if reminder.due_date:
         parts.append(f"Due date: {reminder.due_date.isoformat()}")
-    if reminder.due_mileage:
-        parts.append(f"Due mileage: {reminder.due_mileage:,} mi")
+    if reminder.due_mileage_km:
+        parts.append(f"Due mileage: {reminder.due_mileage_km:,} km")
     if reminder.notes:
         parts.append(f"Notes: {reminder.notes}")
     return "\n".join(parts)

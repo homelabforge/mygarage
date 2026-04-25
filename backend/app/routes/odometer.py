@@ -43,7 +43,7 @@ async def list_odometer_records(
     - **limit**: Maximum number of records to return
 
     **Returns:**
-    - List of odometer records with total count and latest mileage
+    - List of odometer records with total count and latest reading (km)
     """
     vin = vin.upper().strip()
 
@@ -66,19 +66,19 @@ async def list_odometer_records(
         )
         total = count_result.scalar()
 
-        # Get latest mileage
+        # Get latest odometer_km
         latest_result = await db.execute(
-            select(OdometerRecord.mileage)
+            select(OdometerRecord.odometer_km)
             .where(OdometerRecord.vin == vin)
             .order_by(OdometerRecord.date.desc())
             .limit(1)
         )
-        latest_mileage = latest_result.scalar_one_or_none()
+        latest_odometer_km = latest_result.scalar_one_or_none()
 
         return OdometerRecordListResponse(
             records=[OdometerRecordResponse.model_validate(r) for r in records],
             total=total,
-            latest_mileage=latest_mileage,
+            latest_odometer_km=latest_odometer_km,
         )
 
     except HTTPException:

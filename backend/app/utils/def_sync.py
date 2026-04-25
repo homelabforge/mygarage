@@ -16,28 +16,13 @@ async def sync_def_from_fuel_record(
     db: AsyncSession,
     vin: str,
     date: date_type,
-    mileage: int | None,
+    odometer_km: Decimal | None,
     fill_level: Decimal,
     fuel_record_id: int,
 ) -> DEFRecord | None:
     """Create or update a DEF observation record linked to a fuel record.
 
-    Args:
-        db: Database session
-        vin: Vehicle VIN
-        date: Date of the fuel fill-up
-        mileage: Odometer reading (may be None)
-        fill_level: DEF tank level (0.00-1.00)
-        fuel_record_id: ID of the originating fuel record
-
-    Returns:
-        DEFRecord if created/updated, None if skipped
-
-    Behavior:
-        - Looks up existing DEF record by origin_fuel_record_id
-        - If exists: updates fill_level, date, mileage
-        - If not exists: creates new with entry_type='auto_fuel_sync'
-        - Commits independently (best-effort, caller handles exceptions)
+    Metric-canonical since v2.26.2: odometer_km (Decimal km).
     """
     result = await db.execute(
         select(DEFRecord).where(DEFRecord.origin_fuel_record_id == fuel_record_id)
@@ -47,7 +32,7 @@ async def sync_def_from_fuel_record(
     if existing:
         existing.fill_level = fill_level
         existing.date = date
-        existing.mileage = mileage
+        existing.odometer_km = odometer_km
         await db.commit()
         await db.refresh(existing)
         logger.info(
@@ -58,7 +43,7 @@ async def sync_def_from_fuel_record(
     def_record = DEFRecord(
         vin=vin,
         date=date,
-        mileage=mileage,
+        odometer_km=odometer_km,
         fill_level=fill_level,
         entry_type="auto_fuel_sync",
         origin_fuel_record_id=fuel_record_id,

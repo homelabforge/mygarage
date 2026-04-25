@@ -165,7 +165,7 @@ def generate_vehicle_analytics_pdf(
 
     # ── 2. KPI Cards ──────────────────────────────────────────
     total_cost = _safe_float(cost.get("total_cost", 0))
-    cost_per_mile = _safe_float(cost.get("cost_per_mile"))
+    cost_per_km = _safe_float(cost.get("cost_per_km"))
     avg_monthly = _safe_float(cost.get("average_monthly_cost", 0))
     projected_12m = _safe_float(projection.get("twelve_month_projection", 0))
     service_count = _safe_int(cost.get("service_count", 0))
@@ -181,10 +181,10 @@ def generate_vehicle_analytics_pdf(
             "color": "blue",
         },
         {
-            "label": "Cost Per Mile",
+            "label": "Cost Per km",
             "value": (
-                f"{get_currency_symbol(currency_code, locale)}{cost_per_mile:.2f}"
-                if cost_per_mile
+                f"{get_currency_symbol(currency_code, locale)}{cost_per_km:.2f}"
+                if cost_per_km
                 else "N/A"
             ),
             "sub_html": _trend_badge_html(trend_dir),
