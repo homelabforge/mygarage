@@ -70,10 +70,10 @@ jobs:
       - name: Security tripwire
         run: bash .github/scripts/security-tripwire.sh
 
-      - name: Run pytest with coverage (full suite)
+      - name: Run pytest (full suite)
         run: |
           cd backend
-          timeout 20m uv run pytest tests/ -v --tb=short --cov=app --cov-report=term-missing --cov-report=xml
+          timeout 20m uv run pytest tests/ -v --tb=short
 
   test-frontend:
     name: Frontend Tests
@@ -86,7 +86,7 @@ jobs:
       - name: Set up Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: '1.3.11'
+          bun-version-file: '.bun-version'
 
       - name: Install dependencies
         run: |
@@ -108,10 +108,10 @@ jobs:
           cd frontend
           bun run validate:translations
 
-      - name: Run tests with coverage
+      - name: Run tests
         run: |
           cd frontend
-          bun run test:coverage
+          bun run test:run
 
   test-e2e:
     name: E2E Tests
@@ -137,12 +137,12 @@ jobs:
       - name: Install backend dependencies
         run: |
           cd backend
-          uv pip install -e . --system
+          uv sync --frozen --all-extras
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: '1.3.11'
+          bun-version-file: '.bun-version'
 
       - name: Install frontend dependencies
         run: |
@@ -200,12 +200,12 @@ jobs:
       - name: Install backend dependencies
         run: |
           cd backend
-          uv pip install -e . --system
+          uv sync --frozen --all-extras
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: '1.3.11'
+          bun-version-file: '.bun-version'
 
       - name: Install frontend dependencies
         run: |
@@ -248,6 +248,10 @@ jobs:
             echo "minor=$MINOR"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Read bun version
+        id: bun
+        run: echo "version=$(cat .bun-version)" >> "$GITHUB_OUTPUT"
+
       - name: Build and push Docker image
         id: push
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
@@ -259,6 +263,8 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.minor }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.major }}
+          build-args: |
+            BUN_VERSION=${{ steps.bun.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64

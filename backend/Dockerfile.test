@@ -1,0 +1,44 @@
+# ==============================================================================
+# Test image for MyGarage backend
+#
+# Why a separate image: production mygarage:latest does NOT include pytest /
+# pytest-asyncio / httpx / dev tools. Per the project memo, tests must run
+# inside a Python 3.14 container (the host runs 3.13). This image provides
+# that runtime + all dev deps + libmagic for file-type detection paths.
+#
+# Build:
+#   docker build -t mygarage-test:local -f Dockerfile.test .
+#
+# Run via the bin/ci-check wrapper at the repo root.
+# ==============================================================================
+
+FROM python:3.14-slim
+
+# docker-cli: cheap to include for parity with sibling repos
+# libmagic1 + file: required by file-type detection paths in tests
+#   (mirrors backend/Dockerfile.dev)
+# libatomic1: pyright bundles its own node runtime which links against
+#   libatomic.so.1; debian:slim doesn't ship it by default. Without this,
+#   pyright exits 0 silently in local dev. CI's ubuntu-latest runner ships it.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends docker-cli libatomic1 libmagic1 file \
+    && rm -rf /var/lib/apt/lists/*
+
+# Place the venv at /opt/venv, NOT inside /app. The bin/ci-check runner
+# bind-mounts the host's backend/ over /app at runtime; if the venv lived
+# at /app/.venv it would be masked by that mount. /opt/venv survives.
+ENV UV_PROJECT_ENVIRONMENT=/opt/venv
+ENV PATH="/opt/venv/bin:${PATH}"
+
+RUN pip install --quiet uv
+
+WORKDIR /app
+COPY pyproject.toml uv.lock ./
+# Lockfile-driven, dependencies only. --no-install-project is critical:
+# without it, uv tries to install the project package itself, which needs
+# the source tree (not yet present). With it, only the locked dependency
+# closure is installed; the source comes in via the runtime bind-mount,
+# with PYTHONPATH=/app putting it on the import path.
+RUN uv sync --frozen --all-extras --no-install-project
+
+CMD ["sh", "-c", "PYTHONPATH=/app pytest"]

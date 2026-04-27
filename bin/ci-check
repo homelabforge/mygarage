@@ -1,0 +1,198 @@
+#!/usr/bin/env bash
+# bin/ci-check — local CI parity for mygarage.
+#
+# Two modes:
+#   bin/ci-check          fast: every gate except Playwright E2E + docker-build
+#   bin/ci-check --all    full: every gate the CI workflow runs (incl. docker build)
+#
+# Why this exists: a clean local "ruff + pytest" can still ship CI failures.
+# pyright exits 0 silently on hosts that lack libatomic1; openapi types-drift
+# is invisible until CI regenerates and diffs. This script runs CI's exact
+# gates with CI's exact lockfile-pinned dependency closure and CI's exact
+# Bun version, so what passes here passes there.
+#
+# Host requirements: docker + bun (matching .bun-version). --all also
+# requires uv on PATH (used to provision the backend venv that Playwright
+# spawns from). Curl install: https://astral.sh/uv/install.sh
+#
+# Usage:
+#   bin/ci-check                  # fast (skips Playwright + docker-build)
+#   bin/ci-check --all            # full CI parity (slow: ~minutes; needs uv)
+#   bin/ci-check --backend        # backend gates only
+#   bin/ci-check --frontend       # frontend gates only
+#   bin/ci-check --freshness      # api types freshness only
+#   bin/ci-check --no-tripwire    # skip security tripwire
+#   bin/ci-check --rebuild        # force rebuild of backend test image
+
+set -euo pipefail
+
+# --- per-repo config ----------------------------------------------------
+PROJECT_NAME="mygarage"
+HAS_TRIPWIRE=1
+HAS_PLAYWRIGHT=1
+HAS_TRANSLATIONS=1
+MOUNT_DOCKER_SOCKET=0
+HAS_DOCKER_BUILD=1
+PYTEST_ARGS=()
+BACKEND_ENV=()
+EXTRA_PLAYWRIGHT_ENV=()
+# -----------------------------------------------------------------------
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+TEST_IMAGE="${PROJECT_NAME}-test:local"
+
+if [[ ! -f "$REPO_ROOT/.bun-version" ]]; then
+  echo "ERROR: $REPO_ROOT/.bun-version missing. CI parity requires this file." >&2
+  exit 3
+fi
+BUN_VERSION="$(tr -d '[:space:]' < "$REPO_ROOT/.bun-version")"
+
+do_backend=1; do_frontend=1; do_freshness=1; do_playwright=0; do_docker_build=0
+do_tripwire=$HAS_TRIPWIRE; rebuild=0; skipped=()
+
+for arg in "$@"; do
+  case "$arg" in
+    --all)         do_playwright=$HAS_PLAYWRIGHT; do_docker_build=$HAS_DOCKER_BUILD ;;
+    --backend)     do_backend=1; do_frontend=0; do_freshness=0; do_playwright=0; do_docker_build=0 ;;
+    --frontend)    do_backend=0; do_frontend=1; do_freshness=0; do_playwright=0; do_docker_build=0 ;;
+    --freshness)   do_backend=0; do_frontend=0; do_freshness=1; do_playwright=0; do_docker_build=0 ;;
+    --no-tripwire) do_tripwire=0 ;;
+    --rebuild)     rebuild=1 ;;
+    -h|--help)     sed -n '2,25p' "$0"; exit 0 ;;
+    *) echo "unknown arg: $arg" >&2; exit 2 ;;
+  esac
+done
+
+cd "$REPO_ROOT"
+
+if [[ "$do_frontend" -eq 1 || "$do_freshness" -eq 1 || "$do_playwright" -eq 1 ]]; then
+  if ! command -v bun >/dev/null 2>&1; then
+    echo "ERROR: bun not on PATH (CI pin: $BUN_VERSION). Install bun first." >&2
+    exit 3
+  fi
+  host_bun="$(bun --version)"
+  if [[ "$host_bun" != "$BUN_VERSION" ]]; then
+    echo "ERROR: bun version drift (host=$host_bun, CI=$BUN_VERSION)." >&2
+    echo "       fix: bun upgrade --bun-version $BUN_VERSION  OR use asdf/proto/mise." >&2
+    exit 3
+  fi
+fi
+
+if [[ "$do_playwright" -eq 1 ]]; then
+  if ! command -v uv >/dev/null 2>&1; then
+    echo "ERROR: uv not on PATH. Required for --all to drive Playwright's backend." >&2
+    echo "       fix: curl -LsSf https://astral.sh/uv/install.sh | sh" >&2
+    exit 3
+  fi
+fi
+
+build_image() {
+  if [[ "$rebuild" -eq 1 ]] || ! docker image inspect "$TEST_IMAGE" >/dev/null 2>&1; then
+    echo "==> building $TEST_IMAGE (lockfile-driven via uv sync)"
+    docker build -t "$TEST_IMAGE" -f backend/Dockerfile.test backend
+  fi
+}
+
+container_flags() {
+  # --user keeps any files written by the container (e.g. openapi.json from
+  # the api-freshness export) owned by the calling user, not root, so the
+  # subsequent host-side bunx/git steps can read them without sudo.
+  local flags=(--rm
+    --user "$(id -u):$(id -g)"
+    -v "$REPO_ROOT/backend:/app"
+    -w /app
+    -e PYTHONPATH=/app
+    -e UV_PROJECT_ENVIRONMENT=/opt/venv
+    -e HOME=/tmp)
+  if [[ "$MOUNT_DOCKER_SOCKET" -eq 1 ]]; then
+    # --group-add the host's docker socket gid so the unprivileged container
+    # user can connect to docker.sock (which is root:docker, mode 660).
+    local docker_gid
+    docker_gid="$(stat -c '%g' /var/run/docker.sock)"
+    flags+=(-v /var/run/docker.sock:/var/run/docker.sock --group-add "$docker_gid")
+  fi
+  local kv
+  for kv in "${BACKEND_ENV[@]}"; do
+    flags+=(-e "$kv")
+  done
+  printf '%s\n' "${flags[@]}"
+}
+
+in_container() {
+  mapfile -t flags < <(container_flags)
+  docker run "${flags[@]}" "$TEST_IMAGE" sh -c "$*"
+}
+
+if [[ "$do_backend" -eq 1 || "$do_freshness" -eq 1 ]]; then
+  build_image
+fi
+
+if [[ "$do_backend" -eq 1 ]]; then
+  echo "==> ruff check";          in_container "ruff check ."
+  echo "==> ruff format --check"; in_container "ruff format --check ."
+  echo "==> pyright";              in_container "pyright"
+  if [[ "$do_tripwire" -eq 1 && "$HAS_TRIPWIRE" -eq 1 ]]; then
+    echo "==> security tripwire (host)"
+    bash .github/scripts/security-tripwire.sh
+  fi
+  echo "==> pytest"
+  in_container "pytest tests/ -v --tb=short ${PYTEST_ARGS[*]}"
+fi
+
+if [[ "$do_frontend" -eq 1 ]]; then
+  pushd frontend >/dev/null
+  echo "==> bun install";          bun install --frozen-lockfile
+  echo "==> bun run type-check";   bun run type-check
+  echo "==> bun run lint";         bun run lint
+  if [[ "$HAS_TRANSLATIONS" -eq 1 ]]; then
+    echo "==> bun run validate:translations"; bun run validate:translations
+  fi
+  echo "==> bun run test:run";     bun run test:run
+  popd >/dev/null
+fi
+
+if [[ "$do_freshness" -eq 1 ]]; then
+  echo "==> generate openapi.json (in lockfile-pinned container)"
+  mapfile -t flags < <(container_flags)
+  flags+=(-v "$REPO_ROOT/frontend:/app-frontend")
+  docker run "${flags[@]}" "$TEST_IMAGE" \
+    python scripts/export_openapi.py /app-frontend/src/types/openapi.json
+  pushd frontend >/dev/null
+  echo "==> bunx openapi-typescript"
+  bunx openapi-typescript src/types/openapi.json -o src/types/api.generated.ts
+  echo "==> git diff --exit-code"
+  git diff --exit-code src/types/openapi.json src/types/api.generated.ts
+  popd >/dev/null
+fi
+
+if [[ "$do_playwright" -eq 1 ]]; then
+  echo "==> uv sync (host venv for Playwright backend)"
+  ( cd backend && uv sync --frozen --all-extras )
+  pushd frontend >/dev/null
+  echo "==> playwright install"; bunx playwright install chromium --with-deps
+  echo "==> bun run e2e"
+  if (( ${#EXTRA_PLAYWRIGHT_ENV[@]} )); then
+    env "${EXTRA_PLAYWRIGHT_ENV[@]}" bun run e2e
+  else
+    bun run e2e
+  fi
+  popd >/dev/null
+elif [[ "$HAS_PLAYWRIGHT" -eq 1 && "$do_backend" -eq 1 && "$do_frontend" -eq 1 ]]; then
+  skipped+=("playwright e2e")
+fi
+
+if [[ "$do_docker_build" -eq 1 ]]; then
+  echo "==> docker build (production image, parity check)"
+  docker build \
+    --build-arg "BUN_VERSION=$BUN_VERSION" \
+    -t "${PROJECT_NAME}:ci-check" \
+    "$REPO_ROOT"
+elif [[ "$HAS_DOCKER_BUILD" -eq 1 && "$do_backend" -eq 1 && "$do_frontend" -eq 1 ]]; then
+  skipped+=("docker build-test")
+fi
+
+echo "==> all selected gates passed"
+if (( ${#skipped[@]} )); then
+  printf '\nSKIPPED (run `bin/ci-check --all` for CI parity):\n'
+  printf '  - %s\n' "${skipped[@]}"
+fi
