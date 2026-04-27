@@ -1,11 +1,13 @@
 # ==============================================================================
 # Multi-stage Dockerfile for MyGarage
-# Frontend: Bun 1.3.11
+# Frontend: Bun (version pinned by .bun-version, passed as BUN_VERSION build-arg)
 # Backend: Python 3.14-slim
 # ==============================================================================
 
+ARG BUN_VERSION=1.3.12
+
 # Stage 1: Build frontend with Bun
-FROM oven/bun:1.3.12-alpine AS frontend-builder
+FROM oven/bun:${BUN_VERSION}-alpine AS frontend-builder
 
 # Set working directory
 WORKDIR /app/frontend
@@ -52,13 +54,16 @@ FROM python:3.14-slim
 
 # Build arguments for metadata
 ARG BUILD_DATE
+# Re-declare BUN_VERSION inside this stage — Docker ARG scope resets at every
+# FROM. Without this redeclaration, ${BUN_VERSION} expands to empty in LABEL.
+ARG BUN_VERSION
 
 # OCI-standard labels
 LABEL org.opencontainers.image.authors="HomeLabForge"
 LABEL org.opencontainers.image.title="MyGarage"
 LABEL org.opencontainers.image.url="https://www.homelabforge.io"
 LABEL org.opencontainers.image.description="Vehicle and garage management platform with maintenance tracking"
-LABEL org.opencontainers.image.frontend.builder="bun-1.3.11"
+LABEL org.opencontainers.image.frontend.builder="bun-${BUN_VERSION}"
 
 WORKDIR /app
 
