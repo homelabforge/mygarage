@@ -12,6 +12,11 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+permissions:
+  security-events: write
+  contents: read
+  actions: read
+
 jobs:
   codeql:
     uses: homelabforge/shared-workflows/.github/workflows/codeql.yml@v1.0.0
