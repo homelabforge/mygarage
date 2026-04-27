@@ -1,12 +1,11 @@
-name: "CodeQL"
+name: CodeQL
 
 on:
   push:
-    branches: [ "main", "develop" ]
+    branches: [main, develop]
   pull_request:
-    branches: [ "main", "develop" ]
+    branches: [main, develop]
   schedule:
-    # Run every Monday at 6:00 AM UTC (midnight Sunday CST/CDT)
     - cron: '0 6 * * 1'
 
 concurrency:
@@ -14,147 +13,5 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  analyze:
-    name: Analyze (${{ matrix.language }})
-    runs-on: ubuntu-latest
-    timeout-minutes: 360
-    permissions:
-      # Required for all workflows
-      security-events: write
-      # Required for workflows in private repositories
-      contents: read
-      actions: read
-
-    strategy:
-      fail-fast: false
-      matrix:
-        language: [ 'python', 'javascript' ]
-        include:
-          - language: python
-            build-mode: none
-            python-version: '3.14'
-          - language: javascript
-            build-mode: none
-
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-
-    # Python setup
-    - name: Set up Python 3.14
-      if: matrix.language == 'python'
-      uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
-      with:
-        python-version: ${{ matrix.python-version }}
-
-    - name: Install Python dependencies
-      if: matrix.language == 'python'
-      run: |
-        cd backend
-        pip install --upgrade pip
-        if [ -f requirements.txt ]; then
-          pip install -r requirements.txt
-        elif [ -f pyproject.toml ]; then
-          pip install -e .
-        fi
-
-    # JavaScript/TypeScript setup
-    - name: Set up Bun
-      if: matrix.language == 'javascript'
-      uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-      with:
-        bun-version-file: '.bun-version'
-
-    - name: Install dependencies
-      if: matrix.language == 'javascript'
-      run: |
-        cd frontend
-        if [ "${{ github.actor }}" = "dependabot[bot]" ]; then bun install; else bun install --frozen-lockfile; fi
-
-    # Initialize CodeQL
-    - name: Initialize CodeQL
-      uses: github/codeql-action/init@c10b8064de6f491fea524254123dbe5e09572f13 # v4
-      with:
-        languages: ${{ matrix.language }}
-        queries: security-extended,security-and-quality
-        config-file: .github/codeql/codeql-config.yml
-        source-root: ${{ matrix.language == 'python' && 'backend' || 'frontend' }}
-
-    # Perform CodeQL Analysis
-    # CODEQL_ACTION_EXTRA_OPTIONS injects --additional-packs (search path)
-    # AND --extension-packs (consume the pack's data extensions) into the
-    # CLI's database run-queries call. Both flags are required: --additional-
-    # packs alone only puts the pack on the search path but does not enable
-    # its barrier rows. The codeql-action itself uses the same pair to
-    # register its internal pr-diff-range pack (see analyze.ts).
-    - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@c10b8064de6f491fea524254123dbe5e09572f13 # v4
-      env:
-        CODEQL_ACTION_EXTRA_OPTIONS: >-
-          ${{ matrix.language == 'python' && format(
-            '{{"database":{{"run-queries":["--additional-packs={0}/.github/codeql","--extension-packs=homelabforge/mygarage-models"]}}}}',
-            github.workspace
-          ) || '{}' }}
-      with:
-        category: "/language:${{ matrix.language }}"
-        output: sarif-results
-        upload: true
-
-    # Upload SARIF results as artifact (for local review)
-    - name: Upload SARIF results
-      if: always()
-      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
-      with:
-        name: codeql-results-${{ matrix.language }}
-        path: sarif-results
-        retention-days: 30
-
-  # Summary job (runs after both languages complete)
-  summary:
-    name: Security Scan Summary
-    needs: analyze
-    runs-on: ubuntu-latest
-    if: always()
-
-    steps:
-    - name: Download SARIF results
-      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
-      with:
-        path: sarif-results
-
-    - name: Generate summary
-      run: |
-        echo "# CodeQL Security Scan Results" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "**Scan Date**: $(date '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "## Results by Language" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-
-        # Count findings in Python SARIF
-        if [ -d "sarif-results/codeql-results-python" ]; then
-          echo "### Python" >> $GITHUB_STEP_SUMMARY
-          PYTHON_ERRORS=$(find sarif-results/codeql-results-python -name "*.sarif" -exec jq '[.runs[]?.results[]? | select(.level == "error")] | length' {} \; 2>/dev/null | awk '{s+=$1} END {print s}')
-          PYTHON_WARNINGS=$(find sarif-results/codeql-results-python -name "*.sarif" -exec jq '[.runs[]?.results[]? | select(.level == "warning")] | length' {} \; 2>/dev/null | awk '{s+=$1} END {print s}')
-          PYTHON_NOTES=$(find sarif-results/codeql-results-python -name "*.sarif" -exec jq '[.runs[]?.results[]? | select(.level == "note")] | length' {} \; 2>/dev/null | awk '{s+=$1} END {print s}')
-          echo "- **HIGH (Errors)**: ${PYTHON_ERRORS:-0} 🔴" >> $GITHUB_STEP_SUMMARY
-          echo "- **MEDIUM (Warnings)**: ${PYTHON_WARNINGS:-0} 🟡" >> $GITHUB_STEP_SUMMARY
-          echo "- **LOW (Notes)**: ${PYTHON_NOTES:-0} 🔵" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-        fi
-
-        # Count findings in JavaScript SARIF
-        if [ -d "sarif-results/codeql-results-javascript" ]; then
-          echo "### JavaScript/TypeScript" >> $GITHUB_STEP_SUMMARY
-          JS_ERRORS=$(find sarif-results/codeql-results-javascript -name "*.sarif" -exec jq '[.runs[]?.results[]? | select(.level == "error")] | length' {} \; 2>/dev/null | awk '{s+=$1} END {print s}')
-          JS_WARNINGS=$(find sarif-results/codeql-results-javascript -name "*.sarif" -exec jq '[.runs[]?.results[]? | select(.level == "warning")] | length' {} \; 2>/dev/null | awk '{s+=$1} END {print s}')
-          JS_NOTES=$(find sarif-results/codeql-results-javascript -name "*.sarif" -exec jq '[.runs[]?.results[]? | select(.level == "note")] | length' {} \; 2>/dev/null | awk '{s+=$1} END {print s}')
-          echo "- **HIGH (Errors)**: ${JS_ERRORS:-0} 🔴" >> $GITHUB_STEP_SUMMARY
-          echo "- **MEDIUM (Warnings)**: ${JS_WARNINGS:-0} 🟡" >> $GITHUB_STEP_SUMMARY
-          echo "- **LOW (Notes)**: ${JS_NOTES:-0} 🔵" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-        fi
-
-        echo "---" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "**View detailed results**: Go to the Security tab → Code scanning alerts" >> $GITHUB_STEP_SUMMARY
+  codeql:
+    uses: homelabforge/shared-workflows/.github/workflows/codeql.yml@v1.0.0
