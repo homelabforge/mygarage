@@ -1,4 +1,4 @@
-# MyGarage E2E
+# MyGarage Release Smoke
 
 Hard release gate. Builds the production image, brings up Postgres + 2
 mygarage instances (PG-backed and SQLite-backed) from scratch, and runs an
@@ -7,7 +7,7 @@ HTTP smoke test against both.
 ## Run
 
 ```bash
-bash tests/e2e/run.sh
+bash tests/release-smoke/run.sh
 ```
 
 Takes ~90 seconds on a warm Docker cache. Always tears down on exit.
@@ -29,8 +29,8 @@ Takes ~90 seconds on a warm Docker cache. Always tears down on exit.
 ## Knobs
 
 - `E2E_KEEP=1` — on failure, leave the stack up so you can poke at it.
-  Run `bash tests/e2e/teardown.sh` when done.
-- `E2E_NO_BUILD=1` — reuse the existing `mygarage:e2e` image instead of
+  Run `bash tests/release-smoke/teardown.sh` when done.
+- `E2E_NO_BUILD=1` — reuse the existing `mygarage:release-smoke` image instead of
   rebuilding. Useful when iterating on smoke.py.
 
 ## Where it runs

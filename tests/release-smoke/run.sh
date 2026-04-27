@@ -10,9 +10,9 @@
 #   1  build, startup, or smoke check failed
 #
 # Usage:
-#   bash tests/e2e/run.sh                 # full cycle
-#   E2E_KEEP=1 bash tests/e2e/run.sh      # leave stack running on failure (debug)
-#   E2E_NO_BUILD=1 bash tests/e2e/run.sh  # reuse existing mygarage:e2e image
+#   bash tests/release-smoke/run.sh                 # full cycle
+#   E2E_KEEP=1 bash tests/release-smoke/run.sh      # leave stack running on failure (debug)
+#   E2E_NO_BUILD=1 bash tests/release-smoke/run.sh  # reuse existing mygarage:release-smoke image
 
 set -euo pipefail
 
@@ -20,7 +20,7 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$HERE/../.." && pwd)"
 COMPOSE_FILE="$HERE/compose.yml"
-PROJECT="mygarage-e2e"
+PROJECT="mygarage-release-smoke"
 
 dc() {
   docker compose -p "$PROJECT" -f "$COMPOSE_FILE" "$@"
@@ -53,8 +53,8 @@ echo
 dc down -v --remove-orphans >/dev/null 2>&1 || true
 
 if [[ "${E2E_NO_BUILD:-0}" != "1" ]]; then
-  echo "[e2e] Building mygarage:e2e from $REPO_ROOT ..."
-  docker build -t mygarage:e2e "$REPO_ROOT" >/dev/null
+  echo "[e2e] Building mygarage:release-smoke from $REPO_ROOT ..."
+  docker build -t mygarage:release-smoke "$REPO_ROOT" >/dev/null
   echo "[e2e] Build OK"
 fi
 
@@ -64,8 +64,8 @@ dc up -d pg app-pg app-sqlite
 echo "[e2e] Waiting for both apps to report healthy (up to 90s)..."
 deadline=$(( $(date +%s) + 90 ))
 while true; do
-  pg_state=$(docker inspect --format '{{.State.Health.Status}}' mygarage-e2e-app-pg 2>/dev/null || echo "unknown")
-  sq_state=$(docker inspect --format '{{.State.Health.Status}}' mygarage-e2e-app-sqlite 2>/dev/null || echo "unknown")
+  pg_state=$(docker inspect --format '{{.State.Health.Status}}' mygarage-release-smoke-app-pg 2>/dev/null || echo "unknown")
+  sq_state=$(docker inspect --format '{{.State.Health.Status}}' mygarage-release-smoke-app-sqlite 2>/dev/null || echo "unknown")
   if [[ "$pg_state" == "healthy" && "$sq_state" == "healthy" ]]; then
     echo "[e2e] Both healthy."
     break
@@ -73,9 +73,9 @@ while true; do
   if (( $(date +%s) > deadline )); then
     echo "[e2e] ✗ Timeout waiting for healthy. PG=$pg_state SQLite=$sq_state"
     echo "[e2e] --- app-pg logs (tail) ---"
-    docker logs --tail 50 mygarage-e2e-app-pg 2>&1 || true
+    docker logs --tail 50 mygarage-release-smoke-app-pg 2>&1 || true
     echo "[e2e] --- app-sqlite logs (tail) ---"
-    docker logs --tail 50 mygarage-e2e-app-sqlite 2>&1 || true
+    docker logs --tail 50 mygarage-release-smoke-app-sqlite 2>&1 || true
     exit 1
   fi
   sleep 2
@@ -87,21 +87,21 @@ done
 expected=$(ls "$REPO_ROOT/backend/app/migrations/"[0-9]*.py 2>/dev/null | wc -l)
 echo "[e2e] Expecting $expected migrations applied on each DB."
 
-pg_count=$(docker exec mygarage-e2e-pg psql -U mygarage -d mygarage -tAc "SELECT COUNT(*) FROM schema_migrations" 2>/dev/null || echo "0")
-sqlite_count=$(docker exec mygarage-e2e-app-sqlite sh -c "python -c \"import sqlite3; print(sqlite3.connect('/data/mygarage.db').execute('SELECT COUNT(*) FROM schema_migrations').fetchone()[0])\"" 2>/dev/null || echo "0")
+pg_count=$(docker exec mygarage-release-smoke-pg psql -U mygarage -d mygarage -tAc "SELECT COUNT(*) FROM schema_migrations" 2>/dev/null || echo "0")
+sqlite_count=$(docker exec mygarage-release-smoke-app-sqlite sh -c "python -c \"import sqlite3; print(sqlite3.connect('/data/mygarage.db').execute('SELECT COUNT(*) FROM schema_migrations').fetchone()[0])\"" 2>/dev/null || echo "0")
 echo "[e2e]   PG: $pg_count applied"
 echo "[e2e]   SQLite: $sqlite_count applied"
 
 if [[ "$pg_count" != "$expected" ]]; then
   echo "[e2e] ✗ PG migration count $pg_count != expected $expected"
   echo "[e2e] --- app-pg logs (tail) ---"
-  docker logs --tail 80 mygarage-e2e-app-pg 2>&1 | grep -iE "migration|error|fail" || true
+  docker logs --tail 80 mygarage-release-smoke-app-pg 2>&1 | grep -iE "migration|error|fail" || true
   exit 1
 fi
 if [[ "$sqlite_count" != "$expected" ]]; then
   echo "[e2e] ✗ SQLite migration count $sqlite_count != expected $expected"
   echo "[e2e] --- app-sqlite logs (tail) ---"
-  docker logs --tail 80 mygarage-e2e-app-sqlite 2>&1 | grep -iE "migration|error|fail" || true
+  docker logs --tail 80 mygarage-release-smoke-app-sqlite 2>&1 | grep -iE "migration|error|fail" || true
   exit 1
 fi
 echo "[e2e] ✓ All migrations applied on both DBs."
