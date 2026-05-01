@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.27.0-rc1] - 2026-05-01
+
 ### Added
 
 - Extended fuel tracking (#69): optional fuel-up time, fueling station with autocomplete and one-time-visit toggle, driver, payment method, trip type, outside temperature, and trip-computer (OBC) values on every fill-up.
@@ -23,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Notes
 
 - CSV import/export columns are unchanged this release.
+- Release candidate. Promote to `2.27.0` after a soak period with no regression reports.
 
 ## [2.26.4] - 2026-04-25
 
