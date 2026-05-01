@@ -186,20 +186,11 @@ class FuelRecordBase(BaseModel):
             raise ValueError(f"price_basis must be one of {PRICE_BASIS_VALUES}, got {v!r}")
         return v
 
-    @field_validator("fuel_type_used")
-    @classmethod
-    def _check_fuel_type_used(cls, v: str | None) -> str | None:
-        return _validate_fuel_type_enum(v)
-
-    @field_validator("payment_method")
-    @classmethod
-    def _check_payment_method(cls, v: str | None) -> str | None:
-        return _validate_payment_method(v)
-
-    @field_validator("trip_type")
-    @classmethod
-    def _check_trip_type(cls, v: str | None) -> str | None:
-        return _validate_trip_type(v)
+    # Note: enum validators for fuel_type_used / payment_method / trip_type
+    # live on FuelRecordCreate / FuelRecordUpdate (input schemas) only.
+    # FuelRecordResponse (which inherits from this base) must accept whatever
+    # the DB returns, since legacy records may carry pre-migration values
+    # that were mirrored into fuel_type_used during the compatibility window.
 
 
 class FuelRecordCreate(FuelRecordBase):
@@ -219,6 +210,21 @@ class FuelRecordCreate(FuelRecordBase):
             "address_book entry is created. Ignored if station_address_book_id is set."
         ),
     )
+
+    @field_validator("fuel_type_used")
+    @classmethod
+    def _check_fuel_type_used_create(cls, v: str | None) -> str | None:
+        return _validate_fuel_type_enum(v)
+
+    @field_validator("payment_method")
+    @classmethod
+    def _check_payment_method_create(cls, v: str | None) -> str | None:
+        return _validate_payment_method(v)
+
+    @field_validator("trip_type")
+    @classmethod
+    def _check_trip_type_create(cls, v: str | None) -> str | None:
+        return _validate_trip_type(v)
 
     @field_validator("tank_quantity")
     @classmethod

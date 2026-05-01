@@ -273,12 +273,19 @@ class FuelRecordService:
 
             # Compatibility: keep legacy fuel_type populated when a client
             # sends only fuel_type_used (and vice versa) for one release.
+            # The legacy → fuel_type_used direction only mirrors when the
+            # legacy value happens to be on the canonical enum vocabulary;
+            # otherwise we leave fuel_type_used null rather than poisoning
+            # the new column with pre-migration free-text.
             ft_legacy = record_dict.get("fuel_type")
             ft_used = record_dict.get("fuel_type_used")
             if ft_used and not ft_legacy:
                 record_dict["fuel_type"] = ft_used
             elif ft_legacy and not ft_used:
-                record_dict["fuel_type_used"] = ft_legacy
+                from app.constants.fuel import FUEL_TYPE_VALUES as _FT
+
+                if ft_legacy in _FT:
+                    record_dict["fuel_type_used"] = ft_legacy
 
             # Auto-calculate propane_liters if tank-by-weight data provided
             if (
@@ -425,12 +432,19 @@ class FuelRecordService:
                 update_data["date"] = update_data["filled_at"].date()
 
             # Compatibility mirroring between legacy fuel_type and fuel_type_used.
+            # Legacy → fuel_type_used only mirrors values already on the enum
+            # vocabulary so we don't poison the new column with pre-migration
+            # free-text strings.
             ft_legacy_sent = "fuel_type" in record_data.model_fields_set
             ft_used_sent = "fuel_type_used" in record_data.model_fields_set
             if ft_used_sent and not ft_legacy_sent:
                 update_data["fuel_type"] = update_data.get("fuel_type_used")
             elif ft_legacy_sent and not ft_used_sent:
-                update_data["fuel_type_used"] = update_data.get("fuel_type")
+                from app.constants.fuel import FUEL_TYPE_VALUES as _FT
+
+                legacy_val = update_data.get("fuel_type")
+                if legacy_val is None or legacy_val in _FT:
+                    update_data["fuel_type_used"] = legacy_val
 
             # Auto-calculate propane_liters if tank-by-weight data provided/updated
             if (

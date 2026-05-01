@@ -272,8 +272,16 @@ def upgrade(engine=None) -> None:
             key = raw.strip().lower()
             if not key:
                 continue
+            if raw == key and key in _VALID_FUEL_ENUM_VALUES:
+                continue  # already normalized + lowercased — nothing to do
             if key in _VALID_FUEL_ENUM_VALUES:
-                continue  # already normalized
+                # Case-only difference (e.g. "Diesel" → "diesel"). Lowercase it.
+                conn.execute(
+                    text("UPDATE vehicles SET fuel_type = :v WHERE vin = :vin"),
+                    {"v": key, "vin": vin},
+                )
+                v_normalized += 1
+                continue
 
             # Try combined-string decoding first (sets secondary if applicable)
             primary, secondary = _normalize_combined(raw)
@@ -312,7 +320,17 @@ def upgrade(engine=None) -> None:
             if raw is None:
                 continue
             key = raw.strip().lower()
-            if not key or key in _VALID_FUEL_ENUM_VALUES:
+            if not key:
+                continue
+            if raw == key and key in _VALID_FUEL_ENUM_VALUES:
+                continue  # already normalized + lowercased
+            if key in _VALID_FUEL_ENUM_VALUES:
+                # Case-only difference — lowercase it.
+                conn.execute(
+                    text("UPDATE fuel_records SET fuel_type = :v WHERE id = :id"),
+                    {"v": key, "id": record_id},
+                )
+                f_normalized += 1
                 continue
             normalized = _NORMALIZATION_MAP.get(key)
             if normalized is None:
