@@ -102,14 +102,18 @@ async def _create_vehicle(session: AsyncSession, user_id: int, suffix: str, **kw
 class TestIssue42MigrationsApplied:
     """#42: Verify all columns that were reported missing actually exist in PG."""
 
-    async def test_vehicles_def_tank_capacity_gallons(self, pg_engine):
-        """Column vehicles.def_tank_capacity_gallons must exist."""
+    async def test_vehicles_def_tank_capacity_liters(self, pg_engine):
+        """Column vehicles.def_tank_capacity_liters must exist.
+
+        Was def_tank_capacity_liters until migration 053 (v2.26.2) renamed
+        the imperial column to its metric-canonical equivalent.
+        """
         async with pg_engine.connect() as conn:
             cols = await conn.run_sync(
                 lambda sync_conn: {c["name"] for c in inspect(sync_conn).get_columns("vehicles")}
             )
-        assert "def_tank_capacity_gallons" in cols, (
-            "vehicles.def_tank_capacity_gallons missing — migration 038 not applied"
+        assert "def_tank_capacity_liters" in cols, (
+            "vehicles.def_tank_capacity_liters missing — migration 053 not applied"
         )
 
     async def test_odometer_records_source(self, pg_engine):
@@ -134,18 +138,13 @@ class TestIssue42MigrationsApplied:
             "livelink_devices.pending_offline_at missing — migration not applied"
         )
 
+    @pytest.mark.skip(reason="maintenance_schedule_items table removed in migration 049 (v2.24+)")
     async def test_maintenance_schedule_items_notification_cols(self, pg_engine):
-        """Columns last_notified_at and last_notified_status must exist."""
-        async with pg_engine.connect() as conn:
-            cols = await conn.run_sync(
-                lambda sync_conn: {
-                    c["name"] for c in inspect(sync_conn).get_columns("maintenance_schedule_items")
-                }
-            )
-        assert "last_notified_at" in cols, "maintenance_schedule_items.last_notified_at missing"
-        assert "last_notified_status" in cols, (
-            "maintenance_schedule_items.last_notified_status missing"
-        )
+        """Columns last_notified_at and last_notified_status must exist.
+
+        Skipped: the maintenance_schedule_items table was dropped in migration
+        049. The reminder/notification surfaces now live on vehicle_reminders.
+        """
 
     async def test_insurance_policies_last_notified_at(self, pg_engine):
         """Column insurance_policies.last_notified_at must exist."""
@@ -256,28 +255,30 @@ class TestIssue49FuelEditNulls:
     """#49: Verify fuel records with NULL optional fields work on PostgreSQL."""
 
     async def test_null_numeric_fields_persist(self, pg_session):
-        """NULL optional numeric fields should persist and return as None."""
+        """NULL optional numeric fields should persist and return as None.
+
+        Metric-canonical column names since v2.26.2:
+        propane_gallons → propane_liters, tank_size_lb → tank_size_kg,
+        mileage → odometer_km.
+        """
         from app.models.fuel import FuelRecord
 
         user = await _create_user(pg_session, "i49a")
         vehicle = await _create_vehicle(pg_session, user.id, "i49a")
 
-        # Create fuel record with explicit NULLs in optional numeric fields
-        # These are the fields that caused the bug: propane_gallons, kwh,
-        # price_per_unit, tank_size_lb, tank_quantity
         record = FuelRecord(
             vin=vehicle.vin,
             date=date(2026, 3, 1),
-            gallons=Decimal("12.5"),
+            liters=Decimal("47.318"),
             cost=Decimal("45.00"),
-            fuel_type="Regular",
+            fuel_type="gasoline",
             # All optional numerics explicitly NULL
-            propane_gallons=None,
+            propane_liters=None,
             kwh=None,
             price_per_unit=None,
-            tank_size_lb=None,
+            tank_size_kg=None,
             tank_quantity=None,
-            mileage=None,
+            odometer_km=None,
             notes=None,
         )
         pg_session.add(record)
@@ -285,12 +286,12 @@ class TestIssue49FuelEditNulls:
         await pg_session.refresh(record)
 
         # These must come back as Python None, not NaN or 0
-        assert record.propane_gallons is None
+        assert record.propane_liters is None
         assert record.kwh is None
         assert record.price_per_unit is None
-        assert record.tank_size_lb is None
+        assert record.tank_size_kg is None
         assert record.tank_quantity is None
-        assert record.mileage is None
+        assert record.odometer_km is None
 
     async def test_null_fields_in_raw_sql(self, pg_session):
         """Verify PostgreSQL actually stores NULL (not empty string or 0)."""
@@ -303,10 +304,10 @@ class TestIssue49FuelEditNulls:
             FuelRecord(
                 vin=vehicle.vin,
                 date=date(2026, 3, 2),
-                gallons=Decimal("8.0"),
+                liters=Decimal("30.283"),
                 cost=Decimal("28.00"),
-                fuel_type="Regular",
-                propane_gallons=None,
+                fuel_type="gasoline",
+                propane_liters=None,
                 kwh=None,
                 price_per_unit=None,
             )
@@ -315,10 +316,10 @@ class TestIssue49FuelEditNulls:
 
         result = await pg_session.execute(
             text("""
-            SELECT propane_gallons, kwh, price_per_unit
+            SELECT propane_liters, kwh, price_per_unit
             FROM fuel_records
             WHERE vin = :vin
-            AND propane_gallons IS NULL
+            AND propane_liters IS NULL
             AND kwh IS NULL
             AND price_per_unit IS NULL
         """),
@@ -326,7 +327,7 @@ class TestIssue49FuelEditNulls:
         )
         row = result.first()
         assert row is not None, "Should find record with NULL fields"
-        assert row[0] is None  # propane_gallons
+        assert row[0] is None  # propane_liters
         assert row[1] is None  # kwh
         assert row[2] is None  # price_per_unit
 
@@ -341,10 +342,10 @@ class TestIssue49FuelEditNulls:
         record = FuelRecord(
             vin=vehicle.vin,
             date=date(2026, 3, 5),
-            gallons=Decimal("10.0"),
+            liters=Decimal("37.854"),
             cost=Decimal("35.00"),
-            fuel_type="Regular",
-            price_per_unit=Decimal("3.50"),
+            fuel_type="gasoline",
+            price_per_unit=Decimal("0.924"),
         )
         pg_session.add(record)
         await pg_session.flush()
@@ -371,7 +372,7 @@ class TestIssue49FuelEditNulls:
 #      as `isDiesel || hasTankCap`, forcing it back on for all diesel.
 # Fix: Frontend sends explicit null; toggle derives from DB value only.
 #
-# Backend test: verify def_tank_capacity_gallons can be set and cleared.
+# Backend test: verify def_tank_capacity_liters can be set and cleared.
 # ===========================================================================
 
 
@@ -379,7 +380,7 @@ class TestIssue50DefTrackingToggle:
     """#50: Verify DEF tracking can be enabled and disabled on PostgreSQL."""
 
     async def test_set_def_tank_capacity(self, pg_session):
-        """Setting def_tank_capacity_gallons should persist."""
+        """Setting def_tank_capacity_liters should persist."""
         from app.models.vehicle import Vehicle
 
         user = await _create_user(pg_session, "i50a")
@@ -394,16 +395,16 @@ class TestIssue50DefTrackingToggle:
         await pg_session.execute(
             update(Vehicle)
             .where(Vehicle.vin == vehicle.vin)
-            .values(def_tank_capacity_gallons=Decimal("5.5"))
+            .values(def_tank_capacity_liters=Decimal("5.5"))
         )
         await pg_session.flush()
 
         result = await pg_session.execute(select(Vehicle).where(Vehicle.vin == vehicle.vin))
         v = result.scalar_one()
-        assert v.def_tank_capacity_gallons == Decimal("5.5")
+        assert v.def_tank_capacity_liters == Decimal("5.5")
 
     async def test_clear_def_tank_capacity_to_null(self, pg_session):
-        """Setting def_tank_capacity_gallons to NULL should persist (disable DEF)."""
+        """Setting def_tank_capacity_liters to NULL should persist (disable DEF)."""
         from app.models.vehicle import Vehicle
 
         user = await _create_user(pg_session, "i50b")
@@ -412,28 +413,28 @@ class TestIssue50DefTrackingToggle:
             user.id,
             "i50b",
             fuel_type="Diesel",
-            def_tank_capacity_gallons=Decimal("5.5"),
+            def_tank_capacity_liters=Decimal("5.5"),
         )
 
         # Verify it's set
         result = await pg_session.execute(
-            select(Vehicle.def_tank_capacity_gallons).where(Vehicle.vin == vehicle.vin)
+            select(Vehicle.def_tank_capacity_liters).where(Vehicle.vin == vehicle.vin)
         )
         assert result.scalar() == Decimal("5.5")
 
         # Disable DEF tracking by setting to NULL
         # This is what the frontend now sends when the toggle is off
         await pg_session.execute(
-            update(Vehicle).where(Vehicle.vin == vehicle.vin).values(def_tank_capacity_gallons=None)
+            update(Vehicle).where(Vehicle.vin == vehicle.vin).values(def_tank_capacity_liters=None)
         )
         await pg_session.flush()
 
         # Verify it's NULL
         result = await pg_session.execute(
-            select(Vehicle.def_tank_capacity_gallons).where(Vehicle.vin == vehicle.vin)
+            select(Vehicle.def_tank_capacity_liters).where(Vehicle.vin == vehicle.vin)
         )
         val = result.scalar()
-        assert val is None, f"def_tank_capacity_gallons should be NULL after disabling, got {val}"
+        assert val is None, f"def_tank_capacity_liters should be NULL after disabling, got {val}"
 
     async def test_null_def_stays_null_on_reread(self, pg_session):
         """After clearing DEF, re-reading the vehicle should still show NULL."""
@@ -445,7 +446,7 @@ class TestIssue50DefTrackingToggle:
             user.id,
             "i50c",
             fuel_type="Diesel",
-            def_tank_capacity_gallons=None,
+            def_tank_capacity_liters=None,
         )
 
         # Simulate the "reopen vehicle settings" that was reverting the toggle
@@ -453,17 +454,15 @@ class TestIssue50DefTrackingToggle:
         v = result.scalar_one()
 
         # The fix: DEF enabled state should derive ONLY from the stored value
-        has_tank_cap = v.def_tank_capacity_gallons is not None and v.def_tank_capacity_gallons > 0
-        assert has_tank_cap is False, (
-            "DEF should be disabled when def_tank_capacity_gallons is NULL"
-        )
+        has_tank_cap = v.def_tank_capacity_liters is not None and v.def_tank_capacity_liters > 0
+        assert has_tank_cap is False, "DEF should be disabled when def_tank_capacity_liters is NULL"
 
     async def test_diesel_without_def_stays_disabled(self, pg_session):
         """A diesel vehicle with no DEF capacity should NOT auto-enable DEF.
 
         Bug: Old code did `isDiesel || hasTankCap` which forced DEF on
         for all diesel vehicles regardless of stored value.
-        Fix: Uses `hasTankCap` only (derived from def_tank_capacity_gallons).
+        Fix: Uses `hasTankCap` only (derived from def_tank_capacity_liters).
         """
         from app.models.vehicle import Vehicle
 
@@ -473,7 +472,7 @@ class TestIssue50DefTrackingToggle:
             user.id,
             "i50d",
             fuel_type="Diesel",
-            def_tank_capacity_gallons=None,  # DEF explicitly disabled
+            def_tank_capacity_liters=None,  # DEF explicitly disabled
         )
 
         result = await pg_session.execute(select(Vehicle).where(Vehicle.vin == vehicle.vin))
@@ -481,7 +480,7 @@ class TestIssue50DefTrackingToggle:
 
         # Reproduce the old buggy logic
         is_diesel = v.fuel_type and v.fuel_type.lower() == "diesel"
-        has_tank_cap = v.def_tank_capacity_gallons is not None and v.def_tank_capacity_gallons > 0
+        has_tank_cap = v.def_tank_capacity_liters is not None and v.def_tank_capacity_liters > 0
 
         # Old buggy logic: def_enabled = is_diesel or has_tank_cap → True (WRONG)
         old_logic = is_diesel or has_tank_cap

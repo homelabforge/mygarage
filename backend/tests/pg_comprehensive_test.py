@@ -531,7 +531,7 @@ class TestCrudOperations:
         assert found.year == 2024
 
     async def test_create_fuel_record(self, pg_session):
-        """Fuel record with Decimal fields."""
+        """Fuel record with Decimal fields (metric canonical since v2.26.2)."""
         from app.models.fuel import FuelRecord
 
         _, vehicle = await _make_user_and_vehicle(pg_session, "fuel1")
@@ -539,21 +539,21 @@ class TestCrudOperations:
         record = FuelRecord(
             vin=vehicle.vin,
             date=date(2026, 3, 1),
-            gallons=Decimal("12.345"),
+            liters=Decimal("46.732"),
             cost=Decimal("45.67"),
-            mileage=50000,
-            fuel_type="Regular",
+            odometer_km=Decimal("80467.20"),
+            fuel_type="gasoline",
         )
         pg_session.add(record)
         await pg_session.flush()
 
         result = await pg_session.execute(select(FuelRecord).where(FuelRecord.vin == vehicle.vin))
         found = result.scalar_one()
-        assert found.gallons == Decimal("12.345")
+        assert found.liters == Decimal("46.732")
         assert found.cost == Decimal("45.67")
 
     async def test_create_service_visit(self, pg_session):
-        """Service visit with nullable fields."""
+        """Service visit with nullable fields (metric canonical since v2.26.2)."""
         from app.models.service_visit import ServiceVisit
 
         _, vehicle = await _make_user_and_vehicle(pg_session, "svc1")
@@ -563,7 +563,7 @@ class TestCrudOperations:
             date=date(2026, 2, 15),
             notes="Oil change",
             total_cost=Decimal("89.99"),
-            mileage=49500,
+            odometer_km=Decimal("79666.62"),
         )
         pg_session.add(visit)
         await pg_session.flush()
@@ -576,7 +576,7 @@ class TestCrudOperations:
         assert found.total_cost == Decimal("89.99")
 
     async def test_null_values_in_fuel_record(self, pg_session):
-        """Fuel record with NULL optional fields (267dca5 fix)."""
+        """Fuel record with NULL optional fields (metric canonical since v2.26.2)."""
         from app.models.fuel import FuelRecord
 
         _, vehicle = await _make_user_and_vehicle(pg_session, "fuelnull")
@@ -584,10 +584,10 @@ class TestCrudOperations:
         record = FuelRecord(
             vin=vehicle.vin,
             date=date(2026, 3, 10),
-            gallons=Decimal("10.0"),
+            liters=Decimal("37.854"),
             cost=Decimal("35.00"),
-            mileage=50500,
-            fuel_type="Regular",
+            odometer_km=Decimal("81271.00"),
+            fuel_type="gasoline",
             notes=None,
         )
         pg_session.add(record)
