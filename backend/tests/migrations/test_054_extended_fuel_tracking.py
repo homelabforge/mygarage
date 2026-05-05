@@ -19,6 +19,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.migrations.fixtures.fuel_type_locales import all_pairs
+
 
 def _load_migration(name: str) -> types.ModuleType:
     migrations_dir = Path(__file__).parent.parent.parent / "app" / "migrations"
@@ -266,7 +268,6 @@ def test_054_already_normalized_values_skipped(migration_db, tmp_path, monkeypat
 # adds Polish/Ukrainian/Russian entries to the migration's map; failing
 # cases listed below go green.
 
-from tests.migrations.fixtures.fuel_type_locales import all_pairs
 
 
 @pytest.mark.migrations
