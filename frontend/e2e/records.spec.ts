@@ -23,9 +23,12 @@ test.describe('Fuel Record Workflow', () => {
     // Fuel record form modal should appear
     await expect(page.getByText('Add Fuel Record')).toBeVisible({ timeout: 5000 })
 
-    // Fill in the form fields
+    // Fill in the form fields. ``odometer_km`` is required by the
+    // backend cross-field validator added in v2.27.0-rc2 (#69) — rc1
+    // accepted records with no odometer; rc2 doesn't.
     const today = new Date().toISOString().split('T')[0]
     await page.locator('#date').fill(today)
+    await page.locator('#odometer_km').fill('48280')
     await page.locator('#liters').fill('47.318')
     await page.locator('#cost').fill('43.75')
 
