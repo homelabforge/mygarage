@@ -16,6 +16,7 @@ import VINInput from './VINInput'
 import { FormError } from './FormError'
 import type { VINDecodeResponse } from '../types/vin'
 import type { VehicleCreate, VehicleType } from '../types/vehicle'
+import { FUEL_TYPE_VALUES, FUEL_TYPE_LABELS } from '../constants/fuel'
 import vehicleService from '../services/vehicleService'
 import { vehicleEditSchema, VEHICLE_TYPES, type VehicleEditFormData } from '../schemas/vehicle'
 
@@ -256,6 +257,7 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
                   onChange={setVin}
                   onDecode={handleVinDecode}
                   autoValidate={true}
+                  checkDuplicate={true}
                 />
               </div>
             </div>
@@ -463,13 +465,25 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-garage-text mb-2">{t('wizard.fuelType')}</label>
-                  <input
-                    type="text"
+                  <label
+                    htmlFor="wizard-fuel-type"
+                    className="block text-sm font-medium text-garage-text mb-2"
+                  >
+                    {t('wizard.fuelType')}
+                  </label>
+                  <select
+                    id="wizard-fuel-type"
+                    aria-label={t('wizard.fuelType')}
                     {...register('fuel_type')}
                     className="w-full bg-garage-bg border border-garage-border rounded-lg px-4 py-2 text-garage-text focus:outline-none focus:border-primary"
-                    placeholder="Gasoline, Diesel, etc."
-                  />
+                  >
+                    <option value="">—</option>
+                    {FUEL_TYPE_VALUES.map((value) => (
+                      <option key={value} value={value}>
+                        {FUEL_TYPE_LABELS[value]}
+                      </option>
+                    ))}
+                  </select>
                   <FormError error={errors.fuel_type} />
                 </div>
               </div>

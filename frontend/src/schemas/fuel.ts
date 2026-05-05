@@ -91,13 +91,19 @@ export const fuelRecordSchema = z.object({
     .or(z.nan())
     .transform((val) => (isNaN(val) ? undefined : val))
     .optional(),
+  // OBC trip duration accepts ``HH:MM``, ``HH:MM:SS``, or an integer
+  // string of seconds. Backend pre-validator in app/schemas/fuel.py
+  // parses to canonical seconds; we don't coerce on the frontend so
+  // the user's literal input flows through unchanged. Surfaced by
+  // issue #69 — many onboard computers display duration as HH:MM.
   obc_trip_duration_s: z
-    .number()
-    .int()
-    .min(0)
-    .or(z.nan())
-    .transform((val) => (isNaN(val) ? undefined : val))
-    .optional(),
+    .string()
+    .regex(
+      /^(\s*|\d+|\d{1,3}:\d{2}(?::\d{2})?)$/,
+      "Use seconds (e.g. 8100), HH:MM (e.g. 2:15), or HH:MM:SS"
+    )
+    .optional()
+    .or(z.literal('')),
 })
 
 // Export both input and output types for Zod v4 zodResolver compatibility

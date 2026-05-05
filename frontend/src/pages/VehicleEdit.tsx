@@ -8,6 +8,7 @@ import api from '../services/api'
 import type { Vehicle } from '../types/vehicle'
 import { vehicleEditSchema, type VehicleEditFormData, VEHICLE_TYPES } from '../schemas/vehicle'
 import { FormError } from '../components/FormError'
+import { FUEL_TYPE_VALUES, FUEL_TYPE_LABELS } from '../constants/fuel'
 import CurrencyInputPrefix from '../components/common/CurrencyInputPrefix'
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { UnitConverter, UnitFormatter } from '../utils/units'
@@ -424,13 +425,18 @@ export default function VehicleEdit() {
                 <label htmlFor="fuel_type" className="block text-sm font-medium text-garage-text mb-1">
                   {t('edit.fuelType')}
                 </label>
-                <input
-                  type="text"
+                <select
                   id="fuel_type"
                   {...register('fuel_type')}
                   className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-garage-text"
-                  placeholder="Gasoline, Diesel, etc."
-                />
+                >
+                  <option value="">—</option>
+                  {FUEL_TYPE_VALUES.map((value) => (
+                    <option key={value} value={value}>
+                      {FUEL_TYPE_LABELS[value]}
+                    </option>
+                  ))}
+                </select>
                 <FormError error={errors.fuel_type} />
               </div>
             </div>
@@ -529,16 +535,21 @@ export default function VehicleEdit() {
             <h3 className="text-lg font-semibold text-garage-text mb-4">{t('edit.fuelInformation')}</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label htmlFor="fuel_type" className="block text-sm font-medium text-garage-text mb-1">
+                <label htmlFor="fuel_type_nonmotorized" className="block text-sm font-medium text-garage-text mb-1">
                   {t('edit.fuelType')}
                 </label>
-                <input
-                  type="text"
-                  id="fuel_type"
+                <select
+                  id="fuel_type_nonmotorized"
                   {...register('fuel_type')}
                   className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-garage-text"
-                  placeholder="Propane"
-                />
+                >
+                  <option value="">—</option>
+                  {FUEL_TYPE_VALUES.map((value) => (
+                    <option key={value} value={value}>
+                      {FUEL_TYPE_LABELS[value]}
+                    </option>
+                  ))}
+                </select>
                 <FormError error={errors.fuel_type} />
               </div>
             </div>

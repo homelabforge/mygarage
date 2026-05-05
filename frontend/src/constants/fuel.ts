@@ -39,3 +39,23 @@ export const FUEL_TYPE_VALUES = [
 ] as const
 
 export type FuelType = (typeof FUEL_TYPE_VALUES)[number]
+
+/**
+ * Human-readable labels for the FUEL_TYPE_VALUES set. Surfaced wherever
+ * the user picks a fuel type (vehicle add/edit form, fuel record
+ * fuel_type_used dropdown on multi-fuel vehicles). Mirrors backend
+ * canonical enum values; localization-friendly callers should pull
+ * from i18n translations and fall back here.
+ */
+export const FUEL_TYPE_LABELS: Record<FuelType, string> = {
+  gasoline: 'Gasoline',
+  diesel: 'Diesel',
+  electric: 'Electric',
+  hybrid: 'Hybrid',
+  plugin_hybrid: 'Plug-in Hybrid',
+  e85: 'E85 / Flex Fuel',
+  propane_lpg: 'Propane / LPG',
+  cng: 'CNG',
+  hydrogen: 'Hydrogen',
+  other: 'Other',
+}
