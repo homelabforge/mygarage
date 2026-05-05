@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.27.0-rc2] - 2026-05-05
+
+### Fixed
+
+- Migration 054 failed on PostgreSQL (#69): `DATETIME` and `ADD CONSTRAINT IF NOT EXISTS` are not valid PG syntax. Now dialect-aware.
+- Polish/Ukrainian/Russian fuel types (e.g. `Benzyna`, `Дизель`, `Газ`) silently mapped to `other` instead of the right canonical value.
+- Vehicle add/edit form rendered free-text for fuel type instead of a dropdown.
+- Stations saved from POI search were not selectable in the fuel-record form (filter mismatch).
+- Deleting a fuel record left an orphan synced entry on the mileage timeline. Migration 055 adds a proper FK with cascade and cleans up existing orphans.
+- "Per volume" / "per weight" labels, the outside-temperature label (°C / °F), and the POI search radius now respect the user's unit preference. Imperial users type Fahrenheit; canonical Celsius storage is unchanged.
+
+### Added
+
+- Inline "+ Add to address book" action and an X clear button on the station autocomplete.
+- Pagination on the fuel records list (50 per page, prev/next).
+- Manual address search on the POI Finder, alongside "Use my location".
+- VIN duplicate check fires on field blur during vehicle add.
+- OBC trip duration field accepts `HH:MM` and `HH:MM:SS` in addition to seconds.
+- Fuel records CSV export now includes every v2.27.0 column. Schema bumped 3 → 4 (additive).
+- CSV fuel import reads the `Fuel Type` column with locale-aware normalization.
+
+### Changed
+
+- Fuel records now require both an odometer reading and a fuel amount. `missed_fillup` is the explicit escape hatch for partial entries.
+
+### Notes
+
+- Release candidate. Promote to `2.27.0` after a soak period with no regression reports.
+- rc1 PostgreSQL installs that hit the migration 054 failure can pull `:2.27.0-rc2` directly — the migration is idempotent and picks up where it stopped.
+
 ## [2.27.0-rc1] - 2026-05-01
 
 ### Added
