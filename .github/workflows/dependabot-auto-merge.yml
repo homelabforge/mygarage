@@ -9,6 +9,6 @@ permissions:
 
 jobs:
   auto-merge:
-    uses: homelabforge/shared-workflows/.github/workflows/dependabot-auto-merge.yml@v1.1.0
+    uses: homelabforge/shared-workflows/.github/workflows/dependabot-auto-merge.yml@v1.3.0
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}

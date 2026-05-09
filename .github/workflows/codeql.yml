@@ -19,4 +19,4 @@ permissions:
 
 jobs:
   codeql:
-    uses: homelabforge/shared-workflows/.github/workflows/codeql.yml@v1.1.0
+    uses: homelabforge/shared-workflows/.github/workflows/codeql.yml@v1.3.0
