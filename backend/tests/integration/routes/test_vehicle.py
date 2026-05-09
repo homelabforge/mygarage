@@ -72,14 +72,16 @@ class TestVehicleRoutes:
         data = response.json()
         assert data["license_plate"] == "UPDATED-123"
 
-    async def test_delete_vehicle(self, client: AsyncClient, auth_headers, db_session):
+    async def test_delete_vehicle(self, client: AsyncClient, auth_headers, test_user, db_session):
         """Test deleting a vehicle."""
         from app.models.vehicle import Vehicle
 
-        # Create a vehicle specifically for deletion
+        # Create a vehicle specifically for deletion. Pull user_id from
+        # the test_user fixture instead of hardcoding 1 — PG enforces
+        # FKs strictly and the auto-assigned id may not be 1.
         delete_vehicle = Vehicle(
             vin="1HGCM82633A999999",
-            user_id=1,  # test user
+            user_id=test_user["id"],
             nickname="Delete Test Vehicle",
             vehicle_type="Car",
             year=2020,
