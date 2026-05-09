@@ -135,15 +135,12 @@ async def assert_cascade_clean(
 
 
 # Sync-engine variant for migration-level cascade tests. Phase 2.5's
-# fuel→odometer cascade verification uses this path because the existing
-# integration-test asyncpg session has a known event-loop issue —
-# tracked at https://github.com/homelabforge/mygarage/issues/77
-# (asyncpg session loop binding under pytest-asyncio's per-test loop
-# scope). Migration tests already run on a sync engine via
-# ``engine_for_migration`` / ``pg_engine``, so calling raw SQL there
-# avoids the asyncpg pain entirely. Once #77 is fixed, the async
-# helper above becomes usable under PG and this sync sibling can stay
-# as the recommended path for migration-level tests.
+# fuel→odometer cascade verification uses this path because migration
+# tests already run on a sync engine via ``engine_for_migration`` /
+# ``pg_engine``. The async helper above is now usable under PG too
+# (issue #77 was fixed by aligning pytest-asyncio's test loop scope
+# with the session-scoped fixture loop) — use the async helper from
+# integration tests, this sync sibling from migration tests.
 
 
 def assert_cascade_clean_sync(
