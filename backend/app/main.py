@@ -129,10 +129,16 @@ from app.middleware import (
     SecurityHeadersMiddleware,
 )
 
-app.add_middleware(SecurityHeadersMiddleware)
-app.add_middleware(RequestIDMiddleware)
+# Middleware order matters with pure ASGI middleware: the LAST `add_middleware`
+# call is the OUTERMOST layer. CSRF short-circuits with a 403 by emitting
+# the response directly, so layers added *after* it still see that response
+# and can decorate it. We put CSRF innermost so its 403s flow back through
+# RequestID (adds X-Request-ID) and SecurityHeaders (adds CSP, X-Frame-Options
+# etc.) on the way out.
 app.add_middleware(CSRFProtectionMiddleware)
 app.add_middleware(SlowAPIMiddleware)
+app.add_middleware(RequestIDMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
 
 # Add error handlers
 from fastapi.exceptions import RequestValidationError

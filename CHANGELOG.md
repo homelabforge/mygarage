@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Asset fetch handler retries on network failure (3 attempts, exponential backoff) instead of silently returning a fake 503. This survives the backend's cold-start window after `docker compose up`.
 - `/index.html` and `/` are no longer precached on service worker install — the navigation handler is already network-first, so precaching them kept stale references to old chunk hashes.
 - Vehicle photos no longer take minutes to load. The service worker was caching every API response — including multi-MB photos — and `response.clone()` tied the cache write to the original response stream, stalling the user's image fetch behind a CacheStorage put.
+- Large streaming responses (backup downloads, photos) no longer stream at ~20 KB/s. The three custom middleware (`SecurityHeaders`, `RequestID`, `CSRFProtection`) were written using Starlette's `BaseHTTPMiddleware`, which forces the entire response body through an internal asyncio queue before forwarding. They are now pure ASGI middleware that wrap `send` directly and leave the response body untouched, so `FileResponse` streams at line rate.
 
 ### Changed
 
