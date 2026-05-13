@@ -104,11 +104,23 @@ describe('AuthContext', () => {
     })
   })
 
-  it('skips user loading when auth mode is none', async () => {
-    mockedApi.get.mockResolvedValueOnce({
-      data: {
-        settings: [{ key: 'auth_mode', value: 'none' }],
-      },
+  it('ignores user response when auth mode is none', async () => {
+    // /settings/public and /auth/me are dispatched in parallel to cut
+    // bootstrap latency. When auth is disabled, /auth/me's result is
+    // simply ignored — `authenticated` should stay false regardless of
+    // what /auth/me returns.
+    mockedApi.get.mockImplementation((url: string) => {
+      if (url === '/settings/public') {
+        return Promise.resolve({
+          data: { settings: [{ key: 'auth_mode', value: 'none' }] },
+        })
+      }
+      if (url === '/auth/me') {
+        return Promise.resolve({
+          data: { id: 1, username: 'ignored', email: 'x@y', is_admin: false },
+        })
+      }
+      return Promise.reject(new Error('Not found'))
     })
 
     render(
@@ -122,9 +134,6 @@ describe('AuthContext', () => {
       expect(screen.getByTestId('auth-mode')).toHaveTextContent('none')
       expect(screen.getByTestId('authenticated')).toHaveTextContent('false')
     })
-
-    // Should NOT have called /auth/me
-    expect(mockedApi.get).not.toHaveBeenCalledWith('/auth/me')
   })
 
   it('handles 401 when cookie is expired', async () => {

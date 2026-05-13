@@ -324,8 +324,21 @@ if static_dir.exists():
     async def root():
         return FileResponse(static_dir / "index.html", media_type="text/html")
 
-    # Mount static assets (CSS, JS, images) - must be after route definitions
-    app.mount("/assets", StaticFiles(directory=str(static_dir / "assets")), name="assets")
+    # Mount static assets (CSS, JS, images) - must be after route definitions.
+    #
+    # Vite emits content-hashed filenames under /assets (e.g. main-abc123.js),
+    # which are immutable for the life of the build. Telling browsers and CDNs
+    # that with `immutable` + a year-long max-age stops them from re-fetching
+    # or revalidating these on every navigation, which is where most of the
+    # post-deploy reload latency comes from.
+    class ImmutableStaticFiles(StaticFiles):
+        async def get_response(self, path, scope):
+            response = await super().get_response(path, scope)
+            if response.status_code == 200:
+                response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+            return response
+
+    app.mount("/assets", ImmutableStaticFiles(directory=str(static_dir / "assets")), name="assets")
 
     # Mount translation files for non-English languages (loaded lazily by i18next)
     locales_dir = static_dir / "locales"

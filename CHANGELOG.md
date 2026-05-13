@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Service worker no longer pins itself to a hardcoded cache name. Each release now namespaces its caches by `APP_VERSION`, so stale shells from previous deploys are evicted on activate instead of producing a white screen on restart.
+- Asset fetch handler retries on network failure (3 attempts, exponential backoff) instead of silently returning a fake 503. This survives the backend's cold-start window after `docker compose up`.
+- `/index.html` and `/` are no longer precached on service worker install — the navigation handler is already network-first, so precaching them kept stale references to old chunk hashes.
+
+### Changed
+
+- `/assets/*` static files now ship with `Cache-Control: public, max-age=31536000, immutable`. Vite emits content-hashed filenames, so this is safe and stops browsers and Cloudflare from revalidating on every navigation.
+- `AuthContext` dispatches `/settings/public` and `/auth/me` in parallel on mount instead of sequentially, cutting bootstrap latency for authenticated users roughly in half.
+
 ## [2.27.0-rc2] - 2026-05-05
 
 ### Fixed
