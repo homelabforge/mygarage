@@ -4,7 +4,7 @@
 # Backend: Python 3.14-slim
 # ==============================================================================
 
-ARG BUN_VERSION=1.3.12
+ARG BUN_VERSION=1.3.14
 
 # Stage 1: Build frontend with Bun
 FROM oven/bun:${BUN_VERSION}-alpine AS frontend-builder

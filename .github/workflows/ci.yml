@@ -19,4 +19,8 @@ jobs:
     with:
       enable-translations: true
       enable-pg-migrations: true
+      # Closes #77: run both migration and integration tests against the PG
+      # sidecar so the asyncpg loop-binding regression that gated this work
+      # can't reappear. Pytest accepts multiple positional paths.
+      pg-migrations-pytest-path: "tests/migrations/ tests/integration/"
       security-tripwire-script: .github/scripts/security-tripwire.sh

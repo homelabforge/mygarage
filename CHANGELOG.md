@@ -5,23 +5,29 @@ All notable changes to MyGarage will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.27.0-rc3] - 2026-05-14
 
 ### Fixed
 
-- Service worker no longer pins itself to a hardcoded cache name. Each release now namespaces its caches by `APP_VERSION`, so stale shells from previous deploys are evicted on activate instead of producing a white screen on restart.
-- Asset fetch handler retries on network failure (3 attempts, exponential backoff) instead of silently returning a fake 503. This survives the backend's cold-start window after `docker compose up`.
-- `/index.html` and `/` are no longer precached on service worker install — the navigation handler is already network-first, so precaching them kept stale references to old chunk hashes.
-- Vehicle photos no longer take minutes to load. The service worker was caching every API response — including multi-MB photos — and `response.clone()` tied the cache write to the original response stream, stalling the user's image fetch behind a CacheStorage put.
-- Large streaming responses (backup downloads, photos) no longer stream at ~20 KB/s. The three custom middleware (`SecurityHeaders`, `RequestID`, `CSRFProtection`) and `SlowAPIMiddleware` were all built on Starlette's `BaseHTTPMiddleware`, which forces the entire response body through an internal asyncio queue before forwarding. The custom three are now pure ASGI middleware; `SlowAPIMiddleware` is removed since it only enforced the global `default_limits` (Traefik's `common-rates` chain already provides a per-IP global floor) and every rate-sensitive endpoint already has an explicit `@limiter.limit(...)` decorator that does not depend on the middleware.
+- Service worker no longer pins to a hardcoded cache name — caches are namespaced by `APP_VERSION` so stale shells are evicted on activate.
+- Service worker asset fetches retry 3× with exponential backoff before surfacing the error, covering the backend cold-start window.
+- Service worker no longer precaches `/` or `/index.html` (stale references to old chunk hashes after deploys).
+- Service worker no longer caches photo/attachment/document/backup/realtime responses — `response.clone()` was stalling user fetches behind the CacheStorage write.
+- Custom middleware (`SecurityHeaders`, `RequestID`, `CSRFProtection`) rewritten as pure ASGI so streaming responses no longer buffer through `BaseHTTPMiddleware`'s asyncio queue.
+- Removed `SlowAPIMiddleware`; per-route `@limiter.limit(...)` decorators still enforce limits, and the global `default_limits` floor is already provided by Traefik's `common-rates` chain.
+- PG integration tests now run in CI under the docker-compose.test.yml sidecar (#77 — wired via `pg-migrations-pytest-path` covering both `tests/migrations/` and `tests/integration/`).
 
 ### Changed
 
-- `/assets/*` static files now ship with `Cache-Control: public, max-age=31536000, immutable`. Vite emits content-hashed filenames, so this is safe and stops browsers and Cloudflare from revalidating on every navigation.
-- Photo and thumbnail endpoints ship `Cache-Control: private, max-age=31536000, immutable` so the browser caches them natively — service worker caching is no longer needed for these.
-- Service worker skips caching for photos, attachments, documents, backup downloads, and realtime polling endpoints (livelink/mqtt status). These either don't benefit from caching or thrash it.
-- `AuthContext` dispatches `/settings/public` and `/auth/me` in parallel on mount instead of sequentially, cutting bootstrap latency for authenticated users roughly in half.
-- LiveLink status polling (5s detail view, 30s dashboard widget) pauses while the tab is hidden. Backgrounded polling was competing with foreground requests through the service worker.
+- `/assets/*` static files ship `Cache-Control: public, max-age=31536000, immutable` (Vite hashes the filenames).
+- Photo and thumbnail endpoints ship `Cache-Control: private, max-age=31536000, immutable`.
+- `AuthContext` dispatches `/settings/public` and `/auth/me` in parallel via `Promise.allSettled` instead of sequentially.
+- LiveLink status polling (5s detail / 30s widget) pauses while the tab is hidden.
+- README Bun badge now auto-updates from `.bun-version` instead of hardcoding the version.
+
+### Dockerfile Dependencies
+
+- **oven/bun**: 1.3.12-alpine → 1.3.14-alpine
 
 ## [2.27.0-rc2] - 2026-05-05
 
