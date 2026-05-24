@@ -5,43 +5,15 @@ All notable changes to MyGarage will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.27.0-rc3] - 2026-05-14
-
-### Fixed
-
-- Service worker no longer pins to a hardcoded cache name — caches are namespaced by `APP_VERSION` so stale shells are evicted on activate.
-- Service worker asset fetches retry 3× with exponential backoff before surfacing the error, covering the backend cold-start window.
-- Service worker no longer precaches `/` or `/index.html` (stale references to old chunk hashes after deploys).
-- Service worker no longer caches photo/attachment/document/backup/realtime responses — `response.clone()` was stalling user fetches behind the CacheStorage write.
-- Custom middleware (`SecurityHeaders`, `RequestID`, `CSRFProtection`) rewritten as pure ASGI so streaming responses no longer buffer through `BaseHTTPMiddleware`'s asyncio queue.
-- Removed `SlowAPIMiddleware`; per-route `@limiter.limit(...)` decorators still enforce limits, and the global `default_limits` floor is already provided by Traefik's `common-rates` chain.
-- PG integration tests now run in CI under the docker-compose.test.yml sidecar (#77 — wired via `pg-migrations-pytest-path` covering both `tests/migrations/` and `tests/integration/`).
-
-### Changed
-
-- `/assets/*` static files ship `Cache-Control: public, max-age=31536000, immutable` (Vite hashes the filenames).
-- Photo and thumbnail endpoints ship `Cache-Control: private, max-age=31536000, immutable`.
-- `AuthContext` dispatches `/settings/public` and `/auth/me` in parallel via `Promise.allSettled` instead of sequentially.
-- LiveLink status polling (5s detail / 30s widget) pauses while the tab is hidden.
-- README Bun badge now auto-updates from `.bun-version` instead of hardcoding the version.
-
-### Dockerfile Dependencies
-
-- **oven/bun**: 1.3.12-alpine → 1.3.14-alpine
-
-## [2.27.0-rc2] - 2026-05-05
-
-### Fixed
-
-- Migration 054 failed on PostgreSQL (#69): `DATETIME` and `ADD CONSTRAINT IF NOT EXISTS` are not valid PG syntax. Now dialect-aware.
-- Polish/Ukrainian/Russian fuel types (e.g. `Benzyna`, `Дизель`, `Газ`) silently mapped to `other` instead of the right canonical value.
-- Vehicle add/edit form rendered free-text for fuel type instead of a dropdown.
-- Stations saved from POI search were not selectable in the fuel-record form (filter mismatch).
-- Deleting a fuel record left an orphan synced entry on the mileage timeline. Migration 055 adds a proper FK with cascade and cleans up existing orphans.
-- "Per volume" / "per weight" labels, the outside-temperature label (°C / °F), and the POI search radius now respect the user's unit preference. Imperial users type Fahrenheit; canonical Celsius storage is unchanged.
+## [2.27.0] - 2026-05-24
 
 ### Added
 
+- Extended fuel tracking (#69): optional fuel-up time, fueling station with autocomplete and one-time-visit toggle, driver, payment method, trip type, outside temperature, and trip-computer (OBC) values on every fill-up.
+- "Auto-fill from last drive" button on the fuel form pulls OBC values from the most recent matching LiveLink drive session.
+- Per-user default payment method and trip type under Settings → System.
+- "Gas Stations" filter on the Address Book page.
+- Vehicles now track a secondary fuel type (PHEV / flex / dual-fuel), populated from NHTSA. Multi-fuel vehicles get a per-fillup fuel-type dropdown.
 - Inline "+ Add to address book" action and an X clear button on the station autocomplete.
 - Pagination on the fuel records list (50 per page, prev/next).
 - Manual address search on the POI Finder, alongside "Use my location".
@@ -52,32 +24,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Fuel records now require both an odometer reading and a fuel amount. `missed_fillup` is the explicit escape hatch for partial entries.
-
-### Notes
-
-- Release candidate. Promote to `2.27.0` after a soak period with no regression reports.
-- rc1 PostgreSQL installs that hit the migration 054 failure can pull `:2.27.0-rc2` directly — the migration is idempotent and picks up where it stopped.
-
-## [2.27.0-rc1] - 2026-05-01
-
-### Added
-
-- Extended fuel tracking (#69): optional fuel-up time, fueling station with autocomplete and one-time-visit toggle, driver, payment method, trip type, outside temperature, and trip-computer (OBC) values on every fill-up.
-- "Auto-fill from last drive" button on the fuel form pulls OBC values from the most recent matching LiveLink drive session.
-- Per-user default payment method and trip type under Settings → System.
-- "Gas Stations" filter on the Address Book page.
-- Vehicles now track a secondary fuel type (PHEV / flex / dual-fuel), populated from NHTSA. Multi-fuel vehicles get a per-fillup fuel-type dropdown.
-
-### Changed
-
 - Fuel record save now runs as a single transaction across station resolution, odometer sync, and DEF sync — no more partial writes on failure.
 - Gas-station address-book entries no longer create vendor records.
+- Fuel records now require both an odometer reading and a fuel amount. `missed_fillup` is the explicit escape hatch for partial entries.
+- `/assets/*` static files ship `Cache-Control: public, max-age=31536000, immutable` (Vite hashes the filenames).
+- Photo and thumbnail endpoints ship `Cache-Control: private, max-age=31536000, immutable`.
+- `AuthContext` dispatches `/settings/public` and `/auth/me` in parallel via `Promise.allSettled` instead of sequentially.
+- LiveLink status polling (5s detail / 30s widget) pauses while the tab is hidden.
+- README Bun badge now auto-updates from `.bun-version` instead of hardcoding the version.
 
-### Notes
+### Fixed
 
-- CSV import/export columns are unchanged this release.
-- Release candidate. Promote to `2.27.0` after a soak period with no regression reports.
+- Migration 054 failed on PostgreSQL (#69): `DATETIME` and `ADD CONSTRAINT IF NOT EXISTS` are not valid PG syntax. Now dialect-aware.
+- Polish/Ukrainian/Russian fuel types (e.g. `Benzyna`, `Дизель`, `Газ`) silently mapped to `other` instead of the right canonical value.
+- Vehicle add/edit form rendered free-text for fuel type instead of a dropdown.
+- Stations saved from POI search were not selectable in the fuel-record form (filter mismatch).
+- Deleting a fuel record left an orphan synced entry on the mileage timeline. Migration 055 adds a proper FK with cascade and cleans up existing orphans.
+- "Per volume" / "per weight" labels, the outside-temperature label (°C / °F), and the POI search radius now respect the user's unit preference. Imperial users type Fahrenheit; canonical Celsius storage is unchanged.
+- Service worker no longer pins to a hardcoded cache name — caches are namespaced by `APP_VERSION` so stale shells are evicted on activate.
+- Service worker asset fetches retry 3× with exponential backoff before surfacing the error, covering the backend cold-start window.
+- Service worker no longer precaches `/` or `/index.html` (stale references to old chunk hashes after deploys).
+- Service worker no longer caches photo/attachment/document/backup/realtime responses — `response.clone()` was stalling user fetches behind the CacheStorage write.
+- Custom middleware (`SecurityHeaders`, `RequestID`, `CSRFProtection`) rewritten as pure ASGI so streaming responses no longer buffer through `BaseHTTPMiddleware`'s asyncio queue.
+- Removed `SlowAPIMiddleware`; per-route `@limiter.limit(...)` decorators still enforce limits, and the global `default_limits` floor is already provided by Traefik's `common-rates` chain.
+- PG integration tests now run in CI under the docker-compose.test.yml sidecar (#77 — wired via `pg-migrations-pytest-path` covering both `tests/migrations/` and `tests/integration/`).
+
+### Dockerfile Dependencies
+
+- **oven/bun**: 1.3.12-alpine → 1.3.14-alpine
 
 ## [2.26.4] - 2026-04-25
 
