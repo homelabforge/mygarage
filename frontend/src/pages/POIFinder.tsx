@@ -7,12 +7,13 @@
 
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { MapPin, Loader2, Navigation, AlertTriangle } from 'lucide-react'
+import { MapPin, Loader2, Navigation, AlertTriangle, Search } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '@/services/api'
 import CategoryToggle from '@/components/CategoryToggle'
 import POICard from '@/components/POICard'
 import MapDisplay from '@/components/MapDisplay'
+import { useUnitPreference } from '@/hooks/useUnitPreference'
 import type {
   POIResult,
   POIRecommendation,
@@ -25,6 +26,7 @@ type Step = 'permission' | 'searching' | 'results'
 
 export default function POIFinder() {
   const { t } = useTranslation('common')
+  const { system } = useUnitPreference()
   const [step, setStep] = useState<Step>('permission')
   const [recommendations, setRecommendations] = useState<POIRecommendation[]>([])
   const [searchResults, setSearchResults] = useState<POIResult[]>([])
@@ -32,9 +34,15 @@ export default function POIFinder() {
   const [error, setError] = useState<string>('')
   const [savedPOIs, setSavedPOIs] = useState<Set<string>>(new Set())
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
+  // Phase 3.9 — manual address search via /api/poi/geocode (Nominatim).
+  const [addressQuery, setAddressQuery] = useState<string>('')
+  const [geocoding, setGeocoding] = useState<boolean>(false)
 
-  // Search options - category toggles
-  const [searchRadius, setSearchRadius] = useState<number>(5) // miles
+  // Phase 3.10 — radius is in the user's display unit (miles or km),
+  // converted to meters at request time. rc1 was miles-only.
+  const [searchRadius, setSearchRadius] = useState<number>(
+    system === 'imperial' ? 5 : 10
+  )
   const [categories, setCategories] = useState<Record<POICategory, boolean>>({
     auto_shop: true,
     rv_shop: false,
@@ -128,12 +136,50 @@ export default function POIFinder() {
     )
   }
 
+  const handleAddressSearch = async () => {
+    const q = addressQuery.trim()
+    if (q.length < 2) {
+      toast.error(t('poiFinder.addressTooShort', { defaultValue: 'Enter an address (≥2 characters)' }))
+      return
+    }
+    const activeCategories = getActiveCategories()
+    if (activeCategories.length === 0) {
+      toast.error(t('poiFinder.enableCategory'))
+      return
+    }
+    setGeocoding(true)
+    setError('')
+    try {
+      const { data } = await api.get<{ results: { latitude: number; longitude: number; display_name: string }[] }>(
+        `/poi/geocode`,
+        { params: { q } }
+      )
+      const top = data.results[0]
+      if (!top) {
+        toast.error(t('poiFinder.addressNotFound', { defaultValue: 'No results for that address' }))
+        return
+      }
+      setStep('searching')
+      await searchNearbyPOIs(top.latitude, top.longitude)
+    } catch (err) {
+      const detail = (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+      const message = detail || t('poiFinder.geocodeFailed', { defaultValue: 'Geocoding failed' })
+      setError(message)
+      toast.error(message)
+    } finally {
+      setGeocoding(false)
+    }
+  }
+
   const searchNearbyPOIs = async (latitude: number, longitude: number) => {
     // Save user location for map
     setUserLocation({ lat: latitude, lng: longitude })
 
     try {
-      const radiusMeters = Math.round(searchRadius * 1609.34)
+      // Convert the user's display-unit radius to meters for the API.
+      const radiusMeters = Math.round(
+        searchRadius * (system === 'imperial' ? 1609.34 : 1000)
+      )
       const activeCategories = getActiveCategories()
 
       const response = await api.post<POISearchResponse>('/poi/search', {
@@ -261,11 +307,14 @@ export default function POIFinder() {
                 onChange={(e) => setSearchRadius(Number(e.target.value))}
                 className="w-full md:w-64 px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary"
               >
-                <option value={5}>5 miles</option>
-                <option value={10}>10 miles</option>
-                <option value={25}>25 miles</option>
-                <option value={50}>50 miles</option>
-                <option value={100}>100 miles</option>
+                {(system === 'imperial'
+                  ? [5, 10, 25, 50, 100]
+                  : [10, 25, 50, 100, 200]
+                ).map((value) => (
+                  <option key={value} value={value}>
+                    {value} {system === 'imperial' ? 'miles' : 'km'}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
@@ -300,7 +349,7 @@ export default function POIFinder() {
           )}
 
           {/* Location Request Card */}
-          <div className="bg-garage-surface border border-garage-border rounded-lg p-6">
+          <div className="bg-garage-surface border border-garage-border rounded-lg p-6 space-y-4">
             <button
               type="button"
               onClick={handleRequestLocation}
@@ -309,6 +358,45 @@ export default function POIFinder() {
               <Navigation className="w-5 h-5" />
               {t('poiFinder.useMyLocation')}
             </button>
+
+            {/* Phase 3.9 — manual address search via Nominatim. Fixes
+                rc1 limitation that the page only searched around the
+                user's current GPS. */}
+            <div className="flex items-center gap-2">
+              <div className="flex-1 h-px bg-garage-border" />
+              <span className="text-xs text-garage-text-muted uppercase">
+                {t('poiFinder.or', { defaultValue: 'or' })}
+              </span>
+              <div className="flex-1 h-px bg-garage-border" />
+            </div>
+
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={addressQuery}
+                onChange={(e) => setAddressQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !geocoding) {
+                    e.preventDefault()
+                    void handleAddressSearch()
+                  }
+                }}
+                placeholder={t('poiFinder.addressPlaceholder', {
+                  defaultValue: 'Search by address (city, postal code, etc.)',
+                })}
+                className="flex-1 px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+              <button
+                type="button"
+                onClick={() => void handleAddressSearch()}
+                disabled={geocoding || addressQuery.trim().length < 2}
+                className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                aria-label={t('poiFinder.searchByAddress', { defaultValue: 'Search by address' })}
+              >
+                {geocoding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+              </button>
+            </div>
+
             {error && (
               <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-start gap-3">
                 <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />

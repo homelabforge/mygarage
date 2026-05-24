@@ -19,6 +19,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.migrations.fixtures.fuel_type_locales import all_pairs
+
 
 def _load_migration(name: str) -> types.ModuleType:
     migrations_dir = Path(__file__).parent.parent.parent / "app" / "migrations"
@@ -254,3 +256,108 @@ def test_054_already_normalized_values_skipped(migration_db, tmp_path, monkeypat
     ]
     assert val == "gasoline"
     conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Locale-aware backfill matrix (Phase 0.7 / Phase 1.3)
+# ---------------------------------------------------------------------------
+# Migration 054's _NORMALIZATION_MAP ships English-only on rc1.
+# andrzejf1994's PG install with vehicle.fuel_type='Benzyna' (Polish for
+# gasoline) backfilled to 'other' instead of 'gasoline'. This matrix
+# parametrizes one-row-per-(locale, free_text) test cases. Phase 1.3
+# adds Polish/Ukrainian/Russian entries to the migration's map; failing
+# cases listed below go green.
+
+
+@pytest.mark.migrations
+@pytest.mark.parametrize(
+    "locale,free_text,expected",
+    all_pairs(),
+    ids=lambda v: v if isinstance(v, str) else "",
+)
+def test_054_backfill_locale_matrix(
+    migration_db, tmp_path, monkeypatch, locale, free_text, expected
+):
+    """Free-text fuel_type values typed in supported locales must
+    backfill to the canonical enum value, not 'other'."""
+    db_file, db_url = migration_db
+
+    conn = sqlite3.connect(str(db_file))
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username VARCHAR(100) NOT NULL,
+            email VARCHAR(255) NOT NULL,
+            hashed_password VARCHAR(255),
+            full_name VARCHAR(255),
+            is_active BOOLEAN DEFAULT 1,
+            is_admin BOOLEAN DEFAULT 0,
+            unit_preference VARCHAR(20) DEFAULT 'imperial',
+            show_both_units BOOLEAN DEFAULT 0,
+            language VARCHAR(10) DEFAULT 'en',
+            currency_code VARCHAR(3) DEFAULT 'USD',
+            mobile_quick_entry_enabled BOOLEAN DEFAULT 1,
+            auth_method VARCHAR(20) DEFAULT 'local',
+            family_dashboard_order INTEGER DEFAULT 0,
+            show_on_family_dashboard BOOLEAN DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS vehicles (
+            vin VARCHAR(17) PRIMARY KEY,
+            nickname VARCHAR(100) NOT NULL,
+            vehicle_type VARCHAR(20) NOT NULL,
+            year INTEGER, make VARCHAR(50), model VARCHAR(50),
+            fuel_type VARCHAR(50)
+        );
+        CREATE TABLE IF NOT EXISTS fuel_records (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            vin VARCHAR(17) NOT NULL,
+            date DATE NOT NULL,
+            odometer_km NUMERIC(10,2),
+            liters NUMERIC(9,3),
+            fuel_type VARCHAR(50)
+        );
+        CREATE TABLE IF NOT EXISTS address_book (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            business_name VARCHAR(150) NOT NULL,
+            poi_category VARCHAR(50),
+            usage_count INTEGER DEFAULT 0,
+            last_used DATETIME,
+            source VARCHAR(20) DEFAULT 'manual',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        INSERT INTO users (username, email) VALUES ('alice', 'alice@example.com');
+        """
+    )
+    test_vin = "L" + locale[:2].upper() + "TESTVEHICLE0000"[: 17 - 1 - len(locale[:2].upper())]
+    # Pad/truncate to exactly 17 chars
+    test_vin = (test_vin + "X" * 17)[:17]
+    conn.execute(
+        "INSERT INTO vehicles (vin, nickname, vehicle_type, fuel_type) VALUES (?, ?, ?, ?)",
+        (test_vin, f"{locale} test", "Car", free_text),
+    )
+    conn.commit()
+    conn.close()
+
+    log_path = tmp_path / f"migration-054-{locale}.log"
+    monkeypatch.setenv("MIGRATION_054_LOG", str(log_path))
+
+    module = _load_migration("054_extended_fuel_tracking")
+    from sqlalchemy import create_engine
+
+    engine = create_engine(db_url)
+    module.upgrade(engine=engine)
+
+    conn = sqlite3.connect(str(db_file))
+    cur = conn.cursor()
+    actual = cur.execute("SELECT fuel_type FROM vehicles WHERE vin = ?", (test_vin,)).fetchone()[0]
+    conn.close()
+
+    assert actual == expected, (
+        f"Locale {locale!r}: free_text {free_text!r} backfilled to {actual!r}, "
+        f"expected {expected!r}. Add the appropriate alias to "
+        f"_NORMALIZATION_MAP in app/migrations/054_extended_fuel_tracking.py."
+    )

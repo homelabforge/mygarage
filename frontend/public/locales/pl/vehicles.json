@@ -643,6 +643,7 @@
     "title": "Tytuł"
   },
   "vinInput": {
+    "alreadyExists": "Pojazd o tym numerze VIN już istnieje. Kontynuowanie zakończy się niepowodzeniem.",
     "decode": "Rozkoduj",
     "decoding": "Rozkodowywanie...",
     "placeholder": "Symbol zastępczy"

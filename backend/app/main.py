@@ -120,19 +120,33 @@ limiter = Limiter(key_func=get_remote_address, default_limits=[settings.rate_lim
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
 
-# Add security middleware
-from slowapi.middleware import SlowAPIMiddleware
-
+# Add security middleware.
+#
+# Middleware order matters with pure ASGI middleware: the LAST `add_middleware`
+# call is the OUTERMOST layer. CSRF short-circuits with a 403 by emitting
+# the response directly, so layers added *after* it still see that response
+# and can decorate it. We put CSRF innermost so its 403s flow back through
+# RequestID (adds X-Request-ID) and SecurityHeaders (adds CSP, X-Frame-Options
+# etc.) on the way out.
+#
+# NOTE: `SlowAPIMiddleware` deliberately omitted. As of slowapi 0.1.9 it is
+# still a `BaseHTTPMiddleware` subclass, which buffers the response body
+# through an asyncio queue and stalls streaming responses (proven on backup
+# downloads: ~20 KB/s sustained with bursty 2s-on / 20s-off pattern). The
+# middleware only enforces the global `default_limits` value — every
+# rate-sensitive endpoint (auth, OIDC, exports, uploads, widget) already
+# has an explicit `@limiter.limit(...)` decorator that does not depend on
+# this middleware, and the Traefik `common-rates` chain provides the global
+# floor (60 req/s per source IP).
 from app.middleware import (
     CSRFProtectionMiddleware,
     RequestIDMiddleware,
     SecurityHeadersMiddleware,
 )
 
-app.add_middleware(SecurityHeadersMiddleware)
-app.add_middleware(RequestIDMiddleware)
 app.add_middleware(CSRFProtectionMiddleware)
-app.add_middleware(SlowAPIMiddleware)
+app.add_middleware(RequestIDMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
 
 # Add error handlers
 from fastapi.exceptions import RequestValidationError
@@ -324,8 +338,21 @@ if static_dir.exists():
     async def root():
         return FileResponse(static_dir / "index.html", media_type="text/html")
 
-    # Mount static assets (CSS, JS, images) - must be after route definitions
-    app.mount("/assets", StaticFiles(directory=str(static_dir / "assets")), name="assets")
+    # Mount static assets (CSS, JS, images) - must be after route definitions.
+    #
+    # Vite emits content-hashed filenames under /assets (e.g. main-abc123.js),
+    # which are immutable for the life of the build. Telling browsers and CDNs
+    # that with `immutable` + a year-long max-age stops them from re-fetching
+    # or revalidating these on every navigation, which is where most of the
+    # post-deploy reload latency comes from.
+    class ImmutableStaticFiles(StaticFiles):
+        async def get_response(self, path, scope):
+            response = await super().get_response(path, scope)
+            if response.status_code == 200:
+                response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+            return response
+
+    app.mount("/assets", ImmutableStaticFiles(directory=str(static_dir / "assets")), name="assets")
 
     # Mount translation files for non-English languages (loaded lazily by i18next)
     locales_dir = static_dir / "locales"

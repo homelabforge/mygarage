@@ -5733,6 +5733,51 @@
         "title": "GarageVehicleCost",
         "type": "object"
       },
+      "GeocodeResponse": {
+        "properties": {
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/GeocodeResult"
+            },
+            "title": "Results",
+            "type": "array"
+          },
+          "source": {
+            "default": "nominatim",
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "results"
+        ],
+        "title": "GeocodeResponse",
+        "type": "object"
+      },
+      "GeocodeResult": {
+        "description": "A single geocoding hit.",
+        "properties": {
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "latitude": {
+            "title": "Latitude",
+            "type": "number"
+          },
+          "longitude": {
+            "title": "Longitude",
+            "type": "number"
+          }
+        },
+        "required": [
+          "display_name",
+          "latitude",
+          "longitude"
+        ],
+        "title": "GeocodeResult",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -24208,6 +24253,70 @@
         ]
       }
     },
+    "/api/poi/geocode": {
+      "get": {
+        "description": "Geocode a free-form address via Nominatim (OpenStreetMap).\n\nSurfaced by issue #69: rc1's POI search only worked from the\ndevice's current GPS. With this endpoint the frontend can offer\n\"Search by address\" as a parallel entry point.",
+        "operationId": "geocode_address_api_poi_geocode_get",
+        "parameters": [
+          {
+            "description": "Address or place name",
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "description": "Address or place name",
+              "maxLength": 200,
+              "minLength": 2,
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 5,
+              "maximum": 10,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeocodeResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Geocode Address",
+        "tags": [
+          "POI Discovery"
+        ]
+      }
+    },
     "/api/poi/increment-usage/{poi_id}": {
       "post": {
         "description": "Increment usage count for a POI.\n\nCalled when creating service record or using this POI.\n\nArgs:\n    poi_id: Address book entry ID\n    db: Database session\n    current_user: Authenticated user\n\nReturns:\n    None (204 No Content)\n\nRaises:\n    HTTPException: 404 if POI not found",
@@ -24318,7 +24427,7 @@
     },
     "/api/poi/save": {
       "post": {
-        "description": "Save a discovered POI to the address book.\n\nArgs:\n    entry_data: Address book entry data\n    db: Database session\n    current_user: Authenticated user\n\nReturns:\n    Created AddressBookEntry\n\nNotes:\n    - Source should be set to provider name (tomtom, osm, google, etc.)\n    - Category defaults to 'service'\n    - poi_category should be set (auto_shop, rv_shop, ev_charging, fuel_station)\n    - metadata can contain category-specific JSON data",
+        "description": "Save a discovered POI to the address book.\n\nArgs:\n    entry_data: Address book entry data\n    db: Database session\n    current_user: Authenticated user\n\nReturns:\n    Created AddressBookEntry\n\nNotes:\n    - Source should be set to provider name (tomtom, osm, google, etc.)\n    - Category defaults to 'service'\n    - poi_category should be set (one of POICategory: auto_shop,\n      rv_shop, ev_charging, gas_station, propane)\n    - metadata can contain category-specific JSON data",
         "operationId": "save_discovered_poi_api_poi_save_post",
         "requestBody": {
           "content": {

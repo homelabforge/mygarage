@@ -68,6 +68,9 @@ _NEW_COLUMNS: list[tuple[str, str, str]] = [
     ("users", "default_payment_method", "VARCHAR(20)"),
     ("users", "default_trip_type", "VARCHAR(20)"),
     # Fuel records — extended metadata
+    # ``DATETIME`` is the SQLite-style spelling. ``_translate_type`` rewrites
+    # it to ``TIMESTAMP`` for PG at apply time (PG rejects the literal
+    # ``DATETIME`` keyword).
     ("fuel_records", "filled_at", "DATETIME"),
     ("fuel_records", "station_address_book_id", "INTEGER"),
     ("fuel_records", "station_name_freetext", "VARCHAR(150)"),
@@ -81,6 +84,73 @@ _NEW_COLUMNS: list[tuple[str, str, str]] = [
     ("fuel_records", "obc_trip_duration_s", "INTEGER"),
     ("fuel_records", "fuel_type_used", "VARCHAR(20)"),
 ]
+
+
+# SQLite-style → dialect-specific type translations.
+# Only types actually used in _NEW_COLUMNS need entries.
+_PG_TYPE_REWRITES: dict[str, str] = {
+    "DATETIME": "TIMESTAMP",
+}
+
+
+def _translate_type(sql_type: str, dialect: str) -> str:
+    """Translate a SQLite-style column type spelling to the target dialect.
+
+    The migration keeps ``_NEW_COLUMNS`` in SQLite spelling (the dev DB)
+    and translates at apply time. PG accepts most types verbatim, but
+    rejects ``DATETIME`` — it wants ``TIMESTAMP``. Anything not in the
+    rewrite table passes through unchanged.
+    """
+    if dialect != "postgresql":
+        return sql_type
+    return _PG_TYPE_REWRITES.get(sql_type.upper(), sql_type)
+
+
+# (constraint_name, ALTER TABLE statement) pairs used by _ensure_pg_fk_constraints.
+# Statements omit ``IF NOT EXISTS`` (PG doesn't support it on ADD CONSTRAINT
+# in any version) and rely on the caller's information_schema check for
+# idempotency.
+_PG_FK_CONSTRAINTS: list[tuple[str, str]] = [
+    (
+        "fk_fuel_records_station_address_book",
+        "ALTER TABLE fuel_records ADD CONSTRAINT fk_fuel_records_station_address_book "
+        "FOREIGN KEY (station_address_book_id) REFERENCES address_book(id) "
+        "ON DELETE SET NULL",
+    ),
+    (
+        "fk_fuel_records_driver_user",
+        "ALTER TABLE fuel_records ADD CONSTRAINT fk_fuel_records_driver_user "
+        "FOREIGN KEY (driver_user_id) REFERENCES users(id) ON DELETE SET NULL",
+    ),
+]
+
+
+def _ensure_pg_fk_constraints(engine) -> None:
+    """Idempotently add the PG-only FK constraints for migration 054.
+
+    Earlier rc1 code used ``ALTER TABLE ... ADD CONSTRAINT IF NOT EXISTS``
+    which PG rejects with a syntax error; the surrounding try/except
+    silently swallowed it, so the FKs never got installed. This helper
+    checks ``information_schema.table_constraints`` first and only
+    issues the plain ``ADD CONSTRAINT`` (no ``IF NOT EXISTS``) when the
+    constraint is absent. Re-running the migration is a no-op.
+    """
+    with engine.begin() as conn:
+        for name, stmt in _PG_FK_CONSTRAINTS:
+            exists = conn.execute(
+                text(
+                    "SELECT 1 FROM information_schema.table_constraints "
+                    "WHERE constraint_name = :name AND table_name = :table "
+                    "AND constraint_type = 'FOREIGN KEY'"
+                ),
+                {"name": name, "table": "fuel_records"},
+            ).scalar()
+            if exists:
+                print(f"  → FK {name} already present, skipping")
+                continue
+            conn.execute(text(stmt))
+            print(f"  ✓ Added FK {name}")
+
 
 _NEW_INDEXES: list[tuple[str, str, str]] = [
     # (index_name, table, column_expr)
@@ -172,6 +242,30 @@ _NORMALIZATION_MAP: dict[str, str] = {
     "fuel cell": "hydrogen",
     "fuel cell vehicle": "hydrogen",
     "fuel cell hydrogen": "hydrogen",
+    # ---- Locale aliases (pl/uk/ru) ------------------------------------
+    # Surfaced by issue #69: andrzejf1994's Polish-locale install had
+    # vehicle.fuel_type='Benzyna' which silently mapped to 'other'.
+    # Coverage matrix: tests/migrations/fixtures/fuel_type_locales.py
+    # Polish ----
+    "benzyna": "gasoline",
+    "olej napędowy": "diesel",
+    # NOTE: Polish/Ukrainian/Russian "gaz/газ" means LPG/autogas (very
+    # common as a propane retrofit in Poland). The English "gas"
+    # mapping above already routes to gasoline; the Cyrillic and PL
+    # spellings here intentionally route to propane_lpg.
+    "gaz": "propane_lpg",
+    "elektryczny": "electric",
+    "hybryda": "hybrid",
+    "hybrydowy": "hybrid",
+    # Ukrainian ----
+    "бензин": "gasoline",
+    "дизель": "diesel",
+    "газ": "propane_lpg",
+    "електричний": "electric",
+    "гібрид": "hybrid",
+    # Russian (some forms shared with Ukrainian above) ----
+    "электрический": "electric",
+    "гибрид": "hybrid",
 }
 
 
@@ -214,7 +308,8 @@ def upgrade(engine=None) -> None:
             if column in existing_cols:
                 skipped += 1
                 continue
-            conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {sql_type}"))
+            resolved_type = _translate_type(sql_type, engine.dialect.name)
+            conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {resolved_type}"))
             print(f"  ✓ Added {table}.{column}")
             added += 1
 
@@ -232,25 +327,15 @@ def upgrade(engine=None) -> None:
     # 3. Postgres-only: add a soft FK on driver_user_id / station_address_book_id.
     #    SQLite doesn't support adding constraints to existing tables without
     #    rebuilding, so we rely on application-layer validation there.
+    #
+    #    PostgreSQL ALTER TABLE does NOT support ``ADD CONSTRAINT IF NOT
+    #    EXISTS`` (any version). Earlier rc1 code wrapped the statement
+    #    in try/except which silently swallowed the syntax error — the
+    #    FKs never actually got added. Now we check
+    #    information_schema.table_constraints first and add only if
+    #    absent.
     if is_postgres:
-        with engine.begin() as conn:
-            for stmt in (
-                # Use NOT VALID + VALIDATE to avoid blocking writes during deploy
-                "ALTER TABLE fuel_records ADD CONSTRAINT IF NOT EXISTS "
-                "fk_fuel_records_station_address_book "
-                "FOREIGN KEY (station_address_book_id) REFERENCES address_book(id) "
-                "ON DELETE SET NULL",
-                "ALTER TABLE fuel_records ADD CONSTRAINT IF NOT EXISTS "
-                "fk_fuel_records_driver_user "
-                "FOREIGN KEY (driver_user_id) REFERENCES users(id) ON DELETE SET NULL",
-            ):
-                try:
-                    conn.execute(text(stmt))
-                except Exception as e:
-                    # Non-fatal: older Postgres versions don't support
-                    # IF NOT EXISTS on ADD CONSTRAINT; the application-layer
-                    # FK declarations on the SQLAlchemy model still apply.
-                    print(f"  ! Soft FK install skipped: {e}")
+        _ensure_pg_fk_constraints(engine)
 
     # 4. Backfill vehicles.fuel_type and fuel_records.fuel_type to enum vocab.
     #    Idempotent — only touches rows whose current value is NOT already a

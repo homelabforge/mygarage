@@ -106,8 +106,9 @@ class Vehicle(Base):
     user_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
-    # Archive fields
-    archived_at: Mapped[datetime | None] = mapped_column(DateTime)
+    # Archive fields. timezone=True because the route code writes
+    # `utc_now()` (TZ-aware); a naive column rejects under PG/asyncpg.
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     archive_reason: Mapped[str | None] = mapped_column(
         String(50)
     )  # Sold, Totaled, Gifted, Trade-in, Other

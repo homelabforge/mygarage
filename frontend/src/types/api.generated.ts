@@ -2419,6 +2419,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/poi/geocode": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Geocode Address
+         * @description Geocode a free-form address via Nominatim (OpenStreetMap).
+         *
+         *     Surfaced by issue #69: rc1's POI search only worked from the
+         *     device's current GPS. With this endpoint the frontend can offer
+         *     "Search by address" as a parallel entry point.
+         */
+        get: operations["geocode_address_api_poi_geocode_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/poi/increment-usage/{poi_id}": {
         parameters: {
             query?: never;
@@ -2511,7 +2535,8 @@ export interface paths {
          *     Notes:
          *         - Source should be set to provider name (tomtom, osm, google, etc.)
          *         - Category defaults to 'service'
-         *         - poi_category should be set (auto_shop, rv_shop, ev_charging, fuel_station)
+         *         - poi_category should be set (one of POICategory: auto_shop,
+         *           rv_shop, ev_charging, gas_station, propane)
          *         - metadata can contain category-specific JSON data
          */
         post: operations["save_discovered_poi_api_poi_save_post"];
@@ -7887,6 +7912,28 @@ export interface components {
             total_upgrades: string;
             /** Vin */
             vin: string;
+        };
+        /** GeocodeResponse */
+        GeocodeResponse: {
+            /** Results */
+            results: components["schemas"]["GeocodeResult"][];
+            /**
+             * Source
+             * @default nominatim
+             */
+            source: string;
+        };
+        /**
+         * GeocodeResult
+         * @description A single geocoding hit.
+         */
+        GeocodeResult: {
+            /** Display Name */
+            display_name: string;
+            /** Latitude */
+            latitude: number;
+            /** Longitude */
+            longitude: number;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -16688,6 +16735,39 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+        };
+    };
+    geocode_address_api_poi_geocode_get: {
+        parameters: {
+            query: {
+                /** @description Address or place name */
+                q: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GeocodeResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

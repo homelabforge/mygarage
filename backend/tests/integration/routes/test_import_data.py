@@ -69,6 +69,72 @@ class TestImportRoutes:
         assert data["success_count"] == 2
         assert data["error_count"] == 0
 
+    async def test_import_fuel_csv_normalizes_locale_fuel_type(
+        self, client: AsyncClient, auth_headers, test_vehicle, db_session
+    ):
+        """Phase 2.4: rc1 dropped the Fuel Type column entirely.
+
+        The user's original report on issue #69 was a Polish-locale install
+        whose pre-imported fuel records carried "Benzyna" — which silently
+        backfilled to 'other' in the migration AND was ignored on import.
+        v2.27.0-rc2 reads the Fuel Type column, runs it through the
+        locale-aware normalizer, and stores both the original spelling
+        (legacy `fuel_type`) and the canonical enum (`fuel_type_used`).
+        """
+        from sqlalchemy import select
+
+        from app.models.fuel import FuelRecord
+
+        csv_content = (
+            "Date,Odometer (km),Liters,Price Per Liter,Total Cost,Full Tank,Fuel Type,Notes\n"
+            "2024-03-01,80000,40.0,1.50,60.0,True,Benzyna,From Poland\n"
+            "2024-03-15,80500,42.0,1.50,63.0,True,Дизель,From Russia\n"
+            "2024-03-29,81000,38.0,1.50,57.0,True,Plasma fuel,Sci-fi\n"
+        )
+
+        response = await client.post(
+            f"/api/import/vehicles/{test_vehicle['vin']}/fuel/csv",
+            headers=auth_headers,
+            files={"file": ("fuel.csv", BytesIO(csv_content.encode()), "text/csv")},
+        )
+        assert response.status_code == 200
+        assert response.json()["success_count"] == 3
+
+        # Filter to just the records this test inserted (the test_vehicle
+        # fixture is shared with other tests in the module, so a plain
+        # vin-only query would also pick up unrelated rows).
+        from datetime import date as date_type
+
+        from sqlalchemy import and_
+
+        rows_by_date = {}
+        for r in (
+            (
+                await db_session.execute(
+                    select(FuelRecord).where(
+                        and_(
+                            FuelRecord.vin == test_vehicle["vin"],
+                            FuelRecord.date >= date_type(2024, 3, 1),
+                            FuelRecord.date <= date_type(2024, 3, 29),
+                        )
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        ):
+            rows_by_date[r.date] = r
+
+        # Polish "Benzyna" → gasoline
+        assert rows_by_date[date_type(2024, 3, 1)].fuel_type == "Benzyna"
+        assert rows_by_date[date_type(2024, 3, 1)].fuel_type_used == "gasoline"
+        # Russian "Дизель" → diesel
+        assert rows_by_date[date_type(2024, 3, 15)].fuel_type == "Дизель"
+        assert rows_by_date[date_type(2024, 3, 15)].fuel_type_used == "diesel"
+        # Unrecognized values land on 'other' rather than dropping the row.
+        assert rows_by_date[date_type(2024, 3, 29)].fuel_type == "Plasma fuel"
+        assert rows_by_date[date_type(2024, 3, 29)].fuel_type_used == "other"
+
     async def test_import_odometer_csv(self, client: AsyncClient, auth_headers, test_vehicle):
         """Test importing odometer records from CSV."""
         csv_content = """Date,Reading,Notes

@@ -28,6 +28,14 @@ class OdometerRecord(Base):
     source: Mapped[str] = mapped_column(
         String(20), default="manual"
     )  # manual, livelink, service, fuel
+    # Cascade-link added in migration 055 (v2.27.0-rc2). Nullable because
+    # manual/service/livelink rows have no parent fuel record. When set,
+    # ON DELETE CASCADE on the FK ensures the synced row goes away with
+    # its source fuel record on PG. SQLite doesn't enforce FKs without
+    # PRAGMA foreign_keys=ON; the service layer handles cleanup there.
+    fuel_record_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("fuel_records.id", ondelete="CASCADE"), nullable=True, index=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     # Relationships

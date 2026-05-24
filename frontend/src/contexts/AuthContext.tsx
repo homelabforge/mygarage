@@ -54,32 +54,42 @@ export function AuthProvider({ children }: { children: ReactNode}) {
     clearCSRFToken() // Clear CSRF token on logout (Security Enhancement v2.10.0)
   }, [user])
 
-  // Load user info with proper dependencies (cookie-based auth)
+  // Load user info with proper dependencies (cookie-based auth).
+  //
+  // Both requests are dispatched in parallel: the previous version waited
+  // for /settings/public to return before kicking off /auth/me, doubling
+  // the time the UI sat on a loading screen. When auth_mode is 'none' the
+  // /auth/me result is ignored; the wasted call is cheap and the parallel
+  // dispatch matches the common authenticated case.
   const loadUser = useCallback(async () => {
     try {
-      // First check if auth is enabled
-      const settingsResponse = await api.get('/settings/public')
-      const authModeSetting = settingsResponse.data.settings.find(
-        (s: { key: string; value?: string | null }) => s.key === 'auth_mode'
-      )
-      const fetchedAuthMode = authModeSetting?.value || 'none'
+      const [settingsResult, meResult] = await Promise.allSettled([
+        api.get('/settings/public'),
+        api.get('/auth/me'),
+      ])
+
+      let fetchedAuthMode = 'none'
+      if (settingsResult.status === 'fulfilled') {
+        const authModeSetting = settingsResult.value.data.settings.find(
+          (s: { key: string; value?: string | null }) => s.key === 'auth_mode'
+        )
+        fetchedAuthMode = authModeSetting?.value || 'none'
+      }
       setAuthMode(fetchedAuthMode)
 
-      // If auth is disabled, skip user loading
       if (fetchedAuthMode === 'none') {
-        setLoading(false)
         return
       }
 
-      // Auth is enabled, try to load user
-      const response = await api.get('/auth/me')
-      setUser(response.data)
-    } catch (error: unknown) {
-      const err = error as { response?: { status?: number } }
-      if (err.response?.status === 401) {
-        // Cookie expired or invalid
-        setUser(null)
-        setToken(null)
+      if (meResult.status === 'fulfilled') {
+        setUser(meResult.value.data)
+      } else {
+        const err = meResult.reason as { response?: { status?: number } }
+        if (err.response?.status === 401) {
+          // Cookie expired or invalid
+          setUser(null)
+          setToken(null)
+        }
       }
     } finally {
       setLoading(false)

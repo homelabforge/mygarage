@@ -137,6 +137,27 @@ _NORMALIZATION_MAP: dict[str, FuelTypeEnum] = {
     "fuel cell": FuelTypeEnum.HYDROGEN,
     "fuel cell vehicle": FuelTypeEnum.HYDROGEN,
     "fuel cell hydrogen": FuelTypeEnum.HYDROGEN,
+    # ---- Locale aliases (pl/uk/ru) — mirror of migration 054 _NORMALIZATION_MAP
+    # Surfaced by issue #69 for CSV imports of records typed in Slavic
+    # locales. Polish/Ukrainian/Russian "gaz/газ" intentionally maps to
+    # PROPANE_LPG (autogas / LPG retrofit, very common in Poland), NOT
+    # to GASOLINE despite the surface similarity to English "gas".
+    # Polish ----
+    "benzyna": FuelTypeEnum.GASOLINE,
+    "olej napędowy": FuelTypeEnum.DIESEL,
+    "gaz": FuelTypeEnum.PROPANE_LPG,
+    "elektryczny": FuelTypeEnum.ELECTRIC,
+    "hybryda": FuelTypeEnum.HYBRID,
+    "hybrydowy": FuelTypeEnum.HYBRID,
+    # Ukrainian ----
+    "бензин": FuelTypeEnum.GASOLINE,
+    "дизель": FuelTypeEnum.DIESEL,
+    "газ": FuelTypeEnum.PROPANE_LPG,
+    "електричний": FuelTypeEnum.ELECTRIC,
+    "гібрид": FuelTypeEnum.HYBRID,
+    # Russian (бензин/дизель/газ shared with Ukrainian above) ----
+    "электрический": FuelTypeEnum.ELECTRIC,
+    "гибрид": FuelTypeEnum.HYBRID,
 }
 
 

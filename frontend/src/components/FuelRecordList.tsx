@@ -29,11 +29,31 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick }: FuelRec
   const { system, showBoth } = useUnitPreference()
   const { currencyCode, locale } = useCurrencyPreference()
 
-  const { data, isLoading, error } = useFuelRecords(vin, includeHauling)
+  // Phase 3.8 — paginate the fuel-records list. rc1 silently capped
+  // at 100 with no indication; surfaced by issue #69. 50 per page is
+  // a reasonable default — covers ~6 months for a typical commuter
+  // and keeps initial render snappy.
+  const PAGE_SIZE = 50
+  const [page, setPage] = useState(0)
+
+  const { data, isLoading, error } = useFuelRecords(vin, includeHauling, {
+    skip: page * PAGE_SIZE,
+    limit: PAGE_SIZE,
+  })
   const deleteMutation = useDeleteFuelRecord(vin)
   const importMutation = useImportFuelCSV(vin)
 
   const records = useMemo(() => data?.records ?? [], [data?.records])
+  const totalRecords = data?.total ?? records.length
+  const totalPages = Math.max(1, Math.ceil(totalRecords / PAGE_SIZE))
+  const canPrev = page > 0
+  const canNext = page < totalPages - 1
+
+  // Reset to page 0 when the includeHauling toggle changes (the
+  // record set changes and the prior page may be empty/out of range).
+  useEffect(() => {
+    setPage(0)
+  }, [includeHauling])
   const averageEconomy = data?.average_l_per_100km != null ? parseFloat(String(data.average_l_per_100km)) : null
 
   // Fetch vehicle data to determine fuel type
@@ -168,7 +188,17 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick }: FuelRec
           <h3 className="text-lg font-semibold text-garage-text">
             {t('fuelList.title')}
           </h3>
-          <span className="text-sm text-garage-text-muted">({t('fuelList.recordCount', { count: records.length })})</span>
+          <span className="text-sm text-garage-text-muted">
+            (
+            {totalRecords > PAGE_SIZE
+              ? t('fuelList.paginatedCount', {
+                  shown: records.length,
+                  total: totalRecords,
+                  defaultValue: `${records.length} of ${totalRecords}`,
+                })
+              : t('fuelList.recordCount', { count: records.length })}
+            )
+          </span>
         </div>
         <div className="flex items-center gap-2">
           {/* Search */}
@@ -443,6 +473,47 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick }: FuelRec
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Phase 3.8 pagination controls */}
+      {totalRecords > PAGE_SIZE && (
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-garage-text-muted">
+            {t('fuelList.pageRange', {
+              start: page * PAGE_SIZE + 1,
+              end: Math.min(totalRecords, (page + 1) * PAGE_SIZE),
+              total: totalRecords,
+              defaultValue: `Showing ${page * PAGE_SIZE + 1}–${Math.min(totalRecords, (page + 1) * PAGE_SIZE)} of ${totalRecords}`,
+            })}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              disabled={!canPrev}
+              aria-label={t('common:previous', { defaultValue: 'Previous' })}
+              className="px-3 py-1 border border-garage-border rounded hover:bg-garage-bg disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              ‹
+            </button>
+            <span className="text-garage-text-muted">
+              {t('fuelList.pageOf', {
+                page: page + 1,
+                total: totalPages,
+                defaultValue: `Page ${page + 1} of ${totalPages}`,
+              })}
+            </span>
+            <button
+              type="button"
+              onClick={() => setPage((p) => p + 1)}
+              disabled={!canNext}
+              aria-label={t('common:next', { defaultValue: 'Next' })}
+              className="px-3 py-1 border border-garage-border rounded hover:bg-garage-bg disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              ›
+            </button>
           </div>
         </div>
       )}

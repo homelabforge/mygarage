@@ -2,12 +2,33 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '@/services/api'
 import type { FuelRecordListResponse, FuelRecordCreate, FuelRecordUpdate } from '@/types/fuel'
 
-export function useFuelRecords(vin: string, includeHauling: boolean) {
+export interface UseFuelRecordsOptions {
+  /** Records to skip — backend pagination cursor. Default 0. */
+  skip?: number
+  /**
+   * Page size. Backend caps at 500. Phase 3.8 (issue #69): rc1 hit the
+   * server-side default of 100 with no UI indication; the new
+   * FuelRecordList exposes prev/next paging on top of this hook.
+   */
+  limit?: number
+}
+
+export function useFuelRecords(
+  vin: string,
+  includeHauling: boolean,
+  options: UseFuelRecordsOptions = {}
+) {
+  const { skip = 0, limit = 50 } = options
   return useQuery({
-    queryKey: ['fuelRecords', vin, includeHauling],
+    queryKey: ['fuelRecords', vin, includeHauling, skip, limit],
     queryFn: async () => {
+      const params = new URLSearchParams({
+        include_hauling: String(includeHauling),
+        skip: String(skip),
+        limit: String(limit),
+      })
       const { data } = await api.get<FuelRecordListResponse>(
-        `/vehicles/${vin}/fuel?include_hauling=${includeHauling}`
+        `/vehicles/${vin}/fuel?${params.toString()}`
       )
       return data
     },

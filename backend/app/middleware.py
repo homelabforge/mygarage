@@ -1,13 +1,24 @@
-"""Security middleware for MyGarage application."""
+"""Security middleware for MyGarage application.
 
+These are written as pure ASGI middleware rather than Starlette's
+`BaseHTTPMiddleware` because the latter buffers the entire response
+body through an internal asyncio queue before forwarding it. That
+defeats streaming responses (e.g. `FileResponse` for photos and
+backup downloads) and produced the bursty 20 KB/s download pattern
+we measured for `/api/backup/download/<file>`. Pure ASGI middleware
+wraps `send` directly and only inspects the headers message — the
+response body streams through untouched.
+"""
+
+import json
 import logging
 import os
 import uuid
+from collections.abc import Awaitable, Callable, Mapping
 
 from sqlalchemy import select
-from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
-from starlette.requests import Request
-from starlette.responses import JSONResponse, Response
+from starlette.datastructures import MutableHeaders
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.database import get_db_context
 from app.models.csrf_token import CSRFToken
@@ -21,68 +32,95 @@ def is_test_mode() -> bool:
     return os.getenv("MYGARAGE_TEST_MODE", "").lower() == "true"
 
 
-class SecurityHeadersMiddleware(BaseHTTPMiddleware):
-    """Add security headers to all responses."""
-
-    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        response = await call_next(request)
-
-        # Content Security Policy - Strengthened to remove 'unsafe-inline' from scripts
-        # Note: style-src still allows 'unsafe-inline' for Tailwind CSS and dynamic styles
-        # If inline styles need to be removed in future, use CSS-in-JS with nonces
-        response.headers["Content-Security-Policy"] = (
+_SECURITY_HEADERS: tuple[tuple[str, str], ...] = (
+    (
+        "Content-Security-Policy",
+        (
             "default-src 'self'; "
-            "script-src 'self'; "  # Removed 'unsafe-inline' - Vite bundles all scripts
-            "style-src 'self' 'unsafe-inline'; "  # Keep for Tailwind/dynamic styles
-            "img-src 'self' data: blob: https://tile.openstreetmap.org https://a.tile.openstreetmap.org https://b.tile.openstreetmap.org https://c.tile.openstreetmap.org https://cdnjs.cloudflare.com; "  # Allow OSM tiles and Leaflet icons
+            "script-src 'self'; "
+            "style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data: blob: "
+            "https://tile.openstreetmap.org "
+            "https://a.tile.openstreetmap.org "
+            "https://b.tile.openstreetmap.org "
+            "https://c.tile.openstreetmap.org "
+            "https://cdnjs.cloudflare.com; "
             "font-src 'self'; "
             "connect-src 'self'; "
             "frame-src 'self' blob:; "
             "frame-ancestors 'self'; "
-            "object-src 'none'; "  # Block plugins like Flash
-            "base-uri 'self'; "  # Prevent base tag injection
-            "form-action 'self'; "  # Restrict form submissions
-        )
-
-        # Prevent MIME type sniffing
-        response.headers["X-Content-Type-Options"] = "nosniff"
-
-        # Prevent clickjacking (allow same-origin for PDF viewer iframes)
-        response.headers["X-Frame-Options"] = "SAMEORIGIN"
-
-        # XSS Protection (legacy, but doesn't hurt)
-        response.headers["X-XSS-Protection"] = "1; mode=block"
-
-        # Referrer Policy
-        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-
-        # Permissions Policy (formerly Feature-Policy)
-        response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
-
-        return response
+            "object-src 'none'; "
+            "base-uri 'self'; "
+            "form-action 'self'; "
+        ),
+    ),
+    ("X-Content-Type-Options", "nosniff"),
+    ("X-Frame-Options", "SAMEORIGIN"),
+    ("X-XSS-Protection", "1; mode=block"),
+    ("Referrer-Policy", "strict-origin-when-cross-origin"),
+    ("Permissions-Policy", "geolocation=(), microphone=(), camera=()"),
+)
 
 
-class RequestIDMiddleware(BaseHTTPMiddleware):
-    """Add unique request ID to each request for tracing."""
+class SecurityHeadersMiddleware:
+    """Add security headers to all HTTP responses.
 
-    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        # Generate unique request ID
+    Pure ASGI middleware so streaming responses are not buffered.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        async def send_with_headers(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                headers = MutableHeaders(scope=message)
+                for name, value in _SECURITY_HEADERS:
+                    headers[name] = value
+            await send(message)
+
+        await self.app(scope, receive, send_with_headers)
+
+
+class RequestIDMiddleware:
+    """Tag each request with a unique ID and echo it back as a header.
+
+    Pure ASGI middleware so streaming responses are not buffered.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
         request_id = str(uuid.uuid4())
+        state = scope.setdefault("state", {})
+        # FastAPI's Request.state reads from scope["state"], which can be a
+        # dict or a State instance. Support both by mutating the underlying
+        # container.
+        if isinstance(state, dict):
+            state["request_id"] = request_id
+        else:
+            state.request_id = request_id  # type: ignore[attr-defined]
 
-        # Add to request state so it can be used in logging
-        request.state.request_id = request_id
+        async def send_with_request_id(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                headers = MutableHeaders(scope=message)
+                headers["X-Request-ID"] = request_id
+            await send(message)
 
-        # Process request
-        response = await call_next(request)
-
-        # Add request ID to response headers
-        response.headers["X-Request-ID"] = request_id
-
-        return response
+        await self.app(scope, receive, send_with_request_id)
 
 
-class CSRFProtectionMiddleware(BaseHTTPMiddleware):
-    """CSRF protection middleware using synchronizer token pattern.
+class CSRFProtectionMiddleware:
+    """CSRF protection using the synchronizer token pattern.
 
     Validates CSRF tokens on state-changing operations (POST/PUT/PATCH/DELETE).
     Tokens are generated on login and validated against the database.
@@ -94,62 +132,70 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
     - /api/backup/* (protected by JWT auth, idempotent operations)
     - /api/settings/batch (user preferences, protected by JWT auth)
     - GET/HEAD/OPTIONS (safe methods)
+
+    Pure ASGI middleware so the response body is not buffered.
     """
 
-    # Routes that don't require CSRF protection
-    EXEMPT_PATHS = [
+    EXEMPT_PATHS = (
         "/api/auth/login",
         "/api/auth/register",
-        "/api/auth/logout",  # Protected by JWT auth, idempotent operation
+        "/api/auth/logout",
         "/api/auth/oidc/",
         "/api/health",
-        "/api/settings/public",  # Public settings endpoint
-        "/api/backup/",  # Backup routes (protected by JWT auth, no user input)
-        "/api/settings/batch",  # User preferences (protected by JWT auth, auto-save)
-        "/api/v1/livelink/ingest",  # WiCAN device ingestion (protected by Bearer token auth)
-    ]
+        "/api/settings/public",
+        "/api/backup/",
+        "/api/settings/batch",
+        "/api/v1/livelink/ingest",
+    )
 
-    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        # Skip CSRF validation in test mode (test DB session not accessible from middleware)
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
         if is_test_mode():
-            return await call_next(request)
+            await self.app(scope, receive, send)
+            return
 
-        # Skip CSRF check for safe methods
-        if request.method in ("GET", "HEAD", "OPTIONS"):
-            return await call_next(request)
+        method = scope.get("method", "GET")
+        if method in ("GET", "HEAD", "OPTIONS"):
+            await self.app(scope, receive, send)
+            return
 
-        # Skip CSRF check for exempt paths
-        if any(request.url.path.startswith(path) for path in self.EXEMPT_PATHS):
-            return await call_next(request)
+        path = scope.get("path", "")
+        if any(path.startswith(p) for p in self.EXEMPT_PATHS):
+            await self.app(scope, receive, send)
+            return
 
-        # Check if auth is disabled - skip CSRF validation
+        # If auth is disabled, skip CSRF validation entirely.
         try:
             from app.services.auth import get_auth_mode
 
             async with get_db_context() as db:
                 auth_mode = await get_auth_mode(db)
                 if auth_mode == "none":
-                    # Auth disabled, skip CSRF validation
-                    return await call_next(request)
+                    await self.app(scope, receive, send)
+                    return
         except Exception:
-            # If we can't check auth mode, proceed with CSRF validation
+            # If we can't determine auth mode, fall through to validation.
             pass
 
-        # Get CSRF token from header
-        csrf_token = request.headers.get("X-CSRF-Token")
-
+        csrf_token = _get_header(scope, b"x-csrf-token")
         if not csrf_token:
-            return JSONResponse(
-                status_code=403,
-                content={
-                    "detail": "CSRF token missing. Include X-CSRF-Token header with your request."
+            await _send_json(
+                send,
+                status=403,
+                payload={
+                    "detail": ("CSRF token missing. Include X-CSRF-Token header with your request.")
                 },
             )
+            return
 
-        # Validate CSRF token against database
         try:
             async with get_db_context() as db:
-                # Find valid token
                 result = await db.execute(
                     select(CSRFToken).where(
                         CSRFToken.token == csrf_token,
@@ -158,21 +204,60 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
                 )
                 token_record = result.scalar_one_or_none()
 
-                if not token_record:
-                    return JSONResponse(
-                        status_code=403,
-                        content={"detail": "Invalid or expired CSRF token. Please login again."},
+                if token_record is None:
+                    await _send_json(
+                        send,
+                        status=403,
+                        payload={"detail": ("Invalid or expired CSRF token. Please login again.")},
                     )
+                    return
 
-                # Token is valid, process request
-                # Store user_id in request state for use in route handlers
-                request.state.csrf_validated_user_id = token_record.user_id
-
-                # Note: Cleanup of expired tokens is handled during login
-                # No need to do it on every request (performance optimization)
-
+                state = scope.setdefault("state", {})
+                if isinstance(state, dict):
+                    state["csrf_validated_user_id"] = token_record.user_id
+                else:
+                    state.csrf_validated_user_id = token_record.user_id  # type: ignore[attr-defined]
         except Exception as e:
             logger.error("CSRF validation error: %s", e, exc_info=True)
-            return JSONResponse(status_code=500, content={"detail": "Internal server error"})
+            await _send_json(
+                send,
+                status=500,
+                payload={"detail": "Internal server error"},
+            )
+            return
 
-        return await call_next(request)
+        await self.app(scope, receive, send)
+
+
+def _get_header(scope: Scope, name: bytes) -> str | None:
+    """Look up a request header value (case-insensitive) from the ASGI scope."""
+    name_lower = name.lower()
+    for key, value in scope.get("headers", []):
+        if key.lower() == name_lower:
+            return value.decode("latin-1")
+    return None
+
+
+async def _send_json(send: Send, *, status: int, payload: Mapping[str, object]) -> None:
+    """Emit a JSON response from inside ASGI middleware without recursing.
+
+    We assemble the ASGI messages by hand rather than calling a Starlette
+    Response, because instantiating one inside middleware requires a fuller
+    scope than we want to fabricate and creates a needless second layer.
+    """
+    body = json.dumps(payload).encode("utf-8")
+    await send(
+        {
+            "type": "http.response.start",
+            "status": status,
+            "headers": [
+                (b"content-type", b"application/json"),
+                (b"content-length", str(len(body)).encode("ascii")),
+            ],
+        }
+    )
+    await send({"type": "http.response.body", "body": body})
+
+
+# Keep the symbol so dynamic imports don't break.
+RequestResponseEndpoint = Callable[..., Awaitable[None]]

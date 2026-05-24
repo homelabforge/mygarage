@@ -566,9 +566,20 @@ class FuelRecordService:
                 raise HTTPException(status_code=404, detail=f"Fuel record {record_id} not found")
 
             from app.models.def_record import DEFRecord
+            from app.models.odometer import OdometerRecord
 
             await self.db.execute(
                 delete(DEFRecord).where(DEFRecord.origin_fuel_record_id == record_id)
+            )
+            # Clean up the synced odometer row. PG enforces this via the FK
+            # ``fk_odometer_records_fuel_record`` (ON DELETE CASCADE) added
+            # in migration 055, but SQLite doesn't enforce FKs without
+            # PRAGMA foreign_keys=ON, so we sweep at the service layer too.
+            # Issuing the delete on both engines is harmless (idempotent
+            # on PG since the row is already gone by the time the cascade
+            # fires below) and keeps a single code path.
+            await self.db.execute(
+                delete(OdometerRecord).where(OdometerRecord.fuel_record_id == record_id)
             )
             await self.db.execute(
                 delete(FuelRecord).where(FuelRecord.id == record_id).where(FuelRecord.vin == vin)

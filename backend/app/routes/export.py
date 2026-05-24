@@ -32,12 +32,18 @@ router = APIRouter(prefix="/api/export", tags=["export"])
 # Initialize rate limiter for export endpoints
 limiter = Limiter(key_func=get_remote_address)
 
-# CSV/JSON export schema version. v3 = SI-metric canonical (issue #67).
-# - CSV exports prepend a `units_version` column with this value to every row.
-# - JSON exports include a top-level `"export_version"` + `"units"` field.
-# - The importer (`app/routes/import_data.py`) reads the marker and falls back
-#   to v2 imperial conversion when it's missing (legacy v2 backups).
-EXPORT_SCHEMA_VERSION = "3"
+# CSV/JSON export schema version.
+# - v2: legacy imperial.
+# - v3: SI-metric canonical (issue #67).
+# - v4: v3 + extended fuel-tracking columns (issue #69 / v2.27.0-rc2):
+#       Filled At, Fuel Type Used, Station, Driver, Payment Method,
+#       Trip Type, Outside Temp, OBC values. Purely additive — v3
+#       importers continue to work.
+# CSV exports prepend a `units_version` column with this value to every row;
+# JSON exports include a top-level `"export_version"` + `"units"` field.
+# The importer (`app/routes/import_data.py`) reads the marker and falls back
+# to v2 imperial conversion when it's missing (legacy v2 backups).
+EXPORT_SCHEMA_VERSION = "4"
 EXPORT_UNITS = "metric"
 
 
@@ -148,9 +154,14 @@ async def export_fuel_records_csv(
     )
     records = result.scalars().all()
 
-    # Generate CSV
+    # Generate CSV.
+    # NOTE: column set extended for v2.27.0-rc2 (#69 issue follow-up).
+    # The ``EXPORT_SCHEMA_VERSION`` bump from "3" to "4" signals importers
+    # that the new columns may be present. v3-format imports keep working
+    # because the extension is purely additive.
     headers = [
         "Date",
+        "Filled At",
         "Odometer (km)",
         "Liters",
         "Price Per Liter",
@@ -159,6 +170,17 @@ async def export_fuel_records_csv(
         "Missed Fill-up",
         "Is Hauling",
         "Fuel Type",
+        "Fuel Type Used",
+        "Station ID",
+        "Station",
+        "Driver ID",
+        "Driver",
+        "Payment Method",
+        "Trip Type",
+        "Outside Temp (C)",
+        "OBC L/100km",
+        "OBC Avg Speed (km/h)",
+        "OBC Trip Duration (s)",
         "Notes",
     ]
 
@@ -167,6 +189,7 @@ async def export_fuel_records_csv(
         rows.append(
             [
                 record.date.isoformat() if record.date else "",
+                record.filled_at.isoformat() if record.filled_at else "",
                 record.odometer_km or "",
                 f"{record.liters:.3f}" if record.liters else "",
                 f"{record.price_per_unit:.3f}" if record.price_per_unit else "",
@@ -175,6 +198,17 @@ async def export_fuel_records_csv(
                 "Yes" if record.missed_fillup else "No",
                 "Yes" if record.is_hauling else "No",
                 record.fuel_type or "",
+                record.fuel_type_used or "",
+                record.station_address_book_id or "",
+                record.station_name_freetext or "",
+                record.driver_user_id or "",
+                record.driver_name_freetext or "",
+                record.payment_method or "",
+                record.trip_type or "",
+                f"{record.outside_temp_c:.1f}" if record.outside_temp_c is not None else "",
+                f"{record.obc_l_per_100km:.2f}" if record.obc_l_per_100km is not None else "",
+                f"{record.obc_avg_speed_kmh:.1f}" if record.obc_avg_speed_kmh is not None else "",
+                record.obc_trip_duration_s or "",
                 record.notes or "",
             ]
         )

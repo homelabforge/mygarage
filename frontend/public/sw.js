@@ -1,20 +1,28 @@
 /**
  * MyGarage Service Worker
  * Provides offline capabilities and caching for PWA functionality
+ *
+ * Cache invalidation: the registering page passes ?v=<app_version> when calling
+ * register('/sw.js?v=...'). We read that here so every release gets its own
+ * cache buckets, and the `activate` handler deletes stale ones. Without this,
+ * a hardcoded cache name silently retains stale shells across deploys, which
+ * produces the "white screen on restart" symptom when chunk hashes change.
  */
 
-const CACHE_NAME = 'mygarage-v2';
-const RUNTIME_CACHE = 'mygarage-runtime-v1';
+const SW_URL = new URL(self.location.href);
+const SW_VERSION = SW_URL.searchParams.get('v') || 'dev';
+const CACHE_NAME = `mygarage-static-${SW_VERSION}`;
+const RUNTIME_CACHE = `mygarage-runtime-${SW_VERSION}`;
 const OFFLINE_URL = '/offline.html';
 const PREFETCH_URLS = [
   '/api/vehicles?limit=25',
   '/api/dashboard',
 ];
 
-// Assets to cache on install
+// Precache only immutable shell pieces. Do NOT precache `/` or `/index.html`:
+// those are mutable on each deploy and the navigation handler already serves
+// them network-first with a cache fallback.
 const STATIC_ASSETS = [
-  '/',
-  '/index.html',
   '/manifest.json',
   '/icon-192.png',
   '/icon-512.png',
@@ -111,16 +119,36 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // API requests - network first, cache fallback
+  // API requests - network first, cache fallback.
+  //
+  // We deliberately do NOT cache:
+  //   - Photos/attachments/documents/backup downloads: large binary bodies.
+  //     `response.clone()` tees the underlying stream, so the response to
+  //     the browser cannot drain faster than the slowest reader — once we
+  //     dispatch a cache.put() of a multi-MB blob, the user's image fetch
+  //     stalls behind the CacheStorage write. Browser caches these fine
+  //     on its own.
+  //   - Realtime polling endpoints (livelink/mqtt status): each response is
+  //     stale within seconds, so caching just thrashes IndexedDB.
   if (url.pathname.startsWith('/api/')) {
+    const shouldCache = !(
+      url.pathname.includes('/photos/') ||
+      url.pathname.includes('/attachments/') ||
+      url.pathname.includes('/documents/') ||
+      url.pathname.startsWith('/api/backup/download/') ||
+      url.pathname.endsWith('/livelink/status') ||
+      url.pathname.endsWith('/mqtt/status')
+    );
+
     event.respondWith(
       fetch(request)
         .then((response) => {
-          // Clone response to cache it
-          const responseClone = response.clone();
-          caches.open(RUNTIME_CACHE).then((cache) => {
-            cache.put(request, responseClone);
-          });
+          if (shouldCache && response.ok) {
+            const responseClone = response.clone();
+            caches.open(RUNTIME_CACHE).then((cache) => {
+              cache.put(request, responseClone);
+            });
+          }
           return response;
         })
         .catch(() => {
@@ -143,31 +171,41 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Static assets - cache first, network fallback
+  // Static assets - cache first, network with retry on failure.
+  //
+  // The retry is important: if a deploy ships new chunk hashes, the cache
+  // is empty for those chunks, and a single network request can fail during
+  // the backend's 5-10s cold-start window. Without retry, we'd silently
+  // return a 503 — the SPA can't mount and the user sees a white screen
+  // with no diagnostic. Three attempts with exponential backoff cover a
+  // normal restart; after that, we let the real network error surface so
+  // the browser shows it in DevTools instead of swallowing it.
   event.respondWith(
-    caches.match(request).then((cached) => {
+    caches.match(request).then(async (cached) => {
       if (cached) {
         return cached;
       }
 
-      return fetch(request)
-        .then((response) => {
-          // Don't cache non-successful responses
-          if (!response || response.status !== 200 || response.type !== 'basic') {
-            return response;
+      const delays = [0, 500, 1500];
+      let lastError;
+      for (const delay of delays) {
+        if (delay > 0) {
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        }
+        try {
+          const response = await fetch(request);
+          if (response && response.status === 200 && response.type === 'basic') {
+            const responseClone = response.clone();
+            caches.open(RUNTIME_CACHE).then((cache) => {
+              cache.put(request, responseClone);
+            });
           }
-
-          // Clone and cache the response
-          const responseClone = response.clone();
-          caches.open(RUNTIME_CACHE).then((cache) => {
-            cache.put(request, responseClone);
-          });
-
           return response;
-        })
-        .catch(() => {
-          return new Response('Offline', { status: 503 });
-        });
+        } catch (err) {
+          lastError = err;
+        }
+      }
+      throw lastError;
     })
   );
 });

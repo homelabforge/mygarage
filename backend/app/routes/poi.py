@@ -1,9 +1,13 @@
 """POI (Points of Interest) discovery API endpoints."""
 
+import asyncio
 import logging
+import time
 from datetime import datetime
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -26,6 +30,92 @@ from app.services.poi_discovery import POIDiscoveryService
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/poi", tags=["POI Discovery"])
+
+# ---------------------------------------------------------------------------
+# Geocoding (Phase 3.9 / issue #69)
+# ---------------------------------------------------------------------------
+# rc1's POI search only worked from the device's GPS — there was no way
+# to pick a fixed point on a map (e.g. "search around my Warsaw hotel").
+# We proxy through Nominatim, OpenStreetMap's free geocoder.
+#
+# Nominatim's usage policy: <= 1 req/sec, identifying User-Agent. The
+# in-process rate limiter below is single-process (good enough for a
+# single-instance homelab deploy); high-traffic users should switch to
+# a dedicated geocoder. The ``/api/poi/geocode`` endpoint is auth-only,
+# which already throttles abuse.
+# ---------------------------------------------------------------------------
+
+_NOMINATIM_BASE = "https://nominatim.openstreetmap.org/search"
+_NOMINATIM_USER_AGENT = "MyGarage/2.27 (https://github.com/homelabforge/mygarage)"
+_NOMINATIM_MIN_INTERVAL_S = 1.0
+_nominatim_lock = asyncio.Lock()
+_nominatim_last_call = 0.0
+
+
+class GeocodeResult(BaseModel):
+    """A single geocoding hit."""
+
+    display_name: str
+    latitude: float
+    longitude: float
+
+
+class GeocodeResponse(BaseModel):
+    results: list[GeocodeResult]
+    source: str = "nominatim"
+
+
+@router.get("/geocode", response_model=GeocodeResponse)
+async def geocode_address(
+    q: str = Query(..., min_length=2, max_length=200, description="Address or place name"),
+    limit: int = Query(5, ge=1, le=10),
+    current_user: User | None = Depends(require_auth),
+):
+    """Geocode a free-form address via Nominatim (OpenStreetMap).
+
+    Surfaced by issue #69: rc1's POI search only worked from the
+    device's current GPS. With this endpoint the frontend can offer
+    "Search by address" as a parallel entry point.
+    """
+    global _nominatim_last_call
+
+    # Polite rate limiting — Nominatim's ToS asks for max 1 req/sec.
+    async with _nominatim_lock:
+        wait_for = _NOMINATIM_MIN_INTERVAL_S - (time.monotonic() - _nominatim_last_call)
+        if wait_for > 0:
+            await asyncio.sleep(wait_for)
+        _nominatim_last_call = time.monotonic()
+
+    params = {
+        "q": q,
+        "format": "json",
+        "limit": str(limit),
+        "addressdetails": "0",
+    }
+    headers = {"User-Agent": _NOMINATIM_USER_AGENT}
+
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.get(_NOMINATIM_BASE, params=params, headers=headers)
+            response.raise_for_status()
+            payload = response.json()
+    except httpx.TimeoutException as e:
+        logger.warning("Nominatim timeout for %r: %s", q, e)
+        raise HTTPException(status_code=504, detail="Geocoding service timed out") from e
+    except httpx.HTTPError as e:
+        logger.warning("Nominatim HTTP error for %r: %s", q, e)
+        raise HTTPException(status_code=502, detail="Geocoding service unavailable") from e
+
+    results = [
+        GeocodeResult(
+            display_name=str(item.get("display_name") or ""),
+            latitude=float(item["lat"]),
+            longitude=float(item["lon"]),
+        )
+        for item in payload
+        if "lat" in item and "lon" in item
+    ]
+    return GeocodeResponse(results=results)
 
 
 @router.post("/search", response_model=POISearchResponse)
@@ -126,7 +216,8 @@ async def save_discovered_poi(
     Notes:
         - Source should be set to provider name (tomtom, osm, google, etc.)
         - Category defaults to 'service'
-        - poi_category should be set (auto_shop, rv_shop, ev_charging, fuel_station)
+        - poi_category should be set (one of POICategory: auto_shop,
+          rv_shop, ev_charging, gas_station, propane)
         - metadata can contain category-specific JSON data
     """
     # Validate poi_category if provided
@@ -136,9 +227,10 @@ async def save_discovered_poi(
         try:
             POICategory(poi_category)
         except ValueError:
+            valid = ", ".join(c.value for c in POICategory)
             raise HTTPException(
                 status_code=400,
-                detail=f"Invalid poi_category: {poi_category}. Must be one of: auto_shop, rv_shop, ev_charging, fuel_station",
+                detail=f"Invalid poi_category: {poi_category}. Must be one of: {valid}",
             )
 
     # Create address book entry

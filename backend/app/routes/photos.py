@@ -170,7 +170,13 @@ async def get_vehicle_photo(
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Photo not found")
 
-    return FileResponse(file_path)
+    # `private` because access is auth-gated (don't let CF cache for other users).
+    # Photos are user-uploaded immutables — the filename includes the upload
+    # token, so the URL identifies a single concrete file forever.
+    return FileResponse(
+        file_path,
+        headers={"Cache-Control": "private, max-age=31536000, immutable"},
+    )
 
 
 @router.get("/{vin}/photos/thumbnails/{filename}")
@@ -203,7 +209,10 @@ async def get_vehicle_thumbnail(
     if not thumb_path.exists():
         raise HTTPException(status_code=404, detail="Thumbnail not found")
 
-    return FileResponse(thumb_path)
+    return FileResponse(
+        thumb_path,
+        headers={"Cache-Control": "private, max-age=31536000, immutable"},
+    )
 
 
 @router.get("/{vin}/photos")

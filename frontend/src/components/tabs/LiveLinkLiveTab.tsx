@@ -54,11 +54,42 @@ export default function LiveLinkLiveTab({ vin }: LiveLinkLiveTabProps) {
     }
   }, [vin, t])
 
-  // Initial fetch and polling every 5 seconds
+  // Initial fetch and polling every 5 seconds while the tab is visible.
+  // We pause when the document is hidden because (a) the user isn't watching,
+  // (b) backgrounded polling competes with foreground requests through the
+  // service worker, and (c) mobile browsers throttle setInterval anyway —
+  // doing it explicitly here keeps behavior predictable across browsers.
   useEffect(() => {
-    fetchStatus()
-    const interval = setInterval(fetchStatus, 5000)
-    return () => clearInterval(interval)
+    let interval: ReturnType<typeof setInterval> | null = null
+
+    const startPolling = () => {
+      if (interval !== null) return
+      fetchStatus()
+      interval = setInterval(fetchStatus, 5000)
+    }
+    const stopPolling = () => {
+      if (interval !== null) {
+        clearInterval(interval)
+        interval = null
+      }
+    }
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        startPolling()
+      } else {
+        stopPolling()
+      }
+    }
+
+    if (document.visibilityState === 'visible') {
+      startPolling()
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility)
+      stopPolling()
+    }
   }, [fetchStatus])
 
   const getStatusColor = (deviceStatus: string, ecuStatus: string) => {

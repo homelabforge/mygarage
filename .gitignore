@@ -110,6 +110,9 @@ backups/
 *.sql
 *.dump
 
+# Exception: migration baseline dumps are committed (used by PG migration tests)
+!backend/tests/migrations/baselines/*.sql
+
 # Docker
 docker-compose.override.yml
 compose.yaml
@@ -143,6 +146,7 @@ tmp/
 temp/
 *.tmp
 
-# Root-level npm artifacts (frontend uses Bun)
+# npm artifacts (frontend uses Bun) — applies at any depth
 /package.json
 /package-lock.json
+frontend/package-lock.json

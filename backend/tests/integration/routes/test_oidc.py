@@ -304,21 +304,12 @@ class TestOIDCRoutes:
 
     # -------------------------------------------------------------------------
     # /link-account endpoint tests
-    # Note: These tests require the oidc_pending_links table which may not
-    # exist in all test environments. Tests are marked to handle this.
+    # The oidc_pending_links table is always present — created by
+    # Base.metadata.create_all in conftest's init_test_db fixture.
     # -------------------------------------------------------------------------
 
     async def test_link_account_invalid_token(self, client: AsyncClient, db_session):
         """Test link account with invalid token."""
-        from sqlalchemy import text
-
-        # Check if the table exists
-        result = await db_session.execute(
-            text("SELECT name FROM sqlite_master WHERE type='table' AND name='oidc_pending_links'")
-        )
-        if not result.fetchone():
-            pytest.skip("oidc_pending_links table not available in test database")
-
         response = await client.post(
             "/api/auth/oidc/link-account",
             json={
@@ -331,15 +322,6 @@ class TestOIDCRoutes:
 
     async def test_link_account_wrong_password(self, client: AsyncClient, db_session):
         """Test link account with wrong password."""
-        from sqlalchemy import text
-
-        # Check if the table exists
-        result = await db_session.execute(
-            text("SELECT name FROM sqlite_master WHERE type='table' AND name='oidc_pending_links'")
-        )
-        if not result.fetchone():
-            pytest.skip("oidc_pending_links table not available in test database")
-
         response = await client.post(
             "/api/auth/oidc/link-account",
             json={

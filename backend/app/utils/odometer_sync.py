@@ -53,6 +53,12 @@ async def sync_odometer_from_record(
 
     auto_sync_marker = f"[AUTO-SYNC from {source_type} #{source_id}]"
 
+    # Migration 055 added odometer_records.fuel_record_id with ON DELETE
+    # CASCADE for fuel-sourced rows. Set it when source is 'fuel' so the
+    # database can clean orphans when a fuel record is deleted; for
+    # service/livelink the FK stays NULL (no fuel parent to cascade from).
+    fk_value = source_id if source_type == "fuel" else None
+
     if existing:
         is_auto_synced = existing.notes and "[AUTO-SYNC from" in existing.notes
         is_livelink = existing.source == "livelink"
@@ -61,6 +67,7 @@ async def sync_odometer_from_record(
             existing.odometer_km = odometer_km
             existing.notes = auto_sync_marker
             existing.source = source_type
+            existing.fuel_record_id = fk_value
             if commit:
                 await db.commit()
                 await db.refresh(existing)
@@ -75,6 +82,7 @@ async def sync_odometer_from_record(
         odometer_km=odometer_km,
         notes=auto_sync_marker,
         source=source_type,
+        fuel_record_id=fk_value,
     )
     db.add(odometer_record)
     if commit:

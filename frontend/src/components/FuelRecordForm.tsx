@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { Save, ChevronDown, ChevronUp, Sparkles } from 'lucide-react'
 import FormModalWrapper from './FormModalWrapper'
 import AddressBookAutocomplete from './AddressBookAutocomplete'
+import AddressBookQuickAddModal from './AddressBookQuickAddModal'
 import type { FuelRecord, FuelRecordCreate, FuelRecordUpdate } from '../types/fuel'
 import type { Vehicle } from '../types/vehicle'
 import type { AddressBookEntry } from '../types/addressBook'
@@ -150,7 +151,14 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
       outside_temp_c: toNumber(record?.outside_temp_c),
       obc_l_per_100km: toNumber(record?.obc_l_per_100km),
       obc_avg_speed_kmh: toNumber(record?.obc_avg_speed_kmh),
-      obc_trip_duration_s: toNumber(record?.obc_trip_duration_s),
+      // Phase 3.7 — field accepts HH:MM or HH:MM:SS strings as well as
+      // raw seconds; default to the stored canonical seconds as a
+      // string so users can either edit verbatim or paste a fresh
+      // OBC reading. Empty string for new records.
+      obc_trip_duration_s:
+        record?.obc_trip_duration_s != null
+          ? String(record.obc_trip_duration_s)
+          : '',
     },
   })
 
@@ -188,6 +196,23 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
     record?.station_name_freetext || '',
   )
   const [stationPicked, setStationPicked] = useState<AddressBookEntry | null>(null)
+  // Phase 3.4 quick-add modal — opened from the autocomplete's "+ Add"
+  // footer when the user types a station name not in the address book.
+  const [quickAddOpen, setQuickAddOpen] = useState(false)
+  const [quickAddName, setQuickAddName] = useState('')
+
+  // Phase 3.6 follow-up — outside temperature display state. Backend
+  // stores canonical Celsius (`outside_temp_c`); imperial users see and
+  // type Fahrenheit. The form's actual ``outside_temp_c`` field receives
+  // the converted canonical value via setValue. Initialized from the
+  // record's stored Celsius (converted to °F when imperial).
+  const [outsideTempDisplay, setOutsideTempDisplay] = useState<string>(() => {
+    if (record?.outside_temp_c == null) return ''
+    const c = Number(record.outside_temp_c)
+    if (Number.isNaN(c)) return ''
+    const display = system === 'imperial' ? (c * 9) / 5 + 32 : c
+    return String(Math.round(display * 10) / 10)
+  })
   const filledAt = watch('filled_at')
   const isMultiFuel = !!vehicleFuelTypeSecondary
   const obcAvailable = !!filledAt && filledAt.length > 0
@@ -245,7 +270,8 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
       setValue('obc_avg_speed_kmh', Number(obcSuggestion.obc_avg_speed_kmh))
     }
     if (obcSuggestion.obc_trip_duration_s != null) {
-      setValue('obc_trip_duration_s', obcSuggestion.obc_trip_duration_s)
+      // Field is now a string (Phase 3.7); coerce the suggested seconds.
+      setValue('obc_trip_duration_s', String(obcSuggestion.obc_trip_duration_s))
     }
     setObcSuggestion(null)
   }
@@ -310,7 +336,17 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
         outside_temp_c: data.outside_temp_c,
         obc_l_per_100km: data.obc_l_per_100km,
         obc_avg_speed_kmh: data.obc_avg_speed_kmh,
-        obc_trip_duration_s: data.obc_trip_duration_s,
+        // The backend pre-validator (app/schemas/fuel.py) accepts the
+        // raw HH:MM/HH:MM:SS string and parses it to seconds. The
+        // openapi-generated FuelRecordCreate still types this as
+        // number | null because openapi can't express the
+        // string-or-number union. The cast below is the explicit
+        // acknowledgement that the wire format is broader than the
+        // type. Will normalize when openapi types regenerate.
+        obc_trip_duration_s:
+          data.obc_trip_duration_s && data.obc_trip_duration_s.length > 0
+            ? (data.obc_trip_duration_s as unknown as number)
+            : undefined,
       } as FuelRecordCreate | FuelRecordUpdate
 
       if (isEdit) {
@@ -492,8 +528,21 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
               disabled={isSubmitting}
               defaultValue={isElectric ? 'per_kwh' : 'per_volume'}
             >
-              <option value="per_volume">{t('fuel.priceBasisPerVolume', { defaultValue: 'Per volume (L/gal)' })}</option>
-              <option value="per_weight">{t('fuel.priceBasisPerWeight', { defaultValue: 'Per weight (kg/lb)' })}</option>
+              {/* Phase 3.6 — labels respect the user's unit preference.
+                  Was hardcoded "L/gal" / "kg/lb" regardless of system,
+                  per issue #69. */}
+              <option value="per_volume">
+                {t('fuel.priceBasisPerVolume', {
+                  defaultValue: `Per volume (${system === 'imperial' ? 'gal' : 'L'})`,
+                  unit: system === 'imperial' ? 'gal' : 'L',
+                })}
+              </option>
+              <option value="per_weight">
+                {t('fuel.priceBasisPerWeight', {
+                  defaultValue: `Per weight (${system === 'imperial' ? 'lb' : 'kg'})`,
+                  unit: system === 'imperial' ? 'lb' : 'kg',
+                })}
+              </option>
               <option value="per_kwh">{t('fuel.priceBasisPerKwh', { defaultValue: 'Per kWh' })}</option>
               <option value="per_tank">{t('fuel.priceBasisPerTank', { defaultValue: 'Per tank' })}</option>
             </select>
@@ -734,7 +783,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
                     value={stationText}
                     onChange={handleStationTextChange}
                     onSelectEntry={handleStationSelect}
-                    poiCategoryFilter="fuel_station"
+                    poiCategoryFilter="gas_station"
                     placeholder={t('fuel.stationPlaceholder')}
                     helperText={
                       stationPicked
@@ -742,6 +791,16 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
                         : t('fuel.stationCreatedHint')
                     }
                     className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text border-garage-border"
+                    onClear={() => {
+                      setStationText('')
+                      setStationPicked(null)
+                      setValue('station_address_book_id', undefined, { shouldValidate: true })
+                      setValue('station_name_freetext', '', { shouldValidate: true })
+                    }}
+                    onAddNew={(typedName) => {
+                      setQuickAddName(typedName)
+                      setQuickAddOpen(true)
+                    }}
                   />
                   <div className="mt-2 flex items-center">
                     <input
@@ -818,14 +877,27 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
                 </div>
 
                 <div>
-                  <label htmlFor="outside_temp_c" className="block text-sm font-medium text-garage-text mb-1">
-                    {t('fuel.outsideTemp')} (°C)
+                  <label htmlFor="outside_temp_display" className="block text-sm font-medium text-garage-text mb-1">
+                    {t('fuel.outsideTemp')} ({system === 'imperial' ? '°F' : '°C'})
                   </label>
                   <input
                     type="number"
-                    id="outside_temp_c"
+                    id="outside_temp_display"
                     step="0.1"
-                    {...register('outside_temp_c', { valueAsNumber: true })}
+                    value={outsideTempDisplay}
+                    onChange={(e) => {
+                      const raw = e.target.value
+                      setOutsideTempDisplay(raw)
+                      if (raw === '') {
+                        setValue('outside_temp_c', undefined as unknown as number)
+                        return
+                      }
+                      const num = parseFloat(raw)
+                      if (Number.isNaN(num)) return
+                      // Backend stores canonical Celsius; convert F → C on imperial.
+                      const canonical = system === 'imperial' ? ((num - 32) * 5) / 9 : num
+                      setValue('outside_temp_c', canonical, { shouldValidate: true })
+                    }}
                     className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text border-garage-border"
                     disabled={isSubmitting}
                   />
@@ -911,10 +983,11 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
                         {t('fuel.obcDuration')}
                       </label>
                       <input
-                        type="number"
+                        type="text"
                         id="obc_trip_duration_s"
-                        step="1"
-                        {...register('obc_trip_duration_s', { valueAsNumber: true })}
+                        inputMode="text"
+                        placeholder="HH:MM or seconds"
+                        {...register('obc_trip_duration_s')}
                         className="w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text border-garage-border"
                         disabled={isSubmitting}
                       />
@@ -962,6 +1035,18 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
             </button>
           </div>
         </form>
+
+        <AddressBookQuickAddModal
+          isOpen={quickAddOpen}
+          onClose={() => setQuickAddOpen(false)}
+          initialName={quickAddName}
+          poiCategory="gas_station"
+          title={t('fuel.addStation')}
+          onAdded={(entry) => {
+            handleStationSelect(entry)
+            setStationText(entry.business_name || entry.name || '')
+          }}
+        />
     </FormModalWrapper>
   )
 }

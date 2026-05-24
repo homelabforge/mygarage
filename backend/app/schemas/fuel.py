@@ -24,7 +24,7 @@ from datetime import date as date_type
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, Field, ValidationInfo, field_validator
+from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
 
 from app.constants.fuel import (
     FUEL_TYPE_VALUES,
@@ -186,6 +186,45 @@ class FuelRecordBase(BaseModel):
             raise ValueError(f"price_basis must be one of {PRICE_BASIS_VALUES}, got {v!r}")
         return v
 
+    @field_validator("obc_trip_duration_s", mode="before")
+    @classmethod
+    def _parse_obc_trip_duration(cls, v: object) -> int | None:
+        """Accept OBC trip duration as ``int`` seconds OR an ``HH:MM`` /
+        ``HH:MM:SS`` string and store canonical seconds.
+
+        Surfaced by issue #69: many onboard computers display trip
+        duration as ``HH:MM`` (e.g. the reporter's reads ``02:15``).
+        Forcing users to convert to seconds before submitting was
+        friction; accepting the raw OBC string and converting
+        server-side keeps canonical-seconds storage while improving UX.
+        The frontend can keep sending integer seconds for the
+        auto-suggest path.
+        """
+        if v is None or v == "":
+            return None
+        if isinstance(v, int) and not isinstance(v, bool):
+            return v
+        if isinstance(v, str):
+            s = v.strip()
+            if not s:
+                return None
+            if s.isdigit():
+                return int(s)
+            parts = s.split(":")
+            if len(parts) in (2, 3) and all(p.isdigit() for p in parts):
+                hours = int(parts[0])
+                minutes = int(parts[1])
+                seconds = int(parts[2]) if len(parts) == 3 else 0
+                if minutes >= 60 or seconds >= 60:
+                    raise ValueError(
+                        f"obc_trip_duration_s {v!r} has minute or second component ≥ 60"
+                    )
+                return hours * 3600 + minutes * 60 + seconds
+            raise ValueError(
+                f"obc_trip_duration_s must be an int (seconds), 'HH:MM', or 'HH:MM:SS'; got {v!r}"
+            )
+        raise ValueError(f"obc_trip_duration_s must be int or str; got {type(v).__name__}")
+
     # Note: enum validators for fuel_type_used / payment_method / trip_type
     # live on FuelRecordCreate / FuelRecordUpdate (input schemas) only.
     # FuelRecordResponse (which inherits from this base) must accept whatever
@@ -238,6 +277,47 @@ class FuelRecordCreate(FuelRecordBase):
             raise ValueError("Both tank_size_kg and tank_quantity must be provided together")
 
         return v
+
+    @model_validator(mode="after")
+    def _require_odometer_and_fuel_amount(self) -> FuelRecordCreate:
+        """Reject fill-ups with no odometer or no fuel-amount data.
+
+        Surfaced by issue #69: rc1 accepted records with neither odometer
+        nor any fuel-amount field. The form's "you need to fill these in"
+        rule lived only in frontend code, so any non-browser client
+        (curl, mobile app, importer) could write empty records.
+
+        Rule:
+          - ``odometer_km`` is always required.
+          - At least one of ``liters``, ``propane_liters``, ``kwh``, or
+            the propane ``tank_size_kg`` + ``tank_quantity`` pair is
+            required, EXCEPT when ``missed_fillup=True`` — that's the
+            explicit "I noticed the odometer but I don't have the
+            fuel amount" escape hatch.
+        """
+        if self.odometer_km is None:
+            raise ValueError(
+                "odometer_km is required (set missed_fillup=True only if "
+                "you also can't supply a fuel amount)"
+            )
+
+        if self.missed_fillup:
+            return self
+
+        has_amount = (
+            self.liters is not None
+            or self.propane_liters is not None
+            or self.kwh is not None
+            or (self.tank_size_kg is not None and self.tank_quantity is not None)
+        )
+        if not has_amount:
+            raise ValueError(
+                "fuel record must include at least one of: liters, "
+                "propane_liters, kwh, or both tank_size_kg + tank_quantity. "
+                "Set missed_fillup=True if the actual amount is unavailable."
+            )
+
+        return self
 
     model_config = {
         "json_schema_extra": {

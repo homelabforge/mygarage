@@ -14,6 +14,13 @@ interface VINInputProps {
   onDecode?: (data: VINDecodeResponse) => void
   autoValidate?: boolean
   className?: string
+  /**
+   * When true, on blur (and on auto-complete to 17 chars) the component
+   * also pings the backend for an existing vehicle with this VIN. Surfaces
+   * a "VIN already exists" warning so the user doesn't fill out the whole
+   * wizard before discovering the duplicate. Surfaced by issue #69.
+   */
+  checkDuplicate?: boolean
 }
 
 export default function VINInput({
@@ -22,6 +29,7 @@ export default function VINInput({
   onDecode,
   autoValidate = true,
   className = '',
+  checkDuplicate = false,
 }: VINInputProps) {
   const { t } = useTranslation('vehicles')
   const [isValidating, setIsValidating] = useState(false)
@@ -30,6 +38,7 @@ export default function VINInput({
     'idle' | 'valid' | 'invalid'
   >('idle')
   const [errorMessage, setErrorMessage] = useState<string>('')
+  const [duplicateWarning, setDuplicateWarning] = useState<string>('')
   const [decodedData, setDecodedData] = useState<VINDecodeResponse | null>(null)
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -37,11 +46,38 @@ export default function VINInput({
     onChange(newValue)
     setValidationStatus('idle')
     setErrorMessage('')
+    setDuplicateWarning('')
     setDecodedData(null)
 
     // Auto-validate when 17 characters
     if (autoValidate && newValue.length === 17) {
       validateVIN(newValue)
+      if (checkDuplicate) {
+        void runDuplicateCheck(newValue)
+      }
+    }
+  }
+
+  const handleBlur = () => {
+    // Late check for users who paste a partial VIN and tab away before
+    // hitting the 17-char auto-trigger above. No-op when value is too
+    // short (still invalid by format) or already known to be a dup.
+    if (checkDuplicate && value.length === 17 && !duplicateWarning) {
+      void runDuplicateCheck(value)
+    }
+  }
+
+  const runDuplicateCheck = async (vin: string) => {
+    try {
+      const exists = await (
+        await import('@/services/vinService')
+      ).vinService.exists(vin)
+      if (exists) {
+        setDuplicateWarning(t('vinInput.alreadyExists'))
+      }
+    } catch {
+      // Network error — don't block the user; the backend POST will
+      // catch the duplicate at submit time.
     }
   }
 
@@ -119,6 +155,7 @@ export default function VINInput({
           type="text"
           value={value}
           onChange={handleChange}
+          onBlur={handleBlur}
           maxLength={17}
           placeholder={t('vinInput.placeholder')}
           className="input pr-12"
@@ -163,6 +200,17 @@ export default function VINInput({
         <div className="flex items-center space-x-2 text-danger-500 text-sm">
           <X className="w-4 h-4" />
           <span>{errorMessage}</span>
+        </div>
+      )}
+
+      {/* Duplicate-VIN warning (Phase 3.2 / issue #69) */}
+      {duplicateWarning && (
+        <div
+          role="alert"
+          className="flex items-center space-x-2 text-warning-500 text-sm"
+        >
+          <X className="w-4 h-4" />
+          <span>{duplicateWarning}</span>
         </div>
       )}
 

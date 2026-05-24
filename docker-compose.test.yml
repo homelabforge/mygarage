@@ -1,0 +1,63 @@
+# MyGarage backend test stack with a PostgreSQL sidecar.
+#
+# Primary scope: migration tests (sync engine, asyncpg-free) — the
+# path that would have caught migration 054's PG bugs. Run with:
+#
+#   MYGARAGE_TEST_UID=$(id -u) MYGARAGE_TEST_GID=$(id -g) \
+#     docker compose -f docker-compose.test.yml -p mygarage-test \
+#       run --rm mygarage-test pytest tests/migrations/ -v
+#
+# Integration tests (`tests/integration/`) now run under PG too (issue
+# #77 resolved by aligning pytest-asyncio test loop scope with the
+# session-scoped fixture loop). The CI matrix in shared-workflows
+# still defaults to migration tests only — opt into the integration
+# matrix by passing `pytest tests/integration/` instead.
+
+services:
+  postgres-test:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: mygarage
+      POSTGRES_PASSWORD: testpass
+      POSTGRES_DB: mygarage_test
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mygarage -d mygarage_test"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+      start_period: 5s
+    networks:
+      - mygarage-test
+
+  mygarage-test:
+    image: mygarage-test:local
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.test
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+    environment:
+      TEST_DATABASE_URL: postgresql+asyncpg://mygarage:testpass@postgres-test:5432/mygarage_test
+      MYGARAGE_TEST_MODE: "true"
+      MYGARAGE_SECRET_KEY: test-secret-key
+      PYTHONPATH: /app
+      UV_PROJECT_ENVIRONMENT: /opt/venv
+      HOME: /tmp
+      PGHOST: postgres-test
+      PGPORT: "5432"
+      PGUSER: mygarage
+      PGPASSWORD: testpass
+      PGDATABASE: mygarage_test
+    user: "${MYGARAGE_TEST_UID:-1000}:${MYGARAGE_TEST_GID:-1000}"
+    volumes:
+      - ./backend:/app
+    working_dir: /app
+    networks:
+      - mygarage-test
+
+networks:
+  mygarage-test:
+    driver: bridge

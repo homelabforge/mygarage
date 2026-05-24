@@ -37,11 +37,39 @@ export default function VehicleLiveLinkWidget({ vin }: VehicleLiveLinkWidgetProp
       }
     }
 
-    fetchStatus()
+    // Poll every 30 seconds for dashboard view (less aggressive than detail
+    // view) but only while the tab is visible — see LiveLinkLiveTab for the
+    // rationale.
+    let interval: ReturnType<typeof setInterval> | null = null
 
-    // Poll every 30 seconds for dashboard view (less aggressive than detail view)
-    const interval = setInterval(fetchStatus, 30000)
-    return () => clearInterval(interval)
+    const startPolling = () => {
+      if (interval !== null) return
+      fetchStatus()
+      interval = setInterval(fetchStatus, 30000)
+    }
+    const stopPolling = () => {
+      if (interval !== null) {
+        clearInterval(interval)
+        interval = null
+      }
+    }
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        startPolling()
+      } else {
+        stopPolling()
+      }
+    }
+
+    if (document.visibilityState === 'visible') {
+      startPolling()
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility)
+      stopPolling()
+    }
   }, [vin])
 
   // Helper to find a parameter value from the array

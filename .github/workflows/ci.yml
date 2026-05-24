@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, develop, 'release/**']
   pull_request:
     branches: [main, develop]
 
@@ -18,4 +18,9 @@ jobs:
     uses: homelabforge/shared-workflows/.github/workflows/python-react-ci.yml@v1.3.0
     with:
       enable-translations: true
+      enable-pg-migrations: true
+      # Closes #77: run both migration and integration tests against the PG
+      # sidecar so the asyncpg loop-binding regression that gated this work
+      # can't reappear. Pytest accepts multiple positional paths.
+      pg-migrations-pytest-path: "tests/migrations/ tests/integration/"
       security-tripwire-script: .github/scripts/security-tripwire.sh

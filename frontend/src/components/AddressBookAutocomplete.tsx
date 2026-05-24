@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { Plus, X } from 'lucide-react'
 import type { AddressBookEntry } from '../types/addressBook'
 import api from '../services/api'
 
@@ -12,6 +13,20 @@ interface AddressBookAutocompleteProps {
   className?: string
   id?: string
   helperText?: string
+  /**
+   * Optional handler for the clear (X) button rendered inside the input
+   * when ``value`` is non-empty. Surfaced by issue #69 — rc1 had no way
+   * to remove a previously entered fueling station except by manually
+   * deleting all the typed characters.
+   */
+  onClear?: () => void
+  /**
+   * Optional handler invoked when the user clicks "+ Add 'X'" in the
+   * empty-results dropdown footer. The string passed back is whatever
+   * the user has typed. Surfaced by issue #69 — rc1 had no way to add
+   * a new station to the address book without leaving the fuel form.
+   */
+  onAddNew?: (typedName: string) => void
 }
 
 export default function AddressBookAutocomplete({
@@ -24,6 +39,8 @@ export default function AddressBookAutocomplete({
   className = '',
   id,
   helperText,
+  onClear,
+  onAddNew,
 }: AddressBookAutocompleteProps) {
   const [entries, setEntries] = useState<AddressBookEntry[]>([])
   const [loading, setLoading] = useState(false)
@@ -48,8 +65,13 @@ export default function AddressBookAutocomplete({
         if (poiCategoryFilter) params.append('poi_category', poiCategoryFilter)
 
         const response = await api.get(`/address-book?${params}`)
-        setEntries(response.data.entries || [])
-        setShowDropdown((response.data.entries || []).length > 0)
+        const fetched = response.data.entries || []
+        setEntries(fetched)
+        // Show the dropdown when there are results OR when the empty-state
+        // has actionable affordances (the "+ Add to address book" footer
+        // shipped in v2.27.0-rc2). Without this, an empty result hides the
+        // entire dropdown and the user has no way to reach the modal.
+        setShowDropdown(fetched.length > 0 || !!onAddNew)
       } catch {
         setEntries([])
       } finally {
@@ -60,7 +82,11 @@ export default function AddressBookAutocomplete({
     // Debounce the search
     const timeoutId = setTimeout(searchEntries, 300)
     return () => clearTimeout(timeoutId)
-  }, [value, categoryFilter, poiCategoryFilter])
+  // ``onAddNew`` is in the deps because the empty-state showDropdown
+  // path depends on whether it's provided. Most callers pass a stable
+  // function; if a caller inlines a new function each render the search
+  // re-fires, which is harmless (debounced + idempotent).
+  }, [value, categoryFilter, poiCategoryFilter, onAddNew])
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -131,7 +157,7 @@ export default function AddressBookAutocomplete({
         onKeyDown={handleKeyDown}
         onFocus={() => value.length >= 2 && entries.length > 0 && setShowDropdown(true)}
         placeholder={placeholder}
-        className={className}
+        className={`${className} ${onClear && value ? 'pr-10' : ''}`}
         autoComplete="off"
       />
 
@@ -139,6 +165,17 @@ export default function AddressBookAutocomplete({
         <div className="absolute right-3 top-1/2 -translate-y-1/2">
           <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
         </div>
+      )}
+
+      {!loading && onClear && value && (
+        <button
+          type="button"
+          onClick={onClear}
+          aria-label="Clear station"
+          className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-garage-text-muted hover:text-garage-text rounded hover:bg-garage-bg"
+        >
+          <X className="w-4 h-4" />
+        </button>
       )}
 
       {showDropdown && entries.length > 0 && (
@@ -162,11 +199,24 @@ export default function AddressBookAutocomplete({
       )}
 
       {!loading && value.length >= 2 && entries.length === 0 && showDropdown && (
-        <div className="absolute z-50 w-full mt-1 bg-garage-surface border border-garage-border rounded-md shadow-lg p-3">
-          <p className="text-sm text-garage-text-muted">
+        <div className="absolute z-50 w-full mt-1 bg-garage-surface border border-garage-border rounded-md shadow-lg">
+          <p className="text-sm text-garage-text-muted p-3">
             No contacts found matching "{value}"
             {categoryFilter && ` in ${categoryFilter} category`}
           </p>
+          {onAddNew && (
+            <button
+              type="button"
+              onClick={() => {
+                onAddNew(value)
+                setShowDropdown(false)
+              }}
+              className="w-full text-left px-3 py-2 border-t border-garage-border hover:bg-garage-bg transition-colors flex items-center gap-2 text-sm text-primary"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add "{value}" to address book</span>
+            </button>
+          )}
         </div>
       )}
 

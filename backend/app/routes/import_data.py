@@ -27,6 +27,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.constants.fuel import FuelTypeEnum, normalize_fuel_type
 from app.database import get_db
 from app.models import (
     DEFRecord,
@@ -344,6 +345,24 @@ async def import_fuel_csv(
             missed_fillup = parse_bool(row.get("Missed Fill-up", "False"))
             notes = row.get("Notes", "").strip() or None
 
+            # Fuel type — surfaced by issue #69. rc1's importer dropped this
+            # column entirely. Now: read it, route through the locale-aware
+            # normalizer (so Polish "Benzyna" → gasoline, etc.), and store
+            # both the legacy free-text column AND the canonical
+            # `fuel_type_used` enum so future cleanups can drop `fuel_type`
+            # without losing data. Unrecognized values fall through to
+            # FuelTypeEnum.OTHER (a warning is logged) — we never silently
+            # drop the row over fuel-type alone.
+            raw_fuel_type = (row.get("Fuel Type", "") or "").strip() or None
+            normalized_fuel_type: FuelTypeEnum | None = normalize_fuel_type(raw_fuel_type)
+            if raw_fuel_type and normalized_fuel_type is None:
+                logger.warning(
+                    "Fuel import row %d: unrecognized fuel type %r → 'other'",
+                    row_num,
+                    raw_fuel_type,
+                )
+                normalized_fuel_type = FuelTypeEnum.OTHER
+
             # Check for duplicates if requested
             if skip_duplicates:
                 existing = await db.execute(
@@ -368,6 +387,12 @@ async def import_fuel_csv(
                 is_full_tank=is_full_tank,
                 missed_fillup=missed_fillup,
                 notes=notes,
+                # Preserve user-supplied raw spelling in the legacy column;
+                # store the canonical enum on `fuel_type_used`.
+                fuel_type=raw_fuel_type,
+                fuel_type_used=(
+                    normalized_fuel_type.value if normalized_fuel_type is not None else None
+                ),
             )
             db.add(record)
             import_result.add_success()
