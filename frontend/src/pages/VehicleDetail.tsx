@@ -394,7 +394,9 @@ export default function VehicleDetail() {
       const response = await api.get(`/vehicles/${vin}/window-sticker/file`, {
         responseType: 'blob',
       })
-      const blob = new Blob([response.data], { type: response.headers['content-type'] })
+      const contentTypeHeader = response.headers['content-type']
+      const contentType = typeof contentTypeHeader === 'string' ? contentTypeHeader : undefined
+      const blob = new Blob([response.data], { type: contentType })
       const url = window.URL.createObjectURL(blob)
       window.open(url, '_blank')
       // Clean up after a delay
