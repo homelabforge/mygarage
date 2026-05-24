@@ -21,6 +21,15 @@ export default tseslint.config(
       ...reactHooks.configs.recommended.rules,
       'react-refresh/only-export-components': 'off',
       'react-hooks/incompatible-library': 'off',
+      // eslint-plugin-react-hooks 7.1 introduced React Compiler-derived rules
+      // that flag advisory perf/conformance issues across ~40 pre-existing
+      // sites. Disabled for this release; tracked for cleanup in a dedicated
+      // follow-up so the refactor isn't bundled into a hotfix.
+      // TODO: re-enable as 'error' once the call sites are refactored.
+      'react-hooks/set-state-in-effect': 'off',
+      'react-hooks/immutability': 'off',
+      'react-hooks/preserve-manual-memoization': 'off',
+      'react-hooks/refs': 'off',
       '@typescript-eslint/no-unused-vars': [
         'warn',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
