@@ -478,6 +478,37 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/oidc/config/admin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Oidc Admin Config
+         * @description Get the full admin OIDC configuration (admin-only).
+         *
+         *     Returns the canonical shape per plan §5.4; client_secret is masked with the
+         *     literal "********" placeholder when stored.
+         */
+        get: operations["get_oidc_admin_config_api_auth_oidc_config_admin_get"];
+        /**
+         * Put Oidc Admin Config
+         * @description Update the admin OIDC configuration (admin-only).
+         *
+         *     Enforces the §5.4 wire contract:
+         *       - empty `client_secret` (or the masked placeholder) preserves the stored value
+         *       - issuer_url has trailing slash + whitespace stripped before persisting
+         */
+        put: operations["put_oidc_admin_config_api_auth_oidc_config_admin_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/oidc/link-account": {
         parameters: {
             query?: never;
@@ -563,11 +594,8 @@ export interface paths {
          * Test Oidc Connection
          * @description Test OIDC provider connection (admin only).
          *
-         *     Args:
-         *         test_request: OIDC configuration to test
-         *
-         *     Returns:
-         *         Test results
+         *     Returns the canonical `{ok, error, detail, issuer, algorithms_supported}` envelope
+         *     per plan §5.4(4).
          */
         post: operations["test_oidc_connection_api_auth_oidc_test_post"];
         delete?: never;
@@ -8811,6 +8839,71 @@ export interface components {
             tesseract_available: boolean;
         };
         /**
+         * OIDCAdminConfig
+         * @description Full admin OIDC configuration (canonical homelab OIDC settings contract).
+         *
+         *     `client_secret` follows the §5.4(3) wire convention:
+         *       - GET returns the literal "********" placeholder when stored, "" otherwise.
+         *       - PUT with empty string OR the placeholder preserves the stored value.
+         */
+        OIDCAdminConfig: {
+            /**
+             * Admin Group
+             * @default
+             */
+            admin_group: string;
+            /**
+             * Auto Create Users
+             * @default true
+             */
+            auto_create_users: boolean;
+            /**
+             * Client Id
+             * @default
+             */
+            client_id: string;
+            /**
+             * Client Secret
+             * @default
+             */
+            client_secret: string;
+            /**
+             * Email Claim
+             * @default email
+             */
+            email_claim: string;
+            /**
+             * Enabled
+             * @default false
+             */
+            enabled: boolean;
+            /**
+             * Full Name Claim
+             * @default name
+             */
+            full_name_claim: string;
+            /**
+             * Issuer Url
+             * @default
+             */
+            issuer_url: string;
+            /**
+             * Provider Name
+             * @default
+             */
+            provider_name: string;
+            /**
+             * Scopes
+             * @default openid profile email
+             */
+            scopes: string;
+            /**
+             * Username Claim
+             * @default preferred_username
+             */
+            username_claim: string;
+        };
+        /**
          * OIDCConfigResponse
          * @description OIDC configuration response (safe for frontend).
          */
@@ -8837,6 +8930,22 @@ export interface components {
             client_secret: string;
             /** Issuer Url */
             issuer_url: string;
+        };
+        /**
+         * OIDCTestResult
+         * @description Canonical OIDC test result per plan §5.4(4).
+         */
+        OIDCTestResult: {
+            /** Algorithms Supported */
+            algorithms_supported?: string[] | null;
+            /** Detail */
+            detail?: string | null;
+            /** Error */
+            error?: string | null;
+            /** Issuer */
+            issuer?: string | null;
+            /** Ok */
+            ok: boolean;
         };
         /**
          * ObcSuggestionResponse
@@ -14183,6 +14292,59 @@ export interface operations {
             };
         };
     };
+    get_oidc_admin_config_api_auth_oidc_config_admin_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OIDCAdminConfig"];
+                };
+            };
+        };
+    };
+    put_oidc_admin_config_api_auth_oidc_config_admin_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OIDCAdminConfig"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     link_oidc_account_api_auth_oidc_link_account_post: {
         parameters: {
             query?: never;
@@ -14255,7 +14417,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["OIDCTestResult"];
                 };
             };
             /** @description Validation Error */

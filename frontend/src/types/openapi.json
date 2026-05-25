@@ -7667,6 +7667,68 @@
         "title": "OCRStatusResponse",
         "type": "object"
       },
+      "OIDCAdminConfig": {
+        "description": "Full admin OIDC configuration (canonical homelab OIDC settings contract).\n\n`client_secret` follows the \u00a75.4(3) wire convention:\n  - GET returns the literal \"********\" placeholder when stored, \"\" otherwise.\n  - PUT with empty string OR the placeholder preserves the stored value.",
+        "properties": {
+          "admin_group": {
+            "default": "",
+            "title": "Admin Group",
+            "type": "string"
+          },
+          "auto_create_users": {
+            "default": true,
+            "title": "Auto Create Users",
+            "type": "boolean"
+          },
+          "client_id": {
+            "default": "",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_secret": {
+            "default": "",
+            "title": "Client Secret",
+            "type": "string"
+          },
+          "email_claim": {
+            "default": "email",
+            "title": "Email Claim",
+            "type": "string"
+          },
+          "enabled": {
+            "default": false,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "full_name_claim": {
+            "default": "name",
+            "title": "Full Name Claim",
+            "type": "string"
+          },
+          "issuer_url": {
+            "default": "",
+            "title": "Issuer Url",
+            "type": "string"
+          },
+          "provider_name": {
+            "default": "",
+            "title": "Provider Name",
+            "type": "string"
+          },
+          "scopes": {
+            "default": "openid profile email",
+            "title": "Scopes",
+            "type": "string"
+          },
+          "username_claim": {
+            "default": "preferred_username",
+            "title": "Username Claim",
+            "type": "string"
+          }
+        },
+        "title": "OIDCAdminConfig",
+        "type": "object"
+      },
       "OIDCConfigResponse": {
         "description": "OIDC configuration response (safe for frontend).",
         "properties": {
@@ -7723,6 +7785,67 @@
           "client_secret"
         ],
         "title": "OIDCTestRequest",
+        "type": "object"
+      },
+      "OIDCTestResult": {
+        "description": "Canonical OIDC test result per plan \u00a75.4(4).",
+        "properties": {
+          "algorithms_supported": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Algorithms Supported"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "issuer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issuer"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "title": "OIDCTestResult",
         "type": "object"
       },
       "ObcSuggestionResponse": {
@@ -20336,6 +20459,76 @@
         ]
       }
     },
+    "/api/auth/oidc/config/admin": {
+      "get": {
+        "description": "Get the full admin OIDC configuration (admin-only).\n\nReturns the canonical shape per plan \u00a75.4; client_secret is masked with the\nliteral \"********\" placeholder when stored.",
+        "operationId": "get_oidc_admin_config_api_auth_oidc_config_admin_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OIDCAdminConfig"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Oidc Admin Config",
+        "tags": [
+          "oidc"
+        ]
+      },
+      "put": {
+        "description": "Update the admin OIDC configuration (admin-only).\n\nEnforces the \u00a75.4 wire contract:\n  - empty `client_secret` (or the masked placeholder) preserves the stored value\n  - issuer_url has trailing slash + whitespace stripped before persisting",
+        "operationId": "put_oidc_admin_config_api_auth_oidc_config_admin_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OIDCAdminConfig"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Put Oidc Admin Config",
+        "tags": [
+          "oidc"
+        ]
+      }
+    },
     "/api/auth/oidc/link-account": {
       "post": {
         "description": "Link OIDC account to existing local account with password verification.\n\nThis endpoint is called after OIDC login when a username match is found\nbut no OIDC link exists. The user must verify their password to link\nthe accounts.\n\nSecurity:\n- Rate limited (5/minute via settings.rate_limit_auth)\n- Max 3 password attempts per token (configured in settings)\n- Token expires after 5 minutes (configured in settings)\n- Audited (success and failure)\n- CSRF protected (middleware)\n\nArgs:\n    link_request: Token and password for verification\n    request: FastAPI request for audit logging\n    response: FastAPI response for setting cookies\n    db: Database session\n\nReturns:\n    JSON with CSRF token and redirect URL\n\nRaises:\n    HTTPException: 401 if token invalid/expired or password wrong\n    HTTPException: 403 if user account is disabled",
@@ -20398,7 +20591,7 @@
     },
     "/api/auth/oidc/test": {
       "post": {
-        "description": "Test OIDC provider connection (admin only).\n\nArgs:\n    test_request: OIDC configuration to test\n\nReturns:\n    Test results",
+        "description": "Test OIDC provider connection (admin only).\n\nReturns the canonical `{ok, error, detail, issuer, algorithms_supported}` envelope\nper plan \u00a75.4(4).",
         "operationId": "test_oidc_connection_api_auth_oidc_test_post",
         "requestBody": {
           "content": {
@@ -20414,7 +20607,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/OIDCTestResult"
+                }
               }
             },
             "description": "Successful Response"
