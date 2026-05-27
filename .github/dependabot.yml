@@ -2,7 +2,7 @@ version: 2
 
 updates:
   # Backend Python dependencies
-  - package-ecosystem: "pip"
+  - package-ecosystem: "uv"
     directory: "/backend"
     schedule:
       interval: "monthly"
@@ -13,7 +13,7 @@ updates:
     commit-message:
       prefix: "chore(deps)"
     groups:
-      python-patch-minor:
+      uv-patch-minor:
         update-types:
           - "minor"
           - "patch"
