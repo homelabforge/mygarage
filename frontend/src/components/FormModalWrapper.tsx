@@ -26,8 +26,8 @@ export default function FormModalWrapper({
   if (isOpen !== undefined && !isOpen) return null
 
   return (
-    <div className={`fixed inset-0 modal-overlay flex items-center justify-center p-4 ${zIndex}`}>
-      <div className={`bg-garage-surface rounded-lg shadow-2xl ${maxWidth} w-full max-h-[90vh] flex flex-col border border-garage-border`}>
+    <div className={`fixed inset-0 modal-overlay flex items-center justify-center p-4 ${zIndex}`} onClick={onClose}>
+      <div className={`bg-garage-surface rounded-lg shadow-2xl ${maxWidth} w-full max-h-[90vh] flex flex-col border border-garage-border`} onClick={(e) => e.stopPropagation()}>
         <div className="sticky top-0 bg-garage-surface border-b border-garage-border px-6 py-4 flex justify-between items-center rounded-t-lg">
           <div className="flex items-center gap-2">
             {icon}

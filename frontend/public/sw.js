@@ -78,10 +78,15 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Navigation requests - provide offline fallback
+  // Navigation requests - network with 5s timeout, then offline fallback
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request).catch(async () => {
+      Promise.race([
+        fetch(request),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Navigation timeout')), 5000)
+        ),
+      ]).catch(async () => {
         const cache = await caches.open(CACHE_NAME);
         const offlinePage = await cache.match(OFFLINE_URL);
         return offlinePage || caches.match('/index.html');

@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 - Bump FastAPI floor to >=0.136.3 to pull Starlette >=1.0.1 (CVE-2026-48710 BadHost header auth bypass)
 
+### Fixed
+- Restore `console.error` in ErrorBoundary so render failures surface in dev tools
+- Add backdrop click-to-close on FormModalWrapper to prevent invisible overlay from blocking all clicks
+- Add 5-second timeout on service worker navigation fetches to prevent indefinite hangs
+
 ## [2.27.1] - 2026-05-25
 
 ### Added

@@ -27,11 +27,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    // Log error to console in development
-    if (import.meta.env.DEV) {
-      // Removed console.error
-    }
-
+    console.error('[ErrorBoundary]', error, errorInfo)
     this.setState({
       error,
       errorInfo,
