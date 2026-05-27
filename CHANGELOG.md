@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- Bump FastAPI floor to >=0.136.3 to pull Starlette >=1.0.1 (CVE-2026-48710 BadHost header auth bypass)
+
 ## [2.27.1] - 2026-05-25
 
 ### Added
