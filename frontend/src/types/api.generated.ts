@@ -1059,7 +1059,9 @@ export interface paths {
          * @description Get complete dashboard with statistics for all vehicles.
          *
          *     For authenticated users: Shows owned vehicles + shared vehicles.
-         *     For unauthenticated: Shows all active vehicles (legacy behavior).
+         *     For none-mode (auth disabled): Shows all active vehicles (legacy behavior).
+         *     A no-token request in local/oidc now 401s at the dependency rather than
+         *     falling through to the all-vehicles branch (fail-open closed, R1-H1 class).
          *     Shows active vehicles + archived vehicles where archived_visible=True.
          */
         get: operations["get_dashboard_api_dashboard_get"];
@@ -1774,7 +1776,7 @@ export interface paths {
          * @description Get a specific device.
          *
          *     **Security:**
-         *     - Requires authentication
+         *     - Owner of the device's linked vehicle (admin for unlinked devices).
          */
         get: operations["get_device_api_livelink_devices__device_id__get"];
         /**
@@ -1782,7 +1784,8 @@ export interface paths {
          * @description Update a device (label, VIN link, enabled status).
          *
          *     **Security:**
-         *     - Requires authentication
+         *     - Owner of the device's CURRENT linked vehicle, and -- when relinking -- of
+         *       the TARGET vehicle too (D-5 both-VIN check). Unlinked devices are admin-only.
          */
         put: operations["update_device_api_livelink_devices__device_id__put"];
         post?: never;
@@ -1793,7 +1796,7 @@ export interface paths {
          *     Historical telemetry and sessions are retained (keyed on vehicle).
          *
          *     **Security:**
-         *     - Requires authentication
+         *     - Owner of the device's linked vehicle (admin for unlinked devices).
          */
         delete: operations["delete_device_api_livelink_devices__device_id__delete"];
         options?: never;
@@ -1822,7 +1825,7 @@ export interface paths {
          *     Commands are fire-and-forget. Responses arrive via normal MQTT telemetry topics.
          *
          *     **Security:**
-         *     - Requires authentication
+         *     - Owner of the device's linked vehicle (admin for unlinked devices).
          *     - Device must be online
          *     - MQTT subscriber must be connected
          */
@@ -1845,7 +1848,7 @@ export interface paths {
          * @description Get info about a device's token (masked).
          *
          *     **Security:**
-         *     - Requires authentication
+         *     - Owner of the device's linked vehicle (admin for unlinked devices).
          */
         get: operations["get_device_token_info_api_livelink_devices__device_id__token_get"];
         put?: never;
@@ -1857,7 +1860,7 @@ export interface paths {
          *     **Important:** The token is only shown once.
          *
          *     **Security:**
-         *     - Requires authentication
+         *     - Owner of the device's linked vehicle (admin for unlinked devices).
          */
         post: operations["generate_device_token_api_livelink_devices__device_id__token_post"];
         /**
@@ -1865,7 +1868,7 @@ export interface paths {
          * @description Revoke a per-device token (device falls back to global token).
          *
          *     **Security:**
-         *     - Requires authentication
+         *     - Owner of the device's linked vehicle (admin for unlinked devices).
          */
         delete: operations["revoke_device_token_api_livelink_devices__device_id__token_delete"];
         options?: never;

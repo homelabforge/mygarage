@@ -177,7 +177,6 @@ class ShopDiscoveryService:
             search_query = "RV repair"
             url = f"{self.tomtom_base_url}/search/{search_query}.json"
             params = {
-                "key": self.tomtom_api_key,
                 "lat": latitude,
                 "lon": longitude,
                 "radius": radius_meters,
@@ -190,17 +189,22 @@ class ShopDiscoveryService:
             search_term = "auto repair"
             url = f"{self.tomtom_base_url}/categorySearch/{search_term}.json"
             params = {
-                "key": self.tomtom_api_key,
                 "lat": latitude,
                 "lon": longitude,
                 "radius": radius_meters,
                 "limit": self.max_results,
             }
 
+        # Send the API key as a request header, not a query param: raise_for_status
+        # bakes the full URL (incl. query string) into the exception message, which
+        # is then logged via sanitize_for_log (which does not redact query secrets).
+        # The TomTom-Api-Key header keeps the key out of the data/log path entirely.
+        headers = {"TomTom-Api-Key": self.tomtom_api_key}
+
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             try:
                 # codeql[py/partial-ssrf] - self.tomtom_base_url validated in __init__
-                response = await client.get(url, params=params)
+                response = await client.get(url, params=params, headers=headers)
                 response.raise_for_status()
                 data = response.json()
 

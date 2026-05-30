@@ -319,3 +319,94 @@ class TestCSRFProtectionMiddleware:
             result = await call_asgi(middleware, method=method, path="/api/vehicles/VIN123")
         assert result["status"] == 403
         assert result["downstream_called"] is False
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+class TestIngestBodySizeLimitMiddleware:
+    """Body-size cap on the LiveLink ingest endpoint (v2.28.0, I/F9)."""
+
+    from app.middleware import INGEST_MAX_BODY_BYTES, INGEST_PATH
+
+    async def _drive(self, *, path, headers, chunks):
+        """Run the middleware with a controlled receive() stream."""
+        from app.middleware import IngestBodySizeLimitMiddleware
+
+        captured = {"status": None, "body": b"", "downstream_called": False}
+
+        async def downstream(scope, receive, send):
+            captured["downstream_called"] = True
+            # Drain the (replayed) body so the test exercises the replay path.
+            while True:
+                msg = await receive()
+                if not msg.get("more_body", False):
+                    break
+            await send({"type": "http.response.start", "status": 202, "headers": []})
+            await send({"type": "http.response.body", "body": b""})
+
+        mw = IngestBodySizeLimitMiddleware(downstream)
+
+        queue = list(chunks)
+
+        async def receive():
+            if queue:
+                body, more = queue.pop(0)
+                return {"type": "http.request", "body": body, "more_body": more}
+            return {"type": "http.request", "body": b"", "more_body": False}
+
+        async def send(message):
+            if message["type"] == "http.response.start":
+                captured["status"] = message["status"]
+            elif message["type"] == "http.response.body":
+                captured["body"] += message.get("body", b"")
+
+        scope = {
+            "type": "http",
+            "method": "POST",
+            "path": path,
+            "headers": [
+                (k.lower().encode("latin-1"), v.encode("latin-1")) for k, v in headers.items()
+            ],
+            "query_string": b"",
+        }
+        await mw(scope, receive, send)
+        return captured
+
+    async def test_oversized_content_length_rejected(self):
+        result = await self._drive(
+            path=self.INGEST_PATH,
+            headers={"content-length": str(self.INGEST_MAX_BODY_BYTES + 1)},
+            chunks=[(b"x", False)],
+        )
+        assert result["status"] == 413
+        assert result["downstream_called"] is False
+
+    async def test_small_body_passes(self):
+        result = await self._drive(
+            path=self.INGEST_PATH,
+            headers={"content-length": "10"},
+            chunks=[(b'{"a": 1}', False)],
+        )
+        assert result["status"] == 202
+        assert result["downstream_called"] is True
+
+    async def test_other_path_not_limited(self):
+        # A huge Content-Length on a non-ingest path is none of this middleware's
+        # business -> it passes straight through.
+        result = await self._drive(
+            path="/api/vehicles",
+            headers={"content-length": str(self.INGEST_MAX_BODY_BYTES + 1)},
+            chunks=[(b"x", False)],
+        )
+        assert result["downstream_called"] is True
+
+    async def test_chunked_overflow_rejected(self):
+        # No Content-Length; oversize delivered across chunks -> 413 mid-stream.
+        big = b"x" * (self.INGEST_MAX_BODY_BYTES // 2 + 1)
+        result = await self._drive(
+            path=self.INGEST_PATH,
+            headers={},
+            chunks=[(big, True), (big, False)],
+        )
+        assert result["status"] == 413
+        assert result["downstream_called"] is False

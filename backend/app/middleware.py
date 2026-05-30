@@ -229,6 +229,95 @@ class CSRFProtectionMiddleware:
         await self.app(scope, receive, send)
 
 
+#: LiveLink ingest body-size cap. WiCAN AutoPID payloads are KB-scale; this is a
+#: generous ceiling that still rejects an oversized/abusive POST before it reaches
+#: the (linear-time) normalizer. An optional Traefik `maxRequestBodyBytes` cap is
+#: documented as deploy-side defense-in-depth but is not in this repo (R1-H3).
+INGEST_PATH = "/api/v1/livelink/ingest"
+INGEST_MAX_BODY_BYTES = 256 * 1024
+
+
+class IngestBodySizeLimitMiddleware:
+    """Reject oversized POSTs to the LiveLink ingest endpoint with a 413.
+
+    Pure ASGI middleware scoped to ``INGEST_PATH``. Uses the ``Content-Length``
+    header as a fast path; for chunked / no-Content-Length requests it buffers
+    the body (ingest payloads are small) and aborts once the cap is exceeded,
+    then replays the buffered body to the inner app.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http" or scope.get("path") != INGEST_PATH:
+            await self.app(scope, receive, send)
+            return
+
+        content_length = _get_header(scope, b"content-length")
+        if content_length is not None:
+            try:
+                if int(content_length) > INGEST_MAX_BODY_BYTES:
+                    await _send_json(
+                        send,
+                        status=413,
+                        payload={"detail": "Request body too large"},
+                    )
+                    return
+            except ValueError:
+                pass  # Malformed Content-Length -> fall through to byte counting.
+
+        # Buffer the body, aborting if it exceeds the cap (covers chunked uploads
+        # and a lying/absent Content-Length).
+        body = b""
+        more_body = True
+        while more_body:
+            message = await receive()
+            if message["type"] != "http.request":
+                # e.g. http.disconnect -- hand control back to the app.
+                await self.app(scope, _single_message_receive(message, receive), send)
+                return
+            body += message.get("body", b"")
+            more_body = message.get("more_body", False)
+            if len(body) > INGEST_MAX_BODY_BYTES:
+                await _send_json(
+                    send,
+                    status=413,
+                    payload={"detail": "Request body too large"},
+                )
+                return
+
+        await self.app(scope, _replay_body_receive(body, receive), send)
+
+
+def _replay_body_receive(body: bytes, receive: Receive) -> Receive:
+    """Return a receive() that yields the buffered body once, then defers."""
+    sent = False
+
+    async def _receive() -> Message:
+        nonlocal sent
+        if not sent:
+            sent = True
+            return {"type": "http.request", "body": body, "more_body": False}
+        return await receive()
+
+    return _receive
+
+
+def _single_message_receive(first: Message, receive: Receive) -> Receive:
+    """Return a receive() that replays one already-read message, then defers."""
+    sent = False
+
+    async def _receive() -> Message:
+        nonlocal sent
+        if not sent:
+            sent = True
+            return first
+        return await receive()
+
+    return _receive
+
+
 def _get_header(scope: Scope, name: bytes) -> str | None:
     """Look up a request header value (case-insensitive) from the ASGI scope."""
     name_lower = name.lower()

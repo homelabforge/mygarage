@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CheckCircle, AlertCircle, Plug, Check, X, Plus, Radio, Settings, ArrowUpCircle } from 'lucide-react'
 import { useSettings } from '@/contexts/SettingsContext'
+import { useAuth } from '@/contexts/AuthContext'
 import api from '@/services/api'
 import { livelinkService } from '@/services/livelinkService'
 import type { LiveLinkSettings, LiveLinkDeviceListResponse, DeviceFirmwareStatus } from '@/types/livelink'
@@ -35,6 +36,10 @@ type POIProvider = {
 
 export default function SettingsIntegrationsTab() {
   const { t } = useTranslation('settings')
+  // LiveLink infra (settings/token/MQTT/parameters/firmware/global device list)
+  // is admin-only on the backend as of v2.28.0; gate the UI to match so
+  // non-admins don't see controls that would 403.
+  const { isAdmin } = useAuth()
   const [loading, setLoading] = useState(true)
   const { triggerSave, registerSaveHandler, unregisterSaveHandler } = useSettings()
   const [testing, setTesting] = useState(false)
@@ -127,8 +132,13 @@ export default function SettingsIntegrationsTab() {
   useEffect(() => {
     loadSettings()
     loadProviders()
-    loadLiveLinkData()
-  }, [loadSettings, loadLiveLinkData, loadProviders])
+    // LiveLink infra endpoints are admin-only; skip the fetch for non-admins.
+    if (isAdmin) {
+      loadLiveLinkData()
+    } else {
+      setLivelinkLoading(false)
+    }
+  }, [loadSettings, loadLiveLinkData, loadProviders, isAdmin])
 
   const handleEditProvider = (provider: POIProvider) => {
     setSelectedProvider(provider)
@@ -454,7 +464,8 @@ export default function SettingsIntegrationsTab() {
         </div>
         </div>
 
-        {/* LiveLink Integration */}
+        {/* LiveLink Integration — admin-only (infra endpoints require admin, v2.28.0) */}
+        {isAdmin && (
         <div className="bg-garage-surface rounded-lg border border-garage-border p-6">
           <div className="flex items-start gap-3 mb-6">
             <Radio className="w-6 h-6 text-primary mt-1" />
@@ -542,6 +553,7 @@ export default function SettingsIntegrationsTab() {
             </div>
           </div>
         </div>
+        )}
       </div>
 
       {/* Modals — rendered at the tab root, outside the grid */}

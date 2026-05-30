@@ -264,11 +264,15 @@ class MQTTSubscriber:
             logger.debug("Failed to parse MQTT payload: %s", e)
             return
 
+        # The decoded payload is broker-supplied and may contain CR/LF or other
+        # control chars; sanitize it like topic/subtopic before logging. (The
+        # MQTT ingress has no per-user authz by design -- it trusts the broker
+        # credential -- so log hygiene is the relevant control here.)
         logger.debug(
             "MQTT message: device=%s, subtopic=%s, data=%s",
             sanitize_for_log(device_id),
             sanitize_for_log(subtopic),
-            data,
+            sanitize_for_log(data),
         )
 
         # Route to appropriate handler

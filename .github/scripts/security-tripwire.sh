@@ -20,7 +20,8 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$REPO_ROOT"
 
 # Rollout switch: "warn" prints findings but exits 0; "fail" gates CI.
-# Flipped to "fail" in Phase 4 once Groups A-E are fixed.
-MODE="warn"
+# Flipped to "fail" in Phase 4: Groups A-E are fixed and the checker reports
+# zero findings on the tree.
+MODE="fail"
 
 python3 backend/tools/authz_tripwire.py --mode "$MODE"

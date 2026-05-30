@@ -21607,7 +21607,7 @@
     },
     "/api/dashboard": {
       "get": {
-        "description": "Get complete dashboard with statistics for all vehicles.\n\nFor authenticated users: Shows owned vehicles + shared vehicles.\nFor unauthenticated: Shows all active vehicles (legacy behavior).\nShows active vehicles + archived vehicles where archived_visible=True.",
+        "description": "Get complete dashboard with statistics for all vehicles.\n\nFor authenticated users: Shows owned vehicles + shared vehicles.\nFor none-mode (auth disabled): Shows all active vehicles (legacy behavior).\nA no-token request in local/oidc now 401s at the dependency rather than\nfalling through to the all-vehicles branch (fail-open closed, R1-H1 class).\nShows active vehicles + archived vehicles where archived_visible=True.",
         "operationId": "get_dashboard_api_dashboard_get",
         "responses": {
           "200": {
@@ -23100,7 +23100,7 @@
     },
     "/api/livelink/devices/{device_id}": {
       "delete": {
-        "description": "Delete a device.\n\nHistorical telemetry and sessions are retained (keyed on vehicle).\n\n**Security:**\n- Requires authentication",
+        "description": "Delete a device.\n\nHistorical telemetry and sessions are retained (keyed on vehicle).\n\n**Security:**\n- Owner of the device's linked vehicle (admin for unlinked devices).",
         "operationId": "delete_device_api_livelink_devices__device_id__delete",
         "parameters": [
           {
@@ -23139,7 +23139,7 @@
         ]
       },
       "get": {
-        "description": "Get a specific device.\n\n**Security:**\n- Requires authentication",
+        "description": "Get a specific device.\n\n**Security:**\n- Owner of the device's linked vehicle (admin for unlinked devices).",
         "operationId": "get_device_api_livelink_devices__device_id__get",
         "parameters": [
           {
@@ -23185,7 +23185,7 @@
         ]
       },
       "put": {
-        "description": "Update a device (label, VIN link, enabled status).\n\n**Security:**\n- Requires authentication",
+        "description": "Update a device (label, VIN link, enabled status).\n\n**Security:**\n- Owner of the device's CURRENT linked vehicle, and -- when relinking -- of\n  the TARGET vehicle too (D-5 both-VIN check). Unlinked devices are admin-only.",
         "operationId": "update_device_api_livelink_devices__device_id__put",
         "parameters": [
           {
@@ -23243,7 +23243,7 @@
     },
     "/api/livelink/devices/{device_id}/command": {
       "post": {
-        "description": "Send a command to a WiCAN device via MQTT.\n\nSupported commands:\n- **get_vbatt**: Request battery voltage\n- **get_autopid_data**: Trigger one-shot AutoPID data poll (requires ECU online)\n- **reboot**: Reboot the WiCAN device\n\nCommands are fire-and-forget. Responses arrive via normal MQTT telemetry topics.\n\n**Security:**\n- Requires authentication\n- Device must be online\n- MQTT subscriber must be connected",
+        "description": "Send a command to a WiCAN device via MQTT.\n\nSupported commands:\n- **get_vbatt**: Request battery voltage\n- **get_autopid_data**: Trigger one-shot AutoPID data poll (requires ECU online)\n- **reboot**: Reboot the WiCAN device\n\nCommands are fire-and-forget. Responses arrive via normal MQTT telemetry topics.\n\n**Security:**\n- Owner of the device's linked vehicle (admin for unlinked devices).\n- Device must be online\n- MQTT subscriber must be connected",
         "operationId": "send_device_command_api_livelink_devices__device_id__command_post",
         "parameters": [
           {
@@ -23301,7 +23301,7 @@
     },
     "/api/livelink/devices/{device_id}/token": {
       "delete": {
-        "description": "Revoke a per-device token (device falls back to global token).\n\n**Security:**\n- Requires authentication",
+        "description": "Revoke a per-device token (device falls back to global token).\n\n**Security:**\n- Owner of the device's linked vehicle (admin for unlinked devices).",
         "operationId": "revoke_device_token_api_livelink_devices__device_id__token_delete",
         "parameters": [
           {
@@ -23340,7 +23340,7 @@
         ]
       },
       "get": {
-        "description": "Get info about a device's token (masked).\n\n**Security:**\n- Requires authentication",
+        "description": "Get info about a device's token (masked).\n\n**Security:**\n- Owner of the device's linked vehicle (admin for unlinked devices).",
         "operationId": "get_device_token_info_api_livelink_devices__device_id__token_get",
         "parameters": [
           {
@@ -23386,7 +23386,7 @@
         ]
       },
       "post": {
-        "description": "Generate a per-device API token.\n\nPer-device tokens take precedence over the global token.\n**Important:** The token is only shown once.\n\n**Security:**\n- Requires authentication",
+        "description": "Generate a per-device API token.\n\nPer-device tokens take precedence over the global token.\n**Important:** The token is only shown once.\n\n**Security:**\n- Owner of the device's linked vehicle (admin for unlinked devices).",
         "operationId": "generate_device_token_api_livelink_devices__device_id__token_post",
         "parameters": [
           {

@@ -213,10 +213,14 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # ty
 # floor (60 req/s per source IP).
 from app.middleware import (
     CSRFProtectionMiddleware,
+    IngestBodySizeLimitMiddleware,
     RequestIDMiddleware,
     SecurityHeadersMiddleware,
 )
 
+# Innermost: the ingest body-size guard runs closest to the app, so its 413
+# still flows out through RequestID + SecurityHeaders and is fully decorated.
+app.add_middleware(IngestBodySizeLimitMiddleware)
 app.add_middleware(CSRFProtectionMiddleware)
 app.add_middleware(RequestIDMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
