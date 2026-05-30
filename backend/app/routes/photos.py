@@ -61,8 +61,8 @@ async def upload_vehicle_photo(
     vin = vin.upper().strip()
 
     try:
-        # Check vehicle ownership (raises 403 if unauthorized)
-        vehicle = await get_vehicle_or_403(vin, current_user, db)
+        # Child-record write -> write-share required (D-4).
+        vehicle = await get_vehicle_or_403(vin, current_user, db, require_write=True)
 
         # Upload using shared service
         upload_result = await FileUploadService.upload_file(
@@ -267,8 +267,8 @@ async def delete_vehicle_photo(
     safe_filename = sanitize_filename(filename)
 
     try:
-        # Check vehicle ownership (raises 403 if unauthorized)
-        vehicle = await get_vehicle_or_403(vin, current_user, db)
+        # Child-record write -> write-share required (D-4).
+        vehicle = await get_vehicle_or_403(vin, current_user, db, require_write=True)
 
         result = await db.execute(
             select(VehiclePhoto).where(
@@ -377,8 +377,8 @@ async def set_main_photo(
     safe_filename = sanitize_filename(filename)
 
     try:
-        # Check vehicle ownership (raises 403 if unauthorized)
-        vehicle = await get_vehicle_or_403(vin, current_user, db)
+        # Child-record write -> write-share required (D-4).
+        vehicle = await get_vehicle_or_403(vin, current_user, db, require_write=True)
 
         # Check if photo exists
         file_path = PHOTO_DIR / vin / safe_filename
@@ -468,8 +468,8 @@ async def update_vehicle_photo_metadata(
     vin = vin.upper().strip()
 
     try:
-        # Check vehicle ownership (raises 403 if unauthorized)
-        vehicle = await get_vehicle_or_403(vin, current_user, db)
+        # Child-record write -> write-share required (D-4).
+        vehicle = await get_vehicle_or_403(vin, current_user, db, require_write=True)
 
         result = await db.execute(
             select(VehiclePhoto).where(VehiclePhoto.id == photo_id, VehiclePhoto.vin == vin)

@@ -20,7 +20,7 @@ from app.schemas.vehicle import (
     VehicleResponse,
     VehicleUpdate,
 )
-from app.services.auth import optional_auth, require_auth
+from app.services.auth import get_vehicle_for_owner_or_403, optional_auth, require_auth
 from app.services.vehicle_service import VehicleService
 from app.utils.datetime_utils import utc_now
 from app.utils.logging_utils import sanitize_for_log
@@ -224,8 +224,8 @@ async def create_trailer_details(
     vin = vin.upper().strip()
 
     try:
-        # Check vehicle ownership (raises 403 if unauthorized)
-        _ = await get_vehicle_or_403(vin, current_user, db)
+        # Child-record write -> write-share required (D-4).
+        _ = await get_vehicle_or_403(vin, current_user, db, require_write=True)
 
         # Check if trailer details already exist
         result = await db.execute(select(TrailerDetails).where(TrailerDetails.vin == vin))
@@ -285,8 +285,8 @@ async def update_trailer_details(
     vin = vin.upper().strip()
 
     try:
-        # Check vehicle ownership
-        await get_vehicle_or_403(vin, current_user, db)
+        # Child-record write -> write-share required (D-4).
+        await get_vehicle_or_403(vin, current_user, db, require_write=True)
 
         # Get existing trailer details
         result = await db.execute(select(TrailerDetails).where(TrailerDetails.vin == vin))
@@ -335,7 +335,7 @@ async def archive_vehicle(
     vin: str,
     archive_data: VehicleArchiveRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User | None = Depends(optional_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Archive a vehicle (soft delete).
@@ -352,17 +352,12 @@ async def archive_vehicle(
     - **403**: Not authorized (when authenticated)
     """
     vin = vin.upper().strip()
-    service = VehicleService(db)
 
-    # In auth mode, check ownership; in none mode, allow all
-    if current_user:
-        vehicle = await service.get_vehicle(vin, current_user)
-    else:
-        # No auth mode: get vehicle directly
-        result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-        vehicle = result.scalar_one_or_none()
-        if not vehicle:
-            raise HTTPException(status_code=404, detail="Vehicle not found")
+    # Archive/unarchive/visibility are OWNER-only vehicle-core ops (D-2). With
+    # require_auth (not optional_auth), current_user is None only in none-mode;
+    # get_vehicle_for_owner_or_403 then enforces owner/admin (a no-token request
+    # in local/oidc already 401s at the dependency).
+    vehicle = await get_vehicle_for_owner_or_403(vin, current_user, db)
 
     # Set archive fields
     vehicle.archived_at = utc_now()
@@ -387,7 +382,7 @@ async def archive_vehicle(
 async def unarchive_vehicle(
     vin: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User | None = Depends(optional_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Restore an archived vehicle to active status.
@@ -404,17 +399,12 @@ async def unarchive_vehicle(
     - **400**: Vehicle is not archived
     """
     vin = vin.upper().strip()
-    service = VehicleService(db)
 
-    # In auth mode, check ownership; in none mode, allow all
-    if current_user:
-        vehicle = await service.get_vehicle(vin, current_user)
-    else:
-        # No auth mode: get vehicle directly
-        result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-        vehicle = result.scalar_one_or_none()
-        if not vehicle:
-            raise HTTPException(status_code=404, detail="Vehicle not found")
+    # Archive/unarchive/visibility are OWNER-only vehicle-core ops (D-2). With
+    # require_auth (not optional_auth), current_user is None only in none-mode;
+    # get_vehicle_for_owner_or_403 then enforces owner/admin (a no-token request
+    # in local/oidc already 401s at the dependency).
+    vehicle = await get_vehicle_for_owner_or_403(vin, current_user, db)
 
     if not vehicle.archived_at:
         raise HTTPException(status_code=400, detail="Vehicle is not archived")
@@ -500,7 +490,7 @@ async def toggle_archived_visibility(
     vin: str,
     visible: bool,
     db: AsyncSession = Depends(get_db),
-    current_user: User | None = Depends(optional_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Toggle visibility of archived vehicle in main list.
@@ -518,17 +508,12 @@ async def toggle_archived_visibility(
     - **400**: Vehicle is not archived
     """
     vin = vin.upper().strip()
-    service = VehicleService(db)
 
-    # In auth mode, check ownership; in none mode, allow all
-    if current_user:
-        vehicle = await service.get_vehicle(vin, current_user)
-    else:
-        # No auth mode: get vehicle directly
-        result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-        vehicle = result.scalar_one_or_none()
-        if not vehicle:
-            raise HTTPException(status_code=404, detail="Vehicle not found")
+    # Archive/unarchive/visibility are OWNER-only vehicle-core ops (D-2). With
+    # require_auth (not optional_auth), current_user is None only in none-mode;
+    # get_vehicle_for_owner_or_403 then enforces owner/admin (a no-token request
+    # in local/oidc already 401s at the dependency).
+    vehicle = await get_vehicle_for_owner_or_403(vin, current_user, db)
 
     if not vehicle.archived_at:
         raise HTTPException(status_code=400, detail="Vehicle is not archived")

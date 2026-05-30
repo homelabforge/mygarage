@@ -29,7 +29,11 @@ from app.schemas.livelink import (
     TokenGenerateResponse,
     TokenInfoResponse,
 )
-from app.services.auth import get_current_admin_user, require_auth
+from app.services.auth import (
+    get_current_admin_user,
+    get_vehicle_for_owner_or_403,
+    require_auth,
+)
 from app.services.dtc_service import DTCService
 from app.services.firmware_service import FirmwareService
 from app.services.livelink_service import LiveLinkService
@@ -219,14 +223,9 @@ async def get_device(
     Get a specific device.
 
     **Security:**
-    - Requires authentication
+    - Owner of the device's linked vehicle (admin for unlinked devices).
     """
-    service = LiveLinkService(db)
-    device = await service.get_device_by_id(device_id)
-
-    if not device:
-        raise HTTPException(status_code=404, detail=f"Device {device_id} not found")
-
+    device = await _get_device_for_owner_or_404(db, device_id, current_user)
     return LiveLinkDeviceResponse.model_validate(device)
 
 
@@ -241,8 +240,19 @@ async def update_device(
     Update a device (label, VIN link, enabled status).
 
     **Security:**
-    - Requires authentication
+    - Owner of the device's CURRENT linked vehicle, and -- when relinking -- of
+      the TARGET vehicle too (D-5 both-VIN check). Unlinked devices are admin-only.
     """
+    # Authorise against the current link first.
+    device = await _get_device_for_owner_or_404(db, device_id, current_user)
+
+    # Relink: the target VIN must also be owned by the caller, else a user could
+    # attach a device to a vehicle they don't own (cross-tenant telemetry).
+    if updates.vin:
+        target_vin = updates.vin.upper().strip()
+        if target_vin != (device.vin or "").upper():
+            await get_vehicle_for_owner_or_403(target_vin, current_user, db)
+
     service = LiveLinkService(db)
     device = await service.update_device(
         device_id=device_id,
@@ -269,8 +279,10 @@ async def delete_device(
     Historical telemetry and sessions are retained (keyed on vehicle).
 
     **Security:**
-    - Requires authentication
+    - Owner of the device's linked vehicle (admin for unlinked devices).
     """
+    await _get_device_for_owner_or_404(db, device_id, current_user)
+
     service = LiveLinkService(db)
     deleted = await service.delete_device(device_id)
 
@@ -291,8 +303,10 @@ async def generate_device_token(
     **Important:** The token is only shown once.
 
     **Security:**
-    - Requires authentication
+    - Owner of the device's linked vehicle (admin for unlinked devices).
     """
+    await _get_device_for_owner_or_404(db, device_id, current_user)
+
     service = LiveLinkService(db)
     token = await service.generate_device_token(device_id)
 
@@ -315,8 +329,10 @@ async def revoke_device_token(
     Revoke a per-device token (device falls back to global token).
 
     **Security:**
-    - Requires authentication
+    - Owner of the device's linked vehicle (admin for unlinked devices).
     """
+    await _get_device_for_owner_or_404(db, device_id, current_user)
+
     service = LiveLinkService(db)
     revoked = await service.revoke_device_token(device_id)
 
@@ -334,13 +350,9 @@ async def get_device_token_info(
     Get info about a device's token (masked).
 
     **Security:**
-    - Requires authentication
+    - Owner of the device's linked vehicle (admin for unlinked devices).
     """
-    service = LiveLinkService(db)
-    device = await service.get_device_by_id(device_id)
-
-    if not device:
-        raise HTTPException(status_code=404, detail=f"Device {device_id} not found")
+    device = await _get_device_for_owner_or_404(db, device_id, current_user)
 
     if not device.device_token_hash:
         raise HTTPException(status_code=404, detail="Device has no per-device token")
@@ -371,10 +383,12 @@ async def send_device_command(
     Commands are fire-and-forget. Responses arrive via normal MQTT telemetry topics.
 
     **Security:**
-    - Requires authentication
+    - Owner of the device's linked vehicle (admin for unlinked devices).
     - Device must be online
     - MQTT subscriber must be connected
     """
+    await _get_device_for_owner_or_404(db, device_id, current_user)
+
     from app.services.device_command_service import send_command
 
     try:
@@ -817,6 +831,25 @@ async def test_mqtt_connection(
 # =============================================================================
 # Helpers
 # =============================================================================
+
+
+async def _get_device_for_owner_or_404(db: AsyncSession, device_id: str, current_user: User | None):
+    """Resolve a device and require the caller owns its linked vehicle (D-5).
+
+    Per-device ops (view/relink/command/token/delete a single device) are scoped
+    to the owner of the device's linked vehicle. An unlinked device (no vin) has
+    no vehicle owner, so it is admin-only. Returns the device on success.
+    """
+    service = LiveLinkService(db)
+    device = await service.get_device_by_id(device_id)
+    if not device:
+        raise HTTPException(status_code=404, detail=f"Device {device_id} not found")
+    if device.vin:
+        # Raises 403 unless caller owns the linked vehicle (or is admin / none-mode).
+        await get_vehicle_for_owner_or_403(device.vin, current_user, db)
+    elif current_user is not None and not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Only an admin can manage an unlinked device")
+    return device
 
 
 async def _get_bool_setting(db: AsyncSession, key: str, default: bool = False) -> bool:

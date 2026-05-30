@@ -104,7 +104,8 @@ async def parse_insurance_pdf(
     Returns extracted data without saving to database.
     User can review and edit before creating the policy.
     """
-    await get_vehicle_or_403(vin, current_user, db)
+    # Dry-run OCR parse: persists nothing, so read access is sufficient.
+    await get_vehicle_or_403(vin, current_user, db)  # tripwire: read-only
 
     # Validate file type - now supports images too
     allowed_extensions = {".pdf", ".jpg", ".jpeg", ".png"}
@@ -225,7 +226,8 @@ async def test_parse_insurance_pdf(
 
     Useful for troubleshooting parsing issues.
     """
-    await get_vehicle_or_403(vin, current_user, db)
+    # Dry-run OCR parse: persists nothing, so read access is sufficient.
+    await get_vehicle_or_403(vin, current_user, db)  # tripwire: read-only
 
     # Validate file
     allowed_extensions = {".pdf", ".jpg", ".jpeg", ".png"}

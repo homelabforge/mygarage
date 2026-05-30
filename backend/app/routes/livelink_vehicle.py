@@ -44,10 +44,19 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/vehicles/{vin}/livelink", tags=["Vehicle LiveLink"])
 
 
-async def verify_vehicle_access(db: AsyncSession, vin: str, current_user: User | None) -> Vehicle:
-    """Verify vehicle exists and user has access, return it."""
+async def verify_vehicle_access(
+    db: AsyncSession,
+    vin: str,
+    current_user: User | None,
+    require_write: bool = False,
+) -> Vehicle:
+    """Verify vehicle exists and user has access, return it.
+
+    Shared by all vehicle-LiveLink endpoints. ``require_write=True`` (passed by
+    the two mutating DTC routes) demands a write-share; reads keep the default.
+    """
     vin = vin.upper().strip()
-    return await get_vehicle_or_403(vin, current_user, db)
+    return await get_vehicle_or_403(vin, current_user, db, require_write=require_write)
 
 
 # =============================================================================
@@ -472,7 +481,8 @@ async def update_dtc(
     **Security:**
     - Requires authentication
     """
-    await verify_vehicle_access(db, vin, current_user)
+    # Annotating a DTC is a child-record write -> write-share required (D-4).
+    await verify_vehicle_access(db, vin, current_user, require_write=True)
 
     dtc_service = DTCService(db)
 
@@ -511,7 +521,8 @@ async def clear_dtc(
     **Security:**
     - Requires authentication
     """
-    await verify_vehicle_access(db, vin, current_user)
+    # Clearing a DTC mutates the child record -> write-share required (D-4).
+    await verify_vehicle_access(db, vin, current_user, require_write=True)
 
     # Verify DTC belongs to vehicle
     from app.models.vehicle_dtc import VehicleDTC

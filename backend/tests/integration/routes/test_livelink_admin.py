@@ -128,6 +128,7 @@ class TestLiveLinkDevices:
         """Test deleting a non-existent device."""
         with patch("app.routes.livelink_admin.LiveLinkService") as mock_service_class:
             mock_service = MagicMock()
+            mock_service.get_device_by_id = AsyncMock(return_value=None)
             mock_service.delete_device = AsyncMock(return_value=False)
             mock_service_class.return_value = mock_service
 
@@ -142,6 +143,7 @@ class TestLiveLinkDevices:
         """Test successfully deleting a device."""
         with patch("app.routes.livelink_admin.LiveLinkService") as mock_service_class:
             mock_service = MagicMock()
+            mock_service.get_device_by_id = AsyncMock(return_value=MagicMock(vin=None))
             mock_service.delete_device = AsyncMock(return_value=True)
             mock_service_class.return_value = mock_service
 
@@ -162,6 +164,7 @@ class TestLiveLinkDeviceTokens:
         """Test generating token for non-existent device."""
         with patch("app.routes.livelink_admin.LiveLinkService") as mock_service_class:
             mock_service = MagicMock()
+            mock_service.get_device_by_id = AsyncMock(return_value=None)
             mock_service.generate_device_token = AsyncMock(return_value=None)
             mock_service_class.return_value = mock_service
 
@@ -176,6 +179,7 @@ class TestLiveLinkDeviceTokens:
         """Test generating per-device token."""
         with patch("app.routes.livelink_admin.LiveLinkService") as mock_service_class:
             mock_service = MagicMock()
+            mock_service.get_device_by_id = AsyncMock(return_value=MagicMock(vin=None))
             mock_service.generate_device_token = AsyncMock(return_value="device_token_xyz")
             mock_service_class.return_value = mock_service
 
@@ -192,6 +196,7 @@ class TestLiveLinkDeviceTokens:
         """Test revoking token for non-existent device."""
         with patch("app.routes.livelink_admin.LiveLinkService") as mock_service_class:
             mock_service = MagicMock()
+            mock_service.get_device_by_id = AsyncMock(return_value=None)
             mock_service.revoke_device_token = AsyncMock(return_value=False)
             mock_service_class.return_value = mock_service
 

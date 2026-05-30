@@ -180,13 +180,15 @@ class VehicleService:
         Raises:
             HTTPException: 404 if not found, 403 if not authorized
         """
-        from app.services.auth import get_vehicle_or_403
+        from app.services.auth import get_vehicle_for_owner_or_403
 
         vin = vin.upper().strip()
 
         try:
-            # Get vehicle with ownership check
-            vehicle = await get_vehicle_or_403(vin, current_user, self.db)
+            # Editing identity metadata (make/model/VIN/nickname/color) is
+            # OWNER-only (D-2): a write-share may add child records but must not
+            # mutate the vehicle row itself.
+            vehicle = await get_vehicle_for_owner_or_403(vin, current_user, self.db)
 
             # Update fields (only non-None values)
             update_data = vehicle_data.model_dump(exclude_unset=True)

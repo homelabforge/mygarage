@@ -95,7 +95,8 @@ async def apply_template(
     - duty_type: "normal" or "severe" (default: "normal")
     - current_mileage: Current vehicle mileage (optional)
     """
-    vehicle = await get_vehicle_or_403(request.vin, current_user, db)
+    # Applying a template creates child records (reminders) -> write-share (D-4).
+    vehicle = await get_vehicle_or_403(request.vin, current_user, db, require_write=True)
 
     # Check if template already applied
     result = await db.execute(
@@ -189,7 +190,8 @@ async def delete_template_record(
     Note: This does NOT delete the reminders that were created from the template.
     It only removes the record of the template being applied.
     """
-    await get_vehicle_or_403(vin, current_user, db)
+    # Child-record delete -> write-share required (D-4).
+    await get_vehicle_or_403(vin, current_user, db, require_write=True)
 
     result = await db.execute(
         select(MaintenanceTemplate).where(

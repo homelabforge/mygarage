@@ -15,7 +15,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.database import get_db
 from app.models.user import User
-from app.services.auth import get_vehicle_or_403, require_auth
+from app.services.auth import (
+    get_vehicle_for_owner_or_403,
+    get_vehicle_or_403,
+    require_auth,
+)
 from app.services.window_sticker_ocr import WindowStickerOCRService
 from app.utils.datetime_utils import utc_now
 from app.utils.vin import validate_vin
@@ -159,7 +163,8 @@ async def upload_window_sticker(
     The file will be saved and OCR extraction will be attempted.
     Extracted data can be edited via the PATCH endpoint.
     """
-    vehicle = await get_vehicle_or_403(vin, current_user, db)
+    # Window-sticker upload mutates the vehicle row (incl. vehicle.color) -> OWNER-only (D-8).
+    vehicle = await get_vehicle_for_owner_or_403(vin, current_user, db)
 
     # Validate file
     validate_sticker_file(file)
@@ -284,7 +289,9 @@ async def test_window_sticker_extraction(
     Returns detailed extraction results including raw text,
     parsed data, validation warnings, and debug information.
     """
-    vehicle = await get_vehicle_or_403(vin, current_user, db)
+    # Dry-run OCR test: reads the vehicle but persists nothing, so read access
+    # (incl. a read-share) is sufficient.
+    vehicle = await get_vehicle_or_403(vin, current_user, db)  # tripwire: read-only
 
     # Validate file
     validate_sticker_file(file)
@@ -344,7 +351,8 @@ async def update_window_sticker_data(
 
     Use this endpoint to manually correct or add data that was not extracted by OCR.
     """
-    vehicle = await get_vehicle_or_403(vin, current_user, db)
+    # Editing sticker data mutates the vehicle row -> OWNER-only (D-8).
+    vehicle = await get_vehicle_for_owner_or_403(vin, current_user, db)
 
     # Update fields (only update non-None values)
     update_dict = update_data.model_dump(exclude_unset=True)
@@ -365,7 +373,8 @@ async def delete_window_sticker(
     current_user: User = Depends(require_auth),
 ) -> None:
     """Delete window sticker file and clear all extracted data."""
-    vehicle = await get_vehicle_or_403(vin, current_user, db)
+    # Deleting the sticker clears vehicle-row fields -> OWNER-only (D-8).
+    vehicle = await get_vehicle_for_owner_or_403(vin, current_user, db)
 
     if not vehicle.window_sticker_file_path:
         raise HTTPException(status_code=404, detail="No window sticker found for this vehicle")
