@@ -38,8 +38,11 @@ export default function SettingsIntegrationsTab() {
   const { t } = useTranslation('settings')
   // LiveLink infra (settings/token/MQTT/parameters/firmware/global device list)
   // is admin-only on the backend as of v2.28.0; gate the UI to match so
-  // non-admins don't see controls that would 403.
-  const { isAdmin } = useAuth()
+  // non-admins don't see controls that would 403. In none-mode auth is disabled
+  // and the backend allows infra access (get_current_admin_user returns None),
+  // so the single dev user must still see the panel.
+  const { isAdmin, authMode } = useAuth()
+  const canManageLiveLink = isAdmin || authMode === 'none'
   const [loading, setLoading] = useState(true)
   const { triggerSave, registerSaveHandler, unregisterSaveHandler } = useSettings()
   const [testing, setTesting] = useState(false)
@@ -132,13 +135,14 @@ export default function SettingsIntegrationsTab() {
   useEffect(() => {
     loadSettings()
     loadProviders()
-    // LiveLink infra endpoints are admin-only; skip the fetch for non-admins.
-    if (isAdmin) {
+    // LiveLink infra endpoints are admin-only (allowed in none-mode); skip the
+    // fetch for non-admins in an auth-enabled deployment.
+    if (canManageLiveLink) {
       loadLiveLinkData()
     } else {
       setLivelinkLoading(false)
     }
-  }, [loadSettings, loadLiveLinkData, loadProviders, isAdmin])
+  }, [loadSettings, loadLiveLinkData, loadProviders, canManageLiveLink])
 
   const handleEditProvider = (provider: POIProvider) => {
     setSelectedProvider(provider)
@@ -464,8 +468,9 @@ export default function SettingsIntegrationsTab() {
         </div>
         </div>
 
-        {/* LiveLink Integration — admin-only (infra endpoints require admin, v2.28.0) */}
-        {isAdmin && (
+        {/* LiveLink Integration — admin-only (infra endpoints require admin, v2.28.0;
+            shown in none-mode where auth is disabled) */}
+        {canManageLiveLink && (
         <div className="bg-garage-surface rounded-lg border border-garage-border p-6">
           <div className="flex items-start gap-3 mb-6">
             <Radio className="w-6 h-6 text-primary mt-1" />
