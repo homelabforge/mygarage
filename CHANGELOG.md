@@ -7,6 +7,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- Frontend: pin transitive deps via `overrides` to clear `bun audit` (brace-expansion, postcss, undici, form-data, js-yaml, @babel/core).
+
+### Build
+- Frontend: add `ESNext.Temporal` to tsconfig `lib` for the temporal-polyfill 1.0 global types.
+
+### Dev Dependencies
+- **@playwright/test**: 1.60.0 → 1.61.0
+- **@tailwindcss/vite**: 4.3.0 → 4.3.1
+- **@types/react**: 19.2.15 → 19.2.17
+- **@typescript-eslint/eslint-plugin**: 8.59.4 → 8.61.1
+- **@typescript-eslint/parser**: 8.59.4 → 8.61.1
+- **@vitest/coverage-v8**: 4.1.7 → 4.1.9
+- **@vitest/ui**: 4.1.7 → 4.1.9
+- **eslint**: 10.4.0 → 10.5.0
+- **eslint-plugin-react-refresh**: 0.5.2 → 0.5.3
+- **pandas-stubs**: 3.0.0.260204 → 3.0.3.260530
+- **pyright**: 1.1.409 → 1.1.410
+- **pytest**: 9.0.3 → 9.1.0
+- **ruff**: 0.15.14 → 0.15.18
+- **tailwindcss**: 4.3.0 → 4.3.1
+- **typescript-eslint**: 8.59.4 → 8.61.1
+- **vite**: 8.0.14 → 8.0.16
+- **vitest**: 4.1.7 → 4.1.9
+
+### App Dependencies
+- **@googlemaps/js-api-loader**: 2.0.2 → 2.1.1
+- **@tanstack/react-query**: 5.100.14 → 5.101.0
+- **@tanstack/react-query-devtools**: 5.100.14 → 5.101.0
+- **aiosmtplib**: 5.1.0 → 5.1.1
+- **axios**: 1.16.1 → 1.18.0
+- **date-fns**: 4.3.0 → 4.4.0
+- **fastapi**: 0.136.3 → 0.137.2
+- **i18next**: 26.2.0 → 26.3.1
+- **joserfc**: 1.6.8 → 1.7.1
+- **lucide-react**: 1.16.0 → 1.21.0
+- **matplotlib**: 3.10.9 → 3.11.0
+- **pillow-heif**: 1.3.0 → 1.4.0
+- **python-multipart**: 0.0.29 → 0.0.32
+- **react**: 19.2.6 → 19.2.7
+- **react-dom**: 19.2.6 → 19.2.7
+- **react-hook-form**: 7.76.1 → 7.79.0
+- **react-is**: 19.2.6 → 19.2.7
+- **react-router-dom**: 7.15.1 → 7.18.0
+- **reportlab**: 4.5.1 → 5.0.0
+- **slowapi**: 0.1.9 → 0.1.10
+- **sqlalchemy**: 2.0.50 → 2.0.51
+- **temporal-polyfill**: 0.3.2 → 1.0.1
+
+### HTTP Servers
+- **granian**: 2.7.4 → 2.7.6
+
 ## [2.28.0] - 2026-05-30
 
 ### Security
