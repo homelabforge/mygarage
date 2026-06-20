@@ -21,6 +21,20 @@ logger = logging.getLogger(__name__)
 TOKEN_PREFIX = "ll_"
 TOKEN_LENGTH = 32  # 32 bytes = 256 bits of entropy
 
+# Strong references to in-flight SD backfill tasks — prevents GC before completion.
+_sd_backfill_tasks: set = set()
+
+
+def enqueue_sd_backfill(device_id: str) -> None:
+    """Fire-and-forget a one-shot SD backfill (non-blocking)."""
+    import asyncio
+
+    from app.tasks.livelink_tasks import run_sd_backfill  # deferred: avoids circular import
+
+    task = asyncio.create_task(run_sd_backfill(device_id))
+    _sd_backfill_tasks.add(task)
+    task.add_done_callback(_sd_backfill_tasks.discard)
+
 
 class LiveLinkService:
     """Service for LiveLink token management and device operations."""
@@ -414,6 +428,30 @@ class LiveLinkService:
         sta_ip: str | None = None,
     ) -> None:
         """Update device status fields from payload."""
+        # Read prior state only when transitioning to "online" — keeps extra
+        # SELECT off every non-online status update.
+        # Read prior state only when transitioning to "online" — keeps the extra
+        # SELECT off every non-online status update.  Capture scalar values
+        # before the bulk UPDATE runs so the SQLAlchemy identity-map expiry
+        # that follows the UPDATE cannot corrupt our transition check.
+        should_backfill = False
+        if device_status == "online":
+            row = await self.db.execute(
+                select(
+                    LiveLinkDevice.device_status,
+                    LiveLinkDevice.device_address,
+                    LiveLinkDevice.sd_backfill_enabled,
+                ).where(LiveLinkDevice.device_id == device_id)
+            )
+            prior_row = row.one_or_none()
+            if (
+                prior_row is not None
+                and prior_row.device_status != "online"
+                and prior_row.device_address
+                and prior_row.sd_backfill_enabled
+            ):
+                should_backfill = True
+
         await self.db.execute(
             update(LiveLinkDevice)
             .where(LiveLinkDevice.device_id == device_id)
@@ -429,6 +467,9 @@ class LiveLinkService:
                 updated_at=utc_now(),
             )
         )
+
+        if should_backfill:
+            enqueue_sd_backfill(device_id)
 
     async def set_device_offline(self, device_id: str) -> None:
         """Mark a device and its ECU as offline."""

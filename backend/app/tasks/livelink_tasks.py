@@ -9,12 +9,29 @@ from app.database import AsyncSessionLocal
 from app.services.firmware_service import FirmwareService
 from app.services.livelink_service import LiveLinkService
 from app.services.notifications.dispatcher import NotificationDispatcher
+from app.services.sd_backfill_service import SdBackfillService
 from app.services.session_service import SessionService
 from app.services.settings_service import SettingsService
 from app.services.telemetry_service import TelemetryService
 from app.utils.datetime_utils import utc_now
 
 logger = logging.getLogger(__name__)
+
+
+async def run_sd_backfill(device_id: str) -> None:
+    """Background one-shot: pull + backfill a device's SD logs."""
+    async with AsyncSessionLocal() as db:
+        try:
+            result = await SdBackfillService(db).backfill_device(device_id)
+            logger.info(
+                "SD backfill %s: ingested=%d skipped=%d errors=%d",
+                device_id,
+                result.rows_ingested,
+                result.rows_skipped,
+                len(result.errors),
+            )
+        except Exception:  # noqa: BLE001 — background task must not crash the scheduler
+            logger.exception("SD backfill failed for %s", device_id)
 
 
 async def check_session_timeouts():
