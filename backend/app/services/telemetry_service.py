@@ -554,8 +554,13 @@ class TelemetryService:
         if not rows:
             return 0
 
+        # Commit in batches so a large backfill (tens of thousands of SD rows) never
+        # holds the SQLite write lock for the entire pull — live MQTT/HTTP ingest and
+        # scheduler writes interleave between batches instead of hitting
+        # "database is locked". Committed rows still dedup correctly across batches.
+        commit_batch = 500
         inserted = 0
-        for r in rows:
+        for i, r in enumerate(rows, start=1):
             # Normalise to naive UTC once so the (device_id, param_key, timestamp)
             # dedup index matches live-ingest rows (which store naive UTC via utc_now()).
             # Binding tz-aware datetimes into PG's TIMESTAMP WITHOUT TIME ZONE is also unsafe.
@@ -578,7 +583,10 @@ class TelemetryService:
             inserted += result.rowcount or 0
             await self._update_latest_if_newer(vin, r.param_key, r.value, ts)
 
-        await self.db.commit()
+            if i % commit_batch == 0:
+                await self.db.commit()
+
+        await self.db.commit()  # flush the final partial batch
         return inserted
 
     async def _update_latest_if_newer(

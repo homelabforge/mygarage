@@ -3,6 +3,7 @@
 import logging
 from collections.abc import AsyncGenerator
 
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
@@ -16,13 +17,28 @@ logger = logging.getLogger(__name__)
 is_sqlite = "sqlite" in settings.database_url.lower()
 
 if is_sqlite:
-    # SQLite async: No pool configuration needed (uses NullPool automatically)
+    # SQLite async: NullPool is automatic. Tune for concurrent writers so the MQTT
+    # ingest + scheduler + request paths don't raise "database is locked":
+    #   busy_timeout (via connect_args "timeout") makes a writer WAIT up to 30s for
+    #   the lock instead of erroring immediately. aiosqlite blocks in its worker
+    #   thread, so the event loop is not stalled.
     engine = create_async_engine(
         settings.database_url,
         echo=settings.debug,
         future=True,
+        connect_args={"timeout": 30},
     )
-    logger.info("Database engine created for SQLite (NullPool)")
+
+    @event.listens_for(engine.sync_engine, "connect")
+    def _sqlite_concurrency_pragmas(dbapi_connection, connection_record):
+        # WAL = concurrent readers + a single writer without reader/writer blocking;
+        # synchronous=NORMAL is durable and fast under WAL. Set per-connection (NullPool).
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA synchronous=NORMAL")
+        cursor.close()
+
+    logger.info("Database engine created for SQLite (NullPool, WAL, busy_timeout=30s)")
 else:
     # PostgreSQL/MySQL: Use connection pooling for production
     engine = create_async_engine(
