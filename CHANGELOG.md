@@ -33,7 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **eslint-plugin-react-refresh**: 0.5.2 → 0.5.3
 - **pandas-stubs**: 3.0.0.260204 → 3.0.3.260530
 - **pyright**: 1.1.409 → 1.1.410
-- **pytest**: 9.0.3 → 9.1.0
+- **pytest**: 9.0.3 → 9.1.1
 - **ruff**: 0.15.14 → 0.15.18
 - **tailwindcss**: 4.3.0 → 4.3.1
 - **typescript-eslint**: 8.59.4 → 8.61.1
@@ -47,7 +47,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **aiosmtplib**: 5.1.0 → 5.1.1
 - **axios**: 1.16.1 → 1.18.0
 - **date-fns**: 4.3.0 → 4.4.0
-- **fastapi**: 0.136.3 → 0.137.2
+- **fastapi**: 0.136.3 → 0.138.0
+- **cryptography**: 46.0.7 → 48.0.1
+- **starlette**: 1.0.1 → 1.3.1
 - **i18next**: 26.2.0 → 26.3.1
 - **joserfc**: 1.6.8 → 1.7.1
 - **lucide-react**: 1.16.0 → 1.21.0
