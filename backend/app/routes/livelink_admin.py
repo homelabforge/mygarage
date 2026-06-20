@@ -1,10 +1,18 @@
 """LiveLink admin endpoints for settings, devices, and parameters."""
 
 import logging
-from datetime import datetime
+from enum import Enum
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
+
+
+class FirmwareTrack(str, Enum):
+    """Firmware track selector for WiCAN device families."""
+
+    obd = "obd"
+    pro = "pro"
+
 
 from app.database import get_db
 from app.models.user import User
@@ -498,17 +506,17 @@ async def update_parameter(
 
 @router.get("/firmware/latest", response_model=FirmwareInfoResponse)
 async def get_latest_firmware(
+    track: FirmwareTrack = Query(FirmwareTrack.pro, description="Firmware track"),
     db: AsyncSession = Depends(get_db),
     current_user: User | None = Depends(get_current_admin_user),
 ):
-    """
-    Get the latest WiCAN firmware version (from cache).
+    """Get the latest WiCAN firmware version for a track (from cache).
 
     **Security:**
     - Requires authentication
     """
     service = FirmwareService(db)
-    info = await service.get_cached_firmware_info()
+    info = await service.get_cached_firmware_info(track.value)
 
     return FirmwareInfoResponse(
         latest_version=info.get("latest_version") if info else None,
@@ -516,29 +524,32 @@ async def get_latest_firmware(
         release_url=info.get("release_url") if info else None,
         release_notes=info.get("release_notes") if info else None,
         checked_at=info.get("checked_at") if info else None,
+        firmware_track=info.get("firmware_track") if info else track.value,
     )
 
 
 @router.post("/firmware/check", response_model=FirmwareInfoResponse)
 async def trigger_firmware_check(
+    track: FirmwareTrack = Query(FirmwareTrack.pro, description="Track to return after refresh"),
     db: AsyncSession = Depends(get_db),
     current_user: User | None = Depends(get_current_admin_user),
 ):
-    """
-    Check for new WiCAN firmware (fetches from GitHub).
+    """Check GitHub for new firmware (refreshes ALL tracks); return one track.
 
     **Security:**
     - Requires authentication
     """
     service = FirmwareService(db)
-    info = await service.check_firmware_updates()
+    await service.check_firmware_updates()  # refreshes obd + pro
+    info = await service.get_cached_firmware_info(track.value)
 
     return FirmwareInfoResponse(
         latest_version=info.get("latest_version") if info else None,
         latest_tag=info.get("latest_tag") if info else None,
         release_url=info.get("release_url") if info else None,
         release_notes=info.get("release_notes") if info else None,
-        checked_at=datetime.now() if info else None,
+        checked_at=info.get("checked_at") if info else None,
+        firmware_track=info.get("firmware_track") if info else track.value,
     )
 
 
@@ -547,8 +558,7 @@ async def get_device_firmware_status(
     db: AsyncSession = Depends(get_db),
     current_user: User | None = Depends(get_current_admin_user),
 ):
-    """
-    Get firmware status for all devices (current vs latest).
+    """Get firmware status for all devices (current vs latest, per track).
 
     **Security:**
     - Requires authentication
@@ -557,27 +567,17 @@ async def get_device_firmware_status(
     firmware_service = FirmwareService(db)
 
     devices = await livelink_service.list_devices()
-    latest_info = await firmware_service.get_cached_firmware_info()
-    latest_version = latest_info.get("latest_version") if latest_info else None
-
     results = []
     for device in devices:
-        update_available = False
-        if device.fw_version and latest_version:
-            # compare_versions returns -1 if device version < latest
-            update_available = (
-                FirmwareService.compare_versions(device.fw_version, latest_version) < 0
-            )
-
+        status = await firmware_service.check_device_firmware(device.device_id)
         results.append(
             DeviceFirmwareStatus(
                 device_id=device.device_id,
-                current_version=device.fw_version,
-                latest_version=latest_version,
-                update_available=update_available,
-                release_url=latest_info.get("release_url")
-                if latest_info and update_available
-                else None,
+                current_version=status.get("current_version"),
+                latest_version=status.get("latest_version"),
+                update_available=status.get("update_available") or False,
+                release_url=status.get("release_url") if status.get("update_available") else None,
+                firmware_track=status.get("firmware_track"),
             )
         )
 

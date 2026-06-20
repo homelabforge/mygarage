@@ -137,11 +137,14 @@ async def check_firmware_updates():
                 logger.warning("Firmware check failed: %s", update_info["error"])
                 return
 
-            latest_version = update_info.get("latest_version")
-            if not latest_version:
+            tracks = update_info.get("tracks", {})
+            if not tracks:
                 return
 
-            logger.info("Firmware check complete: latest version is %s", latest_version)
+            logger.info(
+                "Firmware check complete: %s",
+                ", ".join(f"{t}={i['latest_version']}" for t, i in tracks.items()),
+            )
 
             # Check notification setting
             notify_enabled = await _get_bool_setting(db, "livelink_notify_firmware_update", True)

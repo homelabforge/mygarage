@@ -213,6 +213,7 @@ class FirmwareInfoResponse(BaseModel):
     release_url: str | None = Field(None, description="GitHub release URL")
     release_notes: str | None = Field(None, description="Release notes summary")
     checked_at: datetime | None = Field(None, description="When firmware was last checked")
+    firmware_track: str | None = Field(None, description="Firmware track: 'obd' or 'pro'")
 
 
 class DeviceFirmwareStatus(BaseModel):
@@ -221,8 +222,9 @@ class DeviceFirmwareStatus(BaseModel):
     device_id: str
     current_version: str | None
     latest_version: str | None
-    update_available: bool = False
+    update_available: bool | None = False
     release_url: str | None = None
+    firmware_track: str | None = None
 
 
 # =============================================================================
