@@ -535,6 +535,83 @@ class TelemetryService:
         return seconds_since_last >= interval_seconds
 
     # =========================================================================
+    # SD-Card Bulk Backfill
+    # =========================================================================
+
+    async def bulk_backfill(self, vin: str, device_id: str, rows: list) -> int:
+        """Insert historical SD-card rows without triggering live side-effects.
+
+        rows: iterable of SdRow namedtuples with .param_key (already canonical),
+        .value (float), .timestamp (datetime, tz-aware UTC).
+
+        Deduplication is by (device_id, param_key, timestamp) — same unique
+        constraint as the live ingest path.  Updates vehicle_telemetry_latest
+        only when a backfilled row is strictly newer than the cached latest.
+
+        Returns the number of rows actually inserted (conflict-skipped rows are
+        not counted).
+        """
+        if not rows:
+            return 0
+
+        inserted = 0
+        for r in rows:
+            # Use the module-level dialect_insert (sqlite or pg, chosen at import time)
+            stmt = (
+                dialect_insert(VehicleTelemetry)
+                .values(
+                    vin=vin,
+                    device_id=device_id,
+                    param_key=r.param_key,
+                    value=r.value,
+                    timestamp=r.timestamp,
+                )
+                .on_conflict_do_nothing(index_elements=["device_id", "param_key", "timestamp"])
+            )
+            result = await self.db.execute(stmt)
+            # rowcount is 1 on insert, 0 when the conflict clause fires
+            inserted += result.rowcount or 0
+            await self._update_latest_if_newer(vin, r)
+
+        await self.db.commit()
+        return inserted
+
+    async def _update_latest_if_newer(self, vin: str, r: object) -> None:
+        """Update vehicle_telemetry_latest only when r.timestamp is strictly newer.
+
+        Never clobbers a fresher live reading with a backfilled historical row.
+        VehicleTelemetryLatest has no device_id column — do not pass one.
+        """
+        existing = (
+            await self.db.execute(
+                select(VehicleTelemetryLatest).where(
+                    VehicleTelemetryLatest.vin == vin,
+                    VehicleTelemetryLatest.param_key == r.param_key,
+                )
+            )
+        ).scalar_one_or_none()
+
+        # Normalise both sides to naive UTC for comparison
+        r_ts = r.timestamp
+        if r_ts.tzinfo is not None:
+            r_ts = r_ts.replace(tzinfo=None)
+
+        if existing is None:
+            self.db.add(
+                VehicleTelemetryLatest(
+                    vin=vin,
+                    param_key=r.param_key,
+                    value=r.value,
+                    timestamp=r_ts,
+                    received_at=utc_now(),
+                )
+            )
+        elif r_ts > existing.timestamp:
+            existing.value = r.value
+            existing.timestamp = r_ts
+            existing.received_at = utc_now()
+
+    # =========================================================================
     # Query Methods
     # =========================================================================
 
