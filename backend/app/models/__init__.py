@@ -18,6 +18,7 @@ from app.models.oidc_state import OIDCState
 from app.models.photo import VehiclePhoto
 from app.models.recall import Recall
 from app.models.reminder import Reminder
+from app.models.sd_log_ingest_state import SdLogIngestState
 from app.models.service_line_item import ServiceLineItem
 from app.models.service_visit import ServiceVisit
 from app.models.settings import Setting
@@ -65,6 +66,7 @@ __all__ = [
     "VehicleDTC",
     "DTCDefinition",
     "DriveSession",
+    "SdLogIngestState",
     # Family Multi-User
     "VehicleShare",
     "VehicleTransfer",

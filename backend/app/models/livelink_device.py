@@ -37,6 +37,10 @@ class LiveLinkDevice(Base):
     fw_version: Mapped[str | None] = mapped_column(String(20))  # e.g., "4.45"
     git_version: Mapped[str | None] = mapped_column(String(20))  # e.g., "v4.45p"
     sta_ip: Mapped[str | None] = mapped_column(String(45))  # Device IP for local UI link
+    device_address: Mapped[str | None] = mapped_column(
+        String(255)
+    )  # admin-set IP/host for SD pulls
+    sd_backfill_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     rssi: Mapped[int | None] = mapped_column(Integer)  # WiFi signal strength
     battery_voltage: Mapped[float | None] = mapped_column(Float)  # Vehicle battery from device
 
