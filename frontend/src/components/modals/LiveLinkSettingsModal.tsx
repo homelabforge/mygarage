@@ -1174,7 +1174,7 @@ function DeviceRow({
             </label>
             <button
               onClick={handleSaveSdConfig}
-              disabled={savingSd}
+              disabled={savingSd || sdAddress.trim() === ''}
               className="flex items-center gap-1 px-3 py-1 bg-garage-surface border border-garage-border rounded text-xs text-garage-text hover:bg-garage-bg disabled:opacity-50"
             >
               {savingSd ? <RefreshCw className="w-3 h-3 animate-spin" /> : <CheckCircle className="w-3 h-3" />}
