@@ -3,15 +3,18 @@
 import itertools
 import sqlite3
 import tempfile
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 import pytest_asyncio
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.livelink_device import LiveLinkDevice
 from app.models.user import User
 from app.models.vehicle import Vehicle
+from app.models.vehicle_telemetry import VehicleTelemetry
 from app.services.sd_backfill_service import SdBackfillService
 
 # Module-level counter — persists for the entire test session so that each
@@ -178,3 +181,58 @@ async def test_backfill_completed_file_skipped_on_re_pull(
     # Second poll: same file still listed — should be skipped (completed=True now)
     r2 = await svc.backfill_device(device_id)
     assert r2.rows_ingested == 0
+
+
+@pytest.mark.asyncio
+async def test_backfill_dedups_against_live_row(db_session, make_vehicle_and_device, monkeypatch):
+    """Backfill must not duplicate a row already stored by the live ingest path.
+
+    The live path stores naive UTC datetimes (via utc_now()).  SdLogParser
+    produces tz-aware UTC datetimes (datetime.fromtimestamp(ts, UTC)).
+    Before the fix, these were DISTINCT keys in the unique index so
+    on_conflict_do_nothing silently let the duplicate through.  After the fix,
+    bulk_backfill strips tzinfo before inserting, so the keys collide and the
+    conflict clause skips the row.
+    """
+    epoch_t = 1781967506  # fixed epoch for reproducibility
+    # Live path stores naive UTC — replicate exactly
+    live_ts = datetime.fromtimestamp(epoch_t, UTC).replace(tzinfo=None)
+
+    vin, device_id = await make_vehicle_and_device(
+        db_session, device_address="http://10.0.0.8", sd_backfill_enabled=True
+    )
+
+    # Seed a live telemetry row with naive UTC timestamp (as the live path would)
+    live_row = VehicleTelemetry(
+        vin=vin,
+        device_id=device_id,
+        param_key="0C-ENGINERPM",
+        value=957.0,
+        timestamp=live_ts,
+    )
+    db_session.add(live_row)
+    await db_session.flush()
+
+    # SD fixture contains the same PID at the same epoch; param name canonicalises
+    # to "0C-ENGINERPM" inside bulk_backfill
+    sd_db = _fixture_db([("0C-EngineRPM", epoch_t, 957.0)])
+    client = _FakeClient({"active.db": ("active", sd_db)})
+    svc = SdBackfillService(db_session)
+    monkeypatch.setattr(svc, "_client_for", lambda addr: client)
+
+    result = await svc.backfill_device(device_id)
+
+    # Backfill row must have been skipped (conflict fired), not inserted
+    assert result.rows_ingested == 0, (
+        f"expected 0 rows_ingested (dedup with live row), got {result.rows_ingested}"
+    )
+
+    # Exactly one row must exist for this (device_id, param_key) — not two
+    count_result = await db_session.execute(
+        select(func.count(VehicleTelemetry.id)).where(
+            VehicleTelemetry.device_id == device_id,
+            VehicleTelemetry.param_key == "0C-ENGINERPM",
+        )
+    )
+    row_count = count_result.scalar()
+    assert row_count == 1, f"expected exactly 1 telemetry row (merged), found {row_count}"

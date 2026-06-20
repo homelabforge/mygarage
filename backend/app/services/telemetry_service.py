@@ -556,6 +556,11 @@ class TelemetryService:
 
         inserted = 0
         for r in rows:
+            # Normalise to naive UTC once so the (device_id, param_key, timestamp)
+            # dedup index matches live-ingest rows (which store naive UTC via utc_now()).
+            # Binding tz-aware datetimes into PG's TIMESTAMP WITHOUT TIME ZONE is also unsafe.
+            ts = r.timestamp.replace(tzinfo=None) if r.timestamp.tzinfo is not None else r.timestamp
+
             # Use the module-level dialect_insert (sqlite or pg, chosen at import time)
             stmt = (
                 dialect_insert(VehicleTelemetry)
@@ -564,51 +569,49 @@ class TelemetryService:
                     device_id=device_id,
                     param_key=r.param_key,
                     value=r.value,
-                    timestamp=r.timestamp,
+                    timestamp=ts,
                 )
                 .on_conflict_do_nothing(index_elements=["device_id", "param_key", "timestamp"])
             )
             result = await self.db.execute(stmt)
             # rowcount is 1 on insert, 0 when the conflict clause fires
             inserted += result.rowcount or 0
-            await self._update_latest_if_newer(vin, r)
+            await self._update_latest_if_newer(vin, r.param_key, r.value, ts)
 
         await self.db.commit()
         return inserted
 
-    async def _update_latest_if_newer(self, vin: str, r: object) -> None:
-        """Update vehicle_telemetry_latest only when r.timestamp is strictly newer.
+    async def _update_latest_if_newer(
+        self, vin: str, param_key: str, value: float, ts: datetime
+    ) -> None:
+        """Update vehicle_telemetry_latest only when ts is strictly newer.
 
         Never clobbers a fresher live reading with a backfilled historical row.
         VehicleTelemetryLatest has no device_id column — do not pass one.
+        Caller must pass ts as naive UTC (tzinfo=None).
         """
         existing = (
             await self.db.execute(
                 select(VehicleTelemetryLatest).where(
                     VehicleTelemetryLatest.vin == vin,
-                    VehicleTelemetryLatest.param_key == r.param_key,
+                    VehicleTelemetryLatest.param_key == param_key,
                 )
             )
         ).scalar_one_or_none()
-
-        # Normalise both sides to naive UTC for comparison
-        r_ts = r.timestamp
-        if r_ts.tzinfo is not None:
-            r_ts = r_ts.replace(tzinfo=None)
 
         if existing is None:
             self.db.add(
                 VehicleTelemetryLatest(
                     vin=vin,
-                    param_key=r.param_key,
-                    value=r.value,
-                    timestamp=r_ts,
+                    param_key=param_key,
+                    value=value,
+                    timestamp=ts,
                     received_at=utc_now(),
                 )
             )
-        elif r_ts > existing.timestamp:
-            existing.value = r.value
-            existing.timestamp = r_ts
+        elif ts > existing.timestamp:
+            existing.value = value
+            existing.timestamp = ts
             existing.received_at = utc_now()
 
     # =========================================================================
