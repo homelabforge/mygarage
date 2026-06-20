@@ -223,6 +223,33 @@ class FirmwareService:
         """
         return FirmwareService.compare_versions(version, MIN_FIRMWARE_VERSION) >= 0
 
+    @staticmethod
+    def classify_release_track(tag: str, title: str = "") -> str:
+        """Classify a GitHub release as the 'obd' or 'pro' firmware track.
+
+        PRO releases carry a ``p`` immediately after the numeric version
+        (e.g. ``v4.50p``, ``v4.49p_beta-06``); OBD/USB releases are bare
+        (``v4.21``, ``v4.20_beta-01``). Falls back to the release title.
+        """
+        base = tag.strip().lstrip("v").split("_")[0]  # "4.50p" | "4.21" | "4.20"
+        if base.endswith("p"):
+            return "pro"
+        if base[:1].isdigit():
+            return "obd"
+        return "pro" if "pro" in title.lower() else "obd"
+
+    @staticmethod
+    def device_firmware_track(hw_version: str | None) -> str | None:
+        """Resolve a device's firmware track from its ``hw_version``.
+
+        ``"PRO"`` substring (case-insensitive) → ``pro``; any other non-empty
+        value → ``obd``; missing/empty → ``None`` (unknown hardware, which the
+        update-comparison path skips entirely).
+        """
+        if not hw_version:
+            return None
+        return "pro" if "pro" in hw_version.lower() else "obd"
+
     async def check_device_firmware(self, device_id: str) -> dict:
         """Check firmware status for a specific device.
 
