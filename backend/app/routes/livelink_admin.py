@@ -1,18 +1,10 @@
 """LiveLink admin endpoints for settings, devices, and parameters."""
 
 import logging
-from enum import Enum
+from enum import StrEnum
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-
-
-class FirmwareTrack(str, Enum):
-    """Firmware track selector for WiCAN device families."""
-
-    obd = "obd"
-    pro = "pro"
-
 
 from app.database import get_db
 from app.models.user import User
@@ -49,6 +41,14 @@ from app.services.settings_service import SettingsService
 from app.services.telemetry_service import TelemetryService
 
 logger = logging.getLogger(__name__)
+
+
+class FirmwareTrack(StrEnum):
+    """Firmware track selector for WiCAN device families."""
+
+    obd = "obd"
+    pro = "pro"
+
 
 router = APIRouter(prefix="/api/livelink", tags=["LiveLink Admin"])
 
