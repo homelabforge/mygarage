@@ -428,8 +428,6 @@ class LiveLinkService:
         sta_ip: str | None = None,
     ) -> None:
         """Update device status fields from payload."""
-        # Read prior state only when transitioning to "online" — keeps extra
-        # SELECT off every non-online status update.
         # Read prior state only when transitioning to "online" — keeps the extra
         # SELECT off every non-online status update.  Capture scalar values
         # before the bulk UPDATE runs so the SQLAlchemy identity-map expiry
