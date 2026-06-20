@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.29.0] - 2026-06-20
 
 ### Fixed
-- LiveLink: track-aware WiCAN firmware checks (OBD vs PRO) — devices are now compared against their own firmware track; unknown hardware no longer shows spurious updates.
+- LiveLink: track-aware WiCAN firmware checks (OBD vs PRO).
 
 ### Added
 - Docs: LiveLink setup guide covering primary + failover webhook configuration.
