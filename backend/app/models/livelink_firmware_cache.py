@@ -15,12 +15,13 @@ class LiveLinkFirmwareCache(Base):
     """Cached WiCAN firmware release information from GitHub API.
 
     Updated daily by the firmware check background task.
-    Only one row should exist (singleton pattern via id=1).
+    One row per firmware track (``obd``/``pro``), keyed by the unique ``track`` column.
     """
 
     __tablename__ = "livelink_firmware_cache"
 
     id: Mapped[int] = mapped_column(primary_key=True, default=1)  # Singleton
+    track: Mapped[str | None] = mapped_column(String(10))  # "obd" | "pro" (unique per row)
     latest_version: Mapped[str | None] = mapped_column(String(20))  # e.g., "4.50"
     latest_tag: Mapped[str | None] = mapped_column(String(20))  # e.g., "v4.50p"
     release_url: Mapped[str | None] = mapped_column(Text)  # GitHub release URL
