@@ -269,12 +269,14 @@ class TestLiveLinkFirmware:
         """Test triggering firmware check."""
         with patch("app.routes.livelink_admin.FirmwareService") as mock_service_class:
             mock_service = MagicMock()
-            mock_service.check_firmware_updates = AsyncMock(
+            mock_service.check_firmware_updates = AsyncMock(return_value=None)
+            mock_service.get_cached_firmware_info = AsyncMock(
                 return_value={
                     "latest_version": "2.6.0",
                     "latest_tag": "v2.6.0",
                     "release_url": "https://github.com/meatpiHQ/wican-fw/releases/tag/v2.6.0",
                     "release_notes": "New features",
+                    "firmware_track": "pro",
                 }
             )
             mock_service_class.return_value = mock_service
