@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """Per-device SD-card log ingest tracking."""
+
+from __future__ import annotations
 
 from datetime import datetime
 

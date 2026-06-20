@@ -5,13 +5,10 @@ Idempotent, dialect-aware (PostgreSQL + SQLite).
 
 from __future__ import annotations
 
-import logging
 import os
 from pathlib import Path
 
 from sqlalchemy import create_engine, inspect, text
-
-logger = logging.getLogger(__name__)
 
 
 def _get_fallback_engine():
@@ -36,7 +33,7 @@ def upgrade(engine=None) -> None:
     pk_type = "SERIAL PRIMARY KEY" if is_postgres else "INTEGER PRIMARY KEY AUTOINCREMENT"
 
     inspector = inspect(engine)
-    logger.info("Migration 058: SD-card backfill schema...")
+    print("Migration 058: SD-card backfill schema...")
 
     # --- livelink_devices columns ---
     if inspector.has_table("livelink_devices"):
@@ -45,7 +42,7 @@ def upgrade(engine=None) -> None:
                 conn.execute(
                     text("ALTER TABLE livelink_devices ADD COLUMN device_address VARCHAR(255)")
                 )
-                logger.info("  + livelink_devices.device_address")
+                print("  + livelink_devices.device_address")
 
             if not _column_exists(inspector, "livelink_devices", "sd_backfill_enabled"):
                 default = "FALSE" if is_postgres else "0"
@@ -54,7 +51,7 @@ def upgrade(engine=None) -> None:
                         f"ALTER TABLE livelink_devices ADD COLUMN sd_backfill_enabled BOOLEAN DEFAULT {default}"
                     )
                 )
-                logger.info("  + livelink_devices.sd_backfill_enabled")
+                print("  + livelink_devices.sd_backfill_enabled")
 
     # --- sd_log_ingest_state table ---
     if not inspector.has_table("sd_log_ingest_state"):
@@ -78,9 +75,9 @@ def upgrade(engine=None) -> None:
                     "ON sd_log_ingest_state (device_id, filename)"
                 )
             )
-            logger.info("  + sd_log_ingest_state table + unique index")
+            print("  + sd_log_ingest_state table + unique index")
 
-    logger.info("Migration 058 complete.")
+    print("Migration 058 complete.")
 
 
 def downgrade() -> None:  # pragma: no cover
