@@ -637,3 +637,55 @@ class TestArchiveVisibility:
         # Hidden archive adds nothing to totals.
         assert after.total_vehicles == baseline.total_vehicles
         assert after.archived_vehicles == baseline.archived_vehicles
+
+
+@pytest.mark.unit
+class TestVehicleV2:
+    """v2 per-vehicle rollup: both unit systems, and a strict superset of v1."""
+
+    @pytest.mark.asyncio
+    async def test_vehicle_v2_reports_both_unit_systems(self, db_session, aggregation_user):
+        vehicle = await _make_vehicle(db_session, aggregation_user)
+        vin = vehicle.vin
+
+        # Two full-tank fills -> one calculable consumption pair.
+        for d, mi in ((date(2026, 1, 1), 10000), (date(2026, 1, 15), 10300)):
+            db_session.add(
+                FuelRecord(
+                    vin=vin,
+                    date=d,
+                    odometer_km=_mi_to_km(mi),
+                    liters=_gal_to_l(Decimal("10.0")),
+                    price_per_unit=Decimal("3.50"),
+                    cost=Decimal("35.00"),
+                    is_full_tank=True,
+                )
+            )
+        # Odometer is read from OdometerRecord, not fuel rows (R1-F1).
+        db_session.add(
+            OdometerRecord(vin=vin, odometer_km=_mi_to_km(10300), date=date(2026, 1, 15))
+        )
+        await db_session.commit()
+
+        svc = WidgetAggregationService(db_session)
+        v1 = await svc.vehicle(aggregation_user.id, vin, allowed_vins=None)
+        v2 = await svc.vehicle_v2(aggregation_user.id, vin, allowed_vins=None)
+
+        assert v1 is not None and v2 is not None
+        # v2 is a STRICT SUPERSET of v1: every v1 field key exists in v2 (R1-H1).
+        assert set(v1.model_dump().keys()) <= set(v2.model_dump().keys())
+        # Shared v1 keys hold identical values (same source, same formatting).
+        assert v2.odometer == v1.odometer
+        assert v2.recent_mpg == v1.recent_mpg
+        assert v2.average_mpg == v1.average_mpg
+        # Metric fields populated and self-consistent.
+        assert v2.odometer_km is not None and v2.odometer_km > 0
+        assert v2.recent_l_per_100km is not None
+        assert v2.recent_km_per_l == round(100 / v2.recent_l_per_100km, 2)
+
+    @pytest.mark.asyncio
+    async def test_vehicle_v2_returns_none_for_unowned_vin(self, db_session, aggregation_user):
+        await _make_vehicle(db_session, aggregation_user)
+        svc = WidgetAggregationService(db_session)
+        result = await svc.vehicle_v2(aggregation_user.id, "NOTOWNED00000000X", allowed_vins=None)
+        assert result is None

@@ -21,6 +21,7 @@ Design rules:
 
 # pyright: reportAssignmentType=false, reportAttributeAccessIssue=false
 
+from dataclasses import dataclass
 from datetime import date as date_type
 from decimal import Decimal
 
@@ -39,6 +40,7 @@ from app.schemas.widget import (
     WidgetSummary,
     WidgetVehicle,
     WidgetVehicleRef,
+    WidgetVehicleV2,
 )
 from app.utils.units import UnitConverter
 
@@ -64,6 +66,34 @@ def _visible_vehicle_filter():
     polled data mirrors what the user actually sees.
     """
     return or_(Vehicle.archived_at.is_(None), Vehicle.archived_visible.is_(True))
+
+
+@dataclass(frozen=True)
+class _VehicleCore:
+    """Raw per-vehicle widget primitives in canonical metric units.
+
+    v1 (imperial) and v2 (both unit systems) format this identically-sourced
+    data differently. Computed once so the odometer/consumption pairing logic
+    lives in a single place.
+    """
+
+    label: str
+    year: int | None
+    make: str | None
+    model: str | None
+    odometer_km: Decimal | None
+    odometer_date: date_type | None
+    recent_l100km: Decimal | None
+    average_l100km: Decimal | None
+    upcoming_maintenance: int
+    overdue_maintenance: int
+    service_records: int
+    fuel_records: int
+    last_service_date: date_type | None
+    last_fuel_date: date_type | None
+    documents: int
+    notes: int
+    photos: int
 
 
 class WidgetAggregationService:
@@ -171,12 +201,13 @@ class WidgetAggregationService:
     # Single vehicle
     # -------------------------------------------------------------------------
 
-    async def vehicle(
+    async def _vehicle_core(
         self, user_id: int, vin: str, allowed_vins: list[str] | None
-    ) -> WidgetVehicle | None:
-        """Per-vehicle rollup. Returns None if VIN is not owned/allowed.
+    ) -> _VehicleCore | None:
+        """Fetch all per-vehicle widget primitives once, in canonical metric.
 
-        The route maps None → 404 (not 403) to avoid confirming existence.
+        Returns None if the VIN is not owned/allowed. The v1/v2 vehicle methods
+        format this into their respective unit representations.
         """
         stmt = (
             select(Vehicle)
@@ -199,19 +230,20 @@ class WidgetAggregationService:
         notes = await self._scalar_count(Note.vin, [vin])
         photos = await self._scalar_count(VehiclePhoto.vin, [vin])
 
-        odometer, odometer_date = await self._latest_odometer(vin)
-        recent_mpg, average_mpg = await self._mpg(vin)
-        overdue, upcoming = await self._reminder_counts(vin)
+        odometer_km, odometer_date = await self._latest_odometer_reading(vin)
+        recent_l100km, average_l100km = await self._consumption_l100km(vin)
+        current_odometer_km = int(odometer_km) if odometer_km is not None else None
+        overdue, upcoming = await self._overdue_upcoming([vin], current_odometer_km)
 
-        return WidgetVehicle(
+        return _VehicleCore(
             label=_vehicle_label(vehicle),
             year=vehicle.year,
             make=vehicle.make,
             model=vehicle.model,
-            odometer=odometer,
+            odometer_km=odometer_km,
             odometer_date=odometer_date,
-            recent_mpg=recent_mpg,
-            average_mpg=average_mpg,
+            recent_l100km=recent_l100km,
+            average_l100km=average_l100km,
             upcoming_maintenance=upcoming,
             overdue_maintenance=overdue,
             service_records=service_count,
@@ -221,6 +253,73 @@ class WidgetAggregationService:
             documents=documents,
             notes=notes,
             photos=photos,
+        )
+
+    async def vehicle(
+        self, user_id: int, vin: str, allowed_vins: list[str] | None
+    ) -> WidgetVehicle | None:
+        """Per-vehicle rollup (imperial). Returns None if VIN not owned/allowed.
+
+        The route maps None → 404 (not 403) to avoid confirming existence.
+        """
+        core = await self._vehicle_core(user_id, vin, allowed_vins)
+        if core is None:
+            return None
+        miles = UnitConverter.km_to_miles(core.odometer_km)
+        return WidgetVehicle(
+            label=core.label,
+            year=core.year,
+            make=core.make,
+            model=core.model,
+            odometer=int(round(miles)) if miles is not None else None,
+            odometer_date=core.odometer_date,
+            recent_mpg=UnitConverter.l100km_to_mpg(core.recent_l100km),
+            average_mpg=UnitConverter.l100km_to_mpg(core.average_l100km),
+            upcoming_maintenance=core.upcoming_maintenance,
+            overdue_maintenance=core.overdue_maintenance,
+            service_records=core.service_records,
+            fuel_records=core.fuel_records,
+            last_service_date=core.last_service_date,
+            last_fuel_date=core.last_fuel_date,
+            documents=core.documents,
+            notes=core.notes,
+            photos=core.photos,
+        )
+
+    async def vehicle_v2(
+        self, user_id: int, vin: str, allowed_vins: list[str] | None
+    ) -> WidgetVehicleV2 | None:
+        """Per-vehicle rollup exposing both metric and imperial units.
+
+        A strict superset of the v1 `vehicle()` shape. The route maps None → 404.
+        """
+        core = await self._vehicle_core(user_id, vin, allowed_vins)
+        if core is None:
+            return None
+        miles = UnitConverter.km_to_miles(core.odometer_km)
+        return WidgetVehicleV2(
+            label=core.label,
+            year=core.year,
+            make=core.make,
+            model=core.model,
+            odometer=int(round(miles)) if miles is not None else None,
+            odometer_km=int(round(core.odometer_km)) if core.odometer_km is not None else None,
+            odometer_date=core.odometer_date,
+            recent_l_per_100km=UnitConverter.round_result(core.recent_l100km, 2),
+            average_l_per_100km=UnitConverter.round_result(core.average_l100km, 2),
+            recent_km_per_l=UnitConverter.l100km_to_kmpl(core.recent_l100km),
+            average_km_per_l=UnitConverter.l100km_to_kmpl(core.average_l100km),
+            recent_mpg=UnitConverter.l100km_to_mpg(core.recent_l100km),
+            average_mpg=UnitConverter.l100km_to_mpg(core.average_l100km),
+            upcoming_maintenance=core.upcoming_maintenance,
+            overdue_maintenance=core.overdue_maintenance,
+            service_records=core.service_records,
+            fuel_records=core.fuel_records,
+            last_service_date=core.last_service_date,
+            last_fuel_date=core.last_fuel_date,
+            documents=core.documents,
+            notes=core.notes,
+            photos=core.photos,
         )
 
     # -------------------------------------------------------------------------
@@ -238,12 +337,11 @@ class WidgetAggregationService:
         count, latest = (await self.db.execute(stmt)).one()
         return int(count or 0), latest
 
-    async def _latest_odometer(self, vin: str) -> tuple[int | None, date_type | None]:
-        """Return latest odometer reading for `vin` as imperial miles + date.
+    async def _latest_odometer_reading(self, vin: str) -> tuple[Decimal | None, date_type | None]:
+        """Latest odometer reading for `vin` as canonical km (Decimal) + date.
 
-        LEGACY-COMPAT: storage column is now `odometer_km` (Decimal). The widget
-        endpoints predate v3 and must keep returning miles to avoid breaking
-        pre-v3 dashboard clients. We convert at the read boundary.
+        The single metric source for both the v1 (miles) and v2 (km + miles)
+        response formatting and the mileage-based reminder comparison.
         """
         stmt = (
             select(OdometerRecord.odometer_km, OdometerRecord.date)
@@ -254,8 +352,7 @@ class WidgetAggregationService:
         row = (await self.db.execute(stmt)).first()
         if row is None:
             return None, None
-        miles = UnitConverter.km_to_miles(row.odometer_km)
-        return (int(round(miles)) if miles is not None else None), row.date
+        return row.odometer_km, row.date
 
     async def _latest_odometer_km(self, vin: str) -> int | None:
         """Internal: latest odometer reading for `vin` in km (for SQL comparisons)."""
@@ -269,12 +366,6 @@ class WidgetAggregationService:
         if row is None or row.odometer_km is None:
             return None
         return int(row.odometer_km)
-
-    async def _reminder_counts(self, vin: str) -> tuple[int, int]:
-        """Return (overdue, upcoming) for a single VIN."""
-        current_odometer_km = await self._latest_odometer_km(vin)
-        overdue, upcoming = await self._overdue_upcoming([vin], current_odometer_km)
-        return overdue, upcoming
 
     async def _reminder_totals(self, vins: list[str]) -> tuple[int, int]:
         """Sum overdue and upcoming pending reminders across `vins`.
@@ -338,20 +429,19 @@ class WidgetAggregationService:
                 upcoming += 1
         return overdue, upcoming
 
-    async def _mpg(self, vin: str) -> tuple[float | None, float | None]:
-        """Return (recent_mpg, average_mpg) bounded to last 10 full-tank fill-ups.
+    async def _consumption_l100km(self, vin: str) -> tuple[Decimal | None, Decimal | None]:
+        """Return (recent, average) consumption in L/100km, bounded to the last
+        10 full-tank fill-ups.
 
-        LEGACY-COMPAT: source columns are now `odometer_km` and `liters`. Per-pair
-        consumption is computed in metric (L/100km) and converted to MPG only at
-        the response boundary so the legacy widget keys continue to read in MPG.
-
-        Behavioral parity with `fuel_service.calculate_mpg` +
-        `get_previous_full_tank`:
+        The single metric source for both the legacy MPG output (v1) and the
+        metric/km-per-L output (v2). Behavioral parity with
+        `fuel_service.calculate_mpg` + `get_previous_full_tank`:
           - Only consecutive full-tank records count
           - Needs prior odometer_km and liters > 0
           - Skip pairs where distance <= 0
         We fetch 11 rows (one more than AVERAGE_MPG_WINDOW) so we can form up
-        to 10 consecutive pairs.
+        to 10 consecutive pairs. Conversion to MPG / km-per-L happens at the
+        response boundary.
         """
         fetch_limit = AVERAGE_MPG_WINDOW + 1
         stmt = (
@@ -387,9 +477,4 @@ class WidgetAggregationService:
         average_slice = pair_l100km[:AVERAGE_MPG_WINDOW]
         recent_l100km = sum(recent_slice) / len(recent_slice)
         average_l100km = sum(average_slice) / len(average_slice)
-
-        recent_mpg = UnitConverter.l100km_to_mpg(recent_l100km)
-        average_mpg = UnitConverter.l100km_to_mpg(average_l100km)
-        recent = float(round(Decimal(str(recent_mpg)), 2)) if recent_mpg is not None else None
-        average = float(round(Decimal(str(average_mpg)), 2)) if average_mpg is not None else None
-        return recent, average
+        return recent_l100km, average_l100km
