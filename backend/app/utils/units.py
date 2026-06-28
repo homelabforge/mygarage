@@ -183,6 +183,17 @@ class UnitConverter:
         conversion_factor = Decimal("235.214")
         return cls.round_result(conversion_factor / val, 1)
 
+    @classmethod
+    def l100km_to_kmpl(cls, l100km: Numeric) -> float | None:
+        """Convert L/100km to km/L.
+
+        Formula: km/L = 100 / (L/100km)
+        """
+        val = cls.to_decimal(l100km)
+        if val is None or val == 0:
+            return None
+        return cls.round_result(Decimal("100") / val, 2)
+
     # ========== DIMENSION CONVERSIONS ==========
 
     @classmethod

@@ -139,6 +139,16 @@ class TestFuelEconomyConversions:
         assert UnitConverter.mpg_to_l100km(None) is None
         assert UnitConverter.l100km_to_mpg(None) is None
 
+    def test_l100km_to_kmpl(self):
+        """Test L/100km to km/L conversion."""
+        # 7.84 L/100km -> 100 / 7.84 = 12.76 km/L
+        assert UnitConverter.l100km_to_kmpl(7.84) == 12.76
+
+    def test_l100km_to_kmpl_none_and_zero_return_none(self):
+        """Test None/zero handling (division by zero)."""
+        assert UnitConverter.l100km_to_kmpl(None) is None
+        assert UnitConverter.l100km_to_kmpl(0) is None
+
 
 @pytest.mark.unit
 class TestDimensionConversions:
