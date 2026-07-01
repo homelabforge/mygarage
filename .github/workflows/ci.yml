@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   ci:
-    uses: homelabforge/shared-workflows/.github/workflows/python-react-ci.yml@v1.4.1
+    uses: homelabforge/shared-workflows/.github/workflows/python-react-ci.yml@v1.4.3
     with:
       enable-translations: true
       enable-pg-migrations: true
