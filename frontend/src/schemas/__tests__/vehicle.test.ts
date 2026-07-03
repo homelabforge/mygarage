@@ -102,11 +102,14 @@ describe('Vehicle Schema', () => {
 const base = { nickname: 'Test Vehicle', vehicle_type: 'Car' } as const
 
 // Task 3 (frontend fuel-type hardening): the real vehicleEditSchema used by
-// VehicleWizard/VehicleEdit. fuel_type must transform blank/missing input to
-// an explicit `null`, not `undefined` — the vehicle update endpoint uses
-// Pydantic's `model_dump(exclude_unset=True)`, so an `undefined` key gets
-// dropped by JSON.stringify and the backend treats it as "unchanged" rather
-// than "clear this field".
+// VehicleWizard/VehicleEdit. fuel_type must transform blank/null input to an
+// explicit `null` when the key is actually present in the submitted object
+// — the vehicle update endpoint uses Pydantic's `model_dump(exclude_unset=
+// True)`, so a present `null` key clears the column, while an `undefined`
+// key gets dropped by JSON.stringify and the backend treats it as
+// "unchanged". An omitted key must stay `undefined` (see the dedicated test
+// below) — a non-motorized vehicle without an existing fuel_type never
+// registers the field, and this schema must not force-clear it.
 describe('vehicleEditSchema — fuel_type null-vs-undefined', () => {
   it('passes through a valid canonical fuel_type value unchanged', () => {
     const result = vehicleEditSchema.parse({ ...base, fuel_type: 'diesel' })
@@ -118,9 +121,14 @@ describe('vehicleEditSchema — fuel_type null-vs-undefined', () => {
     expect(result.fuel_type).toBeNull()
   })
 
-  it('transforms an omitted fuel_type to null', () => {
+  it('leaves an omitted fuel_type as undefined (not an explicit null)', () => {
+    // `.optional()` composes outside the transform, so an omitted key
+    // short-circuits to `undefined` instead of the transform synthesizing an
+    // explicit `null` — JSON.stringify drops `undefined`, which is what lets
+    // an unregistered field skip the update payload instead of clearing the
+    // column server-side.
     const result = vehicleEditSchema.parse({ ...base })
-    expect(result.fuel_type).toBeNull()
+    expect(result.fuel_type).toBeUndefined()
   })
 
   it('transforms a null fuel_type (as loaded from an unset vehicle record) to null', () => {
@@ -193,9 +201,11 @@ describe('vehicleEditSchema — nickname/vehicle_type required (NOT NULL columns
 // Task 19 (fold-in fix): the same null-vs-undefined bug documented above for
 // fuel_type also affects every other NULLABLE optional string field on this
 // schema (trim, make, model, etc. — all backed by optionalStringSchema).
-// Clearing one of these fields in the UI must submit an explicit `null`, not
+// Clearing a *present* field in the UI must submit an explicit `null`, not
 // `undefined` (which JSON.stringify drops, and which the backend's
-// `exclude_unset=True` partial update then reads as "leave unchanged").
+// `exclude_unset=True` partial update then reads as "leave unchanged"). An
+// omitted key (field never registered on the form) must stay `undefined` —
+// see the CRITICAL fix below and its dedicated describe block.
 describe('vehicleEditSchema — nullable optional-string fields null-vs-undefined', () => {
   it('passes through a set trim unchanged', () => {
     const result = vehicleEditSchema.parse({ ...base, trim: 'Limited' })
@@ -207,9 +217,16 @@ describe('vehicleEditSchema — nullable optional-string fields null-vs-undefine
     expect(result.trim).toBeNull()
   })
 
-  it('transforms an omitted trim to null', () => {
+  it('leaves an omitted trim as undefined (not an explicit null)', () => {
+    // CRITICAL regression: `.optional()` must compose outside the transform.
+    // Non-motorized vehicles (Trailer/FifthWheel/TravelTrailer) never
+    // register `trim` in VehicleEdit, so the key is absent from the
+    // submitted object. Previously the schema synthesized an explicit
+    // `null` for every omitted key on parse, which survived JSON.stringify
+    // and force-cleared the column via `exclude_unset=True` on every save
+    // of a non-motorized vehicle.
     const result = vehicleEditSchema.parse({ ...base })
-    expect(result.trim).toBeNull()
+    expect(result.trim).toBeUndefined()
   })
 
   it('transforms a null trim to null', () => {
@@ -225,6 +242,42 @@ describe('vehicleEditSchema — nullable optional-string fields null-vs-undefine
   it('transforms a blanked-out make ("") to null (spot-check a second sibling field)', () => {
     const result = vehicleEditSchema.parse({ ...base, make: '' })
     expect(result.make).toBeNull()
+  })
+})
+
+// CRITICAL regression (whole-branch review): VehicleEdit.tsx only registers
+// trim/body_class/drive_type/gvwr_class/displacement_l/transmission_type/
+// transmission_speeds for motorized vehicles — a non-motorized submit
+// (Trailer/FifthWheel/TravelTrailer) never has these keys at all. Confirms
+// the fix end-to-end: parsing that shape must not resurrect any of the seven
+// keys as an explicit `null` on the output, because such a `null` would
+// survive JSON.stringify and force-clear the columns via the backend's
+// `exclude_unset=True` partial update — this is exactly how a live FifthWheel
+// lost its `body_class='Trailer'` / `transmission_type='Not Applicable'`.
+describe('vehicleEditSchema — non-motorized submit shape omits VIN/engine keys entirely', () => {
+  it('produces JSON with none of the seven unregistered keys present', () => {
+    const nonMotorizedSubmit = {
+      ...base,
+      vehicle_type: 'FifthWheel',
+      // trim, body_class, drive_type, gvwr_class, displacement_l,
+      // transmission_type, transmission_speeds intentionally absent — this
+      // mirrors VehicleEdit's reset() for a non-motorized vehicle_type.
+    }
+
+    const result = vehicleEditSchema.parse(nonMotorizedSubmit)
+    const serialized = JSON.stringify(result)
+
+    for (const key of [
+      'trim',
+      'body_class',
+      'drive_type',
+      'gvwr_class',
+      'displacement_l',
+      'transmission_type',
+      'transmission_speeds',
+    ]) {
+      expect(serialized).not.toContain(`"${key}"`)
+    }
   })
 })
 

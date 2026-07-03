@@ -23,7 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - DEF analytics: consumption rate excludes the final unconsumed purchase (rate was overstated ~N/(N-1)).
 - Users: admin user-delete pre-cleans share/transfer references so FK-enforcing engines accept it.
 - Analytics: the vehicle Analytics page's DEF consumption card uses the same audited calculation as the DEF tab (a duplicate formula asserted a rate from insufficient data).
-- Vehicles: clearing `fuel_type`/`fuel_type_secondary` on edit now actually clears the field instead of being silently dropped from the update payload.
+- Vehicles: clearing `fuel_type` on edit now actually clears the field instead of being silently dropped from the update payload.
 - Vehicles: VIN-decode prefill uses the server-normalized fuel type instead of the raw NHTSA string.
 
 ### Changed

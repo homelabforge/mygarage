@@ -92,19 +92,31 @@ const soldPriceSchema = z
   .optional()
   .transform(numberOrNull)
 
+// `.optional()` stays outside the transform (same reasoning as the numeric
+// schemas above): a non-motorized vehicle (Trailer/FifthWheel/TravelTrailer)
+// never registers trim/body_class/drive_type/gvwr_class/displacement_l/
+// transmission_type/transmission_speeds in VehicleEdit, so those keys are
+// absent from the submitted object entirely. If `.transform()` ran before
+// `.optional()`, zod would still synthesize an explicit `null` for every
+// schema-defined key on the output object — even one the input never had —
+// and that stray `null` survives JSON.stringify, so the backend's
+// `exclude_unset=True` partial update reads it as "clear this column"
+// instead of "leave unchanged". Ordering `.optional()` last makes an
+// omitted key short-circuit to `undefined`, which JSON.stringify drops.
+
 // Handle date fields that may be null, undefined, or empty string from the database
 const optionalDateSchema = z
   .string()
   .nullable()
-  .optional()
   .transform(nullOnBlank)
+  .optional()
 
 // Handle optional string fields that may be null from the database.
 const optionalStringSchema = z
   .string()
   .nullable()
-  .optional()
   .transform(nullOnBlank)
+  .optional()
 
 // nickname and vehicle_type are NOT NULL columns in the DB
 // (`mapped_column(..., nullable=False)`) and required on create — they must
@@ -124,11 +136,13 @@ const vehicleTypeSchema = z.enum(VEHICLE_TYPES, 'Vehicle type is required')
 // but as its own schema because it's additionally validated against the
 // canonical enum (the <select> only ever emits one of these values or "")
 // so a stray non-canonical value fails fast in the form instead of
-// round-tripping to a 422 from the API.
+// round-tripping to a 422 from the API. `.optional()` stays outside the
+// transform for the same omitted-key reason as optionalStringSchema/
+// optionalDateSchema above.
 const fuelTypeSchema = z
   .union([z.enum(FUEL_TYPE_VALUES), z.literal(''), z.null()])
-  .optional()
   .transform(nullOnBlank)
+  .optional()
 
 export const vehicleEditSchema = z.object({
   // Basic Information
