@@ -439,3 +439,86 @@ class TestFuelRecordDEFFillLevelGate:
 
         assert response.status_code == 400
         assert response.json()["detail"] == GATE_DETAIL
+
+    async def test_update_fuel_clear_def_fill_level_on_gasoline_allowed(
+        self,
+        client: AsyncClient,
+        auth_headers,
+        db_session: AsyncSession,
+        gasoline_vehicle: Vehicle,
+    ):
+        """Explicit `def_fill_level: null` stays ungated on non-diesel ON PURPOSE.
+
+        Locked product decision: clearing DEF data is a delete, and deletes
+        are always allowed so legacy/junk data can be cleaned up (same rule
+        as the ungated DEF-record delete route above). The update-path guard
+        is deliberately `def_fill_level is not None` — this test pins that
+        asymmetry so a future "consistency fix" goes red in CI.
+        """
+        # Seed the fuel record + its auto-synced DEF row directly via the DB,
+        # since the API now refuses to create this state on a gasoline vehicle.
+        fuel_record = FuelRecord(
+            vin=gasoline_vehicle.vin,
+            date=date(2024, 1, 15),
+            odometer_km=Decimal("50000.00"),
+            liters=Decimal("45.000"),
+        )
+        db_session.add(fuel_record)
+        await db_session.commit()
+        await db_session.refresh(fuel_record)
+
+        def_record = DEFRecord(
+            vin=gasoline_vehicle.vin,
+            date=date(2024, 1, 15),
+            odometer_km=Decimal("50000.00"),
+            fill_level=Decimal("0.75"),
+            entry_type="auto_fuel_sync",
+            origin_fuel_record_id=fuel_record.id,
+        )
+        db_session.add(def_record)
+        await db_session.commit()
+
+        response = await client.put(
+            f"/api/vehicles/{gasoline_vehicle.vin}/fuel/{fuel_record.id}",
+            json={"def_fill_level": None},
+            headers=auth_headers,
+        )
+
+        assert response.status_code == 200
+
+        # The clear path deletes the linked auto-synced DEF row.
+        def_result = await db_session.execute(
+            select(DEFRecord).where(DEFRecord.origin_fuel_record_id == fuel_record.id)
+        )
+        assert def_result.scalar_one_or_none() is None
+
+    async def test_update_fuel_add_def_fill_level_on_diesel_allowed(
+        self,
+        client: AsyncClient,
+        auth_headers,
+        db_session: AsyncSession,
+        test_user: dict[str, object],
+    ):
+        vehicle = await _make_vehicle(db_session, test_user["id"], fuel_type="diesel")
+
+        create_response = await client.post(
+            f"/api/vehicles/{vehicle.vin}/fuel",
+            json={"vin": vehicle.vin, **_fuel_payload()},
+            headers=auth_headers,
+        )
+        assert create_response.status_code == 201
+        record_id = create_response.json()["id"]
+
+        response = await client.put(
+            f"/api/vehicles/{vehicle.vin}/fuel/{record_id}",
+            json={"def_fill_level": 0.6},
+            headers=auth_headers,
+        )
+
+        assert response.status_code == 200
+
+        def_result = await db_session.execute(
+            select(DEFRecord).where(DEFRecord.origin_fuel_record_id == record_id)
+        )
+        def_record = def_result.scalar_one()
+        assert def_record.entry_type == "auto_fuel_sync"
