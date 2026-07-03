@@ -888,9 +888,21 @@ class TelemetryService:
         if not alert_type or threshold_value is None:
             return
 
-        # Check cooldown - get last alert time from param metadata
-        # For now, we'll skip cooldown logic and let the dispatcher handle it
-        # The dispatcher already has a mechanism for this
+        # Cooldown - skip dispatch while a prior notification for this
+        # parameter is still within the admin-configured cooldown window
+        # (Settings -> LiveLink, `livelink_alert_cooldown_minutes`, default
+        # 30). WiCAN can emit several breaching frames a minute; without
+        # this every one would dispatch. Thresholds live on the param (not
+        # per-vehicle), so the cooldown is global-per-param. The setting is
+        # only read once a prior stamp exists — first-ever breaches skip
+        # the extra settings query.
+        now = utc_now()
+        if param.warning_last_notified_at is not None:
+            from app.services.livelink_service import LiveLinkService
+
+            cooldown_minutes = await LiveLinkService(self.db).get_alert_cooldown_minutes()
+            if now - param.warning_last_notified_at < timedelta(minutes=cooldown_minutes):
+                return
 
         # Get vehicle name for notification
         from app.models.vehicle import Vehicle
@@ -908,7 +920,7 @@ class TelemetryService:
         from app.services.notifications.dispatcher import NotificationDispatcher
 
         dispatcher = NotificationDispatcher(self.db)
-        await dispatcher.notify_livelink_threshold_alert(
+        dispatch_results = await dispatcher.notify_livelink_threshold_alert(
             vehicle_name=vehicle_name,
             parameter_name=param.display_name or param_key,
             value=value,
@@ -916,3 +928,12 @@ class TelemetryService:
             threshold_value=threshold_value,
             unit=param.unit,
         )
+
+        # Stamp the cooldown only when at least one service actually accepted
+        # the notification. The dispatcher records False for attempted-but-
+        # failed sends, so an all-failed dict (e.g. transient outage) must not
+        # start the cooldown clock and silence real alerts; nor must an empty
+        # dict (event disabled / no services enabled). The caller commits the
+        # surrounding transaction, so no explicit commit here.
+        if any(dispatch_results.values()):
+            param.warning_last_notified_at = now

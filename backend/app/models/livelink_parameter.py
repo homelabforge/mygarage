@@ -39,6 +39,9 @@ class LiveLinkParameter(Base):
     # Alert thresholds (ntfy notifications)
     warning_min: Mapped[float | None] = mapped_column(Float)  # Alert if value drops below
     warning_max: Mapped[float | None] = mapped_column(Float)  # Alert if value exceeds
+    warning_last_notified_at: Mapped[datetime | None] = mapped_column(
+        DateTime
+    )  # Cooldown stamp — set only when a threshold notification is actually sent
 
     # Display control
     display_order: Mapped[int] = mapped_column(Integer, default=0)  # User-configurable gauge order
