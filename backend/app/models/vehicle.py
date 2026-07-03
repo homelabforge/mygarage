@@ -120,6 +120,8 @@ class Vehicle(Base):
     def_tank_capacity_liters: Mapped[Decimal | None] = mapped_column(Numeric(6, 2))
     # Milestone notification tracking (km, per migration 053)
     last_milestone_notified_km: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    # DEF-low crossing dedup marker (migration 064); Task 16 consumer
+    def_low_notified_at: Mapped[datetime | None] = mapped_column(DateTime)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime | None] = mapped_column(DateTime, onupdate=func.now())
 
