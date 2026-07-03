@@ -275,7 +275,11 @@ async def check_def_levels() -> None:
     time cooldown: DEF depletes over weeks, so a 24h cooldown would either
     nag daily or (if long enough) swallow a genuine post-refill depletion.
     Crossing at/under the threshold notifies once and stamps; recovering
-    above the threshold clears the stamp so the next dip re-notifies.
+    above the threshold clears the stamp so the next dip re-notifies. The
+    stamp only lands when at least one notification backend actually
+    dispatched — an all-failed attempt (e.g. a transient Discord outage)
+    leaves the vehicle unstamped so the next run retries instead of going
+    silent until the next refill-and-dip cycle.
     """
     async with AsyncSessionLocal() as db:
         try:
@@ -318,19 +322,34 @@ async def check_def_levels() -> None:
                                 vehicle.nickname or f"{vehicle.year} {vehicle.make} {vehicle.model}"
                             )
                             remaining_liters = fill_level * vehicle.def_tank_capacity_liters
-                            await dispatcher.notify_def_low(
+                            dispatch_results = await dispatcher.notify_def_low(
                                 vehicle_name=vehicle_name,
                                 vin=vehicle.vin,
                                 percent=percent,
                                 remaining_liters=remaining_liters,
                                 as_of_date=record_date,
                             )
-                            vehicle.def_low_notified_at = utc_now()
-                            logger.info(
-                                "DEF low notification: %s at %.1f%%",
-                                vehicle_name,
-                                percent,
-                            )
+                            # Stamp only on at least one successful dispatch
+                            # (mirrors TelemetryService.check_thresholds's
+                            # cooldown guard) — an all-failed dict (e.g. a
+                            # transient Discord outage) must not start the
+                            # crossing-based dedup clock, or the alert stays
+                            # silent until the tank refills and dips again,
+                            # which can be weeks away.
+                            if any(dispatch_results.values()):
+                                vehicle.def_low_notified_at = utc_now()
+                                logger.info(
+                                    "DEF low notification: %s at %.1f%%",
+                                    vehicle_name,
+                                    percent,
+                                )
+                            else:
+                                logger.warning(
+                                    "DEF low notification dispatch failed for %s at "
+                                    "%.1f%%; will retry next run",
+                                    vehicle_name,
+                                    percent,
+                                )
                     elif vehicle.def_low_notified_at is not None:
                         # Recovery reset — the next dip below threshold re-notifies.
                         vehicle.def_low_notified_at = None

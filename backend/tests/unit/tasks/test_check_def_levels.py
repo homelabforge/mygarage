@@ -368,6 +368,42 @@ class TestCheckDefLevels:
         assert len(_def_calls(mock)) == 1
         assert vehicle.def_low_notified_at is not None
 
+    async def test_all_backends_failed_no_stamp_retries_next_run(
+        self, patch_session, make_vehicle, add_def_record, enable_def_low, monkeypatch
+    ):
+        """An all-failed dispatch (e.g. a transient Discord outage) must not
+        stamp `def_low_notified_at` — mirrors TelemetryService.check_thresholds's
+        `any(dispatch_results.values())` guard. Crossing-based dedup means a
+        stamp here would otherwise silence the alert until the tank refills
+        and dips again, which can be weeks away; leaving it unstamped means
+        the next day's run retries the dispatch."""
+        await enable_def_low(threshold="25")
+        vehicle = await make_vehicle()
+        await add_def_record(vehicle.vin, fill_level=Decimal("0.10"), record_date=date(2026, 7, 1))
+        mock = _patch_notify_def_low(monkeypatch, side_effect=lambda **_kwargs: {"discord": False})
+
+        await check_def_levels()
+
+        assert len(_def_calls(mock)) == 1
+        assert vehicle.def_low_notified_at is None
+
+    async def test_at_least_one_backend_succeeded_stamps(
+        self, patch_session, make_vehicle, add_def_record, enable_def_low, monkeypatch
+    ):
+        """A stamp lands as soon as at least one backend actually delivered,
+        even if another configured backend reported failure."""
+        await enable_def_low(threshold="25")
+        vehicle = await make_vehicle()
+        await add_def_record(vehicle.vin, fill_level=Decimal("0.10"), record_date=date(2026, 7, 1))
+        mock = _patch_notify_def_low(
+            monkeypatch, side_effect=lambda **_kwargs: {"discord": True, "ntfy": False}
+        )
+
+        await check_def_levels()
+
+        assert len(_def_calls(mock)) == 1
+        assert vehicle.def_low_notified_at is not None
+
     async def test_per_vehicle_isolation_first_raises_second_still_processed(
         self, patch_session, make_vehicle, add_def_record, enable_def_low, monkeypatch
     ):
