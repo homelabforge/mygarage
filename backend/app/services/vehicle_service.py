@@ -4,6 +4,7 @@
 
 import logging
 import shutil
+from decimal import Decimal
 from pathlib import Path
 
 from fastapi import HTTPException
@@ -12,6 +13,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.constants.fuel import has_def_capacity, is_diesel_vehicle
 from app.models.attachment import Attachment
 from app.models.fuel import FuelRecord
 from app.models.note import Note
@@ -24,6 +26,36 @@ from app.schemas.vehicle import VehicleCreate, VehicleUpdate
 from app.utils.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
+
+DEF_CAPACITY_NON_DIESEL_DETAIL = "DEF tank capacity applies only to diesel vehicles"
+DEF_CAPACITY_CLEAR_FIRST_DETAIL = (
+    "Changing fuel type away from diesel requires clearing the DEF tank capacity first"
+)
+
+
+def _check_def_capacity_gate(
+    *,
+    fuel_type: str | None,
+    fuel_type_secondary: str | None,
+    def_tank_capacity_liters: Decimal | float | int | None,
+    capacity_was_explicitly_set: bool,
+) -> None:
+    """Reject 400 when the resulting state has DEF capacity on a non-diesel vehicle.
+
+    Evaluates the *prospective* (post-write) combination of fuel type and
+    capacity. Setting capacity to None/0 is always allowed regardless of
+    fuel type. When capacity is left as-is (not part of this write) but the
+    resulting fuel type is non-diesel, the message tells the caller to
+    clear the capacity explicitly rather than silently nulling a value the
+    user set.
+    """
+    if not has_def_capacity(def_tank_capacity_liters):
+        return
+    if is_diesel_vehicle(fuel_type, fuel_type_secondary):
+        return
+    if capacity_was_explicitly_set:
+        raise HTTPException(status_code=400, detail=DEF_CAPACITY_NON_DIESEL_DETAIL)
+    raise HTTPException(status_code=400, detail=DEF_CAPACITY_CLEAR_FIRST_DETAIL)
 
 
 class VehicleService:
@@ -134,6 +166,12 @@ class VehicleService:
 
             # Create vehicle with ownership assigned to current user
             vehicle_dict = vehicle_data.model_dump()
+            _check_def_capacity_gate(
+                fuel_type=vehicle_dict.get("fuel_type"),
+                fuel_type_secondary=vehicle_dict.get("fuel_type_secondary"),
+                def_tank_capacity_liters=vehicle_dict.get("def_tank_capacity_liters"),
+                capacity_was_explicitly_set=True,
+            )
             if current_user is not None:
                 vehicle_dict["user_id"] = current_user.id  # Assign ownership
                 username = current_user.username
@@ -198,8 +236,18 @@ class VehicleService:
             # mutate the vehicle row itself.
             vehicle = await get_vehicle_for_owner_or_403(vin, current_user, self.db)
 
-            # Update fields (only non-None values)
+            # Update fields (only fields explicitly present in the payload)
             update_data = vehicle_data.model_dump(exclude_unset=True)
+            _check_def_capacity_gate(
+                fuel_type=update_data.get("fuel_type", vehicle.fuel_type),
+                fuel_type_secondary=update_data.get(
+                    "fuel_type_secondary", vehicle.fuel_type_secondary
+                ),
+                def_tank_capacity_liters=update_data.get(
+                    "def_tank_capacity_liters", vehicle.def_tank_capacity_liters
+                ),
+                capacity_was_explicitly_set="def_tank_capacity_liters" in update_data,
+            )
             for field, value in update_data.items():
                 setattr(vehicle, field, value)
 

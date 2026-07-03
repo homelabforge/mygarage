@@ -12,7 +12,9 @@ at the schema layer via Pydantic `field_validator`. Matches the existing
 
 from __future__ import annotations
 
+from decimal import Decimal
 from enum import StrEnum
+from typing import TypeIs
 
 
 class PaymentMethod(StrEnum):
@@ -192,6 +194,19 @@ def is_diesel_vehicle(fuel_type: str | None, fuel_type_secondary: str | None = N
         normalize_fuel_type(fuel_type),
         normalize_fuel_type(fuel_type_secondary),
     )
+
+
+def has_def_capacity(
+    value: Decimal | float | int | None,
+) -> TypeIs[Decimal | float | int]:
+    """True when a `def_tank_capacity_liters`-shaped value is a real capacity.
+
+    The column is Numeric, so payloads/DB values may arrive as Decimal,
+    float, int, or None. None and 0 both mean "no capacity" — shared by the
+    vehicle-level capacity gate and the DEF analytics remaining-liters math.
+    `TypeIs` return lets callers narrow away `None` after the check.
+    """
+    return value is not None and value > 0
 
 
 def split_combined_fuel_type(raw: str | None) -> tuple[FuelTypeEnum | None, FuelTypeEnum | None]:

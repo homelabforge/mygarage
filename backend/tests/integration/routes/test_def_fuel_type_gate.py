@@ -21,6 +21,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.def_record import DEFRecord
 from app.models.vehicle import Vehicle
+from app.services.vehicle_service import (
+    DEF_CAPACITY_CLEAR_FIRST_DETAIL as CAPACITY_CLEAR_FIRST_DETAIL,
+)
+from app.services.vehicle_service import (
+    DEF_CAPACITY_NON_DIESEL_DETAIL as CAPACITY_GATE_DETAIL,
+)
 
 GATE_DETAIL = "DEF tracking applies only to diesel vehicles"
 
@@ -36,6 +42,7 @@ async def _make_vehicle(
     *,
     fuel_type: str | None = None,
     fuel_type_secondary: str | None = None,
+    def_tank_capacity_liters: Decimal | None = None,
 ) -> Vehicle:
     vehicle = Vehicle(
         vin=_unique_vin(),
@@ -47,6 +54,7 @@ async def _make_vehicle(
         model="Model",
         fuel_type=fuel_type,
         fuel_type_secondary=fuel_type_secondary,
+        def_tank_capacity_liters=def_tank_capacity_liters,
     )
     db_session.add(vehicle)
     await db_session.commit()
@@ -71,6 +79,19 @@ async def _seed_def_record(db_session: AsyncSession, vin: str) -> DEFRecord:
 @pytest_asyncio.fixture
 async def gasoline_vehicle(db_session: AsyncSession, test_user: dict[str, object]) -> Vehicle:
     return await _make_vehicle(db_session, test_user["id"], fuel_type="gasoline")
+
+
+@pytest_asyncio.fixture
+async def diesel_vehicle_with_capacity(
+    db_session: AsyncSession, test_user: dict[str, object]
+) -> Vehicle:
+    """Diesel vehicle with an existing DEF tank capacity set (Task 6 gate cases)."""
+    return await _make_vehicle(
+        db_session,
+        test_user["id"],
+        fuel_type="diesel",
+        def_tank_capacity_liters=Decimal("75.0"),
+    )
 
 
 @pytest.mark.integration
@@ -197,3 +218,105 @@ class TestDEFFuelTypeGate:
         )
 
         assert response.status_code == 201
+
+
+def _vehicle_create_payload(
+    *,
+    fuel_type: str | None = None,
+    def_tank_capacity_liters: float | None = None,
+) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "vin": _unique_vin(),
+        "nickname": "Capacity Gate Vehicle",
+        "vehicle_type": "Car",
+    }
+    if fuel_type is not None:
+        payload["fuel_type"] = fuel_type
+    if def_tank_capacity_liters is not None:
+        payload["def_tank_capacity_liters"] = def_tank_capacity_liters
+    return payload
+
+
+@pytest.mark.integration
+@pytest.mark.def_records
+@pytest.mark.asyncio
+class TestVehicleDEFCapacityGate:
+    """Task 6: gate `def_tank_capacity_liters` on vehicle create/update.
+
+    The rule evaluates the *resulting* (post-update) state: capacity > 0
+    is only allowed when the resulting fuel_type/fuel_type_secondary is
+    diesel-capable. Setting capacity to None/0 is always allowed.
+    """
+
+    async def test_create_gasoline_with_capacity_rejected(self, client: AsyncClient, auth_headers):
+        payload = _vehicle_create_payload(fuel_type="gasoline", def_tank_capacity_liters=75.0)
+
+        response = await client.post("/api/vehicles", json=payload, headers=auth_headers)
+
+        assert response.status_code == 400
+        assert response.json()["detail"] == CAPACITY_GATE_DETAIL
+
+    async def test_create_diesel_with_capacity_allowed(self, client: AsyncClient, auth_headers):
+        payload = _vehicle_create_payload(fuel_type="diesel", def_tank_capacity_liters=75.0)
+
+        response = await client.post("/api/vehicles", json=payload, headers=auth_headers)
+
+        assert response.status_code == 201
+
+    async def test_update_gasoline_set_capacity_rejected(
+        self, client: AsyncClient, auth_headers, gasoline_vehicle: Vehicle
+    ):
+        response = await client.put(
+            f"/api/vehicles/{gasoline_vehicle.vin}",
+            json={"def_tank_capacity_liters": 75.0},
+            headers=auth_headers,
+        )
+
+        assert response.status_code == 400
+        assert response.json()["detail"] == CAPACITY_GATE_DETAIL
+
+    async def test_update_diesel_to_gasoline_without_clearing_capacity_rejected(
+        self,
+        client: AsyncClient,
+        auth_headers,
+        diesel_vehicle_with_capacity: Vehicle,
+    ):
+        response = await client.put(
+            f"/api/vehicles/{diesel_vehicle_with_capacity.vin}",
+            json={"fuel_type": "gasoline"},
+            headers=auth_headers,
+        )
+
+        assert response.status_code == 400
+        assert response.json()["detail"] == CAPACITY_CLEAR_FIRST_DETAIL
+
+    async def test_update_diesel_to_gasoline_with_capacity_cleared_allowed(
+        self,
+        client: AsyncClient,
+        auth_headers,
+        diesel_vehicle_with_capacity: Vehicle,
+    ):
+        response = await client.put(
+            f"/api/vehicles/{diesel_vehicle_with_capacity.vin}",
+            json={"fuel_type": "gasoline", "def_tank_capacity_liters": None},
+            headers=auth_headers,
+        )
+
+        assert response.status_code == 200
+
+    async def test_update_capacity_on_diesel_allowed(
+        self,
+        client: AsyncClient,
+        auth_headers,
+        db_session: AsyncSession,
+        test_user: dict[str, object],
+    ):
+        vehicle = await _make_vehicle(db_session, test_user["id"], fuel_type="diesel")
+
+        response = await client.put(
+            f"/api/vehicles/{vehicle.vin}",
+            json={"def_tank_capacity_liters": 80.0},
+            headers=auth_headers,
+        )
+
+        assert response.status_code == 200

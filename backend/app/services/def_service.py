@@ -8,6 +8,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.constants.fuel import has_def_capacity
 from app.models.def_record import DEFRecord
 from app.models.user import User
 from app.models.vehicle import Vehicle
@@ -376,7 +377,7 @@ class DEFRecordService:
             )
             tank_capacity = vehicle_result.scalar_one_or_none()
 
-            if tank_capacity is not None and tank_capacity > 0:
+            if has_def_capacity(tank_capacity):
                 estimated_remaining_liters = round(last_fill_level * tank_capacity, 2)
 
                 # Estimated km remaining
