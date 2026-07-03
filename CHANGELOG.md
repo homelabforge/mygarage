@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Vehicles: `fuel_type`/`fuel_type_secondary` are normalized and validated against the canonical vocabulary on create/update; a migration backfills legacy mixed-case/alias values in place.
+- DEF: diesel-only gates on record create/update, tank capacity, fuel-sync, and CSV import — non-diesel vehicles get a 400 instead of accepting spurious DEF data; full-backup restore stays exempt so a user's own archive always restores completely; the DEF tab renders read-only (history visible, add/edit hidden) for non-diesel vehicles.
+- LiveLink: a conservative param-class inference catalog classifies new telemetry parameters at registration and backfills existing rows via migration, activating range/rate-of-change validation for previously-unvalidated PIDs.
+- LiveLink: threshold-breach alerts now honor the existing alert-cooldown admin setting instead of firing on every breaching frame.
+- Notifications: DEF-low Discord alert — a daily check compares the latest DEF fill level against a configurable threshold (default 25%) with crossing-based dedup; threshold is configurable in Settings > Notifications.
+
 ### Fixed
 - Vehicle delete: enable SQLite FK enforcement (`PRAGMA foreign_keys=ON`) and use an ORM delete so child rows cascade on both engines — deleting a vehicle no longer orphans its history (re-adding the same VIN silently resurrected it).
 - Vehicle delete: remove the vehicle's photo/document directories and attachment rows+files from disk.
@@ -16,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - DEF analytics: consumption rate excludes the final unconsumed purchase (rate was overstated ~N/(N-1)).
 - Users: admin user-delete pre-cleans share/transfer references so FK-enforcing engines accept it.
 - Analytics: the vehicle Analytics page's DEF consumption card uses the same audited calculation as the DEF tab (a duplicate formula asserted a rate from insufficient data).
+- Vehicles: clearing `fuel_type`/`fuel_type_secondary` on edit now actually clears the field instead of being silently dropped from the update payload.
+- Vehicles: VIN-decode prefill uses the server-normalized fuel type instead of the raw NHTSA string.
 
 ### Changed
 - Maintenance templates: `POST /api/maintenance-templates/apply` returns 410 Gone — application had been a silent no-op since the schedule system was removed; use Reminders instead.
