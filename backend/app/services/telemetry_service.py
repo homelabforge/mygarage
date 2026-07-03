@@ -163,7 +163,11 @@ class TelemetryService:
                 existing.unit = unit
             if not existing.param_class and resolved_class:
                 existing.param_class = resolved_class
-                existing.category = self._classify_param(resolved_class)
+                # Only recompute category when it's unset or still the
+                # "other" default — category is user-editable in the admin
+                # UI, and a hand-tuned value must survive the class backfill.
+                if not existing.category or existing.category == "other":
+                    existing.category = self._classify_param(resolved_class)
             return existing
 
         # Create new parameter
