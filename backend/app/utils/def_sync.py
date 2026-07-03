@@ -9,12 +9,21 @@ import logging
 from datetime import date as date_type
 from decimal import Decimal
 
+from fastapi import HTTPException
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.constants.fuel import is_diesel_vehicle
 from app.models.def_record import DEFRecord
+from app.models.vehicle import Vehicle
 
 logger = logging.getLogger(__name__)
+
+
+def ensure_def_capable(vehicle: Vehicle) -> None:
+    """Raise 400 unless the vehicle can use DEF (diesel primary or secondary)."""
+    if not is_diesel_vehicle(vehicle.fuel_type, vehicle.fuel_type_secondary):
+        raise HTTPException(status_code=400, detail="DEF tracking applies only to diesel vehicles")
 
 
 async def sync_def_from_fuel_record(

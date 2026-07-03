@@ -181,6 +181,19 @@ def normalize_fuel_type(raw: str | None) -> FuelTypeEnum | None:
     return _NORMALIZATION_MAP.get(key)
 
 
+def is_diesel_vehicle(fuel_type: str | None, fuel_type_secondary: str | None = None) -> bool:
+    """True when either fuel slot normalizes to diesel.
+
+    Normalizes internally so this tolerates any legacy non-canonical DB
+    value ("Diesel", "biodiesel") — gates built on this predicate must not
+    depend on migration 061 having run.
+    """
+    return FuelTypeEnum.DIESEL in (
+        normalize_fuel_type(fuel_type),
+        normalize_fuel_type(fuel_type_secondary),
+    )
+
+
 def split_combined_fuel_type(raw: str | None) -> tuple[FuelTypeEnum | None, FuelTypeEnum | None]:
     """Decode an NHTSA `FuelTypePrimary` value that may encode two fuels.
 
