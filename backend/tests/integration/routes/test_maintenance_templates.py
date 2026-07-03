@@ -156,8 +156,17 @@ class TestMaintenanceTemplateRoutes:
 
         assert response.status_code == 404
 
-    async def test_apply_template_to_vehicle(self, client: AsyncClient, auth_headers, test_vehicle):
-        """Test applying a template to a vehicle."""
+    async def test_apply_template_is_explicitly_deprecated(
+        self, client: AsyncClient, auth_headers, test_vehicle
+    ):
+        """Applying a template must fail loudly, not silently no-op.
+
+        The schedule system behind template application was removed in the
+        maintenance overhaul; the service created zero reminders while the
+        endpoint reported success (audit finding F12). The endpoint now
+        returns 410 Gone with a pointer at the Reminders system. Auth and
+        vehicle checks still run first (401/404 tests above stay valid).
+        """
         response = await client.post(
             "/api/maintenance-templates/apply",
             json={
@@ -167,48 +176,28 @@ class TestMaintenanceTemplateRoutes:
             headers=auth_headers,
         )
 
-        # Either succeeds or returns success=False if no template found
-        assert response.status_code == 200
-        data = response.json()
-        assert "success" in data
-        if data["success"]:
-            assert "reminders_created" in data
-            assert "template_source" in data
-
-    async def test_apply_template_with_mileage(
-        self, client: AsyncClient, auth_headers, test_vehicle
-    ):
-        """Test applying template with current mileage."""
-        response = await client.post(
-            "/api/maintenance-templates/apply",
-            json={
-                "vin": test_vehicle["vin"],
-                "duty_type": "normal",
-                "current_mileage": 50000,
-            },
-            headers=auth_headers,
+        assert response.status_code == 410
+        detail = response.json()["detail"]
+        assert "Reminders" in detail, (
+            f"410 detail should point users at the Reminders system, got: {detail!r}"
         )
 
-        assert response.status_code == 200
-        data = response.json()
-        assert "success" in data
-
-    async def test_apply_template_severe_duty(
+    async def test_apply_template_deprecated_regardless_of_options(
         self, client: AsyncClient, auth_headers, test_vehicle
     ):
-        """Test applying severe duty template."""
-        response = await client.post(
-            "/api/maintenance-templates/apply",
-            json={
-                "vin": test_vehicle["vin"],
-                "duty_type": "severe",
-            },
-            headers=auth_headers,
-        )
-
-        assert response.status_code == 200
-        data = response.json()
-        assert "success" in data
+        """Mileage/duty variants hit the same 410 - no code path silently applies."""
+        for payload in (
+            {"vin": test_vehicle["vin"], "duty_type": "normal", "current_mileage": 50000},
+            {"vin": test_vehicle["vin"], "duty_type": "severe"},
+        ):
+            response = await client.post(
+                "/api/maintenance-templates/apply",
+                json=payload,
+                headers=auth_headers,
+            )
+            assert response.status_code == 410, (
+                f"payload {payload} did not get the deprecation response"
+            )
 
     async def test_templates_forbidden_non_owner(
         self, client: AsyncClient, non_admin_headers, test_vehicle

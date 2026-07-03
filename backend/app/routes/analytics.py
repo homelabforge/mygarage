@@ -60,6 +60,7 @@ from app.schemas.analytics import (
 )
 from app.services import analytics_service
 from app.services.auth import get_vehicle_or_403, require_auth
+from app.services.def_service import DEFRecordService
 from app.utils.cache import cached
 
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
@@ -705,33 +706,26 @@ async def get_vehicle_analytics(
         # Get spot rental costs
         spot_rental_analysis = await analytics_service.calculate_spot_rental_costs(db, vin)
 
-    # DEF analysis (for diesel vehicles with DEF records)
+    # DEF analysis — single source of truth is DEFRecordService.get_def_analytics
+    # (min 3 purchases with odometer+liters, >=800 km span, fence-post-correct
+    # consumption). This route previously carried its own formula that mixed
+    # purchase liters with the odometer span of ALL records (auto observations
+    # included) and asserted a rate from just 2 points — it disagreed with the
+    # DEF tab's "insufficient data" verdict on the same records.
     def_analysis = None
-    def_result = await db.execute(
-        select(DEFRecord).where(DEFRecord.vin == vin).order_by(DEFRecord.date)
-    )
-    all_def_records = def_result.scalars().all()
-    if all_def_records:
-        total_def_liters = sum((r.liters for r in all_def_records if r.liters), Decimal("0.00"))
-        total_def_spent = sum((r.cost for r in all_def_records if r.cost), Decimal("0.00"))
-        avg_cost_per_liter = total_def_spent / total_def_liters if total_def_liters > 0 else None
-
-        # Calculate liters per 1,000 km
-        liters_per_1000_km = None
-        def_odometers = [r.odometer_km for r in all_def_records if r.odometer_km is not None]
-        if len(def_odometers) >= 2:
-            min_km = min(def_odometers)
-            max_km = max(def_odometers)
-            km_span = max_km - min_km
-            if km_span > 0:
-                liters_per_1000_km = float(total_def_liters) / float(km_span) * 1000
-
+    def_stats = await DEFRecordService(db).get_def_analytics(vin, current_user)
+    if def_stats.record_count > 0:
         def_analysis = {
-            "total_spent": str(total_def_spent),
-            "total_liters": str(total_def_liters),
-            "avg_cost_per_liter": str(avg_cost_per_liter) if avg_cost_per_liter else None,
-            "liters_per_1000_km": (f"{liters_per_1000_km:.1f}" if liters_per_1000_km else None),
-            "record_count": len(all_def_records),
+            "total_spent": str(def_stats.total_cost or Decimal("0.00")),
+            "total_liters": str(def_stats.total_liters or Decimal("0.00")),
+            "avg_cost_per_liter": (
+                str(def_stats.avg_cost_per_liter) if def_stats.avg_cost_per_liter else None
+            ),
+            "liters_per_1000_km": (
+                f"{def_stats.liters_per_1000_km:.1f}" if def_stats.liters_per_1000_km else None
+            ),
+            "record_count": def_stats.record_count,
+            "data_confidence": def_stats.data_confidence,
         }
 
     return VehicleAnalytics(

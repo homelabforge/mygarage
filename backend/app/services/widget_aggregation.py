@@ -445,7 +445,12 @@ class WidgetAggregationService:
         """
         fetch_limit = AVERAGE_MPG_WINDOW + 1
         stmt = (
-            select(FuelRecord.odometer_km, FuelRecord.liters, FuelRecord.date)
+            select(
+                FuelRecord.odometer_km,
+                FuelRecord.liters,
+                FuelRecord.date,
+                FuelRecord.missed_fillup,
+            )
             .where(
                 FuelRecord.vin == vin,
                 FuelRecord.is_full_tank.is_(True),
@@ -458,8 +463,13 @@ class WidgetAggregationService:
         # rows[0] is newest. Pair i uses rows[i] (current) and rows[i+1] (prev full tank).
         pair_l100km: list[Decimal] = []
         for i in range(len(rows) - 1):
-            cur_km, cur_liters, _ = rows[i]
-            prev_km, _, _ = rows[i + 1]
+            cur_km, cur_liters, _, cur_missed = rows[i]
+            prev_km, _, _, _ = rows[i + 1]
+            if cur_missed:
+                # Missed fill-up: distance since the previous record covers
+                # unrecorded fuel — the row anchors the next pair but yields
+                # no economy figure itself (parity with calculate_l_per_100km).
+                continue
             if cur_liters is None or cur_km is None or prev_km is None:
                 continue
             if cur_liters <= 0:

@@ -3,12 +3,20 @@
 # pyright: reportOptionalOperand=false, reportReturnType=false
 
 import logging
+import shutil
+from pathlib import Path
 
 from fastapi import HTTPException
-from sqlalchemy import delete, func, or_, select
+from sqlalchemy import and_, delete, func, or_, select
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
+from app.models.attachment import Attachment
+from app.models.fuel import FuelRecord
+from app.models.note import Note
+from app.models.service_visit import ServiceVisit
+from app.models.tax import TaxRecord
 from app.models.user import User
 from app.models.vehicle import Vehicle
 from app.models.vehicle_share import VehicleShare
@@ -239,11 +247,27 @@ class VehicleService:
         try:
             # Vehicle delete is OWNER-only (D-3): even a write-share must not be
             # able to delete the vehicle and cascade its records.
-            _ = await get_vehicle_for_owner_or_403(vin, current_user, self.db)
+            vehicle = await get_vehicle_for_owner_or_403(vin, current_user, self.db)
+            sticker_path = vehicle.window_sticker_file_path
 
-            # Delete vehicle (cascade will handle related records)
-            await self.db.execute(delete(Vehicle).where(Vehicle.vin == vin))
+            # Attachments are polymorphic (record_type/record_id, no vehicle
+            # FK), so no cascade reaches them. Resolve rows + file paths for
+            # this vehicle's records before the parent rows disappear.
+            attachment_ids, attachment_paths = await self._collect_vehicle_attachments(vin)
+            if attachment_ids:
+                await self.db.execute(delete(Attachment).where(Attachment.id.in_(attachment_ids)))
+
+            # ORM delete, not a bulk DELETE statement: bulk deletes bypass ORM
+            # relationship cascades, and on SQLite the DB-level ON DELETE
+            # CASCADE clauses only fire because the engine now enforces FKs
+            # (PRAGMA foreign_keys=ON). Both layers together cover every child
+            # table on both engines.
+            await self.db.delete(vehicle)
             await self.db.commit()
+
+            # Filesystem cleanup only after a successful commit — a rolled-back
+            # delete must not lose files.
+            self._remove_vehicle_files(vin, attachment_paths, sticker_path)
 
             logger.info("Deleted vehicle: %s", sanitize_for_log(vin))
 
@@ -267,3 +291,75 @@ class VehicleService:
                 sanitize_for_log(e),
             )
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
+
+    async def _collect_vehicle_attachments(self, vin: str) -> tuple[list[int], list[str]]:
+        """Attachment row ids + file paths belonging to a vehicle's records.
+
+        Covers the record types that still have live parent tables
+        (service_visit, fuel, tax, note). Legacy types whose parent tables
+        were dropped (service, upgrade, collision) cannot be resolved to a
+        VIN and are left alone.
+        """
+        parent_id_queries = {
+            "service_visit": select(ServiceVisit.id).where(ServiceVisit.vin == vin),
+            "fuel": select(FuelRecord.id).where(FuelRecord.vin == vin),
+            "tax": select(TaxRecord.id).where(TaxRecord.vin == vin),
+            "note": select(Note.id).where(Note.vin == vin),
+        }
+        conditions = [
+            and_(Attachment.record_type == record_type, Attachment.record_id.in_(id_query))
+            for record_type, id_query in parent_id_queries.items()
+        ]
+        result = await self.db.execute(
+            select(Attachment.id, Attachment.file_path).where(or_(*conditions))
+        )
+        rows = result.all()
+        return [row.id for row in rows], [row.file_path for row in rows]
+
+    def _remove_vehicle_files(
+        self, vin: str, attachment_paths: list[str], sticker_path: str | None
+    ) -> None:
+        """Best-effort filesystem cleanup for a deleted vehicle.
+
+        Removes VIN-keyed upload directories plus resolved attachment files.
+        Every path is containment-checked against the data directory; the VIN
+        is a validated primary key by the time we get here, but stays guarded
+        anyway since it becomes a path component.
+
+        MUST NOT raise: it runs after the delete has committed, so a
+        filesystem error here must degrade to a logged orphan-file warning —
+        never a failed API response for a delete that already happened.
+        """
+        try:
+            if not vin.isalnum():
+                logger.warning("Skipping file cleanup for non-alphanumeric VIN")
+                return
+
+            allowed_roots = [
+                settings.data_dir.resolve(),
+                settings.photos_dir.resolve(),
+                settings.documents_dir.resolve(),
+                settings.attachments_dir.resolve(),
+            ]
+            for raw in [*attachment_paths, sticker_path]:
+                if not raw:
+                    continue
+                candidate = Path(raw)
+                if not candidate.is_absolute():
+                    candidate = settings.data_dir / candidate
+                resolved = candidate.resolve()
+                if resolved.is_file() and any(
+                    resolved.is_relative_to(root) for root in allowed_roots
+                ):
+                    resolved.unlink(missing_ok=True)
+
+            for base in (settings.photos_dir, settings.documents_dir, settings.attachments_dir):
+                vin_dir = (base / vin).resolve()
+                if vin_dir.is_relative_to(base.resolve()) and vin_dir.is_dir():
+                    shutil.rmtree(vin_dir, ignore_errors=True)
+        except OSError as e:
+            logger.warning(
+                "File cleanup after deleting vehicle %s left orphans (delete itself succeeded): %s",
+                sanitize_for_log(vin),
+                sanitize_for_log(e),
+            )

@@ -15,7 +15,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.maintenance_template import MaintenanceTemplate
-from app.models.vehicle import Vehicle
 from app.utils.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
@@ -351,65 +350,10 @@ class MaintenanceTemplateService:
             return "inspection"
         return "service"
 
-    async def apply_template_to_vehicle(
-        self,
-        db: AsyncSession,
-        vin: str,
-        template_path: str,
-        template_data: dict,
-        current_mileage: int | None = None,
-        created_by: str = "auto",
-    ) -> int:
-        """
-        Apply a maintenance template to a vehicle by creating schedule items.
-
-        Args:
-            db: Database session
-            vin: Vehicle VIN
-            template_path: Path to template (e.g., "ram/1500/2019-2024-normal.yml")
-            template_data: Parsed template YAML data
-            current_mileage: Current vehicle mileage (unused, kept for API compat)
-            created_by: "auto" or "manual"
-
-        Returns:
-            Number of schedule items created
-        """
-        # Verify vehicle exists
-        result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
-        vehicle = result.scalar_one_or_none()
-        if not vehicle:
-            raise ValueError(f"Vehicle with VIN {vin} not found")
-
-        # Maintenance schedule system removed in Phase 2. Template application is a no-op.
-        logger.warning(
-            "Template application deprecated — maintenance schedule removed. "
-            "Use the Reminders system instead. Template: %s, VIN: %s",
-            sanitize_for_log(template_path),
-            sanitize_for_log(vin),
-        )
-        items_created = 0
-
-        # Save template application record
-        template_record = MaintenanceTemplate(
-            vin=vin,
-            template_source=f"github:{template_path}",
-            template_version=template_data.get("metadata", {}).get("version"),
-            template_data=template_data,
-            created_by=created_by,
-            reminders_created=items_created,
-        )
-        db.add(template_record)
-
-        await db.commit()
-
-        logger.info(
-            "Applied template %s to %s, created %d schedule items",
-            sanitize_for_log(template_path),
-            sanitize_for_log(vin),
-            items_created,
-        )
-
-        return items_created
+    # apply_template_to_vehicle was removed in v2.30.1: the maintenance
+    # schedule system it wrote to was dropped in the maintenance overhaul,
+    # leaving it a silent no-op (created 0 reminders while recording an
+    # application row). The /apply route now returns 410 Gone.
 
     async def get_applied_templates(self, db: AsyncSession, vin: str) -> list[MaintenanceTemplate]:
         """

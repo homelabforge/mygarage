@@ -12977,52 +12977,6 @@
         "title": "TemplateApplyRequest",
         "type": "object"
       },
-      "TemplateApplyResponse": {
-        "description": "Schema for template application response.",
-        "properties": {
-          "error": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Error"
-          },
-          "items_created": {
-            "title": "Items Created",
-            "type": "integer"
-          },
-          "success": {
-            "title": "Success",
-            "type": "boolean"
-          },
-          "template_source": {
-            "title": "Template Source",
-            "type": "string"
-          },
-          "template_version": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Template Version"
-          }
-        },
-        "required": [
-          "success",
-          "items_created",
-          "template_source"
-        ],
-        "title": "TemplateApplyResponse",
-        "type": "object"
-      },
       "TemplateSearchResponse": {
         "description": "Schema for template search results from GitHub.",
         "properties": {
@@ -24505,7 +24459,7 @@
     },
     "/api/maintenance-templates/apply": {
       "post": {
-        "description": "Apply a maintenance template to a vehicle.\n\nThis will:\n1. Find the appropriate template based on vehicle year/make/model\n2. Create maintenance schedule items for all items in the template\n3. Record which template was applied\n\nBody:\n- vin: Vehicle VIN\n- duty_type: \"normal\" or \"severe\" (default: \"normal\")\n- current_mileage: Current vehicle mileage (optional)",
+        "description": "Deprecated: template application was removed with the schedule system.\n\nThe maintenance-schedule tables this created rows in were dropped in the\nmaintenance overhaul (migration 049 era); since then the service was a\nsilent no-op that recorded a template row and created zero reminders\nwhile this endpoint reported success. Fail loudly instead.\n\nAuth and vehicle access are still checked first so 401/403/404 semantics\nare unchanged for clients.",
         "operationId": "apply_template_api_maintenance_templates_apply_post",
         "requestBody": {
           "content": {
@@ -24518,15 +24472,13 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "410": {
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TemplateApplyResponse"
-                }
+                "schema": {}
               }
             },
-            "description": "Successful Response"
+            "description": "Gone \u2014 template application was removed with the schedule system. Use the Reminders system instead."
           },
           "422": {
             "content": {

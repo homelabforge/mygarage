@@ -2272,17 +2272,15 @@ export interface paths {
         put?: never;
         /**
          * Apply Template
-         * @description Apply a maintenance template to a vehicle.
+         * @description Deprecated: template application was removed with the schedule system.
          *
-         *     This will:
-         *     1. Find the appropriate template based on vehicle year/make/model
-         *     2. Create maintenance schedule items for all items in the template
-         *     3. Record which template was applied
+         *     The maintenance-schedule tables this created rows in were dropped in the
+         *     maintenance overhaul (migration 049 era); since then the service was a
+         *     silent no-op that recorded a template row and created zero reminders
+         *     while this endpoint reported success. Fail loudly instead.
          *
-         *     Body:
-         *     - vin: Vehicle VIN
-         *     - duty_type: "normal" or "severe" (default: "normal")
-         *     - current_mileage: Current vehicle mileage (optional)
+         *     Auth and vehicle access are still checked first so 401/403/404 semantics
+         *     are unchanged for clients.
          */
         post: operations["apply_template_api_maintenance_templates_apply_post"];
         delete?: never;
@@ -11134,22 +11132,6 @@ export interface components {
             vin: string;
         };
         /**
-         * TemplateApplyResponse
-         * @description Schema for template application response.
-         */
-        TemplateApplyResponse: {
-            /** Error */
-            error?: string | null;
-            /** Items Created */
-            items_created: number;
-            /** Success */
-            success: boolean;
-            /** Template Source */
-            template_source: string;
-            /** Template Version */
-            template_version?: string | null;
-        };
-        /**
          * TemplateSearchResponse
          * @description Schema for template search results from GitHub.
          */
@@ -16972,13 +16954,13 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful Response */
-            200: {
+            /** @description Gone — template application was removed with the schedule system. Use the Reminders system instead. */
+            410: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TemplateApplyResponse"];
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

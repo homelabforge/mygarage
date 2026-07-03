@@ -13,7 +13,6 @@ from app.schemas.maintenance_template import (
     MaintenanceTemplateListResponse,
     MaintenanceTemplateResponse,
     TemplateApplyRequest,
-    TemplateApplyResponse,
     TemplateSearchResponse,
 )
 from app.services.auth import get_vehicle_or_403, require_auth
@@ -76,86 +75,46 @@ async def search_template(
         raise HTTPException(status_code=500, detail="Failed to search for template")
 
 
-@maintenance_templates_router.post("/apply", response_model=TemplateApplyResponse)
+@maintenance_templates_router.post(
+    "/apply",
+    status_code=410,
+    responses={
+        410: {
+            "description": (
+                "Gone — template application was removed with the schedule "
+                "system. Use the Reminders system instead."
+            )
+        }
+    },
+)
 async def apply_template(
     request: TemplateApplyRequest,
     db: AsyncSession = Depends(get_db),
     current_user: User | None = Depends(require_auth),
 ):
+    """Deprecated: template application was removed with the schedule system.
+
+    The maintenance-schedule tables this created rows in were dropped in the
+    maintenance overhaul (migration 049 era); since then the service was a
+    silent no-op that recorded a template row and created zero reminders
+    while this endpoint reported success. Fail loudly instead.
+
+    Auth and vehicle access are still checked first so 401/403/404 semantics
+    are unchanged for clients.
     """
-    Apply a maintenance template to a vehicle.
+    # Same gate the working endpoint had (write-share, D-4) — keeps
+    # unauthorized/unknown-VIN responses identical to the pre-410 behavior.
+    await get_vehicle_or_403(request.vin, current_user, db, require_write=True)
 
-    This will:
-    1. Find the appropriate template based on vehicle year/make/model
-    2. Create maintenance schedule items for all items in the template
-    3. Record which template was applied
-
-    Body:
-    - vin: Vehicle VIN
-    - duty_type: "normal" or "severe" (default: "normal")
-    - current_mileage: Current vehicle mileage (optional)
-    """
-    # Applying a template creates child records (reminders) -> write-share (D-4).
-    vehicle = await get_vehicle_or_403(request.vin, current_user, db, require_write=True)
-
-    # Check if template already applied
-    result = await db.execute(
-        select(MaintenanceTemplate).where(MaintenanceTemplate.vin == request.vin)
+    raise HTTPException(
+        status_code=410,
+        detail=(
+            "Maintenance-template application was removed along with the "
+            "schedule system. Create service reminders instead (vehicle "
+            "Tracking -> Reminders); template search remains available for "
+            "reference."
+        ),
     )
-    existing_templates = result.scalars().all()
-
-    if existing_templates:
-        logger.warning(
-            "Template already applied to %s, applying additional template",
-            sanitize_for_log(request.vin),
-        )
-
-    # Find template
-    service = MaintenanceTemplateService()
-
-    try:
-        result = await service.find_template_for_vehicle(
-            year=vehicle.year,
-            make=vehicle.make,
-            model=vehicle.model,
-            duty_type=request.duty_type,
-            fuel_type=vehicle.fuel_type,
-        )
-
-        if result is None:
-            return TemplateApplyResponse(
-                success=False,
-                items_created=0,
-                template_source="",
-                error=f"No template found for {vehicle.year} {vehicle.make} {vehicle.model} ({request.duty_type} duty, {vehicle.fuel_type})",
-            )
-
-        template_path, template_data = result
-
-        # Apply template
-        items_created = await service.apply_template_to_vehicle(
-            db=db,
-            vin=request.vin,
-            template_path=template_path,
-            template_data=template_data,
-            current_mileage=request.current_mileage,
-            created_by="manual",
-        )
-
-        return TemplateApplyResponse(
-            success=True,
-            items_created=items_created,
-            template_source=f"github:{template_path}",
-            template_version=template_data.get("metadata", {}).get("version"),
-        )
-
-    except Exception as e:
-        logger.error(
-            "Error applying template to %s: %s",
-            sanitize_for_log(request.vin),
-            sanitize_for_log(str(e)),
-        )
-        raise HTTPException(status_code=500, detail="Failed to apply template")
 
 
 @maintenance_templates_router.get("/vehicles/{vin}", response_model=MaintenanceTemplateListResponse)

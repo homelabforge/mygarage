@@ -54,6 +54,12 @@ async def test_engine():
     if "asyncpg" in TEST_DATABASE_URL:
         pool_kwargs["poolclass"] = NullPool
     engine = create_async_engine(TEST_DATABASE_URL, echo=False, **pool_kwargs)
+    if "sqlite" in TEST_DATABASE_URL:
+        # Mirror production connection pragmas (WAL + foreign_keys=ON) so FK
+        # cascade behavior in tests matches the deployed engine.
+        from app.database import configure_sqlite_engine
+
+        configure_sqlite_engine(engine)
     yield engine
     await engine.dispose()
 

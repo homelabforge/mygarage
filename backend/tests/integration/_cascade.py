@@ -18,11 +18,12 @@ via ``assert_cascade_clean``, which:
 2. Deletes the parent.
 3. Asserts zero child rows remain linked.
 
-PG-only by convention. SQLite supports ``ON DELETE CASCADE`` only when
-``PRAGMA foreign_keys = ON`` is set per-connection, and the production
-app does not enable it. Running cascade tests on SQLite would silently
-"pass" (rows survive), which would be worse than skipping. The
-``pg_engine``-style fixtures used by callers handle the skip.
+Runs on BOTH engines since v2.30.1: the production SQLite engine now sets
+``PRAGMA foreign_keys = ON`` per-connection (see
+``app.database.configure_sqlite_engine``), and the test engine mirrors it,
+so ``ON DELETE CASCADE`` genuinely fires on SQLite too. Before that this
+helper was PG-only — running it on SQLite would have silently "passed" by
+leaving orphans intact.
 """
 
 from __future__ import annotations

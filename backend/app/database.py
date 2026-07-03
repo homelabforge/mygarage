@@ -16,6 +16,34 @@ logger = logging.getLogger(__name__)
 # PostgreSQL/MySQL: Connection pooling settings apply
 is_sqlite = "sqlite" in settings.database_url.lower()
 
+
+def _sqlite_connection_pragmas(dbapi_connection, connection_record) -> None:
+    """Per-connection SQLite pragmas (NullPool = every connection is fresh).
+
+    - journal_mode=WAL: concurrent readers + a single writer without
+      reader/writer blocking; synchronous=NORMAL is durable and fast under WAL.
+    - foreign_keys=ON: SQLite ships with FK enforcement OFF per connection.
+      Without it every declared ``ON DELETE CASCADE`` is decorative and bulk
+      deletes silently orphan child rows (vehicle delete orphaned all child
+      tables until v2.30.1). PG enforces FKs unconditionally; this aligns the
+      SQLite engine with the behavior the models already declare.
+    """
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA journal_mode=WAL")
+    cursor.execute("PRAGMA synchronous=NORMAL")
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
+
+
+def configure_sqlite_engine(async_engine) -> None:
+    """Attach the standard SQLite pragmas to an async engine.
+
+    Exported so the test suite can configure its own engine identically to
+    production — FK-enforcement behavior must not differ between the two.
+    """
+    event.listens_for(async_engine.sync_engine, "connect")(_sqlite_connection_pragmas)
+
+
 if is_sqlite:
     # SQLite async: NullPool is automatic. Tune for concurrent writers so the MQTT
     # ingest + scheduler + request paths don't raise "database is locked":
@@ -28,17 +56,11 @@ if is_sqlite:
         future=True,
         connect_args={"timeout": 30},
     )
+    configure_sqlite_engine(engine)
 
-    @event.listens_for(engine.sync_engine, "connect")
-    def _sqlite_concurrency_pragmas(dbapi_connection, connection_record):
-        # WAL = concurrent readers + a single writer without reader/writer blocking;
-        # synchronous=NORMAL is durable and fast under WAL. Set per-connection (NullPool).
-        cursor = dbapi_connection.cursor()
-        cursor.execute("PRAGMA journal_mode=WAL")
-        cursor.execute("PRAGMA synchronous=NORMAL")
-        cursor.close()
-
-    logger.info("Database engine created for SQLite (NullPool, WAL, busy_timeout=30s)")
+    logger.info(
+        "Database engine created for SQLite (NullPool, WAL, busy_timeout=30s, foreign_keys=ON)"
+    )
 else:
     # PostgreSQL/MySQL: Use connection pooling for production
     engine = create_async_engine(

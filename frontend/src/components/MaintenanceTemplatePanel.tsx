@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
-import { FileText, ExternalLink, Trash2, Plus } from 'lucide-react'
+import { FileText, ExternalLink, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
-import type { MaintenanceTemplate, MaintenanceTemplateListResponse, TemplateApplyResponse } from '../types/maintenanceTemplate'
+import type { MaintenanceTemplate, MaintenanceTemplateListResponse } from '../types/maintenanceTemplate'
 import type { Vehicle } from '../types/vehicle'
 import api from '../services/api'
 import { formatDateForDisplay } from '../utils/dateUtils'
@@ -12,11 +12,13 @@ interface MaintenanceTemplatePanelProps {
   vehicle?: Vehicle
 }
 
+// Template APPLICATION was removed with the schedule system (backend returns
+// 410 Gone). This panel now only shows historical application records; the
+// templates themselves remain browsable on GitHub as reference schedules.
 export default function MaintenanceTemplatePanel({ vin, vehicle }: MaintenanceTemplatePanelProps) {
   const dateLocale = useDateLocale()
   const [templates, setTemplates] = useState<MaintenanceTemplate[]>([])
   const [loading, setLoading] = useState(true)
-  const [applying, setApplying] = useState(false)
 
   const fetchTemplates = useCallback(async () => {
     try {
@@ -33,37 +35,6 @@ export default function MaintenanceTemplatePanel({ vin, vehicle }: MaintenanceTe
   useEffect(() => {
     fetchTemplates()
   }, [fetchTemplates])
-
-  const handleApplyTemplate = async () => {
-    if (!vehicle) {
-      toast.error('Vehicle information not available')
-      return
-    }
-
-    setApplying(true)
-    try {
-      const response = await api.post('/maintenance-templates/apply', {
-        vin: vin,
-        duty_type: 'normal'
-        // Note: current_mileage is optional - template will create time-based schedule items only
-        // Mileage-based schedule items require manual setup
-      })
-      const data: TemplateApplyResponse = response.data
-
-      if (data.success) {
-        toast.success(`Successfully applied template! Created ${data.items_created} schedule items.`)
-        await fetchTemplates()
-        // Trigger schedule refresh
-        window.dispatchEvent(new Event('maintenance-refresh'))
-      } else {
-        toast.error(data.error || 'Failed to apply template')
-      }
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to apply template')
-    } finally {
-      setApplying(false)
-    }
-  }
 
   const handleDeleteTemplate = async (templateId: number) => {
     if (!confirm('Are you sure you want to delete this template record? This will not delete the schedule items that were created.')) {
@@ -105,25 +76,15 @@ export default function MaintenanceTemplatePanel({ vin, vehicle }: MaintenanceTe
           <FileText className="h-5 w-5 text-garage-text-muted" />
           Maintenance Templates
         </h3>
-        {vehicle && templates.length === 0 && (
-          <button
-            onClick={handleApplyTemplate}
-            disabled={applying}
-            className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Plus className="h-4 w-4" />
-            {applying ? 'Applying...' : 'Apply Template'}
-          </button>
-        )}
       </div>
 
       {templates.length === 0 ? (
         <div className="text-center py-8 text-garage-text-muted">
           <FileText className="h-12 w-12 mx-auto mb-3 opacity-50" />
-          <p className="text-sm">No maintenance templates applied yet.</p>
+          <p className="text-sm">Template application has been retired.</p>
           {vehicle && (
             <p className="text-xs mt-2">
-              Apply a manufacturer template to automatically create a recommended maintenance schedule for your {vehicle.year} {vehicle.make} {vehicle.model}.
+              Use Reminders (Tracking &rarr; Reminders) to schedule maintenance for your {vehicle.year} {vehicle.make} {vehicle.model}. Manufacturer schedules remain available as reference on GitHub.
             </p>
           )}
         </div>

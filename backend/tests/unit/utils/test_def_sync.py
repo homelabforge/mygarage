@@ -13,6 +13,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.def_record import DEFRecord
+from app.models.fuel import FuelRecord
 from app.utils.def_sync import delete_def_for_fuel_record, sync_def_from_fuel_record
 
 
@@ -26,6 +27,38 @@ async def clean_def_records(db_session: AsyncSession, test_vehicle):
     await db_session.commit()
 
 
+@pytest_asyncio.fixture
+async def fuel_record_ids(db_session: AsyncSession, test_vehicle) -> list[int]:
+    """Two real fuel records to act as sync origins.
+
+    def_records.origin_fuel_record_id is a real FK and the engine enforces
+    it (foreign_keys=ON) — fabricated ids like 999 are rejected, exactly as
+    they would be in production.
+    """
+    records = [
+        FuelRecord(
+            vin=test_vehicle["vin"],
+            date=date(2024, 6, 15),
+            odometer_km=Decimal("80467.20"),
+            liters=Decimal("40.000"),
+            is_full_tank=True,
+        ),
+        FuelRecord(
+            vin=test_vehicle["vin"],
+            date=date(2024, 7, 1),
+            odometer_km=Decimal("82076.34"),
+            liters=Decimal("38.000"),
+            is_full_tank=True,
+        ),
+    ]
+    db_session.add_all(records)
+    await db_session.commit()
+    ids = [r.id for r in records]
+    yield ids
+    await db_session.execute(delete(FuelRecord).where(FuelRecord.id.in_(ids)))
+    await db_session.commit()
+
+
 @pytest.mark.unit
 @pytest.mark.def_records
 @pytest.mark.asyncio
@@ -33,7 +66,7 @@ class TestDEFSync:
     """Test DEF sync utility functions."""
 
     async def test_sync_creates_new_record(
-        self, db_session: AsyncSession, test_vehicle, clean_def_records
+        self, db_session: AsyncSession, test_vehicle, clean_def_records, fuel_record_ids
     ):
         """Test that sync creates a new DEF record with correct entry_type."""
         result = await sync_def_from_fuel_record(
@@ -42,7 +75,7 @@ class TestDEFSync:
             date=date(2024, 6, 15),
             odometer_km=Decimal("80467.20"),
             fill_level=Decimal("0.75"),
-            fuel_record_id=999,
+            fuel_record_id=fuel_record_ids[0],
         )
 
         assert result is not None
@@ -51,10 +84,10 @@ class TestDEFSync:
         assert result.odometer_km == Decimal("80467.20")
         assert result.fill_level == Decimal("0.75")
         assert result.entry_type == "auto_fuel_sync"
-        assert result.origin_fuel_record_id == 999
+        assert result.origin_fuel_record_id == fuel_record_ids[0]
 
     async def test_sync_updates_existing_record(
-        self, db_session: AsyncSession, test_vehicle, clean_def_records
+        self, db_session: AsyncSession, test_vehicle, clean_def_records, fuel_record_ids
     ):
         """Test that sync updates an existing auto-synced record by origin_fuel_record_id."""
         # Create initial
@@ -64,7 +97,7 @@ class TestDEFSync:
             date=date(2024, 6, 15),
             odometer_km=Decimal("80467.20"),
             fill_level=Decimal("0.75"),
-            fuel_record_id=999,
+            fuel_record_id=fuel_record_ids[0],
         )
         assert initial is not None
         initial_id = initial.id
@@ -76,7 +109,7 @@ class TestDEFSync:
             date=date(2024, 6, 20),
             odometer_km=Decimal("81271.67"),
             fill_level=Decimal("0.50"),
-            fuel_record_id=999,
+            fuel_record_id=fuel_record_ids[0],
         )
 
         assert updated is not None
@@ -86,7 +119,7 @@ class TestDEFSync:
         assert updated.odometer_km == Decimal("81271.67")
 
     async def test_sync_with_none_mileage(
-        self, db_session: AsyncSession, test_vehicle, clean_def_records
+        self, db_session: AsyncSession, test_vehicle, clean_def_records, fuel_record_ids
     ):
         """Test that sync works when mileage is None."""
         result = await sync_def_from_fuel_record(
@@ -95,7 +128,7 @@ class TestDEFSync:
             date=date(2024, 7, 1),
             odometer_km=None,
             fill_level=Decimal("0.50"),
-            fuel_record_id=1000,
+            fuel_record_id=fuel_record_ids[0],
         )
 
         assert result is not None
@@ -103,7 +136,7 @@ class TestDEFSync:
         assert result.fill_level == Decimal("0.50")
 
     async def test_sync_different_fuel_records_create_separate(
-        self, db_session: AsyncSession, test_vehicle, clean_def_records
+        self, db_session: AsyncSession, test_vehicle, clean_def_records, fuel_record_ids
     ):
         """Test that syncs for different fuel records create separate DEF records."""
         result1 = await sync_def_from_fuel_record(
@@ -112,7 +145,7 @@ class TestDEFSync:
             date=date(2024, 6, 1),
             odometer_km=Decimal("78857.66"),
             fill_level=Decimal("0.90"),
-            fuel_record_id=100,
+            fuel_record_id=fuel_record_ids[0],
         )
 
         result2 = await sync_def_from_fuel_record(
@@ -121,14 +154,14 @@ class TestDEFSync:
             date=date(2024, 7, 1),
             odometer_km=Decimal("82076.34"),
             fill_level=Decimal("0.60"),
-            fuel_record_id=101,
+            fuel_record_id=fuel_record_ids[1],
         )
 
         assert result1 is not None
         assert result2 is not None
         assert result1.id != result2.id
-        assert result1.origin_fuel_record_id == 100
-        assert result2.origin_fuel_record_id == 101
+        assert result1.origin_fuel_record_id == fuel_record_ids[0]
+        assert result2.origin_fuel_record_id == fuel_record_ids[1]
 
 
 @pytest.mark.unit
@@ -138,7 +171,7 @@ class TestDeleteDEFForFuelRecord:
     """Test deleting DEF records linked to a fuel record."""
 
     async def test_delete_returns_count(
-        self, db_session: AsyncSession, test_vehicle, clean_def_records
+        self, db_session: AsyncSession, test_vehicle, clean_def_records, fuel_record_ids
     ):
         """Test that delete returns the number of records deleted."""
         # Create a linked DEF record
@@ -148,29 +181,30 @@ class TestDeleteDEFForFuelRecord:
             date=date(2024, 8, 1),
             odometer_km=Decimal("88513.92"),
             fill_level=Decimal("0.80"),
-            fuel_record_id=200,
+            fuel_record_id=fuel_record_ids[0],
         )
 
-        count = await delete_def_for_fuel_record(db=db_session, fuel_record_id=200)
+        count = await delete_def_for_fuel_record(db=db_session, fuel_record_id=fuel_record_ids[0])
         await db_session.commit()  # Caller must commit
 
         assert count == 1
 
         # Verify record is gone
         result = await db_session.execute(
-            select(DEFRecord).where(DEFRecord.origin_fuel_record_id == 200)
+            select(DEFRecord).where(DEFRecord.origin_fuel_record_id == fuel_record_ids[0])
         )
         assert result.scalar_one_or_none() is None
 
     async def test_delete_returns_zero_when_no_linked(self, db_session: AsyncSession):
         """Test that delete returns 0 when no linked records exist."""
+        # Deleting by a nonexistent id is legal (no FK check on DELETE) - stays literal.
         count = await delete_def_for_fuel_record(db=db_session, fuel_record_id=99999)
         await db_session.commit()
 
         assert count == 0
 
     async def test_delete_does_not_commit(
-        self, db_session: AsyncSession, test_vehicle, clean_def_records
+        self, db_session: AsyncSession, test_vehicle, clean_def_records, fuel_record_ids
     ):
         """Test that delete does NOT commit — caller manages transaction."""
         # Create a linked DEF record
@@ -180,17 +214,17 @@ class TestDeleteDEFForFuelRecord:
             date=date(2024, 9, 1),
             odometer_km=Decimal("90122.85"),
             fill_level=Decimal("0.65"),
-            fuel_record_id=300,
+            fuel_record_id=fuel_record_ids[0],
         )
 
-        count = await delete_def_for_fuel_record(db=db_session, fuel_record_id=300)
+        count = await delete_def_for_fuel_record(db=db_session, fuel_record_id=fuel_record_ids[0])
         assert count == 1
 
         # Rollback instead of commit — record should still exist
         await db_session.rollback()
 
         result = await db_session.execute(
-            select(DEFRecord).where(DEFRecord.origin_fuel_record_id == 300)
+            select(DEFRecord).where(DEFRecord.origin_fuel_record_id == fuel_record_ids[0])
         )
         record = result.scalar_one_or_none()
         assert record is not None, "Record should still exist after rollback"

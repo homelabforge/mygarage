@@ -51,6 +51,12 @@ def calculate_l_per_100km(
     if not current_record.is_full_tank:
         return None
 
+    # A missed fill-up means the distance since the previous record includes
+    # fuel that was never recorded — no valid economy figure exists for this
+    # record. It still re-anchors the sequence for the NEXT fill-up.
+    if current_record.missed_fillup:
+        return None
+
     # Need odometer_km and liters on current record
     if not current_record.odometer_km or not current_record.liters:
         return None
@@ -104,12 +110,16 @@ async def calculate_average_l_per_100km(
         exclude_hauling: If True (default), exclude is_hauling=True records
             for more representative daily-driving economy
     """
+    # No liters filter: a missed fill-up (odometer recorded, amount unknown)
+    # must stay in the sequence as an ANCHOR so consecutive pairs never
+    # bridge across it — bridging understates consumption by attributing one
+    # tank's liters to two tanks' distance. calculate_l_per_100km() returns
+    # None for the missed record itself, so only valid pairs contribute.
     query = (
         select(FuelRecord)
         .where(FuelRecord.vin == vin)
         .where(FuelRecord.is_full_tank.is_(True))
         .where(FuelRecord.odometer_km.isnot(None))
-        .where(FuelRecord.liters.isnot(None))
     )
 
     if exclude_hauling:

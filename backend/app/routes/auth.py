@@ -626,6 +626,28 @@ async def delete_user(
                 detail="Cannot delete the last admin user",
             )
 
+    # FK hygiene: shares GRANTED by this user (shared_by) and transfer-history
+    # rows naming this user carry NOT NULL FKs with no ON DELETE action, so an
+    # FK-enforcing engine (PG always; SQLite since foreign_keys=ON) rejects the
+    # delete while they exist. Shares the user RECEIVED (user_id), their CSRF
+    # tokens, widget keys, and their vehicles (with all child records) cascade
+    # via the FKs themselves.
+    from sqlalchemy import or_
+
+    from app.models.vehicle_share import VehicleShare
+    from app.models.vehicle_transfer import VehicleTransfer
+
+    await db.execute(delete(VehicleShare).where(VehicleShare.shared_by == user_id))
+    await db.execute(
+        delete(VehicleTransfer).where(
+            or_(
+                VehicleTransfer.from_user_id == user_id,
+                VehicleTransfer.to_user_id == user_id,
+                VehicleTransfer.transferred_by == user_id,
+            )
+        )
+    )
+
     await db.delete(user)
     await db.commit()
 

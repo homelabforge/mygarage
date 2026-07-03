@@ -4,9 +4,10 @@ This is the framework smoke. Real rc2 scenarios land here as Phase 2.5
 (fuel→odometer via migration 055) and Phase 4.2 (broader matrix:
 vehicle→{service, drive_session, dtc, photo, document}) ship.
 
-PG-only: SQLite doesn't enforce FKs without ``PRAGMA foreign_keys=ON``,
-which the production app does not set. Running these on SQLite would
-silently "pass" by leaving orphans intact — worse than skipping.
+Runs on both engines since v2.30.1: SQLite connections now set
+``PRAGMA foreign_keys=ON`` (production and tests alike), so declared
+cascades fire there too. The broader vehicle-delete matrix lives in
+``test_vehicle_delete_integrity.py``.
 """
 
 from __future__ import annotations
@@ -34,12 +35,6 @@ VEHICLE_TO_FUEL = CascadeScenario(
 )
 
 
-def _is_postgres(session: AsyncSession) -> bool:
-    """Skip-guard: cascade tests require PG (see module docstring)."""
-    bind = session.get_bind()
-    return bind.dialect.name == "postgresql"
-
-
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_vehicle_delete_cascades_fuel_records(
@@ -48,11 +43,9 @@ async def test_vehicle_delete_cascades_fuel_records(
     """Smoke: deleting a vehicle removes its fuel records.
 
     Rolls a throwaway vehicle so we don't trash the shared test_vehicle
-    that other tests depend on.
+    that other tests depend on. Runs on both engines — SQLite enforces
+    FKs since v2.30.1 (PRAGMA foreign_keys=ON).
     """
-    if not _is_postgres(db_session):
-        pytest.skip("Cascade tests require PostgreSQL — see _cascade module docstring")
-
     throwaway_vin = "CASCADESMOKE12345"
     vehicle = Vehicle(
         vin=throwaway_vin,

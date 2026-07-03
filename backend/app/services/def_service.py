@@ -334,20 +334,27 @@ class DEFRecordService:
         data_confidence = "insufficient"
 
         if len(odometer_records) >= 3:
-            odometers = [r.odometer_km for r in odometer_records if r.odometer_km is not None]
-            min_km = min(odometers)
-            max_km = max(odometers)
+            by_odometer = sorted(odometer_records, key=lambda r: r.odometer_km)
+            min_km = by_odometer[0].odometer_km
+            max_km = by_odometer[-1].odometer_km
             km_span = max_km - min_km
 
             if km_span >= Decimal("800"):
-                total_liters_with_odometer = sum(
-                    (r.liters for r in odometer_records if r.liters is not None),
+                # Fence-post: DEF bought at the FINAL odometer reading sits in
+                # the tank unconsumed at the end of the span. Excluding by
+                # odometer value (not list position) also handles ties — two
+                # purchases logged at the same final odometer are BOTH
+                # unconsumed. Including them overstates the rate by ~N/(N-1).
+                consumed_liters = sum(
+                    (
+                        r.liters
+                        for r in by_odometer
+                        if r.odometer_km != max_km and r.liters is not None
+                    ),
                     Decimal("0"),
                 )
-                if total_liters_with_odometer > 0:
-                    liters_per_1000_km = round(
-                        total_liters_with_odometer / Decimal(str(km_span)) * 1000, 2
-                    )
+                if consumed_liters > 0:
+                    liters_per_1000_km = round(consumed_liters / Decimal(str(km_span)) * 1000, 2)
 
             if len(odometer_records) >= 5 and km_span >= Decimal("3200"):
                 data_confidence = "high"

@@ -259,3 +259,88 @@ class TestPeriodComparisonRoutes:
         )
 
         assert response.status_code == 403
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+class TestAnalyticsDefConsistency:
+    """The Analytics page and the DEF tab must agree on DEF consumption.
+
+    The analytics route previously carried its own DEF formula (all purchase
+    liters over the odometer span of ALL records, min 2 points) and asserted
+    a rate on data the DEF endpoint judged insufficient. Both now go through
+    DEFRecordService.get_def_analytics.
+    """
+
+    async def test_def_rate_matches_def_endpoint_verdict(
+        self, client: AsyncClient, auth_headers, test_vehicle, db_session
+    ):
+        from datetime import date
+        from decimal import Decimal
+
+        from sqlalchemy import delete
+
+        from app.models.def_record import DEFRecord
+
+        vin = test_vehicle["vin"]
+        await db_session.execute(delete(DEFRecord).where(DEFRecord.vin == vin))
+        # 2 purchases with odometer+liters + 3 odometer-only observations:
+        # exactly the production shape that produced a phantom 2.7 gal/1,000 mi.
+        db_session.add_all(
+            [
+                DEFRecord(
+                    vin=vin,
+                    date=date(2026, 2, 11),
+                    odometer_km=Decimal("7898.64"),
+                    liters=Decimal("9.464"),
+                    cost=Decimal("22.60"),
+                    entry_type="purchase",
+                ),
+                DEFRecord(
+                    vin=vin,
+                    date=date(2026, 2, 13),
+                    odometer_km=Decimal("7958.19"),
+                    liters=Decimal("9.464"),
+                    cost=Decimal("22.60"),
+                    entry_type="purchase",
+                ),
+                DEFRecord(
+                    vin=vin,
+                    date=date(2026, 3, 17),
+                    odometer_km=Decimal("9144.27"),
+                    fill_level=Decimal("0.85"),
+                    entry_type="auto_fuel_sync",
+                ),
+                DEFRecord(
+                    vin=vin,
+                    date=date(2026, 5, 5),
+                    odometer_km=Decimal("9968.25"),
+                    fill_level=Decimal("0.75"),
+                    entry_type="auto_fuel_sync",
+                ),
+                DEFRecord(
+                    vin=vin,
+                    date=date(2026, 6, 30),
+                    odometer_km=Decimal("10845.34"),
+                    fill_level=Decimal("0.75"),
+                    entry_type="auto_fuel_sync",
+                ),
+            ]
+        )
+        await db_session.commit()
+
+        response = await client.get(f"/api/analytics/vehicles/{vin}", headers=auth_headers)
+        assert response.status_code == 200
+        def_analysis = response.json()["def_analysis"]
+        assert def_analysis is not None
+        assert def_analysis["record_count"] == 5
+        # Only 2 records carry odometer+liters -> below the 3-record minimum:
+        # no consumption rate may be asserted (parity with the DEF tab).
+        assert def_analysis["liters_per_1000_km"] is None, (
+            "analytics page asserted a DEF rate the DEF endpoint judges "
+            "insufficient - duplicate formula is back"
+        )
+        assert def_analysis["data_confidence"] == "insufficient"
+
+        await db_session.execute(delete(DEFRecord).where(DEFRecord.vin == vin))
+        await db_session.commit()

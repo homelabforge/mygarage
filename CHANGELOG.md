@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Vehicle delete: enable SQLite FK enforcement (`PRAGMA foreign_keys=ON`) and use an ORM delete so child rows cascade on both engines — deleting a vehicle no longer orphans its history (re-adding the same VIN silently resurrected it).
+- Vehicle delete: remove the vehicle's photo/document directories and attachment rows+files from disk.
+- Backup: full backups snapshot SQLite via the Online Backup API instead of copying the live WAL-mode files (torn-copy risk; db member now self-contained).
+- Restore: stale `-wal`/`-shm` sidecars are removed so an old WAL can't replay over the restored database.
+- Fuel economy: the vehicle-wide L/100km average no longer bridges across missed fill-ups (understated consumption); widget consumption gets the same guard.
+- DEF analytics: consumption rate excludes the final unconsumed purchase (rate was overstated ~N/(N-1)).
+- Users: admin user-delete pre-cleans share/transfer references so FK-enforcing engines accept it.
+- Analytics: the vehicle Analytics page's DEF consumption card uses the same audited calculation as the DEF tab (a duplicate formula asserted a rate from insufficient data).
+
+### Changed
+- Maintenance templates: `POST /api/maintenance-templates/apply` returns 410 Gone — application had been a silent no-op since the schedule system was removed; use Reminders instead.
+
+### Removed
+- Migration 060: drop the dead `tsbs` and `vincario_*` tables (`tsbs` still referenced a table dropped in migration 040 — an FK-mismatch landmine under enforcement).
+
 ## [2.30.0] - 2026-06-28
 
 ### Added

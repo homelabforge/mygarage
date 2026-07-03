@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import shutil
+import sqlite3
 import subprocess
 import tarfile
 import tempfile
@@ -73,6 +74,28 @@ class BackupService:
             "password": unquote(parsed.password or ""),
             "dbname": parsed.path.lstrip("/") or "mygarage",
         }
+
+    def _snapshot_sqlite(self, output_path: Path) -> None:
+        """Write a consistent point-in-time snapshot of the SQLite database.
+
+        Uses the SQLite Online Backup API instead of copying the live file:
+        a raw copy of a WAL-mode database misses committed rows that still
+        live in the -wal sidecar and can tear entirely if a checkpoint runs
+        mid-copy. The snapshot is self-contained — restoring it never
+        depends on wal/shm files.
+        """
+        if not self.database_path:
+            raise RuntimeError("No SQLite database path configured for snapshot")
+
+        source = sqlite3.connect(f"file:{self.database_path}?mode=ro", uri=True)
+        try:
+            dest = sqlite3.connect(output_path)
+            try:
+                source.backup(dest)
+            finally:
+                dest.close()
+        finally:
+            source.close()
 
     def _pg_dump(self, output_path: Path) -> None:
         """Run pg_dump to create a PostgreSQL database dump.
@@ -287,22 +310,16 @@ class BackupService:
         # Create tar.gz archive
         with tarfile.open(backup_path, "w:gz") as tar:
             if self.is_sqlite and self.database_path:
-                # SQLite: add database files directly
+                # SQLite: archive a consistent Online-Backup-API snapshot, not
+                # the live file. The snapshot is self-contained, so no -wal or
+                # -shm members are needed (restore still accepts them from
+                # older archives).
                 if self.database_path.exists():
-                    tar.add(self.database_path, arcname="mygarage.db")
-                    logger.info("Added database to backup: %s", self.database_path)
-
-                # Add WAL file if it exists (for SQLite WAL mode)
-                wal_path = Path(str(self.database_path) + "-wal")
-                if wal_path.exists():
-                    tar.add(wal_path, arcname="mygarage.db-wal")
-                    logger.info("Added WAL file to backup: %s", wal_path)
-
-                # Add SHM file if it exists (for SQLite WAL mode)
-                shm_path = Path(str(self.database_path) + "-shm")
-                if shm_path.exists():
-                    tar.add(shm_path, arcname="mygarage.db-shm")
-                    logger.info("Added SHM file to backup: %s", shm_path)
+                    with tempfile.TemporaryDirectory() as tmpdir:
+                        snapshot_path = Path(tmpdir) / "mygarage.db"
+                        self._snapshot_sqlite(snapshot_path)
+                        tar.add(snapshot_path, arcname="mygarage.db")
+                    logger.info("Added database snapshot to backup: %s", self.database_path)
             else:
                 # PostgreSQL: run pg_dump to temp file, add to archive
                 with tempfile.TemporaryDirectory() as tmpdir:
@@ -477,7 +494,12 @@ class BackupService:
 
             with tarfile.open(safety_path, "w:gz") as tar:
                 if self.database_path.exists():
-                    tar.add(self.database_path, arcname="mygarage.db")
+                    # Same consistent-snapshot rule as create_full_backup — the
+                    # safety copy is the last line of defense during a restore.
+                    with tempfile.TemporaryDirectory() as tmpdir:
+                        snapshot_path = Path(tmpdir) / "mygarage.db"
+                        self._snapshot_sqlite(snapshot_path)
+                        tar.add(snapshot_path, arcname="mygarage.db")
 
                 # Also backup current files
                 for dir_name in ["photos", "documents", "attachments"]:
@@ -524,6 +546,21 @@ class BackupService:
                     destination_root,
                     normalized_parts,
                 )
+
+            # WAL hygiene: snapshot-style archives carry a self-contained
+            # mygarage.db with no wal/shm members. Any live sidecars that the
+            # archive did not overwrite belong to the PRE-restore database —
+            # left in place, SQLite would replay the old WAL over the freshly
+            # restored file on next open.
+            if self.database_path:
+                extracted_names = {"/".join(self._normalize_member_parts(m.name)) for m in members}
+                for suffix in ("-wal", "-shm"):
+                    if f"mygarage.db{suffix}" in extracted_names:
+                        continue
+                    stale = Path(str(self.database_path) + suffix)
+                    if stale.exists():
+                        stale.unlink()
+                        logger.info("Removed stale sidecar from previous database: %s", stale)
 
         logger.info("Successfully restored full backup from %s", sanitize_for_log(filename))
 

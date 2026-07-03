@@ -10,7 +10,7 @@ export type MaintenanceTemplate = components['schemas']['MaintenanceTemplateResp
 export type MaintenanceTemplateListResponse = components['schemas']['MaintenanceTemplateListResponse']
 export type TemplateSearchResponse = components['schemas']['TemplateSearchResponse']
 export type TemplateApplyRequest = components['schemas']['TemplateApplyRequest']
-export type TemplateApplyResponse = components['schemas']['TemplateApplyResponse']
+// TemplateApplyResponse removed: /apply returns 410 Gone (application retired).
 
 // ============================================================================
 // Section B: Hand-maintained frontend-only types
