@@ -15,7 +15,7 @@ import { X, ChevronLeft, ChevronRight, Check } from 'lucide-react'
 import VINInput from './VINInput'
 import { FormError } from './FormError'
 import type { VINDecodeResponse } from '../types/vin'
-import type { VehicleCreate, VehicleType } from '../types/vehicle'
+import type { VehicleCreate } from '../types/vehicle'
 import { FUEL_TYPE_VALUES, FUEL_TYPE_LABELS, type FuelType } from '../constants/fuel'
 import vehicleService from '../services/vehicleService'
 import { vehicleEditSchema, VEHICLE_TYPES, type VehicleEditFormData } from '../schemas/vehicle'
@@ -138,8 +138,8 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
       // Create vehicle with validated form data
       const vehicleData: VehicleCreate = {
         vin: vin,
-        nickname: validatedData.nickname!,
-        vehicle_type: validatedData.vehicle_type as VehicleType,
+        nickname: validatedData.nickname,
+        vehicle_type: validatedData.vehicle_type,
         year: validatedData.year,
         make: validatedData.make,
         model: validatedData.model,

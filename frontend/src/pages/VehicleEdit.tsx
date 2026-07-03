@@ -246,7 +246,9 @@ export default function VehicleEdit() {
                 {...register('vehicle_type')}
                 className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-garage-text"
               >
-                <option value="">{t('edit.selectType')}</option>
+                {/* No blank option: vehicle_type is a NOT NULL column (the
+                    wizard's select has none either) — a null submit would
+                    409 server-side and roll back the whole update. */}
                 {VEHICLE_TYPES.map((type) => (
                   <option key={type} value={type}>
                     {type}

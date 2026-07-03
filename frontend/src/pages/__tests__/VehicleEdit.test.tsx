@@ -129,13 +129,13 @@ describe('VehicleEdit — canonical fuel-type select', () => {
   })
 })
 
-describe('VehicleEdit — sibling optional-string field clear-on-blank', () => {
+describe('VehicleEdit — clear-on-blank vs. NOT NULL required fields', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.spyOn(console, 'error').mockImplementation(() => {})
   })
 
-  it('submits nickname as null (not omitted) when the field is cleared', async () => {
+  it('blocks submit with a field error (no PUT) when nickname is cleared — NOT NULL column', async () => {
     renderVehicleEdit(baseVehicle)
 
     const nicknameInput = (await screen.findByLabelText(
@@ -146,13 +146,57 @@ describe('VehicleEdit — sibling optional-string field clear-on-blank', () => {
     const saveButton = screen.getByRole('button', { name: 'edit.saveChanges' })
     fireEvent.click(saveButton)
 
+    // Client-side validation must reject the blank nickname: submitting
+    // `nickname: null` would violate the NOT NULL DB column, 409, and roll
+    // back the entire update (losing every other edited field).
+    expect(await screen.findByText('Nickname is required')).toBeInTheDocument()
+    expect(mockedApi.put).not.toHaveBeenCalled()
+  })
+
+  it('offers no blank vehicle_type option (NOT NULL column, matches the wizard)', async () => {
+    renderVehicleEdit(baseVehicle)
+
+    const select = (await screen.findByLabelText('edit.vehicleType')) as HTMLSelectElement
+    const values = Array.from(select.options).map((o) => o.value)
+
+    expect(values).not.toContain('')
+    expect(select.value).toBe('Car')
+  })
+
+  it('submits a nullable string field (trim) as null (not omitted) when cleared', async () => {
+    renderVehicleEdit({ ...baseVehicle, trim: 'Limited' })
+
+    const trimInput = (await screen.findByLabelText('edit.trim')) as HTMLInputElement
+    expect(trimInput.value).toBe('Limited')
+    fireEvent.change(trimInput, { target: { value: '' } })
+
+    const saveButton = screen.getByRole('button', { name: 'edit.saveChanges' })
+    fireEvent.click(saveButton)
+
     await waitFor(() => expect(mockedApi.put).toHaveBeenCalled())
 
     const [, payload] = mockedApi.put.mock.calls[0]
     // `null` here (not `undefined`) matters: JSON.stringify drops
     // `undefined` properties, which would silently no-op against the
     // backend's `exclude_unset=True` partial-update logic.
-    expect(payload).toMatchObject({ nickname: null })
+    expect(payload).toMatchObject({ trim: null })
+  })
+
+  it('saves a vehicle whose year is NULL in the DB without touching the year field', async () => {
+    renderVehicleEdit({ ...baseVehicle, year: null })
+
+    await screen.findByLabelText('edit.nickname *')
+
+    const saveButton = screen.getByRole('button', { name: 'edit.saveChanges' })
+    fireEvent.click(saveButton)
+
+    // Before the null-input fix, zod hard-failed on the null-seeded year
+    // ("expected number, received null") and blocked EVERY edit on such a
+    // vehicle until the user touched the year field.
+    await waitFor(() => expect(mockedApi.put).toHaveBeenCalled())
+
+    const [, payload] = mockedApi.put.mock.calls[0]
+    expect(payload).toMatchObject({ year: null, nickname: 'Test Car' })
   })
 
   it('submits purchase_date as null (not omitted) when the date is cleared', async () => {
