@@ -41,6 +41,7 @@ import type { LucideIcon } from 'lucide-react'
 import vehicleService from '../services/vehicleService'
 import api from '../services/api'
 import type { Vehicle } from '../types/vehicle'
+import { isDieselFuelType } from '../constants/fuel'
 import ServiceTab from '../components/tabs/ServiceTab'
 import FuelTab from '../components/tabs/FuelTab'
 import OdometerTab from '../components/tabs/OdometerTab'
@@ -415,8 +416,12 @@ export default function VehicleDetail() {
   const hasPropane = vehicle?.vehicle_type &&
     ['RV', 'FifthWheel', 'TravelTrailer'].includes(vehicle.vehicle_type)
 
-  // Check if vehicle has DEF tracking (diesel vehicles or manually enabled)
-  const hasDEF = vehicle?.fuel_type?.toLowerCase().includes('diesel') ||
+  const isDiesel = isDieselFuelType(vehicle?.fuel_type)
+
+  // Check if vehicle has DEF tracking (diesel vehicles or manually enabled).
+  // Kept as an OR so legacy non-diesel DEF history remains visible — the DEF
+  // tab itself renders read-only when the vehicle isn't diesel.
+  const hasDEF = isDiesel ||
     (vehicle?.def_tank_capacity_liters != null && Number(vehicle.def_tank_capacity_liters) > 0)
 
   // Check if vehicle is RV, Fifth Wheel, or Travel Trailer (for spot rentals)
@@ -1225,7 +1230,7 @@ export default function VehicleDetail() {
         {/* Maintenance Sub-tabs */}
         {activePrimaryTab === 'maintenance' && activeSubTab === 'service' && vin && <ServiceTab vin={vin} />}
         {activePrimaryTab === 'maintenance' && activeSubTab === 'fuel' && vin && <FuelTab vin={vin} />}
-        {activePrimaryTab === 'maintenance' && activeSubTab === 'def' && vin && <DEFTab vin={vin} />}
+        {activePrimaryTab === 'maintenance' && activeSubTab === 'def' && vin && <DEFTab vin={vin} isDiesel={isDiesel} />}
         {activePrimaryTab === 'maintenance' && activeSubTab === 'propane' && vin && <PropaneTab vin={vin} />}
         {activePrimaryTab === 'maintenance' && activeSubTab === 'odometer' && vin && <OdometerTab vin={vin} />}
         {activePrimaryTab === 'maintenance' && activeSubTab === 'recalls' && vin && <SafetyTab vin={vin} />}

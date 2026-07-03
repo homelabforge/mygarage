@@ -59,3 +59,16 @@ export const FUEL_TYPE_LABELS: Record<FuelType, string> = {
   hydrogen: 'Hydrogen',
   other: 'Other',
 }
+
+/**
+ * True when a (possibly legacy/free-text) fuel_type value denotes diesel.
+ * Canonical values are lowercase (e.g. "diesel"); `.includes()` keeps this
+ * resilient to older free-text data without a separate migration. Shared by
+ * every diesel-gated UI check (DEF tracking visibility/read-only state,
+ * DEF tank capacity editability) so the matching rule only lives in one
+ * place — mirrors the backend's diesel-only DEF gate (see
+ * backend/app/constants/fuel.py).
+ */
+export function isDieselFuelType(fuelType?: string | null): boolean {
+  return fuelType?.toLowerCase().includes('diesel') ?? false
+}

@@ -14,9 +14,13 @@ import { useQueryClient } from '@tanstack/react-query'
 
 interface DEFRecordListProps {
   vin: string
+  /** True when the vehicle isn't diesel — hides add/edit affordances and
+   * shows a read-only notice. Delete stays available so bad legacy data can
+   * still be removed. */
+  readOnly?: boolean
 }
 
-export default function DEFRecordList({ vin }: DEFRecordListProps) {
+export default function DEFRecordList({ vin, readOnly = false }: DEFRecordListProps) {
   const [showForm, setShowForm] = useState(false)
   const [editingRecord, setEditingRecord] = useState<DEFRecord | undefined>()
   const { t } = useTranslation('vehicles')
@@ -31,11 +35,13 @@ export default function DEFRecordList({ vin }: DEFRecordListProps) {
   const records = useMemo(() => recordsData?.records ?? [], [recordsData?.records])
 
   const handleAdd = () => {
+    if (readOnly) return
     setEditingRecord(undefined)
     setShowForm(true)
   }
 
   const handleEdit = (record: DEFRecord) => {
+    if (readOnly) return
     setEditingRecord(record)
     setShowForm(true)
   }
@@ -107,6 +113,13 @@ export default function DEFRecordList({ vin }: DEFRecordListProps) {
           onClose={() => setShowForm(false)}
           onSuccess={handleSuccess}
         />
+      )}
+
+      {readOnly && (
+        <div className="flex items-start gap-2 p-3 bg-warning/10 border border-warning/20 rounded-md mb-4">
+          <AlertCircle className="w-4 h-4 text-warning flex-shrink-0 mt-0.5" />
+          <p className="text-sm text-warning">{t('defList.readOnlyNotice')}</p>
+        </div>
       )}
 
       {/* Analytics Cards */}
@@ -201,13 +214,15 @@ export default function DEFRecordList({ vin }: DEFRecordListProps) {
             </p>
           )}
         </div>
-        <button
-          onClick={handleAdd}
-          className="flex items-center gap-2 px-4 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg hover:bg-gray-800 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          <span>{t('defList.addDEF')}</span>
-        </button>
+        {!readOnly && (
+          <button
+            onClick={handleAdd}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg hover:bg-gray-800 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            <span>{t('defList.addDEF')}</span>
+          </button>
+        )}
       </div>
 
       {error && (
@@ -222,13 +237,15 @@ export default function DEFRecordList({ vin }: DEFRecordListProps) {
           <Droplets className="w-12 h-12 text-garage-text-muted mx-auto mb-3" />
           <p className="text-garage-text mb-2">{t('defList.noRecords')}</p>
           <p className="text-sm text-garage-text-muted mb-4">{t('defList.noRecordsDesc')}</p>
-          <button
-            onClick={handleAdd}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg hover:bg-gray-800 transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            <span>{t('defList.addFirstRecord')}</span>
-          </button>
+          {!readOnly && (
+            <button
+              onClick={handleAdd}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-gray-700 border border-gray-600 text-white rounded-lg hover:bg-gray-800 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              <span>{t('defList.addFirstRecord')}</span>
+            </button>
+          )}
         </div>
       ) : (
         <div className="bg-garage-surface border border-garage-border rounded-lg overflow-hidden">
@@ -294,14 +311,16 @@ export default function DEFRecordList({ vin }: DEFRecordListProps) {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex gap-1 justify-end">
-                          <button
-                            onClick={() => handleEdit(record)}
-                            className="p-1.5 text-primary hover:bg-primary/10 rounded transition-colors"
-                            aria-label={t('common:edit')}
-                            title={t('common:edit')}
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
+                          {!readOnly && (
+                            <button
+                              onClick={() => handleEdit(record)}
+                              className="p-1.5 text-primary hover:bg-primary/10 rounded transition-colors"
+                              aria-label={t('common:edit')}
+                              title={t('common:edit')}
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                          )}
                           <button
                             onClick={() => handleDelete(record.id)}
                             disabled={deleteMutation.isPending && deleteMutation.variables === record.id}

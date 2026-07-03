@@ -128,3 +128,59 @@ describe('VehicleEdit — canonical fuel-type select', () => {
     expect(payload).toMatchObject({ fuel_type: 'diesel' })
   })
 })
+
+describe('VehicleEdit — DEF tank capacity diesel-only gate', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+  })
+
+  const dieselWithCapacity: Vehicle = {
+    ...baseVehicle,
+    fuel_type: 'diesel',
+    def_tank_capacity_liters: '19.0',
+  }
+
+  it('keeps the DEF capacity input enabled while diesel stays selected', async () => {
+    renderVehicleEdit(dieselWithCapacity)
+
+    const capacityInput = (await screen.findByLabelText('edit.defTankCapacity (L)')) as HTMLInputElement
+    expect(capacityInput).not.toBeDisabled()
+    expect(screen.getByText('edit.defTankCapacityHint')).toBeInTheDocument()
+    expect(screen.queryByText('edit.defCapacityRequiresDieselHint')).not.toBeInTheDocument()
+    expect(screen.queryByText('edit.clearDefTankCapacity')).not.toBeInTheDocument()
+  })
+
+  it('disables the DEF capacity input and surfaces the clear-first hint when switching away from diesel', async () => {
+    renderVehicleEdit(dieselWithCapacity)
+
+    const select = (await screen.findByLabelText('edit.fuelType')) as HTMLSelectElement
+    fireEvent.change(select, { target: { value: 'gasoline' } })
+
+    const capacityInput = (await screen.findByLabelText('edit.defTankCapacity (L)')) as HTMLInputElement
+    expect(capacityInput).toBeDisabled()
+    expect(screen.getByText('edit.defCapacityRequiresDieselHint')).toBeInTheDocument()
+    expect(screen.getByText('edit.clearDefTankCapacity')).toBeInTheDocument()
+  })
+
+  it('clearing the capacity after switching away from diesel hides the field and submits null', async () => {
+    renderVehicleEdit(dieselWithCapacity)
+
+    const select = (await screen.findByLabelText('edit.fuelType')) as HTMLSelectElement
+    fireEvent.change(select, { target: { value: 'gasoline' } })
+
+    const clearButton = await screen.findByText('edit.clearDefTankCapacity')
+    fireEvent.click(clearButton)
+
+    // The whole capacity block hides once DEF tracking is unchecked.
+    expect(screen.queryByLabelText('edit.defTankCapacity (L)')).not.toBeInTheDocument()
+
+    const saveButton = screen.getByRole('button', { name: 'edit.saveChanges' })
+    fireEvent.click(saveButton)
+
+    await waitFor(() => expect(mockedApi.put).toHaveBeenCalled())
+
+    const [, payload] = mockedApi.put.mock.calls[0]
+    expect(payload).toMatchObject({ fuel_type: 'gasoline', def_tank_capacity_liters: null })
+  })
+})

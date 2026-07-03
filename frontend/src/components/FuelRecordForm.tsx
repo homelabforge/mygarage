@@ -14,6 +14,7 @@ import {
   FUEL_TYPE_VALUES,
   PAYMENT_METHOD_VALUES,
   TRIP_TYPE_VALUES,
+  isDieselFuelType,
 } from '../constants/fuel'
 import { FormError } from './FormError'
 import api from '../services/api'
@@ -51,7 +52,6 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
   const updateMutation = useUpdateFuelRecord(vin)
   const [vehicleFuelType, setVehicleFuelType] = useState<string>('')
   const [vehicleFuelTypeSecondary, setVehicleFuelTypeSecondary] = useState<string>('')
-  const [defTankCapacity, setDefTankCapacity] = useState<number>(0)
   const { system } = useUnitPreference()
   const { user } = useAuth()
 
@@ -174,11 +174,9 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
         const response = await api.get(`/vehicles/${vin}`)
         const vehicleData: Vehicle & { fuel_type_secondary?: string | null } = response.data
 
-        // Store fuel_type and DEF tank capacity for conditional rendering
+        // Store fuel_type for conditional rendering
         setVehicleFuelType(vehicleData.fuel_type || '')
         setVehicleFuelTypeSecondary(vehicleData.fuel_type_secondary || '')
-        const cap = vehicleData.def_tank_capacity_liters
-        setDefTankCapacity(cap ? (typeof cap === 'string' ? parseFloat(cap) : cap) : 0)
 
         // Auto-populate fuel_type from vehicle if not editing
         if (!record && vehicleData.fuel_type) {
@@ -367,13 +365,13 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
   const isHybrid = vehicleFuelType?.toLowerCase().includes('hybrid')
   const isPropane = vehicleFuelType?.toLowerCase().includes('propane')
 
-  const isDiesel = vehicleFuelType?.toLowerCase().includes('diesel')
+  const isDiesel = isDieselFuelType(vehicleFuelType)
   const showGallons = !isElectric || isHybrid
   const showKwh = isElectric || isHybrid
   const showPropane = isPropane
   const showFullTankCheckbox = !isElectric
   const showHaulingCheckbox = !isElectric
-  const showDefLevel = isDiesel || defTankCapacity > 0
+  const showDefLevel = isDiesel
 
   // Dynamic labels
   const priceLabel = isElectric ? t('fuel.pricePerKwh') : `${t('fuel.pricePer')} ${UnitFormatter.getVolumeUnit(system)}`
@@ -639,7 +637,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
             </div>
           )}
 
-          {/* DEF Level - shown for diesel vehicles or vehicles with DEF tank capacity */}
+          {/* DEF Level - diesel vehicles only; the server rejects DEF data on non-diesel */}
           {showDefLevel && (
             <div className="border border-garage-border rounded-lg p-4 space-y-2">
               <label className="block text-sm font-medium text-garage-text">

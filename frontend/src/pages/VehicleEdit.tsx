@@ -8,7 +8,7 @@ import api from '../services/api'
 import type { Vehicle } from '../types/vehicle'
 import { vehicleEditSchema, type VehicleEditFormData, VEHICLE_TYPES } from '../schemas/vehicle'
 import { FormError } from '../components/FormError'
-import { FUEL_TYPE_VALUES, FUEL_TYPE_LABELS } from '../constants/fuel'
+import { FUEL_TYPE_VALUES, FUEL_TYPE_LABELS, isDieselFuelType } from '../constants/fuel'
 import CurrencyInputPrefix from '../components/common/CurrencyInputPrefix'
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { UnitConverter, UnitFormatter } from '../utils/units'
@@ -38,6 +38,18 @@ export default function VehicleEdit() {
   })
 
   const watchedFuelType = watch('fuel_type')
+  // The currently-selected (not saved) fuel type — drives DEF capacity
+  // gating below so switching the dropdown updates the UI immediately,
+  // mirroring the server's diesel-only DEF capacity rule.
+  const isDieselSelected = isDieselFuelType(watchedFuelType)
+
+  // Shared by the "Enable DEF Tracking" checkbox and the "Clear DEF Tank
+  // Capacity" hint button — both need to turn tracking off and drop any
+  // stored capacity value.
+  const clearDefTracking = () => {
+    setDefEnabled(false)
+    setValue('def_tank_capacity_liters', undefined)
+  }
 
   const fetchVehicle = useCallback(async () => {
     if (!vin) return
@@ -486,9 +498,10 @@ export default function VehicleEdit() {
                   type="checkbox"
                   checked={defEnabled}
                   onChange={(e) => {
-                    setDefEnabled(e.target.checked)
-                    if (!e.target.checked) {
-                      setValue('def_tank_capacity_liters', undefined)
+                    if (e.target.checked) {
+                      setDefEnabled(true)
+                    } else {
+                      clearDefTracking()
                     }
                   }}
                   className="w-4 h-4 rounded border-garage-border bg-garage-bg text-primary focus:ring-primary"
@@ -497,7 +510,7 @@ export default function VehicleEdit() {
                   {t('edit.enableDefTracking')}
                 </span>
               </label>
-              {watchedFuelType?.toLowerCase().includes('diesel') && !defEnabled && (
+              {isDieselSelected && !defEnabled && (
                 <p className="text-sm text-warning">
                   {t('edit.dieselDefHint')}
                 </p>
@@ -512,15 +525,31 @@ export default function VehicleEdit() {
                       type="number"
                       id="def_tank_capacity_liters"
                       {...register('def_tank_capacity_liters', { valueAsNumber: true })}
-                      className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-garage-text"
+                      disabled={isSubmitting || !isDieselSelected}
+                      className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-garage-text disabled:opacity-50 disabled:cursor-not-allowed"
                       placeholder={system === 'imperial' ? '5.0' : '19.0'}
                       step="0.01"
                       min="0"
                       max="9999.99"
                     />
-                    <p className="text-xs text-garage-text-muted mt-1">
-                      {t('edit.defTankCapacityHint')}
-                    </p>
+                    {isDieselSelected ? (
+                      <p className="text-xs text-garage-text-muted mt-1">
+                        {t('edit.defTankCapacityHint')}
+                      </p>
+                    ) : (
+                      <div className="mt-1 space-y-1">
+                        <p className="text-xs text-warning">
+                          {t('edit.defCapacityRequiresDieselHint')}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={clearDefTracking}
+                          className="text-xs text-primary hover:underline"
+                        >
+                          {t('edit.clearDefTankCapacity')}
+                        </button>
+                      </div>
+                    )}
                     <FormError error={errors.def_tank_capacity_liters} />
                   </div>
                 </div>
