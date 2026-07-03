@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.31.0-rc1] - 2026-07-03
+
 ### Added
 - Vehicles: `fuel_type`/`fuel_type_secondary` are normalized and validated against the canonical vocabulary on create/update; a migration backfills legacy mixed-case/alias values in place.
 - DEF: diesel-only gates on record create/update, tank capacity, fuel-sync, and CSV import — non-diesel vehicles get a 400 instead of accepting spurious DEF data; full-backup restore stays exempt so a user's own archive always restores completely; the DEF tab renders read-only (history visible, add/edit hidden) for non-diesel vehicles.
@@ -15,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Notifications: DEF-low Discord alert — a daily check compares the latest DEF fill level against a configurable threshold (default 25%) with crossing-based dedup; threshold is configurable in Settings > Notifications.
 
 ### Fixed
+- Startup: ignore the `MYGARAGE_PORT=tcp://<ip>:<port>` service-link variable Kubernetes injects for a Service named `mygarage`; the app falls back to the default port instead of crashing on boot (#102).
 - Vehicle delete: enable SQLite FK enforcement (`PRAGMA foreign_keys=ON`) and use an ORM delete so child rows cascade on both engines — deleting a vehicle no longer orphans its history (re-adding the same VIN silently resurrected it).
 - Vehicle delete: remove the vehicle's photo/document directories and attachment rows+files from disk.
 - Backup: full backups snapshot SQLite via the Online Backup API instead of copying the live WAL-mode files (torn-copy risk; db member now self-contained).
