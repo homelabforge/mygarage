@@ -97,6 +97,13 @@ class TestFanOutRegression:
     async def test_counts_are_exact_across_multiple_child_tables(
         self, db_session, aggregation_user
     ):
+        # Session-scoped fixtures accumulate data across tests, so snapshot a
+        # baseline and assert on the delta. A cartesian fan-out in summary()
+        # would still inflate the deltas past N/M/P/Q, so this stays a valid
+        # fan-out regression guard while being order-independent.
+        svc = WidgetAggregationService(db_session)
+        baseline = await svc.summary(aggregation_user.id, allowed_vins=None)
+
         vehicle = await _make_vehicle(db_session, aggregation_user)
         vin = vehicle.vin
 
@@ -139,14 +146,13 @@ class TestFanOutRegression:
             )
         await db_session.commit()
 
-        svc = WidgetAggregationService(db_session)
-        summary = await svc.summary(aggregation_user.id, allowed_vins=None)
+        after = await svc.summary(aggregation_user.id, allowed_vins=None)
 
-        assert summary.total_service_records == n_service
-        assert summary.total_fuel_records == n_fuel
-        assert summary.total_documents == n_docs
-        assert summary.total_notes == n_notes
-        assert summary.total_vehicles == 1
+        assert after.total_service_records - baseline.total_service_records == n_service
+        assert after.total_fuel_records - baseline.total_fuel_records == n_fuel
+        assert after.total_documents - baseline.total_documents == n_docs
+        assert after.total_notes - baseline.total_notes == n_notes
+        assert after.total_vehicles - baseline.total_vehicles == 1
 
     @pytest.mark.asyncio
     async def test_per_vehicle_counts_are_exact(self, db_session, aggregation_user):
@@ -567,6 +573,11 @@ class TestPhotoCountFromDb:
 
     @pytest.mark.asyncio
     async def test_photos_counted_from_table(self, db_session, aggregation_user):
+        # Session-scoped fixtures accumulate data; baseline/delta the user-wide
+        # total while the per-vehicle count stays an exact assertion.
+        svc = WidgetAggregationService(db_session)
+        baseline = await svc.summary(aggregation_user.id, allowed_vins=None)
+
         vehicle = await _make_vehicle(db_session, aggregation_user)
         vin = vehicle.vin
 
@@ -574,12 +585,11 @@ class TestPhotoCountFromDb:
             db_session.add(VehiclePhoto(vin=vin, file_path=f"/fake/{vin}/p{i}.jpg"))
         await db_session.commit()
 
-        svc = WidgetAggregationService(db_session)
         result = await svc.vehicle(aggregation_user.id, vin, allowed_vins=None)
         assert result is not None
         assert result.photos == 3
         summary = await svc.summary(aggregation_user.id, allowed_vins=None)
-        assert summary.total_photos == 3
+        assert summary.total_photos - baseline.total_photos == 3
 
 
 class TestArchiveVisibility:
