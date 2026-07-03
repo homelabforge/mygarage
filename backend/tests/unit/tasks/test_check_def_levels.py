@@ -33,7 +33,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.def_record import DEFRecord
 from app.models.vehicle import Vehicle
 from app.services.settings_service import SettingsService
-from app.tasks.scheduled import check_def_levels
+from app.tasks.scheduled import _get_def_low_threshold_percent, check_def_levels
 from app.utils.datetime_utils import utc_now
 
 # Every vehicle this module creates uses this VIN prefix, so the autouse
@@ -167,6 +167,25 @@ async def enable_def_low(db_session: AsyncSession) -> Callable[..., Awaitable[No
     return _enable
 
 
+def _def_calls(mock: AsyncMock) -> list[Any]:
+    """Filter notify_def_low awaits down to this module's vehicles.
+
+    `check_def_levels()` scans the WHOLE vehicles table, and the test DB is
+    session-scoped and shared across every test file in the run — other
+    modules' committed diesel fixtures (e.g. test_def_fuel_type_gate.py's
+    vehicles with 0.50-0.75 fill levels) are visible to the sweep. Raw
+    `assert_awaited_once()` / `await_count` assertions would therefore be
+    hostage to whatever inbound rows happen to sit below this module's
+    thresholds. Scoping every count assertion to the `_VIN_PREFIX` keeps
+    them deterministic regardless of what other files leave behind.
+    """
+    return [
+        call
+        for call in mock.await_args_list
+        if str(call.kwargs.get("vin", "")).startswith(_VIN_PREFIX)
+    ]
+
+
 def _patch_notify_def_low(
     monkeypatch: pytest.MonkeyPatch,
     *,
@@ -198,8 +217,9 @@ class TestCheckDefLevels:
 
         await check_def_levels()
 
-        mock.assert_awaited_once()
-        _, kwargs = mock.await_args
+        calls = _def_calls(mock)
+        assert len(calls) == 1
+        kwargs = calls[0].kwargs
         assert kwargs["vin"] == vehicle.vin
         assert kwargs["percent"] == Decimal("20.00")
         assert kwargs["remaining_liters"] == Decimal("15.0000")
@@ -217,7 +237,7 @@ class TestCheckDefLevels:
 
         await check_def_levels()
 
-        mock.assert_not_awaited()
+        assert _def_calls(mock) == []
         assert vehicle.def_low_notified_at == stamp
 
     async def test_refill_above_threshold_clears_stamp_no_dispatch(
@@ -230,7 +250,7 @@ class TestCheckDefLevels:
 
         await check_def_levels()
 
-        mock.assert_not_awaited()
+        assert _def_calls(mock) == []
         assert vehicle.def_low_notified_at is None
 
     async def test_dip_again_after_recovery_dispatches_again(
@@ -243,19 +263,19 @@ class TestCheckDefLevels:
         # First dip below threshold — dispatches and stamps.
         await add_def_record(vehicle.vin, fill_level=Decimal("0.10"), record_date=date(2026, 6, 1))
         await check_def_levels()
-        assert mock.await_count == 1
+        assert len(_def_calls(mock)) == 1
         assert vehicle.def_low_notified_at is not None
 
         # Refill above threshold — clears the stamp, no dispatch.
         await add_def_record(vehicle.vin, fill_level=Decimal("0.90"), record_date=date(2026, 6, 15))
         await check_def_levels()
-        assert mock.await_count == 1
+        assert len(_def_calls(mock)) == 1
         assert vehicle.def_low_notified_at is None
 
         # Dip again — re-dispatches (crossing-based dedup, not cooldown).
         await add_def_record(vehicle.vin, fill_level=Decimal("0.15"), record_date=date(2026, 7, 1))
         await check_def_levels()
-        assert mock.await_count == 2
+        assert len(_def_calls(mock)) == 2
         assert vehicle.def_low_notified_at is not None
 
     async def test_skips_vehicle_with_no_def_capacity(
@@ -268,7 +288,7 @@ class TestCheckDefLevels:
 
         await check_def_levels()
 
-        mock.assert_not_awaited()
+        assert _def_calls(mock) == []
         assert vehicle.def_low_notified_at is None
 
     async def test_skips_vehicle_with_no_def_records(
@@ -280,7 +300,7 @@ class TestCheckDefLevels:
 
         await check_def_levels()
 
-        mock.assert_not_awaited()
+        assert _def_calls(mock) == []
         assert vehicle.def_low_notified_at is None
 
     async def test_skips_non_diesel_vehicle(
@@ -293,7 +313,7 @@ class TestCheckDefLevels:
 
         await check_def_levels()
 
-        mock.assert_not_awaited()
+        assert _def_calls(mock) == []
 
     async def test_skips_archived_vehicle(
         self, patch_session, make_vehicle, add_def_record, enable_def_low, monkeypatch
@@ -305,7 +325,7 @@ class TestCheckDefLevels:
 
         await check_def_levels()
 
-        mock.assert_not_awaited()
+        assert _def_calls(mock) == []
 
     async def test_toggle_off_skips_even_when_below_threshold(
         self, patch_session, make_vehicle, add_def_record, enable_def_low, monkeypatch
@@ -317,7 +337,7 @@ class TestCheckDefLevels:
 
         await check_def_levels()
 
-        mock.assert_not_awaited()
+        assert _def_calls(mock) == []
         assert vehicle.def_low_notified_at is None
 
     async def test_garbage_threshold_falls_back_to_25(
@@ -332,7 +352,7 @@ class TestCheckDefLevels:
 
         await check_def_levels()
 
-        mock.assert_awaited_once()
+        assert len(_def_calls(mock)) == 1
         assert vehicle.def_low_notified_at is not None
 
     async def test_boundary_percent_equals_threshold_notifies(
@@ -345,7 +365,7 @@ class TestCheckDefLevels:
 
         await check_def_levels()
 
-        mock.assert_awaited_once()
+        assert len(_def_calls(mock)) == 1
         assert vehicle.def_low_notified_at is not None
 
     async def test_per_vehicle_isolation_first_raises_second_still_processed(
@@ -371,6 +391,29 @@ class TestCheckDefLevels:
         await check_def_levels()
 
         # Both vehicles were attempted despite vehicle_a's dispatcher blowing up.
-        assert mock.await_count == 2
+        assert len(_def_calls(mock)) == 2
         assert vehicle_a.def_low_notified_at is None
         assert vehicle_b.def_low_notified_at is not None
+
+
+@pytest.mark.unit
+@pytest.mark.def_records
+@pytest.mark.asyncio
+class TestThresholdClamp:
+    """`notify_def_low_threshold_percent` is clamped to 1-99."""
+
+    @pytest.mark.parametrize(
+        ("raw", "expected"),
+        [
+            ("500", 99),  # over the ceiling → clamps down to 99
+            ("0", 1),  # zero → clamps up to 1
+            ("-10", 1),  # negative → clamps up to 1
+        ],
+    )
+    async def test_out_of_range_values_are_clamped(
+        self, db_session: AsyncSession, raw: str, expected: int
+    ) -> None:
+        await SettingsService.set(db_session, "notify_def_low_threshold_percent", raw)
+        await db_session.flush()
+
+        assert await _get_def_low_threshold_percent(db_session) == expected
