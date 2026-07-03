@@ -166,3 +166,77 @@ describe('vehicleEditSchema — sibling optional-string fields null-vs-undefined
     expect(result.trim).toBeNull()
   })
 })
+
+// Task 19 extension: the same null-on-clear bug affects the date fields
+// (purchase_date, sold_date via optionalDateSchema) — clearing a
+// previously-set date in the edit form must submit explicit `null`, not
+// `undefined`.
+describe('vehicleEditSchema — date fields null-on-clear', () => {
+  it('passes through a set purchase_date unchanged', () => {
+    const result = vehicleEditSchema.parse({ purchase_date: '2020-03-15' })
+    expect(result.purchase_date).toBe('2020-03-15')
+  })
+
+  it('transforms a blanked-out purchase_date ("") to null', () => {
+    const result = vehicleEditSchema.parse({ purchase_date: '' })
+    expect(result.purchase_date).toBeNull()
+  })
+
+  it('transforms a null purchase_date to null', () => {
+    const result = vehicleEditSchema.parse({ purchase_date: null })
+    expect(result.purchase_date).toBeNull()
+  })
+
+  it('transforms a blanked-out sold_date ("") to null', () => {
+    const result = vehicleEditSchema.parse({ sold_date: '' })
+    expect(result.sold_date).toBeNull()
+  })
+})
+
+// Task 19 extension: the numeric fields (purchase_price, sold_price, year,
+// doors, cylinders) collapsed a blanked input — which react-hook-form's
+// `valueAsNumber` turns into NaN — to `undefined`, same silent no-op against
+// `exclude_unset=True`. Clearing must yield `null`. A legitimate zero (e.g.
+// a free vehicle, or 0 doors on a trailer) must survive as 0, not become
+// null: the backend accepts 0 (no `ge` constraint on prices).
+describe('vehicleEditSchema — numeric fields null-on-clear (blank vs. zero)', () => {
+  it('transforms a blanked-out purchase_price (NaN) to null', () => {
+    const result = vehicleEditSchema.parse({ purchase_price: NaN })
+    expect(result.purchase_price).toBeNull()
+  })
+
+  it('transforms a null purchase_price to null', () => {
+    const result = vehicleEditSchema.parse({ purchase_price: null })
+    expect(result.purchase_price).toBeNull()
+  })
+
+  it('preserves a zero purchase_price as 0 (not null)', () => {
+    const result = vehicleEditSchema.parse({ purchase_price: 0 })
+    expect(result.purchase_price).toBe(0)
+  })
+
+  it('passes through a set purchase_price unchanged', () => {
+    const result = vehicleEditSchema.parse({ purchase_price: 15000 })
+    expect(result.purchase_price).toBe(15000)
+  })
+
+  it('transforms a blanked-out sold_price (NaN) to null', () => {
+    const result = vehicleEditSchema.parse({ sold_price: NaN })
+    expect(result.sold_price).toBeNull()
+  })
+
+  it('transforms a blanked-out year (NaN) to null', () => {
+    const result = vehicleEditSchema.parse({ year: NaN })
+    expect(result.year).toBeNull()
+  })
+
+  it('transforms a blanked-out doors (NaN) to null but preserves zero', () => {
+    expect(vehicleEditSchema.parse({ doors: NaN }).doors).toBeNull()
+    expect(vehicleEditSchema.parse({ doors: 0 }).doors).toBe(0)
+  })
+
+  it('transforms a blanked-out cylinders (NaN) to null but preserves zero', () => {
+    expect(vehicleEditSchema.parse({ cylinders: NaN }).cylinders).toBeNull()
+    expect(vehicleEditSchema.parse({ cylinders: 0 }).cylinders).toBe(0)
+  })
+})

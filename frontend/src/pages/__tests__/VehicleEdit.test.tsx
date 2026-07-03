@@ -154,6 +154,24 @@ describe('VehicleEdit — sibling optional-string field clear-on-blank', () => {
     // backend's `exclude_unset=True` partial-update logic.
     expect(payload).toMatchObject({ nickname: null })
   })
+
+  it('submits purchase_date as null (not omitted) when the date is cleared', async () => {
+    renderVehicleEdit({ ...baseVehicle, purchase_date: '2020-03-15' })
+
+    const dateInput = (await screen.findByLabelText(
+      'edit.purchaseDate',
+    )) as HTMLInputElement
+    expect(dateInput.value).toBe('2020-03-15')
+    fireEvent.change(dateInput, { target: { value: '' } })
+
+    const saveButton = screen.getByRole('button', { name: 'edit.saveChanges' })
+    fireEvent.click(saveButton)
+
+    await waitFor(() => expect(mockedApi.put).toHaveBeenCalled())
+
+    const [, payload] = mockedApi.put.mock.calls[0]
+    expect(payload).toMatchObject({ purchase_date: null })
+  })
 })
 
 describe('VehicleEdit — DEF tank capacity diesel-only gate', () => {

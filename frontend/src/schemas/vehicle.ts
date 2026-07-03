@@ -20,13 +20,34 @@ export const VEHICLE_TYPES = [
   'Hybrid',
 ] as const
 
+// Collapse a blank/missing value to an explicit `null` rather than
+// `undefined`. The vehicle update endpoint uses Pydantic's
+// `model_dump(exclude_unset=True)` — an omitted key means "leave
+// unchanged" — so a blank/cleared field must submit `null` (not
+// `undefined`, which JSON.stringify/axios would drop) for the backend to
+// actually clear it. Every field schema below funnels its blank case
+// through one of these two helpers so a cleared field actually persists.
+// Safe on the create path too (VehicleWizard POST): that endpoint calls
+// `.model_dump()` without `exclude_unset`, so every field is always present
+// regardless — an explicit `null` there is identical to omitting it.
+
+// Empty string / null / undefined -> null. For string & date fields.
+const nullOnBlank = <T,>(val: T | '' | null | undefined): T | null => val || null
+
+// NaN (react-hook-form's `valueAsNumber` on a blanked input) / null /
+// undefined -> null, but a legitimate 0 survives (the backend accepts 0 —
+// no `ge` constraint on prices, `ge=0` on doors/cylinders). Distinguishing
+// 0 from blank is why numeric fields can't reuse the falsy `nullOnBlank`.
+const numberOrNull = (val: number | null | undefined): number | null =>
+  val == null || Number.isNaN(val) ? null : val
+
 const yearSchema = z
   .number()
   .int('Year must be a whole number')
   .min(1900, 'Year must be 1900 or later')
   .max(2100, 'Year must be 2100 or earlier')
   .or(z.nan())
-  .transform(val => isNaN(val) ? undefined : val)
+  .transform(numberOrNull)
   .optional()
 
 const doorsSchema = z
@@ -34,7 +55,7 @@ const doorsSchema = z
   .int('Doors must be a whole number')
   .min(0, 'Doors cannot be negative')
   .or(z.nan())
-  .transform(val => isNaN(val) ? undefined : val)
+  .transform(numberOrNull)
   .optional()
 
 const cylindersSchema = z
@@ -42,7 +63,7 @@ const cylindersSchema = z
   .int('Cylinders must be a whole number')
   .min(0, 'Cylinders cannot be negative')
   .or(z.nan())
-  .transform(val => isNaN(val) ? undefined : val)
+  .transform(numberOrNull)
   .optional()
 
 const purchasePriceSchema = z
@@ -50,34 +71,21 @@ const purchasePriceSchema = z
   .or(z.nan())
   .nullable()
   .optional()
-  .transform(val => (val === null || (typeof val === 'number' && isNaN(val))) ? undefined : val)
+  .transform(numberOrNull)
 
 const soldPriceSchema = z
   .number()
   .or(z.nan())
   .nullable()
   .optional()
-  .transform(val => (val === null || (typeof val === 'number' && isNaN(val))) ? undefined : val)
+  .transform(numberOrNull)
 
 // Handle date fields that may be null, undefined, or empty string from the database
 const optionalDateSchema = z
   .string()
   .nullable()
   .optional()
-  .transform(val => (val === null || val === '') ? undefined : val)
-
-// Collapse a blank/missing value to an explicit `null` rather than
-// `undefined`. The vehicle update endpoint uses Pydantic's
-// `model_dump(exclude_unset=True)` — an omitted key means "leave
-// unchanged" — so a blank/cleared field must submit `null` (not
-// `undefined`, which JSON.stringify/axios would drop) for the backend to
-// actually clear it. Used by optionalStringSchema and fuelTypeSchema below;
-// both are shared by VehicleEdit (PUT, partial update) and VehicleWizard
-// (POST, create). The create endpoint calls `.model_dump()` without
-// `exclude_unset`, so every field is always present in the create payload
-// regardless — sending an explicit `null` there is identical to omitting
-// it, so this is safe for both consumers.
-const nullOnBlank = <T,>(val: T | '' | null | undefined): T | null => val || null
+  .transform(nullOnBlank)
 
 // Handle optional string fields that may be null from the database.
 const optionalStringSchema = z
