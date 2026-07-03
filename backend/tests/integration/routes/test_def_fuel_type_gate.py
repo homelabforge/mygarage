@@ -10,9 +10,11 @@ possible so junk data can be cleaned up.
 Tasks 6-8 extend this file with further fuel-type-hardening gate cases.
 """
 
+import json
 import uuid
 from datetime import date
 from decimal import Decimal
+from io import BytesIO
 
 import pytest
 import pytest_asyncio
@@ -522,3 +524,134 @@ class TestFuelRecordDEFFillLevelGate:
         )
         def_record = def_result.scalar_one()
         assert def_record.entry_type == "auto_fuel_sync"
+
+
+def _def_csv_content() -> str:
+    return (
+        "Date,Odometer (km),Liters,Price Per Unit,Total Cost,Fill Level,Source,Brand,Notes\n"
+        "2024-01-10,49500,9.464,1.10,10.41,0.60,dealer,BlueDEF,First fill\n"
+        "2024-02-10,50500,9.464,1.15,10.88,0.55,dealer,BlueDEF,Second fill\n"
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.def_records
+@pytest.mark.asyncio
+class TestDEFCsvImportGate:
+    """Task 8: gate the `/def/csv` importer to diesel-capable vehicles only.
+
+    This closes the last gated surface — `import_def_csv` previously
+    constructed `DEFRecord` rows directly with no fuel-type check.
+    """
+
+    async def test_import_def_csv_on_gasoline_vehicle_rejected(
+        self,
+        client: AsyncClient,
+        auth_headers,
+        db_session: AsyncSession,
+        gasoline_vehicle: Vehicle,
+    ):
+        response = await client.post(
+            f"/api/import/vehicles/{gasoline_vehicle.vin}/def/csv",
+            headers=auth_headers,
+            files={
+                "file": ("def.csv", BytesIO(_def_csv_content().encode()), "text/csv"),
+            },
+        )
+
+        assert response.status_code == 400
+        assert response.json()["detail"] == GATE_DETAIL
+
+        # The gate must fire BEFORE any row is processed — no partial import.
+        count_result = await db_session.execute(
+            select(func.count()).select_from(DEFRecord).where(DEFRecord.vin == gasoline_vehicle.vin)
+        )
+        assert count_result.scalar() == 0
+
+    async def test_import_def_csv_on_diesel_vehicle_allowed(
+        self,
+        client: AsyncClient,
+        auth_headers,
+        db_session: AsyncSession,
+        test_user: dict[str, object],
+    ):
+        vehicle = await _make_vehicle(db_session, test_user["id"], fuel_type="diesel")
+
+        response = await client.post(
+            f"/api/import/vehicles/{vehicle.vin}/def/csv",
+            headers=auth_headers,
+            files={
+                "file": ("def.csv", BytesIO(_def_csv_content().encode()), "text/csv"),
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success_count"] == 2
+        assert data["error_count"] == 0
+
+        count_result = await db_session.execute(
+            select(func.count()).select_from(DEFRecord).where(DEFRecord.vin == vehicle.vin)
+        )
+        assert count_result.scalar() == 2
+
+
+@pytest.mark.integration
+@pytest.mark.def_records
+@pytest.mark.asyncio
+class TestBulkRestoreDEFStaysUngated:
+    """Task 8: the bulk-restore JSON path is deliberately NOT gated.
+
+    Backup fidelity: a user's own archive must always restore in full,
+    even if it contains DEF rows for a vehicle that is no longer (or
+    never was, per current fuel-type data) diesel. Unlike the CSV
+    importer and the interactive create/update routes, this is a
+    round-trip of the user's own prior data, not a new write.
+    """
+
+    async def test_restore_json_with_def_records_on_gasoline_vehicle_restores_fully(
+        self,
+        client: AsyncClient,
+        auth_headers,
+        db_session: AsyncSession,
+        gasoline_vehicle: Vehicle,
+    ):
+        payload = {
+            "def_records": [
+                {
+                    "date": "2024-01-10",
+                    "odometer_km": 49500,
+                    "liters": 9.464,
+                    "price_per_unit": 1.10,
+                    "cost": 10.41,
+                    "fill_level": 0.60,
+                    "source": "dealer",
+                    "brand": "BlueDEF",
+                    "notes": "Restored from backup",
+                }
+            ],
+        }
+
+        response = await client.post(
+            f"/api/import/vehicles/{gasoline_vehicle.vin}/json",
+            headers=auth_headers,
+            files={
+                "file": (
+                    "backup.json",
+                    BytesIO(json.dumps(payload).encode()),
+                    "application/json",
+                )
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["def_records"]["success_count"] == 1
+        assert data["def_records"]["error_count"] == 0
+
+        def_result = await db_session.execute(
+            select(DEFRecord).where(DEFRecord.vin == gasoline_vehicle.vin)
+        )
+        restored = def_result.scalar_one()
+        assert restored.source == "dealer"
+        assert restored.fill_level == Decimal("0.60")

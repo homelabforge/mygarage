@@ -44,6 +44,7 @@ from app.models import (
 from app.models.user import User
 from app.models.vendor import Vendor
 from app.services.auth import get_vehicle_or_403, require_auth
+from app.utils.def_sync import ensure_def_capable
 from app.utils.file_validation import validate_csv_upload
 from app.utils.logging_utils import sanitize_for_log
 from app.utils.units import UnitConverter
@@ -302,6 +303,11 @@ async def import_fuel_csv(
     """Import fuel records from CSV file."""
     await get_vehicle_or_403(vin, current_user, db, require_write=True)
 
+    # No DEF fill-level column is parsed from fuel CSV rows today, so there
+    # is nothing to gate here yet. If one is ever added, gate it the same
+    # way as the JSON fuel-record routes: call ensure_def_capable(vehicle)
+    # before writing a DEF observation for a non-diesel vehicle.
+
     # Validate and parse CSV
     csv_data = await validate_csv_upload(file)
     csv_reader = csv.DictReader(io.StringIO(csv_data))
@@ -417,7 +423,10 @@ async def import_def_csv(
     current_user: User | None = Depends(require_auth),
 ):
     """Import DEF records from CSV file."""
-    await get_vehicle_or_403(vin, current_user, db, require_write=True)
+    vehicle = await get_vehicle_or_403(vin, current_user, db, require_write=True)
+    # Same rule as the interactive create/update routes (Task 5): a fresh
+    # CSV import is a new write, not a backup restore, so it is gated.
+    ensure_def_capable(vehicle)
 
     csv_data = await validate_csv_upload(file)
     csv_reader = csv.DictReader(io.StringIO(csv_data))
@@ -986,6 +995,13 @@ async def import_vehicle_json(
             results["errors"].append(f"Fuel record {idx}: {str(e)}")
 
     # Import DEF records
+    # Deliberately NOT gated by ensure_def_capable (unlike import_def_csv and
+    # the interactive create/update routes): this is a full-fidelity backup
+    # restore, not a new write. A user's own archive must always restore
+    # completely, even if it contains DEF rows for a vehicle whose fuel type
+    # has since changed (or never was diesel per current data) — refusing to
+    # restore data the user already had would be a data-loss bug, not a
+    # safety feature.
     for idx, record_data in enumerate(data.get("def_records", [])):
         try:
             date = datetime.fromisoformat(record_data["date"]).date()
