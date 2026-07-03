@@ -3,6 +3,8 @@
 Tests event routing, service discovery, and priority handling.
 """
 
+from datetime import date
+from decimal import Decimal
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -59,6 +61,18 @@ class TestEventSettingsMaps:
         valid_priorities = {"min", "low", "default", "high", "urgent"}
         for event_type, priority in EVENT_PRIORITY_MAP.items():
             assert priority in valid_priorities, f"Invalid priority '{priority}' for {event_type}"
+
+    def test_def_low_settings_mapping(self):
+        """def_low event maps to the notify_def_low toggle, gated on ntfy_enabled like siblings."""
+        assert EVENT_SETTINGS_MAP["def_low"] == ("ntfy_enabled", "notify_def_low")
+
+    def test_def_low_priority(self):
+        """def_low is high priority (DEF depletion can halt a diesel vehicle)."""
+        assert EVENT_PRIORITY_MAP["def_low"] == "high"
+
+    def test_def_low_tags(self):
+        """def_low uses warning + droplet emoji tags."""
+        assert EVENT_TAGS_MAP["def_low"] == ["warning", "droplet"]
 
 
 @pytest.mark.unit
@@ -202,6 +216,32 @@ class TestNotificationDispatcher:
         assert result is False
 
     @pytest.mark.asyncio
+    async def test_is_event_enabled_def_low_disabled_by_toggle(self, dispatcher):
+        """Test def_low is disabled when notify_def_low toggle is false (services otherwise on)."""
+        with (
+            patch.object(dispatcher, "_has_any_service_enabled", return_value=True),
+            patch.object(dispatcher, "_get_setting_bool", return_value=False),
+        ):
+            result = await dispatcher._is_event_enabled("def_low")
+
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_dispatch_suppressed_when_def_low_toggle_off(self, dispatcher):
+        """Test dispatch sends nothing when the notify_def_low setting is 'false'."""
+        fake_service = FakeNotificationService(should_succeed=True)
+
+        with (
+            patch.object(dispatcher, "_has_any_service_enabled", return_value=True),
+            patch.object(dispatcher, "_get_setting_bool", return_value=False),
+            patch.object(dispatcher, "_get_enabled_services", return_value=[fake_service]),
+        ):
+            results = await dispatcher.dispatch("def_low", "DEF Low", "DEF is low")
+
+        assert results == {}
+        assert fake_service.sent_messages == []
+
+    @pytest.mark.asyncio
     async def test_get_setting_bool_true_values(self, dispatcher):
         """Test boolean setting parsing for true values."""
         for val in ("true", "1", "yes", "True", "YES"):
@@ -313,3 +353,27 @@ class TestConvenienceMethods:
         assert call_kwargs.kwargs["event_type"] == "livelink_firmware_update"
         assert "v2.95" in call_kwargs.kwargs["message"]
         assert "3.0" in call_kwargs.kwargs["message"]
+
+    @pytest.mark.asyncio
+    async def test_notify_def_low(self, dispatcher):
+        """Test DEF-low notification formatting: percent, both L and gal, and as-of date."""
+        await dispatcher.notify_def_low(
+            vehicle_name="My Truck",
+            vin="1FTFW1ET5DFC10312",
+            percent=Decimal("25"),
+            remaining_liters=Decimal("2.50"),
+            as_of_date=date(2026, 6, 15),
+        )
+
+        call_kwargs = dispatcher.dispatch.call_args
+        assert call_kwargs.kwargs["event_type"] == "def_low"
+        title = call_kwargs.kwargs["title"]
+        message = call_kwargs.kwargs["message"]
+        assert "My Truck" in title
+        assert "25" in message
+        assert "2.50" in message
+        assert "L" in message
+        # 2.50 L -> ~0.66 gal
+        assert "gal" in message
+        assert "0.66" in message
+        assert "2026-06-15" in message

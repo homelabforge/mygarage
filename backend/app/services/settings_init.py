@@ -437,6 +437,20 @@ DEFAULT_SETTINGS = {
         "description": "Miles before service due to notify",
         "encrypted": False,
     },
+    "notify_def_low": {
+        "value": "true",
+        "category": "notifications",
+        "description": "Notify when DEF (Diesel Exhaust Fluid) level is low",
+        "encrypted": False,
+    },
+    # 25%: fill_level readings are coarse (quarter-tank steps), so a lower
+    # threshold risks being skipped entirely between readings.
+    "notify_def_low_threshold_percent": {
+        "value": "25",
+        "category": "notifications",
+        "description": "DEF level percentage at or below which to notify",
+        "encrypted": False,
+    },
     # CarComplaints Integration
     "carcomplaints_enabled": {
         "value": "true",

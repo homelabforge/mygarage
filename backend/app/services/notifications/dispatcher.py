@@ -1,6 +1,8 @@
 """Notification dispatcher for routing to enabled services."""
 
 import logging
+from datetime import date
+from decimal import Decimal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,6 +15,7 @@ from app.services.notifications.pushover import PushoverNotificationService
 from app.services.notifications.slack import SlackNotificationService
 from app.services.notifications.telegram import TelegramNotificationService
 from app.services.settings_service import SettingsService
+from app.utils.units import UnitConverter
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +38,8 @@ EVENT_SETTINGS_MAP = {
     "livelink_device_offline": ("ntfy_enabled", "notify_livelink_device_offline"),
     "livelink_threshold_alert": ("ntfy_enabled", "notify_livelink_threshold_alerts"),
     "livelink_firmware_update": ("ntfy_enabled", "notify_livelink_firmware_update"),
+    # DEF (Diesel Exhaust Fluid) notifications
+    "def_low": ("ntfy_enabled", "notify_def_low"),
 }
 
 # Priority mapping for different event types
@@ -50,6 +55,7 @@ EVENT_PRIORITY_MAP = {
     "livelink_device_offline": "high",
     "livelink_threshold_alert": "high",
     "livelink_firmware_update": "low",
+    "def_low": "high",
 }
 
 # Tags mapping for different event types (emoji names for ntfy)
@@ -65,6 +71,7 @@ EVENT_TAGS_MAP = {
     "livelink_device_offline": ["warning", "satellite"],
     "livelink_threshold_alert": ["warning", "thermometer"],
     "livelink_firmware_update": ["arrow_up", "satellite"],
+    "def_low": ["warning", "droplet"],
 }
 
 
@@ -442,4 +449,31 @@ class NotificationDispatcher:
             title="WiCAN Firmware Update Available",
             message=f"Device {device_id} is running v{current_version}. Version {latest_version} is available.",
             url=release_url,
+        )
+
+    # DEF (Diesel Exhaust Fluid) notification convenience methods
+
+    async def notify_def_low(
+        self,
+        vehicle_name: str,
+        vin: str,
+        percent: Decimal,
+        remaining_liters: Decimal,
+        as_of_date: date,
+    ) -> dict[str, bool]:
+        """Send notification when DEF (Diesel Exhaust Fluid) level is low.
+
+        Shows the remaining volume in both liters and gallons (Decimal-precise
+        conversion via UnitConverter) plus the as-of date of the underlying
+        reading, so staleness is visible rather than silently gated.
+        """
+        remaining_gallons = UnitConverter.liters_to_gallons(remaining_liters)
+        return await self.dispatch(
+            event_type="def_low",
+            title=f"DEF Low: {vehicle_name}",
+            message=(
+                f"DEF level for {vehicle_name} ({vin}) is at {percent:.1f}% "
+                f"({remaining_liters:.2f} L / {remaining_gallons:.2f} gal remaining), "
+                f"as of {as_of_date.isoformat()}."
+            ),
         )
