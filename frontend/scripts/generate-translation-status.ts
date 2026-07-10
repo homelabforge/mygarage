@@ -127,13 +127,9 @@ function progressBar(pct: number): string {
   return '█'.repeat(filled) + '░'.repeat(remainder)
 }
 
-const now = new Date().toISOString().split('T')[0]
-
 const md = `# Translation Status
 
-MyGarage supports multiple languages through community contributions. This page is automatically updated by CI.
-
-> Last updated: ${now}
+MyGarage supports multiple languages through community contributions.
 
 ## Overview
 
@@ -144,7 +140,7 @@ ${stats.map(s =>
   `| ${s.flag} | ${s.name} | \`${s.code}\` | \`${progressBar(s.percentage)}\` ${s.percentage}% | ${s.translated}/${s.total} |`
 ).join('\n')}
 
-**Overall: ${overallPct}%** across ${languages.length} language${languages.length !== 1 ? 's' : ''}
+**Overall: ${overallPct}%** average completion across ${languages.length} translated language${languages.length !== 1 ? 's' : ''} — English is the source (100%)
 
 ---
 
@@ -177,6 +173,7 @@ Thank you to everyone who has contributed translations!
 | Contributor | Languages |
 |-------------|-----------|
 | [Antonio (f0rZzZ)](https://github.com/f0rZzZ) | 🇵🇱 Polish, 🇷🇺 Russian, 🇺🇦 Ukrainian |
+| [FabioCastilho](https://github.com/FabioCastilho) | 🇵🇹 Portuguese |
 `
 
 writeFileSync(join(PROJECT_ROOT, 'TRANSLATIONS.md'), md)
