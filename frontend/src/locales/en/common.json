@@ -86,9 +86,11 @@
     "streetAddress": "Street Address",
     "city": "City",
     "state": "State",
+    "statePlaceholder": "State / region",
     "zipCode": "ZIP Code",
     "notes": "Notes",
-    "notesPlaceholder": "Additional notes about this contact..."
+    "notesPlaceholder": "Additional notes about this contact...",
+    "gasStationFlag": "Gas station"
   },
   "poiFinder": {
     "title": "Find Points of Interest",

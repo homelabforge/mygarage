@@ -127,7 +127,7 @@ class FuelRecordBase(BaseModel):
     # Issue #69 — extended fuel tracking
     station_address_book_id: int | None = Field(
         None,
-        description="FK to address_book entry with poi_category='fuel_station'",
+        description="FK to address_book entry with poi_category='gas_station'",
         ge=1,
     )
     station_name_freetext: str | None = Field(

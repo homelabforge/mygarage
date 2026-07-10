@@ -5,7 +5,7 @@ existing address-book id) plus the form's "one-time visit" toggle into a
 final `(station_address_book_id, station_name_freetext)` tuple, while
 optionally creating the address-book row inside the caller's transaction.
 
-`fuel_station` POI entries deliberately bypass the vendor sync path — see
+`gas_station` POI entries deliberately bypass the vendor sync path — see
 routes/address_book.py::_sync_to_vendor for the defense-in-depth guard.
 """
 
@@ -34,7 +34,7 @@ async def resolve_fuel_station(
       2. station_name_freetext is set + one_time_visit=True →
          freetext stored as-is; no FK; no address_book row created.
       3. station_name_freetext is set + one_time_visit=False →
-         create new fuel_station address_book entry, set FK, freetext stays None.
+         create new gas_station address_book entry, set FK, freetext stays None.
       4. Both inputs are None/blank → both outputs None.
 
     Caller manages the outer transaction. We only `flush()` to ensure new
@@ -63,14 +63,14 @@ async def resolve_fuel_station(
         return None, name[:150]
 
     # Case 3: promote to address book.
-    # Look for an existing fuel_station entry with the same business_name
+    # Look for an existing gas_station entry with the same business_name
     # (case-insensitive) before creating, to keep the autocomplete dataset
     # tidy under casual-typing concurrency.
     from sqlalchemy import func
 
     result = await db.execute(
         select(AddressBookEntry)
-        .where(AddressBookEntry.poi_category == "fuel_station")
+        .where(AddressBookEntry.poi_category == "gas_station")
         .where(func.lower(AddressBookEntry.business_name) == name.lower())
         .limit(1)
     )
@@ -83,7 +83,7 @@ async def resolve_fuel_station(
 
     new_entry = AddressBookEntry(
         business_name=name[:150],
-        poi_category="fuel_station",
+        poi_category="gas_station",
         source="manual",
         usage_count=1,
         last_used=datetime.now(),

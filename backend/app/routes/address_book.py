@@ -34,7 +34,7 @@ async def _sync_to_vendor(
     Updates to existing vendor fields are intentionally not performed here —
     a vendor may already be linked to service visits.
 
-    Skipped for `poi_category='fuel_station'` entries — gas stations are not
+    Skipped for `poi_category='gas_station'` entries — gas stations are not
     vendors in MyGarage's domain model and would pollute the vendors table.
     The fuel-record save path is the primary creator of these entries.
 
@@ -45,7 +45,7 @@ async def _sync_to_vendor(
         return
     # Defense-in-depth guard: gas stations never sync to vendors, regardless
     # of how the entry was created.
-    if getattr(entry, "poi_category", None) == "fuel_station":
+    if getattr(entry, "poi_category", None) == "gas_station":
         return
     name = business_name.strip()[:100]  # Enforce vendors.name VARCHAR(100) limit
     try:
@@ -79,7 +79,7 @@ async def list_entries(
     poi_category: str | None = Query(
         None,
         description=(
-            "Filter by POI category (e.g. 'fuel_station' for the Gas Stations "
+            "Filter by POI category (e.g. 'gas_station' for the Gas Stations "
             "filter view). Combine with `search` for autocomplete."
         ),
     ),
@@ -107,7 +107,7 @@ async def list_entries(
 
     # When filtering to fuel stations, rank by usage so frequently-visited
     # stations float to the top of autocomplete suggestions.
-    if poi_category == "fuel_station":
+    if poi_category == "gas_station":
         query = query.order_by(
             AddressBookEntry.usage_count.desc(),
             AddressBookEntry.last_used.desc().nullslast(),
@@ -236,8 +236,19 @@ async def update_entry(
         entry.category = update_data.category
     if update_data.notes is not None:
         entry.notes = update_data.notes
-    if update_data.poi_category is not None:
-        entry.poi_category = update_data.poi_category
+    # The editor's "Gas station" checkbox sends only None/""/"gas_station".
+    # Honor an explicit poi_category (model_fields_set) so unchecking can CLEAR,
+    # while an omitted key preserves the existing value. Server-side guard: a
+    # gas/clear value must never overwrite an existing non-gas POI category
+    # (auto_shop/rv_shop/ev_charging/propane) — protects against a stale client
+    # snapshot (#108). Non-gas values (e.g. from POI import) still apply.
+    if "poi_category" in update_data.model_fields_set:
+        incoming = update_data.poi_category
+        _gas_or_clear = {None, "", "gas_station"}
+        if incoming in _gas_or_clear and entry.poi_category not in _gas_or_clear:
+            pass  # protect the existing non-gas tag
+        else:
+            entry.poi_category = incoming or None  # normalize empty string to NULL
     if update_data.poi_metadata is not None:
         entry.poi_metadata = update_data.poi_metadata
     if update_data.latitude is not None:

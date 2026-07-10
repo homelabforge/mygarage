@@ -90,7 +90,7 @@ class FoursquareProvider(BasePOIProvider):
                 elif category == POICategory.EV_CHARGING:
                     results = await self._search_ev_charging(latitude, longitude, radius_meters)
                     all_results.extend(results)
-                elif category == POICategory.FUEL_STATION:
+                elif category == POICategory.GAS_STATION:
                     results = await self._search_fuel_stations(latitude, longitude, radius_meters)
                     all_results.extend(results)
             except Exception as e:
@@ -149,7 +149,7 @@ class FoursquareProvider(BasePOIProvider):
             "categories": "17069",  # Gas Station
             "limit": self.max_results,
         }
-        return await self._execute_search(params, POICategory.FUEL_STATION)
+        return await self._execute_search(params, POICategory.GAS_STATION)
 
     async def _execute_search(self, params: dict, category: POICategory) -> list[dict[str, Any]]:
         """Execute search request to Foursquare Places API."""

@@ -2570,7 +2570,7 @@ export interface paths {
          * @description Get recommended POIs based on usage history.
          *
          *     Args:
-         *         category: Optional POI category filter (auto_shop, rv_shop, ev_charging, fuel_station)
+         *         category: Optional POI category filter (auto_shop, rv_shop, ev_charging, gas_station)
          *         limit: Maximum number of recommendations (default: 5)
          *         db: Database session
          *         current_user: Authenticated user
@@ -2653,7 +2653,7 @@ export interface paths {
          *         - Tries providers in priority order (TomTom → OSM → etc.)
          *         - Supports multiple simultaneous category searches
          *         - Returns empty results on error (graceful degradation)
-         *         - Categories: auto_shop, rv_shop, ev_charging, fuel_station
+         *         - Categories: auto_shop, rv_shop, ev_charging, gas_station
          */
         post: operations["search_nearby_pois_api_poi_search_post"];
         delete?: never;
@@ -7564,7 +7564,7 @@ export interface components {
             propane_liters?: number | string | null;
             /**
              * Station Address Book Id
-             * @description FK to address_book entry with poi_category='fuel_station'
+             * @description FK to address_book entry with poi_category='gas_station'
              */
             station_address_book_id?: number | null;
             /**
@@ -7773,7 +7773,7 @@ export interface components {
             propane_liters?: string | null;
             /**
              * Station Address Book Id
-             * @description FK to address_book entry with poi_category='fuel_station'
+             * @description FK to address_book entry with poi_category='gas_station'
              */
             station_address_book_id?: number | null;
             /**
@@ -13765,7 +13765,7 @@ export interface operations {
                 search?: string | null;
                 /** @description Filter by category */
                 category?: string | null;
-                /** @description Filter by POI category (e.g. 'fuel_station' for the Gas Stations filter view). Combine with `search` for autocomplete. */
+                /** @description Filter by POI category (e.g. 'gas_station' for the Gas Stations filter view). Combine with `search` for autocomplete. */
                 poi_category?: string | null;
             };
             header?: never;

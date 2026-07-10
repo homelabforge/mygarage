@@ -4638,7 +4638,7 @@
                 "type": "null"
               }
             ],
-            "description": "FK to address_book entry with poi_category='fuel_station'",
+            "description": "FK to address_book entry with poi_category='gas_station'",
             "title": "Station Address Book Id"
           },
           "station_name_freetext": {
@@ -5076,7 +5076,7 @@
                 "type": "null"
               }
             ],
-            "description": "FK to address_book entry with poi_category='fuel_station'",
+            "description": "FK to address_book entry with poi_category='gas_station'",
             "title": "Station Address Book Id"
           },
           "station_name_freetext": {
@@ -19565,7 +19565,7 @@
             }
           },
           {
-            "description": "Filter by POI category (e.g. 'fuel_station' for the Gas Stations filter view). Combine with `search` for autocomplete.",
+            "description": "Filter by POI category (e.g. 'gas_station' for the Gas Stations filter view). Combine with `search` for autocomplete.",
             "in": "query",
             "name": "poi_category",
             "required": false,
@@ -19578,7 +19578,7 @@
                   "type": "null"
                 }
               ],
-              "description": "Filter by POI category (e.g. 'fuel_station' for the Gas Stations filter view). Combine with `search` for autocomplete.",
+              "description": "Filter by POI category (e.g. 'gas_station' for the Gas Stations filter view). Combine with `search` for autocomplete.",
               "title": "Poi Category"
             }
           }
@@ -25002,7 +25002,7 @@
     },
     "/api/poi/recommendations": {
       "get": {
-        "description": "Get recommended POIs based on usage history.\n\nArgs:\n    category: Optional POI category filter (auto_shop, rv_shop, ev_charging, fuel_station)\n    limit: Maximum number of recommendations (default: 5)\n    db: Database session\n    current_user: Authenticated user\n\nReturns:\n    POIRecommendationsResponse with top POIs by usage\n\nNotes:\n    - Returns POIs with category='service' OR poi_category is set\n    - Sorted by usage_count DESC (most used first)\n    - Only includes POIs that have been used at least once\n    - Can filter by specific poi_category if provided",
+        "description": "Get recommended POIs based on usage history.\n\nArgs:\n    category: Optional POI category filter (auto_shop, rv_shop, ev_charging, gas_station)\n    limit: Maximum number of recommendations (default: 5)\n    db: Database session\n    current_user: Authenticated user\n\nReturns:\n    POIRecommendationsResponse with top POIs by usage\n\nNotes:\n    - Returns POIs with category='service' OR poi_category is set\n    - Sorted by usage_count DESC (most used first)\n    - Only includes POIs that have been used at least once\n    - Can filter by specific poi_category if provided",
         "operationId": "get_poi_recommendations_api_poi_recommendations_get",
         "parameters": [
           {
@@ -25116,7 +25116,7 @@
     },
     "/api/poi/search": {
       "post": {
-        "description": "Search for nearby Points of Interest across multiple categories.\n\nArgs:\n    search_request: Search parameters (latitude, longitude, radius, categories)\n    db: Database session\n    current_user: Authenticated user\n\nReturns:\n    POISearchResponse with results from configured provider\n\nNotes:\n    - Tries providers in priority order (TomTom \u2192 OSM \u2192 etc.)\n    - Supports multiple simultaneous category searches\n    - Returns empty results on error (graceful degradation)\n    - Categories: auto_shop, rv_shop, ev_charging, fuel_station",
+        "description": "Search for nearby Points of Interest across multiple categories.\n\nArgs:\n    search_request: Search parameters (latitude, longitude, radius, categories)\n    db: Database session\n    current_user: Authenticated user\n\nReturns:\n    POISearchResponse with results from configured provider\n\nNotes:\n    - Tries providers in priority order (TomTom \u2192 OSM \u2192 etc.)\n    - Supports multiple simultaneous category searches\n    - Returns empty results on error (graceful degradation)\n    - Categories: auto_shop, rv_shop, ev_charging, gas_station",
         "operationId": "search_nearby_pois_api_poi_search_post",
         "requestBody": {
           "content": {

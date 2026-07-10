@@ -51,7 +51,7 @@ class AddressBookEntry(Base):
     # POI (Points of Interest) categorization and metadata
     poi_category: Mapped[str | None] = mapped_column(
         String(50)
-    )  # auto_shop, rv_shop, ev_charging, fuel_station
+    )  # auto_shop, rv_shop, ev_charging, gas_station
     poi_metadata: Mapped[str | None] = mapped_column(
         Text
     )  # JSON metadata for category-specific data (connector types, fuel prices, etc.)

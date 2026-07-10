@@ -91,7 +91,7 @@ class GooglePlacesProvider(BasePOIProvider):
                 elif category == POICategory.EV_CHARGING:
                     results = await self._search_ev_charging(latitude, longitude, radius_meters)
                     all_results.extend(results)
-                elif category == POICategory.FUEL_STATION:
+                elif category == POICategory.GAS_STATION:
                     results = await self._search_fuel_stations(latitude, longitude, radius_meters)
                     all_results.extend(results)
             except Exception as e:
@@ -150,7 +150,7 @@ class GooglePlacesProvider(BasePOIProvider):
             "type": "gas_station",
             "key": self.api_key,
         }
-        return await self._execute_search(params, POICategory.FUEL_STATION)
+        return await self._execute_search(params, POICategory.GAS_STATION)
 
     async def _execute_search(self, params: dict, category: POICategory) -> list[dict[str, Any]]:
         """Execute search request to Google Places API."""
@@ -204,7 +204,7 @@ class GooglePlacesProvider(BasePOIProvider):
                 "network": None,
                 "availability": None,
             }
-        elif category == POICategory.FUEL_STATION:
+        elif category == POICategory.GAS_STATION:
             # Google Places doesn't provide fuel prices in basic search
             metadata = {
                 "prices": {},
