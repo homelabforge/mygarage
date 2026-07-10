@@ -8,7 +8,7 @@ MyGarage supports multiple languages through community contributions.
 |---|----------|------|----------|------|
 | 🇺🇸 | English | `en` | `████████████████████` 100% | 1358/1358 |
 | 🇵🇱 | Polish | `pl` | `████████████████████` 99% | 1338/1358 |
-| 🇵🇹 | Portuguese | `pt` | `████████████████████` 99% | 1339/1358 |
+| 🇧🇷 | Brazilian Portuguese | `pt-BR` | `████████████████████` 99% | 1339/1358 |
 | 🇷🇺 | Russian | `ru` | `████████████████████` 99% | 1351/1358 |
 | 🇺🇦 | Ukrainian | `uk` | `████████████████████` 99% | 1350/1358 |
 
@@ -45,4 +45,4 @@ Thank you to everyone who has contributed translations!
 | Contributor | Languages |
 |-------------|-----------|
 | [Antonio (f0rZzZ)](https://github.com/f0rZzZ) | 🇵🇱 Polish, 🇷🇺 Russian, 🇺🇦 Ukrainian |
-| [FabioCastilho](https://github.com/FabioCastilho) | 🇵🇹 Portuguese |
+| [FabioCastilho](https://github.com/FabioCastilho) | 🇧🇷 Brazilian Portuguese |

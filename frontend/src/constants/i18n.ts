@@ -19,6 +19,7 @@ export const SUPPORTED_LANGUAGES: SupportedLanguage[] = [
   { code: 'pl', name: 'Polish', nativeName: 'Polski' },
   { code: 'uk', name: 'Ukrainian', nativeName: 'Українська' },
   { code: 'ru', name: 'Russian', nativeName: 'Русский' },
+  { code: 'pt-BR', name: 'Brazilian Portuguese', nativeName: 'Português (Brasil)' },
 ]
 
 export const SUPPORTED_CURRENCIES: SupportedCurrency[] = [
@@ -47,6 +48,7 @@ export function languageToLocale(lang: string): string {
     pl: 'pl-PL',
     uk: 'uk-UA',
     ru: 'ru-RU',
+    'pt-BR': 'pt-BR',
   }
   return map[lang] ?? 'en-US'
 }

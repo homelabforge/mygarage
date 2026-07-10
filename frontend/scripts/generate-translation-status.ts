@@ -173,7 +173,7 @@ Thank you to everyone who has contributed translations!
 | Contributor | Languages |
 |-------------|-----------|
 | [Antonio (f0rZzZ)](https://github.com/f0rZzZ) | 🇵🇱 Polish, 🇷🇺 Russian, 🇺🇦 Ukrainian |
-| [FabioCastilho](https://github.com/FabioCastilho) | 🇵🇹 Portuguese |
+| [FabioCastilho](https://github.com/FabioCastilho) | 🇧🇷 Brazilian Portuguese |
 `
 
 writeFileSync(join(PROJECT_ROOT, 'TRANSLATIONS.md'), md)

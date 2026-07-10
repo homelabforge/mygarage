@@ -21,7 +21,7 @@ export const LANGUAGE_NAMES: Record<string, string> = {
   ja: 'Japanese',
   ko: 'Korean',
   nl: 'Dutch',
-  pt: 'Portuguese',
+  'pt-BR': 'Brazilian Portuguese',
   sv: 'Swedish',
   zh: 'Chinese (Simplified)',
 }
@@ -37,7 +37,7 @@ export const LANGUAGE_FLAGS: Record<string, string> = {
   ja: '🇯🇵',
   ko: '🇰🇷',
   nl: '🇳🇱',
-  pt: '🇵🇹',
+  'pt-BR': '🇧🇷',
   sv: '🇸🇪',
   zh: '🇨🇳',
 }

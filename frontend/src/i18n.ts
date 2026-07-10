@@ -36,9 +36,11 @@ i18n
       },
     },
 
-    // Only load base language tags (pl, not pl-PL)
-    load: 'languageOnly',
-    supportedLngs: ['en', 'pl', 'uk', 'ru'],
+    // currentOnly keeps explicitly-supported region tags (pt-BR) while base-tag
+    // browsers (e.g. pl-PL) still resolve to their base (pl) via supportedLngs,
+    // so no region-suffixed locale files are ever requested.
+    load: 'currentOnly',
+    supportedLngs: ['en', 'pl', 'uk', 'ru', 'pt-BR'],
     fallbackLng: 'en',
     defaultNS: 'common',
     ns: ['common', 'nav', 'settings', 'vehicles', 'forms', 'analytics'],
