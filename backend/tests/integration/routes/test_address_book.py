@@ -464,3 +464,22 @@ class TestAddressBookRoutes:
         assert resp.status_code == 200
         names = [e["business_name"] for e in resp.json()["entries"]]
         assert "Canonical Fuel" in names
+
+    async def test_update_empty_string_poi_category_normalizes_to_null(
+        self, client: AsyncClient, auth_headers
+    ):
+        """Explicit empty-string poi_category should normalize to NULL on update."""
+        created = (
+            await client.post(
+                "/api/address-book",
+                json={"business_name": "String Clear Test", "poi_category": "gas_station"},
+                headers=auth_headers,
+            )
+        ).json()
+        resp = await client.put(
+            f"/api/address-book/{created['id']}",
+            json={"poi_category": ""},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+        assert resp.json()["poi_category"] is None

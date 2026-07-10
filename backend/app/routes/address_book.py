@@ -248,7 +248,7 @@ async def update_entry(
         if incoming in _gas_or_clear and entry.poi_category not in _gas_or_clear:
             pass  # protect the existing non-gas tag
         else:
-            entry.poi_category = incoming
+            entry.poi_category = incoming or None  # normalize empty string to NULL
     if update_data.poi_metadata is not None:
         entry.poi_metadata = update_data.poi_metadata
     if update_data.latitude is not None:
