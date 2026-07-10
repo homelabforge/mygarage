@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - OIDC: `MYGARAGE_TRUSTED_HOSTS` allow-lists a self-hosted issuer that resolves to a private/LAN IP (split-horizon DNS), relaxing the SSRF private-IP block for those hosts only.
+- Address Book: mark/unmark a contact as a gas station in the editor (checkbox); previously only fuel-record quick-add could set it.
+
+### Fixed
+- Address Book: State/region field accepts non-US codes (e.g. VIC, NSW) up to 50 chars — editor and fuel quick-add now agree (#108).
+- Address Book: unify the gas-station tag on `gas_station` (FATAL migration 065) so the Gas-Stations filter, autocomplete ranking, and vendor-sync exclusion all match; quick-add-created stations are now correctly excluded from vendor sync (#108).
 
 ## [2.31.0-rc1] - 2026-07-03
 
