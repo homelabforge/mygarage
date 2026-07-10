@@ -2,7 +2,7 @@
 
 MyGarage supports multiple languages through community contributions. This page is automatically updated by CI.
 
-> Last updated: 2026-07-03
+> Last updated: 2026-07-10
 
 ## Overview
 
@@ -10,10 +10,11 @@ MyGarage supports multiple languages through community contributions. This page 
 |---|----------|------|----------|------|
 | 🇺🇸 | English | `en` | `████████████████████` 100% | 1358/1358 |
 | 🇵🇱 | Polish | `pl` | `████████████████████` 99% | 1338/1358 |
+| 🇵🇹 | Portuguese | `pt` | `████████████████████` 99% | 1339/1358 |
 | 🇷🇺 | Russian | `ru` | `████████████████████` 99% | 1351/1358 |
 | 🇺🇦 | Ukrainian | `uk` | `████████████████████` 99% | 1350/1358 |
 
-**Overall: 99%** across 3 languages
+**Overall: 99%** across 4 languages
 
 ---
 
