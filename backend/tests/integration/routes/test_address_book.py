@@ -374,3 +374,93 @@ class TestAddressBookRoutes:
         assert vendor_response.status_code == 200
         vendors = vendor_response.json()["vendors"]
         assert any(v["name"] == new_name for v in vendors)
+
+    # --- poi_category clear/preserve/guard tests (#108) ---
+
+    async def test_update_clears_gas_station_when_unchecked(
+        self, client: AsyncClient, auth_headers
+    ):
+        """PUT poi_category=null clears an existing gas_station tag."""
+        created = (
+            await client.post(
+                "/api/address-book",
+                json={"business_name": "Shell", "poi_category": "gas_station"},
+                headers=auth_headers,
+            )
+        ).json()
+        resp = await client.put(
+            f"/api/address-book/{created['id']}",
+            json={"poi_category": None},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+        assert resp.json()["poi_category"] is None
+
+    async def test_update_null_does_not_clobber_non_gas_category(
+        self, client: AsyncClient, auth_headers
+    ):
+        """A gas/clear payload must NOT erase an auto_shop tag (stale-snapshot guard)."""
+        created = (
+            await client.post(
+                "/api/address-book",
+                json={"business_name": "Joe Auto", "poi_category": "auto_shop"},
+                headers=auth_headers,
+            )
+        ).json()
+        resp = await client.put(
+            f"/api/address-book/{created['id']}",
+            json={"poi_category": None},  # what a stale gas-context form would send
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+        assert resp.json()["poi_category"] == "auto_shop"  # preserved
+
+    async def test_update_omitting_poi_category_preserves_it(
+        self, client: AsyncClient, auth_headers
+    ):
+        """An ordinary edit that omits poi_category leaves it untouched."""
+        created = (
+            await client.post(
+                "/api/address-book",
+                json={"business_name": "EV Spot", "poi_category": "ev_charging"},
+                headers=auth_headers,
+            )
+        ).json()
+        resp = await client.put(
+            f"/api/address-book/{created['id']}",
+            json={"city": "Springfield"},  # no poi_category key
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+        assert resp.json()["poi_category"] == "ev_charging"
+
+    async def test_update_sets_gas_station(self, client: AsyncClient, auth_headers):
+        """Checking the box on an untagged entry sets gas_station."""
+        created = (
+            await client.post(
+                "/api/address-book", json={"business_name": "New Fuel"}, headers=auth_headers
+            )
+        ).json()
+        resp = await client.put(
+            f"/api/address-book/{created['id']}",
+            json={"poi_category": "gas_station"},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+        assert resp.json()["poi_category"] == "gas_station"
+
+    async def test_gas_station_filter_returns_canonical_entries(
+        self, client: AsyncClient, auth_headers
+    ):
+        """Behavioral proof the canonical READ path works end-to-end: a
+        gas_station entry is returned by the ?poi_category=gas_station filter
+        (guards against any reader left on the retired value; Codex R1-H1)."""
+        await client.post(
+            "/api/address-book",
+            json={"business_name": "Canonical Fuel", "poi_category": "gas_station"},
+            headers=auth_headers,
+        )
+        resp = await client.get("/api/address-book?poi_category=gas_station", headers=auth_headers)
+        assert resp.status_code == 200
+        names = [e["business_name"] for e in resp.json()["entries"]]
+        assert "Canonical Fuel" in names
