@@ -1,6 +1,6 @@
 // frontend/src/utils/__tests__/basePath.test.ts
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { basePath, withBase } from '../basePath'
+import { basePath, withBase, apiRelative } from '../basePath'
 
 function setBase(href: string): void {
   document.head.querySelector('base')?.remove()
@@ -32,5 +32,11 @@ describe('basePath (route-independent)', () => {
     expect(withBase('/api')).toBe('/api')
     setBase('/mygarage/')
     expect(withBase('/api')).toBe('/mygarage/api')
+  })
+
+  it('apiRelative strips a single leading /api segment for axios args', () => {
+    expect(apiRelative('/api/attachments/1/download')).toBe('/attachments/1/download')
+    // doesn't touch a path that's already relative to baseURL
+    expect(apiRelative('/attachments/1/download')).toBe('/attachments/1/download')
   })
 })

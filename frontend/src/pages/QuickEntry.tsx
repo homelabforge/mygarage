@@ -8,6 +8,7 @@ import api from '../services/api'
 import FuelRecordForm from '../components/FuelRecordForm'
 import ServiceVisitForm from '../components/ServiceVisitForm'
 import OdometerRecordForm from '../components/OdometerRecordForm'
+import { withBase } from '../utils/basePath'
 import type { VehicleType } from '../types/vehicle'
 
 interface QuickEntryVehicle {
@@ -123,7 +124,7 @@ export default function QuickEntry() {
                 <div className="flex items-center gap-3 p-3 bg-garage-surface rounded-lg border border-garage-border">
                   {selectedVehicle?.thumbnail_url ? (
                     <img
-                      src={selectedVehicle.thumbnail_url}
+                      src={withBase(selectedVehicle.thumbnail_url)}
                       alt={selectedVehicle.nickname}
                       className="w-12 h-12 rounded object-cover flex-shrink-0"
                     />

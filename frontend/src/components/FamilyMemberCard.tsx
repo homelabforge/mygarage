@@ -13,6 +13,7 @@ import type { FamilyMemberData, FamilyVehicleSummary } from '@/types/family'
 import type { User as UserType } from '@/types/user'
 import { formatRelationship } from '@/types/family'
 import { formatDateForDisplay } from '@/utils/dateUtils'
+import { withBase } from '@/utils/basePath'
 
 interface FamilyMemberCardProps {
   member: FamilyMemberData
@@ -49,7 +50,7 @@ function VehicleSummaryRow({ vehicle }: { vehicle: FamilyVehicleSummary }) {
       <div className="w-16 h-12 rounded-lg overflow-hidden bg-garage-border flex-shrink-0">
         {vehicle.main_photo ? (
           <img
-            src={vehicle.main_photo}
+            src={withBase(vehicle.main_photo)}
             alt={vehicle.nickname}
             className="w-full h-full object-cover"
           />

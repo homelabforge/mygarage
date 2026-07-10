@@ -29,3 +29,16 @@ export function withBase(path: string): string {
   if (!base) return path
   return `${base}${path.startsWith('/') ? '' : '/'}${path}`
 }
+
+/**
+ * Strip a single leading "/api" segment so a server-returned `/api/...` path
+ * can be passed to the `api` axios instance, whose `baseURL` is
+ * `withBase('/api')`. Axios joins `baseURL` with its argument, so passing the
+ * full path double-prefixes it (`/api/api/...` at root, `/mygarage/api/api/...`
+ * under a subpath). Use at every `api.get/post/put/patch/delete` call site
+ * that consumes a server-supplied `/api/...` field (e.g. attachment
+ * `download_url`) — never `withBase()` there, only here.
+ */
+export function apiRelative(path: string): string {
+  return path.replace(/^\/api/, '')
+}

@@ -40,6 +40,7 @@ import {
 import type { LucideIcon } from 'lucide-react'
 import vehicleService from '../services/vehicleService'
 import api from '../services/api'
+import { withBase } from '../utils/basePath'
 import type { Vehicle } from '../types/vehicle'
 import { isDieselFuelType } from '../constants/fuel'
 import ServiceTab from '../components/tabs/ServiceTab'
@@ -530,7 +531,7 @@ export default function VehicleDetail() {
   }
 
   const photoUrl = vehicle.main_photo
-    ? `/api/vehicles/${vehicle.vin}/photos/${vehicle.main_photo.split('/').pop()}`
+    ? withBase(`/api/vehicles/${vehicle.vin}/photos/${vehicle.main_photo.split('/').pop()}`)
     : null
 
   return (
