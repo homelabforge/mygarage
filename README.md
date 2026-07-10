@@ -41,6 +41,50 @@ Self-hosted vehicle maintenance tracking with VIN decoding, service records, fue
 
 📖 **[Complete Installation Guide](https://github.com/homelabforge/mygarage/wiki/Installation)**
 
+---
+
+## Subpath Reverse Proxy
+
+To host MyGarage behind a reverse proxy at a URL prefix (e.g., `https://example.com/mygarage`), set `MYGARAGE_ROOT_PATH=/mygarage` and configure your proxy to **strip the prefix** before forwarding requests.
+
+### nginx Configuration
+
+```nginx
+location = /mygarage { return 308 /mygarage/; }   # bare prefix -> trailing slash
+location /mygarage/ {
+    proxy_pass http://mygarage:8686/;             # trailing slash strips /mygarage
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Host $host;
+}
+```
+
+### Traefik Configuration
+
+```yaml
+# Traefik dynamic config — router MUST attach the strip middleware,
+# plus a redirect so the bare /mygarage lands inside the /mygarage/ SW scope.
+http:
+  routers:
+    mygarage:
+      rule: "Host(`example.com`) && PathPrefix(`/mygarage`)"
+      middlewares: ["mygarage-bare-redirect", "mygarage-strip"]
+      service: mygarage
+  middlewares:
+    mygarage-bare-redirect:
+      redirectRegex:
+        regex: "^(https?://[^/]+)/mygarage$"
+        replacement: "${1}/mygarage/"
+        permanent: true
+    mygarage-strip:
+      stripPrefix:
+        prefixes: ["/mygarage"]
+```
+
+**OIDC Note:** When registering the OIDC redirect URI with your identity provider, include the prefix in the full path: `https://example.com/mygarage/api/auth/oidc/callback`.
+
+---
+
 ## Support
 
 - **📚 Documentation**: [GitHub Wiki](https://github.com/homelabforge/mygarage/wiki)
