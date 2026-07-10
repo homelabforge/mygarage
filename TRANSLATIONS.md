@@ -1,8 +1,6 @@
 # Translation Status
 
-MyGarage supports multiple languages through community contributions. This page is automatically updated by CI.
-
-> Last updated: 2026-07-03
+MyGarage supports multiple languages through community contributions.
 
 ## Overview
 

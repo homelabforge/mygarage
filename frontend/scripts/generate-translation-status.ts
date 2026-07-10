@@ -127,13 +127,9 @@ function progressBar(pct: number): string {
   return '█'.repeat(filled) + '░'.repeat(remainder)
 }
 
-const now = new Date().toISOString().split('T')[0]
-
 const md = `# Translation Status
 
-MyGarage supports multiple languages through community contributions. This page is automatically updated by CI.
-
-> Last updated: ${now}
+MyGarage supports multiple languages through community contributions.
 
 ## Overview
 
