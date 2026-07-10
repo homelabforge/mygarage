@@ -1,0 +1,15 @@
+{
+  "dashboard": "Painel",
+  "home": "Início",
+  "analytics": "Análises",
+  "addressBook": "Agenda de contatos",
+  "contacts": "Contatos",
+  "findPOI": "Encontrar pontos de interesse",
+  "poi": "Pontos de interesse",
+  "calendar": "Calendário",
+  "settings": "Configurações",
+  "about": "Sobre",
+  "login": "Entrar",
+  "logout": "Sair",
+  "admin": "ADMINISTRADOR"
+}
