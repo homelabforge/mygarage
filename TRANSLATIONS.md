@@ -12,7 +12,7 @@ MyGarage supports multiple languages through community contributions.
 | 🇷🇺 | Russian | `ru` | `████████████████████` 99% | 1351/1358 |
 | 🇺🇦 | Ukrainian | `uk` | `████████████████████` 99% | 1350/1358 |
 
-**Overall: 99%** across 4 languages
+**Overall: 99%** average completion across 4 translated languages — English is the source (100%)
 
 ---
 
@@ -45,3 +45,4 @@ Thank you to everyone who has contributed translations!
 | Contributor | Languages |
 |-------------|-----------|
 | [Antonio (f0rZzZ)](https://github.com/f0rZzZ) | 🇵🇱 Polish, 🇷🇺 Russian, 🇺🇦 Ukrainian |
+| [FabioCastilho](https://github.com/FabioCastilho) | 🇵🇹 Portuguese |
