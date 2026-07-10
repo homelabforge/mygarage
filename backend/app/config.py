@@ -101,6 +101,12 @@ class Settings(BaseSettings):
     photos_dir: Path = Path("/data/photos")
     documents_dir: Path = Path("/data/documents")
 
+    # Frontend build output served by the SPA-shell/static routes (issue #107).
+    # Default unchanged from the previous hardcoded value so container
+    # behavior is identical; overridable so the E2E harness can point at a
+    # freshly built frontend/dist.
+    static_dir: Path = Path("/app/static")
+
     # NHTSA API
     nhtsa_api_base_url: str = "https://vpic.nhtsa.dot.gov/api"
 

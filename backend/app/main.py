@@ -186,6 +186,7 @@ app = FastAPI(
     version=settings.app_version,
     description="Self-hosted vehicle maintenance tracking application",
     lifespan=lifespan,
+    root_path=settings.root_path,
 )
 
 # Configure rate limiting
@@ -389,10 +390,16 @@ app.include_router(widget_v2_router)
 
 
 # Serve static files (frontend build) in production
-static_dir = Path("/app/static")
+static_dir = Path(settings.static_dir)
 if static_dir.exists():
     from fastapi.exception_handlers import http_exception_handler
-    from fastapi.responses import FileResponse
+    from fastapi.responses import FileResponse, HTMLResponse
+
+    from app.utils.html_base import inject_base_href
+
+    _index_shell = inject_base_href(
+        (static_dir / "index.html").read_text(encoding="utf-8"), settings.root_path
+    )
 
     # Serve PWA files with correct MIME types
     @app.get("/sw.js", include_in_schema=False)
@@ -415,7 +422,7 @@ if static_dir.exists():
     # Serve root index.html
     @app.get("/", include_in_schema=False)
     async def root():
-        return FileResponse(static_dir / "index.html", media_type="text/html")
+        return HTMLResponse(_index_shell)
 
     # Mount static assets (CSS, JS, images) - must be after route definitions.
     #
@@ -445,8 +452,16 @@ if static_dir.exists():
         if request.url.path.startswith("/api/"):
             return await http_exception_handler(request, exc)
 
+        # Serve a genuine root-level static file (offline.html, favicon, etc.)
+        # before falling back to the SPA shell. Path-traversal guarded.
+        rel = request.url.path.lstrip("/")
+        if rel:
+            candidate = (static_dir / rel).resolve()
+            if candidate.is_file() and static_dir.resolve() in candidate.parents:
+                return FileResponse(candidate)
+
         # Otherwise serve the SPA
-        return FileResponse(static_dir / "index.html")
+        return HTMLResponse(_index_shell)
 
 
 if __name__ == "__main__":
