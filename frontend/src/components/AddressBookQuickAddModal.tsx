@@ -187,6 +187,7 @@ export default function AddressBookQuickAddModal({
                 type="text"
                 value={state}
                 onChange={(e) => setState(e.target.value)}
+                maxLength={50}
                 className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-md text-garage-text focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>

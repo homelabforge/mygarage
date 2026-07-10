@@ -499,7 +499,7 @@ function AddressBookForm({ entry, onClose, onSuccess }: AddressBookFormProps) {
                 type="text"
                 id="state"
                 {...register('state')}
-                placeholder="IL"
+                placeholder={t('addressBook.statePlaceholder', { defaultValue: 'State / region' })}
                 className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
                   errors.state ? 'border-red-500' : 'border-garage-border'
                 }`}
