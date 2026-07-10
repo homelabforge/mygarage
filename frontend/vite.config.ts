@@ -9,6 +9,10 @@ export default defineConfig({
   define: {
     APP_VERSION: JSON.stringify(pkg.version),
   },
+  // Relative base so the single prebuilt image serves under any URL prefix
+  // (#107). Assets + dynamic imports resolve relative to the injected <base
+  // href> / the importing chunk's URL — never a build-time absolute path.
+  base: './',
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {

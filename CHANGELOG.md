@@ -10,12 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - OIDC: `MYGARAGE_TRUSTED_HOSTS` allow-lists a self-hosted issuer that resolves to a private/LAN IP (split-horizon DNS), relaxing the SSRF private-IP block for those hosts only.
 - Address Book: mark/unmark a contact as a gas station in the editor (checkbox); previously only fuel-record quick-add could set it.
+- Reverse proxy: `MYGARAGE_ROOT_PATH` serves MyGarage under a URL subpath (e.g. `/mygarage`) behind a prefix-stripping proxy — OIDC, PWA, media, and deep-links included; no image rebuild required (#107).
 
 ### Fixed
 - Address Book: State/region field accepts non-US codes (e.g. VIC, NSW) up to 50 chars — editor and fuel quick-add now agree (#108).
 - Address Book: unify the gas-station tag on `gas_station` (FATAL migration 065) so the Gas-Stations filter, autocomplete ranking, and vendor-sync exclusion all match; quick-add-created stations are now correctly excluded from vendor sync (#108).
-
-### Fixed
 - Fuel: the "Fill-up time" field now enters time in unambiguous 24-hour form (HH:MM), replacing the native datetime-local widget whose 12/24-hour behavior varied by browser locale (#109).
 
 ## [2.31.0-rc1] - 2026-07-03

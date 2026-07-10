@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
+import { withBase } from '../utils/basePath';
 
 type Theme = 'light' | 'dark';
 
@@ -53,7 +54,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
       // Then, sync with database (persistent across devices)
       // Use public endpoint for unauthenticated access (Security Enhancement v2.10.0)
       try {
-        const response = await axios.get('/api/settings/public');
+        const response = await axios.get(withBase('/api/settings/public'));
         if (cancelled) return;
 
         const settings = response.data.settings; // API returns { settings: [...], total: N }
@@ -99,7 +100,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
 
     // Save to database (persistent across devices)
     try {
-      await axios.put('/api/settings/theme', {
+      await axios.put(withBase('/api/settings/theme'), {
         key: 'theme',
         value: newTheme,
         category: 'general',

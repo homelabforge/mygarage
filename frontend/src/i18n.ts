@@ -8,6 +8,7 @@ import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 import LanguageDetector from 'i18next-browser-languagedetector'
 import HttpBackend from 'i18next-http-backend'
+import { withBase } from './utils/basePath'
 
 // Canonical English translations — bundled at build time via Vite import
 import commonEn from './locales/en/common.json'
@@ -54,7 +55,7 @@ i18n
 
     // Non-English: load via HTTP with cache-busting version
     backend: {
-      loadPath: `/locales/{{lng}}/{{ns}}.json?v=${typeof APP_VERSION !== 'undefined' ? APP_VERSION : '0'}`,
+      loadPath: withBase(`/locales/{{lng}}/{{ns}}.json?v=${typeof APP_VERSION !== 'undefined' ? APP_VERSION : '0'}`),
     },
 
     // Only use backend for non-English (English is bundled inline)

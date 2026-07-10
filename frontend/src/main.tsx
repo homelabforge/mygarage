@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import './i18n'
 import './index.css'
 import App from './App.tsx'
+import { withBase } from './utils/basePath'
 
 declare const APP_VERSION: string
 
@@ -20,9 +21,9 @@ createRoot(document.getElementById('root')!).render(
 // deploys and produced the "white screen on restart" symptom.
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
-    const swUrl = `/sw.js?v=${encodeURIComponent(APP_VERSION)}`
+    const swUrl = withBase(`/sw.js?v=${encodeURIComponent(APP_VERSION)}`)
     navigator.serviceWorker
-      .register(swUrl)
+      .register(swUrl, { scope: withBase('/') || '/' })
       .then((registration) => {
         console.log('[PWA] Service Worker registered:', registration.scope)
 

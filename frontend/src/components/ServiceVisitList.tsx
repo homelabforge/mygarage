@@ -24,6 +24,7 @@ import { toast } from 'sonner'
 import type { ServiceVisit, ServiceLineItem } from '../types/serviceVisit'
 import type { Attachment } from '../types/attachment'
 import api from '../services/api'
+import { withBase } from '../utils/basePath'
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { UnitFormatter } from '../utils/units'
 import { useServiceVisits, useDeleteServiceVisit } from '../hooks/queries/useServiceVisits'
@@ -452,7 +453,7 @@ export default function ServiceVisitList({
                           {visitAttachments[visit.id].map((attachment) => (
                             <a
                               key={attachment.id}
-                              href={attachment.view_url || attachment.download_url}
+                              href={withBase(attachment.view_url || attachment.download_url)}
                               target="_blank"
                               rel="noopener noreferrer"
                               title={attachment.file_name}
@@ -460,7 +461,7 @@ export default function ServiceVisitList({
                             >
                               {attachment.file_type?.startsWith('image/') ? (
                                 <img
-                                  src={attachment.view_url || attachment.download_url}
+                                  src={withBase(attachment.view_url || attachment.download_url)}
                                   alt={attachment.file_name}
                                   className="w-full h-full object-cover"
                                 />

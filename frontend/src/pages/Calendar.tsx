@@ -15,6 +15,7 @@ import type { Vehicle } from '../types/vehicle'
 import api from '../services/api'
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { UnitFormatter, UnitConverter } from '../utils/units'
+import { withBase } from '../utils/basePath'
 
 // Map event type -> Schedule-X calendarId for per-type coloring
 const EVENT_CALENDARS = {
@@ -268,7 +269,7 @@ export default function CalendarPage() {
       params.set('event_types', types.join(','))
     }
 
-    window.location.href = `/api/calendar/export?${params.toString()}`
+    window.location.href = withBase(`/api/calendar/export?${params.toString()}`)
     toast.success(t('calendar.exportStarted'))
   }
 

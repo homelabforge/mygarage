@@ -1,5 +1,12 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { shouldRedirectToLogin } from '../api'
+
+function setBase(href: string) {
+  document.head.querySelector('base')?.remove()
+  const el = document.createElement('base')
+  el.setAttribute('href', href)
+  document.head.appendChild(el)
+}
 
 describe('shouldRedirectToLogin', () => {
   it('does not redirect to /login when auth_mode is none (bug #98)', () => {
@@ -26,5 +33,17 @@ describe('shouldRedirectToLogin', () => {
     // is null. Falling back to "redirect" matches pre-fix behavior for
     // authenticated deployments, so an expired session still lands on /login.
     expect(shouldRedirectToLogin(null, '/')).toBe(true)
+  })
+})
+
+describe('shouldRedirectToLogin under a subpath', () => {
+  beforeEach(() => setBase('/mygarage/'))
+
+  it('treats /mygarage/login as the login page (no redirect loop)', () => {
+    expect(shouldRedirectToLogin('local', '/mygarage/login')).toBe(false)
+  })
+
+  it('still redirects from an app route under the prefix', () => {
+    expect(shouldRedirectToLogin('local', '/mygarage/vehicles')).toBe(true)
   })
 })

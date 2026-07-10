@@ -18,6 +18,7 @@ import type { VehicleStatistics } from '../types/dashboard'
 import { formatDateForDisplay } from '../utils/dateUtils'
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { UnitFormatter } from '../utils/units'
+import { withBase } from '../utils/basePath'
 import VehicleLiveLinkWidget from './livelink/VehicleLiveLinkWidget'
 
 interface VehicleStatisticsCardProps {
@@ -56,7 +57,7 @@ function VehicleStatisticsCard({ stats }: VehicleStatisticsCardProps) {
       <div className="relative h-48 bg-gradient-to-br from-primary/20 to-primary/5">
         {stats.main_photo_url ? (
           <img
-            src={stats.main_photo_url}
+            src={withBase(stats.main_photo_url)}
             alt={`${stats.year} ${stats.make} ${stats.model}`}
             className="w-full h-full object-cover"
           />

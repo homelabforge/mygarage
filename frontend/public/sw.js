@@ -9,23 +9,24 @@
  * produces the "white screen on restart" symptom when chunk hashes change.
  */
 
+const SCOPE = new URL('./', self.location.href).pathname; // "/" or "/mygarage/"
 const SW_URL = new URL(self.location.href);
 const SW_VERSION = SW_URL.searchParams.get('v') || 'dev';
 const CACHE_NAME = `mygarage-static-${SW_VERSION}`;
 const RUNTIME_CACHE = `mygarage-runtime-${SW_VERSION}`;
-const OFFLINE_URL = '/offline.html';
+const OFFLINE_URL = SCOPE + 'offline.html';
 const PREFETCH_URLS = [
-  '/api/vehicles?limit=25',
-  '/api/dashboard',
+  SCOPE + 'api/vehicles?limit=25',
+  SCOPE + 'api/dashboard',
 ];
 
 // Precache only immutable shell pieces. Do NOT precache `/` or `/index.html`:
 // those are mutable on each deploy and the navigation handler already serves
 // them network-first with a cache fallback.
 const STATIC_ASSETS = [
-  '/manifest.json',
-  '/icon-192.png',
-  '/icon-512.png',
+  SCOPE + 'manifest.json',
+  SCOPE + 'icon-192.png',
+  SCOPE + 'icon-512.png',
   OFFLINE_URL,
 ];
 
@@ -96,14 +97,14 @@ self.addEventListener('fetch', (event) => {
       ]).catch(async () => {
         const cache = await caches.open(CACHE_NAME);
         const offlinePage = await cache.match(OFFLINE_URL);
-        return offlinePage || caches.match('/index.html');
+        return offlinePage || caches.match(SCOPE + 'index.html');
       })
     );
     return;
   }
 
   // Translation files - network first (same as API) to pick up new versions
-  if (url.pathname.startsWith('/locales/')) {
+  if (url.pathname.startsWith(SCOPE + 'locales/')) {
     event.respondWith(
       fetch(request)
         .then((response) => {
@@ -142,12 +143,12 @@ self.addEventListener('fetch', (event) => {
   //     on its own.
   //   - Realtime polling endpoints (livelink/mqtt status): each response is
   //     stale within seconds, so caching just thrashes IndexedDB.
-  if (url.pathname.startsWith('/api/')) {
+  if (url.pathname.startsWith(SCOPE + 'api/')) {
     const shouldCache = !(
       url.pathname.includes('/photos/') ||
       url.pathname.includes('/attachments/') ||
       url.pathname.includes('/documents/') ||
-      url.pathname.startsWith('/api/backup/download/') ||
+      url.pathname.startsWith(SCOPE + 'api/backup/download/') ||
       url.pathname.endsWith('/livelink/status') ||
       url.pathname.endsWith('/mqtt/status')
     );
@@ -247,7 +248,7 @@ self.addEventListener('message', (event) => {
       caches.open(RUNTIME_CACHE).then((cache) => {
         return Promise.all(
           namespaces.map(async (ns) => {
-            const url = `/locales/${lang}/${ns}.json?v=${version}`;
+            const url = SCOPE + `locales/${lang}/${ns}.json?v=${version}`;
             try {
               const response = await fetch(url);
               if (response && response.ok) {

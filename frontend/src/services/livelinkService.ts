@@ -36,6 +36,7 @@ import type {
   SdConfigUpdate,
   BackfillResultResponse,
 } from '../types/livelink'
+import { withBase } from '../utils/basePath'
 
 export const livelinkService = {
   // ===========================================================================
@@ -345,7 +346,7 @@ export const livelinkService = {
     if (downsampleSeconds) {
       params.set('downsample_seconds', downsampleSeconds.toString())
     }
-    return `/api/vehicles/${vin}/livelink/export/telemetry?${params.toString()}`
+    return withBase(`/api/vehicles/${vin}/livelink/export/telemetry?${params.toString()}`)
   },
 
   /**
@@ -357,7 +358,7 @@ export const livelinkService = {
       end,
       format,
     })
-    return `/api/vehicles/${vin}/livelink/export/sessions?${params.toString()}`
+    return withBase(`/api/vehicles/${vin}/livelink/export/sessions?${params.toString()}`)
   },
 
   // ===========================================================================

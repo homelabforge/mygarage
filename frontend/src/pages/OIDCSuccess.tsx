@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Car, Loader, CheckCircle } from 'lucide-react'
 import api, { setCSRFToken } from '../services/api'
 import { resolvePostLoginRoute } from '../utils/postLoginRedirect'
+import { withBase } from '../utils/basePath'
 
 export default function OIDCSuccess() {
   const { t } = useTranslation('common')
@@ -35,7 +36,7 @@ export default function OIDCSuccess() {
 
       // Full-page navigate (not React Router) to ensure the JWT cookie is
       // processed before the destination page loads.
-      window.location.href = resolvePostLoginRoute(user)
+      window.location.href = withBase(resolvePostLoginRoute(user))
     }
 
     // Brief delay lets the browser process the Set-Cookie before we fetch /auth/me

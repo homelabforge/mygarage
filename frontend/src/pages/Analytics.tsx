@@ -7,6 +7,7 @@ import { useParams, Link } from 'react-router-dom'
 import api from '../services/api'
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { UnitConverter, UnitFormatter } from '../utils/units'
+import { withBase } from '../utils/basePath'
 import {
   ArrowLeft,
   TrendingUp,
@@ -406,7 +407,7 @@ export default function Analytics() {
             <button
               onClick={() => {
                 const params = new URLSearchParams({ currency_code: currencyCode, locale })
-                window.open(`/api/analytics/vehicles/${vin}/export?${params.toString()}`, '_blank')
+                window.open(withBase(`/api/analytics/vehicles/${vin}/export?${params.toString()}`), '_blank')
               }}
               className="px-4 py-2 bg-garage-surface border border-garage-border text-garage-text rounded-lg hover:bg-garage-surface-light transition-colors flex items-center gap-2"
             >

@@ -11,6 +11,7 @@ import { useAuth } from './contexts/AuthContext'
 import Layout from './components/Layout'
 import InstallPrompt from './components/InstallPrompt'
 import { useLanguageSync } from './hooks/useLanguageSync'
+import { basePath } from './utils/basePath'
 
 // Eager load login/register for instant access
 import Login from './pages/Login'
@@ -68,7 +69,7 @@ function App() {
         <AuthProvider>
           <LanguageSyncProvider>
           <QueryClientProvider client={queryClient}>
-          <BrowserRouter>
+          <BrowserRouter basename={basePath() || undefined}>
             <Suspense fallback={<LoadingFallback />}>
               <Routes>
                 {/* Public routes */}
