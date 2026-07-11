@@ -25,7 +25,8 @@ import { UnitConverter, UnitFormatter } from '../utils/units'
 import { toCanonicalKm, toCanonicalLiters, priceToDisplay, priceToCanonical } from '../utils/decimalSafe'
 import CurrencyInputPrefix from './common/CurrencyInputPrefix'
 import { formatDateForInput } from '../utils/dateUtils'
-import TimeInput24, { normalizeTime } from './common/TimeInput24'
+import TimeInput24, { normalizeTime, formatTimeForInput } from './common/TimeInput24'
+import { useTimeFormat } from '../hooks/useTimeFormat'
 
 const MORE_DETAILS_KEY = 'fuel_form:more_details_expanded'
 
@@ -68,6 +69,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
   const [vehicleFuelType, setVehicleFuelType] = useState<string>('')
   const [vehicleFuelTypeSecondary, setVehicleFuelTypeSecondary] = useState<string>('')
   const { system } = useUnitPreference()
+  const { timeFormat } = useTimeFormat()
   const { user } = useAuth()
 
   // Initial render of the "More details" panel state — sticky per-user via
@@ -125,7 +127,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
     defaultValues: {
       date: formatDateForInput(record?.date),
       // Immediately overwritten by the sub-field mirror effect below once
-      // filledDate/filledTime seed on mount — this is just the RHF key placeholder.
+      // filledTime seeds on mount — this is just the RHF key placeholder.
       filled_at: '',
       odometer_km: system === 'imperial' && record?.odometer_km != null
         ? UnitConverter.kmToMiles(toNumber(record.odometer_km)!) ?? undefined
@@ -172,17 +174,21 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
     },
   })
 
-  // Lazy initializers — splitFilledAt only needs to run once, on mount.
-  const [filledDate, setFilledDate] = useState(() => splitFilledAt(record?.filled_at).date)
-  const [filledTime, setFilledTime] = useState(() => splitFilledAt(record?.filled_at).time)
+  // Fill-up time is entered as a time-of-day; the date comes from the record's
+  // own `date` field (issue #109 follow-up). Seed the display string from the
+  // stored canonical time, in the user's format.
+  const [filledTime, setFilledTime] = useState(() =>
+    formatTimeForInput(splitFilledAt(record?.filled_at).time, timeFormat),
+  )
+  const recordDate = watch('date')
 
   // Mirror the recombined value into RHF so watchers (e.g. OBC suggestion) see
-  // it live. This is NOT the source of truth for submission — onSubmit recomputes.
+  // it live. NOT the source of truth for submission — onSubmit recomputes.
   useEffect(() => {
-    setValue('filled_at', joinFilledAt(filledDate, normalizeTime(filledTime)), {
+    setValue('filled_at', joinFilledAt(recordDate, normalizeTime(filledTime, timeFormat)), {
       shouldValidate: false,
     })
-  }, [filledDate, filledTime, setValue])
+  }, [recordDate, filledTime, timeFormat, setValue])
 
   // Watch for auto-calculation
   const liters = watch('liters')
@@ -324,25 +330,31 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
     setError(null)
     // Authoritative recompute — independent of blur/Enter having fired (#109).
     const rawTime = filledTime.trim()
-    const normTime = normalizeTime(filledTime)
-    // A non-empty but INVALID/incomplete time (e.g. "25:00", "2:") must NOT be
-    // silently dropped to null — that would save the record while losing the
-    // user's visible input (and could clear an existing timestamp). Block instead
-    // (Codex R1-H1). Empty is fine (means "no timestamp").
+    const normTime = normalizeTime(filledTime, timeFormat)
+    // A non-empty but INVALID/incomplete time must NOT be silently dropped to
+    // null — block instead (Codex R1-H1). Empty is fine (means "no timestamp").
     if (rawTime !== '' && normTime === '') {
-      setError(t('fuel.invalidFilledTime', { defaultValue: 'Enter a valid 24-hour time (HH:MM), or clear it.' }))
+      setError(t('fuel.invalidFilledTime', { defaultValue: 'Enter a valid time, or clear it.' }))
       return
     }
-    // Require both date AND time, or neither — a lone date or lone time would
-    // join to '' and silently discard the entered sub-field (Codex R1-H2).
-    const hasDate = filledDate.trim() !== ''
-    const hasTime = normTime !== ''
-    if (hasDate !== hasTime) {
-      setError(t('fuel.partialFilledAt', { defaultValue: 'Enter both a fill-up date and time, or clear both.' }))
-      return
+    // filled_at = record date + entered time. Edit-safety (review R1-H2): if
+    // neither the record date nor the time changed from the stored values,
+    // resubmit the stored timestamp verbatim so an untouched record — including
+    // a rare imported one whose date diverges from `date` — keeps its exact
+    // filled_at. Otherwise recompute from the record's own date + the time.
+    let filledAtValue: string | null
+    if (isEdit && record?.filled_at) {
+      const initialDate = formatDateForInput(record.date)
+      const initialTime = splitFilledAt(record.filled_at).time
+      const untouched = data.date === initialDate && normTime === initialTime
+      filledAtValue = untouched
+        ? record.filled_at
+        : normTime
+          ? joinFilledAt(data.date, normTime)
+          : null
+    } else {
+      filledAtValue = normTime ? joinFilledAt(data.date, normTime) : null
     }
-    // `|| null` so clearing an existing timestamp actually persists.
-    const filledAtValue: string | null = joinFilledAt(filledDate, normTime) || null
 
     try {
       // Convert user-entered values to canonical metric (SI) for the API.
@@ -799,32 +811,23 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
 
             {moreDetailsOpen && (
               <div className="p-4 space-y-4 border-t border-garage-border">
-                {/* Filled-at date + 24-hour time (issue #109) */}
+                {/* Fill-up time (issue #109) — date comes from the record's date field */}
                 <fieldset>
                   <legend className="block text-sm font-medium text-garage-text mb-1">
                     {t('fuel.filledAt')}
                   </legend>
-                  <div className="grid grid-cols-2 gap-2">
-                    <input
-                      type="date"
-                      id="filled_at_date"
-                      aria-label={t('fuel.filledAtDateLabel', { defaultValue: 'Fill-up date' })}
-                      value={filledDate}
-                      onChange={(e) => setFilledDate(e.target.value)}
-                      className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text border-garage-border"
-                      disabled={isSubmitting}
-                    />
-                    <TimeInput24
-                      id="filled_at_time"
-                      ariaLabel={t('fuel.filledAtTimeLabel', { defaultValue: 'Fill-up time (24-hour HH:MM)' })}
-                      value={filledTime}
-                      onChange={setFilledTime}
-                      disabled={isSubmitting}
-                    />
-                  </div>
+                  <TimeInput24
+                    id="filled_at_time"
+                    ariaLabel={t('fuel.filledAtTimeLabel', { defaultValue: 'Fill-up time' })}
+                    value={filledTime}
+                    onChange={setFilledTime}
+                    timeFormat={timeFormat}
+                    disabled={isSubmitting}
+                  />
                   <p className="text-xs text-garage-text-muted mt-1">
-                    {t('fuel.filledAtHint')}{' '}
-                    {t('fuel.filledAtTimeHint', { defaultValue: 'Time is 24-hour (HH:MM).' })}
+                    {t('fuel.filledAtTimeOnlyHint', {
+                      defaultValue: 'Optional. Uses the date above; needed for auto-fill from your last drive.',
+                    })}
                   </p>
                 </fieldset>
 

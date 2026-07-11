@@ -5868,6 +5868,8 @@ export interface components {
             show_both_units?: boolean | null;
             /** Show On Family Dashboard */
             show_on_family_dashboard?: boolean | null;
+            /** Time Format */
+            time_format?: string | null;
             /** Unit Preference */
             unit_preference?: string | null;
         };
@@ -11794,6 +11796,11 @@ export interface components {
              */
             show_on_family_dashboard: boolean;
             /**
+             * Time Format
+             * @default 12h
+             */
+            time_format: string;
+            /**
              * Unit Preference
              * @default imperial
              */
@@ -11827,6 +11834,8 @@ export interface components {
             mobile_quick_entry_enabled?: boolean | null;
             /** Show Both Units */
             show_both_units?: boolean | null;
+            /** Time Format */
+            time_format?: string | null;
             /** Unit Preference */
             unit_preference?: string | null;
         };

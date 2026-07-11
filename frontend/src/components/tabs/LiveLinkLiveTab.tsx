@@ -20,13 +20,14 @@ import {
 import { livelinkService } from '@/services/livelinkService'
 import type { VehicleLiveLinkStatus, TelemetryLatestValue } from '@/types/livelink'
 import { useUnitPreference } from '@/hooks/useUnitPreference'
+import { useTimeFormat } from '@/hooks/useTimeFormat'
 import {
   convertTelemetryValue,
   formatTelemetryValue,
   getParamDisplayName,
 } from '@/utils/telemetryUnits'
 import type { UnitSystem } from '@/utils/units'
-import { formatAPITimestamp } from '@/utils/parseAPITimestamp'
+import { formatTime } from '@/utils/parseAPITimestamp'
 
 interface LiveLinkLiveTabProps {
   vin: string
@@ -39,6 +40,7 @@ export default function LiveLinkLiveTab({ vin }: LiveLinkLiveTabProps) {
   const [error, setError] = useState<string | null>(null)
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
   const { system: unitSystem } = useUnitPreference()
+  const { timeFormat } = useTimeFormat()
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -178,7 +180,7 @@ export default function LiveLinkLiveTab({ vin }: LiveLinkLiveTabProps) {
 
           {/* Last Update */}
           <div className="ml-auto text-sm text-garage-text-muted">
-            {t('livelink.lastUpdate')}: {lastRefresh.toLocaleTimeString()}
+            {t('livelink.lastUpdate')}: {formatTime(lastRefresh, timeFormat, { seconds: true })}
           </div>
         </div>
       </div>
@@ -213,6 +215,7 @@ interface GaugeCardProps {
 }
 
 function GaugeCard({ value, unitSystem }: GaugeCardProps) {
+  const { timeFormat } = useTimeFormat()
   const IconComponent = useMemo(() => {
     const key = value.param_key.toLowerCase()
     if (key.includes('rpm') || key.includes('engine')) return Gauge
@@ -260,7 +263,7 @@ function GaugeCard({ value, unitSystem }: GaugeCardProps) {
         )}
       </div>
       <div className="text-xs text-garage-text-muted mt-1">
-        {formatAPITimestamp(value.timestamp, (d) => d.toLocaleTimeString())}
+        {formatTime(value.timestamp, timeFormat, { seconds: true })}
       </div>
     </div>
   )

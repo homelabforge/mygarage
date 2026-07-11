@@ -981,6 +981,18 @@
             ],
             "title": "Show On Family Dashboard"
           },
+          "time_format": {
+            "anyOf": [
+              {
+                "pattern": "^(12h|24h)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time Format"
+          },
           "unit_preference": {
             "anyOf": [
               {
@@ -14350,6 +14362,11 @@
             "title": "Show On Family Dashboard",
             "type": "boolean"
           },
+          "time_format": {
+            "default": "12h",
+            "title": "Time Format",
+            "type": "string"
+          },
           "unit_preference": {
             "default": "imperial",
             "title": "Unit Preference",
@@ -14478,6 +14495,18 @@
               }
             ],
             "title": "Show Both Units"
+          },
+          "time_format": {
+            "anyOf": [
+              {
+                "pattern": "^(12h|24h)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time Format"
           },
           "unit_preference": {
             "anyOf": [

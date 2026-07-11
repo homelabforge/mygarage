@@ -246,5 +246,11 @@
     "createFullError": "Não foi possível criar o backup completo",
     "restoreOverwrite": "Restaurar (sobrescreve todos os dados)",
     "noFullBackups": "Nenhum backup completo encontrado. Crie o primeiro para começar."
+  },
+  "timeFormat": {
+    "label": "Formato de hora",
+    "twelveHour": "12 horas",
+    "twentyFourHour": "24 horas",
+    "description": "Escolha como as horas são exibidas no aplicativo."
   }
 }

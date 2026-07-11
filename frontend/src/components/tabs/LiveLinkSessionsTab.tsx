@@ -19,7 +19,8 @@ import {
 import { livelinkService } from '@/services/livelinkService'
 import type { DriveSession, DriveSessionListResponse } from '@/types/livelink'
 import { useUnitPreference } from '@/hooks/useUnitPreference'
-import { formatAPITimestamp } from '@/utils/parseAPITimestamp'
+import { useTimeFormat } from '@/hooks/useTimeFormat'
+import { formatAPITimestamp, formatTime } from '@/utils/parseAPITimestamp'
 
 interface LiveLinkSessionsTabProps {
   vin: string
@@ -151,6 +152,7 @@ function SessionCard({
   formatTemp: (c: number | null | undefined) => string
 }) {
   const { t } = useTranslation('vehicles')
+  const { timeFormat } = useTimeFormat()
   const isActive = !session.ended_at
 
   return (
@@ -174,21 +176,11 @@ function SessionCard({
                 )}
               </div>
               <div className="text-xs text-garage-text-muted">
-                {formatAPITimestamp(session.started_at, (d) =>
-                  d.toLocaleTimeString(undefined, {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  }),
-                )}
+                {formatTime(session.started_at, timeFormat)}
                 {session.ended_at && (
                   <>
                     {' → '}
-                    {formatAPITimestamp(session.ended_at, (d) =>
-                      d.toLocaleTimeString(undefined, {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      }),
-                    )}
+                    {formatTime(session.ended_at, timeFormat)}
                   </>
                 )}
               </div>

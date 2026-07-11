@@ -11,12 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - OIDC: `MYGARAGE_TRUSTED_HOSTS` allow-lists a self-hosted issuer that resolves to a private/LAN IP (split-horizon DNS), relaxing the SSRF private-IP block for those hosts only.
 - Address Book: mark/unmark a contact as a gas station in the editor (checkbox); previously only fuel-record quick-add could set it.
 - Reverse proxy: `MYGARAGE_ROOT_PATH` serves MyGarage under a URL subpath (e.g. `/mygarage`) behind a prefix-stripping proxy — OIDC, PWA, media, and deep-links included; no image rebuild required (#107).
+- Preferences: per-user 12-hour / 24-hour time format (Settings → System, default 12-hour), applied to every displayed time and the fuel fill-up time entry.
+- i18n: Brazilian Portuguese (pt-BR) translation — thanks [@FabioCastilho](https://github.com/FabioCastilho).
 
 ### Fixed
 - Address Book: State/region field accepts non-US codes (e.g. VIC, NSW) up to 50 chars — editor and fuel quick-add now agree (#108).
 - Address Book: unify the gas-station tag on `gas_station` (FATAL migration 065) so the Gas-Stations filter, autocomplete ranking, and vendor-sync exclusion all match; quick-add-created stations are now correctly excluded from vendor sync (#108).
-- Fuel: the "Fill-up time" field now enters time in unambiguous 24-hour form (HH:MM), replacing the native datetime-local widget whose 12/24-hour behavior varied by browser locale (#109).
-- i18n: 35 `common`-namespace keys referenced app-wide (Date, Mileage, Total Cost, Notes, Create/Update/Saving, Status, Actions, Amount, …) were never defined in the English source and rendered as raw keys in forms and tables; defined across all five languages.
+- Fuel: the fill-up time field follows the 12h/24h preference (12-hour has an explicit AM/PM selector) and drops the redundant separate date, replacing the locale-dependent native widget (#109).
+- i18n: define 35 `common` keys referenced app-wide but missing from the English source, so form and table labels no longer render as raw keys (all five languages).
 
 ## [2.31.0-rc1] - 2026-07-03
 

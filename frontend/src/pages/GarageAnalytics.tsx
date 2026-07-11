@@ -20,12 +20,15 @@ import type { GarageAnalytics, GarageMonthlyTrend } from '../types/analytics'
 import GarageAnalyticsHelpModal from '../components/GarageAnalyticsHelpModal'
 import { formatCurrency as formatCurrencyBase, formatCurrencyZero as formatCurrency } from '../utils/formatUtils'
 import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
+import { useTimeFormat } from '../hooks/useTimeFormat'
+import { formatDateTime } from '../utils/parseAPITimestamp'
 
 // Colors for pie chart categories (9 categories: Maintenance, Upgrades, Inspection, Collision, Detailing, Fuel, DEF, Insurance, Taxes)
 const COLORS = ['#3B82F6', '#8B5CF6', '#F59E0B', '#EF4444', '#10B981', '#06B6D4', '#14B8A6', '#EC4899', '#6B7280']
 
 export default function GarageAnalytics() {
   const { currencyCode, locale } = useCurrencyPreference()
+  const { timeFormat } = useTimeFormat()
   const [analytics, setAnalytics] = useState<GarageAnalytics | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -39,7 +42,7 @@ export default function GarageAnalytics() {
 
     // Header
     rows.push('MyGarage Garage Analytics Export')
-    rows.push(`Generated: ${new Date().toLocaleString()}`)
+    rows.push(`Generated: ${formatDateTime(new Date(), timeFormat, { seconds: true })}`)
     rows.push(`Total Vehicles: ${analytics.vehicle_count}`)
     rows.push('')
 

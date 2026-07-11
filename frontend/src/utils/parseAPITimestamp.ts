@@ -50,3 +50,63 @@ export function formatAPITimestamp(
   const d = parseAPITimestamp(value)
   return d ? formatter(d) : fallback
 }
+
+type TimeFormatPref = '12h' | '24h'
+
+/**
+ * Normalize a timestamp input to a Date, or null.
+ * Accepts an API datetime string (via parseAPITimestamp), epoch milliseconds
+ * (e.g. a Recharts tooltip value), or a Date (e.g. a live `lastRefresh` clock).
+ */
+function toDate(value: string | number | Date | null | undefined): Date | null {
+  if (value == null) return null
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value
+  if (typeof value === 'number') {
+    const d = new Date(value)
+    return Number.isNaN(d.getTime()) ? null : d
+  }
+  return parseAPITimestamp(value)
+}
+
+/**
+ * Format the time-of-day, honoring the 12h/24h preference (e.g. "2:30 PM" vs
+ * "14:30"). `seconds` includes a `:ss` component (preserve per call site).
+ */
+export function formatTime(
+  value: string | number | Date | null | undefined,
+  timeFormat: TimeFormatPref,
+  opts: { seconds?: boolean } = {},
+  fallback = '',
+): string {
+  const d = toDate(value)
+  if (!d) return fallback
+  return d.toLocaleTimeString(undefined, {
+    hour: timeFormat === '12h' ? 'numeric' : '2-digit',
+    minute: '2-digit',
+    ...(opts.seconds ? { second: '2-digit' } : {}),
+    hour12: timeFormat === '12h',
+  })
+}
+
+/**
+ * Format date + time-of-day, honoring the 12h/24h preference. Time component
+ * uses the same rules as formatTime.
+ */
+export function formatDateTime(
+  value: string | number | Date | null | undefined,
+  timeFormat: TimeFormatPref,
+  opts: { seconds?: boolean } = {},
+  fallback = '',
+): string {
+  const d = toDate(value)
+  if (!d) return fallback
+  return d.toLocaleString(undefined, {
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: timeFormat === '12h' ? 'numeric' : '2-digit',
+    minute: '2-digit',
+    ...(opts.seconds ? { second: '2-digit' } : {}),
+    hour12: timeFormat === '12h',
+  })
+}

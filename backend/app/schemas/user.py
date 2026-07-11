@@ -88,6 +88,7 @@ class UserSelfUpdate(BaseModel):
     full_name: str | None = Field(None, max_length=255)
     unit_preference: str | None = Field(None, pattern="^(imperial|metric)$")
     show_both_units: bool | None = None
+    time_format: str | None = Field(None, pattern="^(12h|24h)$")
     mobile_quick_entry_enabled: bool | None = None
     # i18n preferences
     language: str | None = Field(None, max_length=10)
@@ -142,6 +143,7 @@ class AdminUserUpdate(BaseModel):
     is_admin: bool | None = None
     unit_preference: str | None = Field(None, pattern="^(imperial|metric)$")
     show_both_units: bool | None = None
+    time_format: str | None = Field(None, pattern="^(12h|24h)$")
     mobile_quick_entry_enabled: bool | None = None
     # i18n preferences
     language: str | None = Field(None, max_length=10)
@@ -246,6 +248,7 @@ class UserResponse(UserBase):
     is_admin: bool
     unit_preference: str = "imperial"
     show_both_units: bool = False
+    time_format: str = "12h"
     mobile_quick_entry_enabled: bool = True
     # i18n preferences
     language: str = "en"

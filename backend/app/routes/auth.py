@@ -318,6 +318,9 @@ async def update_current_user(
     if user_update.unit_preference is not None:
         current_user.unit_preference = user_update.unit_preference
 
+    if user_update.time_format is not None:
+        current_user.time_format = user_update.time_format
+
     if user_update.show_both_units is not None:
         current_user.show_both_units = user_update.show_both_units
 
@@ -563,6 +566,9 @@ async def update_user(
     # Preference fields (also settable by admin)
     if user_update.unit_preference is not None:
         user.unit_preference = user_update.unit_preference
+
+    if user_update.time_format is not None:
+        user.time_format = user_update.time_format
 
     if user_update.show_both_units is not None:
         user.show_both_units = user_update.show_both_units

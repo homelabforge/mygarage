@@ -21,6 +21,8 @@ import type { TelemetryQueryResponse, LiveLinkParameter } from '@/types/livelink
 import { parseAPITimestampMs } from '@/utils/parseAPITimestamp'
 // Unit preference hook available for future unit conversion
 // import { useUnitPreference } from '@/hooks/useUnitPreference'
+import { useTimeFormat } from '@/hooks/useTimeFormat'
+import { formatTime, formatDateTime } from '@/utils/parseAPITimestamp'
 
 interface LiveLinkChartsTabProps {
   vin: string
@@ -57,6 +59,7 @@ export default function LiveLinkChartsTab({ vin }: LiveLinkChartsTabProps) {
   const [telemetry, setTelemetry] = useState<TelemetryQueryResponse | null>(null)
   // Unit conversion can be added here if needed
   // const { system: unitSystem } = useUnitPreference()
+  const { timeFormat } = useTimeFormat()
 
   // Fetch available parameters
   useEffect(() => {
@@ -178,10 +181,10 @@ export default function LiveLinkChartsTab({ vin }: LiveLinkChartsTabProps) {
   const formatXAxis = (timestamp: number) => {
     const date = new Date(timestamp)
     if (timeRange === '1h' || timeRange === '6h') {
-      return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+      return formatTime(date, timeFormat)
     }
     if (timeRange === '24h') {
-      return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+      return formatTime(date, timeFormat)
     }
     return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
   }
@@ -292,7 +295,7 @@ export default function LiveLinkChartsTab({ vin }: LiveLinkChartsTabProps) {
                   border: '1px solid #3a4050',
                   borderRadius: '8px',
                 }}
-                labelFormatter={(value) => new Date(value).toLocaleString()}
+                labelFormatter={(value) => formatDateTime(value, timeFormat, { seconds: true })}
                 formatter={(value, name) => {
                   const param = parameters.find((p) => p.param_key === name)
                   const displayValue = typeof value === 'number' ? value.toFixed(2) : 'N/A'

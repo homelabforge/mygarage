@@ -14,6 +14,7 @@ import type { CalendarEvent, CalendarResponse } from '../types/calendar'
 import type { Vehicle } from '../types/vehicle'
 import api from '../services/api'
 import { useUnitPreference } from '../hooks/useUnitPreference'
+import { useTimeFormat } from '../hooks/useTimeFormat'
 import { UnitFormatter, UnitConverter } from '../utils/units'
 import { withBase } from '../utils/basePath'
 
@@ -45,6 +46,7 @@ export default function CalendarPage() {
   const { t } = useTranslation('vehicles')
   const navigate = useNavigate()
   const { system } = useUnitPreference()
+  const { timeFormat } = useTimeFormat()
   const [events, setEvents] = useState<CalendarEvent[]>([])
   const [summary, setSummary] = useState({ total: 0, overdue: 0, upcoming_7_days: 0, upcoming_30_days: 0 })
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
@@ -64,6 +66,10 @@ export default function CalendarPage() {
   const calendar = useCalendarApp({
     views: [createViewMonthGrid(), createViewWeek(), createViewDay()],
     defaultView: 'month-grid',
+    // Day/week hour-gutter clock format honors the user's 12h/24h preference (#107 follow-up).
+    weekOptions: {
+      timeAxisFormatOptions: { hour: 'numeric', hour12: timeFormat === '12h' },
+    },
     selectedDate: Temporal.PlainDate.from(format(new Date(), 'yyyy-MM-dd')),
     isDark,
     calendars: EVENT_CALENDARS,
