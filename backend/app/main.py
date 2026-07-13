@@ -401,14 +401,24 @@ if static_dir.exists():
         (static_dir / "index.html").read_text(encoding="utf-8"), settings.root_path
     )
 
+    # Mutable shell files (sw.js, manifest, index.html) must carry an explicit
+    # no-cache: with no Cache-Control, Cloudflare edge-caches .js for 4h
+    # (max-age=14400), so tunnel clients can run a stale service worker for
+    # hours after a deploy. no-cache still allows ETag revalidation (304s).
+    _NO_CACHE = {"Cache-Control": "no-cache"}
+
     # Serve PWA files with correct MIME types
     @app.get("/sw.js", include_in_schema=False)
     async def service_worker():
-        return FileResponse(static_dir / "sw.js", media_type="application/javascript")
+        return FileResponse(
+            static_dir / "sw.js", media_type="application/javascript", headers=_NO_CACHE
+        )
 
     @app.get("/manifest.json", include_in_schema=False)
     async def manifest():
-        return FileResponse(static_dir / "manifest.json", media_type="application/json")
+        return FileResponse(
+            static_dir / "manifest.json", media_type="application/json", headers=_NO_CACHE
+        )
 
     # Serve icon files with correct MIME type
     @app.get("/icon-192.png", include_in_schema=False)
@@ -422,7 +432,7 @@ if static_dir.exists():
     # Serve root index.html
     @app.get("/", include_in_schema=False)
     async def root():
-        return HTMLResponse(_index_shell)
+        return HTMLResponse(_index_shell, headers=_NO_CACHE)
 
     # Mount static assets (CSS, JS, images) - must be after route definitions.
     #
@@ -458,10 +468,10 @@ if static_dir.exists():
         if rel:
             candidate = (static_dir / rel).resolve()
             if candidate.is_file() and static_dir.resolve() in candidate.parents:
-                return FileResponse(candidate)
+                return FileResponse(candidate, headers=_NO_CACHE)
 
         # Otherwise serve the SPA
-        return HTMLResponse(_index_shell)
+        return HTMLResponse(_index_shell, headers=_NO_CACHE)
 
 
 if __name__ == "__main__":

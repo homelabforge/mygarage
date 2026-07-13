@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Settings: Brazilian timezones in the System timezone dropdown — 12 IANA zones covering Brazil's UTC-2/-3/-4/-5 offsets; thanks [@sigrist](https://github.com/sigrist) (#112).
 
+### Fixed
+- PWA: serve `sw.js`, `manifest.json`, and the SPA shell with `Cache-Control: no-cache` so CDN edge caches (e.g. Cloudflare) can't pin a stale service worker or index across deploys.
+
 ## [2.31.0-rc2] - 2026-07-11
 
 ### Added
