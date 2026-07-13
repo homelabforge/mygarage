@@ -16,8 +16,10 @@
     "wherePurchased": "Where Purchased"
   },
   "fuel": {
-    "autoCalculatedHint": "Auto-calculated when gallons and price are entered",
+    "autoCalculatedHint": "Auto-calculated from price, volume, and rebate",
     "autoPopulatedHint": "Auto-populated from vehicle information",
+    "rebate": "Rebate",
+    "rebateHint": "Points, discounts, or cash back — deducted from Total Cost",
     "createTitle": "Add Fuel Record",
     "defAutoCreatesHint": "Auto-creates a DEF observation record for analytics",
     "defTankLevel": "DEF Tank Level",

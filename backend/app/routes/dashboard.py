@@ -20,7 +20,7 @@ from app.models.user import User
 from app.models.vehicle_share import VehicleShare
 from app.schemas.dashboard import DashboardResponse, VehicleStatistics
 from app.services.auth import require_auth
-from app.services.fuel_service import calculate_l_per_100km
+from app.services.fuel_service import compute_full_tank_economy
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
@@ -129,25 +129,24 @@ async def calculate_vehicle_stats(
         else:
             upcoming_count += 1
 
-    # Calculate average L/100km from fuel records
+    # Per-full-tank L/100km, anchored to the previous FULL tank with partial
+    # fill-ups folded in (issue #113). Ordered by odometer ascending so the
+    # last entries are the most recent.
     fuel_records_result = await db.execute(
-        select(FuelRecord).where(FuelRecord.vin == vehicle.vin).order_by(FuelRecord.date.desc())
+        select(FuelRecord)
+        .where(FuelRecord.vin == vehicle.vin)
+        .where(FuelRecord.odometer_km.isnot(None))
+        .order_by(FuelRecord.odometer_km.asc(), FuelRecord.date.asc())
     )
     fuel_records_list = list(fuel_records_result.scalars().all())
-
-    l_per_100km_values: list[Decimal] = []
-    for i in range(len(fuel_records_list)):
-        if i < len(fuel_records_list) - 1:
-            value = calculate_l_per_100km(fuel_records_list[i], fuel_records_list[i + 1])
-            if value:
-                l_per_100km_values.append(value)
+    l_per_100km_values = [value for _, value in compute_full_tank_economy(fuel_records_list)]
 
     average_l_per_100km: Decimal | None = None
     recent_l_per_100km: Decimal | None = None
     if l_per_100km_values:
         average_l_per_100km = round(sum(l_per_100km_values) / Decimal(len(l_per_100km_values)), 2)
-        # Recent L/100km is average of last 3 fill-ups
-        recent_window = l_per_100km_values[:3]
+        # Recent L/100km is the average of the last 3 full-tank fill-ups.
+        recent_window = l_per_100km_values[-3:]
         recent_l_per_100km = round(sum(recent_window) / Decimal(len(recent_window)), 2)
 
     # Get main photo URL from Vehicle.main_photo field

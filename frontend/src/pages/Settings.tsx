@@ -7,6 +7,7 @@ import SettingsIntegrationsTab from '../components/tabs/SettingsIntegrationsTab'
 import SettingsNotificationsTab from '../components/tabs/SettingsNotificationsTab'
 import SettingsBackupTab from '../components/tabs/SettingsBackupTab'
 import { SettingsProvider, useSettings } from '../contexts/SettingsContext'
+import SubTabNav from '../components/SubTabNav'
 
 type TabType = 'system' | 'files' | 'integrations' | 'notifications' | 'backup'
 
@@ -42,30 +43,12 @@ function SettingsContent() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="bg-garage-surface border-b border-garage-border">
-        <div className="container mx-auto px-4">
-          <div className="flex space-x-1 overflow-x-auto">
-            {tabs.map((tab) => {
-              const Icon = tab.icon
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id as TabType)}
-                  className={`flex items-center space-x-2 px-6 py-4 font-medium transition-colors whitespace-nowrap border-b-2 ${
-                    activeTab === tab.id
-                      ? 'border-primary text-primary'
-                      : 'border-transparent text-garage-text-muted hover:text-garage-text hover:border-garage-border'
-                  }`}
-                >
-                  <Icon className="w-5 h-5" />
-                  <span>{tab.label}</span>
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      </div>
+      {/* Tabs — same responsive pattern as vehicle sub-tabs (icon-only on mobile) */}
+      <SubTabNav
+        tabs={tabs}
+        activeTab={activeTab}
+        onTabChange={(id: string) => setActiveTab(id as TabType)}
+      />
 
       {/* Tab Content */}
       <div className="container mx-auto px-4 py-8">

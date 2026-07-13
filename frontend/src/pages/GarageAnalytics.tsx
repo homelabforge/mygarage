@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import api from '../services/api'
-import { Car, Wrench, Fuel, Shield, FileText, Download, HelpCircle, Droplets } from 'lucide-react'
+import { Car, Wrench, Fuel, Shield, FileText, HelpCircle, Droplets } from 'lucide-react'
 import {
   ResponsiveContainer,
   PieChart as RechartsPieChart,
@@ -18,6 +18,7 @@ import {
 import type { PieLabelRenderProps, SectorProps } from 'recharts'
 import type { GarageAnalytics, GarageMonthlyTrend } from '../types/analytics'
 import GarageAnalyticsHelpModal from '../components/GarageAnalyticsHelpModal'
+import ExportMenu from '../components/ExportMenu'
 import { formatCurrency as formatCurrencyBase, formatCurrencyZero as formatCurrency } from '../utils/formatUtils'
 import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
 import { useTimeFormat } from '../hooks/useTimeFormat'
@@ -273,20 +274,7 @@ export default function GarageAnalytics() {
             <HelpCircle className="w-4 h-4" />
             Help
           </button>
-          <button
-            onClick={exportToCSV}
-            className="px-4 py-2 bg-garage-surface border border-garage-border text-garage-text rounded-lg hover:bg-garage-surface-light transition-colors flex items-center gap-2"
-          >
-            <Download className="w-4 h-4" />
-            CSV
-          </button>
-          <button
-            onClick={exportToPDF}
-            className="px-4 py-2 bg-garage-surface border border-garage-border text-garage-text rounded-lg hover:bg-garage-surface-light transition-colors flex items-center gap-2"
-          >
-            <Download className="w-4 h-4" />
-            PDF
-          </button>
+          <ExportMenu onExportCSV={exportToCSV} onExportPDF={exportToPDF} />
         </div>
       </div>
 

@@ -8,9 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Fuel: optional **Rebate** field (points, discounts, cash back) next to Total Cost; Total Cost then stores the net paid (price × volume − rebate), so all cost surfaces and CSV/JSON export/import reflect it (migration 067).
 - Settings: Brazilian timezones in the System timezone dropdown — 12 IANA zones covering Brazil's UTC-2/-3/-4/-5 offsets; thanks [@sigrist](https://github.com/sigrist) (#112).
 
 ### Fixed
+- Quick Entry: no longer shows "No vehicles" on a cold app launch when the account has them — the vehicle list is fetched fresh (no longer service-worker cached) and retries instead of dead-ending (#114).
+- Fuel economy: partial fill-ups between two full tanks now count toward the next full tank's L/100km across every surface (record, average, garage card, widget, Analytics) instead of being ignored (#113).
+- Mobile layout: the Home and Fuel History action buttons no longer overflow the viewport — both toolbars stack/wrap on narrow screens instead of forcing a single fixed-width row (#115).
+- Analytics: the CSV and PDF export buttons are now a single "Export" dropdown, so the header no longer runs off narrow screens.
+- Settings: the section tabs now use the same responsive layout as the vehicle sub-tabs (icons-only on mobile) instead of a single row that overflowed.
 - PWA: serve `sw.js`, `manifest.json`, and the SPA shell with `Cache-Control: no-cache` so CDN edge caches (e.g. Cloudflare) can't pin a stale service worker or index across deploys.
 
 ## [2.31.0-rc2] - 2026-07-11

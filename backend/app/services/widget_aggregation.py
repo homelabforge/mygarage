@@ -460,6 +460,34 @@ class WidgetAggregationService:
             .limit(fetch_limit)
         )
         rows = (await self.db.execute(stmt)).all()
+        if len(rows) < 2:
+            return None, None
+
+        # Every fill-up in the odometer span the pairs cover, so partial
+        # fill-ups between two full tanks contribute their volume to the
+        # interval instead of being ignored (issue #113). rows are newest-first,
+        # so rows[0] is the newest full tank and rows[-1] the oldest anchor.
+        newest_km = rows[0][0]
+        oldest_prev_km = rows[-1][0]
+        span_rows = (
+            await self.db.execute(
+                select(FuelRecord.odometer_km, FuelRecord.liters).where(
+                    FuelRecord.vin == vin,
+                    FuelRecord.odometer_km.is_not(None),
+                    FuelRecord.liters.is_not(None),
+                    FuelRecord.odometer_km > oldest_prev_km,
+                    FuelRecord.odometer_km <= newest_km,
+                )
+            )
+        ).all()
+
+        def interval_liters(lo: Decimal, hi: Decimal) -> Decimal:
+            """Sum liters of every fill-up in the odometer window (lo, hi]."""
+            return sum(
+                (liters for (odo, liters) in span_rows if lo < odo <= hi),
+                Decimal(0),
+            )
+
         # rows[0] is newest. Pair i uses rows[i] (current) and rows[i+1] (prev full tank).
         pair_l100km: list[Decimal] = []
         for i in range(len(rows) - 1):
@@ -477,8 +505,11 @@ class WidgetAggregationService:
             distance_km = cur_km - prev_km
             if distance_km <= 0:
                 continue
-            # liters per 100 km
-            pair_l100km.append((cur_liters / Decimal(str(distance_km))) * Decimal("100"))
+            # Total fuel since the previous full tank (partials + this fill).
+            liters = interval_liters(prev_km, cur_km)
+            if liters <= 0:
+                liters = cur_liters
+            pair_l100km.append((liters / Decimal(str(distance_km))) * Decimal("100"))
 
         if not pair_l100km:
             return None, None

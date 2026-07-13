@@ -13,6 +13,13 @@ import pandas as pd
 
 from app.models import FuelRecord
 from app.services.analytics_service.trends import calculate_trend_direction
+from app.services.fuel_service import compute_full_tank_economy
+
+# Realistic L/100km band (~5–100 MPG). A fill-up outside it is almost always a
+# data-entry slip (mistyped odometer/volume); dropping it keeps the trend chart
+# and its tiles readable. The raw figure still appears in the fuel-history list.
+_MIN_REALISTIC_L_PER_100KM = 2.35
+_MAX_REALISTIC_L_PER_100KM = 47.0
 
 
 def _l_per_100km_trend(values: pd.Series) -> str:
@@ -43,55 +50,51 @@ def calculate_fuel_economy_with_pandas(
     if not fuel_records or len(fuel_records) < 2:
         return pd.DataFrame(), {}
 
-    # Convert to DataFrame
+    # One economy figure per FULL tank, with every partial fill-up since the
+    # previous full tank folded into its numerator (issue #113). This is the
+    # same model as the fuel-history list, vehicle average, garage card, and
+    # homepage widget, so the Analytics chart and tiles can't tell a different
+    # story than the rest of the app. Ordered by odometer, as that model
+    # requires; a partial fill-up gets no point of its own.
+    records_asc = sorted(
+        (r for r in fuel_records if r.odometer_km is not None),
+        key=lambda r: (r.odometer_km, r.date),
+    )
+    economy = compute_full_tank_economy(records_asc, exclude_hauling=False)
+
     data = []
-    for record in fuel_records:
-        if record.date and record.liters and record.odometer_km:
-            data.append(
-                {
-                    "date": pd.Timestamp(record.date),
-                    "odometer_km": float(record.odometer_km),
-                    "liters": float(record.liters),
-                    "cost": float(record.cost) if record.cost else 0.0,
-                }
-            )
+    for record, l_per_100km in economy:
+        value = float(l_per_100km)
+        if not (_MIN_REALISTIC_L_PER_100KM <= value <= _MAX_REALISTIC_L_PER_100KM):
+            continue
+        data.append(
+            {
+                "date": pd.Timestamp(record.date),
+                "odometer_km": float(record.odometer_km),
+                "liters": float(record.liters) if record.liters else 0.0,
+                "cost": float(record.cost) if record.cost else 0.0,
+                "l_per_100km": value,
+            }
+        )
 
     if not data:
         return pd.DataFrame(), {}
 
+    # Display in chronological order (== odometer order for sane data) so the
+    # chart's X-axis and "recent" tile track the most recent fill-up.
     df = pd.DataFrame(data).sort_values("date").reset_index(drop=True)
 
-    # Calculate distance per fillup using diff
-    df["km_driven"] = df["odometer_km"].diff()
+    values = df["l_per_100km"]
 
-    # Filter invalid trips (0/negative km, unrealistic distances)
-    # 1600 km ≈ 1000 mi — same outlier ceiling as the imperial original.
-    df = df[(df["km_driven"] > 0) & (df["km_driven"] <= 1600)].copy()
-
-    df["l_per_100km"] = (df["liters"] / df["km_driven"]) * 100.0
-
-    # Filter unrealistic L/100km values (~2.35 to ~47 L/100km, equivalent to 5–100 MPG)
-    df = df[(df["l_per_100km"] >= 2.35) & (df["l_per_100km"] <= 47.0)].copy()
-
-    # Remove rows with NaN
-    df = df[df["l_per_100km"].notna()].copy()
-
-    if df.empty:
-        return pd.DataFrame(), {}
-
-    # Calculate statistics with weighted average for more accuracy
-    total_km = df["km_driven"].sum()
-    total_liters = df["liters"].sum()
-    weighted_avg_l_per_100km = (total_liters / total_km) * 100.0 if total_km > 0 else 0
-
-    # Best is *lowest* L/100km, worst is *highest* (semantic flip from MPG)
+    # Simple mean of per-full-tank figures — matches calculate_average_l_per_100km.
+    # Best is *lowest* L/100km, worst is *highest* (semantic flip from MPG).
     stats = {
-        "average_l_per_100km": Decimal(str(round(weighted_avg_l_per_100km, 2))),
-        "best_l_per_100km": Decimal(str(round(df["l_per_100km"].min(), 2))),
-        "worst_l_per_100km": Decimal(str(round(df["l_per_100km"].max(), 2))),
-        "recent_l_per_100km": Decimal(str(round(df["l_per_100km"].iloc[-1], 2))),
-        "trend": _l_per_100km_trend(df["l_per_100km"].tail(10)),
-        "std_dev": Decimal(str(round(df["l_per_100km"].std(), 2))),
+        "average_l_per_100km": Decimal(str(round(values.mean(), 2))),
+        "best_l_per_100km": Decimal(str(round(values.min(), 2))),
+        "worst_l_per_100km": Decimal(str(round(values.max(), 2))),
+        "recent_l_per_100km": Decimal(str(round(values.iloc[-1], 2))),
+        "trend": _l_per_100km_trend(values.tail(10)),
+        "std_dev": (Decimal(str(round(values.std(), 2))) if len(values) > 1 else Decimal("0")),
     }
 
     return df, stats

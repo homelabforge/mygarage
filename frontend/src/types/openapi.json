@@ -4329,7 +4329,7 @@
                 "type": "null"
               }
             ],
-            "description": "Total cost",
+            "description": "Total cost, net of any rebate",
             "title": "Cost"
           },
           "date": {
@@ -4640,6 +4640,24 @@
             "description": "Propane amount in liters",
             "title": "Propane Liters"
           },
+          "rebate": {
+            "anyOf": [
+              {
+                "maximum": 99999.99,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Rebate/discount/points redeemed; already deducted from cost",
+            "title": "Rebate"
+          },
           "station_address_book_id": {
             "anyOf": [
               {
@@ -4809,7 +4827,7 @@
                 "type": "null"
               }
             ],
-            "description": "Total cost",
+            "description": "Total cost, net of any rebate",
             "title": "Cost"
           },
           "created_at": {
@@ -5078,6 +5096,19 @@
             "description": "Propane amount in liters",
             "title": "Propane Liters"
           },
+          "rebate": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Rebate/discount/points redeemed; already deducted from cost",
+            "title": "Rebate"
+          },
           "station_address_book_id": {
             "anyOf": [
               {
@@ -5181,7 +5212,7 @@
                 "type": "null"
               }
             ],
-            "description": "Total cost",
+            "description": "Total cost, net of any rebate",
             "title": "Cost"
           },
           "date": {
@@ -5502,6 +5533,24 @@
             ],
             "description": "Propane amount in liters",
             "title": "Propane Liters"
+          },
+          "rebate": {
+            "anyOf": [
+              {
+                "maximum": 99999.99,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Rebate/discount/points redeemed; already deducted from cost",
+            "title": "Rebate"
           },
           "station_address_book_id": {
             "anyOf": [

@@ -347,6 +347,7 @@ async def import_fuel_csv(
                 price_per_unit = price_raw
 
             cost = parse_decimal(row.get("Total Cost", "") or row.get("Cost", ""))
+            rebate = parse_decimal(row.get("Rebate", ""))
             is_full_tank = parse_bool(row.get("Full Tank", "True"))
             missed_fillup = parse_bool(row.get("Missed Fill-up", "False"))
             notes = row.get("Notes", "").strip() or None
@@ -390,6 +391,7 @@ async def import_fuel_csv(
                 liters=liters,
                 price_per_unit=price_per_unit,
                 cost=cost,
+                rebate=rebate,
                 is_full_tank=is_full_tank,
                 missed_fillup=missed_fillup,
                 notes=notes,
@@ -985,6 +987,7 @@ async def import_vehicle_json(
                 liters=imported_liters,
                 price_per_unit=imported_ppu,
                 cost=Decimal(str(record_data["cost"])) if record_data.get("cost") else None,
+                rebate=Decimal(str(record_data["rebate"])) if record_data.get("rebate") else None,
                 is_full_tank=record_data.get("is_full_tank", True),
                 missed_fillup=record_data.get("missed_fillup", False),
                 notes=record_data.get("notes"),

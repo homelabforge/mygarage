@@ -432,6 +432,7 @@
     "noVehicles": "No vehicles available for logging.",
     "record": "Record",
     "recordSaved": "{{type}} saved",
+    "retry": "Try again",
     "selectVehicle": "Select a vehicle...",
     "serviceVisit": "Service Visit",
     "serviceVisitDesc": "Log maintenance or repair",

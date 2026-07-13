@@ -432,6 +432,7 @@
     "noVehicles": "Nenhum veículo",
     "record": "Registro",
     "recordSaved": "{{type}} salvo",
+    "retry": "Tentar novamente",
     "selectVehicle": "Selecione o veículo",
     "serviceVisit": "Manutenção / Serviço",
     "serviceVisitDesc": "Registre uma manutenção ou reparo",

@@ -7441,7 +7441,7 @@ export interface components {
         FuelRecordCreate: {
             /**
              * Cost
-             * @description Total cost
+             * @description Total cost, net of any rebate
              */
             cost?: number | string | null;
             /**
@@ -7565,6 +7565,11 @@ export interface components {
              */
             propane_liters?: number | string | null;
             /**
+             * Rebate
+             * @description Rebate/discount/points redeemed; already deducted from cost
+             */
+            rebate?: number | string | null;
+            /**
              * Station Address Book Id
              * @description FK to address_book entry with poi_category='gas_station'
              */
@@ -7649,7 +7654,7 @@ export interface components {
         FuelRecordResponse: {
             /**
              * Cost
-             * @description Total cost
+             * @description Total cost, net of any rebate
              */
             cost?: string | null;
             /**
@@ -7774,6 +7779,11 @@ export interface components {
              */
             propane_liters?: string | null;
             /**
+             * Rebate
+             * @description Rebate/discount/points redeemed; already deducted from cost
+             */
+            rebate?: string | null;
+            /**
              * Station Address Book Id
              * @description FK to address_book entry with poi_category='gas_station'
              */
@@ -7812,7 +7822,7 @@ export interface components {
         FuelRecordUpdate: {
             /**
              * Cost
-             * @description Total cost
+             * @description Total cost, net of any rebate
              */
             cost?: number | string | null;
             /**
@@ -7901,6 +7911,11 @@ export interface components {
              * @description Propane amount in liters
              */
             propane_liters?: number | string | null;
+            /**
+             * Rebate
+             * @description Rebate/discount/points redeemed; already deducted from cost
+             */
+            rebate?: number | string | null;
             /** Station Address Book Id */
             station_address_book_id?: number | null;
             /** Station Name Freetext */

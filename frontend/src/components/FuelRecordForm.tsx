@@ -142,6 +142,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
       price_per_unit: priceToDisplay(record?.price_per_unit, system, record?.price_basis) ?? undefined,
       price_basis: (record?.price_basis as 'per_volume' | 'per_weight' | 'per_kwh' | 'per_tank' | undefined) ?? undefined,
       cost: toNumber(record?.cost),
+      rebate: toNumber(record?.rebate),
       fuel_type: record?.fuel_type || '',
       fuel_type_used: record?.fuel_type_used as FuelRecordFormData['fuel_type_used'] ?? undefined,
       is_full_tank: record?.is_full_tank ?? true,
@@ -194,6 +195,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
   const liters = watch('liters')
   const kwh = watch('kwh')
   const pricePerUnit = watch('price_per_unit')
+  const rebate = watch('rebate')
 
   // Fetch vehicle data to get fuel_type
   useEffect(() => {
@@ -318,13 +320,17 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
     if (volumeOrEnergy && pricePerUnit) {
       const volumeNum = typeof volumeOrEnergy === 'number' ? volumeOrEnergy : parseFloat(volumeOrEnergy)
       const priceNum = typeof pricePerUnit === 'number' ? pricePerUnit : parseFloat(pricePerUnit)
+      const rebateNum = typeof rebate === 'number' ? rebate : parseFloat(rebate ?? '')
 
       if (!isNaN(volumeNum) && !isNaN(priceNum)) {
-        const total = volumeNum * priceNum
-        setValue('cost', parseFloat(total.toFixed(2)))
+        // Total Cost is the NET the driver actually paid: gross minus any
+        // rebate/points. Clamp at 0 so an over-large rebate can't go negative.
+        const gross = volumeNum * priceNum
+        const net = gross - (isNaN(rebateNum) ? 0 : rebateNum)
+        setValue('cost', parseFloat(Math.max(0, net).toFixed(2)))
       }
     }
-  }, [liters, kwh, pricePerUnit, setValue, isInitialMount])
+  }, [liters, kwh, pricePerUnit, rebate, setValue, isInitialMount])
 
   const onSubmit = async (data: FuelRecordFormData) => {
     setError(null)
@@ -369,6 +375,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
         price_per_unit: priceToCanonical(data.price_per_unit, system, data.price_basis) ?? undefined,
         price_basis: data.price_basis,
         cost: data.cost,
+        rebate: data.rebate,
         fuel_type: data.fuel_type,
         fuel_type_used: data.fuel_type_used,
         is_full_tank: data.is_full_tank,
@@ -602,29 +609,56 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
             <FormError error={errors.price_basis} />
           </div>
 
-          <div>
-            <label htmlFor="cost" className="block text-sm font-medium text-garage-text mb-1">
-              {t('common:totalCost')}
-            </label>
-            <div className="relative">
-              <CurrencyInputPrefix />
-              <input
-                type="number"
-                id="cost"
-                {...register('cost', { valueAsNumber: true })}
-                min="0"
-                step="0.01"
-                placeholder="42.99"
-                className={`w-full pl-7 pr-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
-                  errors.cost ? 'border-red-500' : 'border-garage-border'
-                }`}
-                disabled={isSubmitting}
-              />
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="rebate" className="block text-sm font-medium text-garage-text mb-1">
+                {t('fuel.rebate', { defaultValue: 'Rebate' })}
+              </label>
+              <div className="relative">
+                <CurrencyInputPrefix />
+                <input
+                  type="number"
+                  id="rebate"
+                  {...register('rebate', { valueAsNumber: true })}
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                  className={`w-full pl-7 pr-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
+                    errors.rebate ? 'border-red-500' : 'border-garage-border'
+                  }`}
+                  disabled={isSubmitting}
+                />
+              </div>
+              <FormError error={errors.rebate} />
+              <p className="text-xs text-garage-text-muted mt-1">
+                {t('fuel.rebateHint', { defaultValue: 'Points, discounts, or cash back — deducted from Total Cost' })}
+              </p>
             </div>
-            <FormError error={errors.cost} />
-            <p className="text-xs text-garage-text-muted mt-1">
-              {t('fuel.autoCalculatedHint')}
-            </p>
+
+            <div>
+              <label htmlFor="cost" className="block text-sm font-medium text-garage-text mb-1">
+                {t('common:totalCost')}
+              </label>
+              <div className="relative">
+                <CurrencyInputPrefix />
+                <input
+                  type="number"
+                  id="cost"
+                  {...register('cost', { valueAsNumber: true })}
+                  min="0"
+                  step="0.01"
+                  placeholder="42.99"
+                  className={`w-full pl-7 pr-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
+                    errors.cost ? 'border-red-500' : 'border-garage-border'
+                  }`}
+                  disabled={isSubmitting}
+                />
+              </div>
+              <FormError error={errors.cost} />
+              <p className="text-xs text-garage-text-muted mt-1">
+                {t('fuel.autoCalculatedHint')}
+              </p>
+            </div>
           </div>
 
           <div>

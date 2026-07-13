@@ -150,7 +150,12 @@ self.addEventListener('fetch', (event) => {
       url.pathname.includes('/documents/') ||
       url.pathname.startsWith(SCOPE + 'api/backup/download/') ||
       url.pathname.endsWith('/livelink/status') ||
-      url.pathname.endsWith('/mqtt/status')
+      url.pathname.endsWith('/mqtt/status') ||
+      // Per-session, auth-scoped vehicle list for Quick Entry. Caching it let a
+      // stale/empty result survive across logins and get served on a cold-launch
+      // network hiccup, showing "No vehicles" for an account that has them
+      // (#114). Always fetch it fresh; the app handles the offline error itself.
+      url.pathname.endsWith('/quick-entry/vehicles')
     );
 
     event.respondWith(

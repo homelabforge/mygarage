@@ -88,7 +88,15 @@ class FuelRecordBase(BaseModel):
         le=99999.999,
         decimal_places=3,
     )
-    cost: Decimal | None = Field(None, description="Total cost", ge=0, le=99999.99)
+    cost: Decimal | None = Field(
+        None, description="Total cost, net of any rebate", ge=0, le=99999.99
+    )
+    rebate: Decimal | None = Field(
+        None,
+        description="Rebate/discount/points redeemed; already deducted from cost",
+        ge=0,
+        le=99999.99,
+    )
     price_per_unit: Decimal | None = Field(
         None,
         description=(
@@ -367,7 +375,15 @@ class FuelRecordUpdate(BaseModel):
         le=99999.999,
         decimal_places=3,
     )
-    cost: Decimal | None = Field(None, description="Total cost", ge=0, le=99999.99)
+    cost: Decimal | None = Field(
+        None, description="Total cost, net of any rebate", ge=0, le=99999.99
+    )
+    rebate: Decimal | None = Field(
+        None,
+        description="Rebate/discount/points redeemed; already deducted from cost",
+        ge=0,
+        le=99999.99,
+    )
     price_per_unit: Decimal | None = Field(
         None, description="Price per unit (see price_basis for denominator)", ge=0, le=999.999
     )

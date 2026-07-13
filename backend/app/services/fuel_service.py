@@ -35,15 +35,25 @@ PROPANE_LITERS_PER_KG = Decimal("1.9685")
 
 
 def calculate_l_per_100km(
-    current_record: FuelRecord, previous_record: FuelRecord | None
+    current_record: FuelRecord,
+    previous_record: FuelRecord | None,
+    interval_liters: Decimal | None = None,
 ) -> Decimal | None:
-    """Calculate L/100km for a fuel record.
+    """Calculate L/100km for a full-tank fuel record.
 
     Logic:
     - Only calculate for full tank fill-ups
     - Skip if no previous full tank fill-up
     - Skip if no odometer recorded
-    - L/100km = current_liters / (distance_km / 100)
+    - L/100km = fuel_since_previous_full / (distance_km / 100)
+
+    ``interval_liters`` is the total fuel added since the previous full tank —
+    every partial fill-up in between PLUS this full fill-up. This is the
+    correct numerator: the distance was covered on all that fuel, not just the
+    volume of the final full fill-up. When the caller can't supply it we fall
+    back to ``current_record.liters`` alone, which under-reports consumption
+    whenever partial fill-ups exist (issue #113); callers on the display and
+    average paths always pass it.
 
     Lower values are better fuel economy.
     """
@@ -71,8 +81,87 @@ def calculate_l_per_100km(
     if distance_km <= 0 or current_record.liters <= 0:
         return None
 
-    l_per_100km = (current_record.liters / distance_km) * Decimal("100")
+    liters = interval_liters if interval_liters is not None else current_record.liters
+    if liters <= 0:
+        return None
+
+    l_per_100km = (liters / distance_km) * Decimal("100")
     return round(l_per_100km, 2)
+
+
+def compute_full_tank_economy(
+    records_asc: list[FuelRecord],
+    exclude_hauling: bool = False,
+) -> list[tuple[FuelRecord, Decimal]]:
+    """L/100km for each full-tank record, computed in a single O(n) pass.
+
+    ``records_asc`` must be every odometer-bearing fill-up for the vehicle,
+    ordered by odometer ascending. Consecutive full-tank endpoints tile the
+    odometer axis, so a running accumulator collects the liters of every partial
+    fill-up since the previous endpoint and folds them — plus the endpoint's own
+    fill — into that interval's numerator (issue #113). This is the single
+    source of truth for the per-record, vehicle-average, and dashboard surfaces
+    so they can't drift apart.
+
+    Endpoint rules:
+    - A missed fill-up (amount unknown) is still an endpoint: it anchors the
+      next interval but yields no figure of its own (``calculate_l_per_100km``
+      returns None for it).
+    - When ``exclude_hauling`` is set, a hauling full tank is not an endpoint, so
+      its fuel folds into the surrounding interval instead of splitting it.
+
+    Returns ``(record, l_per_100km)`` pairs in odometer order, only for
+    endpoints that produced a valid figure.
+    """
+    results: list[tuple[FuelRecord, Decimal]] = []
+    prev_endpoint: FuelRecord | None = None
+    liters_since = Decimal(0)  # fuel added strictly after prev_endpoint
+
+    for record in records_asc:
+        if record.odometer_km is None:
+            continue
+        if record.liters is not None:
+            liters_since += record.liters
+
+        if not record.is_full_tank or (exclude_hauling and record.is_hauling):
+            continue
+
+        # `record` is an endpoint; its own liters are already in `liters_since`.
+        value = calculate_l_per_100km(record, prev_endpoint, liters_since)
+        if value is not None:
+            results.append((record, value))
+
+        prev_endpoint = record
+        liters_since = Decimal(0)
+
+    return results
+
+
+async def sum_liters_since_previous_full(
+    db: AsyncSession,
+    vin: str,
+    previous_full: FuelRecord,
+    current_record: FuelRecord,
+) -> Decimal | None:
+    """SQL sum of liters in the odometer window (prev_full, current].
+
+    Single-record equivalent of the accumulator in
+    :func:`compute_full_tank_economy`, for the create/update/get paths where
+    loading the whole sequence to score one record would be wasteful. The
+    current record must already be persisted so it is counted (issue #113).
+    """
+    if previous_full.odometer_km is None or current_record.odometer_km is None:
+        return None
+
+    result = await db.execute(
+        select(func.coalesce(func.sum(FuelRecord.liters), 0))
+        .where(FuelRecord.vin == vin)
+        .where(FuelRecord.liters.isnot(None))
+        .where(FuelRecord.odometer_km > previous_full.odometer_km)
+        .where(FuelRecord.odometer_km <= current_record.odometer_km)
+    )
+    total = result.scalar()
+    return Decimal(str(total)) if total is not None else Decimal(0)
 
 
 async def get_previous_full_tank(
@@ -110,35 +199,18 @@ async def calculate_average_l_per_100km(
         exclude_hauling: If True (default), exclude is_hauling=True records
             for more representative daily-driving economy
     """
-    # No liters filter: a missed fill-up (odometer recorded, amount unknown)
-    # must stay in the sequence as an ANCHOR so consecutive pairs never
-    # bridge across it — bridging understates consumption by attributing one
-    # tank's liters to two tanks' distance. calculate_l_per_100km() returns
-    # None for the missed record itself, so only valid pairs contribute.
-    query = (
+    # Load ALL fill-ups with an odometer (not just full tanks) so partial
+    # fill-ups between two full tanks contribute their volume to the interval
+    # (issue #113). Ordered by odometer so the accumulator is monotonic.
+    result = await db.execute(
         select(FuelRecord)
         .where(FuelRecord.vin == vin)
-        .where(FuelRecord.is_full_tank.is_(True))
         .where(FuelRecord.odometer_km.isnot(None))
+        .order_by(FuelRecord.odometer_km.asc(), FuelRecord.date.asc())
     )
+    all_records = list(result.scalars().all())
 
-    if exclude_hauling:
-        query = query.where(FuelRecord.is_hauling.is_(False))
-
-    query = query.order_by(FuelRecord.date)
-
-    result = await db.execute(query)
-    records = result.scalars().all()
-
-    if len(records) < 2:
-        return None
-
-    values = []
-    for i in range(1, len(records)):
-        value = calculate_l_per_100km(records[i], records[i - 1])
-        if value:
-            values.append(value)
-
+    values = [value for _, value in compute_full_tank_economy(all_records, exclude_hauling)]
     if not values:
         return None
 
@@ -150,6 +222,23 @@ class FuelRecordService:
 
     def __init__(self, db: AsyncSession):
         self.db = db
+
+    async def _economy_for(self, vin: str, record: FuelRecord) -> Decimal | None:
+        """L/100km for a single just-written/read full-tank record.
+
+        Finds the previous full tank and sums the partial fill-ups since it
+        (issue #113) via a bounded SQL query rather than loading the whole
+        sequence. Returns None for partial fill-ups and un-anchorable records.
+        """
+        if not record.is_full_tank:
+            return None
+        prev_record = await get_previous_full_tank(self.db, vin, record.date, record.odometer_km)
+        interval_liters = (
+            await sum_liters_since_previous_full(self.db, vin, prev_record, record)
+            if prev_record
+            else None
+        )
+        return calculate_l_per_100km(record, prev_record, interval_liters)
 
     async def list_fuel_records(
         self,
@@ -176,32 +265,23 @@ class FuelRecordService:
             )
             records = result.scalars().all()
 
-            full_tank_result = await self.db.execute(
+            # Per-record economy for every full tank, computed once over the
+            # whole ordered sequence so partial fill-ups fold into the next full
+            # tank (issue #113). Hauling tanks stay as endpoints here — the
+            # per-record display shows a figure for each full fill-up.
+            all_asc_result = await self.db.execute(
                 select(FuelRecord)
                 .where(FuelRecord.vin == vin)
-                .where(FuelRecord.is_full_tank.is_(True))
                 .where(FuelRecord.odometer_km.isnot(None))
-                .order_by(FuelRecord.date.asc())
+                .order_by(FuelRecord.odometer_km.asc(), FuelRecord.date.asc())
             )
-            full_tank_records = full_tank_result.scalars().all()
+            all_asc = list(all_asc_result.scalars().all())
+            economy_by_id = {r.id: value for r, value in compute_full_tank_economy(all_asc)}
 
             responses = []
             for record in records:
-                value = None
-                if record.is_full_tank and record.odometer_km:
-                    prev_record = None
-                    for ft_record in reversed(full_tank_records):
-                        if ft_record.date < record.date and (
-                            not record.odometer_km or ft_record.odometer_km < record.odometer_km
-                        ):
-                            prev_record = ft_record
-                            break
-
-                    if prev_record:
-                        value = calculate_l_per_100km(record, prev_record)
-
                 record_dict = record.__dict__.copy()
-                record_dict["l_per_100km"] = value
+                record_dict["l_per_100km"] = economy_by_id.get(record.id)
                 responses.append(FuelRecordResponse(**record_dict))
 
             count_result = await self.db.execute(
@@ -242,12 +322,7 @@ class FuelRecordService:
         if not record:
             raise HTTPException(status_code=404, detail=f"Fuel record {record_id} not found")
 
-        value = None
-        if record.is_full_tank:
-            prev_record = await get_previous_full_tank(
-                self.db, vin, record.date, record.odometer_km
-            )
-            value = calculate_l_per_100km(record, prev_record)
+        value = await self._economy_for(vin, record)
 
         return record, value
 
@@ -373,12 +448,7 @@ class FuelRecordService:
             await self.db.commit()
             await self.db.refresh(record)
 
-            value = None
-            if record.is_full_tank:
-                prev_record = await get_previous_full_tank(
-                    self.db, vin, record.date, record.odometer_km
-                )
-                value = calculate_l_per_100km(record, prev_record)
+            value = await self._economy_for(vin, record)
 
             logger.info(
                 "Created fuel record %s for %s (L/100km: %s)",
@@ -532,12 +602,7 @@ class FuelRecordService:
             await self.db.commit()
             await self.db.refresh(record)
 
-            value = None
-            if record.is_full_tank:
-                prev_record = await get_previous_full_tank(
-                    self.db, vin, record.date, record.odometer_km
-                )
-                value = calculate_l_per_100km(record, prev_record)
+            value = await self._economy_for(vin, record)
 
             logger.info("Updated fuel record %s for %s", record_id, sanitize_for_log(vin))
 

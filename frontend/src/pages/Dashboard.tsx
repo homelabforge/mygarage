@@ -89,7 +89,7 @@ export default function Dashboard() {
     <>
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex flex-col gap-4 mb-8 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-3xl font-bold mb-2 text-garage-text">{t('dashboard.title')}</h1>
             <p className="text-garage-text-muted">
@@ -98,7 +98,7 @@ export default function Dashboard() {
                 : t('dashboard.subtitle')}
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             {/* Filter - only show if there are shared vehicles */}
             {vehicleCount > 0 && hasSharedVehicles && (
               <div className="relative">

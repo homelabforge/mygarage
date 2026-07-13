@@ -73,6 +73,7 @@ EXPORT_COVERAGE_SPECS: list[ExportCoverageSpec] = [
             "Odometer (km)": "odometer_km",
             "Liters": "liters",
             "Price Per Liter": "price_per_unit",
+            "Rebate": "rebate",
             "Total Cost": "cost",
             "Full Tank": "is_full_tank",
             "Missed Fill-up": "missed_fillup",
