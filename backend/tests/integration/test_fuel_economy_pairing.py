@@ -223,7 +223,7 @@ async def test_average_includes_partial_fillups(
     db_session: AsyncSession, test_user: dict[str, object]
 ) -> None:
     """#113 end-to-end (reporter's Example 2): full -> partial -> full."""
-    vin = "PARTIALAVG00000001"
+    vin = "PARTIALAVG0000001"
     db_session.add(
         Vehicle(
             vin=vin,
@@ -280,7 +280,7 @@ async def test_widget_consumption_includes_partial_fillups(
     db_session: AsyncSession, test_user: dict[str, object]
 ) -> None:
     """#113 parity: the homepage widget consumption must also count partials."""
-    vin = "PARTIALWDG00000001"
+    vin = "PARTIALWDG0000001"
     db_session.add(
         Vehicle(
             vin=vin,
