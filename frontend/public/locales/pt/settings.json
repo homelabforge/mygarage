@@ -185,26 +185,38 @@
     "testFailed": "Falha ao enviar notificação de teste via {{service}}"
   },
   "ntfy": {
-    "enable": "Ativar notificações do ntfy"
+    "enable": "Ativar notificações do ntfy",
+    "serverUrl": "URL do servidor"
   },
   "gotify": {
     "enable": "Ativar notificações do Gotify",
-    "appToken": "Token do aplicativo"
+    "appToken": "Token do aplicativo",
+    "serverUrl": "URL do servidor"
   },
   "pushover": {
-    "enable": "Ativar notificações do Pushover"
+    "apiToken": "Token da API",
+    "enable": "Ativar notificações do Pushover",
+    "userKey": "Chave do utilizador"
   },
   "slack": {
-    "enable": "Ativar notificações do Slack"
+    "enable": "Ativar notificações do Slack",
+    "webhookUrl": "URL do webhook"
   },
   "discord": {
-    "enable": "Ativar notificações do Discord"
+    "enable": "Ativar notificações do Discord",
+    "webhookUrl": "URL do webhook"
   },
   "telegram": {
+    "botToken": "Token do bot",
     "enable": "Ativar notificações do Telegram"
   },
   "email": {
-    "enable": "Ativar notificações por e-mail"
+    "enable": "Ativar notificações por e-mail",
+    "fromAddress": "Endereço de origem",
+    "smtpHost": "Servidor SMTP",
+    "smtpPassword": "Palavra-passe SMTP",
+    "smtpUsername": "Utilizador SMTP",
+    "toAddress": "Endereço de destino"
   },
   "events": {
     "title": "Notificações de eventos",

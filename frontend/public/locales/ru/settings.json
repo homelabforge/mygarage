@@ -185,26 +185,38 @@
     "testFailed": "Не удалось отправить тестовое уведомление через {{service}}"
   },
   "ntfy": {
-    "enable": "Включить уведомления ntfy"
+    "enable": "Включить уведомления ntfy",
+    "serverUrl": "URL сервера"
   },
   "gotify": {
     "enable": "Включить уведомления Gotify",
-    "appToken": "Токен приложения"
+    "appToken": "Токен приложения",
+    "serverUrl": "URL сервера"
   },
   "pushover": {
-    "enable": "Включить уведомления Pushover"
+    "apiToken": "Токен API",
+    "enable": "Включить уведомления Pushover",
+    "userKey": "Ключ пользователя"
   },
   "slack": {
-    "enable": "Включить уведомления Slack"
+    "enable": "Включить уведомления Slack",
+    "webhookUrl": "URL вебхука"
   },
   "discord": {
-    "enable": "Включить уведомления Discord"
+    "enable": "Включить уведомления Discord",
+    "webhookUrl": "URL вебхука"
   },
   "telegram": {
+    "botToken": "Токен бота",
     "enable": "Включить уведомления Telegram"
   },
   "email": {
-    "enable": "Включить уведомления по электронной почте"
+    "enable": "Включить уведомления по электронной почте",
+    "fromAddress": "Адрес отправителя",
+    "smtpHost": "SMTP-сервер",
+    "smtpPassword": "Пароль SMTP",
+    "smtpUsername": "Имя пользователя SMTP",
+    "toAddress": "Адрес получателя"
   },
   "events": {
     "title": "Уведомления о событиях",

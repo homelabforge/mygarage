@@ -185,26 +185,38 @@
     "testFailed": "Nie udało się wysłać testowego powiadomienia przez {{service}}"
   },
   "ntfy": {
-    "enable": "Włącz powiadomienia ntfy"
+    "enable": "Włącz powiadomienia ntfy",
+    "serverUrl": "Adres URL serwera"
   },
   "gotify": {
     "enable": "Włącz powiadomienia Gotify",
-    "appToken": "Token aplikacji"
+    "appToken": "Token aplikacji",
+    "serverUrl": "Adres URL serwera"
   },
   "pushover": {
-    "enable": "Włącz powiadomienia Pushover"
+    "apiToken": "Token API",
+    "enable": "Włącz powiadomienia Pushover",
+    "userKey": "Klucz użytkownika"
   },
   "slack": {
-    "enable": "Włącz powiadomienia Slack"
+    "enable": "Włącz powiadomienia Slack",
+    "webhookUrl": "Adres URL webhooka"
   },
   "discord": {
-    "enable": "Włącz powiadomienia Discord"
+    "enable": "Włącz powiadomienia Discord",
+    "webhookUrl": "Adres URL webhooka"
   },
   "telegram": {
+    "botToken": "Token bota",
     "enable": "Włącz powiadomienia Telegram"
   },
   "email": {
-    "enable": "Włącz powiadomienia e-mail"
+    "enable": "Włącz powiadomienia e-mail",
+    "fromAddress": "Adres nadawcy",
+    "smtpHost": "Serwer SMTP",
+    "smtpPassword": "Hasło SMTP",
+    "smtpUsername": "Nazwa użytkownika SMTP",
+    "toAddress": "Adres odbiorcy"
   },
   "events": {
     "title": "Powiadomienia o zdarzeniach",

@@ -2,9 +2,15 @@ name: Translations
 
 # Two deliberately separate concerns:
 #   * validate — the real, contributor-actionable correctness gate (missing
-#     keys, broken {{interpolation}}). This is the check that should fail a
-#     translation PR, and the one contributors are told to run locally
-#     (`bun run validate:translations`).
+#     keys, broken {{interpolation}}, and keys used in code but absent from
+#     English). This is the check that should fail a translation PR, and the
+#     one contributors are told to run locally (`bun run validate:translations`).
+#     Note the two halves check opposite directions: validate-translations.ts
+#     checks each language AGAINST English, while validate-i18n-usage.ts checks
+#     CODE against English — a key missing from English itself is invisible to
+#     the former and renders raw to users (that gap shipped once already).
+#     The code half also runs in the main CI's Frontend Tests job, which is not
+#     path-filtered, so a `t()` added without touching locales is still caught.
 #   * status — advisory only. Regenerates TRANSLATIONS.md + the shields.io
 #     badge and reports any drift in the job summary, but NEVER fails. Those
 #     files are generated artifacts a maintainer refreshes (usually after

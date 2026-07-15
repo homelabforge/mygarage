@@ -185,26 +185,38 @@
     "testFailed": "Не вдалося надіслати тестове сповіщення через {{service}}"
   },
   "ntfy": {
-    "enable": "Увімкнути сповіщення ntfy"
+    "enable": "Увімкнути сповіщення ntfy",
+    "serverUrl": "URL сервера"
   },
   "gotify": {
     "enable": "Увімкнути сповіщення Gotify",
-    "appToken": "Токен програми"
+    "appToken": "Токен програми",
+    "serverUrl": "URL сервера"
   },
   "pushover": {
-    "enable": "Увімкнути сповіщення Pushover"
+    "apiToken": "Токен API",
+    "enable": "Увімкнути сповіщення Pushover",
+    "userKey": "Ключ користувача"
   },
   "slack": {
-    "enable": "Увімкнути сповіщення Slack"
+    "enable": "Увімкнути сповіщення Slack",
+    "webhookUrl": "URL вебхука"
   },
   "discord": {
-    "enable": "Увімкнути сповіщення Discord"
+    "enable": "Увімкнути сповіщення Discord",
+    "webhookUrl": "URL вебхука"
   },
   "telegram": {
+    "botToken": "Токен бота",
     "enable": "Увімкнути сповіщення Telegram"
   },
   "email": {
-    "enable": "Увімкнути сповіщення електронною поштою"
+    "enable": "Увімкнути сповіщення електронною поштою",
+    "fromAddress": "Адреса відправника",
+    "smtpHost": "SMTP-сервер",
+    "smtpPassword": "Пароль SMTP",
+    "smtpUsername": "Ім'я користувача SMTP",
+    "toAddress": "Адреса отримувача"
   },
   "events": {
     "title": "Сповіщення про події",

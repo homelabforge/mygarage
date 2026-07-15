@@ -11,8 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fuel tracking (fuel, DEF, propane) is now its own primary vehicle tab instead of a Maintenance sub-tab; `?tab=fuel/def/propane` deep-links still work (#116).
 
 ### Fixed
-- PWA: the install prompt showed raw translation keys (`installPrompt.title`) instead of text.
-- Fuel: the add-station dialog showed a raw translation key as its title.
+- Translations: the PWA install prompt, Shop Finder, the notification setup forms, and the add-station dialog showed raw keys (`installPrompt.title`) instead of text — 32 strings were missing from every language.
 - Fuel: editing a fill-up now shows the station it was saved with, and retyping one replaces it (#108).
 - Fuel: editing a "one-time visit" station no longer adds it to the address book (#108).
 - Export: the fuel CSV "Station" column now shows the station name for address-book stations (#108).

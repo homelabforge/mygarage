@@ -185,26 +185,38 @@
     "testFailed": "Failed to send test notification via {{service}}"
   },
   "ntfy": {
-    "enable": "Enable ntfy notifications"
+    "enable": "Enable ntfy notifications",
+    "serverUrl": "Server URL"
   },
   "gotify": {
     "enable": "Enable Gotify notifications",
-    "appToken": "Application Token"
+    "appToken": "Application Token",
+    "serverUrl": "Server URL"
   },
   "pushover": {
-    "enable": "Enable Pushover notifications"
+    "apiToken": "API Token",
+    "enable": "Enable Pushover notifications",
+    "userKey": "User Key"
   },
   "slack": {
-    "enable": "Enable Slack notifications"
+    "enable": "Enable Slack notifications",
+    "webhookUrl": "Webhook URL"
   },
   "discord": {
-    "enable": "Enable Discord notifications"
+    "enable": "Enable Discord notifications",
+    "webhookUrl": "Webhook URL"
   },
   "telegram": {
+    "botToken": "Bot Token",
     "enable": "Enable Telegram notifications"
   },
   "email": {
-    "enable": "Enable Email notifications"
+    "enable": "Enable Email notifications",
+    "fromAddress": "From Address",
+    "smtpHost": "SMTP Host",
+    "smtpPassword": "SMTP Password",
+    "smtpUsername": "SMTP Username",
+    "toAddress": "To Address"
   },
   "events": {
     "title": "Event Notifications",
