@@ -95,9 +95,11 @@
     "streetAddress": "Endereço",
     "city": "Cidade",
     "state": "Estado",
+    "statePlaceholder": "Estado / região",
     "zipCode": "CEP",
     "notes": "Observações",
-    "notesPlaceholder": "Observações adicionais sobre este contato..."
+    "notesPlaceholder": "Observações adicionais sobre este contato...",
+    "gasStationFlag": "Posto de gasolina"
   },
   "poiFinder": {
     "title": "Encontrar pontos de interesse",
