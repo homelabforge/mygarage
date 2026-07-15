@@ -19,7 +19,7 @@ from app.schemas.fuel import (
     ObcSuggestionResponse,
 )
 from app.services.auth import get_vehicle_or_403, require_auth
-from app.services.fuel_service import FuelRecordService
+from app.services.fuel_service import FuelRecordService, build_fuel_response
 
 logger = logging.getLogger(__name__)
 
@@ -174,11 +174,7 @@ async def get_fuel_record(
     service = FuelRecordService(db)
     record, mpg = await service.get_fuel_record(vin, record_id, current_user)
 
-    # Build response with L/100km
-    record_dict = record.__dict__.copy()
-    record_dict["l_per_100km"] = mpg
-
-    return FuelRecordResponse(**record_dict)
+    return await build_fuel_response(db, record, mpg)
 
 
 @router.post("", response_model=FuelRecordResponse, status_code=201)
@@ -198,11 +194,7 @@ async def create_fuel_record(
     service = FuelRecordService(db)
     record, mpg = await service.create_fuel_record(vin, record_data, current_user)
 
-    # Build response with L/100km
-    record_dict = record.__dict__.copy()
-    record_dict["l_per_100km"] = mpg
-
-    return FuelRecordResponse(**record_dict)
+    return await build_fuel_response(db, record, mpg)
 
 
 @router.put("/{record_id}", response_model=FuelRecordResponse)
@@ -223,11 +215,7 @@ async def update_fuel_record(
     service = FuelRecordService(db)
     record, mpg = await service.update_fuel_record(vin, record_id, record_data, current_user)
 
-    # Build response with L/100km
-    record_dict = record.__dict__.copy()
-    record_dict["l_per_100km"] = mpg
-
-    return FuelRecordResponse(**record_dict)
+    return await build_fuel_response(db, record, mpg)
 
 
 @router.delete("/{record_id}", status_code=204)

@@ -158,7 +158,11 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
         : (user?.default_trip_type as FuelRecordFormData['trip_type'] ?? undefined),
       station_address_book_id: toNumber(record?.station_address_book_id),
       station_name_freetext: record?.station_name_freetext || '',
-      one_time_visit: false,
+      // A station with freetext and no FK IS a one-time visit — the flag isn't
+      // stored, it's implied by that shape. Seeding a flat `false` left the box
+      // unchecked on such a record, so editing it promoted a stop the user had
+      // deliberately kept out of the address book (issue #108).
+      one_time_visit: !record?.station_address_book_id && !!record?.station_name_freetext,
       driver_user_id: toNumber(record?.driver_user_id),
       driver_name_freetext: record?.driver_name_freetext || '',
       outside_temp_c: toNumber(record?.outside_temp_c),
@@ -220,10 +224,21 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
   }, [vin, record, setValue])
 
   // Station autocomplete state — drives both the textbox and the FK pick.
-  const [stationText, setStationText] = useState<string>(
-    record?.station_name_freetext || '',
+  // Seed from the resolved `station_name`, not the freetext: picking an
+  // address-book station stores the FK and leaves freetext null, so seeding
+  // from freetext showed a blank box on edit and looked like the station had
+  // never saved (issue #108). `station_name` covers both storage shapes.
+  const [stationText, setStationText] = useState<string>(record?.station_name || '')
+  // The saved station this fill-up points at — from the record, or picked this
+  // session. It is the baseline the typed text is compared against, so it holds
+  // steady while the text diverges; `station_address_book_id` in form state is
+  // the live answer to "still linked?" and is what actually gets submitted.
+  const [linkedStation, setLinkedStation] = useState<{ id: number; name: string } | null>(
+    record?.station_address_book_id && record?.station_name
+      ? { id: record.station_address_book_id, name: record.station_name }
+      : null,
   )
-  const [stationPicked, setStationPicked] = useState<AddressBookEntry | null>(null)
+  const hasLinkedStation = !!watch('station_address_book_id')
   // Phase 3.4 quick-add modal — opened from the autocomplete's "+ Add"
   // footer when the user types a station name not in the address book.
   const [quickAddOpen, setQuickAddOpen] = useState(false)
@@ -246,7 +261,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
   const obcAvailable = !!filledAt && filledAt.length > 0
 
   const handleStationSelect = (entry: AddressBookEntry | null) => {
-    setStationPicked(entry)
+    setLinkedStation(entry ? { id: entry.id, name: entry.business_name || '' } : null)
     if (entry) {
       setValue('station_address_book_id', entry.id, { shouldValidate: true })
       setValue('station_name_freetext', '', { shouldValidate: true })
@@ -256,9 +271,14 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
 
   const handleStationTextChange = (value: string) => {
     setStationText(value)
-    // User typed something different from the picked entry — clear the FK.
-    if (stationPicked && value !== (stationPicked.business_name || '')) {
-      setStationPicked(null)
+    // Text matching the linked station keeps (or restores) the link; anything
+    // else means the user retyped over it, so the FK has to go or the record
+    // keeps pointing at the old station (issue #108). Restoring matters as much
+    // as clearing: typing a character and deleting it would otherwise leave the
+    // link dropped and silently re-create the station on save.
+    if (linkedStation && value === linkedStation.name) {
+      setValue('station_address_book_id', linkedStation.id, { shouldValidate: true })
+    } else {
       setValue('station_address_book_id', undefined, { shouldValidate: true })
     }
     setValue('station_name_freetext', value, { shouldValidate: true })
@@ -385,9 +405,12 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
         def_fill_level: data.def_fill_level !== undefined
           ? data.def_fill_level / 100
           : undefined,
-        // Issue #69 — extended fuel tracking
-        station_address_book_id: data.station_address_book_id,
-        station_name_freetext: data.station_name_freetext || undefined,
+        // Issue #69 — extended fuel tracking.
+        // Send null, not undefined: the update path drops omitted keys
+        // (exclude_unset), so an undefined here left a cleared or retyped
+        // station's old value in place (issue #108).
+        station_address_book_id: data.station_address_book_id ?? null,
+        station_name_freetext: data.station_name_freetext || null,
         one_time_visit: data.one_time_visit ?? false,
         driver_user_id: data.driver_user_id,
         driver_name_freetext: data.driver_name_freetext || undefined,
@@ -878,14 +901,14 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
                     poiCategoryFilter="gas_station"
                     placeholder={t('fuel.stationPlaceholder')}
                     helperText={
-                      stationPicked
+                      hasLinkedStation
                         ? t('fuel.stationPicked')
                         : t('fuel.stationCreatedHint')
                     }
                     className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text border-garage-border"
                     onClear={() => {
                       setStationText('')
-                      setStationPicked(null)
+                      setLinkedStation(null)
                       setValue('station_address_book_id', undefined, { shouldValidate: true })
                       setValue('station_name_freetext', '', { shouldValidate: true })
                     }}
@@ -899,12 +922,12 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
                       type="checkbox"
                       id="one_time_visit"
                       {...register('one_time_visit')}
-                      disabled={isSubmitting || !!stationPicked}
+                      disabled={isSubmitting || hasLinkedStation}
                       className="h-4 w-4 text-primary focus:ring-primary border-garage-border rounded bg-garage-bg disabled:opacity-50"
                     />
                     <label
                       htmlFor="one_time_visit"
-                      className={`ml-2 block text-sm ${stationPicked ? 'text-garage-text-muted' : 'text-garage-text'}`}
+                      className={`ml-2 block text-sm ${hasLinkedStation ? 'text-garage-text-muted' : 'text-garage-text'}`}
                     >
                       {t('fuel.stationOneTimeVisit')}
                     </label>

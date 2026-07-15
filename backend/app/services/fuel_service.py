@@ -16,6 +16,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models import AddressBookEntry
 from app.models.fuel import FuelRecord
 from app.models.user import User
 from app.schemas.fuel import FuelRecordCreate, FuelRecordResponse, FuelRecordUpdate
@@ -32,6 +33,61 @@ logger = logging.getLogger(__name__)
 # Derived from: gal = lb/4.24 (old imperial formula, 4.24 lb/gal density of propane)
 #   L_per_kg = (1/0.45359237) / 4.24 * 3.78541  ≈  1.96850 L/kg
 PROPANE_LITERS_PER_KG = Decimal("1.9685")
+
+
+async def resolve_station_names(
+    db: AsyncSession, records: list[FuelRecord]
+) -> dict[int, str | None]:
+    """Map ``record.id`` -> the station name to display for that record.
+
+    A record either links an address-book entry (FK, freetext nulled by
+    ``resolve_fuel_station`` case 1) or carries a one-time-visit freetext name.
+    Neither alone is a reliable display value, so callers get the resolved
+    name: address-book ``business_name`` first, freetext as fallback.
+
+    Address-book names are fetched in one batched query, so this stays O(1)
+    queries regardless of how many records are passed (issue #108).
+    """
+    station_ids = {r.station_address_book_id for r in records if r.station_address_book_id}
+    names: dict[int, str] = {}
+    if station_ids:
+        result = await db.execute(
+            select(AddressBookEntry.id, AddressBookEntry.business_name).where(
+                AddressBookEntry.id.in_(station_ids)
+            )
+        )
+        names = dict(result.all())  # type: ignore[arg-type]
+
+    # names has int keys, so a null FK simply misses and falls back to freetext.
+    return {r.id: names.get(r.station_address_book_id) or r.station_name_freetext for r in records}
+
+
+async def build_fuel_response(
+    db: AsyncSession, record: FuelRecord, l_per_100km: Decimal | None
+) -> FuelRecordResponse:
+    """Build the API response for a single fuel record, station name resolved.
+
+    Uses ``db.get`` rather than the batched lookup: on create/update the
+    address-book row is already in the session's identity map (the write path
+    just loaded or created it), so this usually resolves without any query.
+    """
+    station_name = record.station_name_freetext
+    if record.station_address_book_id:
+        entry = await db.get(AddressBookEntry, record.station_address_book_id)
+        station_name = (entry.business_name if entry else None) or record.station_name_freetext
+    return _fuel_response(record, l_per_100km, station_name)
+
+
+def _fuel_response(
+    record: FuelRecord,
+    l_per_100km: Decimal | None,
+    station_name: str | None,
+) -> FuelRecordResponse:
+    """Assemble a response from an ORM row plus its derived fields."""
+    record_dict = record.__dict__.copy()
+    record_dict["l_per_100km"] = l_per_100km
+    record_dict["station_name"] = station_name
+    return FuelRecordResponse(**record_dict)
 
 
 def calculate_l_per_100km(
@@ -278,11 +334,11 @@ class FuelRecordService:
             all_asc = list(all_asc_result.scalars().all())
             economy_by_id = {r.id: value for r, value in compute_full_tank_economy(all_asc)}
 
-            responses = []
-            for record in records:
-                record_dict = record.__dict__.copy()
-                record_dict["l_per_100km"] = economy_by_id.get(record.id)
-                responses.append(FuelRecordResponse(**record_dict))
+            station_names = await resolve_station_names(self.db, list(records))
+            responses = [
+                _fuel_response(record, economy_by_id.get(record.id), station_names.get(record.id))
+                for record in records
+            ]
 
             count_result = await self.db.execute(
                 select(func.count()).select_from(FuelRecord).where(FuelRecord.vin == vin)
@@ -547,6 +603,43 @@ class FuelRecordService:
                         Decimal(str(tank_size)) * PROPANE_LITERS_PER_KG * Decimal(str(tank_qty))
                     )
                     update_data["propane_liters"] = calculated.quantize(Decimal("0.001"))
+
+            # Station inputs go through the same resolver as create, so an edit
+            # can re-point or promote a station instead of raw-writing the
+            # columns (issue #108).
+            one_time_visit = update_data.pop("one_time_visit", None)
+            if {"station_address_book_id", "station_name_freetext"} & record_data.model_fields_set:
+                # Default each omitted field from the record: under
+                # exclude_unset an absent key carries no intent, and reading it
+                # as None would let a caller that sends one station field wipe
+                # the other. Same pattern as the propane block above.
+                new_id = update_data.get("station_address_book_id", record.station_address_book_id)
+                new_text = (
+                    update_data.get("station_name_freetext", record.station_name_freetext) or None
+                )
+                # Resolve only on a real change: the form posts these fields on
+                # every save and the resolver bumps usage_count, which counts
+                # fill-ups, not saves.
+                if (new_id, new_text) != (
+                    record.station_address_book_id,
+                    record.station_name_freetext,
+                ):
+                    station_id, station_freetext = await resolve_fuel_station(
+                        self.db,
+                        station_address_book_id=new_id,
+                        station_name_freetext=new_text,
+                        # A record with freetext and no FK IS a one-time visit;
+                        # default to preserving that so editing such a station
+                        # doesn't promote a stop the user kept out of the book.
+                        one_time_visit=(
+                            bool(one_time_visit)
+                            if one_time_visit is not None
+                            else record.station_address_book_id is None
+                            and record.station_name_freetext is not None
+                        ),
+                    )
+                    update_data["station_address_book_id"] = station_id
+                    update_data["station_name_freetext"] = station_freetext
 
             for field, value in update_data.items():
                 setattr(record, field, value)

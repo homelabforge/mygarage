@@ -29,8 +29,10 @@ async def resolve_fuel_station(
     """Resolve fuel-station inputs into final FK + freetext columns.
 
     Behavior matrix:
-      1. station_address_book_id is set → use that FK; freetext stays None.
-         Bumps usage_count + last_used on the existing entry.
+      1. station_address_book_id is set AND the caller typed nothing (or typed
+         that entry's own name) → use that FK; freetext stays None. Bumps
+         usage_count + last_used on the existing entry. A typed name that
+         DIFFERS from the entry is a re-point and falls through to 2/3.
       2. station_name_freetext is set + one_time_visit=True →
          freetext stored as-is; no FK; no address_book row created.
       3. station_name_freetext is set + one_time_visit=False →
@@ -48,10 +50,19 @@ async def resolve_fuel_station(
             if station_name_freetext and station_name_freetext.strip():
                 return None, station_name_freetext.strip()[:150]
             return None, None
-        entry.usage_count = (entry.usage_count or 0) + 1
-        entry.last_used = datetime.now()
-        await db.flush()
-        return entry.id, None
+        typed = (station_name_freetext or "").strip()
+        # Honor the pick when the caller typed nothing, or typed this entry's
+        # own name. A DIFFERENT name means they retyped over the linked station
+        # — that is a re-point, so fall through and resolve the typed name.
+        # Letting the FK win here is what silently discarded the user's text
+        # and made a station look unsaveable (issue #108); arbitrating in the
+        # resolver fixes it for every caller, not just the one form that
+        # remembers to null the FK first.
+        if not typed or typed.casefold() == (entry.business_name or "").casefold():
+            entry.usage_count = (entry.usage_count or 0) + 1
+            entry.last_used = datetime.now()
+            await db.flush()
+            return entry.id, None
 
     # Cases 2/3/4 — depend on freetext presence
     name = (station_name_freetext or "").strip()

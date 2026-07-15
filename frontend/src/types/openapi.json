@@ -5122,6 +5122,18 @@
             "description": "FK to address_book entry with poi_category='gas_station'",
             "title": "Station Address Book Id"
           },
+          "station_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Resolved station name for display: the linked address-book entry's business_name, else station_name_freetext. Read-only \u2014 write via station_address_book_id / station_name_freetext (issue #108).",
+            "title": "Station Name"
+          },
           "station_name_freetext": {
             "anyOf": [
               {
@@ -5456,6 +5468,18 @@
             ],
             "description": "Odometer reading in kilometers",
             "title": "Odometer Km"
+          },
+          "one_time_visit": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Form-only flag, same meaning as on create: when True the typed station stays freetext instead of being promoted to the address book.",
+            "title": "One Time Visit"
           },
           "outside_temp_c": {
             "anyOf": [

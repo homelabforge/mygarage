@@ -414,6 +414,13 @@ class FuelRecordUpdate(BaseModel):
     # Issue #69 — extended fuel tracking
     station_address_book_id: int | None = Field(None, ge=1)
     station_name_freetext: str | None = Field(None, max_length=150)
+    one_time_visit: bool | None = Field(
+        None,
+        description=(
+            "Form-only flag, same meaning as on create: when True the typed "
+            "station stays freetext instead of being promoted to the address book."
+        ),
+    )
     driver_user_id: int | None = Field(None, ge=1)
     driver_name_freetext: str | None = Field(None, max_length=100)
     payment_method: str | None = Field(None, max_length=20)
@@ -468,6 +475,14 @@ class FuelRecordResponse(FuelRecordBase):
     vin: str
     created_at: datetime
     l_per_100km: Decimal | None = Field(None, description="Calculated fuel economy (L/100 km)")
+    station_name: str | None = Field(
+        None,
+        description=(
+            "Resolved station name for display: the linked address-book entry's "
+            "business_name, else station_name_freetext. Read-only — write via "
+            "station_address_book_id / station_name_freetext (issue #108)."
+        ),
+    )
 
     model_config = {
         "from_attributes": True,

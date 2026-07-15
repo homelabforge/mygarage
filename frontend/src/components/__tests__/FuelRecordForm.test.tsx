@@ -215,3 +215,99 @@ describe('FuelRecordForm — fill-up time (issue #109 / time-format)', () => {
     expect(timeInput().value).toBe('22:00')
   })
 })
+
+describe('FuelRecordForm — station round-trip (issue #108)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    localStorage.removeItem('fuel_form:more_details_expanded')
+  })
+
+  // A station picked from the address book: FK set, freetext nulled by the
+  // backend, resolved name carried by `station_name`.
+  const PICKED = {
+    ...REC,
+    station_address_book_id: 7,
+    station_name_freetext: null,
+    station_name: 'Exxon Mobil #42',
+  }
+  // A one-time visit: freetext only, no FK.
+  const ONE_TIME = {
+    ...REC,
+    station_address_book_id: null,
+    station_name_freetext: 'Roadside Pumps',
+    station_name: 'Roadside Pumps',
+  }
+
+  const stationInput = () =>
+    document.getElementById('station_name_freetext') as HTMLInputElement
+  const oneTimeCheckbox = () =>
+    document.getElementById('one_time_visit') as HTMLInputElement
+
+  async function renderWithRecord(record: object) {
+    const user = userEvent.setup()
+    mockedApiGet.mockResolvedValue({ data: mockVehicle({ fuel_type: 'gasoline' }) })
+    const utils = render(<FuelRecordForm {...DEFAULT_PROPS} record={record as never} />)
+    await waitFor(() => expect(mockedApiGet).toHaveBeenCalled())
+    await user.click(screen.getByText('fuel.moreDetails')) // collapsed by default
+    return utils
+  }
+
+  const putPayload = () => mockedApiPut.mock.calls[0][1] as Record<string, unknown>
+
+  it('seeds the station box from a picked address-book station', async () => {
+    await renderWithRecord(PICKED)
+    expect(stationInput().value).toBe('Exxon Mobil #42')
+  })
+
+  it('seeds the station box from a one-time-visit freetext station', async () => {
+    await renderWithRecord(ONE_TIME)
+    expect(stationInput().value).toBe('Roadside Pumps')
+  })
+
+  it('checks one-time visit for a record that IS one', async () => {
+    // The flag is not stored — it is implied by freetext-without-FK. Seeding a
+    // flat false left this unchecked, so editing promoted the stop into the
+    // address book the user had kept it out of.
+    await renderWithRecord(ONE_TIME)
+    expect(oneTimeCheckbox().checked).toBe(true)
+  })
+
+  it('leaves one-time visit unchecked for an address-book station', async () => {
+    await renderWithRecord(PICKED)
+    expect(oneTimeCheckbox().checked).toBe(false)
+  })
+
+  it('drops the stale FK when the user retypes over a picked station', async () => {
+    const { container } = await renderWithRecord(PICKED)
+
+    fireEvent.change(stationInput(), { target: { value: 'Shell Highway 6' } })
+    fireEvent.submit(container.querySelector('form') as HTMLFormElement)
+
+    await waitFor(() => expect(mockedApiPut).toHaveBeenCalled())
+    expect(putPayload().station_name_freetext).toBe('Shell Highway 6')
+    expect(putPayload().station_address_book_id).toBeNull()
+  })
+
+  it('restores the link when the typed text returns to the station name', async () => {
+    // Otherwise a stray keystroke, corrected, still submits a cleared FK and
+    // silently re-creates the station on save.
+    const { container } = await renderWithRecord(PICKED)
+
+    fireEvent.change(stationInput(), { target: { value: 'Exxon Mobil #4' } })
+    fireEvent.change(stationInput(), { target: { value: 'Exxon Mobil #42' } })
+    fireEvent.submit(container.querySelector('form') as HTMLFormElement)
+
+    await waitFor(() => expect(mockedApiPut).toHaveBeenCalled())
+    expect(putPayload().station_address_book_id).toBe(7)
+  })
+
+  it('keeps the FK when the user edits an unrelated field', async () => {
+    const { container } = await renderWithRecord(PICKED)
+
+    fireEvent.change(dateInput('date'), { target: { value: '2026-05-01' } })
+    fireEvent.submit(container.querySelector('form') as HTMLFormElement)
+
+    await waitFor(() => expect(mockedApiPut).toHaveBeenCalled())
+    expect(putPayload().station_address_book_id).toBe(7)
+  })
+})

@@ -26,6 +26,7 @@ from app.models import (
 )
 from app.models.user import User
 from app.services.auth import get_vehicle_or_403, require_auth
+from app.services.fuel_service import resolve_station_names
 from app.utils.csv_safe import sanitize_csv_row
 
 router = APIRouter(prefix="/api/export", tags=["export"])
@@ -155,6 +156,10 @@ async def export_fuel_records_csv(
         select(FuelRecord).where(FuelRecord.vin == vin).order_by(FuelRecord.date.desc())
     )
     records = result.scalars().all()
+    # "Station" showed only freetext, so it came out blank for every station
+    # picked from the address book — issue #108 in CSV form. "Station ID" still
+    # carries the FK, so the round-trip keeps its fidelity.
+    station_names = await resolve_station_names(db, list(records))
 
     # Generate CSV.
     # NOTE: column set extended for v2.27.0-rc2 (#69 issue follow-up).
@@ -204,7 +209,7 @@ async def export_fuel_records_csv(
                 record.fuel_type or "",
                 record.fuel_type_used or "",
                 record.station_address_book_id or "",
-                record.station_name_freetext or "",
+                station_names.get(record.id) or "",
                 record.driver_user_id or "",
                 record.driver_name_freetext or "",
                 record.payment_method or "",

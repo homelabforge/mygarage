@@ -7,6 +7,8 @@ Tests fuel record CRUD operations and MPG calculations.
 import pytest
 from httpx import AsyncClient
 
+from app.models import AddressBookEntry
+
 
 @pytest.mark.integration
 @pytest.mark.fuel
@@ -663,3 +665,383 @@ class TestFuelDEFSync:
         )
         assert response.status_code == 201
         assert response.json()["rebate"] is None
+
+
+@pytest.mark.integration
+@pytest.mark.fuel
+@pytest.mark.asyncio
+class TestFuelRecordStationName:
+    """Issue #108: a saved station must be readable back off the record.
+
+    Picking an address-book station stores the FK and nulls
+    ``station_name_freetext`` (fuel_station_sync case 1). The record therefore
+    carried no readable station name at all, so the edit form rendered a blank
+    box and the reporter concluded the station "won't save" unless he used
+    "one-time visit" (the only path that writes freetext). The API now returns
+    a resolved ``station_name`` on every read path.
+    """
+
+    async def _gas_station(self, client: AsyncClient, auth_headers, name: str) -> int:
+        """Create a gas-station address-book entry, return its id."""
+        response = await client.post(
+            "/api/address-book",
+            json={"business_name": name, "poi_category": "gas_station"},
+            headers=auth_headers,
+        )
+        assert response.status_code == 201
+        return response.json()["id"]
+
+    async def _fill_up(self, client: AsyncClient, auth_headers, vin: str, **station) -> dict:
+        """Create a fill-up carrying the given station fields."""
+        response = await client.post(
+            f"/api/vehicles/{vin}/fuel",
+            json={
+                "vin": vin,
+                "date": "2024-04-01",
+                "liters": 35.0,
+                "cost": 31.50,
+                "price_per_unit": 0.90,
+                "odometer_km": 26000.0,
+                "is_full_tank": True,
+                **station,
+            },
+            headers=auth_headers,
+        )
+        assert response.status_code == 201
+        return response.json()
+
+    async def test_create_returns_picked_station_name(
+        self, client: AsyncClient, auth_headers, test_vehicle_with_records
+    ):
+        """Picking an address-book station resolves its name on the response."""
+        vehicle = test_vehicle_with_records
+        station_id = await self._gas_station(client, auth_headers, "Exxon Mobil #42")
+
+        record = await self._fill_up(
+            client, auth_headers, vehicle["vin"], station_address_book_id=station_id
+        )
+
+        assert record["station_address_book_id"] == station_id
+        # The FK path nulls freetext — station_name is the only readable name.
+        assert record["station_name_freetext"] is None
+        assert record["station_name"] == "Exxon Mobil #42"
+
+    async def test_get_returns_picked_station_name(
+        self, client: AsyncClient, auth_headers, test_vehicle_with_records
+    ):
+        """#108 core: re-reading the record (the edit form's load) shows the station."""
+        vehicle = test_vehicle_with_records
+        station_id = await self._gas_station(client, auth_headers, "Costco Fuel")
+        created = await self._fill_up(
+            client, auth_headers, vehicle["vin"], station_address_book_id=station_id
+        )
+
+        response = await client.get(
+            f"/api/vehicles/{vehicle['vin']}/fuel/{created['id']}",
+            headers=auth_headers,
+        )
+
+        assert response.status_code == 200
+        assert response.json()["station_name"] == "Costco Fuel", (
+            "editing a fill-up showed a blank station box because the API "
+            "returned only the FK with no resolvable name (issue #108)"
+        )
+
+    async def test_list_returns_picked_station_name(
+        self, client: AsyncClient, auth_headers, test_vehicle_with_records
+    ):
+        """The list path resolves names too (batched, no N+1)."""
+        vehicle = test_vehicle_with_records
+        station_id = await self._gas_station(client, auth_headers, "Shell Highway 6")
+        await self._fill_up(
+            client, auth_headers, vehicle["vin"], station_address_book_id=station_id
+        )
+
+        response = await client.get(
+            f"/api/vehicles/{vehicle['vin']}/fuel",
+            headers=auth_headers,
+        )
+
+        assert response.status_code == 200
+        names = [r["station_name"] for r in response.json()["records"]]
+        assert "Shell Highway 6" in names
+
+    async def test_one_time_visit_station_name_falls_back_to_freetext(
+        self, client: AsyncClient, auth_headers, test_vehicle_with_records
+    ):
+        """A one-time visit has no FK — station_name mirrors the freetext."""
+        vehicle = test_vehicle_with_records
+
+        record = await self._fill_up(
+            client,
+            auth_headers,
+            vehicle["vin"],
+            station_name_freetext="Roadside Pumps",
+            one_time_visit=True,
+        )
+
+        assert record["station_address_book_id"] is None
+        assert record["station_name_freetext"] == "Roadside Pumps"
+        assert record["station_name"] == "Roadside Pumps"
+
+    async def test_no_station_yields_null_name(
+        self, client: AsyncClient, auth_headers, test_vehicle_with_records
+    ):
+        """A fill-up with no station at all reports no name."""
+        vehicle = test_vehicle_with_records
+
+        record = await self._fill_up(client, auth_headers, vehicle["vin"])
+
+        assert record["station_name"] is None
+
+    async def test_update_renames_station_via_freetext(
+        self, client: AsyncClient, auth_headers, test_vehicle_with_records
+    ):
+        """#108 second half: typing a new name over a picked station must win.
+
+        The form previously kept the stale FK when the user retyped, and
+        fuel_station_sync case 1 lets the FK beat the freetext — so the typed
+        name was silently discarded. Sending freetext WITHOUT the FK (what the
+        fixed form does on divergence) must re-point the record.
+        """
+        vehicle = test_vehicle_with_records
+        station_id = await self._gas_station(client, auth_headers, "Old Station")
+        created = await self._fill_up(
+            client, auth_headers, vehicle["vin"], station_address_book_id=station_id
+        )
+
+        response = await client.put(
+            f"/api/vehicles/{vehicle['vin']}/fuel/{created['id']}",
+            json={
+                "station_address_book_id": None,
+                "station_name_freetext": "New Roadside Stop",
+                "one_time_visit": True,
+            },
+            headers=auth_headers,
+        )
+
+        assert response.status_code == 200
+        record = response.json()
+        assert record["station_name"] == "New Roadside Stop"
+        assert record["station_address_book_id"] is None
+
+    async def test_update_promotes_typed_station_to_address_book(
+        self, client: AsyncClient, auth_headers, test_vehicle_with_records
+    ):
+        """Editing a fill-up must promote a typed station like creating one does.
+
+        ``update_fuel_record`` bypassed ``resolve_fuel_station`` and raw-wrote
+        the columns, so a station typed during an edit was never added to the
+        address book (create has always promoted it). Both paths now resolve.
+        """
+        vehicle = test_vehicle_with_records
+        created = await self._fill_up(client, auth_headers, vehicle["vin"])
+
+        response = await client.put(
+            f"/api/vehicles/{vehicle['vin']}/fuel/{created['id']}",
+            json={"station_name_freetext": "Buc-ees Luling", "one_time_visit": False},
+            headers=auth_headers,
+        )
+
+        assert response.status_code == 200
+        record = response.json()
+        assert record["station_name"] == "Buc-ees Luling"
+        assert record["station_address_book_id"] is not None, (
+            "a station typed while editing was stored as raw freetext and never "
+            "promoted to the address book, unlike the create path (issue #108)"
+        )
+
+        # It must be a real, reusable gas-station entry in the address book.
+        book = await client.get("/api/address-book", headers=auth_headers)
+        assert book.status_code == 200
+        entries = book.json()
+        entries = entries["entries"] if isinstance(entries, dict) else entries
+        match = [e for e in entries if e["id"] == record["station_address_book_id"]]
+        assert match, "promoted station is not in the address book"
+        assert match[0]["business_name"] == "Buc-ees Luling"
+        assert match[0]["poi_category"] == "gas_station"
+
+    async def test_retyped_name_beats_a_stale_fk_server_side(
+        self, client: AsyncClient, auth_headers, test_vehicle_with_records
+    ):
+        """The FK must not silently beat a name the caller typed.
+
+        This is #108's actual mechanism, pinned at the API rather than the
+        form: resolve_fuel_station case 1 honored the FK and dropped the
+        freetext, so any client that did not remember to null the FK itself
+        had its typed station discarded. The server now arbitrates.
+        """
+        vehicle = test_vehicle_with_records
+        station_id = await self._gas_station(client, auth_headers, "Old Station")
+        created = await self._fill_up(
+            client, auth_headers, vehicle["vin"], station_address_book_id=station_id
+        )
+
+        # Both fields sent, and they disagree — the typed name is the intent.
+        response = await client.put(
+            f"/api/vehicles/{vehicle['vin']}/fuel/{created['id']}",
+            json={
+                "station_address_book_id": station_id,
+                "station_name_freetext": "Chevron On Main",
+            },
+            headers=auth_headers,
+        )
+
+        assert response.status_code == 200
+        record = response.json()
+        assert record["station_name"] == "Chevron On Main", (
+            "the stale FK won over the typed station name — issue #108's "
+            "mechanism, still reachable by any non-form API client"
+        )
+        assert record["station_address_book_id"] != station_id
+
+    async def test_typed_name_matching_the_link_keeps_the_link(
+        self, client: AsyncClient, auth_headers, test_vehicle_with_records
+    ):
+        """Sending the linked station's own name is not a re-point."""
+        vehicle = test_vehicle_with_records
+        station_id = await self._gas_station(client, auth_headers, "Same Station")
+        created = await self._fill_up(
+            client, auth_headers, vehicle["vin"], station_address_book_id=station_id
+        )
+
+        response = await client.put(
+            f"/api/vehicles/{vehicle['vin']}/fuel/{created['id']}",
+            json={
+                "station_address_book_id": station_id,
+                "station_name_freetext": "same station",  # case-insensitive match
+            },
+            headers=auth_headers,
+        )
+
+        assert response.status_code == 200
+        assert response.json()["station_address_book_id"] == station_id
+
+    async def test_update_preserves_a_one_time_visit_station(
+        self, client: AsyncClient, auth_headers, test_vehicle_with_records
+    ):
+        """Editing a one-time-visit station must not promote it.
+
+        The user deliberately kept this stop out of the address book. Routing
+        update through the resolver made a typo fix promote it whenever the
+        caller did not re-assert one_time_visit.
+        """
+        vehicle = test_vehicle_with_records
+        created = await self._fill_up(
+            client,
+            auth_headers,
+            vehicle["vin"],
+            station_name_freetext="Roadside Pumps",
+            one_time_visit=True,
+        )
+        assert created["station_address_book_id"] is None
+
+        # one_time_visit deliberately NOT sent: the flag isn't stored, so the
+        # server must infer it from the record's shape (freetext, no FK) rather
+        # than defaulting to False and promoting.
+        response = await client.put(
+            f"/api/vehicles/{vehicle['vin']}/fuel/{created['id']}",
+            json={"station_name_freetext": "Roadside Pumps 2"},
+            headers=auth_headers,
+        )
+
+        assert response.status_code == 200
+        record = response.json()
+        assert record["station_name"] == "Roadside Pumps 2"
+        assert record["station_address_book_id"] is None, (
+            "a one-time-visit station was promoted into the address book on edit"
+        )
+
+        # And it must not have leaked into the address book as a side effect.
+        book = await client.get("/api/address-book", headers=auth_headers)
+        entries = book.json()
+        entries = entries["entries"] if isinstance(entries, dict) else entries
+        assert not [e for e in entries if e["business_name"] == "Roadside Pumps 2"]
+
+    async def test_partial_update_does_not_wipe_the_linked_station(
+        self, client: AsyncClient, auth_headers, test_vehicle_with_records
+    ):
+        """An omitted station field must not be read as 'clear the station'.
+
+        ``exclude_unset`` means an absent key carries no intent; defaulting it
+        to None would let a caller that sends only one station field silently
+        wipe the other.
+        """
+        vehicle = test_vehicle_with_records
+        station_id = await self._gas_station(client, auth_headers, "Kept Station")
+        created = await self._fill_up(
+            client, auth_headers, vehicle["vin"], station_address_book_id=station_id
+        )
+
+        # Only freetext sent, and it is null — the FK was never mentioned.
+        response = await client.put(
+            f"/api/vehicles/{vehicle['vin']}/fuel/{created['id']}",
+            json={"station_name_freetext": None},
+            headers=auth_headers,
+        )
+
+        assert response.status_code == 200
+        record = response.json()
+        assert record["station_address_book_id"] == station_id
+        assert record["station_name"] == "Kept Station"
+
+    async def test_unrelated_save_does_not_inflate_station_usage(
+        self, client: AsyncClient, auth_headers, test_vehicle_with_records, db_session
+    ):
+        """Re-sending an unchanged station must not bump its usage_count.
+
+        The form posts the station fields on every save. usage_count orders the
+        station autocomplete and the POI list, so bumping it per save (rather
+        than per fill-up) would quietly reorder the user's suggestions.
+        """
+        vehicle = test_vehicle_with_records
+        station_id = await self._gas_station(client, auth_headers, "Counted Station")
+        created = await self._fill_up(
+            client, auth_headers, vehicle["vin"], station_address_book_id=station_id
+        )
+
+        # usage_count is not exposed by the API (it only orders the
+        # autocomplete), so read it off the row the client session shares.
+        async def usage() -> int:
+            entry = await db_session.get(AddressBookEntry, station_id)
+            await db_session.refresh(entry)
+            return entry.usage_count or 0
+
+        before = await usage()
+
+        # Exactly what the form sends on an unrelated edit: station unchanged.
+        response = await client.put(
+            f"/api/vehicles/{vehicle['vin']}/fuel/{created['id']}",
+            json={
+                "notes": "topped off",
+                "station_address_book_id": station_id,
+                "station_name_freetext": None,
+            },
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+
+        assert await usage() == before, (
+            "an unrelated edit bumped the station's usage_count — it counts fill-ups, not saves"
+        )
+
+    async def test_update_of_other_field_preserves_station(
+        self, client: AsyncClient, auth_headers, test_vehicle_with_records
+    ):
+        """Editing an unrelated field must not disturb the linked station."""
+        vehicle = test_vehicle_with_records
+        station_id = await self._gas_station(client, auth_headers, "Sticky Station")
+        created = await self._fill_up(
+            client, auth_headers, vehicle["vin"], station_address_book_id=station_id
+        )
+
+        response = await client.put(
+            f"/api/vehicles/{vehicle['vin']}/fuel/{created['id']}",
+            json={"notes": "topped off"},
+            headers=auth_headers,
+        )
+
+        assert response.status_code == 200
+        record = response.json()
+        assert record["station_address_book_id"] == station_id
+        assert record["station_name"] == "Sticky Station"

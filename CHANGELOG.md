@@ -10,6 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Fuel tracking (fuel, DEF, propane) is now its own primary vehicle tab instead of a Maintenance sub-tab; `?tab=fuel/def/propane` deep-links still work (#116).
 
+### Fixed
+- Fuel: editing a fill-up now shows the station it was saved with, instead of a blank box that made saved stations look lost (#108).
+- Fuel: retyping a station while editing a fill-up now replaces it, and is saved to the address book like it is on create, instead of being silently discarded (#108).
+- Fuel: editing a "one-time visit" station no longer adds it to the address book (#108).
+- Export: the fuel CSV "Station" column now shows the station name instead of being blank for address-book stations (#108).
+
 ## [2.31.0-rc3] - 2026-07-13
 
 ### Added

@@ -7789,6 +7789,11 @@ export interface components {
              */
             station_address_book_id?: number | null;
             /**
+             * Station Name
+             * @description Resolved station name for display: the linked address-book entry's business_name, else station_name_freetext. Read-only — write via station_address_book_id / station_name_freetext (issue #108).
+             */
+            station_name?: string | null;
+            /**
              * Station Name Freetext
              * @description Freetext station name (one-time visit, no address-book entry created)
              */
@@ -7895,6 +7900,11 @@ export interface components {
              * @description Odometer reading in kilometers
              */
             odometer_km?: number | string | null;
+            /**
+             * One Time Visit
+             * @description Form-only flag, same meaning as on create: when True the typed station stays freetext instead of being promoted to the address book.
+             */
+            one_time_visit?: boolean | null;
             /** Outside Temp C */
             outside_temp_c?: number | string | null;
             /** Payment Method */
