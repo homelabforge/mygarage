@@ -7,7 +7,9 @@
  * empty-value keys.
  *
  * Usage: bun run scripts/validate-translations.ts
- * Exit code: 1 if any missing keys found, 0 otherwise.
+ * Exit code: 1 if any {{interpolation}} placeholders are broken, 0 otherwise.
+ * Missing keys are reported as a non-blocking warning (they fall back to
+ * English), so this can gate PRs without blocking new English strings.
  */
 
 import { existsSync } from 'fs'
@@ -162,11 +164,23 @@ for (const lang of languages) {
 
 const missingCount = issues.filter(i => i.type === 'missing').length
 const interpolationCount = issues.filter(i => i.type === 'interpolation').length
-if (missingCount > 0 || interpolationCount > 0) {
-  if (missingCount > 0) console.log(`⚠ ${missingCount} missing key(s) found across all languages.`)
-  if (interpolationCount > 0) console.log(`⚠ ${interpolationCount} interpolation variable(s) missing across all languages.`)
+
+// Only broken {{interpolation}} placeholders are a hard failure: they're a
+// real bug in a provided translation and can't be caught by eye across every
+// key. Missing keys are a non-blocking warning — untranslated keys fall back
+// to English, which is expected while a language is still in progress and
+// lets new English strings land without translating every language first.
+if (interpolationCount > 0) {
+  console.log(`✗ ${interpolationCount} interpolation variable(s) missing — these break rendering.`)
+  if (missingCount > 0) {
+    console.log(`  (${missingCount} missing key(s) also found; those fall back to English and don't block.)`)
+  }
   process.exit(1)
+}
+
+if (missingCount > 0) {
+  console.log(`⚠ ${missingCount} missing key(s) — will fall back to English (non-blocking).`)
 } else {
   console.log('✓ All translation keys present across all languages.')
-  process.exit(0)
 }
+process.exit(0)

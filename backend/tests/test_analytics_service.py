@@ -271,17 +271,18 @@ class TestCalculateFuelEconomy:
         assert len(df) == 1
         assert stats["average_l_per_100km"] == Decimal("9.41")
 
-    def test_filters_negative_miles(self):
-        """Test that negative mileage diffs are filtered (odometer correction)."""
+    def test_orders_by_odometer_not_date(self):
+        """Records are sequenced by odometer (the canonical economy model), so a
+        chronologically out-of-order odometer is re-sequenced into forward
+        intervals rather than producing a negative-distance artifact."""
         records = [
             _make_fuel_record(
                 date=date(2024, 1, 1), mileage=10000, gallons=Decimal("12.0"), cost=Decimal("40.00")
             ),
-            # Odometer went backwards
+            # Entered earlier by date but with a lower odometer.
             _make_fuel_record(
                 date=date(2024, 1, 15), mileage=9500, gallons=Decimal("12.0"), cost=Decimal("40.00")
             ),
-            # Normal
             _make_fuel_record(
                 date=date(2024, 2, 1), mileage=9800, gallons=Decimal("12.0"), cost=Decimal("40.00")
             ),
@@ -289,8 +290,10 @@ class TestCalculateFuelEconomy:
 
         df, stats = analytics_service.calculate_fuel_economy_with_pandas(records)
 
-        # Only the 9500->9800 (300 mi) trip should be valid
-        assert len(df) == 1
+        # Odometer order 9500 -> 9800 -> 10000 yields two forward intervals
+        # (300 mi and 200 mi), both realistic, so two points — no negative diff.
+        assert len(df) == 2
+        assert stats["best_l_per_100km"] <= stats["worst_l_per_100km"]
 
     def test_records_missing_mileage_or_gallons(self):
         """Test that records without mileage or gallons are excluded."""
@@ -311,6 +314,40 @@ class TestCalculateFuelEconomy:
 
         assert df.empty
         assert stats == {}
+
+    def test_partial_fillups_fold_into_next_full_tank(self):
+        """#113 coherence: a partial fill-up between two full tanks gets no point
+        of its own; its volume folds into the next full tank's figure — the same
+        model as the fuel list, average, garage card, and widget."""
+        records = [
+            _make_fuel_record(
+                date=date(2026, 2, 11),
+                odometer_km=Decimal("139530"),
+                liters=Decimal("23.52"),
+                is_full_tank=True,
+            ),
+            _make_fuel_record(
+                date=date(2026, 2, 23),
+                odometer_km=Decimal("140105"),
+                liters=Decimal("24.79"),
+                is_full_tank=False,
+            ),
+            _make_fuel_record(
+                date=date(2026, 3, 10),
+                odometer_km=Decimal("140354"),
+                liters=Decimal("52.95"),
+                is_full_tank=True,
+            ),
+        ]
+
+        df, stats = analytics_service.calculate_fuel_economy_with_pandas(records)
+
+        # One point (the second full tank); the partial is not plotted.
+        assert len(df) == 1
+        # (24.79 + 52.95) / (140354 - 139530) * 100 = 77.74 / 824 * 100 = 9.43,
+        # not the 52.95-only 6.43 the old per-fill-up path produced.
+        assert stats["average_l_per_100km"] == Decimal("9.43")
+        assert stats["recent_l_per_100km"] == Decimal("9.43")
 
 
 @pytest.mark.unit

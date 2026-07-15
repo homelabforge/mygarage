@@ -72,11 +72,13 @@ describe('Address Book Schema', () => {
     expect(result.success).toBe(true)
   })
 
-  it('rejects state over 2 characters', () => {
-    const result = addressBookSchema.safeParse({
-      ...validEntry,
-      state: 'Texas',
-    })
-    expect(result.success).toBe(false)
+  it('accepts a 3-character region code (e.g. VIC)', () => {
+    expect(addressBookSchema.safeParse({ ...validEntry, state: 'VIC' }).success).toBe(true)
+  })
+  it('accepts a full region name up to 50 chars', () => {
+    expect(addressBookSchema.safeParse({ ...validEntry, state: 'New South Wales' }).success).toBe(true)
+  })
+  it('rejects a state longer than 50 chars', () => {
+    expect(addressBookSchema.safeParse({ ...validEntry, state: 'x'.repeat(51) }).success).toBe(false)
   })
 })

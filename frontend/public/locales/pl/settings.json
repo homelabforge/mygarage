@@ -246,5 +246,11 @@
     "createFullError": "Nie udało się utworzyć pełnej kopii zapasowej",
     "restoreOverwrite": "Przywróć (nadpisuje wszystkie dane)",
     "noFullBackups": "Brak pełnych kopii zapasowych. Utwórz pierwszą, aby rozpocząć."
+  },
+  "timeFormat": {
+    "label": "Format czasu",
+    "twelveHour": "12-godzinny",
+    "twentyFourHour": "24-godzinny",
+    "description": "Wybierz sposób wyświetlania godzin w całej aplikacji."
   }
 }

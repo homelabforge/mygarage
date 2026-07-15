@@ -13,7 +13,8 @@ import {
   Archive,
 } from 'lucide-react'
 import api from '@/services/api'
-import { formatAPITimestamp } from '@/utils/parseAPITimestamp'
+import { formatDateTime } from '@/utils/parseAPITimestamp'
+import { useTimeFormat } from '@/hooks/useTimeFormat'
 
 interface BackupFile {
   filename: string
@@ -41,6 +42,7 @@ interface BackupStats {
 
 export default function SettingsBackupTab() {
   const { t } = useTranslation('settings')
+  const { timeFormat } = useTimeFormat()
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState<BackupStats | null>(null)
   const [settingsBackups, setSettingsBackups] = useState<BackupFile[]>([])
@@ -189,7 +191,7 @@ export default function SettingsBackupTab() {
   }
 
   const formatDate = (dateString: string): string => {
-    return formatAPITimestamp(dateString, (d) => d.toLocaleString())
+    return formatDateTime(dateString, timeFormat, { seconds: true })
   }
 
   const formatSize = (sizeMb: number) => {

@@ -37,6 +37,7 @@ export const fuelRecordSchema = z.object({
   propane_liters: optionalVolumeSchema,
   kwh: optionalKwhSchema,
   cost: optionalCurrencySchema,
+  rebate: optionalCurrencySchema,
   price_per_unit: optionalPricePerUnitSchema,
   price_basis: z.enum(PRICE_BASIS_VALUES).optional(),
   fuel_type: z.string().max(50, 'Fuel type too long').optional(),

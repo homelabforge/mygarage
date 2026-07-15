@@ -15,6 +15,7 @@ from urllib.parse import urlencode
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.models.user import User
 from app.utils.datetime_utils import utc_now
 from app.utils.logging_utils import sanitize_for_log
@@ -71,8 +72,22 @@ async def create_authorization_url(
     # Determine redirect URI
     redirect_uri = config.get("redirect_uri", "").strip()
     if not redirect_uri:
-        # Auto-generate redirect URI
+        # Auto-generate redirect URI (already prefix-aware: base_url includes
+        # settings.root_path when the caller built it via oidc.py's
+        # _external_base, #107)
         redirect_uri = f"{base_url.rstrip('/')}/api/auth/oidc/callback"
+    elif settings.root_path and settings.root_path not in redirect_uri:
+        # A manually-configured redirect_uri is used verbatim (admin's
+        # responsibility per settings_init.py help text) — but warn loudly
+        # since a missing subpath prefix here means an opaque IdP callback
+        # mismatch at login time (#107).
+        logger.warning(
+            "Configured oidc_redirect_uri (%s) does not include the "
+            "MYGARAGE_ROOT_PATH prefix (%s); the IdP callback will likely "
+            "fail under this subpath. Update the setting to include the prefix.",
+            redirect_uri,
+            settings.root_path,
+        )
 
     # Store state for validation in database
     await store_oidc_state(db, state, redirect_uri, nonce, code_verifier=code_verifier)

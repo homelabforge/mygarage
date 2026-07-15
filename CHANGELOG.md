@@ -7,8 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Fuel tracking (fuel, DEF, propane) is now its own primary vehicle tab instead of a Maintenance sub-tab; `?tab=fuel/def/propane` deep-links still work (#116).
+
+## [2.31.0-rc3] - 2026-07-13
+
+### Added
+- Fuel: optional **Rebate** field (points, discounts, cash back) next to Total Cost; Total Cost then stores the net paid (price × volume − rebate), so all cost surfaces and CSV/JSON export/import reflect it (migration 067).
+- Settings: Brazilian timezones in the System timezone dropdown — 12 IANA zones covering Brazil's UTC-2/-3/-4/-5 offsets; thanks [@sigrist](https://github.com/sigrist) (#112).
+
+### Fixed
+- Quick Entry: no longer shows "No vehicles" on a cold app launch when the account has them — the vehicle list is fetched fresh (no longer service-worker cached) and retries instead of dead-ending (#114).
+- Fuel economy: partial fill-ups between two full tanks now count toward the next full tank's L/100km across every surface (record, average, garage card, widget, Analytics) instead of being ignored (#113).
+- Mobile layout: the Home and Fuel History action buttons no longer overflow the viewport — both toolbars stack/wrap on narrow screens instead of forcing a single fixed-width row (#115).
+- Analytics: the CSV and PDF export buttons are now a single "Export" dropdown, so the header no longer runs off narrow screens.
+- Settings: the section tabs now use the same responsive layout as the vehicle sub-tabs (icons-only on mobile) instead of a single row that overflowed.
+- PWA: serve `sw.js`, `manifest.json`, and the SPA shell with `Cache-Control: no-cache` so CDN edge caches (e.g. Cloudflare) can't pin a stale service worker or index across deploys.
+
+## [2.31.0-rc2] - 2026-07-11
+
 ### Added
 - OIDC: `MYGARAGE_TRUSTED_HOSTS` allow-lists a self-hosted issuer that resolves to a private/LAN IP (split-horizon DNS), relaxing the SSRF private-IP block for those hosts only.
+- Address Book: mark/unmark a contact as a gas station in the editor (checkbox); previously only fuel-record quick-add could set it.
+- Reverse proxy: `MYGARAGE_ROOT_PATH` serves MyGarage under a URL subpath (e.g. `/mygarage`) behind a prefix-stripping proxy — OIDC, PWA, media, and deep-links included; no image rebuild required (#107).
+- Preferences: per-user 12-hour / 24-hour time format (Settings → System, default 12-hour), applied to every displayed time and the fuel fill-up time entry.
+- i18n: Brazilian Portuguese (pt-BR) translation — thanks [@FabioCastilho](https://github.com/FabioCastilho).
+
+### Fixed
+- Address Book: State/region field accepts non-US codes (e.g. VIC, NSW) up to 50 chars — editor and fuel quick-add now agree (#108).
+- Address Book: unify the gas-station tag on `gas_station` (FATAL migration 065) so the Gas-Stations filter, autocomplete ranking, and vendor-sync exclusion all match; quick-add-created stations are now correctly excluded from vendor sync (#108).
+- Fuel: the fill-up time field follows the 12h/24h preference (12-hour has an explicit AM/PM selector) and drops the redundant separate date, replacing the locale-dependent native widget (#109).
+- i18n: define 35 `common` keys referenced app-wide but missing from the English source, so form and table labels no longer render as raw keys (all five languages).
 
 ## [2.31.0-rc1] - 2026-07-03
 

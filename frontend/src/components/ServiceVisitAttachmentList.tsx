@@ -3,6 +3,7 @@ import { Download, Trash2, FileText, Image, AlertCircle } from 'lucide-react'
 import { formatDateForDisplay } from '../utils/dateUtils'
 import { toast } from 'sonner'
 import api from '../services/api'
+import { apiRelative } from '../utils/basePath'
 import type { Attachment } from '../types/attachment'
 
 interface ServiceVisitAttachmentListProps {
@@ -52,7 +53,7 @@ export default function ServiceVisitAttachmentList({
 
   const handleDownload = async (attachment: Attachment) => {
     try {
-      const response = await api.get(attachment.download_url, {
+      const response = await api.get(apiRelative(attachment.download_url), {
         responseType: 'blob',
       })
 

@@ -7,6 +7,7 @@ import { useParams, Link } from 'react-router-dom'
 import api from '../services/api'
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { UnitConverter, UnitFormatter } from '../utils/units'
+import { withBase } from '../utils/basePath'
 import {
   ArrowLeft,
   TrendingUp,
@@ -19,7 +20,6 @@ import {
   PieChart,
   LineChart,
   AlertTriangle,
-  Download,
   HelpCircle,
   Droplets,
 } from 'lucide-react'
@@ -55,6 +55,7 @@ import type {
   DEFAnalysis,
 } from '../types/analytics'
 import AnalyticsHelpModal from '../components/AnalyticsHelpModal'
+import ExportMenu from '../components/ExportMenu'
 import { formatCurrencyZero as formatCurrency } from '../utils/formatUtils'
 import { formatDateForDisplay } from '../utils/dateUtils'
 import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
@@ -396,23 +397,13 @@ export default function Analytics() {
               <HelpCircle className="w-4 h-4" />
               Help
             </button>
-            <button
-              onClick={exportToCSV}
-              className="px-4 py-2 bg-garage-surface border border-garage-border text-garage-text rounded-lg hover:bg-garage-surface-light transition-colors flex items-center gap-2"
-            >
-              <Download className="w-4 h-4" />
-              CSV
-            </button>
-            <button
-              onClick={() => {
+            <ExportMenu
+              onExportCSV={exportToCSV}
+              onExportPDF={() => {
                 const params = new URLSearchParams({ currency_code: currencyCode, locale })
-                window.open(`/api/analytics/vehicles/${vin}/export?${params.toString()}`, '_blank')
+                window.open(withBase(`/api/analytics/vehicles/${vin}/export?${params.toString()}`), '_blank')
               }}
-              className="px-4 py-2 bg-garage-surface border border-garage-border text-garage-text rounded-lg hover:bg-garage-surface-light transition-colors flex items-center gap-2"
-            >
-              <Download className="w-4 h-4" />
-              PDF
-            </button>
+            />
           </div>
         </div>
         {fromCache && (

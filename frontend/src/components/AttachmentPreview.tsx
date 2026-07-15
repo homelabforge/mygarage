@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import type { Attachment } from '../types/attachment'
+import { withBase } from '../utils/basePath'
 
 interface AttachmentPreviewProps {
   attachment: Attachment
@@ -58,14 +59,14 @@ export default function AttachmentPreview({ attachment, onClose }: AttachmentPre
         <div className="flex-1 flex items-center justify-center overflow-auto">
           {isImage && (
             <img
-              src={attachment.view_url || attachment.download_url}
+              src={withBase(attachment.view_url || attachment.download_url)}
               alt={attachment.file_name}
               className="max-w-full max-h-full object-contain rounded-lg"
             />
           )}
           {isPDF && (
             <iframe
-              src={attachment.view_url || attachment.download_url}
+              src={withBase(attachment.view_url || attachment.download_url)}
               className="w-full h-full bg-white rounded-lg"
               title={attachment.file_name}
             />
@@ -74,7 +75,7 @@ export default function AttachmentPreview({ attachment, onClose }: AttachmentPre
             <div className="text-center text-white">
               <p className="text-lg mb-4">Preview not available for this file type</p>
               <a
-                href={attachment.download_url}
+                href={withBase(attachment.download_url)}
                 download={attachment.file_name}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90 transition-colors"
               >

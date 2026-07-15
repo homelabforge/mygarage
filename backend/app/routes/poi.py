@@ -138,7 +138,7 @@ async def search_nearby_pois(
         - Tries providers in priority order (TomTom → OSM → etc.)
         - Supports multiple simultaneous category searches
         - Returns empty results on error (graceful degradation)
-        - Categories: auto_shop, rv_shop, ev_charging, fuel_station
+        - Categories: auto_shop, rv_shop, ev_charging, gas_station
     """
     service = POIDiscoveryService(db)
 
@@ -259,7 +259,7 @@ async def get_poi_recommendations(
     """Get recommended POIs based on usage history.
 
     Args:
-        category: Optional POI category filter (auto_shop, rv_shop, ev_charging, fuel_station)
+        category: Optional POI category filter (auto_shop, rv_shop, ev_charging, gas_station)
         limit: Maximum number of recommendations (default: 5)
         db: Database session
         current_user: Authenticated user
@@ -280,7 +280,7 @@ async def get_poi_recommendations(
         except ValueError:
             raise HTTPException(
                 status_code=400,
-                detail=f"Invalid category: {category}. Must be one of: auto_shop, rv_shop, ev_charging, fuel_station",
+                detail=f"Invalid category: {category}. Must be one of: auto_shop, rv_shop, ev_charging, gas_station",
             )
 
     # Build query conditions

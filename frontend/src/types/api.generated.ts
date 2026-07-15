@@ -2570,7 +2570,7 @@ export interface paths {
          * @description Get recommended POIs based on usage history.
          *
          *     Args:
-         *         category: Optional POI category filter (auto_shop, rv_shop, ev_charging, fuel_station)
+         *         category: Optional POI category filter (auto_shop, rv_shop, ev_charging, gas_station)
          *         limit: Maximum number of recommendations (default: 5)
          *         db: Database session
          *         current_user: Authenticated user
@@ -2653,7 +2653,7 @@ export interface paths {
          *         - Tries providers in priority order (TomTom → OSM → etc.)
          *         - Supports multiple simultaneous category searches
          *         - Returns empty results on error (graceful degradation)
-         *         - Categories: auto_shop, rv_shop, ev_charging, fuel_station
+         *         - Categories: auto_shop, rv_shop, ev_charging, gas_station
          */
         post: operations["search_nearby_pois_api_poi_search_post"];
         delete?: never;
@@ -5868,6 +5868,8 @@ export interface components {
             show_both_units?: boolean | null;
             /** Show On Family Dashboard */
             show_on_family_dashboard?: boolean | null;
+            /** Time Format */
+            time_format?: string | null;
             /** Unit Preference */
             unit_preference?: string | null;
         };
@@ -7439,7 +7441,7 @@ export interface components {
         FuelRecordCreate: {
             /**
              * Cost
-             * @description Total cost
+             * @description Total cost, net of any rebate
              */
             cost?: number | string | null;
             /**
@@ -7563,8 +7565,13 @@ export interface components {
              */
             propane_liters?: number | string | null;
             /**
+             * Rebate
+             * @description Rebate/discount/points redeemed; already deducted from cost
+             */
+            rebate?: number | string | null;
+            /**
              * Station Address Book Id
-             * @description FK to address_book entry with poi_category='fuel_station'
+             * @description FK to address_book entry with poi_category='gas_station'
              */
             station_address_book_id?: number | null;
             /**
@@ -7647,7 +7654,7 @@ export interface components {
         FuelRecordResponse: {
             /**
              * Cost
-             * @description Total cost
+             * @description Total cost, net of any rebate
              */
             cost?: string | null;
             /**
@@ -7772,8 +7779,13 @@ export interface components {
              */
             propane_liters?: string | null;
             /**
+             * Rebate
+             * @description Rebate/discount/points redeemed; already deducted from cost
+             */
+            rebate?: string | null;
+            /**
              * Station Address Book Id
-             * @description FK to address_book entry with poi_category='fuel_station'
+             * @description FK to address_book entry with poi_category='gas_station'
              */
             station_address_book_id?: number | null;
             /**
@@ -7810,7 +7822,7 @@ export interface components {
         FuelRecordUpdate: {
             /**
              * Cost
-             * @description Total cost
+             * @description Total cost, net of any rebate
              */
             cost?: number | string | null;
             /**
@@ -7899,6 +7911,11 @@ export interface components {
              * @description Propane amount in liters
              */
             propane_liters?: number | string | null;
+            /**
+             * Rebate
+             * @description Rebate/discount/points redeemed; already deducted from cost
+             */
+            rebate?: number | string | null;
             /** Station Address Book Id */
             station_address_book_id?: number | null;
             /** Station Name Freetext */
@@ -11794,6 +11811,11 @@ export interface components {
              */
             show_on_family_dashboard: boolean;
             /**
+             * Time Format
+             * @default 12h
+             */
+            time_format: string;
+            /**
              * Unit Preference
              * @default imperial
              */
@@ -11827,6 +11849,8 @@ export interface components {
             mobile_quick_entry_enabled?: boolean | null;
             /** Show Both Units */
             show_both_units?: boolean | null;
+            /** Time Format */
+            time_format?: string | null;
             /** Unit Preference */
             unit_preference?: string | null;
         };
@@ -13765,7 +13789,7 @@ export interface operations {
                 search?: string | null;
                 /** @description Filter by category */
                 category?: string | null;
-                /** @description Filter by POI category (e.g. 'fuel_station' for the Gas Stations filter view). Combine with `search` for autocomplete. */
+                /** @description Filter by POI category (e.g. 'gas_station' for the Gas Stations filter view). Combine with `search` for autocomplete. */
                 poi_category?: string | null;
             };
             header?: never;

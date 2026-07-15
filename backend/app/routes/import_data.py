@@ -347,6 +347,7 @@ async def import_fuel_csv(
                 price_per_unit = price_raw
 
             cost = parse_decimal(row.get("Total Cost", "") or row.get("Cost", ""))
+            rebate = parse_decimal(row.get("Rebate", ""))
             is_full_tank = parse_bool(row.get("Full Tank", "True"))
             missed_fillup = parse_bool(row.get("Missed Fill-up", "False"))
             notes = row.get("Notes", "").strip() or None
@@ -390,6 +391,7 @@ async def import_fuel_csv(
                 liters=liters,
                 price_per_unit=price_per_unit,
                 cost=cost,
+                rebate=rebate,
                 is_full_tank=is_full_tank,
                 missed_fillup=missed_fillup,
                 notes=notes,
@@ -948,7 +950,8 @@ async def import_vehicle_json(
             results["service_records"]["success"] += 1
         except Exception as e:
             results["service_records"]["errors"] += 1
-            results["errors"].append(f"Service record {idx}: {str(e)}")
+            logger.warning("Import: service record %s failed: %s", idx, sanitize_for_log(e))
+            results["errors"].append(f"Service record {idx}: could not be imported")
 
     # Import fuel records
     for idx, record_data in enumerate(data.get("fuel_records", [])):
@@ -984,6 +987,7 @@ async def import_vehicle_json(
                 liters=imported_liters,
                 price_per_unit=imported_ppu,
                 cost=Decimal(str(record_data["cost"])) if record_data.get("cost") else None,
+                rebate=Decimal(str(record_data["rebate"])) if record_data.get("rebate") else None,
                 is_full_tank=record_data.get("is_full_tank", True),
                 missed_fillup=record_data.get("missed_fillup", False),
                 notes=record_data.get("notes"),
@@ -992,7 +996,8 @@ async def import_vehicle_json(
             results["fuel_records"]["success"] += 1
         except Exception as e:
             results["fuel_records"]["errors"] += 1
-            results["errors"].append(f"Fuel record {idx}: {str(e)}")
+            logger.warning("Import: fuel record %s failed: %s", idx, sanitize_for_log(e))
+            results["errors"].append(f"Fuel record {idx}: could not be imported")
 
     # Import DEF records
     # Deliberately NOT gated by ensure_def_capable (unlike import_def_csv and
@@ -1045,7 +1050,8 @@ async def import_vehicle_json(
             results["def_records"]["success"] += 1
         except Exception as e:
             results["def_records"]["errors"] += 1
-            results["errors"].append(f"DEF record {idx}: {str(e)}")
+            logger.warning("Import: DEF record %s failed: %s", idx, sanitize_for_log(e))
+            results["errors"].append(f"DEF record {idx}: could not be imported")
 
     # Import odometer records
     for idx, record_data in enumerate(data.get("odometer_records", [])):
@@ -1079,7 +1085,8 @@ async def import_vehicle_json(
             results["odometer_records"]["success"] += 1
         except Exception as e:
             results["odometer_records"]["errors"] += 1
-            results["errors"].append(f"Odometer record {idx}: {str(e)}")
+            logger.warning("Import: odometer record %s failed: %s", idx, sanitize_for_log(e))
+            results["errors"].append(f"Odometer record {idx}: could not be imported")
 
     # Import reminders → map to vehicle_reminders
     for idx, reminder_data in enumerate(data.get("reminders", [])):
@@ -1117,7 +1124,8 @@ async def import_vehicle_json(
             results["reminders"]["success"] += 1
         except Exception as e:
             results["reminders"]["errors"] += 1
-            results["errors"].append(f"Reminder {idx}: {str(e)}")
+            logger.warning("Import: reminder %s failed: %s", idx, sanitize_for_log(e))
+            results["errors"].append(f"Reminder {idx}: could not be imported")
 
     # Import notes
     for idx, note_data in enumerate(data.get("notes", [])):
@@ -1134,7 +1142,8 @@ async def import_vehicle_json(
             results["notes"]["success"] += 1
         except Exception as e:
             results["notes"]["errors"] += 1
-            results["errors"].append(f"Note {idx}: {str(e)}")
+            logger.warning("Import: note %s failed: %s", idx, sanitize_for_log(e))
+            results["errors"].append(f"Note {idx}: could not be imported")
 
     await db.commit()
 

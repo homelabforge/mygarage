@@ -10,7 +10,7 @@ export const addressBookSchema = z.object({
   website: z.string().url('Invalid URL').or(z.literal('')).optional(),
   address: z.string().max(200, 'Address too long').optional(),
   city: z.string().max(100, 'City name too long').optional(),
-  state: z.string().max(2, 'State code must be 2 characters').optional(),
+  state: z.string().max(50, 'State/region too long').optional(),
   zip_code: z.string().max(10, 'ZIP code too long').optional(),
   category: z.string().optional(),
   notes: z.string().optional(),

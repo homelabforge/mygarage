@@ -13,6 +13,7 @@ import CurrencyInputPrefix from '../components/common/CurrencyInputPrefix'
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { UnitConverter, UnitFormatter } from '../utils/units'
 import { toCanonicalLiters } from '../utils/decimalSafe'
+import { withBase } from '../utils/basePath'
 
 export default function VehicleEdit() {
   const { t } = useTranslation('vehicles')
@@ -141,7 +142,7 @@ export default function VehicleEdit() {
       // Navigate back to vehicle detail page with replace to force reload
       navigate(`/vehicles/${vin}`, { replace: true })
       // Force a page reload to ensure fresh data
-      window.location.href = `/vehicles/${vin}`
+      window.location.href = withBase(`/vehicles/${vin}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
     }

@@ -52,14 +52,35 @@ test.describe('Vehicle Detail — Tab Navigation', () => {
     const serviceTab = page.getByRole('tab', { name: 'Service' })
     await expect(serviceTab).toBeVisible({ timeout: 5000 })
 
-    // Cycle through visible sub-tabs
-    const subTabs = ['Service', 'Fuel', 'Odometer', 'Recalls']
+    // Cycle through visible sub-tabs (Fuel/DEF/Propane moved to their own Fuel tab)
+    const subTabs = ['Service', 'Odometer', 'Recalls']
     for (const tabName of subTabs) {
       const tab = page.getByRole('tab', { name: tabName })
       // Tab might not exist for non-motorized vehicles — skip if not visible
       if (await tab.isVisible()) {
         await tab.click()
         // Give content time to render, no error toast
+        await page.waitForTimeout(500)
+        await expect(page.locator('[data-sonner-toast][data-type="error"]')).not.toBeVisible({ timeout: 2000 })
+      }
+    }
+  })
+
+  test('Fuel tab — loads fuel/DEF/propane sub-tabs', async ({ page }) => {
+    // Primary "Fuel" tab and the "Fuel" sub-tab share a name — scope the primary
+    // click to the primary tablist to avoid a strict-mode collision.
+    const primaryTabs = page.getByRole('tablist', { name: 'Vehicle sections' })
+    await primaryTabs.getByRole('tab', { name: 'Fuel', exact: true }).click()
+
+    // Default Fuel sub-tab content loads
+    await expect(page.getByText('Fuel History')).toBeVisible({ timeout: 10000 })
+    await expect(page.locator('[data-sonner-toast][data-type="error"]')).not.toBeVisible({ timeout: 2000 })
+
+    // DEF / Propane appear only for diesel / propane-equipped vehicles — click if present
+    for (const tabName of ['DEF', 'Propane']) {
+      const tab = page.getByRole('tab', { name: tabName, exact: true })
+      if (await tab.isVisible()) {
+        await tab.click()
         await page.waitForTimeout(500)
         await expect(page.locator('[data-sonner-toast][data-type="error"]')).not.toBeVisible({ timeout: 2000 })
       }
@@ -92,7 +113,7 @@ test.describe('Vehicle Detail — Tab Navigation', () => {
   })
 
   test('switching between primary tabs preserves page stability', async ({ page }) => {
-    const primaryTabs = ['Media', 'Maintenance', 'Tracking', 'Financial', 'Overview']
+    const primaryTabs = ['Media', 'Maintenance', 'Fuel', 'Tracking', 'Financial', 'Overview']
 
     for (const tabName of primaryTabs) {
       await page.getByRole('tab', { name: tabName }).click()
@@ -106,7 +127,7 @@ test.describe('Vehicle Detail — Tab Navigation', () => {
   })
 
   test('navigates to vehicle detail via URL tab parameter', async ({ page }) => {
-    // Navigate with ?tab=fuel to go directly to Maintenance > Fuel
+    // Navigate with ?tab=fuel to go directly to the Fuel tab
     await page.goto(`/vehicles/${TEST_VEHICLE.vin}?tab=fuel`)
     await expect(
       page.getByRole('heading', { name: TEST_VEHICLE.nickname })

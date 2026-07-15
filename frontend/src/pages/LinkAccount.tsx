@@ -5,6 +5,7 @@ import { Car, Lock, AlertCircle, Loader } from 'lucide-react'
 import api, { setCSRFToken } from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
 import { resolvePostLoginRoute } from '../utils/postLoginRedirect'
+import { withBase } from '../utils/basePath'
 
 export default function LinkAccount() {
   const { t } = useTranslation('common')
@@ -163,7 +164,7 @@ export default function LinkAccount() {
               <p>
                 Forgot your password?{' '}
                 <a
-                  href="/login"
+                  href={withBase('/login')}
                   className="text-primary hover:underline"
                 >
                   Return to login

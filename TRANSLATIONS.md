@@ -1,19 +1,18 @@
 # Translation Status
 
-MyGarage supports multiple languages through community contributions. This page is automatically updated by CI.
-
-> Last updated: 2026-07-03
+MyGarage supports multiple languages through community contributions.
 
 ## Overview
 
 | | Language | Code | Progress | Keys |
 |---|----------|------|----------|------|
-| 🇺🇸 | English | `en` | `████████████████████` 100% | 1358/1358 |
-| 🇵🇱 | Polish | `pl` | `████████████████████` 99% | 1338/1358 |
-| 🇷🇺 | Russian | `ru` | `████████████████████` 99% | 1351/1358 |
-| 🇺🇦 | Ukrainian | `uk` | `████████████████████` 99% | 1350/1358 |
+| 🇺🇸 | English | `en` | `████████████████████` 100% | 1400/1400 |
+| 🇷🇺 | Russian | `ru` | `████████████████████` 99% | 1385/1400 |
+| 🇺🇦 | Ukrainian | `uk` | `████████████████████` 99% | 1384/1400 |
+| 🇵🇱 | Polish | `pl` | `████████████████████` 98% | 1371/1400 |
+| 🇧🇷 | Brazilian Portuguese | `pt-BR` | `████████████████████` 98% | 1371/1400 |
 
-**Overall: 99%** across 3 languages
+**Overall: 99%** average completion across 4 translated languages — English is the source (100%)
 
 ---
 
@@ -46,3 +45,4 @@ Thank you to everyone who has contributed translations!
 | Contributor | Languages |
 |-------------|-----------|
 | [Antonio (f0rZzZ)](https://github.com/f0rZzZ) | 🇵🇱 Polish, 🇷🇺 Russian, 🇺🇦 Ukrainian |
+| [FabioCastilho](https://github.com/FabioCastilho) | 🇧🇷 Brazilian Portuguese |

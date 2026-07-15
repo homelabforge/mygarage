@@ -9,6 +9,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { loginSchema, type LoginFormData } from '../schemas/auth'
 import { FormError } from '../components/FormError'
 import AuthPageLayout from '../components/AuthPageLayout'
+import { withBase } from '../utils/basePath'
 
 export default function Login() {
   const { t } = useTranslation('common')
@@ -35,7 +36,7 @@ export default function Login() {
   useEffect(() => {
     const checkOIDC = async () => {
       try {
-        const response = await fetch('/api/auth/oidc/config')
+        const response = await fetch(withBase('/api/auth/oidc/config'))
         const data = await response.json()
         const enabled = Boolean(data.enabled)
         setOidcEnabled(enabled)
@@ -64,7 +65,7 @@ export default function Login() {
   }
 
   const handleSSOLogin = () => {
-    window.location.href = '/api/auth/oidc/login'
+    window.location.href = withBase('/api/auth/oidc/login')
   }
 
   return (

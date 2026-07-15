@@ -182,7 +182,7 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick }: FuelRec
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
         <div className="flex items-center gap-2">
           <Fuel className="w-5 h-5 text-garage-text-muted" />
           <h3 className="text-lg font-semibold text-garage-text">
@@ -200,17 +200,17 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick }: FuelRec
             )
           </span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {/* Search */}
           {records.length > 0 && (
-            <div className="relative">
+            <div className="relative flex-1 min-w-[10rem] sm:flex-none">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-garage-text-muted" />
               <input
                 type="text"
                 placeholder={t('fuelList.searchPlaceholder')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 pr-4 py-2 border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text w-56"
+                className="pl-10 pr-4 py-2 border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text w-full sm:w-56"
               />
             </div>
           )}

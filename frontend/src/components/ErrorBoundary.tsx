@@ -1,5 +1,6 @@
 import { Component, ErrorInfo, ReactNode } from 'react'
 import { AlertTriangle } from 'lucide-react'
+import { withBase } from '../utils/basePath'
 
 interface Props {
   children: ReactNode
@@ -91,7 +92,7 @@ export class ErrorBoundary extends Component<Props, State> {
                 Try Again
               </button>
               <button
-                onClick={() => window.location.href = '/'}
+                onClick={() => window.location.href = withBase('/')}
                 className="btn btn-primary flex-1"
               >
                 Go to Dashboard

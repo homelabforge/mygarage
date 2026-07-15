@@ -7,9 +7,10 @@ import {
   isAuthError,
   isPermissionError,
 } from '../utils/httpErrorHandler'
+import { basePath, withBase } from '../utils/basePath'
 
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: withBase('/api'),
   headers: {
     'Content-Type': 'application/json',
   },
@@ -50,7 +51,9 @@ export function shouldRedirectToLogin(authMode: string | null, pathname: string)
   if (authMode === 'none') {
     return false
   }
-  return pathname !== '/login' && pathname !== '/register'
+  const base = basePath()
+  const p = base && pathname.startsWith(base) ? pathname.slice(base.length) || '/' : pathname
+  return p !== '/login' && p !== '/register'
 }
 
 // CSRF Token Management (Security Enhancement v2.10.0)
@@ -80,7 +83,7 @@ let csrfRefreshPromise: Promise<string | null> | null = null
 const refreshCSRFToken = async (): Promise<string | null> => {
   try {
     // Use a fresh axios instance to avoid interceptor recursion
-    const response = await axios.get('/api/auth/csrf-token', { withCredentials: true })
+    const response = await axios.get(withBase('/api/auth/csrf-token'), { withCredentials: true })
     const token = response.data.csrf_token
     if (token) {
       setCSRFToken(token)
@@ -162,7 +165,7 @@ api.interceptors.response.use(
         console.log('[CSRF] Recovery failed, redirecting to login')
         clearCSRFToken()
         if (shouldRedirectToLogin(currentAuthMode, window.location.pathname)) {
-          window.location.href = '/login'
+          window.location.href = withBase('/login')
         }
       }
     }
@@ -170,8 +173,10 @@ api.interceptors.response.use(
     // Handle 401 errors
     if (error.response?.status === 401) {
       // Don't redirect if we're in the OIDC flow (on success page, link account page, or just logged in)
-      const isOIDCFlow = window.location.pathname === '/auth/oidc/success' ||
-                         window.location.pathname === '/auth/link-account'
+      const base = basePath()
+      const raw = window.location.pathname
+      const p = base && raw.startsWith(base) ? raw.slice(base.length) || '/' : raw
+      const isOIDCFlow = p === '/auth/oidc/success' || p === '/auth/link-account'
 
       if (!isOIDCFlow) {
         // Cookie is invalid or expired - clear CSRF token and redirect to login.
@@ -181,7 +186,7 @@ api.interceptors.response.use(
         clearCSRFToken()
 
         if (shouldRedirectToLogin(currentAuthMode, window.location.pathname)) {
-          window.location.href = '/login'
+          window.location.href = withBase('/login')
         }
       }
     }

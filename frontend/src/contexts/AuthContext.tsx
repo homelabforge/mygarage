@@ -8,6 +8,7 @@ interface User {
   is_admin: boolean
   unit_preference?: 'imperial' | 'metric'
   show_both_units?: boolean
+  time_format?: '12h' | '24h'
   mobile_quick_entry_enabled?: boolean
   language?: string
   currency_code?: string

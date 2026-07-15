@@ -4,6 +4,7 @@ import { Shield, Info, AlertTriangle, Users, Key, CheckCircle, AlertCircle, Eye,
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/services/api'
 import { passwordSchema, getPasswordStrength } from '@/schemas/auth'
+import { withBase } from '@/utils/basePath'
 import FormModalWrapper from '../FormModalWrapper'
 
 interface User {
@@ -157,7 +158,7 @@ export default function LocalAuthModal({
                     The first registered user will automatically become an administrator.
                   </p>
                   <a
-                    href="/register"
+                    href={withBase('/register')}
                     className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium"
                   >
                     Register First User
@@ -578,7 +579,7 @@ export default function LocalAuthModal({
                     Local authentication is enabled. You must be logged in as an administrator to manage authentication settings.
                   </p>
                   <a
-                    href="/login"
+                    href={withBase('/login')}
                     className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium"
                   >
                     Login

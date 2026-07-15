@@ -617,3 +617,49 @@ class TestFuelDEFSync:
         ]
         assert len(auto_records) == 1
         assert auto_records[0]["entry_type"] == "auto_fuel_sync"
+
+    async def test_create_fuel_record_with_rebate(
+        self, client: AsyncClient, auth_headers, test_vehicle_with_records
+    ):
+        """A rebate is stored and returned; `cost` holds the net the client sends
+        (price × volume − rebate), so cost analytics reflect actual spend."""
+        vehicle = test_vehicle_with_records
+        response = await client.post(
+            f"/api/vehicles/{vehicle['vin']}/fuel",
+            json={
+                "vin": vehicle["vin"],
+                "date": "2024-02-20",
+                "liters": 40.0,
+                "price_per_unit": 0.90,  # gross 36.00; $8 rebate → net 28.00
+                "rebate": 8.00,
+                "cost": 28.00,
+                "odometer_km": 25000.0,
+                "is_full_tank": True,
+            },
+            headers=auth_headers,
+        )
+        assert response.status_code == 201
+        record = response.json()
+        assert float(record["rebate"]) == 8.00
+        assert float(record["cost"]) == 28.00
+
+    async def test_fuel_rebate_defaults_null(
+        self, client: AsyncClient, auth_headers, test_vehicle_with_records
+    ):
+        """A fill-up without a rebate leaves the field null (not zero)."""
+        vehicle = test_vehicle_with_records
+        response = await client.post(
+            f"/api/vehicles/{vehicle['vin']}/fuel",
+            json={
+                "vin": vehicle["vin"],
+                "date": "2024-03-05",
+                "liters": 30.0,
+                "cost": 27.00,
+                "odometer_km": 25500.0,
+                "is_full_tank": True,
+                "price_per_unit": 0.90,
+            },
+            headers=auth_headers,
+        )
+        assert response.status_code == 201
+        assert response.json()["rebate"] is None

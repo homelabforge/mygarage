@@ -16,8 +16,10 @@
     "wherePurchased": "Where Purchased"
   },
   "fuel": {
-    "autoCalculatedHint": "Auto-calculated when gallons and price are entered",
+    "autoCalculatedHint": "Auto-calculated from price, volume, and rebate",
     "autoPopulatedHint": "Auto-populated from vehicle information",
+    "rebate": "Rebate",
+    "rebateHint": "Points, discounts, or cash back — deducted from Total Cost",
     "createTitle": "Add Fuel Record",
     "defAutoCreatesHint": "Auto-creates a DEF observation record for analytics",
     "defTankLevel": "DEF Tank Level",
@@ -38,6 +40,11 @@
     "moreDetailsHint": "Optional: station, driver, payment, trip type, on-board computer values",
     "filledAt": "Fill-up time",
     "filledAtHint": "Optional. Required for the auto-fill from last drive feature.",
+    "filledAtDateLabel": "Fill-up date",
+    "filledAtTimeLabel": "Fill-up time (24-hour HH:MM)",
+    "filledAtTimeHint": "Time is 24-hour (HH:MM).",
+    "invalidFilledTime": "Enter a valid 24-hour time (HH:MM), or clear it.",
+    "partialFilledAt": "Enter both a fill-up date and time, or clear both.",
     "station": "Fueling station",
     "stationPlaceholder": "Type to search or add a new station",
     "stationOneTimeVisit": "One-time visit (don't save to address book)",

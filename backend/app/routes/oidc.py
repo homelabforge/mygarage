@@ -36,6 +36,21 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/auth/oidc", tags=["oidc"])
 
+
+def _external_base(request: Request) -> str:
+    """Scheme+host+prefix for URLs the browser/IdP will hit (#107)."""
+    scheme = get_request_scheme(request)
+    host = request.headers.get("x-forwarded-host", request.headers.get("host")) or str(
+        request.base_url.hostname
+    )
+    return f"{scheme}://{host}{settings.root_path}"
+
+
+def _frontend_base(request: Request) -> str:
+    """Scheme+host+prefix for frontend redirects (#107)."""
+    return _external_base(request)
+
+
 # Initialize rate limiter for auth endpoints
 limiter = Limiter(key_func=get_remote_address)
 
@@ -240,13 +255,8 @@ async def oidc_login(
             detail="Failed to fetch OIDC provider metadata",
         )
 
-    # Determine base URL for redirect URI
-    base_url = str(request.base_url).rstrip("/")
-    # Handle reverse proxy headers (scheme centralized, host preserved as-is)
-    scheme = get_request_scheme(request)
-    forwarded_host = request.headers.get("x-forwarded-host", request.headers.get("host"))
-    if forwarded_host:
-        base_url = f"{scheme}://{forwarded_host}"
+    # Determine base URL for redirect URI (scheme/host/prefix, #107)
+    base_url = _external_base(request)
 
     # Create authorization URL
     try:
@@ -363,10 +373,8 @@ async def oidc_callback(
                 e.config,
             )
 
-            # Redirect to link account page with token
-            scheme = get_request_scheme(request)
-            host = request.headers.get("host", str(request.base_url.hostname))
-            frontend_url = f"{scheme}://{host}"
+            # Redirect to link account page with token (#107: prefix-aware)
+            frontend_url = _frontend_base(request)
             redirect_url = f"{frontend_url}/auth/link-account?token={pending_token}"
 
             logger.info("Redirecting to link account page: %s", redirect_url)
@@ -415,10 +423,8 @@ async def oidc_callback(
     logger.info("OIDC login successful for user: %s", sanitize_for_log(user.username))
 
     # Set httpOnly cookie and redirect with CSRF token (Security Enhancement v2.10.0)
-    # Frontend needs CSRF token for state-changing requests
-    scheme = get_request_scheme(request)
-    host = request.headers.get("host", str(request.base_url.hostname))
-    frontend_url = f"{scheme}://{host}"
+    # Frontend needs CSRF token for state-changing requests (#107: prefix-aware)
+    frontend_url = _frontend_base(request)
     redirect_url = f"{frontend_url}/auth/oidc/success?csrf_token={csrf_token_value}"
 
     redirect_response = RedirectResponse(url=redirect_url, status_code=status.HTTP_302_FOUND)

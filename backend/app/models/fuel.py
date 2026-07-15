@@ -44,6 +44,10 @@ class FuelRecord(Base):
     tank_quantity: Mapped[int | None] = mapped_column(Integer)
     kwh: Mapped[Decimal | None] = mapped_column(Numeric(8, 3))
     cost: Mapped[Decimal | None] = mapped_column(Numeric(8, 2))
+    # Rebate/discount/points redeemed on this fill-up. `cost` stores the NET
+    # (price × volume − rebate); this keeps the redeemed amount for display and
+    # export/import round-trips.
+    rebate: Mapped[Decimal | None] = mapped_column(Numeric(8, 2))
     price_per_unit: Mapped[Decimal | None] = mapped_column(Numeric(6, 3))
     # Per-row classifier added by migration 053. Drives unit-aware price math.
     price_basis: Mapped[str | None] = mapped_column(String(12))

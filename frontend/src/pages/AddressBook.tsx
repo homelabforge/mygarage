@@ -111,10 +111,10 @@ export default function AddressBook() {
           <button
             type="button"
             onClick={() =>
-              setPoiCategoryFilter((prev) => (prev === 'fuel_station' ? '' : 'fuel_station'))
+              setPoiCategoryFilter((prev) => (prev === 'gas_station' ? '' : 'gas_station'))
             }
             className={`px-4 py-2 border rounded-lg transition-colors ${
-              poiCategoryFilter === 'fuel_station'
+              poiCategoryFilter === 'gas_station'
                 ? 'bg-primary text-white border-primary'
                 : 'bg-garage-surface text-garage-text border-garage-border hover:border-primary'
             }`}
@@ -270,10 +270,18 @@ interface AddressBookFormProps {
   onSuccess: () => void
 }
 
-function AddressBookForm({ entry, onClose, onSuccess }: AddressBookFormProps) {
+export function AddressBookForm({ entry, onClose, onSuccess }: AddressBookFormProps) {
   const { t } = useTranslation('common')
   const isEdit = !!entry
   const [error, setError] = useState<string | null>(null)
+
+  // Gas context = untagged or already a gas station. Any other poi_category
+  // (auto_shop/rv_shop/ev_charging/propane) is preserved: the checkbox is
+  // hidden and the payload omits poi_category. The backend enforces this too
+  // (Task 3), so a stale snapshot can't clobber either.
+  const existingPoi = entry?.poi_category ?? ''
+  const gasContext = existingPoi === '' || existingPoi === 'gas_station'
+  const [isGasStation, setIsGasStation] = useState(existingPoi === 'gas_station')
 
   const {
     register,
@@ -312,6 +320,7 @@ function AddressBookForm({ entry, onClose, onSuccess }: AddressBookFormProps) {
         state: data.state,
         zip_code: data.zip_code,
         category: data.category,
+        ...(gasContext ? { poi_category: isGasStation ? 'gas_station' : null } : {}),
         notes: data.notes,
         source: 'manual',
       }
@@ -402,6 +411,22 @@ function AddressBookForm({ entry, onClose, onSuccess }: AddressBookFormProps) {
             </select>
             <FormError error={errors.category} />
           </div>
+
+          {gasContext && (
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                id="poi_gas_station"
+                checked={isGasStation}
+                onChange={(e) => setIsGasStation(e.target.checked)}
+                className="h-4 w-4 text-primary focus:ring-primary border-garage-border rounded bg-garage-bg"
+                disabled={isSubmitting}
+              />
+              <label htmlFor="poi_gas_station" className="ml-2 block text-sm text-garage-text">
+                {t('addressBook.gasStationFlag', { defaultValue: 'Gas station' })}
+              </label>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -499,7 +524,7 @@ function AddressBookForm({ entry, onClose, onSuccess }: AddressBookFormProps) {
                 type="text"
                 id="state"
                 {...register('state')}
-                placeholder="IL"
+                placeholder={t('addressBook.statePlaceholder', { defaultValue: 'State / region' })}
                 className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
                   errors.state ? 'border-red-500' : 'border-garage-border'
                 }`}

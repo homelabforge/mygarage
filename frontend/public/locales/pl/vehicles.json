@@ -432,6 +432,7 @@
     "noVehicles": "Brak pojazdów",
     "record": "Rejestr",
     "recordSaved": "{{type}} zapisano",
+    "retry": "Spróbuj ponownie",
     "selectVehicle": "Wybierz pojazd",
     "serviceVisit": "Wizyta serwisowa",
     "serviceVisitDesc": "Przycisk wizyty serwisowej",

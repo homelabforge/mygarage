@@ -32,6 +32,7 @@ from app.models.vehicle import Vehicle
 from app.services.fuel_service import (
     calculate_average_l_per_100km,
     calculate_l_per_100km,
+    compute_full_tank_economy,
 )
 from app.services.widget_aggregation import WidgetAggregationService
 
@@ -153,4 +154,182 @@ async def test_widget_consumption_skips_missed_fillup_pair(
     assert average == Decimal("9"), (
         f"widget average consumption {average} included the missed-fill-up pair "
         "(audit finding F9, widget path)"
+    )
+
+
+# --- Issue #113: partial fill-ups must count toward the next full tank -------
+
+
+def _fr(odo: str, liters: str | None, *, full: bool) -> FuelRecord:
+    """Terse FuelRecord factory for the window/interval unit tests."""
+    return FuelRecord(
+        vin="PARTIAL0000000000",
+        date=date(2026, 1, 1),
+        odometer_km=Decimal(odo),
+        liters=Decimal(liters) if liters is not None else None,
+        is_full_tank=full,
+    )
+
+
+@pytest.mark.unit
+def test_compute_full_tank_economy_folds_partials() -> None:
+    """A partial fill-up between two full tanks folds into the next full tank's
+    figure and yields no figure of its own (reporter's Example 2)."""
+    prev = _fr("139530", "23.520", full=True)
+    partial = _fr("140105", "24.790", full=False)
+    cur = _fr("140354", "52.950", full=True)
+
+    results = compute_full_tank_economy([prev, partial, cur])
+
+    # Only the second full tank gets a figure; the first has no predecessor and
+    # the partial is not an endpoint. (24.79 + 52.95) / 824 * 100 = 9.43.
+    assert [(r.odometer_km, v) for r, v in results] == [(Decimal("140354"), Decimal("9.43"))]
+
+
+@pytest.mark.unit
+def test_compute_full_tank_economy_hauling_folds_when_excluded() -> None:
+    """With exclude_hauling, a hauling full tank is not an endpoint, so its fuel
+    folds into the surrounding interval instead of splitting it."""
+    a = _fr("1000", "40.000", full=True)
+    hauling = _fr("1500", "30.000", full=True)
+    hauling.is_hauling = True
+    b = _fr("2000", "45.000", full=True)
+
+    # Endpoints a -> b bridge the hauling tank: (30 + 45) / 1000 km * 100 = 7.5.
+    excluded = compute_full_tank_economy([a, hauling, b], exclude_hauling=True)
+    assert [v for _, v in excluded] == [Decimal("7.50")]
+
+    # Without exclusion the hauling tank splits the interval into two figures.
+    included = compute_full_tank_economy([a, hauling, b], exclude_hauling=False)
+    assert len(included) == 2
+
+
+@pytest.mark.unit
+def test_calculate_l_per_100km_uses_interval_liters() -> None:
+    """#113 regression: the fallback numerator uses only the final full fill-up
+    (valid only when no partials exist); the interval sum counts all fuel."""
+    prev = _fr("139530", "23.520", full=True)
+    cur = _fr("140354", "52.950", full=True)
+
+    # No-partial base case — the fallback equals the correct answer: 52.95 / 824.
+    assert calculate_l_per_100km(cur, prev) == Decimal("6.43")
+    # With a partial in between, the interval sum is the correct numerator.
+    assert calculate_l_per_100km(cur, prev, Decimal("77.740")) == Decimal("9.43")
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_average_includes_partial_fillups(
+    db_session: AsyncSession, test_user: dict[str, object]
+) -> None:
+    """#113 end-to-end (reporter's Example 2): full -> partial -> full."""
+    vin = "PARTIALAVG0000001"
+    db_session.add(
+        Vehicle(
+            vin=vin,
+            user_id=int(test_user["id"]),  # type: ignore[arg-type]
+            nickname="Partial Avg",
+            vehicle_type="Car",
+            year=2024,
+            make="Test",
+            model="Partial",
+        )
+    )
+    await db_session.flush()
+    base = date.today() - timedelta(days=30)
+    db_session.add_all(
+        [
+            FuelRecord(
+                vin=vin,
+                date=base,
+                odometer_km=Decimal("139530.00"),
+                liters=Decimal("23.520"),
+                is_full_tank=True,
+            ),
+            FuelRecord(
+                vin=vin,
+                date=base + timedelta(days=7),
+                odometer_km=Decimal("140105.00"),
+                liters=Decimal("24.790"),
+                is_full_tank=False,
+            ),
+            FuelRecord(
+                vin=vin,
+                date=base + timedelta(days=14),
+                odometer_km=Decimal("140354.00"),
+                liters=Decimal("52.950"),
+                is_full_tank=True,
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    avg = await calculate_average_l_per_100km(db_session, vin)
+
+    # (24.79 + 52.95) / (140354 - 139530) * 100 = 77.74 / 824 * 100 = 9.43
+    assert avg == Decimal("9.43"), (
+        f"expected 9.43 L/100km including the partial fill-up, got {avg} "
+        "(issue #113: partial fill-up volume was ignored, using only the "
+        "final full fill-up)"
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_widget_consumption_includes_partial_fillups(
+    db_session: AsyncSession, test_user: dict[str, object]
+) -> None:
+    """#113 parity: the homepage widget consumption must also count partials."""
+    vin = "PARTIALWDG0000001"
+    db_session.add(
+        Vehicle(
+            vin=vin,
+            user_id=int(test_user["id"]),  # type: ignore[arg-type]
+            nickname="Partial Widget",
+            vehicle_type="Car",
+            year=2024,
+            make="Test",
+            model="Partial",
+        )
+    )
+    await db_session.flush()
+    base = date.today() - timedelta(days=30)
+    db_session.add_all(
+        [
+            FuelRecord(
+                vin=vin,
+                date=base,
+                odometer_km=Decimal("139530.00"),
+                liters=Decimal("23.520"),
+                is_full_tank=True,
+            ),
+            FuelRecord(
+                vin=vin,
+                date=base + timedelta(days=7),
+                odometer_km=Decimal("140105.00"),
+                liters=Decimal("24.790"),
+                is_full_tank=False,
+            ),
+            FuelRecord(
+                vin=vin,
+                date=base + timedelta(days=14),
+                odometer_km=Decimal("140354.00"),
+                liters=Decimal("52.950"),
+                is_full_tank=True,
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    service = WidgetAggregationService(db_session)
+    recent, average = await service._consumption_l100km(vin)
+
+    assert recent is not None and average is not None
+    # 77.74 L / 824 km * 100 = 9.43 (rounding differs from the Decimal path;
+    # assert the float-ish Decimal is within a cent of the expected figure).
+    assert abs(recent - Decimal("9.43")) < Decimal("0.01"), (
+        f"widget recent consumption {recent} ignored the partial fill-up (#113)"
+    )
+    assert abs(average - Decimal("9.43")) < Decimal("0.01"), (
+        f"widget average consumption {average} ignored the partial fill-up (#113)"
     )

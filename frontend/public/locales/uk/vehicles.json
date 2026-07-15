@@ -432,6 +432,7 @@
     "noVehicles": "Немає транспортних засобів",
     "record": "Запис",
     "recordSaved": "{{type}} збережено",
+    "retry": "Повторити спробу",
     "selectVehicle": "Виберіть транспортний засіб",
     "serviceVisit": "Сервісний візит",
     "serviceVisitDesc": "Кнопка сервісного візиту",

@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { useState } from 'react'
 import { Shield, Info, CheckCircle, AlertCircle, Eye, EyeOff, Loader } from 'lucide-react'
 import api from '@/services/api'
+import { withBase } from '@/utils/basePath'
 import FormModalWrapper from '../FormModalWrapper'
 
 interface OIDCFormData {
@@ -42,7 +43,7 @@ export default function OIDCModal({
   const [showClientSecret, setShowClientSecret] = useState(false)
   const [copiedCallback, setCopiedCallback] = useState(false)
 
-  const callbackUrl = `${window.location.origin}/api/auth/oidc/callback`
+  const callbackUrl = `${window.location.origin}${withBase('/api/auth/oidc/callback')}`
 
   // Handle OIDC test connection. Returns canonical {ok, error, detail, issuer, algorithms_supported}.
   const handleOIDCTest = async () => {

@@ -267,6 +267,55 @@ describe('VehicleDetail', () => {
     })
   })
 
+  // --- Fuel Primary Tab (#116) ---
+
+  it('shows Fuel as a primary tab defaulting to the Fuel sub-tab', async () => {
+    renderVehicleDetail()
+
+    await waitFor(() => {
+      expect(screen.getByText('Test Car')).toBeInTheDocument()
+    })
+
+    // Click the Fuel primary tab (mobile grid renders before desktop bar)
+    fireEvent.click(screen.getAllByText('detail.tabs.fuel')[0])
+
+    // Sub-tab nav appears with Fuel selected as the default sub-tab
+    await waitFor(() => {
+      expect(screen.getByTestId('sub-tab-nav')).toBeInTheDocument()
+      expect(screen.getByRole('tab', { name: /^fuel$/i })).toHaveAttribute('aria-selected', 'true')
+    })
+  })
+
+  it('activates the Fuel primary tab from ?tab=fuel deep-link', async () => {
+    renderVehicleDetail('/vehicles/TEST12345678901234?tab=fuel')
+
+    await waitFor(() => {
+      expect(screen.getByText('Test Car')).toBeInTheDocument()
+    })
+
+    // fuel now maps to { primary: 'fuel', sub: 'fuel' } — the Fuel primary tab is selected
+    await waitFor(() => {
+      const fuelPrimary = screen.getAllByRole('tab', { name: 'detail.tabs.fuel' })
+      expect(fuelPrimary.some((el) => el.getAttribute('aria-selected') === 'true')).toBe(true)
+    })
+  })
+
+  it('no longer lists Fuel as a sub-tab under Maintenance', async () => {
+    renderVehicleDetail()
+
+    await waitFor(() => {
+      expect(screen.getByText('Test Car')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getAllByText('detail.tabs.maintenance')[0])
+
+    await waitFor(() => {
+      expect(screen.getByTestId('sub-tab-nav')).toBeInTheDocument()
+    })
+    // Fuel moved to its own primary tab; Maintenance keeps Service/Odometer/Recalls
+    expect(screen.queryByRole('tab', { name: /^fuel$/i })).not.toBeInTheDocument()
+  })
+
   // --- LiveLink Tab Visibility ---
 
   it('shows LiveLink tab when device is linked', async () => {

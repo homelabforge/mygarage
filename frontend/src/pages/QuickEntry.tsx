@@ -4,32 +4,25 @@ import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
 import { Car, Fuel, Wrench, Gauge, ChevronRight, LayoutDashboard } from 'lucide-react'
 import { toast } from 'sonner'
-import api from '../services/api'
 import FuelRecordForm from '../components/FuelRecordForm'
 import ServiceVisitForm from '../components/ServiceVisitForm'
 import OdometerRecordForm from '../components/OdometerRecordForm'
+import { useQuickEntryVehicles } from '../hooks/queries/useQuickEntryVehicles'
+import type { QuickEntryVehicle } from '../hooks/queries/useQuickEntryVehicles'
+import { withBase } from '../utils/basePath'
 import type { VehicleType } from '../types/vehicle'
-
-interface QuickEntryVehicle {
-  vin: string
-  nickname: string
-  year: number | null
-  make: string | null
-  model: string | null
-  vehicle_type: string
-  thumbnail_url: string | null
-}
 
 type EntryType = 'fuel' | 'service' | 'odometer' | null
 
 export default function QuickEntry() {
   const { t } = useTranslation('vehicles')
   const { user } = useAuth()
-  const [vehicles, setVehicles] = useState<QuickEntryVehicle[]>([])
   const [selectedVin, setSelectedVin] = useState<string>('')
   const [entryType, setEntryType] = useState<EntryType>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+
+  // Fetched via TanStack Query so a transient failure retries and refetches on
+  // focus instead of leaving a permanent empty screen (#114).
+  const { data: vehicles = [], isLoading, isError, isFetching, refetch } = useQuickEntryVehicles()
 
   // Set user-scoped session flag so returning to "/" renders Dashboard, not another redirect
   useEffect(() => {
@@ -38,24 +31,13 @@ export default function QuickEntry() {
     }
   }, [user?.id])
 
+  // Auto-select when the account has exactly one vehicle, without clobbering a
+  // selection the user already made.
   useEffect(() => {
-    const fetchVehicles = async () => {
-      try {
-        const response = await api.get('/quick-entry/vehicles')
-        const list: QuickEntryVehicle[] = response.data.vehicles
-        setVehicles(list)
-        // Auto-select if only one vehicle
-        if (list.length === 1) {
-          setSelectedVin(list[0].vin)
-        }
-      } catch {
-        setError(t('quickEntry.loadError'))
-      } finally {
-        setLoading(false)
-      }
+    if (vehicles.length === 1) {
+      setSelectedVin((prev) => prev || vehicles[0].vin)
     }
-    void fetchVehicles()
-  }, [t])
+  }, [vehicles])
 
   const selectedVehicle = vehicles.find(v => v.vin === selectedVin)
 
@@ -94,15 +76,24 @@ export default function QuickEntry() {
       <main className="flex-1 px-4 py-6 max-w-lg mx-auto w-full">
         <h1 className="text-xl font-bold text-garage-text mb-6">{t('quickEntry.title')}</h1>
 
-        {loading && (
+        {isLoading && (
           <div className="text-garage-text-muted text-center py-12">{t('quickEntry.loadingVehicles')}</div>
         )}
 
-        {!loading && error && (
-          <div className="text-danger-500 text-center py-12">{error}</div>
+        {!isLoading && isError && (
+          <div className="text-center py-12">
+            <p className="text-danger-500 mb-4">{t('quickEntry.loadError')}</p>
+            <button
+              onClick={() => void refetch()}
+              disabled={isFetching}
+              className="text-primary hover:underline disabled:opacity-50"
+            >
+              {isFetching ? t('quickEntry.loadingVehicles') : t('quickEntry.retry')}
+            </button>
+          </div>
         )}
 
-        {!loading && !error && vehicles.length === 0 && (
+        {!isLoading && !isError && vehicles.length === 0 && (
           <div className="text-center py-12">
             <p className="text-garage-text-muted mb-4">{t('quickEntry.noVehicles')}</p>
             <Link to="/" className="text-primary hover:underline">
@@ -111,7 +102,7 @@ export default function QuickEntry() {
           </div>
         )}
 
-        {!loading && !error && vehicles.length > 0 && (
+        {!isLoading && !isError && vehicles.length > 0 && (
           <div className="space-y-6">
             {/* Vehicle selector */}
             <div>
@@ -123,7 +114,7 @@ export default function QuickEntry() {
                 <div className="flex items-center gap-3 p-3 bg-garage-surface rounded-lg border border-garage-border">
                   {selectedVehicle?.thumbnail_url ? (
                     <img
-                      src={selectedVehicle.thumbnail_url}
+                      src={withBase(selectedVehicle.thumbnail_url)}
                       alt={selectedVehicle.nickname}
                       className="w-12 h-12 rounded object-cover flex-shrink-0"
                     />

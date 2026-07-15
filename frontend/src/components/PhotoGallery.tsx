@@ -15,6 +15,7 @@ import type { Photo } from '../types/photo'
 import vehicleService from '../services/vehicleService'
 import { useOnlineStatus } from '../hooks/useOnlineStatus'
 import { formatAPITimestamp } from '../utils/parseAPITimestamp'
+import { withBase } from '../utils/basePath'
 
 interface PhotoGalleryProps {
   vin: string
@@ -229,7 +230,7 @@ function PhotoGallery({ vin, onAddClick }: PhotoGalleryProps) {
 
                 <div className="relative aspect-video bg-garage-bg">
                   <img
-                    src={photo.thumbnail_url ?? photo.path}
+                    src={withBase(photo.thumbnail_url ?? photo.path)}
                     alt={photo.caption || 'Vehicle photo'}
                     className="w-full h-full object-cover"
                     onError={(e) => {

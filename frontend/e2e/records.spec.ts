@@ -83,4 +83,69 @@ test.describe('Fuel Record Workflow', () => {
       await page.waitForTimeout(500)
     }
   })
+
+  test('fill-up time is unambiguous (12h AM/PM) and round-trips on edit (#109)', async ({
+    page,
+  }) => {
+    await goToFuelTab(page)
+
+    await page.getByRole('button', { name: /add fill-up/i }).click()
+    await expect(page.getByText('Add Fuel Record')).toBeVisible({ timeout: 5000 })
+
+    // Required top-level fields (same pattern as the other fuel tests)
+    const today = new Date().toISOString().split('T')[0]
+    await page.locator('#date').fill(today)
+    await page.locator('#odometer_km').fill('92340')
+    await page.locator('#liters').fill('45.500')
+    await page.locator('#cost').fill('50.00')
+
+    // Expand "More details" to reach the 24-hour fill-up time fields (#109)
+    const moreDetailsToggle = page.getByRole('button', { name: /more details/i })
+    if ((await moreDetailsToggle.getAttribute('aria-expanded')) !== 'true') {
+      await moreDetailsToggle.click()
+    }
+    // 12-hour mode is the default: enter the hour, then pick AM/PM explicitly —
+    // a bare hour is never silently assigned a meridiem. The fill-up date comes
+    // from the top-level #date field (set to `today` above).
+    await page.locator('#filled_at_time').fill('10:00')
+    await page.getByRole('button', { name: 'PM' }).click()
+
+    // Capture the create request and assert the recomputed payload — proves the
+    // 12h control (10:00 + PM) normalizes to canonical 22:00 and the form
+    // recomputes filled_at from the record date + time at submit.
+    const [req] = await Promise.all([
+      page.waitForRequest(
+        (r) => /\/vehicles\/[^/]+\/fuel$/.test(new URL(r.url()).pathname) && r.method() === 'POST'
+      ),
+      page.getByRole('button', { name: /create/i }).click(),
+    ])
+    expect(JSON.parse(req.postData() ?? '{}').filled_at).toBe(`${today}T22:00`)
+
+    await expect(page.getByText('Add Fuel Record')).not.toBeVisible({ timeout: 10000 })
+
+    // Reload to bypass react-query cache staleness, then reopen the saved
+    // record's edit form (a fresh FuelRecordForm mount) and confirm the time
+    // reads back unambiguously as 22:00 — not 02:20 or 10:00 pm.
+    await page.goto(`/vehicles/${TEST_VEHICLE.vin}?tab=fuel`)
+    await expect(page.getByText('Fuel History')).toBeVisible({ timeout: 10000 })
+
+    await page.locator('button[title="Edit"]').first().click()
+    await expect(page.getByText('Edit Fuel Record')).toBeVisible({ timeout: 5000 })
+
+    const editMoreDetailsToggle = page.getByRole('button', { name: /more details/i })
+    if ((await editMoreDetailsToggle.getAttribute('aria-expanded')) !== 'true') {
+      await editMoreDetailsToggle.click()
+    }
+    await expect(page.locator('#filled_at_time')).toHaveValue('10:00')
+    await expect(page.getByRole('button', { name: 'PM' })).toHaveAttribute('aria-pressed', 'true')
+
+    // Close without saving, then clean up
+    await page.getByRole('button', { name: /cancel/i }).click()
+    await expect(page.getByText('Edit Fuel Record')).not.toBeVisible({ timeout: 5000 })
+
+    page.on('dialog', (dialog) => dialog.accept())
+    const deleteButton = page.locator('button[title="Delete"]').first()
+    await deleteButton.click()
+    await expect(page.getByText('No fuel records yet')).toBeVisible({ timeout: 10000 })
+  })
 })

@@ -43,6 +43,9 @@ class User(Base):
         String(20), default="imperial", nullable=False
     )  # 'imperial' or 'metric'
     show_both_units: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    time_format: Mapped[str] = mapped_column(
+        String(10), default="12h", nullable=False
+    )  # '12h' or '24h'
 
     # i18n preferences
     language: Mapped[str] = mapped_column(

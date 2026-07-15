@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Server, CheckCircle, AlertCircle, Info, Shield, Users, AlertTriangle, Key, Wrench, Fuel, Bell, FileText, StickyNote, Camera, Sun, Moon, Ruler, Archive, Smartphone, Globe, DollarSign } from 'lucide-react'
+import { Server, CheckCircle, AlertCircle, Info, Shield, Users, AlertTriangle, Key, Wrench, Fuel, Bell, FileText, StickyNote, Camera, Sun, Moon, Ruler, Clock, Archive, Smartphone, Globe, DollarSign } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useSettings } from '@/contexts/SettingsContext'
 import { useTheme } from '@/contexts/ThemeContext'
@@ -56,6 +56,10 @@ export default function SettingsSystemTab() {
   const [showBothUnits, setShowBothUnits] = useState(false)
   const [unitPreferenceSaving, setUnitPreferenceSaving] = useState(false)
 
+  // Time-format preference state (12h/24h)
+  const [timeFormat, setTimeFormat] = useState<'12h' | '24h'>('12h')
+  const [timeFormatSaving, setTimeFormatSaving] = useState(false)
+
   // Mobile experience state
   const [mobileQuickEntry, setMobileQuickEntry] = useState(true)
   const [mobileQuickEntrySaving, setMobileQuickEntrySaving] = useState(false)
@@ -84,6 +88,18 @@ export default function SettingsSystemTab() {
     'America/Anchorage',
     'America/Juneau',
     'Pacific/Honolulu',
+    'America/Sao_Paulo',
+    'America/Bahia',
+    'America/Fortaleza',
+    'America/Recife',
+    'America/Belem',
+    'America/Manaus',
+    'America/Cuiaba',
+    'America/Campo_Grande',
+    'America/Porto_Velho',
+    'America/Boa_Vista',
+    'America/Rio_Branco',
+    'America/Noronha',
     'Europe/London',
     'Europe/Paris',
     'Europe/Berlin',
@@ -175,6 +191,7 @@ export default function SettingsSystemTab() {
     if (currentUser) {
       setUnitPreference(currentUser.unit_preference || 'imperial')
       setShowBothUnits(currentUser.show_both_units || false)
+      setTimeFormat(currentUser.time_format || '12h')
       setMobileQuickEntry(currentUser.mobile_quick_entry_enabled ?? true)
       setSelectedLanguage(currentUser.language || 'en')
       setSelectedCurrency(currentUser.currency_code || 'USD')
@@ -185,6 +202,7 @@ export default function SettingsSystemTab() {
       const storedShowBoth = localStorage.getItem('show_both_units') === 'true'
       setUnitPreference(storedSystem || 'imperial')
       setShowBothUnits(storedShowBoth)
+      setTimeFormat((localStorage.getItem('time_format') as '12h' | '24h') || '12h')
       setSelectedLanguage(localStorage.getItem('i18nextLng') || 'en')
       setSelectedCurrency(localStorage.getItem('currency_code') || 'USD')
     }
@@ -319,6 +337,34 @@ export default function SettingsSystemTab() {
       }
     } finally {
       setUnitPreferenceSaving(false)
+    }
+  }
+
+  const handleTimeFormatChange = async (format: '12h' | '24h') => {
+    setTimeFormatSaving(true)
+    setTimeFormat(format)
+
+    try {
+      if (isAuthenticated) {
+        await api.put('/auth/me', { time_format: format })
+        await refreshUser()
+      } else {
+        localStorage.setItem('time_format', format)
+      }
+
+      toast.success(t('preferences.timeSaved', { defaultValue: 'Time format saved' }))
+      // Force a re-render of displays subscribed to the storage event.
+      window.dispatchEvent(new Event('storage'))
+    } catch {
+      toast.error(t('preferences.timeError', { defaultValue: 'Failed to save time format' }))
+      // Revert on error
+      if (isAuthenticated) {
+        setTimeFormat((currentUser?.time_format as '12h' | '24h') || '12h')
+      } else {
+        setTimeFormat((localStorage.getItem('time_format') as '12h' | '24h') || '12h')
+      }
+    } finally {
+      setTimeFormatSaving(false)
     }
   }
 
@@ -614,6 +660,45 @@ export default function SettingsSystemTab() {
               {t('units.showBothDescription')}
             </p>
           </div>
+        </div>
+
+        {/* Time Format Setting */}
+        <div>
+          <label className="block text-sm font-medium text-garage-text mb-3">
+            <div className="flex items-center gap-2">
+              <Clock className="w-4 h-4" />
+              {t('timeFormat.label', { defaultValue: 'Time Format' })}
+            </div>
+          </label>
+          <div className="flex gap-3">
+            <button
+              onClick={() => handleTimeFormatChange('12h')}
+              disabled={timeFormatSaving}
+              className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 transition-all ${
+                timeFormat === '12h'
+                  ? 'border-primary bg-primary/10 text-primary'
+                  : 'border-garage-border bg-garage-bg text-garage-text hover:border-garage-border-light'
+              } ${timeFormatSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              <Clock className="w-5 h-5" />
+              <span className="font-medium">{t('timeFormat.twelveHour', { defaultValue: '12-hour (2:30 PM)' })}</span>
+            </button>
+            <button
+              onClick={() => handleTimeFormatChange('24h')}
+              disabled={timeFormatSaving}
+              className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 transition-all ${
+                timeFormat === '24h'
+                  ? 'border-primary bg-primary/10 text-primary'
+                  : 'border-garage-border bg-garage-bg text-garage-text hover:border-garage-border-light'
+              } ${timeFormatSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              <Clock className="w-5 h-5" />
+              <span className="font-medium">{t('timeFormat.twentyFourHour', { defaultValue: '24-hour (14:30)' })}</span>
+            </button>
+          </div>
+          <p className="mt-2 text-sm text-garage-text-muted">
+            {t('timeFormat.description', { defaultValue: 'Choose how times are displayed throughout the app.' })}
+          </p>
         </div>
 
         {/* Language Setting */}

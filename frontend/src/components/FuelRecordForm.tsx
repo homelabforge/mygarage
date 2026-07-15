@@ -25,8 +25,24 @@ import { UnitConverter, UnitFormatter } from '../utils/units'
 import { toCanonicalKm, toCanonicalLiters, priceToDisplay, priceToCanonical } from '../utils/decimalSafe'
 import CurrencyInputPrefix from './common/CurrencyInputPrefix'
 import { formatDateForInput } from '../utils/dateUtils'
+import TimeInput24, { normalizeTime, formatTimeForInput } from './common/TimeInput24'
+import { useTimeFormat } from '../hooks/useTimeFormat'
 
 const MORE_DETAILS_KEY = 'fuel_form:more_details_expanded'
+
+/** Split a "YYYY-MM-DDTHH:mm" (or naive ISO) value into date + 24h time parts. */
+export function splitFilledAt(val: string | null | undefined): { date: string; time: string } {
+  if (!val) return { date: '', time: '' }
+  const trimmed = val.slice(0, 16) // drop seconds/offset
+  const [date = '', time = ''] = trimmed.split('T')
+  return { date, time: time.slice(0, 5) }
+}
+
+/** Recombine date + 24h time into the submit string; empty unless both present. */
+export function joinFilledAt(date: string, time: string): string {
+  if (!date || !time) return ''
+  return `${date}T${time}`
+}
 
 interface ObcSuggestion {
   session_id: number
@@ -53,6 +69,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
   const [vehicleFuelType, setVehicleFuelType] = useState<string>('')
   const [vehicleFuelTypeSecondary, setVehicleFuelTypeSecondary] = useState<string>('')
   const { system } = useUnitPreference()
+  const { timeFormat } = useTimeFormat()
   const { user } = useAuth()
 
   // Initial render of the "More details" panel state — sticky per-user via
@@ -98,13 +115,6 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
     return isNaN(num) ? undefined : num
   }
 
-  // ISO datetime → "YYYY-MM-DDTHH:mm" for <input type="datetime-local">.
-  const formatDateTimeForInput = (val: string | null | undefined): string => {
-    if (!val) return ''
-    // Backend may return naive ISO ("2026-04-30T15:30:00") or with offset.
-    return val.length >= 16 ? val.slice(0, 16) : val
-  }
-
   const {
     register,
     handleSubmit,
@@ -116,7 +126,9 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
     resolver: zodResolver(fuelRecordSchema) as Resolver<FuelRecordFormData>,
     defaultValues: {
       date: formatDateForInput(record?.date),
-      filled_at: formatDateTimeForInput(record?.filled_at),
+      // Immediately overwritten by the sub-field mirror effect below once
+      // filledTime seeds on mount — this is just the RHF key placeholder.
+      filled_at: '',
       odometer_km: system === 'imperial' && record?.odometer_km != null
         ? UnitConverter.kmToMiles(toNumber(record.odometer_km)!) ?? undefined
         : toNumber(record?.odometer_km),
@@ -130,6 +142,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
       price_per_unit: priceToDisplay(record?.price_per_unit, system, record?.price_basis) ?? undefined,
       price_basis: (record?.price_basis as 'per_volume' | 'per_weight' | 'per_kwh' | 'per_tank' | undefined) ?? undefined,
       cost: toNumber(record?.cost),
+      rebate: toNumber(record?.rebate),
       fuel_type: record?.fuel_type || '',
       fuel_type_used: record?.fuel_type_used as FuelRecordFormData['fuel_type_used'] ?? undefined,
       is_full_tank: record?.is_full_tank ?? true,
@@ -162,10 +175,27 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
     },
   })
 
+  // Fill-up time is entered as a time-of-day; the date comes from the record's
+  // own `date` field (issue #109 follow-up). Seed the display string from the
+  // stored canonical time, in the user's format.
+  const [filledTime, setFilledTime] = useState(() =>
+    formatTimeForInput(splitFilledAt(record?.filled_at).time, timeFormat),
+  )
+  const recordDate = watch('date')
+
+  // Mirror the recombined value into RHF so watchers (e.g. OBC suggestion) see
+  // it live. NOT the source of truth for submission — onSubmit recomputes.
+  useEffect(() => {
+    setValue('filled_at', joinFilledAt(recordDate, normalizeTime(filledTime, timeFormat)), {
+      shouldValidate: false,
+    })
+  }, [recordDate, filledTime, timeFormat, setValue])
+
   // Watch for auto-calculation
   const liters = watch('liters')
   const kwh = watch('kwh')
   const pricePerUnit = watch('price_per_unit')
+  const rebate = watch('rebate')
 
   // Fetch vehicle data to get fuel_type
   useEffect(() => {
@@ -290,23 +320,54 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
     if (volumeOrEnergy && pricePerUnit) {
       const volumeNum = typeof volumeOrEnergy === 'number' ? volumeOrEnergy : parseFloat(volumeOrEnergy)
       const priceNum = typeof pricePerUnit === 'number' ? pricePerUnit : parseFloat(pricePerUnit)
+      const rebateNum = typeof rebate === 'number' ? rebate : parseFloat(rebate ?? '')
 
       if (!isNaN(volumeNum) && !isNaN(priceNum)) {
-        const total = volumeNum * priceNum
-        setValue('cost', parseFloat(total.toFixed(2)))
+        // Total Cost is the NET the driver actually paid: gross minus any
+        // rebate/points. Clamp at 0 so an over-large rebate can't go negative.
+        const gross = volumeNum * priceNum
+        const net = gross - (isNaN(rebateNum) ? 0 : rebateNum)
+        setValue('cost', parseFloat(Math.max(0, net).toFixed(2)))
       }
     }
-  }, [liters, kwh, pricePerUnit, setValue, isInitialMount])
+  }, [liters, kwh, pricePerUnit, rebate, setValue, isInitialMount])
 
   const onSubmit = async (data: FuelRecordFormData) => {
     setError(null)
+    // Authoritative recompute — independent of blur/Enter having fired (#109).
+    const rawTime = filledTime.trim()
+    const normTime = normalizeTime(filledTime, timeFormat)
+    // A non-empty but INVALID/incomplete time must NOT be silently dropped to
+    // null — block instead (Codex R1-H1). Empty is fine (means "no timestamp").
+    if (rawTime !== '' && normTime === '') {
+      setError(t('fuel.invalidFilledTime', { defaultValue: 'Enter a valid time, or clear it.' }))
+      return
+    }
+    // filled_at = record date + entered time. Edit-safety (review R1-H2): if
+    // neither the record date nor the time changed from the stored values,
+    // resubmit the stored timestamp verbatim so an untouched record — including
+    // a rare imported one whose date diverges from `date` — keeps its exact
+    // filled_at. Otherwise recompute from the record's own date + the time.
+    let filledAtValue: string | null
+    if (isEdit && record?.filled_at) {
+      const initialDate = formatDateForInput(record.date)
+      const initialTime = splitFilledAt(record.filled_at).time
+      const untouched = data.date === initialDate && normTime === initialTime
+      filledAtValue = untouched
+        ? record.filled_at
+        : normTime
+          ? joinFilledAt(data.date, normTime)
+          : null
+    } else {
+      filledAtValue = normTime ? joinFilledAt(data.date, normTime) : null
+    }
 
     try {
       // Convert user-entered values to canonical metric (SI) for the API.
       const payload: FuelRecordCreate | FuelRecordUpdate = {
         vin,
         date: data.date,
-        filled_at: data.filled_at && data.filled_at.length > 0 ? data.filled_at : undefined,
+        filled_at: filledAtValue,
         odometer_km: toCanonicalKm(data.odometer_km, system) ?? undefined,
         liters: toCanonicalLiters(data.liters, system) ?? undefined,
         propane_liters: toCanonicalLiters(data.propane_liters, system) ?? undefined,
@@ -314,6 +375,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
         price_per_unit: priceToCanonical(data.price_per_unit, system, data.price_basis) ?? undefined,
         price_basis: data.price_basis,
         cost: data.cost,
+        rebate: data.rebate,
         fuel_type: data.fuel_type,
         fuel_type_used: data.fuel_type_used,
         is_full_tank: data.is_full_tank,
@@ -547,29 +609,56 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
             <FormError error={errors.price_basis} />
           </div>
 
-          <div>
-            <label htmlFor="cost" className="block text-sm font-medium text-garage-text mb-1">
-              {t('common:totalCost')}
-            </label>
-            <div className="relative">
-              <CurrencyInputPrefix />
-              <input
-                type="number"
-                id="cost"
-                {...register('cost', { valueAsNumber: true })}
-                min="0"
-                step="0.01"
-                placeholder="42.99"
-                className={`w-full pl-7 pr-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
-                  errors.cost ? 'border-red-500' : 'border-garage-border'
-                }`}
-                disabled={isSubmitting}
-              />
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="rebate" className="block text-sm font-medium text-garage-text mb-1">
+                {t('fuel.rebate', { defaultValue: 'Rebate' })}
+              </label>
+              <div className="relative">
+                <CurrencyInputPrefix />
+                <input
+                  type="number"
+                  id="rebate"
+                  {...register('rebate', { valueAsNumber: true })}
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                  className={`w-full pl-7 pr-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
+                    errors.rebate ? 'border-red-500' : 'border-garage-border'
+                  }`}
+                  disabled={isSubmitting}
+                />
+              </div>
+              <FormError error={errors.rebate} />
+              <p className="text-xs text-garage-text-muted mt-1">
+                {t('fuel.rebateHint', { defaultValue: 'Points, discounts, or cash back — deducted from Total Cost' })}
+              </p>
             </div>
-            <FormError error={errors.cost} />
-            <p className="text-xs text-garage-text-muted mt-1">
-              {t('fuel.autoCalculatedHint')}
-            </p>
+
+            <div>
+              <label htmlFor="cost" className="block text-sm font-medium text-garage-text mb-1">
+                {t('common:totalCost')}
+              </label>
+              <div className="relative">
+                <CurrencyInputPrefix />
+                <input
+                  type="number"
+                  id="cost"
+                  {...register('cost', { valueAsNumber: true })}
+                  min="0"
+                  step="0.01"
+                  placeholder="42.99"
+                  className={`w-full pl-7 pr-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text ${
+                    errors.cost ? 'border-red-500' : 'border-garage-border'
+                  }`}
+                  disabled={isSubmitting}
+                />
+              </div>
+              <FormError error={errors.cost} />
+              <p className="text-xs text-garage-text-muted mt-1">
+                {t('fuel.autoCalculatedHint')}
+              </p>
+            </div>
           </div>
 
           <div>
@@ -756,20 +845,25 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
 
             {moreDetailsOpen && (
               <div className="p-4 space-y-4 border-t border-garage-border">
-                {/* Filled-at timestamp */}
-                <div>
-                  <label htmlFor="filled_at" className="block text-sm font-medium text-garage-text mb-1">
+                {/* Fill-up time (issue #109) — date comes from the record's date field */}
+                <fieldset>
+                  <legend className="block text-sm font-medium text-garage-text mb-1">
                     {t('fuel.filledAt')}
-                  </label>
-                  <input
-                    type="datetime-local"
-                    id="filled_at"
-                    {...register('filled_at')}
-                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text border-garage-border"
+                  </legend>
+                  <TimeInput24
+                    id="filled_at_time"
+                    ariaLabel={t('fuel.filledAtTimeLabel', { defaultValue: 'Fill-up time' })}
+                    value={filledTime}
+                    onChange={setFilledTime}
+                    timeFormat={timeFormat}
                     disabled={isSubmitting}
                   />
-                  <p className="text-xs text-garage-text-muted mt-1">{t('fuel.filledAtHint')}</p>
-                </div>
+                  <p className="text-xs text-garage-text-muted mt-1">
+                    {t('fuel.filledAtTimeOnlyHint', {
+                      defaultValue: 'Optional. Uses the date above; needed for auto-fill from your last drive.',
+                    })}
+                  </p>
+                </fieldset>
 
                 {/* Station autocomplete + one-time-visit */}
                 <div>

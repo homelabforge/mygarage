@@ -40,6 +40,7 @@ import {
 import type { LucideIcon } from 'lucide-react'
 import vehicleService from '../services/vehicleService'
 import api from '../services/api'
+import { withBase } from '../utils/basePath'
 import type { Vehicle } from '../types/vehicle'
 import { isDieselFuelType } from '../constants/fuel'
 import ServiceTab from '../components/tabs/ServiceTab'
@@ -106,7 +107,7 @@ const getApiErrorMessage = (error: unknown, fallback: string) => {
 }
 
 type ModalType = 'remove' | 'transfer' | 'sharing' | 'windowSticker' | null
-type PrimaryTabType = 'overview' | 'media' | 'maintenance' | 'tracking' | 'financial' | 'livelink'
+type PrimaryTabType = 'overview' | 'media' | 'maintenance' | 'fuel' | 'tracking' | 'financial' | 'livelink'
 type SubTabType = 'photos' | 'documents' | 'service' | 'fuel' | 'def' | 'propane' | 'odometer' | 'notes' | 'warranties' | 'insurance' | 'tax' | 'tolls' | 'spotrentals' | 'recalls' | 'reports' | 'reminders' | 'live' | 'dtcs' | 'sessions' | 'charts'
 
 export default function VehicleDetail() {
@@ -189,12 +190,12 @@ export default function VehicleDetail() {
     // Map calendar tab parameter to primary + sub tab
     const tabMapping: Record<string, { primary: PrimaryTabType; sub: SubTabType }> = {
       'insurance': { primary: 'financial', sub: 'insurance' },
-      'propane': { primary: 'maintenance', sub: 'propane' },
-      'def': { primary: 'maintenance', sub: 'def' },
+      'propane': { primary: 'fuel', sub: 'propane' },
+      'def': { primary: 'fuel', sub: 'def' },
       'warranties': { primary: 'financial', sub: 'warranties' },
       'service': { primary: 'maintenance', sub: 'service' },
       'notes': { primary: 'tracking', sub: 'notes' },
-      'fuel': { primary: 'maintenance', sub: 'fuel' },
+      'fuel': { primary: 'fuel', sub: 'fuel' },
       'odometer': { primary: 'maintenance', sub: 'odometer' },
       'photos': { primary: 'media', sub: 'photos' },
       'documents': { primary: 'media', sub: 'documents' },
@@ -368,6 +369,11 @@ export default function VehicleDetail() {
       case 'maintenance':
         setActiveSubTab('service')
         break
+      case 'fuel':
+        // Fuel group is fuel/def/propane; pick the first sub-tab visible for this
+        // vehicle (propane-only trailers aren't motorized, so 'fuel' would be hidden)
+        setActiveSubTab(isMotorized ? 'fuel' : hasPropane ? 'propane' : hasDEF ? 'def' : 'fuel')
+        break
       case 'tracking':
         setActiveSubTab('notes')
         break
@@ -448,6 +454,13 @@ export default function VehicleDetail() {
       icon: Wrench,
       hasSubTabs: true
     },
+    // Fuel tab — groups fuel/DEF/propane fill-ups; shown when any is relevant
+    ...((isMotorized || hasDEF || hasPropane) ? [{
+      id: 'fuel' as const,
+      label: t('detail.tabs.fuel'),
+      icon: Fuel,
+      hasSubTabs: true
+    }] : []),
     {
       id: 'tracking' as const,
       label: t('detail.tabs.tracking'),
@@ -477,11 +490,13 @@ export default function VehicleDetail() {
     ],
     maintenance: [
       { id: 'service' as const, label: 'Service', icon: Wrench },
+      { id: 'odometer' as const, label: 'Odometer', icon: Gauge, visible: isMotorized },
+      { id: 'recalls' as const, label: 'Recalls', icon: AlertTriangle },
+    ],
+    fuel: [
       { id: 'fuel' as const, label: 'Fuel', icon: Fuel, visible: isMotorized },
       { id: 'def' as const, label: 'DEF', icon: Droplets, visible: hasDEF },
       { id: 'propane' as const, label: 'Propane', icon: Fuel, visible: hasPropane },
-      { id: 'odometer' as const, label: 'Odometer', icon: Gauge, visible: isMotorized },
-      { id: 'recalls' as const, label: 'Recalls', icon: AlertTriangle },
     ],
     tracking: [
       { id: 'notes' as const, label: 'Notes', icon: FileText },
@@ -530,7 +545,7 @@ export default function VehicleDetail() {
   }
 
   const photoUrl = vehicle.main_photo
-    ? `/api/vehicles/${vehicle.vin}/photos/${vehicle.main_photo.split('/').pop()}`
+    ? withBase(`/api/vehicles/${vehicle.vin}/photos/${vehicle.main_photo.split('/').pop()}`)
     : null
 
   return (
@@ -1227,11 +1242,11 @@ export default function VehicleDetail() {
         {activePrimaryTab === 'media' && activeSubTab === 'photos' && vin && <PhotosTab vin={vin} />}
         {activePrimaryTab === 'media' && activeSubTab === 'documents' && vin && <DocumentsTab vin={vin} />}
 
-        {/* Maintenance Sub-tabs */}
+        {/* Maintenance & Fuel Sub-tabs */}
         {activePrimaryTab === 'maintenance' && activeSubTab === 'service' && vin && <ServiceTab vin={vin} />}
-        {activePrimaryTab === 'maintenance' && activeSubTab === 'fuel' && vin && <FuelTab vin={vin} />}
-        {activePrimaryTab === 'maintenance' && activeSubTab === 'def' && vin && <DEFTab vin={vin} isDiesel={isDiesel} />}
-        {activePrimaryTab === 'maintenance' && activeSubTab === 'propane' && vin && <PropaneTab vin={vin} />}
+        {activePrimaryTab === 'fuel' && activeSubTab === 'fuel' && vin && <FuelTab vin={vin} />}
+        {activePrimaryTab === 'fuel' && activeSubTab === 'def' && vin && <DEFTab vin={vin} isDiesel={isDiesel} />}
+        {activePrimaryTab === 'fuel' && activeSubTab === 'propane' && vin && <PropaneTab vin={vin} />}
         {activePrimaryTab === 'maintenance' && activeSubTab === 'odometer' && vin && <OdometerTab vin={vin} />}
         {activePrimaryTab === 'maintenance' && activeSubTab === 'recalls' && vin && <SafetyTab vin={vin} />}
 

@@ -33,6 +33,7 @@ async def clear_oidc_settings(db_session) -> None:
         "oidc_issuer_url",
         "oidc_client_id",
         "oidc_client_secret",
+        "oidc_redirect_uri",
         "oidc_scopes",
         "oidc_auto_create_users",
         "oidc_username_claim",

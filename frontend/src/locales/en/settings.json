@@ -246,5 +246,11 @@
     "createFullError": "Failed to create full backup",
     "restoreOverwrite": "Restore (overwrites all data)",
     "noFullBackups": "No full backups yet. Create one to get started."
+  },
+  "timeFormat": {
+    "label": "Time Format",
+    "twelveHour": "12-hour (2:30 PM)",
+    "twentyFourHour": "24-hour (14:30)",
+    "description": "Choose how times are displayed throughout the app."
   }
 }

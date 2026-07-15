@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import api from '../services/api'
-import { Car, Wrench, Fuel, Shield, FileText, Download, HelpCircle, Droplets } from 'lucide-react'
+import { Car, Wrench, Fuel, Shield, FileText, HelpCircle, Droplets } from 'lucide-react'
 import {
   ResponsiveContainer,
   PieChart as RechartsPieChart,
@@ -18,14 +18,18 @@ import {
 import type { PieLabelRenderProps, SectorProps } from 'recharts'
 import type { GarageAnalytics, GarageMonthlyTrend } from '../types/analytics'
 import GarageAnalyticsHelpModal from '../components/GarageAnalyticsHelpModal'
+import ExportMenu from '../components/ExportMenu'
 import { formatCurrency as formatCurrencyBase, formatCurrencyZero as formatCurrency } from '../utils/formatUtils'
 import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
+import { useTimeFormat } from '../hooks/useTimeFormat'
+import { formatDateTime } from '../utils/parseAPITimestamp'
 
 // Colors for pie chart categories (9 categories: Maintenance, Upgrades, Inspection, Collision, Detailing, Fuel, DEF, Insurance, Taxes)
 const COLORS = ['#3B82F6', '#8B5CF6', '#F59E0B', '#EF4444', '#10B981', '#06B6D4', '#14B8A6', '#EC4899', '#6B7280']
 
 export default function GarageAnalytics() {
   const { currencyCode, locale } = useCurrencyPreference()
+  const { timeFormat } = useTimeFormat()
   const [analytics, setAnalytics] = useState<GarageAnalytics | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -39,7 +43,7 @@ export default function GarageAnalytics() {
 
     // Header
     rows.push('MyGarage Garage Analytics Export')
-    rows.push(`Generated: ${new Date().toLocaleString()}`)
+    rows.push(`Generated: ${formatDateTime(new Date(), timeFormat, { seconds: true })}`)
     rows.push(`Total Vehicles: ${analytics.vehicle_count}`)
     rows.push('')
 
@@ -270,20 +274,7 @@ export default function GarageAnalytics() {
             <HelpCircle className="w-4 h-4" />
             Help
           </button>
-          <button
-            onClick={exportToCSV}
-            className="px-4 py-2 bg-garage-surface border border-garage-border text-garage-text rounded-lg hover:bg-garage-surface-light transition-colors flex items-center gap-2"
-          >
-            <Download className="w-4 h-4" />
-            CSV
-          </button>
-          <button
-            onClick={exportToPDF}
-            className="px-4 py-2 bg-garage-surface border border-garage-border text-garage-text rounded-lg hover:bg-garage-surface-light transition-colors flex items-center gap-2"
-          >
-            <Download className="w-4 h-4" />
-            PDF
-          </button>
+          <ExportMenu onExportCSV={exportToCSV} onExportPDF={exportToPDF} />
         </div>
       </div>
 

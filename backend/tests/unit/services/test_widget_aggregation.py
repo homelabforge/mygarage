@@ -250,8 +250,10 @@ class TestMpgParity:
         assert result.average_mpg == pytest.approx(34.3, abs=0.1)
 
     @pytest.mark.asyncio
-    async def test_partial_tank_excluded(self, db_session, aggregation_user):
-        """Non-full-tank records must not contribute to MPG — matches calculate_mpg guard."""
+    async def test_partial_tank_fuel_counted_toward_next_full(self, db_session, aggregation_user):
+        """A partial fill-up gets no MPG of its own, but its fuel DOES count
+        toward the next full tank's figure (issue #113). Using only the final
+        full-tank volume over-reports economy."""
         vehicle = await _make_vehicle(db_session, aggregation_user)
         vin = vehicle.vin
 
@@ -266,7 +268,7 @@ class TestMpgParity:
                     cost=Decimal("35.00"),
                     is_full_tank=True,
                 ),
-                # Partial tank between the two full tanks — ignored.
+                # Partial tank between the two full tanks — its 5 gal count.
                 FuelRecord(
                     vin=vin,
                     date=date(2026, 1, 10),
@@ -279,9 +281,9 @@ class TestMpgParity:
                 FuelRecord(
                     vin=vin,
                     date=date(2026, 1, 20),
-                    odometer_km=_mi_to_km(
-                        10300
-                    ),  # Pair is (10300, 10000); +300 / 10 gal = 30.0 MPG
+                    # Interval is (10000, 10300]: +300 mi on 5 (partial) + 10
+                    # (this full) = 15 gal → 20.0 MPG.
+                    odometer_km=_mi_to_km(10300),
                     liters=_gal_to_l(Decimal("10.0")),
                     price_per_unit=Decimal("3.50"),
                     cost=Decimal("35.00"),
@@ -294,7 +296,7 @@ class TestMpgParity:
         svc = WidgetAggregationService(db_session)
         result = await svc.vehicle(aggregation_user.id, vin, allowed_vins=None)
         assert result is not None
-        assert result.recent_mpg == pytest.approx(30.0)
+        assert result.recent_mpg == pytest.approx(20.0)
 
     @pytest.mark.asyncio
     async def test_zero_distance_pair_excluded(self, db_session, aggregation_user):

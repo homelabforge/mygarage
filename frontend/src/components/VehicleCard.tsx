@@ -11,6 +11,7 @@ import { formatCurrency } from '../utils/formatUtils'
 import { formatDateForDisplay } from '../utils/dateUtils'
 import { useDateLocale } from '../hooks/useDateLocale'
 import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
+import { withBase } from '../utils/basePath'
 
 interface VehicleCardProps {
   vehicle: Vehicle
@@ -21,7 +22,7 @@ function VehicleCard({ vehicle }: VehicleCardProps) {
   const dateLocale = useDateLocale()
   const { currencyCode, locale } = useCurrencyPreference()
   const photoUrl = vehicle.main_photo
-    ? `/api/vehicles/${vehicle.vin}/photos/${vehicle.main_photo.split('/').pop()}`
+    ? withBase(`/api/vehicles/${vehicle.vin}/photos/${vehicle.main_photo.split('/').pop()}`)
     : null
 
   const formatDate = (dateString?: string) => {
