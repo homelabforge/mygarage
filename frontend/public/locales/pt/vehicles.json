@@ -45,8 +45,8 @@
     "overdue": "Atrasados",
     "reminderDone": "Lembrete concluído",
     "searchPlaceholder": "Buscar...",
-    "subtitle": "Veja todas as manutenções, renovações de seguro e vencimentos de garantia futuros",
-    "title": "Calendário",
+    "subtitle": "Subtítulo",
+    "title": "Título",
     "totalEvents": "Todos os eventos",
     "upcomingEvents": "Próximos eventos",
     "vehicles": "Veículos"
@@ -68,8 +68,8 @@
     "sharedWithMe": "Compartilhados comigo",
     "sortByName": "Ordenar por nome",
     "sortVehicles": "Ordenar veículos",
-    "subtitle": "Gerencie seus veículos e acompanhe as manutenções",
-    "title": "Minha Garagem"
+    "subtitle": "Subtítulo",
+    "title": "Título"
   },
   "defList": {
     "actions": "Ações",
@@ -92,12 +92,12 @@
     "mileage": "Quilometragem",
     "needMoreData": "Mais dados são necessários",
     "noRecords": "Nenhum registro",
-    "noRecordsDesc": "Acompanhe as compras e os níveis de DEF",
+    "noRecordsDesc": "Botão de nenhum registro",
     "purchase": "Compra",
     "readOnlyNotice": "Entradas de DEF exigem um motor a Diesel — registros exibidos apenas para fins informativos",
     "recordCount": "{{count}} registro(s)",
     "source": "Fonte",
-    "title": "Registros de DEF",
+    "title": "Título",
     "totalSpent": "Total gasto",
     "type": "Tipo"
   },
@@ -144,7 +144,6 @@
     "shareVehicle": "Compartilhar veículo",
     "standardEquipment": "Equipamento de série",
     "tabs": {
-      "fuel": "Combustível",
       "financial": "Financeiro",
       "maintenance": "Manutenção",
       "media": "Mídias",
@@ -166,25 +165,25 @@
   "documentList": {
     "confirmDelete": "Confirmar exclusão",
     "deleteError": "Erro ao excluir",
-    "descriptionLabel": "Descrição",
+    "descriptionLabel": "Rótulo de descrição",
     "download": "Baixar",
     "downloadError": "Erro ao baixar",
     "fileCount": "{{count}} arquivos",
     "loading": "Carregando...",
     "noRecords": "Nenhum registro",
-    "noRecordsDesc": "Envie documentos importantes do veículo, como seguro, registro, manuais e recibos",
+    "noRecordsDesc": "Botão de nenhum registro",
     "selectType": "Selecione o tipo",
-    "title": "Documentos",
-    "titleLabel": "Título",
-    "typeLabel": "Tipo",
+    "title": "Título",
+    "titleLabel": "Rótulo do título",
+    "typeLabel": "Rótulo do tipo",
     "updateError": "Erro ao atualizar",
     "uploadDocument": "Enviar documento",
     "uploadFirstDocument": "Enviar primeiro documento",
     "uploaded": "Enviado"
   },
   "documentUpload": {
-    "title": "Enviar documento",
-    "uploadBtn": "Enviar documento",
+    "title": "Título",
+    "uploadBtn": "Botão de envio",
     "uploading": "Enviando..."
   },
   "edit": {
@@ -209,7 +208,7 @@
     "licensePlate": "Placa",
     "loading": "Carregando...",
     "make": "Marca",
-    "model": "Modelo",
+    "model": "Model",
     "nickname": "Apelido",
     "purchaseDate": "Data de compra",
     "purchaseInformation": "Informações de compra",
@@ -219,7 +218,7 @@
     "selectType": "Selecione o tipo",
     "soldDate": "Data de venda",
     "soldPrice": "Preço de venda",
-    "title": "Editar veículo",
+    "title": "Título",
     "transmissionSpeeds": "Marchas",
     "transmissionType": "Tipo de transmissão",
     "trim": "Versão / Acabamento",
@@ -254,13 +253,13 @@
     "mileage": "Quilometragem",
     "noMatchingRecords": "Nenhum registro correspondente",
     "noRecords": "Nenhum registro",
-    "noRecordsDesc": "Comece a registrar seus abastecimentos e acompanhe o consumo de combustível",
+    "noRecordsDesc": "Botão de nenhum registro",
     "notes": "Notas",
     "partial": "Parcial",
     "recordCount": "{{count}} registro(s)",
     "searchPlaceholder": "Buscar...",
     "showingResults": "Exibindo {{shown}} de {{total}} registros",
-    "title": "Histórico de abastecimentos",
+    "title": "Título",
     "totalCost": "Custo total",
     "totalSpent": "Total gasto",
     "towing": "Reboque"
@@ -281,7 +280,7 @@
     "policyNumber": "Número da apólice",
     "premiumAmount": "Valor do prêmio",
     "startDate": "Data de início",
-    "title": "Apólices de seguro"
+    "title": "Título"
   },
   "lineItemEditor": {
     "cost": "Custo",
@@ -349,7 +348,7 @@
     "vehicleRunning": "Veículo funcionando",
     "wicanOffline": "WiCAN offline",
     "widget": {
-      "title": "LiveLink"
+      "title": "Título"
     }
   },
   "noteList": {
@@ -360,9 +359,9 @@
     "deleteError": "Erro ao excluir",
     "loading": "Carregando...",
     "noRecords": "Nenhum registro",
-    "noRecordsDesc": "Registre observações, modificações, viagens e outras informações sobre o seu veículo",
+    "noRecordsDesc": "Botão de nenhum registro",
     "noteCount": "{{count}} notas",
-    "title": "Notas",
+    "title": "Título",
     "updated": "Atualizado em"
   },
   "odometerList": {
@@ -383,21 +382,21 @@
     "latestMileage": "Última quilometragem",
     "loading": "Carregando...",
     "noRecords": "Nenhum registro",
-    "noRecordsDesc": "Acompanhe a quilometragem do seu veículo ao longo do tempo",
+    "noRecordsDesc": "Botão de nenhum registro",
     "notes": "Notas",
     "recordCount": "{{count}} registro(s)",
-    "title": "Leituras do odômetro"
+    "title": "Título"
   },
   "photoGallery": {
     "deletePhoto": "Excluir foto",
     "loading": "Carregando...",
     "noPhotos": "Nenhuma foto",
-    "noPhotosDesc": "Envie fotos do seu veículo para criar uma galeria",
+    "noPhotosDesc": "Botão de nenhuma foto",
     "setAsMain": "Definir como principal",
     "uploadFirstPhoto": "Enviar primeira foto"
   },
   "photoUpload": {
-    "uploadBtn": "Enviar foto",
+    "uploadBtn": "Botão de envio",
     "uploading": "Enviando..."
   },
   "propaneList": {
@@ -412,10 +411,10 @@
     "gallons": "Galões",
     "loading": "Carregando...",
     "noRecords": "Nenhum registro",
-    "noRecordsDesc": "Acompanhe os abastecimentos de propano do seu trailer",
+    "noRecordsDesc": "Botão de nenhum registro",
     "pricePerUnit": "Preço por unidade",
     "recordCount": "{{count}} registro(s)",
-    "title": "Registros de propano",
+    "title": "Título",
     "totalGallons": "Total de galões",
     "totalLiters": "Total de litros",
     "totalSpent": "Total gasto",
@@ -424,20 +423,19 @@
   "quickEntry": {
     "fuelRecord": "Registro de combustível",
     "fuelUp": "Abastecer",
-    "fuelUpDesc": "Registre um abastecimento ou recarga",
+    "fuelUpDesc": "Botão de abastecimento",
     "goToDashboard": "Ir para o painel",
     "loadError": "Erro ao carregar",
     "loadingVehicles": "Carregando veículos",
     "mileage": "Quilometragem",
-    "mileageDesc": "Registre a leitura do odômetro",
+    "mileageDesc": "Botão de quilometragem",
     "noVehicles": "Nenhum veículo",
     "record": "Registro",
     "recordSaved": "{{type}} salvo",
-    "retry": "Tentar novamente",
     "selectVehicle": "Selecione o veículo",
     "serviceVisit": "Manutenção / Serviço",
-    "serviceVisitDesc": "Registre uma manutenção ou reparo",
-    "title": "Entrada rápida",
+    "serviceVisitDesc": "Botão de ordem de serviço",
+    "title": "Título",
     "vehicle": "Veículo",
     "whatLogging": "O que vamos registrar?"
   },
@@ -467,7 +465,7 @@
     "resolvedOnly": "Apenas resolvidos",
     "statusError": "Erro de status",
     "summary": "Resumo",
-    "title": "Recalls de segurança",
+    "title": "Título",
     "viewOnCarComplaints": "Visualizar no Car Complaints"
   },
   "reminderList": {
@@ -485,14 +483,14 @@
     "markDoneError": "Erro ao marcar como concluído",
     "markedDone": "Marcado como concluído",
     "noReminders": "Nenhum lembrete {{status}}",
-    "title": "Lembretes"
+    "title": "Título"
   },
   "serviceList": {
     "attachments": "Anexos",
     "confirmDelete": "Confirmar exclusão",
     "costBreakdown": "Detalhamento de custos",
     "deleteFailed": "Falha ao excluir",
-    "deleteFailedDesc": "Falha ao excluir a visita",
+    "deleteFailedDesc": "Botão de erro ao excluir",
     "deleted": "Excluído",
     "inspection": "Inspeção",
     "insuranceClaim": "Sinistro de seguro",
@@ -502,7 +500,7 @@
     "miscFees": "Taxas diversas",
     "noMatchingVisits": "Nenhuma visita correspondente",
     "noRecords": "Nenhum registro",
-    "noRecordsDesc": "Comece a registrar as manutenções e os reparos do seu veículo",
+    "noRecordsDesc": "Botão de nenhum registro",
     "searchPlaceholder": "Buscar...",
     "serviceCount": "{{count}} serviços",
     "servicesPerformed": "Serviços realizados",
@@ -510,12 +508,12 @@
     "showingResults": "Exibindo {{shown}} de {{total}} visitas",
     "subtotal": "Subtotal",
     "tax": "Imposto",
-    "title": "Histórico de serviços",
+    "title": "Título",
     "total": "Total",
     "visitCount": "{{count}} visitas"
   },
   "serviceVisitAttachmentUpload": {
-    "title": "Enviar anexo"
+    "title": "Título"
   },
   "spotRentalList": {
     "active": "Ativos",
@@ -547,11 +545,11 @@
     "nightly": "Por noite",
     "noBillingEntries": "Nenhum lançamento de faturamento",
     "noRecords": "Nenhum registro",
-    "noRecordsDesc": "Acompanhe aluguéis em parques de trailers e campings",
+    "noRecordsDesc": "Botão de nenhum registro",
     "notes": "Notas",
     "ongoing": "Contínuos / Em andamento",
     "rentalCount": "{{count}} aluguéis",
-    "title": "Aluguéis de vaga",
+    "title": "Título",
     "total": "Total",
     "totalBilled": "Total faturado",
     "totalSpent": "Total gasto",
@@ -571,11 +569,11 @@
     "deleteError": "Erro ao excluir",
     "loading": "Carregando...",
     "noRecords": "Nenhum registro",
-    "noRecordsDesc": "Acompanhe taxas de licenciamento, inspeções, impostos e pedágios",
+    "noRecordsDesc": "Botão de nenhum registro",
     "notes": "Notas",
     "recordCount": "{{count}} registro(s)",
     "renewalDate": "Data de renovação",
-    "title": "Registros de impostos e licenciamento",
+    "title": "Título",
     "total": "Total",
     "type": "Tipo"
   },
@@ -594,7 +592,7 @@
     "monthlyBreakdown": "Detalhamento mensal",
     "noRecords": "Nenhum registro",
     "notes": "Notas",
-    "title": "Transações de pedágio",
+    "title": "Título",
     "tollTag": "Tag de pedágio",
     "total": "Total",
     "totalAmount": "Valor total",
@@ -612,10 +610,10 @@
     "notes": "Notas",
     "status": "Status",
     "tagCount": "{{count}} tags configuradas",
-    "title": "Tags de pedágio"
+    "title": "Título"
   },
   "transferHistory": {
-    "title": "Histórico de transferências"
+    "title": "Título"
   },
   "vehicleCard": {
     "purchased": "Comprado",
@@ -644,14 +642,14 @@
     "enterVIN": "Insira o VIN (Chassi)",
     "exampleVINs": "Exemplos de VIN",
     "fullResponseData": "Dados completos da resposta",
-    "subtitle": "Digite um número de identificação do veículo (VIN) de 17 caracteres para decodificar as informações do veículo no banco de dados da NHTSA",
-    "title": "Decodificador de VIN"
+    "subtitle": "Subtítulo",
+    "title": "Título"
   },
   "vinInput": {
     "alreadyExists": "Um veículo com este VIN já existe. A operação não poderá prosseguir.",
     "decode": "Decodificar",
     "decoding": "Decodificando...",
-    "placeholder": "Digite o VIN de 17 caracteres"
+    "placeholder": "Espaço reservado (Placeholder)"
   },
   "warrantyList": {
     "addFirstWarranty": "Adicionar primeira garantia",
@@ -667,7 +665,7 @@
     "notes": "Notas",
     "policyNumber": "Número da apólice",
     "startDate": "Data de início",
-    "title": "Garantias",
+    "title": "Título",
     "warrantyCount": "{{count}} garantias monitoradas"
   },
   "windowSticker": {
@@ -680,13 +678,13 @@
     "extractionSuccess": "Extração bem-sucedida",
     "fileTypes": "Tipos de arquivo",
     "msrpPricing": "Preço MSRP",
-    "ocrTestTitle": "Teste de OCR do adesivo do vidro",
+    "ocrTestTitle": "Título do teste de OCR",
     "processing": "Processando...",
     "testExtraction": "Teste de extração",
     "upload": "Enviar",
     "uploadAndExtract": "Enviar e extrair",
     "uploadPrompt": "Prompt de envio",
-    "uploadTitle": "Enviar adesivo do vidro",
+    "uploadTitle": "Título de envio",
     "uploading": "Enviando...",
     "viewMode": "Modo de exibição"
   },
@@ -697,7 +695,7 @@
     "model": "Modelo",
     "next": "Avançar",
     "nickname": "Apelido",
-    "title": "Adicionar novo veículo",
+    "title": "Título",
     "trim": "Versão / Acabamento",
     "vin": "VIN",
     "year": "Ano de fabricação"
