@@ -115,7 +115,9 @@
     "state": "Область",
     "zipCode": "Поштовий індекс",
     "notes": "Нотатки",
-    "notesPlaceholder": "Додаткові нотатки про контакт..."
+    "notesPlaceholder": "Додаткові нотатки про контакт...",
+    "gasStationFlag": "Заправна станція",
+    "statePlaceholder": "Область / регіон"
   },
   "poiFinder": {
     "title": "Знайти точки інтересу",

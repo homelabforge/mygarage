@@ -1,25 +1,40 @@
 #!/usr/bin/env bun
 /**
- * i18n usage validation — checks CODE against the English reference.
+ * i18n usage validation — checks CODE against the locale files.
  *
- * validate-translations.ts checks each language AGAINST English, so English is
- * its reference and a key missing from English itself is invisible to it. The
- * vitest mock is `t: (key) => key`, so component tests can't see it either.
- * Between those two blind spots, `t('installPrompt.title')` shipped with the
- * key absent from every locale file and rendered raw to users.
+ * Two checks, both in the direction validate-translations.ts cannot see. That
+ * script checks each language AGAINST English, so English is its reference:
  *
- * This script closes that gap: every literal `t('...')` in src/ must resolve to
- * a key in src/locales/en/<namespace>.json.
+ *  1. Every literal `t('...')` in src/ must resolve in en/<namespace>.json.
+ *     A key missing from English is invisible to a language-vs-English diff,
+ *     and the vitest mock is `t: (key) => key`, so component tests can't see it
+ *     either. `t('installPrompt.title')` shipped through both blind spots and
+ *     rendered raw to users.
+ *
+ *  2. Every directory in public/locales must be a language the app can load.
+ *     Languages are DISCOVERED from disk, so an orphan directory is reported and
+ *     translated forever while being unreachable. public/locales/pt was exactly
+ *     that: ~1400 keys, absent from supportedLngs and both allowlists, never
+ *     fetched, and contributing 50 phantom "missing keys" to every report.
  *
  * Usage: bun run scripts/validate-i18n-usage.ts
- * Exit code: 1 if any used key is missing from English. Unlike a missing
- * translation (which falls back to English), a key missing from English has no
- * fallback — i18next renders the raw key. It is always a bug, so it blocks.
+ * Exit code: 1 on either. Unlike a missing translation (which falls back to
+ * English), a key missing from English has no fallback — i18next renders the
+ * raw key. Both are always bugs, so they block.
  */
 
 import { readdirSync, readFileSync, statSync } from 'fs'
 import { join, relative } from 'path'
-import { EN_DIR, ROOT, discoverNamespaces, flattenKeys, loadJson } from './translation-utils'
+import { SUPPORTED_LANGUAGES } from '../src/constants/i18n'
+import {
+  EN_DIR,
+  LOCALES_DIR,
+  ROOT,
+  discoverLanguages,
+  discoverNamespaces,
+  flattenKeys,
+  loadJson,
+} from './translation-utils'
 
 /** i18n.ts sets defaultNS: 'common' — a bare useTranslation() resolves there. */
 const DEFAULT_NS = 'common'
@@ -96,7 +111,15 @@ for (const file of walk(SRC)) {
   }
 }
 
+// Check 2: every shipped locale directory must be a language the app can load.
+// `en` lives in src/ (bundled), so it is never a public/locales directory.
+const loadable = new Set(SUPPORTED_LANGUAGES.map(l => l.code).filter(c => c !== 'en'))
+const orphans = discoverLanguages().filter(lang => !loadable.has(lang))
+
+let failed = false
+
 if (violations.length > 0) {
+  failed = true
   console.log(`✗ ${violations.length} translation key(s) used in code but missing from English:\n`)
   for (const v of violations) {
     console.log(`  ${v.file}:${v.line}`)
@@ -104,8 +127,21 @@ if (violations.length > 0) {
   }
   console.log('\nThese render as the raw key to users — English has no fallback.')
   console.log(`Add them to ${relative(ROOT, EN_DIR)}/<namespace>.json.`)
-  process.exit(1)
 }
 
+if (orphans.length > 0) {
+  failed = true
+  console.log(`\n✗ ${orphans.length} locale director(ies) the app can never load:\n`)
+  for (const lang of orphans) {
+    console.log(`  ${relative(ROOT, join(LOCALES_DIR, lang))}`)
+  }
+  console.log('\nSUPPORTED_LANGUAGES in src/constants/i18n.ts does not list them, so')
+  console.log('i18next never requests them. Either add the language there (and to')
+  console.log("backend/app/constants/i18n.py + i18n.ts's supportedLngs), or delete it.")
+}
+
+if (failed) process.exit(1)
+
 console.log('✓ All translation keys used in code exist in English.')
+console.log('✓ All locale directories are loadable languages.')
 process.exit(0)

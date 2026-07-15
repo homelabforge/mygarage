@@ -115,7 +115,9 @@
     "state": "Województwo",
     "zipCode": "Kod pocztowy",
     "notes": "Notatki",
-    "notesPlaceholder": "Dodatkowe notatki o tym kontakcie..."
+    "notesPlaceholder": "Dodatkowe notatki o tym kontakcie...",
+    "gasStationFlag": "Stacja paliw",
+    "statePlaceholder": "Województwo / region"
   },
   "poiFinder": {
     "title": "Znajdź punkty zainteresowania",

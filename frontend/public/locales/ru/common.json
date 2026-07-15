@@ -115,7 +115,9 @@
     "state": "Регион",
     "zipCode": "Почтовый индекс",
     "notes": "Заметки",
-    "notesPlaceholder": "Дополнительные заметки о контакте..."
+    "notesPlaceholder": "Дополнительные заметки о контакте...",
+    "gasStationFlag": "Заправочная станция",
+    "statePlaceholder": "Регион / область"
   },
   "poiFinder": {
     "title": "Найти точки интереса",

@@ -91,7 +91,14 @@
       "cng": "CNG",
       "hydrogen": "Wodór",
       "other": "Inne"
-    }
+    },
+    "rebate": "Rabat",
+    "rebateHint": "Punkty, zniżki lub zwrot gotówki — odejmowane od kosztu całkowitego",
+    "filledAtDateLabel": "Data tankowania",
+    "filledAtTimeLabel": "Godzina tankowania (24-godzinna, HH:MM)",
+    "filledAtTimeHint": "Godzina w formacie 24-godzinnym (HH:MM).",
+    "invalidFilledTime": "Podaj prawidłową godzinę w formacie 24-godzinnym (HH:MM) lub wyczyść pole.",
+    "partialFilledAt": "Podaj datę i godzinę tankowania albo wyczyść oba pola."
   },
   "insurance": {
     "coverageLimits": "Limity ochrony",

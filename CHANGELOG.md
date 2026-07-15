@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Translations: the PWA install prompt, Shop Finder, the notification setup forms, and the add-station dialog showed raw keys (`installPrompt.title`) instead of text — 32 strings were missing from every language.
+- Translations: Polish, Russian, and Ukrainian are complete again — the fuel Rebate field, fill-up date/time, and the gas-station address-book fields were English-only.
 - Fuel: editing a fill-up now shows the station it was saved with, and retyping one replaces it (#108).
 - Fuel: editing a "one-time visit" station no longer adds it to the address book (#108).
 - Export: the fuel CSV "Station" column now shows the station name for address-book stations (#108).
