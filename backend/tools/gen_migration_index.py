@@ -36,6 +36,13 @@ def _is_fatal(source: str) -> bool:
             isinstance(t, ast.Name) and t.id == "FATAL" for t in node.targets
         ):
             return isinstance(node.value, ast.Constant) and node.value.value is True
+        if (
+            isinstance(node, ast.AnnAssign)
+            and isinstance(node.target, ast.Name)
+            and node.target.id == "FATAL"
+        ):
+            value = node.value
+            return isinstance(value, ast.Constant) and value.value is True
     return False
 
 
@@ -44,7 +51,7 @@ def build_index() -> str:
     for path in sorted(MIGRATIONS_DIR.glob("*.py")):
         if not _NAME_RE.match(path.name):
             continue
-        source = path.read_text()
+        source = path.read_text(encoding="utf-8")
         flag = " **FATAL** —" if _is_fatal(source) else ""
         rows.append(f"| `{path.stem}` |{flag} {_first_docstring_line(source)} |")
     header = (
@@ -62,7 +69,7 @@ def build_index() -> str:
 
 
 def main() -> None:
-    INDEX_PATH.write_text(build_index())
+    INDEX_PATH.write_text(build_index(), encoding="utf-8")
     print(f"Wrote {INDEX_PATH}")
 
 

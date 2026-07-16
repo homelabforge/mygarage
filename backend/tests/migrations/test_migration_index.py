@@ -37,6 +37,17 @@ def test_committed_index_is_fresh():
     """The committed INDEX.md must equal the generator output, so CI catches a
     migration added without regenerating the index."""
     gen = _load_gen()
-    assert gen.INDEX_PATH.read_text() == gen.build_index(), (
+    assert gen.INDEX_PATH.read_text(encoding="utf-8") == gen.build_index(), (
         "INDEX.md is stale — regenerate with `python tools/gen_migration_index.py`"
     )
+
+
+def test_is_fatal_recognizes_plain_and_annotated_forms():
+    """_is_fatal must match the runner's dynamic getattr(module, "FATAL", False)
+    semantics for both plain and annotated assignment forms."""
+    gen = _load_gen()
+    assert gen._is_fatal("FATAL = True\n") is True
+    assert gen._is_fatal("FATAL: bool = True\n") is True
+    assert gen._is_fatal("FATAL = False\n") is False
+    assert gen._is_fatal("FATAL: bool = False\n") is False
+    assert gen._is_fatal("x = 1\n") is False
