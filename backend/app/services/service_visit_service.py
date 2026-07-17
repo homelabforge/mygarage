@@ -3,6 +3,7 @@
 # pyright: reportReturnType=false
 
 import logging
+from decimal import ROUND_HALF_UP, Decimal
 
 from fastapi import HTTPException
 from sqlalchemy import func, select
@@ -239,6 +240,11 @@ class ServiceVisitService:
                         line_item_id=line_item.id,
                     )
 
+            # Pass 3: sync supply usages for each created line item
+            for item_data, line_item in created_items:
+                if item_data.supplies_used:
+                    await self._sync_line_item_supplies(line_item, item_data.supplies_used, vin)
+
             # Always recompute total_cost from line items + supplies + fees (denormalized cache)
             await self._recompute_visit_total(visit.id)
 
@@ -362,6 +368,7 @@ class ServiceVisitService:
                         row.inspection_result = item_data.inspection_result
                         row.inspection_severity = item_data.inspection_severity
                         row.triggered_by_inspection_id = item_data.triggered_by_inspection_id
+                        await self._sync_line_item_supplies(row, item_data.supplies_used, vin)
                         # reminder ignored for existing items
                     else:
                         # New item added during edit
@@ -389,6 +396,7 @@ class ServiceVisitService:
                         line_item.triggered_by_inspection_id = temp_id_map.get(
                             ref, ref if ref > 0 else None
                         )
+                    await self._sync_line_item_supplies(line_item, item_data.supplies_used, vin)
                     if item_data.reminder:
                         await reminder_service.create_reminder(
                             vin=vin,
@@ -430,7 +438,21 @@ class ServiceVisitService:
                     )
 
             await invalidate_cache_for_vehicle(vin)
-            return visit
+
+            # Reload with the FULL eager chain (line_items -> supply_usages -> supply,
+            # + vendor) before returning. `_recompute_visit_total`'s reload deliberately
+            # loads only as deep as `supply_usages` (cost math doesn't need `.supply`'s
+            # name/`.line_item`'s visit — see its docstring), and `populate_existing=True`
+            # there expires whatever WAS loaded on those rows outside that path (R1-H1
+            # sync may also have introduced brand-new SupplyUsage rows that never had
+            # `.supply` loaded at all). Once expired, the identity map holds those targets
+            # only by weak reference — with nothing else pinning a strong ref, they can be
+            # garbage-collected before this returns, so even the `supply_id`-is-a-PK-match
+            # ("use_get") lazy-load shortcut has nothing to find and falls through to an
+            # actual query, which can't run synchronously from `_visit_to_response`
+            # (MissingGreenlet). A full re-fetch — the same pattern `create_service_visit`
+            # already uses — eagerly restores every relationship the response needs.
+            return await self.get_service_visit(vin, visit_id, current_user)
 
         except HTTPException:
             raise
@@ -541,11 +563,23 @@ class ServiceVisitService:
             self.db.add(line_item)
             await self.db.flush()
 
+            if item_data.supplies_used:
+                await self._sync_line_item_supplies(line_item, item_data.supplies_used, vin)
+
             # Recompute total_cost (denormalized cache)
             await self._recompute_visit_total(visit.id)
 
             await self.db.commit()
-            await self.db.refresh(line_item)
+
+            # Reload with supply usages eager-loaded so the response can carry them.
+            reloaded = await self.db.execute(
+                select(ServiceLineItem)
+                .options(
+                    selectinload(ServiceLineItem.supply_usages).selectinload(SupplyUsage.supply)
+                )
+                .where(ServiceLineItem.id == line_item.id)
+            )
+            line_item = reloaded.scalar_one()
 
             logger.info(
                 "Added line item %s to visit %s for %s",
@@ -660,6 +694,83 @@ class ServiceVisitService:
         visit.total_cost = visit.calculated_total_cost
         await self.db.flush()
         return visit
+
+    async def _sync_line_item_supplies(
+        self, line_item: ServiceLineItem, supplies_used, vin: str
+    ) -> None:
+        """Diff a line item's supply usages by supply_id — PRESERVE frozen snapshots.
+
+        R1-H1: a blanket delete+recreate would re-snapshot untouched consumption at
+        today's average cost, reset created_at, and fail when a supply was later
+        archived/repinned — even on an edit that never touched supplies. Instead:
+          - supply_id present before AND now → keep the row (id, created_at). If only
+            the quantity changed, RETAIN the original unit_cost_snapshot and recompute
+            cost_snapshot = unit_cost_snapshot × new_quantity (cost stays frozen).
+          - supply_id newly added → validate active/pinned NOW + snapshot current avg.
+          - supply_id removed → delete the row.
+        Only NEW associations are validated, so editing an unrelated field on a
+        historical visit never fails because a supply was archived/repinned since.
+        """
+        supply_service = SupplyService(self.db)
+        submitted = supplies_used or []
+
+        # Reject duplicate supply_id within one line item (ambiguous quantities).
+        seen: set[int] = set()
+        for u in submitted:
+            if u.supply_id in seen:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Supply {u.supply_id} listed more than once on one line item",
+                )
+            seen.add(u.supply_id)
+
+        existing_rows = (
+            (
+                await self.db.execute(
+                    select(SupplyUsage).where(SupplyUsage.service_line_item_id == line_item.id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        existing = {row.supply_id: row for row in existing_rows}
+        submitted_ids = {u.supply_id for u in submitted}
+
+        # Removed associations → delete.
+        for supply_id, row in existing.items():
+            if supply_id not in submitted_ids:
+                await self.db.delete(row)
+
+        for u in submitted:
+            prior = existing.get(u.supply_id)
+            if prior is not None:
+                # Unchanged association: keep frozen unit cost; recompute cost only if qty moved.
+                if prior.quantity != u.quantity:
+                    prior.quantity = u.quantity
+                    prior.cost_snapshot = (
+                        (prior.unit_cost_snapshot * u.quantity).quantize(
+                            Decimal("0.01"), rounding=ROUND_HALF_UP
+                        )
+                        if prior.unit_cost_snapshot is not None
+                        else None
+                    )
+                # fully unchanged → leave the row (and its created_at) untouched
+            else:
+                # New association: validate + snapshot at current average cost.
+                await supply_service.get_supply_for_use(u.supply_id, vin)  # 400 if not usable
+                unit_cost, cost = await supply_service.create_usage_snapshot(
+                    u.supply_id, u.quantity
+                )
+                self.db.add(
+                    SupplyUsage(
+                        supply_id=u.supply_id,
+                        quantity=u.quantity,
+                        unit_cost_snapshot=unit_cost,
+                        cost_snapshot=cost,
+                        service_line_item_id=line_item.id,
+                    )
+                )
+        await self.db.flush()
 
     def _visit_to_response(self, visit: ServiceVisit) -> ServiceVisitResponse:
         """Convert ServiceVisit model to response schema."""
