@@ -213,6 +213,85 @@ class SessionService:
         )
         return session
 
+    async def resolve_torque_session(
+        self,
+        device: LiveLinkDevice,
+        torque_session_id: str | None,
+        timestamp: datetime,
+    ) -> DriveSession | None:
+        """Find-or-create a DriveSession for a Torque `session` id. Replay/out-of-order safe."""
+        device.last_seen = utc_now().replace(
+            tzinfo=None
+        )  # server clock drives inactivity finalize (R1-H7)
+        started = timestamp.replace(tzinfo=None) if timestamp.tzinfo is not None else timestamp
+
+        if torque_session_id is None:
+            if not device.current_session_id:
+                return None
+            return (
+                await self.db.execute(
+                    select(DriveSession).where(DriveSession.id == device.current_session_id)
+                )
+            ).scalar_one_or_none()
+
+        existing = (
+            await self.db.execute(
+                select(DriveSession).where(
+                    DriveSession.device_id == device.device_id,
+                    DriveSession.external_session_id == torque_session_id,
+                )
+            )
+        ).scalar_one_or_none()
+        if existing is not None:
+            # Replay/continuation of a KNOWN session id: append data only. Never move the
+            # current-session pointer (a late older-session packet must not drag it backward)
+            # and never finalize anything (a late packet must not end the active trip). (R1-H2, R2-H1)
+            return existing
+
+        # NEW (first-seen) session id. Decide whether it is the newest drive or a late straggler
+        # from an OLDER drive whose first packet arrived after a newer trip went active (R3-H1).
+        current = None
+        if device.current_session_id:
+            current = (
+                await self.db.execute(
+                    select(DriveSession).where(DriveSession.id == device.current_session_id)
+                )
+            ).scalar_one_or_none()
+        is_newer = current is None or current.started_at is None or started >= current.started_at
+
+        if not is_newer:
+            # Chronologically-older first-seen session: record it as an already-closed trip so it
+            # never leaks open, and do NOT finalize or unseat the active newer trip. (R3-H1)
+            session = DriveSession(
+                vin=device.vin,
+                device_id=device.device_id,
+                started_at=started,
+                ended_at=started,
+                duration_seconds=0,
+                external_session_id=torque_session_id,
+            )
+            self.db.add(session)
+            await self.db.flush()
+            return session
+
+        # Newest drive: finalize the prior (older) open session so it does not leak open, THEN
+        # open the new one and advance the pointer.
+        if device.current_session_id:
+            await self.end_session(
+                device, utc_now().replace(tzinfo=None)
+            )  # server-now end >= prior start (R2-H1, R2-H2)
+        session = DriveSession(
+            vin=device.vin,
+            device_id=device.device_id,
+            started_at=started,
+            external_session_id=torque_session_id,
+            start_odometer=await self._get_current_odometer(device.vin),
+        )
+        self.db.add(session)
+        await self.db.flush()
+        device.current_session_id = session.id
+        return session
+
     async def _get_current_odometer(self, vin: str) -> float | None:
         """Get the current odometer reading from latest telemetry."""
         # Look for ODOMETER parameter in latest values
