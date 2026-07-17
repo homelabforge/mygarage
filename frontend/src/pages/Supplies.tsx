@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Plus, Edit, Trash2, Save, Package, AlertTriangle } from 'lucide-react'
+import { Plus, Edit, Trash2, Save, Package, AlertTriangle, History } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   useSupplies,
@@ -17,6 +17,7 @@ import { canonicalToDisplay, supplyUnitLabel } from '@/utils/supplyUnits'
 import { supplySchema, SUPPLY_UNIT_TYPES, type SupplyFormData } from '@/schemas/supplies'
 import { FormError } from '@/components/FormError'
 import FormModalWrapper from '@/components/FormModalWrapper'
+import SupplyHistoryModal from '@/components/SupplyHistoryModal'
 import type { Supply, SupplyCreate, SupplyUpdate } from '@/types/supplies'
 
 export default function Supplies() {
@@ -24,6 +25,7 @@ export default function Supplies() {
   const [includeArchived, setIncludeArchived] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [editingSupply, setEditingSupply] = useState<Supply | null>(null)
+  const [historySupply, setHistorySupply] = useState<Supply | null>(null)
 
   const { data, isLoading, error } = useSupplies(includeArchived)
   const deleteMutation = useDeleteSupply()
@@ -145,6 +147,14 @@ export default function Supplies() {
                     </div>
                     <div className="flex gap-2">
                       <button
+                        onClick={() => setHistorySupply(supply)}
+                        className="text-garage-text-muted hover:text-primary transition-colors"
+                        aria-label={t('supplies.viewHistory')}
+                        title={t('supplies.viewHistory')}
+                      >
+                        <History className="w-4 h-4" />
+                      </button>
+                      <button
                         onClick={() => handleEditClick(supply)}
                         className="text-garage-text-muted hover:text-primary transition-colors"
                         aria-label={t('common:edit')}
@@ -208,6 +218,11 @@ export default function Supplies() {
       {/* Form Modal */}
       {showForm && (
         <SupplyForm supply={editingSupply} onClose={handleCloseForm} onSuccess={handleCloseForm} />
+      )}
+
+      {/* History Modal */}
+      {historySupply && (
+        <SupplyHistoryModal supply={historySupply} onClose={() => setHistorySupply(null)} />
       )}
     </div>
   )
