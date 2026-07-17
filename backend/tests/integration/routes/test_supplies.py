@@ -1,17 +1,20 @@
 """Integration tests for the global supplies catalog router (`/api/supplies`).
 
-Catalog CRUD (Task 6) plus purchase/adjustment/history routes (Task 7).
-Receipt routes (Task 8) don't exist yet — those tests belong in a later task
-and will grow this file further.
+Catalog CRUD (Task 6), purchase/adjustment/history routes (Task 7), and
+purchase-receipt attachment routes (Task 8).
 """
 
+import io
 from datetime import date
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.attachment import Attachment
 from app.models.supply import SupplyPurchase
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio, pytest.mark.supplies]
@@ -379,3 +382,204 @@ async def test_history_not_found(client: AsyncClient, auth_headers):
 
 async def test_history_requires_auth(client: AsyncClient):
     assert (await client.get("/api/supplies/1/history")).status_code == 401
+
+
+# ---- purchase receipts (Task 8) ----------------------------------------------
+
+
+async def _create_supply_and_purchase(
+    client: AsyncClient, auth_headers, name: str
+) -> tuple[int, int]:
+    """Helper: create a supply + one purchase on it, return (supply_id, purchase_id)."""
+    sid = (
+        await client.post(
+            "/api/supplies", json={"name": name, "unit_type": "volume"}, headers=auth_headers
+        )
+    ).json()["id"]
+    pid = (
+        await client.post(
+            f"/api/supplies/{sid}/purchases",
+            json={"date": "2026-01-01", "quantity": "5", "total_cost": "40"},
+            headers=auth_headers,
+        )
+    ).json()["id"]
+    return sid, pid
+
+
+async def test_receipt_upload_and_reflected_in_purchase(client: AsyncClient, auth_headers):
+    sid, pid = await _create_supply_and_purchase(client, auth_headers, "Oil")
+    files = {"file": ("receipt.pdf", io.BytesIO(b"%PDF-1.4 fake"), "application/pdf")}
+    up = await client.post(
+        f"/api/supplies/{sid}/purchases/{pid}/receipt", files=files, headers=auth_headers
+    )
+    assert up.status_code == 201
+    assert up.json()["file_type"] == "application/pdf"
+
+    dl = await client.get(f"/api/supplies/{sid}/purchases/{pid}/receipt", headers=auth_headers)
+    assert dl.status_code == 200
+    assert dl.content == b"%PDF-1.4 fake"
+
+    hist = (await client.get(f"/api/supplies/{sid}/history", headers=auth_headers)).json()
+    entry = next(e for e in hist["entries"] if e["entry_type"] == "purchase" and e["id"] == pid)
+    assert entry["receipt"] is not None
+    assert entry["receipt"]["id"] == up.json()["id"]
+
+
+async def test_receipt_upload_requires_auth(client: AsyncClient):
+    files = {"file": ("receipt.pdf", io.BytesIO(b"%PDF-1.4 fake"), "application/pdf")}
+    r = await client.post("/api/supplies/1/purchases/1/receipt", files=files)
+    assert r.status_code == 401
+
+
+async def test_receipt_upload_purchase_not_found(client: AsyncClient, auth_headers):
+    sid = (
+        await client.post(
+            "/api/supplies", json={"name": "Grease", "unit_type": "count"}, headers=auth_headers
+        )
+    ).json()["id"]
+    files = {"file": ("receipt.pdf", io.BytesIO(b"%PDF-1.4 fake"), "application/pdf")}
+    r = await client.post(
+        f"/api/supplies/{sid}/purchases/999999/receipt", files=files, headers=auth_headers
+    )
+    assert r.status_code == 404
+
+
+async def test_receipt_upload_wrong_supply_id_404s(client: AsyncClient, auth_headers):
+    """A purchase must belong to the supply_id in the path, not just exist."""
+    sid, pid = await _create_supply_and_purchase(client, auth_headers, "Antifreeze")
+    other_sid = (
+        await client.post(
+            "/api/supplies", json={"name": "Other", "unit_type": "count"}, headers=auth_headers
+        )
+    ).json()["id"]
+    files = {"file": ("receipt.pdf", io.BytesIO(b"%PDF-1.4 fake"), "application/pdf")}
+    r = await client.post(
+        f"/api/supplies/{other_sid}/purchases/{pid}/receipt", files=files, headers=auth_headers
+    )
+    assert r.status_code == 404
+
+
+async def test_receipt_upload_replaces_existing(
+    client: AsyncClient, auth_headers, db_session: AsyncSession
+):
+    """Uploading a second receipt for the same purchase REPLACES the first —
+    exactly one supply_purchase attachment row survives (one-per-purchase, R1-H4)."""
+    sid, pid = await _create_supply_and_purchase(client, auth_headers, "Coolant")
+
+    files1 = {"file": ("first.pdf", io.BytesIO(b"%PDF-1.4 first"), "application/pdf")}
+    up1 = await client.post(
+        f"/api/supplies/{sid}/purchases/{pid}/receipt", files=files1, headers=auth_headers
+    )
+    assert up1.status_code == 201
+    first_id = up1.json()["id"]
+    first_row = (
+        await db_session.execute(select(Attachment).where(Attachment.id == first_id))
+    ).scalar_one()
+    first_path = Path(first_row.file_path)
+    assert first_path.exists()
+
+    files2 = {"file": ("second.pdf", io.BytesIO(b"%PDF-1.4 second"), "application/pdf")}
+    up2 = await client.post(
+        f"/api/supplies/{sid}/purchases/{pid}/receipt", files=files2, headers=auth_headers
+    )
+    assert up2.status_code == 201
+    second_id = up2.json()["id"]
+    # NOTE: second_id can equal first_id — SQLite reuses a freed rowid when the
+    # deleted row held the table's current max id, so id-inequality isn't a valid
+    # invariant here. The row-count + file-identity assertions below are what
+    # actually prove replacement happened.
+
+    # The old file is gone; the new one exists.
+    assert not first_path.exists()
+    rows = (
+        (
+            await db_session.execute(
+                select(Attachment)
+                .where(Attachment.record_type == "supply_purchase")
+                .where(Attachment.record_id == pid)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(rows) == 1
+    assert rows[0].id == second_id
+
+    dl = await client.get(f"/api/supplies/{sid}/purchases/{pid}/receipt", headers=auth_headers)
+    assert dl.content == b"%PDF-1.4 second"
+
+
+async def test_delete_receipt_removes_row_and_file(
+    client: AsyncClient, auth_headers, db_session: AsyncSession
+):
+    sid, pid = await _create_supply_and_purchase(client, auth_headers, "Wiper Fluid")
+    files = {"file": ("receipt.pdf", io.BytesIO(b"%PDF-1.4 fake"), "application/pdf")}
+    up = await client.post(
+        f"/api/supplies/{sid}/purchases/{pid}/receipt", files=files, headers=auth_headers
+    )
+    attachment_id = up.json()["id"]
+    row = (
+        await db_session.execute(select(Attachment).where(Attachment.id == attachment_id))
+    ).scalar_one()
+    file_path = Path(row.file_path)
+    assert file_path.exists()
+
+    dr = await client.delete(f"/api/supplies/{sid}/purchases/{pid}/receipt", headers=auth_headers)
+    assert dr.status_code == 204
+
+    assert not file_path.exists()
+    remaining = (
+        (
+            await db_session.execute(
+                select(Attachment)
+                .where(Attachment.record_type == "supply_purchase")
+                .where(Attachment.record_id == pid)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert remaining == []
+
+    dl = await client.get(f"/api/supplies/{sid}/purchases/{pid}/receipt", headers=auth_headers)
+    assert dl.status_code == 404
+
+
+async def test_delete_receipt_not_found(client: AsyncClient, auth_headers):
+    sid, pid = await _create_supply_and_purchase(client, auth_headers, "Screenwash")
+    r = await client.delete(f"/api/supplies/{sid}/purchases/{pid}/receipt", headers=auth_headers)
+    assert r.status_code == 404
+
+
+async def test_delete_purchase_removes_receipt_row_and_file(
+    client: AsyncClient, auth_headers, db_session: AsyncSession
+):
+    """Deleting the purchase (not just the receipt) also removes its receipt row + file."""
+    sid, pid = await _create_supply_and_purchase(client, auth_headers, "ATF")
+    files = {"file": ("receipt.pdf", io.BytesIO(b"%PDF-1.4 fake"), "application/pdf")}
+    up = await client.post(
+        f"/api/supplies/{sid}/purchases/{pid}/receipt", files=files, headers=auth_headers
+    )
+    attachment_id = up.json()["id"]
+    row = (
+        await db_session.execute(select(Attachment).where(Attachment.id == attachment_id))
+    ).scalar_one()
+    file_path = Path(row.file_path)
+    assert file_path.exists()
+
+    dr = await client.delete(f"/api/supplies/{sid}/purchases/{pid}", headers=auth_headers)
+    assert dr.status_code == 204
+
+    assert not file_path.exists()
+    remaining = (
+        (
+            await db_session.execute(
+                select(Attachment)
+                .where(Attachment.record_type == "supply_purchase")
+                .where(Attachment.record_id == pid)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert remaining == []
