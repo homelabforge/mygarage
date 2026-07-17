@@ -180,8 +180,13 @@ class LiveLinkService:
         return result.scalar_one_or_none()
 
     async def get_device_by_vin(self, vin: str) -> LiveLinkDevice | None:
-        """Get a device linked to a vehicle."""
-        result = await self.db.execute(select(LiveLinkDevice).where(LiveLinkDevice.vin == vin))
+        """Most-recently-active device linked to a vehicle (a vin may have >1: WiCAN + Torque)."""
+        result = await self.db.execute(
+            select(LiveLinkDevice)
+            .where(LiveLinkDevice.vin == vin)
+            .order_by(LiveLinkDevice.last_seen.desc().nullslast())
+            .limit(1)
+        )
         return result.scalar_one_or_none()
 
     async def list_devices(self) -> list[LiveLinkDevice]:
@@ -278,9 +283,15 @@ class LiveLinkService:
             if device:
                 return device.device_id
 
-        # Step 2: Global token — only resolve if exactly one enabled device
+        # Step 2: Global token — only resolve if exactly one enabled WiCAN device.
+        # Torque devices are excluded: they always carry their own per-device
+        # token (Step 1), so adding a Torque source must not turn a
+        # previously-unambiguous single-WiCAN install into "ambiguous".
         result = await self.db.execute(
-            select(LiveLinkDevice).where(LiveLinkDevice.enabled.is_(True))
+            select(LiveLinkDevice).where(
+                LiveLinkDevice.enabled.is_(True),
+                LiveLinkDevice.kind == "wican",
+            )
         )
         devices = list(result.scalars().all())
 
@@ -289,7 +300,7 @@ class LiveLinkService:
 
         if len(devices) > 1:
             logger.warning(
-                "Ambiguous device resolution: %d enabled devices with global token. "
+                "Ambiguous device resolution: %d enabled WiCAN devices with global token. "
                 "Use per-device tokens for multi-device setups.",
                 len(devices),
             )
