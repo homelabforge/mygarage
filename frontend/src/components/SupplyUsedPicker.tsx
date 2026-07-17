@@ -8,7 +8,11 @@ import type { Supply } from '../types/supplies'
 interface SupplyUsedPickerProps {
   value: SupplyUsedEntry[]
   onChange: (next: SupplyUsedEntry[]) => void
-  // Full (active + archived) list, resolved once by ServiceVisitForm and
+  // The visit's vehicle VIN — scopes the ADDABLE options to shared + this-vehicle
+  // supplies (an existing hydrated row for any other supply still resolves its
+  // name from the full `supplies` list below).
+  vin: string
+  // Full (active + archived, UNFILTERED by vin) list, resolved once by ServiceVisitForm and
   // threaded down — NOT fetched here. A second independent useSupplies() call
   // in this component would race the parent's: a usage added against a supply
   // the parent's own lookup hasn't resolved yet would silently vanish from the
@@ -23,7 +27,13 @@ interface SupplyUsedPickerProps {
  * (LineItemEditor -> ServiceVisitForm) owns display<->canonical conversion —
  * this component only ever reads/writes display-unit quantities.
  */
-export default function SupplyUsedPicker({ value, onChange, supplies, disabled = false }: SupplyUsedPickerProps) {
+export default function SupplyUsedPicker({
+  value,
+  onChange,
+  vin,
+  supplies,
+  disabled = false,
+}: SupplyUsedPickerProps) {
   const { t } = useTranslation('forms')
   const { system } = useUnitPreference()
   const suppliesById = new Map(supplies.map((s) => [s.id, s]))
@@ -32,7 +42,13 @@ export default function SupplyUsedPicker({ value, onChange, supplies, disabled =
   // already in use (via edit-hydration) stays selectable in its own row below
   // — see rowOptions — so past usage isn't orphaned, but it's never offered as
   // a fresh choice.
-  const addableSupplies = supplies.filter((s) => s.is_active && !usedSupplyIds.has(s.id))
+  // Addable = ACTIVE and shared (vin null) or pinned to THIS vehicle, and not
+  // already used. (The full `supplies` list is vin-unfiltered so existing rows
+  // resolve names; but a supply pinned to another vehicle must never be OFFERED
+  // — the backend would reject it — so scope the addable set here.)
+  const addableSupplies = supplies.filter(
+    (s) => s.is_active && (s.vin == null || s.vin === vin) && !usedSupplyIds.has(s.id),
+  )
 
   const handleAddRow = () => {
     const firstAvailable = addableSupplies[0]

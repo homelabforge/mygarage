@@ -81,14 +81,15 @@ export default function ServiceVisitForm({
   const updateMutation = useUpdateServiceVisit(vin)
   const isMotorized = !vehicleType || !NON_MOTORIZED_TYPES.includes(vehicleType)
   const { data: currentMileage } = useLatestMileage(vin)
-  // includeArchived=true (unlike SupplyUsedPicker's own active-only fetch): this
-  // lookup backs cost-breakdown + edit-hydration, and a line item may reference a
-  // supply that's since been archived. Missing it here would silently drop that
-  // usage on resubmit — the exact data-loss bug hydration exists to prevent.
-  const { data: suppliesData, isSuccess: suppliesLoaded, isError: suppliesError } = useSupplies(
-    true,
-    vin,
-  )
+  // UNFILTERED (include archived, NO vin scope): this lookup backs cost-breakdown,
+  // edit-hydration and the submit map, all of which must resolve EVERY consumed
+  // supply — including one later archived OR repinned to a different vehicle. A
+  // vin-scoped fetch here would drop such a usage on hydrate/submit, and the
+  // backend's wholesale-replace would then silently delete the historical row.
+  // The picker (SupplyUsedPicker) re-applies the vin scope for its ADDABLE options,
+  // so only shared/this-vehicle supplies can be newly added.
+  const { data: suppliesData, isSuccess: suppliesLoaded, isError: suppliesError } =
+    useSupplies(true)
   const supplies = useMemo(() => suppliesData?.supplies ?? [], [suppliesData])
   const suppliesById = useMemo(() => {
     const map = new Map<number, Supply>()
@@ -518,6 +519,7 @@ export default function ServiceVisitForm({
                   <LineItemEditor
                     item={item}
                     index={index}
+                    vin={vin}
                     supplies={supplies}
                     failedInspections={failedInspections.filter((fi) => fi.refId !== (item.id ?? item.tempId ?? 0))}
                     onChange={handleLineItemChange}

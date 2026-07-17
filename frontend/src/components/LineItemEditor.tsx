@@ -22,8 +22,13 @@ const SERVICE_SUGGESTIONS: Record<string, string[]> = {
 interface LineItemEditorProps {
   item: ServiceVisitFormLineItem
   index: number
-  // Full (active + archived) supplies list, resolved once by ServiceVisitForm
-  // and threaded through — see SupplyUsedPicker for why this isn't fetched here.
+  // The visit's vehicle VIN — scopes SupplyUsedPicker's ADDABLE options to
+  // shared + this-vehicle supplies.
+  vin: string
+  // Full (active + archived, UNFILTERED by vin) supplies list, resolved once by
+  // ServiceVisitForm and threaded through — see SupplyUsedPicker for why this
+  // isn't fetched here. Unfiltered so existing usages of an archived/repinned
+  // supply still resolve their name.
   supplies: Supply[]
   failedInspections: { refId: number; description: string }[]
   onChange: (index: number, field: keyof ServiceVisitFormLineItem, value: unknown) => void
@@ -37,6 +42,7 @@ interface LineItemEditorProps {
 export default function LineItemEditor({
   item,
   index,
+  vin,
   supplies,
   failedInspections,
   onChange,
@@ -275,6 +281,7 @@ export default function LineItemEditor({
           {/* Supplies used — consume-picker so supply cost rolls into this repair */}
           <div className="border-t border-garage-border pt-4">
             <SupplyUsedPicker
+              vin={vin}
               supplies={supplies}
               value={item.supplies_used ?? []}
               onChange={(next) => onChange(index, 'supplies_used', next)}

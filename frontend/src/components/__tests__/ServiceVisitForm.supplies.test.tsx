@@ -255,5 +255,66 @@ describe('ServiceVisitForm — supplies used (Task 17)', () => {
       // submitting would make the backend delete every logged usage on this visit.
       expect(screen.getByRole('button', { name: 'common:update' })).toBeDisabled()
     })
+
+    it('resends a usage of a supply repinned to another vehicle (unfiltered resolution avoids a silent wipe)', async () => {
+      // Supply 2 is pinned to a DIFFERENT vehicle — never OFFERED for a new row here,
+      // but a past usage of it must still hydrate + resend. The form resolves usages
+      // from an UNFILTERED supplies fetch precisely so this isn't dropped -> wiped.
+      const repinned: Supply = { ...MOCK_SUPPLY, id: 2, name: 'Coolant', vin: 'OTHERVIN' }
+      vi.mocked(useSupplies).mockReturnValue({
+        data: { supplies: [MOCK_SUPPLY, repinned], total: 2 },
+        isSuccess: true,
+        isLoading: false,
+        isError: false,
+      } as unknown as ReturnType<typeof useSupplies>)
+
+      const visit: ServiceVisit = {
+        ...MOCK_VISIT,
+        line_items: [
+          {
+            id: 501,
+            visit_id: 900,
+            description: 'Oil change',
+            category: 'Maintenance',
+            cost: '45.00',
+            created_at: '2026-07-01T00:00:00',
+            is_failed_inspection: false,
+            is_inspection: false,
+            needs_followup: false,
+            notes: null,
+            triggered_by_inspection_id: null,
+            supply_usages: [
+              {
+                id: 5,
+                supply_id: 2,
+                supply_name: 'Coolant',
+                quantity: '1',
+                created_at: '2026-07-01T00:00:00',
+                service_line_item_id: 501,
+                service_visit_id: 900,
+                cost_snapshot: '10.00',
+                unit_cost_snapshot: '10.00',
+                service_visit_date: '2026-07-01',
+              },
+            ],
+          },
+        ],
+      }
+
+      const { container } = render(<ServiceVisitForm {...DEFAULT_PROPS} visit={visit} />)
+      await waitFor(() => {
+        expect(
+          screen.getByRole('spinbutton', { name: 'service.suppliesQuantity' }),
+        ).toBeInTheDocument()
+      })
+      fireEvent.submit(container.querySelector('form') as HTMLFormElement)
+
+      await waitFor(() => expect(mockedApiPut).toHaveBeenCalled())
+      const body = mockedApiPut.mock.calls.at(-1)?.[1] as {
+        line_items: { id?: number; supplies_used: { supply_id: number }[] }[]
+      }
+      const lineItem = body.line_items.find((li) => li.id === 501)
+      expect(lineItem?.supplies_used.map((u) => u.supply_id)).toContain(2)
+    })
   })
 })
