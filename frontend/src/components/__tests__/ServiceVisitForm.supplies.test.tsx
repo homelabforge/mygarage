@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { screen, waitFor, fireEvent } from '@testing-library/react'
 import { render } from '../../__tests__/test-utils'
 import ServiceVisitForm from '../ServiceVisitForm'
+import { useSupplies } from '../../hooks/queries/useSupplies'
 import { displayToCanonical, canonicalToDisplay } from '../../utils/supplyUnits'
 import type { Supply } from '../../types/supplies'
 import type { ServiceVisit } from '../../types/serviceVisit'
@@ -54,11 +55,12 @@ const MOCK_SUPPLY: Supply = {
 // SupplyUsedPicker's dropdown fetch (includeArchived=false) — a single supply
 // list works for both since this suite has nothing archived.
 vi.mock('../../hooks/queries/useSupplies', () => ({
-  useSupplies: () => ({
+  useSupplies: vi.fn(() => ({
     data: { supplies: [MOCK_SUPPLY], total: 1 },
     isSuccess: true,
     isLoading: false,
-  }),
+    isError: false,
+  })),
 }))
 
 vi.mock('../VendorSearch', () => ({
@@ -89,6 +91,14 @@ function fillRequiredDescription() {
 describe('ServiceVisitForm — supplies used (Task 17)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // Re-establish the happy-path supplies result before each test (clearAllMocks
+    // keeps mockReturnValue, so a test that overrides it must not leak).
+    vi.mocked(useSupplies).mockReturnValue({
+      data: { supplies: [MOCK_SUPPLY], total: 1 },
+      isSuccess: true,
+      isLoading: false,
+      isError: false,
+    } as unknown as ReturnType<typeof useSupplies>)
   })
 
   it('adds a supply to a line item, sends a CANONICAL quantity on create, and shows the breakdown line', async () => {
@@ -229,6 +239,21 @@ describe('ServiceVisitForm — supplies used (Task 17)', () => {
       expect(lineItem?.supplies_used).toHaveLength(1)
       expect(lineItem?.supplies_used[0].supply_id).toBe(1)
       expect(lineItem?.supplies_used[0].quantity).toBeCloseTo(1, 6)
+    })
+
+    it('disables Save on edit until supplies load + hydrate (wipe-on-edit load-timing guard)', () => {
+      vi.mocked(useSupplies).mockReturnValue({
+        data: undefined,
+        isSuccess: false,
+        isLoading: true,
+        isError: false,
+      } as unknown as ReturnType<typeof useSupplies>)
+
+      render(<ServiceVisitForm {...DEFAULT_PROPS} visit={MOCK_VISIT} />)
+
+      // Until the supplies list loads + hydration runs, supplies_used is still [];
+      // submitting would make the backend delete every logged usage on this visit.
+      expect(screen.getByRole('button', { name: 'common:update' })).toBeDisabled()
     })
   })
 })

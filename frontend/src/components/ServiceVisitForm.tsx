@@ -85,7 +85,10 @@ export default function ServiceVisitForm({
   // lookup backs cost-breakdown + edit-hydration, and a line item may reference a
   // supply that's since been archived. Missing it here would silently drop that
   // usage on resubmit — the exact data-loss bug hydration exists to prevent.
-  const { data: suppliesData, isSuccess: suppliesLoaded } = useSupplies(true, vin)
+  const { data: suppliesData, isSuccess: suppliesLoaded, isError: suppliesError } = useSupplies(
+    true,
+    vin,
+  )
   const supplies = useMemo(() => suppliesData?.supplies ?? [], [suppliesData])
   const suppliesById = useMemo(() => {
     const map = new Map<number, Supply>()
@@ -167,6 +170,7 @@ export default function ServiceVisitForm({
   // skipped, editing any field on an existing visit silently wipes its
   // logged supply usages on save.
   const suppliesHydratedRef = useRef(false)
+  const [editHydrated, setEditHydrated] = useState(false)
   useEffect(() => {
     if (!isEdit || !visit || suppliesHydratedRef.current || !suppliesLoaded) return
     suppliesHydratedRef.current = true
@@ -179,6 +183,7 @@ export default function ServiceVisitForm({
         return { ...item, supplies_used: convertSupplyUsages(usages, suppliesById, system, canonicalToDisplay) }
       }),
     }))
+    setEditHydrated(true)
   }, [isEdit, visit, suppliesLoaded, suppliesById, system])
 
   // Calculate subtotal and total cost
@@ -275,6 +280,15 @@ export default function ServiceVisitForm({
   const handleSubmit = async (e: SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault()
     setError(null)
+
+    // On edit, refuse to submit until the supplies list has loaded and hydrated.
+    // Otherwise supplies_used is still [] and the backend (which replaces a line
+    // item's usages from the submitted list) would silently delete every logged
+    // usage on this visit — the wipe-on-edit failure via a slow/failed fetch.
+    if (isEdit && !editHydrated) {
+      setError(suppliesError ? t('service.suppliesLoadFailed') : t('service.suppliesLoading'))
+      return
+    }
 
     // Validate
     const emptyDescriptions = formData.line_items.some((item) => !item.description.trim())
@@ -653,7 +667,7 @@ export default function ServiceVisitForm({
           <div className="flex gap-3 pt-4">
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || (isEdit && !editHydrated)}
               className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Save className="w-4 h-4" />
@@ -669,6 +683,12 @@ export default function ServiceVisitForm({
               {t('common:cancel')}
             </button>
           </div>
+
+          {isEdit && !editHydrated && (
+            <p className="text-sm text-garage-text-muted">
+              {suppliesError ? t('service.suppliesLoadFailed') : t('service.suppliesLoading')}
+            </p>
+          )}
         </form>
     </FormModalWrapper>
   )
