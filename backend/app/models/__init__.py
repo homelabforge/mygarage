@@ -12,6 +12,7 @@ from app.models.insurance import InsurancePolicy
 from app.models.livelink_device import LiveLinkDevice
 from app.models.livelink_firmware_cache import LiveLinkFirmwareCache
 from app.models.livelink_parameter import LiveLinkParameter
+from app.models.location_point import LocationPoint
 from app.models.note import Note
 from app.models.odometer import OdometerRecord
 from app.models.oidc_state import OIDCState
@@ -67,6 +68,7 @@ __all__ = [
     "DTCDefinition",
     "DriveSession",
     "SdLogIngestState",
+    "LocationPoint",
     # Family Multi-User
     "VehicleShare",
     "VehicleTransfer",
