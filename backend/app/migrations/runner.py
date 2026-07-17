@@ -104,61 +104,105 @@ class MigrationRunner:
         logger.debug("Discovered %s migration file(s)", len(migrations))
         return migrations
 
-    def _load_and_run_migration(self, name: str, path: Path) -> None:
-        """
-        Dynamically import and execute a migration file.
-
-        Args:
-            name: Migration name (without .py extension)
-            path: Path to migration file
+    def _load_module(self, name: str, path: Path):
+        """Dynamically import a migration module from its file path.
 
         Raises:
-            Exception: If migration fails to load or execute
+            ImportError: if the module cannot be loaded.
         """
-        # Load module dynamically
         spec = importlib.util.spec_from_file_location(name, path)
         if spec is None or spec.loader is None:
             raise ImportError(f"Could not load migration module: {path}")
-
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
+        return module
 
-        # Execute upgrade function
+    def _get_replaces(self, module) -> list[str]:
+        """Return the migration's REPLACES list of superseded stems (default []).
+
+        Non-list/tuple values are ignored with a warning; non-str entries are
+        skipped with a warning. Order is preserved.
+        """
+        modname = getattr(module, "__name__", "?")
+        replaces = getattr(module, "REPLACES", [])
+        if not isinstance(replaces, (list, tuple)):
+            logger.warning("Migration %s: REPLACES must be a list of stems; ignoring", modname)
+            return []
+        result: list[str] = []
+        for stem in replaces:
+            if not isinstance(stem, str):
+                logger.warning(
+                    "Migration %s: REPLACES entry %r is not a string; ignoring", modname, stem
+                )
+                continue
+            result.append(stem)
+        return result
+
+    def _run_upgrade(self, name: str, module) -> None:
+        """Execute an already-loaded migration module's upgrade().
+
+        Passes the runner engine when the signature accepts it, else calls with
+        no args (legacy migrations).
+
+        Raises:
+            AttributeError: if the module has no upgrade().
+            Exception: whatever upgrade() raises.
+        """
         if not hasattr(module, "upgrade"):
             raise AttributeError(f"Migration {name} missing upgrade() function")
-
         logger.info("Running migration: %s", name)
-
-        # Pass engine if the migration accepts it, otherwise call without args
         sig = python_inspect.signature(module.upgrade)
         if "engine" in sig.parameters:
             module.upgrade(engine=self.engine)
         else:
             module.upgrade()
 
+    def _mark_migrations_applied(self, names: list[str]) -> None:
+        """Record several migrations as applied in ONE transaction (atomic).
+
+        A squash migration must stamp itself and every replaced stem together —
+        a partial commit would leave the baseline applied but its replaced
+        individuals pending, so the next boot would run them against the
+        baseline-built schema.
+        """
+        if not names:
+            return
+        with self.engine.begin() as conn:
+            for name in names:
+                conn.execute(
+                    text("INSERT INTO schema_migrations (migration_name) VALUES (:name)"),
+                    {"name": name},
+                )
+
     def run_pending_migrations(self) -> None:
-        """
-        Main orchestration method - runs all pending migrations.
+        """Run all pending migrations, honoring squash (REPLACES) migrations.
 
-        This method:
-        1. Ensures migration tracking table exists
-        2. Gets list of already-applied migrations
-        3. Discovers all available migrations
-        4. Runs pending migrations in order
-        5. Marks each as applied after successful execution
+        A migration may declare a module-level ``REPLACES = ["001_...", ...]`` of
+        filename stems it supersedes (a squash/baseline). Evaluated in stem order
+        against the applied set ``A``, for a squash migration ``M`` whose real
+        (file-backed) replaced stems are ``known``:
 
-        Stops on first failure without marking failed migration as applied.
+        * ``known ∩ A = ∅`` (fresh) -> run ``M``, then atomically stamp ``M`` and
+          every stem in ``known`` -> the individual replaced files are then seen
+          as applied and skipped.
+        * ``known ⊆ A`` (fully-migrated) -> stamp ``M`` WITHOUT running it.
+        * partial -> skip ``M`` this pass; the unapplied individuals run normally;
+          ``M`` stamps on a later run once ``known ⊆ A``.
+
+        A REPLACES entry matching no discovered file is warned and ignored. A
+        migration with no REPLACES runs and is stamped exactly as before.
+
+        Each migration's module load, upgrade(), and tracking-table writes run
+        inside ONE try/except: on the first failure the runner logs, annotates
+        the exception with ``__migration_fatal__`` (from the loaded module's
+        FATAL flag, or False if it failed to load), and re-raises — stopping the
+        chain without marking the failed migration applied.
         """
-        # Ensure tracking table exists
         self._ensure_migration_tracking_table()
 
-        # Get applied migrations
-        applied = self._get_applied_migrations()
-
-        # Discover all migrations
+        applied = self._get_applied_migrations()  # mutable: grows as we stamp
         all_migrations = self._discover_migrations()
-
-        # Filter to pending only
+        discovered_stems = {name for name, _ in all_migrations}
         pending = [(name, path) for name, path in all_migrations if name not in applied]
 
         if not pending:
@@ -167,40 +211,75 @@ class MigrationRunner:
 
         logger.info("Found %s pending migration(s)", len(pending))
 
-        # Run each pending migration
-        successful = 0
+        ran = 0
         for name, path in pending:
+            if name in applied:
+                # Stamped by an earlier squash migration in this same pass.
+                continue
+
+            module = None
             try:
-                self._load_and_run_migration(name, path)
-                self._mark_migration_applied(name)
-                successful += 1
+                module = self._load_module(name, path)
+                replaces = self._get_replaces(module)
+
+                if not replaces:
+                    self._run_upgrade(name, module)
+                    self._mark_migration_applied(name)
+                    applied.add(name)
+                    ran += 1
+                    continue
+
+                # Squash / baseline migration. Warn on unknown stems; classify
+                # against real (file-backed) replaced stems only.
+                for stem in replaces:
+                    if stem not in discovered_stems:
+                        logger.warning(
+                            "Squash migration %s: REPLACES entry '%s' matches no migration file; ignoring",
+                            name,
+                            stem,
+                        )
+                known = {stem for stem in replaces if stem in discovered_stems}
+                known_applied = known & applied
+
+                if not known_applied:
+                    # Fresh: run baseline, then atomically stamp it + all replaced stems.
+                    self._run_upgrade(name, module)
+                    to_stamp = [name] + [s for s in sorted(known) if s not in applied]
+                    self._mark_migrations_applied(to_stamp)
+                    applied.update(to_stamp)
+                    ran += 1
+                    logger.info(
+                        "Squash migration %s: fresh install — collapsed %s replaced migration(s)",
+                        name,
+                        len(known),
+                    )
+                elif known <= applied:
+                    # Fully-migrated: record the collapse without running the baseline.
+                    self._mark_migration_applied(name)
+                    applied.add(name)
+                    logger.info(
+                        "Squash migration %s: history already applied — marked without running",
+                        name,
+                    )
+                else:
+                    # Partial: defer; remaining individuals run this pass, baseline converges next boot.
+                    logger.info(
+                        "Squash migration %s: partial history — deferring (applying remaining individual migrations)",
+                        name,
+                    )
+                    continue
             except Exception as e:
                 logger.error("Migration '%s' failed: %s", name, e)
                 logger.error("Stopping migration run - fix errors and restart")
-                # Annotate the exception with the migration's FATAL flag so
-                # init_db() can decide whether to halt startup. Defaults to
-                # False (log-and-continue) when the migration module doesn't
-                # explicitly opt in.
-                fatal = self._migration_is_fatal(path)
                 try:
-                    e.__migration_fatal__ = fatal  # type: ignore[attr-defined]
+                    e.__migration_fatal__ = (  # type: ignore[attr-defined]
+                        bool(getattr(module, "FATAL", False)) if module is not None else False
+                    )
                 except Exception:
                     pass
                 raise
 
-        logger.info("✓ All %s migration(s) applied successfully", successful)
-
-    def _migration_is_fatal(self, path: Path) -> bool:
-        """Return the migration module's FATAL flag (default: False)."""
-        try:
-            spec = importlib.util.spec_from_file_location(path.stem, path)
-            if spec is None or spec.loader is None:
-                return False
-            module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
-            return bool(getattr(module, "FATAL", False))
-        except Exception:
-            return False
+        logger.info("✓ All %s migration(s) applied successfully", ran)
 
 
 def run_migrations(database_url: str, migrations_dir: Path) -> None:
