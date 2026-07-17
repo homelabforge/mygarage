@@ -343,9 +343,14 @@ class SupplyService:
         return supply
 
     def to_usage_response(self, usage: SupplyUsage) -> SupplyUsageResponse:
-        """Build a usage response. For a job usage, callers MUST eager-load
-        usage.line_item → line_item.visit (async: unloaded → MissingGreenlet). A
-        standalone adjustment has service_line_item_id=None → line_item is None
+        """Build a usage response.
+
+        Callers MUST have ``usage.supply`` eager-loaded or resident in the session
+        (this reads ``usage.supply.name``; ``supply_id`` is NOT NULL, so there is NO
+        null short-circuit — an unloaded ``supply`` raises MissingGreenlet under async).
+        For a JOB usage, callers MUST additionally eager-load
+        ``usage.line_item → line_item.visit`` (same async rule). A standalone
+        adjustment has ``service_line_item_id=None`` → ``line_item`` is None
         (SQLAlchemy short-circuits the null many-to-one, no query)."""
         line_item = usage.line_item
         visit = line_item.visit if (line_item is not None and line_item.visit) else None

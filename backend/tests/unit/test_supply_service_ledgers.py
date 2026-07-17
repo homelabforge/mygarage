@@ -102,3 +102,55 @@ async def test_delete_adjustment_rejects_job_usage(db_session):
     with pytest.raises(HTTPException) as ei:
         await svc.delete_adjustment(s.id, job_usage.id, None)
     assert ei.value.status_code == 400  # only standalone adjustments deletable here
+
+
+async def test_to_usage_response_reads_eager_loaded_supply_and_visit(db_session):
+    """to_usage_response reads usage.supply.name (supply_id NOT NULL → no null
+    short-circuit) and, for a job usage, the owning visit — both must be eager-
+    loaded by the caller. Covers the interface contract Tasks 7/10/11 rely on."""
+    from sqlalchemy.orm import selectinload
+
+    from app.models.supply import SupplyUsage
+
+    svc = SupplyService(db_session)
+    s = await _supply(db_session)
+
+    # Standalone adjustment: line_item is None, but supply must still be loaded.
+    adj = await svc.add_adjustment(s.id, SupplyAdjustmentCreate(quantity=Decimal("1")), None)
+    loaded_adj = (
+        await db_session.execute(
+            select(SupplyUsage)
+            .where(SupplyUsage.id == adj.id)
+            .options(selectinload(SupplyUsage.supply))
+        )
+    ).scalar_one()
+    resp = svc.to_usage_response(loaded_adj)
+    assert resp.supply_name == "Coolant"
+    assert resp.service_visit_id is None
+    assert resp.service_visit_date is None
+
+    # Job usage: owning-visit fields populated when supply + line_item.visit loaded.
+    v = await _vehicle(db_session, "1HGBH41JXMN109222")
+    visit = ServiceVisit(vin=v.vin, date=date(2026, 2, 1))
+    db_session.add(visit)
+    await db_session.flush()
+    li = ServiceLineItem(visit_id=visit.id, description="Coolant flush")
+    db_session.add(li)
+    await db_session.flush()
+    job = SupplyUsage(supply_id=s.id, quantity=Decimal("1"), service_line_item_id=li.id)
+    db_session.add(job)
+    await db_session.flush()
+    loaded_job = (
+        await db_session.execute(
+            select(SupplyUsage)
+            .where(SupplyUsage.id == job.id)
+            .options(
+                selectinload(SupplyUsage.supply),
+                selectinload(SupplyUsage.line_item).selectinload(ServiceLineItem.visit),
+            )
+        )
+    ).scalar_one()
+    jresp = svc.to_usage_response(loaded_job)
+    assert jresp.supply_name == "Coolant"
+    assert jresp.service_visit_id == visit.id
+    assert jresp.service_visit_date == date(2026, 2, 1)
