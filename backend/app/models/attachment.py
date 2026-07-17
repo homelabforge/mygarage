@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, DateTime, Index, Integer, String
+from sqlalchemy import CheckConstraint, DateTime, Index, Integer, String, text
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 
@@ -20,14 +20,22 @@ class Attachment(Base):
     record_type: Mapped[str] = mapped_column(String(30), nullable=False)
     record_id: Mapped[int] = mapped_column(Integer, nullable=False)
     file_path: Mapped[str] = mapped_column(String(255), nullable=False)
-    file_type: Mapped[str | None] = mapped_column(String(10))
+    file_type: Mapped[str | None] = mapped_column(String(50))
     file_size: Mapped[int | None] = mapped_column(Integer)
     uploaded_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     __table_args__ = (
         CheckConstraint(
-            "record_type IN ('service', 'service_visit', 'fuel', 'upgrade', 'collision', 'tax', 'note')",
+            "record_type IN ('service', 'service_visit', 'fuel', 'upgrade', "
+            "'collision', 'tax', 'note', 'supply_purchase')",
             name="check_record_type",
         ),
         Index("idx_attachments_record", "record_type", "record_id"),
+        Index(
+            "uq_supply_purchase_receipt",
+            "record_id",
+            unique=True,
+            sqlite_where=text("record_type = 'supply_purchase'"),
+            postgresql_where=text("record_type = 'supply_purchase'"),
+        ),
     )
