@@ -14,7 +14,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.supply import Supply, SupplyPurchase, SupplyUsage
 from app.models.user import User
-from app.schemas.supply import SupplyCreate, SupplyResponse, SupplyUpdate
+from app.schemas.supply import (
+    SupplyAdjustmentCreate,
+    SupplyCreate,
+    SupplyHistoryResponse,
+    SupplyPurchaseCreate,
+    SupplyResponse,
+    SupplyUpdate,
+    SupplyUsageResponse,
+)
 from app.utils.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
@@ -201,3 +209,259 @@ class SupplyService:
         await self.db.delete(supply)
         await self.db.commit()
         return False
+
+    # ---- purchases ----------------------------------------------------------
+
+    async def add_purchase(
+        self, supply_id: int, data: SupplyPurchaseCreate, current_user: User | None
+    ) -> SupplyPurchase:
+        await self.get_supply(supply_id)  # 404 if missing
+        purchase = SupplyPurchase(
+            supply_id=supply_id,
+            date=data.date,
+            quantity=data.quantity,
+            total_cost=data.total_cost,
+            supplier_id=data.supplier_id,
+            part_number=data.part_number,
+            notes=data.notes,
+        )
+        self.db.add(purchase)
+        await self.db.commit()
+        await self.db.refresh(purchase)
+        return purchase
+
+    async def delete_purchase(
+        self, supply_id: int, purchase_id: int, current_user: User | None
+    ) -> None:
+        purchase = (
+            await self.db.execute(
+                select(SupplyPurchase)
+                .where(SupplyPurchase.id == purchase_id)
+                .where(SupplyPurchase.supply_id == supply_id)
+            )
+        ).scalar_one_or_none()
+        if not purchase:
+            raise HTTPException(status_code=404, detail=f"Purchase {purchase_id} not found")
+        old_files = await self._purge_receipt(purchase_id)  # rows now, files after commit (R1-H4)
+        await self.db.delete(purchase)
+        await self.db.commit()
+        self._unlink_files(old_files)
+
+    async def _purge_receipt(self, purchase_id: int) -> list[str]:
+        """Delete receipt attachment ROWS for a purchase; return their file paths.
+
+        Unlink the returned paths only AFTER the surrounding commit succeeds, so a
+        rollback never loses a still-referenced file (R1-H4).
+        """
+        from app.models.attachment import Attachment
+
+        rows = (
+            (
+                await self.db.execute(
+                    select(Attachment)
+                    .where(Attachment.record_type == "supply_purchase")
+                    .where(Attachment.record_id == purchase_id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        paths = [a.file_path for a in rows]
+        for a in rows:
+            await self.db.delete(a)
+        return paths
+
+    @staticmethod
+    def _unlink_files(paths: list[str]) -> None:
+        from pathlib import Path
+
+        for p in paths:
+            try:
+                Path(p).unlink(missing_ok=True)
+            except OSError:
+                logger.warning("Could not unlink receipt file %s", sanitize_for_log(p))
+
+    # ---- usages / adjustments ----------------------------------------------
+
+    async def create_usage_snapshot(
+        self, supply_id: int, quantity: Decimal
+    ) -> tuple[Decimal | None, Decimal | None]:
+        """Freeze (unit_cost, cost) for a usage from the supply's current avg cost."""
+        avg = await self.compute_avg_unit_cost(supply_id)
+        if avg is None:
+            return None, None
+        cost = (avg * quantity).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        return avg, cost
+
+    async def add_adjustment(
+        self, supply_id: int, data: SupplyAdjustmentCreate, current_user: User | None
+    ) -> SupplyUsage:
+        await self.get_supply(supply_id)
+        unit_cost, cost = await self.create_usage_snapshot(supply_id, data.quantity)
+        usage = SupplyUsage(
+            supply_id=supply_id,
+            quantity=data.quantity,
+            unit_cost_snapshot=unit_cost,
+            cost_snapshot=cost,
+            service_line_item_id=None,
+        )
+        self.db.add(usage)
+        await self.db.commit()
+        await self.db.refresh(usage)
+        return usage
+
+    async def delete_adjustment(
+        self, supply_id: int, usage_id: int, current_user: User | None
+    ) -> None:
+        usage = (
+            await self.db.execute(
+                select(SupplyUsage)
+                .where(SupplyUsage.id == usage_id)
+                .where(SupplyUsage.supply_id == supply_id)
+            )
+        ).scalar_one_or_none()
+        if not usage:
+            raise HTTPException(status_code=404, detail=f"Adjustment {usage_id} not found")
+        if usage.service_line_item_id is not None:
+            raise HTTPException(
+                status_code=400,
+                detail="This usage is tied to a service line item; edit the visit instead",
+            )
+        await self.db.delete(usage)
+        await self.db.commit()
+
+    async def get_supply_for_use(self, supply_id: int, vin: str) -> Supply:
+        """Validate a supply is usable on a given vehicle (shared or pinned to it, active)."""
+        supply = await self.get_supply(supply_id)
+        if not supply.is_active:
+            raise HTTPException(status_code=400, detail=f"Supply {supply_id} is archived")
+        if supply.vin is not None and supply.vin != vin.upper().strip():
+            raise HTTPException(
+                status_code=400,
+                detail=f"Supply {supply_id} is pinned to a different vehicle",
+            )
+        return supply
+
+    def to_usage_response(self, usage: SupplyUsage) -> SupplyUsageResponse:
+        """Build a usage response. For a job usage, callers MUST eager-load
+        usage.line_item → line_item.visit (async: unloaded → MissingGreenlet). A
+        standalone adjustment has service_line_item_id=None → line_item is None
+        (SQLAlchemy short-circuits the null many-to-one, no query)."""
+        line_item = usage.line_item
+        visit = line_item.visit if (line_item is not None and line_item.visit) else None
+        return SupplyUsageResponse(
+            id=usage.id,
+            supply_id=usage.supply_id,
+            supply_name=usage.supply.name,
+            quantity=usage.quantity,
+            unit_cost_snapshot=usage.unit_cost_snapshot,
+            cost_snapshot=usage.cost_snapshot,
+            service_line_item_id=usage.service_line_item_id,
+            service_visit_id=visit.id if visit else None,
+            service_visit_date=visit.date if visit else None,
+            created_at=usage.created_at,
+        )
+
+    # ---- history ------------------------------------------------------------
+
+    async def get_supply_history(
+        self, supply_id: int, current_user: User | None
+    ) -> SupplyHistoryResponse:
+        from datetime import datetime, time
+
+        from sqlalchemy.orm import selectinload
+
+        from app.models.attachment import Attachment
+        from app.models.service_line_item import ServiceLineItem
+        from app.schemas.supply import SupplyLedgerEntry, SupplyReceiptSummary
+
+        await self.get_supply(supply_id)
+        purchases = (
+            (
+                await self.db.execute(
+                    select(SupplyPurchase).where(SupplyPurchase.supply_id == supply_id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        usages = (
+            (
+                await self.db.execute(
+                    select(SupplyUsage)
+                    .where(SupplyUsage.supply_id == supply_id)
+                    .options(
+                        selectinload(SupplyUsage.line_item).selectinload(ServiceLineItem.visit)
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+        # Batch-load receipt metadata for these purchases (R1-H4).
+        receipts: dict[int, SupplyReceiptSummary] = {}
+        if purchases:
+            rows = (
+                (
+                    await self.db.execute(
+                        select(Attachment)
+                        .where(Attachment.record_type == "supply_purchase")
+                        .where(Attachment.record_id.in_([p.id for p in purchases]))
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            for a in rows:
+                receipts[a.record_id] = SupplyReceiptSummary(id=a.id, file_type=a.file_type)
+
+        # Effective ledger date (R1-H3): purchase.date; job usage → owning visit
+        # date (real consumption date); standalone adjustment → created_at.
+        events: list[tuple[datetime, str, object]] = []
+        for p in purchases:
+            events.append((datetime.combine(p.date, time.min), "purchase", p))
+        for u in usages:
+            visit = u.line_item.visit if (u.line_item and u.line_item.visit) else None
+            eff = datetime.combine(visit.date, time.min) if visit else u.created_at
+            events.append((eff, "usage", u))
+        # Deterministic: same date → purchases first, then by id.
+        events.sort(key=lambda e: (e[0], 0 if e[1] == "purchase" else 1, e[2].id))
+
+        entries: list[SupplyLedgerEntry] = []
+        balance = _ZERO
+        for at, kind, obj in events:
+            if kind == "purchase":
+                balance += obj.quantity
+                entries.append(
+                    SupplyLedgerEntry(
+                        entry_type="purchase",
+                        id=obj.id,
+                        at=at,
+                        quantity=obj.quantity,
+                        running_balance=balance.quantize(Decimal("0.001")),
+                        cost=obj.total_cost,
+                        supplier_id=obj.supplier_id,
+                        receipt=receipts.get(obj.id),
+                    )
+                )
+            else:
+                balance -= obj.quantity
+                visit = obj.line_item.visit if (obj.line_item and obj.line_item.visit) else None
+                entries.append(
+                    SupplyLedgerEntry(
+                        entry_type="usage",
+                        id=obj.id,
+                        at=at,
+                        quantity=-obj.quantity,
+                        running_balance=balance.quantize(Decimal("0.001")),
+                        cost=obj.cost_snapshot,
+                        service_line_item_id=obj.service_line_item_id,
+                        service_visit_id=visit.id if visit else None,
+                        service_visit_date=visit.date if visit else None,
+                    )
+                )
+        on_hand, avg = (await self._compute_balances([supply_id]))[supply_id]
+        return SupplyHistoryResponse(
+            supply_id=supply_id, on_hand=on_hand, avg_unit_cost=avg, entries=entries
+        )
