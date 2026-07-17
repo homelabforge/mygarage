@@ -17,6 +17,7 @@ from app.schemas.service_visit import (
 )
 from app.services.auth import require_auth
 from app.services.service_visit_service import ServiceVisitService
+from app.services.supply_service import SupplyService
 
 logger = logging.getLogger(__name__)
 
@@ -202,6 +203,7 @@ async def add_line_item(
         created_at=line_item.created_at,
         is_failed_inspection=line_item.is_failed_inspection,
         needs_followup=line_item.needs_followup,
+        supply_usages=[SupplyService(db).to_usage_response(u) for u in line_item.supply_usages],
     )
 
 

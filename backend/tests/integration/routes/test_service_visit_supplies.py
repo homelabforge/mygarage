@@ -484,3 +484,39 @@ async def test_edit_succeeds_after_supply_archived(client, auth_headers, test_ve
         headers=auth_headers,
     )
     assert r.status_code == 200  # unchanged association is not re-validated
+
+
+async def test_add_line_item_route_serializes_supply_usages(
+    client: AsyncClient, auth_headers, test_vehicle
+):
+    """The nested add-line-item route must return the persisted supply_usages,
+    not a silent empty list (review R10 — the route built the response manually
+    and omitted the mapping)."""
+    vin = test_vehicle["vin"]
+    sid = await _supply(client, auth_headers)  # avg 8.00/unit
+    created = (
+        await client.post(
+            f"/api/vehicles/{vin}/service-visits",
+            json={"date": "2026-02-01", "line_items": [{"description": "Base", "cost": 0}]},
+            headers=auth_headers,
+        )
+    ).json()
+    visit_id = created["id"]
+
+    r = await client.post(
+        f"/api/vehicles/{vin}/service-visits/{visit_id}/line-items",
+        json={
+            "description": "Oil Change",
+            "cost": 0,
+            "supplies_used": [{"supply_id": sid, "quantity": "5"}],
+        },
+        headers=auth_headers,
+    )
+    assert r.status_code == 201
+    body = r.json()
+    assert len(body["supply_usages"]) == 1
+    u = body["supply_usages"][0]
+    assert u["supply_id"] == sid
+    assert float(u["cost_snapshot"]) == 40.0  # 5 * 8.00
+    assert u["service_visit_id"] == visit_id
+    assert u["service_visit_date"] == "2026-02-01"

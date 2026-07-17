@@ -9,7 +9,7 @@ from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import joinedload, selectinload
 
 from app.models.service_line_item import ServiceLineItem
 from app.models.service_visit import ServiceVisit
@@ -571,11 +571,14 @@ class ServiceVisitService:
 
             await self.db.commit()
 
-            # Reload with supply usages eager-loaded so the response can carry them.
+            # Reload with supply usages + supply + owning visit eager-loaded so the
+            # response can carry supply_usages (to_usage_response reads usage.supply.name
+            # and, for job usages, usage.line_item.visit.date — both must be loaded).
             reloaded = await self.db.execute(
                 select(ServiceLineItem)
                 .options(
-                    selectinload(ServiceLineItem.supply_usages).selectinload(SupplyUsage.supply)
+                    selectinload(ServiceLineItem.supply_usages).selectinload(SupplyUsage.supply),
+                    joinedload(ServiceLineItem.visit),
                 )
                 .where(ServiceLineItem.id == line_item.id)
             )
