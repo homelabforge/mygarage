@@ -1,21 +1,25 @@
 """Location service: GPS breadcrumb writes + trip read-queries for Torque-sourced drives (#118)."""
 
+import logging
 import math
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import is_sqlite
 from app.models.drive_session import DriveSession
 from app.models.location_point import LocationPoint
+from app.utils.datetime_utils import utc_now
 
 if is_sqlite:
     from sqlalchemy.dialects.sqlite import insert as dialect_insert
 else:
     from sqlalchemy.dialects.postgresql import insert as dialect_insert
+
+logger = logging.getLogger(__name__)
 
 _EARTH_RADIUS_KM = 6371.0088
 
@@ -121,6 +125,27 @@ class LocationService:
                 .limit(1)
             )
         ).scalar_one_or_none()
+
+    async def prune_old(self, retention_days: int) -> int:
+        """Delete location_points older than retention period.
+
+        Returns count of deleted rows.
+        """
+        cutoff = utc_now() - timedelta(days=retention_days)
+
+        # Count first for logging
+        count_result = await self.db.execute(
+            select(func.count(LocationPoint.id)).where(LocationPoint.timestamp < cutoff)
+        )
+        count_row = count_result.first()
+        to_delete = count_row[0] if count_row else 0
+
+        if to_delete > 0:
+            await self.db.execute(delete(LocationPoint).where(LocationPoint.timestamp < cutoff))
+            await self.db.commit()
+            logger.info("Pruned %d location points older than %d days", to_delete, retention_days)
+
+        return to_delete
 
     @staticmethod
     def haversine_km(points: Sequence[tuple[float, float]]) -> Decimal:

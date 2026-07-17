@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import AsyncSessionLocal
 from app.services.firmware_service import FirmwareService
 from app.services.livelink_service import LiveLinkService
+from app.services.location_service import LocationService
 from app.services.notifications.dispatcher import NotificationDispatcher
 from app.services.sd_backfill_service import SdBackfillService
 from app.services.session_service import SessionService
@@ -213,6 +214,16 @@ async def prune_old_telemetry():
                 logger.info(
                     "Pruned %d telemetry records older than %d days",
                     deleted_count,
+                    retention_days,
+                )
+
+            location_service = LocationService(db)
+            deleted_location_count = await location_service.prune_old(retention_days)
+
+            if deleted_location_count > 0:
+                logger.info(
+                    "Pruned %d location points older than %d days",
+                    deleted_location_count,
                     retention_days,
                 )
 
