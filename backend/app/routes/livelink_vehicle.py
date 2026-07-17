@@ -12,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.models.livelink_device import LiveLinkDevice
 from app.models.user import User
 from app.models.vehicle import Vehicle
 from app.schemas.drive_session import (
@@ -37,16 +38,22 @@ from app.schemas.torque import (
     LocationPointOut,
     LocationTrackingResponse,
     LocationTrackingUpdate,
+    TorqueSourceCreate,
+    TorqueSourceCreateResponse,
+    TorqueSourceListResponse,
+    TorqueSourceResponse,
     TripListResponse,
     TripPointsResponse,
     TripSummary,
 )
-from app.services.auth import get_vehicle_or_403, require_auth
+from app.services.auth import get_vehicle_for_owner_or_403, get_vehicle_or_403, require_auth
 from app.services.dtc_service import DTCService
 from app.services.livelink_service import LiveLinkService
 from app.services.location_service import LocationService
 from app.services.session_service import SessionService
+from app.services.settings_service import SettingsService
 from app.services.telemetry_service import TelemetryService
+from app.services.torque_service import TorqueService
 from app.utils.csv_safe import sanitize_csv_row
 from app.utils.datetime_utils import utc_now
 
@@ -873,3 +880,119 @@ async def update_location_tracking(
     await db.commit()
 
     return LocationTrackingResponse(location_tracking_enabled=vehicle.location_tracking_enabled)
+
+
+# =============================================================================
+# Torque Source Registration Endpoints (Task 13, owner-scoped)
+# =============================================================================
+
+
+@router.post("/torque-sources", response_model=TorqueSourceCreateResponse)
+async def create_torque_source(
+    vin: str,
+    payload: TorqueSourceCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_auth),
+) -> TorqueSourceCreateResponse:
+    """
+    Register a new Torque Pro upload source for this vehicle.
+
+    Returns the ready-to-paste Torque "Upload URL" plus the raw device token
+    embedded in it -- both are shown ONCE; the token is stored hashed and
+    cannot be retrieved again (revoke and create a new source instead).
+
+    **Path Parameters:**
+    - **vin**: Vehicle VIN
+
+    **Security:**
+    - Requires vehicle OWNERSHIP (a write-share does NOT pass) -- matches the
+      per-device admin ops in livelink_admin.py.
+    """
+    vin = vin.upper().strip()
+    await get_vehicle_for_owner_or_403(vin, current_user, db)
+
+    device, raw_token = await TorqueService(db).create_source(vin, payload.label)
+    await db.commit()
+
+    base_url = await SettingsService.get(db, "app_base_url")
+    upload_url = f"{base_url.value if base_url else ''}/api/v1/torque/{raw_token}/upload"
+
+    return TorqueSourceCreateResponse(
+        device_id=device.device_id,
+        label=device.label,
+        upload_url=upload_url,
+        token=raw_token,
+    )
+
+
+@router.get("/torque-sources", response_model=TorqueSourceListResponse)
+async def list_torque_sources(
+    vin: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_auth),
+) -> TorqueSourceListResponse:
+    """
+    List this vehicle's registered Torque Pro sources (no token).
+
+    **Path Parameters:**
+    - **vin**: Vehicle VIN
+
+    **Security:**
+    - Requires vehicle OWNERSHIP (a write-share does NOT pass).
+    """
+    vin = vin.upper().strip()
+    await get_vehicle_for_owner_or_403(vin, current_user, db)
+
+    result = await db.execute(
+        select(LiveLinkDevice)
+        .where(LiveLinkDevice.vin == vin, LiveLinkDevice.kind == "torque")
+        .order_by(LiveLinkDevice.created_at.desc())
+    )
+    devices = result.scalars().all()
+
+    return TorqueSourceListResponse(
+        sources=[
+            TorqueSourceResponse(
+                device_id=d.device_id,
+                label=d.label,
+                device_status=d.device_status,
+                last_seen=d.last_seen,
+                created_at=d.created_at,
+            )
+            for d in devices
+        ]
+    )
+
+
+@router.delete("/torque-sources/{device_id}", status_code=204)
+async def delete_torque_source(
+    vin: str,
+    device_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_auth),
+) -> None:
+    """
+    Revoke (delete) a Torque Pro source.
+
+    **R1-H5:** loads the device and verifies it belongs to THIS vin (the
+    normalized path vin) AND is kind='torque' before deleting -- an owner of
+    VIN-A must not be able to delete VIN-B's device by supplying B's
+    device_id. Never hands device_id to the unscoped
+    ``LiveLinkService.delete_device``.
+
+    **Path Parameters:**
+    - **vin**: Vehicle VIN
+    - **device_id**: Torque source device id
+
+    **Security:**
+    - Requires vehicle OWNERSHIP (a write-share does NOT pass).
+    """
+    vin = vin.upper().strip()
+    await get_vehicle_for_owner_or_403(vin, current_user, db)
+
+    device = await LiveLinkService(db).get_device_by_id(device_id)
+    if device is None or device.vin != vin or device.kind != "torque":
+        raise HTTPException(status_code=404, detail="Torque source not found")
+
+    await db.delete(device)
+    await db.commit()

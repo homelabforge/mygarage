@@ -88,3 +88,45 @@ class LocationTrackingResponse(BaseModel):
     location_tracking_enabled: bool = Field(
         ..., description="Whether GPS location tracking is now enabled"
     )
+
+
+# =============================================================================
+# Torque Source Registration Schemas (Task 13, owner-scoped)
+# =============================================================================
+
+
+class TorqueSourceCreate(BaseModel):
+    """Request body for POST .../livelink/torque-sources."""
+
+    label: str | None = Field(None, description="Optional friendly name for this source")
+
+
+class TorqueSourceCreateResponse(BaseModel):
+    """Response body for POST .../livelink/torque-sources.
+
+    ``token`` is the raw device token embedded in ``upload_url`` -- shown
+    ONCE. It is stored hashed and cannot be retrieved again.
+    """
+
+    device_id: str = Field(..., description="Newly created torque-kind device id")
+    label: str | None = Field(None, description="Friendly name for this source")
+    upload_url: str = Field(..., description="Paste this into Torque Pro's 'Upload URL' setting")
+    token: str = Field(..., description="One-time device token (shown once, save it now)")
+
+
+class TorqueSourceResponse(BaseModel):
+    """One entry in the torque-sources list -- no token."""
+
+    device_id: str = Field(..., description="Torque device id")
+    label: str | None = Field(None, description="Friendly name for this source")
+    device_status: str = Field(..., description="online / offline / unknown")
+    last_seen: datetime | None = Field(None, description="Last time this source uploaded data")
+    created_at: datetime = Field(..., description="When this source was registered")
+
+
+class TorqueSourceListResponse(BaseModel):
+    """Schema for GET .../livelink/torque-sources."""
+
+    sources: list[TorqueSourceResponse] = Field(
+        default_factory=list, description="This vehicle's registered Torque sources"
+    )
