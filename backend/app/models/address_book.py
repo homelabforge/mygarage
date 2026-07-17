@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import DateTime, Index, Integer, Numeric, String, Text
+from sqlalchemy import DateTime, Index, Integer, Numeric, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 
@@ -35,7 +35,9 @@ class AddressBookEntry(Base):
     longitude: Mapped[Decimal | None] = mapped_column(Numeric(11, 8))
 
     # Shop discovery metadata
-    source: Mapped[str] = mapped_column(String(20), default="manual")  # 'manual' or 'google_places'
+    source: Mapped[str] = mapped_column(
+        String(20), default="manual", server_default=text("'manual'")
+    )  # 'manual' or 'google_places'
     external_id: Mapped[str | None] = mapped_column(
         String(100)
     )  # Google Place ID or other external ID
@@ -45,7 +47,7 @@ class AddressBookEntry(Base):
     user_rating: Mapped[int | None] = mapped_column(Integer)  # User's 1-5 star rating
 
     # Usage tracking for recommendations
-    usage_count: Mapped[int] = mapped_column(Integer, default=0)
+    usage_count: Mapped[int] = mapped_column(Integer, default=0, server_default=text("0"))
     last_used: Mapped[datetime | None] = mapped_column(DateTime)
 
     # POI (Points of Interest) categorization and metadata
