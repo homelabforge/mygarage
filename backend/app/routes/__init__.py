@@ -26,6 +26,7 @@ from app.routes.shop_discovery import router as shop_discovery_router
 from app.routes.spot_rental import router as spot_rental_router
 from app.routes.spot_rental_billing import router as spot_rental_billing_router
 from app.routes.supplies import router as supplies_router
+from app.routes.supplies import vehicle_supplies_router
 from app.routes.tax import router as tax_router
 from app.routes.toll import toll_tags_router, toll_transactions_router
 from app.routes.vehicles import router as vehicles_router
@@ -69,4 +70,5 @@ __all__ = [
     "reminders_router",
     "service_visits_router",
     "supplies_router",
+    "vehicle_supplies_router",
 ]

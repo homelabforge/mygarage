@@ -470,3 +470,38 @@ class SupplyService:
         return SupplyHistoryResponse(
             supply_id=supply_id, on_hand=on_hand, avg_unit_cost=avg, entries=entries
         )
+
+    # ---- per-vehicle usage read ---------------------------------------------
+
+    async def list_vehicle_supply_usages(self, vin: str, current_user: User | None):
+        """Usages consumed on a vehicle (via its service line items). Read-gated."""
+        from sqlalchemy.orm import selectinload
+
+        from app.models.service_line_item import ServiceLineItem
+        from app.models.service_visit import ServiceVisit
+        from app.schemas.supply import VehicleSupplyUsagesResponse
+        from app.services.auth import get_vehicle_or_403
+
+        vin = vin.upper().strip()
+        await get_vehicle_or_403(vin, current_user, self.db)  # read gate (tripwire)
+        rows = (
+            (
+                await self.db.execute(
+                    select(SupplyUsage)
+                    .join(ServiceLineItem, SupplyUsage.service_line_item_id == ServiceLineItem.id)
+                    .join(ServiceVisit, ServiceLineItem.visit_id == ServiceVisit.id)
+                    .where(ServiceVisit.vin == vin)
+                    .options(
+                        selectinload(SupplyUsage.supply),
+                        # line_item -> visit needed for to_usage_response's owning-visit fields
+                        # (async: unloaded -> MissingGreenlet). R1-H3.
+                        selectinload(SupplyUsage.line_item).selectinload(ServiceLineItem.visit),
+                    )
+                    .order_by(ServiceVisit.date.desc(), SupplyUsage.id.desc())
+                )
+            )
+            .scalars()
+            .all()
+        )
+        usages = [self.to_usage_response(u) for u in rows]
+        return VehicleSupplyUsagesResponse(usages=usages, total=len(usages))

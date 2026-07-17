@@ -520,3 +520,53 @@ async def test_add_line_item_route_serializes_supply_usages(
     assert float(u["cost_snapshot"]) == 40.0  # 5 * 8.00
     assert u["service_visit_id"] == visit_id
     assert u["service_visit_date"] == "2026-02-01"
+
+
+# ---------------------------------------------------------------------------
+# Task 11: per-vehicle "supplies used" read route
+# ---------------------------------------------------------------------------
+
+
+async def test_vehicle_supply_usages_lists_job_consumption(client, auth_headers):
+    # Dedicated vehicle, not the shared `test_vehicle` fixture: the test DB is
+    # session-scoped with no per-test rollback, and several earlier tests in
+    # this module already attach supply usages to the shared VIN's service
+    # visits -- reusing it here would make `total == 1` depend on run order.
+    vin = "1FTFW1ET5DFC10088"
+    await client.post(
+        "/api/vehicles",
+        json={"vin": vin, "nickname": "Supply Usage Test Vehicle", "vehicle_type": "Car"},
+        headers=auth_headers,
+    )
+    sid = await _supply(client, auth_headers)
+    await client.post(
+        f"/api/vehicles/{vin}/service-visits",
+        json={
+            "date": "2026-02-01",
+            "line_items": [
+                {
+                    "description": "Oil Change",
+                    "cost": 0,
+                    "supplies_used": [{"supply_id": sid, "quantity": "5"}],
+                }
+            ],
+        },
+        headers=auth_headers,
+    )
+    r = await client.get(f"/api/vehicles/{vin}/supply-usages", headers=auth_headers)
+    assert r.status_code == 200
+    body = r.json()
+    assert body["total"] == 1
+    usage = body["usages"][0]
+    assert usage["supply_name"] == "Oil"
+    assert float(usage["cost_snapshot"]) == 40.0
+    # R1-H3: owning-visit contract -- id links to the visit, date is the visit's date.
+    assert usage["service_visit_id"] is not None
+    assert usage["service_visit_date"] == "2026-02-01"
+
+
+async def test_vehicle_supply_usages_requires_access(client, auth_headers, test_vehicle):
+    # unauthenticated -> 401
+    assert (
+        await client.get(f"/api/vehicles/{test_vehicle['vin']}/supply-usages")
+    ).status_code == 401

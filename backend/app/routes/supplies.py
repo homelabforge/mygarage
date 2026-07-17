@@ -38,6 +38,7 @@ from app.schemas.supply import (
     SupplyResponse,
     SupplyUpdate,
     SupplyUsageResponse,
+    VehicleSupplyUsagesResponse,
 )
 from app.services.auth import require_auth
 from app.services.file_upload_service import ATTACHMENT_UPLOAD_CONFIG, FileUploadService
@@ -284,3 +285,18 @@ async def delete_receipt(
     await db.commit()
     svc._unlink_files(paths)  # unlink files only after the row deletion commits (R1-H4)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# ---- per-vehicle usage read (vin-scoped, unlike the catalog routes above) ---
+
+vehicle_supplies_router = APIRouter(prefix="/api/vehicles", tags=["vehicle-supplies"])
+
+
+@vehicle_supplies_router.get("/{vin}/supply-usages", response_model=VehicleSupplyUsagesResponse)
+async def list_vehicle_supply_usages(
+    vin: str,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User | None, Depends(require_auth)],
+) -> VehicleSupplyUsagesResponse:
+    """All supply usages consumed on this vehicle's service visits (read-gated)."""
+    return await SupplyService(db).list_vehicle_supply_usages(vin, current_user)
