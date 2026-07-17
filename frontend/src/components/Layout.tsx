@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
-import { Car, Settings, Home, Info, BookUser, BarChart3, Calendar, LogOut, User, MapPin } from 'lucide-react'
+import { Car, Settings, Home, Info, BookUser, BarChart3, Calendar, LogOut, User, MapPin, Package } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
 import { useAppVersion } from '../hooks/useAppVersion'
@@ -64,6 +64,13 @@ export default function Layout() {
               >
                 <BookUser className="w-4 h-4" />
                 <span>{t('addressBook')}</span>
+              </Link>
+              <Link
+                to="/supplies"
+                className="flex items-center space-x-2 text-garage-text-muted hover:text-garage-text transition-colors"
+              >
+                <Package className="w-4 h-4" />
+                <span>{t('supplies')}</span>
               </Link>
               <Link
                 to="/poi-finder"
@@ -170,6 +177,18 @@ export default function Layout() {
           >
             <BookUser className="w-5 h-5" />
             <span className="text-xs mt-1">{t('contacts')}</span>
+          </Link>
+
+          <Link
+            to="/supplies"
+            className={`flex flex-col items-center justify-center min-w-[56px] py-3 px-3 rounded-lg transition-colors ${
+              location.pathname === '/supplies'
+                ? 'text-primary-500 bg-primary-500/10'
+                : 'text-garage-text-muted hover:text-garage-text'
+            }`}
+          >
+            <Package className="w-5 h-5" />
+            <span className="text-xs mt-1">{t('supplies')}</span>
           </Link>
 
           <Link
