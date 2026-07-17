@@ -255,6 +255,12 @@ async def test_end_session_odometer_distance_is_not_overridden_by_gps(
     """When both start+end odometer readings are present, distance_km is the
     odometer delta — the GPS fallback must NOT override it, even when location
     points exist and would compute to a very different distance.
+
+    Uses the WiCAN start_session()/end_session() path (not resolve_torque_session):
+    a Torque session deliberately never captures start_odometer (see
+    test_torque_resolve_never_uses_colocated_wican_odometer below), so the
+    odometer-delta-wins-over-GPS behavior this test targets can only occur for a
+    device using the WiCAN path, where VIN-scoped odometer capture is correct.
     """
     device = await _make_torque_device(db_session)
     t0 = datetime(2026, 1, 1, 10, 0, 0)
@@ -266,7 +272,7 @@ async def test_end_session_odometer_distance_is_not_overridden_by_gps(
 
     service = SessionService(db_session)
     location_service = LocationService(db_session)
-    session = await service.resolve_torque_session(device, "S1", t0)
+    session = await service.start_session(device, t0)
     assert session is not None
     assert session.start_odometer == 1000.0
 
@@ -318,3 +324,52 @@ async def test_end_session_distance_stays_none_with_fewer_than_two_points(
 
     assert ended is not None
     assert ended.distance_km is None
+
+
+@pytest.mark.asyncio
+async def test_torque_resolve_never_uses_colocated_wican_odometer(
+    db_session: AsyncSession,
+):
+    """A vehicle with BOTH a WiCAN dongle and a Torque source is a supported config.
+    resolve_torque_session() must NOT attribute the co-located WiCAN device's
+    VIN-scoped odometer to the Torque trip: Torque has no odometer PID, so
+    start_odometer must stay None and distance must come from the GPS breadcrumb,
+    NOT the (possibly stale/foreign) WiCAN odometer reading.
+    """
+    device = await _make_torque_device(db_session)
+    t0 = datetime(2026, 1, 1, 10, 0, 0)
+
+    # Simulate a co-located WiCAN device's odometer telemetry for the same VIN.
+    # Stale on purpose: if this leaked into the Torque session as both start AND
+    # end odometer, distance_km would come out 0 (start == end), NOT None -- which
+    # would incorrectly suppress the GPS fallback (`if session.distance_km is None`).
+    odo = VehicleTelemetryLatest(vin=device.vin, param_key="ODOMETER", value=50000.0, timestamp=t0)
+    db_session.add(odo)
+    await db_session.flush()
+
+    service = SessionService(db_session)
+    location_service = LocationService(db_session)
+
+    session = await service.resolve_torque_session(device, "S1", t0)
+    assert session is not None
+    assert session.start_odometer is None  # never captured, even though VIN telemetry exists
+
+    # ~2 km GPS breadcrumb, same pattern as the Task 11 GPS-distance test.
+    lat0, lon0 = 47.6062, -122.3321
+    dlat = 1.0 / 111.32
+    points = [
+        (t0, lat0, lon0),
+        (t0 + timedelta(minutes=1), lat0 + dlat, lon0),
+        (t0 + timedelta(minutes=2), lat0 + 2 * dlat, lon0),
+    ]
+    for ts, lat, lon in points:
+        await location_service.record_point(
+            device.vin, device.device_id, session.id, ts, Decimal(str(lat)), Decimal(str(lon))
+        )
+
+    ended = await service.end_session(device, t0 + timedelta(minutes=3))
+
+    assert ended is not None
+    assert ended.distance_km is not None
+    assert ended.distance_km != 0.0  # NOT the stale-odometer start==end zero
+    assert abs(ended.distance_km - 2.0) / 2.0 <= 0.05  # GPS distance, not the 50000 odometer

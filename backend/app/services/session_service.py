@@ -289,12 +289,16 @@ class SessionService:
             await self.end_session(
                 device, utc_now().replace(tzinfo=None)
             )  # server-now end >= prior start (R2-H1, R2-H2)
+        # Deliberately do NOT set start_odometer here. _get_current_odometer() is VIN-scoped,
+        # not device-scoped, so on a vehicle with BOTH a WiCAN dongle and a Torque source it
+        # would attribute the co-located WiCAN device's odometer to this Torque trip. Torque
+        # has no odometer PID at all -> leave start_odometer None so end_session's odometer-
+        # delta gate never fires, forcing distance to come from the GPS breadcrumb fallback.
         session = DriveSession(
             vin=device.vin,
             device_id=device.device_id,
             started_at=started,
             external_session_id=torque_session_id,
-            start_odometer=await self._get_current_odometer(device.vin),
         )
         self.db.add(session)
         await self.db.flush()
