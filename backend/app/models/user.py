@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Integer, String
+from sqlalchemy import Boolean, DateTime, Index, Integer, String, text
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 
@@ -27,12 +27,15 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
-    # OIDC/SSO authentication fields
+    # OIDC/SSO authentication fields. oidc_subject/oidc_provider have no bare
+    # unique=True/index=True flags — the partial indexes below (matching
+    # migration 011's names + predicates) replace the plain create_all indexes
+    # create_all used to build from those flags.
     oidc_subject: Mapped[str | None] = mapped_column(
-        String(255), nullable=True, unique=True, index=True
+        String(255), nullable=True
     )  # 'sub' claim from OIDC provider
     oidc_provider: Mapped[str | None] = mapped_column(
-        String(100), nullable=True, index=True
+        String(100), nullable=True
     )  # Provider name (e.g., 'Authentik', 'Keycloak')
     auth_method: Mapped[str] = mapped_column(
         String(20), default="local", nullable=False, index=True
@@ -83,6 +86,24 @@ class User(Base):
         nullable=False,
     )
     last_login: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    # Partial oidc indexes, matching migration 011's exact names + predicates
+    # (071 drops the old plain create_all ones this supersedes).
+    __table_args__ = (
+        Index(
+            "idx_users_oidc_subject",
+            "oidc_subject",
+            unique=True,
+            sqlite_where=text("oidc_subject IS NOT NULL"),
+            postgresql_where=text("oidc_subject IS NOT NULL"),
+        ),
+        Index(
+            "idx_users_oidc_provider",
+            "oidc_provider",
+            sqlite_where=text("oidc_provider IS NOT NULL"),
+            postgresql_where=text("oidc_provider IS NOT NULL"),
+        ),
+    )
 
     def __repr__(self) -> str:
         return f"<User(username={self.username}, email={self.email})>"
