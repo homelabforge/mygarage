@@ -80,3 +80,11 @@ class LocationTrackingUpdate(BaseModel):
     """Request body for PATCH .../livelink/location-tracking."""
 
     enabled: bool = Field(..., description="Whether GPS location tracking is enabled")
+
+
+class LocationTrackingResponse(BaseModel):
+    """Response body for PATCH .../livelink/location-tracking."""
+
+    location_tracking_enabled: bool = Field(
+        ..., description="Whether GPS location tracking is now enabled"
+    )

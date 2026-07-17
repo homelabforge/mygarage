@@ -35,6 +35,7 @@ from app.schemas.telemetry import (
 from app.schemas.torque import (
     LastLocationResponse,
     LocationPointOut,
+    LocationTrackingResponse,
     LocationTrackingUpdate,
     TripListResponse,
     TripPointsResponse,
@@ -786,6 +787,15 @@ async def get_trip_points(
     await verify_vehicle_access(db, vin, current_user)
     vin = vin.upper().strip()
 
+    session_service = SessionService(db)
+    session = await session_service.get_session(session_id)
+
+    if not session:
+        raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
+
+    if session.vin != vin:
+        raise HTTPException(status_code=404, detail="Session does not belong to this vehicle")
+
     points = await LocationService(db).get_trip_points(vin, session_id)
     return TripPointsResponse(
         session_id=session_id,
@@ -837,13 +847,13 @@ async def get_last_location(
     )
 
 
-@router.patch("/location-tracking")
+@router.patch("/location-tracking", response_model=LocationTrackingResponse)
 async def update_location_tracking(
     vin: str,
     payload: LocationTrackingUpdate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_auth),
-) -> dict[str, bool]:
+) -> LocationTrackingResponse:
     """
     Set the vehicle's GPS location-tracking opt-out flag (R1-H4).
 
@@ -862,4 +872,4 @@ async def update_location_tracking(
     vehicle.location_tracking_enabled = payload.enabled
     await db.commit()
 
-    return {"location_tracking_enabled": vehicle.location_tracking_enabled}
+    return LocationTrackingResponse(location_tracking_enabled=vehicle.location_tracking_enabled)

@@ -220,6 +220,39 @@ async def test_get_trip_points_ordered_with_float_coordinates(
 
 
 @pytest.mark.asyncio
+async def test_get_trip_points_404s_for_nonexistent_session_id(
+    client: AsyncClient, db_session: AsyncSession
+):
+    """GET /trips/{session_id}/points: 404 (not 200 empty) when the session_id
+    doesn't exist at all."""
+    vin, owner_headers = await _make_owned_vehicle(db_session)
+
+    r = await client.get(
+        f"/api/vehicles/{vin}/livelink/trips/999999999/points", headers=owner_headers
+    )
+
+    assert r.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_get_trip_points_404s_for_other_vehicles_session_id(
+    client: AsyncClient, db_session: AsyncSession
+):
+    """GET /trips/{session_id}/points: 404 when session_id is real but belongs
+    to a DIFFERENT vehicle the caller can access (not the requested vin)."""
+    vin_a, owner_headers_a = await _make_owned_vehicle(db_session)
+    vin_b, owner_headers_b = await _make_owned_vehicle(db_session)
+    session_id_b, _t1, _t2 = await _seed_trip(db_session, vin_b)
+    _ = owner_headers_b
+
+    r = await client.get(
+        f"/api/vehicles/{vin_a}/livelink/trips/{session_id_b}/points", headers=owner_headers_a
+    )
+
+    assert r.status_code == 404
+
+
+@pytest.mark.asyncio
 async def test_get_last_location_returns_newest_point(
     client: AsyncClient, db_session: AsyncSession
 ):
