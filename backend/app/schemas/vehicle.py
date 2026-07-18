@@ -215,7 +215,7 @@ class VehicleResponse(VehicleBase):
     archive_sale_date: date | None = None
     archive_notes: str | None = None
     archived_visible: bool = True
-    # GPS location tracking opt-out (default on), migration 070, #118
+    # GPS location tracking opt-out (default on), migration 075, #118
     location_tracking_enabled: bool = True
 
     model_config = {
