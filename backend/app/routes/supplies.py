@@ -94,10 +94,7 @@ async def get_supply(
     current_user: Annotated[User | None, Depends(require_auth)],
 ) -> SupplyResponse:
     """Get a single catalog supply with its current balance."""
-    svc = SupplyService(db)
-    supply = await svc.get_supply(supply_id)
-    on_hand, avg = (await svc._compute_balances([supply_id]))[supply_id]
-    return svc._to_supply_response(supply, on_hand, avg)
+    return await SupplyService(db).get_supply_with_balance(supply_id)
 
 
 @router.patch("/{supply_id}", response_model=SupplyResponse)

@@ -1,7 +1,6 @@
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useForm } from 'react-hook-form'
-import { useQuery } from '@tanstack/react-query'
 import { AlertTriangle, Download, FileX, History, Plus, Trash2, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '@/services/api'
@@ -14,6 +13,7 @@ import {
   useUploadReceipt,
   useDeleteReceipt,
 } from '@/hooks/queries/useSupplies'
+import { useAddressBookEntries } from '@/hooks/queries/useAddressBook'
 import { useUnitPreference } from '@/hooks/useUnitPreference'
 import { useCurrencyPreference } from '@/hooks/useCurrencyPreference'
 import { canonicalToDisplay, displayToCanonical, supplyUnitLabel } from '@/utils/supplyUnits'
@@ -22,7 +22,7 @@ import { FormError } from '@/components/FormError'
 import FormModalWrapper from '@/components/FormModalWrapper'
 import CurrencyInputPrefix from '@/components/common/CurrencyInputPrefix'
 import type { Supply } from '@/types/supplies'
-import type { AddressBookEntry, AddressBookListResponse } from '@/types/addressBook'
+import type { AddressBookEntry } from '@/types/addressBook'
 import type { UnitSystem } from '@/utils/units'
 import type { components } from '@/types/api.generated'
 
@@ -35,19 +35,6 @@ interface SupplyHistoryModalProps {
 
 const RECEIPT_ACCEPT = '.jpg,.jpeg,.png,.gif,.pdf'
 
-// No dedicated `useAddressBook` query hook exists yet (Task 15 brief's
-// documented fallback) — a minimal local hook reusing the same
-// GET /address-book data other forms fetch directly, for the supplier picker.
-function useAddressBookEntries() {
-  return useQuery({
-    queryKey: ['address-book', 'all'],
-    queryFn: async () => {
-      const { data } = await api.get<AddressBookListResponse>('/address-book')
-      return data.entries
-    },
-    staleTime: 60_000,
-  })
-}
 
 /** Canonical → display magnitude, formatted per unit type (whole numbers for count). */
 function formatMagnitude(value: number, supply: Supply, system: UnitSystem): string {

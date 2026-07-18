@@ -10,7 +10,8 @@ import {
   useUpdateSupply,
   useDeleteSupply,
 } from '@/hooks/queries/useSupplies'
-import { useQuickEntryVehicles, type QuickEntryVehicle } from '@/hooks/queries/useQuickEntryVehicles'
+import { useQuickEntryVehicles } from '@/hooks/queries/useQuickEntryVehicles'
+import { vehicleLabel } from '@/utils/vehicleLabel'
 import { useUnitPreference } from '@/hooks/useUnitPreference'
 import { useCurrencyPreference } from '@/hooks/useCurrencyPreference'
 import { canonicalToDisplay, supplyUnitLabel } from '@/utils/supplyUnits'
@@ -259,11 +260,6 @@ export function SupplyForm({ supply, onClose, onSuccess }: SupplyFormProps) {
       vin: supply?.vin || '',
     },
   })
-
-  const vehicleLabel = (v: QuickEntryVehicle): string => {
-    const yearMakeModel = [v.year, v.make, v.model].filter(Boolean).join(' ')
-    return v.nickname !== yearMakeModel ? `${v.nickname} (${yearMakeModel || v.vin})` : yearMakeModel || v.vin
-  }
 
   const onSubmit = async (data: SupplyFormData) => {
     setError(null)

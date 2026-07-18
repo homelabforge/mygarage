@@ -3,28 +3,43 @@ import { useTranslation } from 'react-i18next'
 import { AlertTriangle, Package } from 'lucide-react'
 import { useVehicleSupplyUsages } from '@/hooks/queries/useSupplies'
 import { useCurrencyPreference } from '@/hooks/useCurrencyPreference'
+import { useUnitPreference } from '@/hooks/useUnitPreference'
 import { useDateLocale } from '@/hooks/useDateLocale'
 import { formatDateForDisplay } from '@/utils/dateUtils'
+import {
+  canonicalToDisplay,
+  supplyUnitLabel,
+  type SupplyUnitType,
+  type UnitSystem,
+} from '@/utils/supplyUnits'
 import type { SupplyUsage } from '@/types/supplies'
 
 interface SuppliesUsedTabProps {
   vin: string
 }
 
-// SupplyUsageResponse carries only the canonical quantity, not the owning
-// supply's unit_type, so there's no reliable way to render a display unit
-// here (Task 18 brief) — show the stored magnitude as-is rather than
-// fabricating a unit suffix.
-function formatQuantity(raw: string, locale: string): string {
-  const value = Number(raw)
-  if (Number.isNaN(value)) return raw
-  return value.toLocaleString(locale, { maximumFractionDigits: 3 })
+// Quantity is stored canonically (L for volume, count for count); convert to the
+// user's display units and append the unit label (SupplyUsageResponse carries the
+// owning supply's unit_type).
+function formatQuantity(
+  raw: string,
+  unitType: SupplyUnitType,
+  system: UnitSystem,
+  locale: string,
+): string {
+  const canonical = Number(raw)
+  if (Number.isNaN(canonical)) return raw
+  const value = canonicalToDisplay(canonical, unitType, system)
+  const text = value.toLocaleString(locale, { maximumFractionDigits: 3 })
+  const label = supplyUnitLabel(unitType, system)
+  return label ? `${text} ${label}` : text
 }
 
 export default function SuppliesUsedTab({ vin }: SuppliesUsedTabProps) {
   const { t } = useTranslation('common')
   const { data, isLoading, error } = useVehicleSupplyUsages(vin)
   const { formatCurrency } = useCurrencyPreference()
+  const { system } = useUnitPreference()
   const dateLocale = useDateLocale()
 
   const usages: SupplyUsage[] = data?.usages ?? []
@@ -72,7 +87,8 @@ export default function SuppliesUsedTab({ vin }: SuppliesUsedTabProps) {
               <div className="min-w-0">
                 <h3 className="text-sm font-semibold text-garage-text">{usage.supply_name}</h3>
                 <p className="text-xs text-garage-text-muted mt-0.5">
-                  {t('supplies.usedTab.quantity')}: {formatQuantity(usage.quantity, dateLocale)}
+                  {t('supplies.usedTab.quantity')}:{' '}
+                  {formatQuantity(usage.quantity, usage.unit_type, system, dateLocale)}
                 </p>
                 {usage.service_visit_date && (
                   <p className="text-xs text-garage-text-muted mt-0.5">

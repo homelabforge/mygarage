@@ -13291,12 +13291,22 @@
               }
             ],
             "title": "Unit Cost Snapshot"
+          },
+          "unit_type": {
+            "description": "Owning supply's unit_type \u2014 lets read-only views convert the canonical quantity to display units (L\u2194qt) instead of showing raw liters",
+            "enum": [
+              "volume",
+              "count"
+            ],
+            "title": "Unit Type",
+            "type": "string"
           }
         },
         "required": [
           "id",
           "supply_id",
           "supply_name",
+          "unit_type",
           "quantity",
           "created_at"
         ],

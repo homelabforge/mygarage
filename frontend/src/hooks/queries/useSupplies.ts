@@ -2,20 +2,16 @@ import { useQuery, useMutation, useQueryClient, type QueryClient } from '@tansta
 import api from '@/services/api'
 import type {
   Supply,
+  SupplyListResponse,
   SupplyCreate,
   SupplyUpdate,
   SupplyPurchase,
   SupplyPurchaseCreate,
+  SupplyAdjustmentCreate,
   SupplyHistory,
   SupplyUsage,
   VehicleSupplyUsages,
 } from '@/types/supplies'
-import type { components } from '@/types/api.generated'
-
-// Not re-exported from '@/types/supplies' (Task 12) — pulled directly from
-// the generated schema to avoid touching that file for this task.
-type SupplyListResponse = components['schemas']['SupplyListResponse']
-type SupplyAdjustmentCreate = components['schemas']['SupplyAdjustmentCreate']
 
 // Every purchase/adjustment/receipt mutation invalidates both the supplies
 // list and (when scoped to a supply) its ledger history — shared here so the

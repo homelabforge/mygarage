@@ -17,6 +17,10 @@ vi.mock('../../hooks/useCurrencyPreference', () => ({
   }),
 }))
 
+vi.mock('../../hooks/useUnitPreference', () => ({
+  useUnitPreference: () => ({ system: 'metric' }),
+}))
+
 vi.mock('../../hooks/useDateLocale', () => ({
   useDateLocale: () => 'en-US',
 }))
@@ -28,6 +32,7 @@ const mockUsages: SupplyUsage[] = [
     id: 1,
     supply_id: 10,
     supply_name: 'Motor Oil 5W-30',
+    unit_type: 'volume',
     quantity: '4.500',
     cost_snapshot: '22.50',
     unit_cost_snapshot: '5.00',
@@ -40,6 +45,7 @@ const mockUsages: SupplyUsage[] = [
     id: 2,
     supply_id: 11,
     supply_name: 'Oil Filter',
+    unit_type: 'count',
     quantity: '1.000',
     cost_snapshot: null,
     unit_cost_snapshot: null,

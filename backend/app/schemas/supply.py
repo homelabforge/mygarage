@@ -109,6 +109,10 @@ class SupplyUsageResponse(BaseModel):
     id: int
     supply_id: int
     supply_name: str
+    unit_type: SupplyUnitType = Field(
+        description="Owning supply's unit_type — lets read-only views convert the "
+        "canonical quantity to display units (L↔qt) instead of showing raw liters"
+    )
     quantity: Decimal
     unit_cost_snapshot: Decimal | None = None
     cost_snapshot: Decimal | None = None

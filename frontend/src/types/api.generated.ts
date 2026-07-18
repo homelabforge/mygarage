@@ -11367,6 +11367,12 @@ export interface components {
             supply_name: string;
             /** Unit Cost Snapshot */
             unit_cost_snapshot?: string | null;
+            /**
+             * Unit Type
+             * @description Owning supply's unit_type — lets read-only views convert the canonical quantity to display units (L↔qt) instead of showing raw liters
+             * @enum {string}
+             */
+            unit_type: "volume" | "count";
         };
         /**
          * SystemInfoResponse

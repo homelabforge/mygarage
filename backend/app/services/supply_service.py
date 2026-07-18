@@ -153,6 +153,12 @@ class SupplyService:
             raise HTTPException(status_code=404, detail=f"Supply {supply_id} not found")
         return supply
 
+    async def get_supply_with_balance(self, supply_id: int) -> SupplyResponse:
+        """Get one supply as a response with its computed on-hand + avg cost."""
+        supply = await self.get_supply(supply_id)
+        on_hand, avg = (await self._compute_balances([supply_id]))[supply_id]
+        return self._to_supply_response(supply, on_hand, avg)
+
     async def create_supply(self, data: SupplyCreate, current_user: User | None) -> SupplyResponse:
         supply = Supply(
             name=data.name,
@@ -358,6 +364,7 @@ class SupplyService:
             id=usage.id,
             supply_id=usage.supply_id,
             supply_name=usage.supply.name,
+            unit_type=usage.supply.unit_type,
             quantity=usage.quantity,
             unit_cost_snapshot=usage.unit_cost_snapshot,
             cost_snapshot=usage.cost_snapshot,

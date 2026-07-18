@@ -8,7 +8,7 @@ import FuelRecordForm from '../components/FuelRecordForm'
 import ServiceVisitForm from '../components/ServiceVisitForm'
 import OdometerRecordForm from '../components/OdometerRecordForm'
 import { useQuickEntryVehicles } from '../hooks/queries/useQuickEntryVehicles'
-import type { QuickEntryVehicle } from '../hooks/queries/useQuickEntryVehicles'
+import { vehicleLabel } from '../utils/vehicleLabel'
 import { withBase } from '../utils/basePath'
 import type { VehicleType } from '../types/vehicle'
 
@@ -40,11 +40,6 @@ export default function QuickEntry() {
   }, [vehicles])
 
   const selectedVehicle = vehicles.find(v => v.vin === selectedVin)
-
-  const vehicleLabel = (v: QuickEntryVehicle): string => {
-    const yearMakeModel = [v.year, v.make, v.model].filter(Boolean).join(' ')
-    return v.nickname !== yearMakeModel ? `${v.nickname} (${yearMakeModel || v.vin})` : yearMakeModel || v.vin
-  }
 
   const handleSuccess = (type: EntryType) => {
     const labels: Record<string, string> = {
