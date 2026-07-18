@@ -1,7 +1,7 @@
 {
   "name": "mygarage-frontend",
   "private": true,
-  "version": "2.31.0",
+  "version": "3.0.0-rc1",
   "type": "module",
   "scripts": {
     "dev": "vite",

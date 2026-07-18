@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0-rc1] - 2026-07-17
+
+### Added
+- Parts & supplies: light inventory for consumables — track purchases, usage, on-hand quantity, and average unit cost per supply; consume supplies inside a service visit (cost folds into the visit total); a per-vehicle "Supplies used" tab and a full history view. Household-shared catalog (#122).
+- Torque Pro: ingest OBD2 telemetry and GPS from the Torque Pro Android app via a per-device upload URL, managed alongside WiCAN devices (#117).
+- Trips & location: GPS-breadcrumb trips from Torque with a route map, a last-known-location card, and a per-vehicle location-tracking opt-out (#118).
+
+### Changed
+- Migration runner: squash (`REPLACES`) support plus a create_all↔migrations schema-parity diagnostic; reconciled long-standing schema drift (address_book NOT NULL tightening, dropped dead imperial columns, deduplicated indexes).
+
+### Removed
+- Maintenance templates: the retired feature and its endpoints are gone — application had been a no-op 410 since the schedule system was removed in 2.31.0.
+
+### Fixed
+- PostgreSQL: migrations 054/055 no longer create duplicate foreign keys against a `create_all` baseline (supported-dialect correctness fix; SQLite unaffected).
+
 ## [2.31.0] - 2026-07-15
 
 ### Added
