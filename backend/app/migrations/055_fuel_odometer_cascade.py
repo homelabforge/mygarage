@@ -64,15 +64,25 @@ def _index_exists(inspector, table: str, index_name: str) -> bool:
     return index_name in {idx["name"] for idx in inspector.get_indexes(table)}
 
 
-def _pg_fk_exists(conn, name: str, table: str) -> bool:
+def _pg_column_has_fk(conn, table: str, column: str) -> bool:
+    """True if any FOREIGN KEY already covers ``table.column`` on PostgreSQL.
+
+    Checks by column, not by our constraint name, so a FK that ``create_all``
+    declared under SQLAlchemy's auto-generated ``<table>_<column>_fkey`` name is
+    detected exactly like the one this migration adds — preventing a duplicate
+    FK on a fresh ``create_all`` + migrations run.
+    """
     return bool(
         conn.execute(
             text(
-                "SELECT 1 FROM information_schema.table_constraints "
-                "WHERE constraint_name = :name AND table_name = :table "
-                "AND constraint_type = 'FOREIGN KEY'"
+                "SELECT 1 FROM information_schema.table_constraints tc "
+                "JOIN information_schema.key_column_usage kcu "
+                "  ON tc.constraint_name = kcu.constraint_name "
+                "  AND tc.table_schema = kcu.table_schema "
+                "WHERE tc.constraint_type = 'FOREIGN KEY' "
+                "  AND tc.table_name = :table AND kcu.column_name = :column"
             ),
-            {"name": name, "table": table},
+            {"table": table, "column": column},
         ).scalar()
     )
 
@@ -182,8 +192,10 @@ def upgrade(engine=None) -> None:
     if is_postgres:
         with engine.begin() as conn:
             fk_name = "fk_odometer_records_fuel_record"
-            if _pg_fk_exists(conn, fk_name, "odometer_records"):
-                print(f"  → FK {fk_name} already present, skipping")
+            if _pg_column_has_fk(conn, "odometer_records", "fuel_record_id"):
+                print(
+                    f"  → FK on odometer_records.fuel_record_id already present, skipping {fk_name}"
+                )
             else:
                 conn.execute(
                     text(

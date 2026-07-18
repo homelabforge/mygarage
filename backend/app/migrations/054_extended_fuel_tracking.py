@@ -110,19 +110,45 @@ def _translate_type(sql_type: str, dialect: str) -> str:
 # Statements omit ``IF NOT EXISTS`` (PG doesn't support it on ADD CONSTRAINT
 # in any version) and rely on the caller's information_schema check for
 # idempotency.
-_PG_FK_CONSTRAINTS: list[tuple[str, str]] = [
+# (constraint_name, target_column, ALTER TABLE statement) triples.
+_PG_FK_CONSTRAINTS: list[tuple[str, str, str]] = [
     (
         "fk_fuel_records_station_address_book",
+        "station_address_book_id",
         "ALTER TABLE fuel_records ADD CONSTRAINT fk_fuel_records_station_address_book "
         "FOREIGN KEY (station_address_book_id) REFERENCES address_book(id) "
         "ON DELETE SET NULL",
     ),
     (
         "fk_fuel_records_driver_user",
+        "driver_user_id",
         "ALTER TABLE fuel_records ADD CONSTRAINT fk_fuel_records_driver_user "
         "FOREIGN KEY (driver_user_id) REFERENCES users(id) ON DELETE SET NULL",
     ),
 ]
+
+
+def _pg_column_has_fk(conn, table: str, column: str) -> bool:
+    """True if any FOREIGN KEY already covers ``table.column`` on PostgreSQL.
+
+    Checks by column, not by our constraint name, so a FK that ``create_all``
+    declared under SQLAlchemy's auto-generated ``<table>_<column>_fkey`` name is
+    detected exactly like one this migration would add — which is what keeps a
+    fresh ``create_all`` + migrations run from ending up with duplicate FKs.
+    """
+    return bool(
+        conn.execute(
+            text(
+                "SELECT 1 FROM information_schema.table_constraints tc "
+                "JOIN information_schema.key_column_usage kcu "
+                "  ON tc.constraint_name = kcu.constraint_name "
+                "  AND tc.table_schema = kcu.table_schema "
+                "WHERE tc.constraint_type = 'FOREIGN KEY' "
+                "  AND tc.table_name = :table AND kcu.column_name = :column"
+            ),
+            {"table": table, "column": column},
+        ).scalar()
+    )
 
 
 def _ensure_pg_fk_constraints(engine) -> None:
@@ -130,23 +156,16 @@ def _ensure_pg_fk_constraints(engine) -> None:
 
     Earlier rc1 code used ``ALTER TABLE ... ADD CONSTRAINT IF NOT EXISTS``
     which PG rejects with a syntax error; the surrounding try/except
-    silently swallowed it, so the FKs never got installed. This helper
-    checks ``information_schema.table_constraints`` first and only
-    issues the plain ``ADD CONSTRAINT`` (no ``IF NOT EXISTS``) when the
-    constraint is absent. Re-running the migration is a no-op.
+    silently swallowed it, so the FKs never got installed. This helper checks
+    for an existing FK **on the target column** (any name) first and only
+    issues the plain ``ADD CONSTRAINT`` when none is present. Re-running the
+    migration — or running it after ``create_all`` already declared the FK —
+    is a no-op.
     """
     with engine.begin() as conn:
-        for name, stmt in _PG_FK_CONSTRAINTS:
-            exists = conn.execute(
-                text(
-                    "SELECT 1 FROM information_schema.table_constraints "
-                    "WHERE constraint_name = :name AND table_name = :table "
-                    "AND constraint_type = 'FOREIGN KEY'"
-                ),
-                {"name": name, "table": "fuel_records"},
-            ).scalar()
-            if exists:
-                print(f"  → FK {name} already present, skipping")
+        for name, column, stmt in _PG_FK_CONSTRAINTS:
+            if _pg_column_has_fk(conn, "fuel_records", column):
+                print(f"  → FK on fuel_records.{column} already present, skipping {name}")
                 continue
             conn.execute(text(stmt))
             print(f"  ✓ Added FK {name}")
