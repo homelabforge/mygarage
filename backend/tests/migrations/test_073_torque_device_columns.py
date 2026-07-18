@@ -1,4 +1,4 @@
-"""Tests for migration 068 — Torque device kind/torque_device_id + drive_session
+"""Tests for migration 073 — Torque device kind/torque_device_id + drive_session
 external_session_id columns.
 
 Parameterized over SQLite *and* PostgreSQL via the ``engine_for_migration``
@@ -36,12 +36,12 @@ def _make_tables(engine):
         )
 
 
-def test_068_adds_columns(engine_for_migration):
+def test_073_adds_columns(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _make_tables(engine)
     with engine.begin() as conn:
         conn.execute(text("INSERT INTO livelink_devices (device_id) VALUES ('abc123')"))
-    _load("068_torque_device_columns").upgrade(engine)
+    _load("073_torque_device_columns").upgrade(engine)
     insp = inspect(engine)
     dev_cols = {c["name"] for c in insp.get_columns("livelink_devices")}
     assert {"kind", "torque_device_id"} <= dev_cols
@@ -55,16 +55,16 @@ def test_068_adds_columns(engine_for_migration):
     assert row[0] == "wican"
 
 
-def test_068_idempotent(engine_for_migration):
+def test_073_idempotent(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _make_tables(engine)
-    mod = _load("068_torque_device_columns")
+    mod = _load("073_torque_device_columns")
     mod.upgrade(engine)
     mod.upgrade(engine)
     cols = [c["name"] for c in inspect(engine).get_columns("livelink_devices")]
     assert cols.count("kind") == 1 and cols.count("torque_device_id") == 1
 
 
-def test_068_missing_table_skips(engine_for_migration):
+def test_073_missing_table_skips(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
-    _load("068_torque_device_columns").upgrade(engine)  # no tables → must not raise
+    _load("073_torque_device_columns").upgrade(engine)  # no tables → must not raise

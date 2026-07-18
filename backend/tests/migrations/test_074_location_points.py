@@ -1,4 +1,4 @@
-"""Tests for migration 069 — location_points table (Torque GPS breadcrumbs, #118).
+"""Tests for migration 074 — location_points table (Torque GPS breadcrumbs, #118).
 
 Parameterized over SQLite *and* PostgreSQL via the ``engine_for_migration``
 fixture (PG runs skip when ``TEST_DATABASE_URL`` is unset).
@@ -34,10 +34,10 @@ def _make_deps(engine):
         conn.execute(text(f"CREATE TABLE drive_sessions (id {pk}, vin VARCHAR(17) NOT NULL)"))
 
 
-def test_069_creates_table(engine_for_migration):
+def test_074_creates_table(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _make_deps(engine)
-    _load("069_location_points").upgrade(engine)
+    _load("074_location_points").upgrade(engine)
     insp = inspect(engine)
     assert insp.has_table("location_points")
     cols = {c["name"] for c in insp.get_columns("location_points")}
@@ -59,10 +59,10 @@ def test_069_creates_table(engine_for_migration):
     assert "idx_location_points_session" in index_names
 
 
-def test_069_idempotent(engine_for_migration):
+def test_074_idempotent(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _make_deps(engine)
-    mod = _load("069_location_points")
+    mod = _load("074_location_points")
     mod.upgrade(engine)
     mod.upgrade(engine)
     assert inspect(engine).has_table("location_points")

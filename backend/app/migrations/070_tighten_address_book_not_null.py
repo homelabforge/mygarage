@@ -1,4 +1,4 @@
-"""Migration 069 — tighten address_book's four under-constrained NOT NULLs.
+"""Migration 070 — tighten address_book's four under-constrained NOT NULLs.
 
 Historically the ``address_book`` columns ``source``, ``usage_count``,
 ``created_at`` and ``updated_at`` were added by migrations 002/025 without a
@@ -225,7 +225,7 @@ def _rebuild_address_book(cur) -> None:
 def downgrade(engine=None) -> None:
     """Forward-only. Rollback is a pre-migration backup restore, not a downgrade."""
     raise NotImplementedError(
-        "Migration 069 is forward-only. Restore from the pre-migration backup instead."
+        "Migration 070 is forward-only. Restore from the pre-migration backup instead."
     )
 
 

@@ -33,7 +33,7 @@ def upgrade(engine=None) -> None:
     if engine is None:
         engine = _get_fallback_engine()
     is_postgres = engine.dialect.name == "postgresql"
-    print(f"Migration 068: drop retired {TABLE} table...")
+    print(f"Migration 069: drop retired {TABLE} table...")
     if not inspect(engine).has_table(TABLE):
         print(f"  = {TABLE} absent, skipping")
         return
@@ -49,14 +49,14 @@ def upgrade(engine=None) -> None:
             return
         conn.execute(text(f'DROP TABLE "{TABLE}"'))
         print(f"  - dropped {TABLE}")
-    print("Migration 068 complete.")
+    print("Migration 069 complete.")
     # NOTE (R1-H2): no broad try/except here — an actual DROP/connection error must
-    # raise so the runner leaves 068 unstamped and retries it, rather than stamping
+    # raise so the runner leaves 069 unstamped and retries it, rather than stamping
     # unresolved drift. The has_table/row_count guards keep normal runs from raising.
 
 
 def downgrade() -> None:  # pragma: no cover
-    raise NotImplementedError("Migration 068 is forward-only.")
+    raise NotImplementedError("Migration 069 is forward-only.")
 
 
 if __name__ == "__main__":

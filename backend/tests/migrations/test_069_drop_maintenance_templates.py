@@ -1,4 +1,4 @@
-"""Migration 068 — drop the retired maintenance_templates table (guarded)."""
+"""Migration 069 — drop the retired maintenance_templates table (guarded)."""
 
 import importlib.util
 from pathlib import Path
@@ -16,7 +16,7 @@ def _load(name):
     return mod
 
 
-MIGRATION = "068_drop_maintenance_templates"
+MIGRATION = "069_drop_maintenance_templates"
 
 
 def _create(engine):

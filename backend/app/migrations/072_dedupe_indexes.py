@@ -37,18 +37,18 @@ def upgrade(engine=None) -> None:
     """Drop redundant indexes (DROP INDEX IF EXISTS is idempotent + guarded)."""
     if engine is None:
         engine = _get_fallback_engine()
-    print("Migration 071: drop redundant duplicate indexes...")
+    print("Migration 072: drop redundant duplicate indexes...")
     for idx in REDUNDANT_INDEXES:
         with engine.begin() as conn:
             conn.execute(text(f'DROP INDEX IF EXISTS "{idx}"'))
             print(f"  - dropped index {idx} (if it existed)")
-    print("Migration 071 complete.")
+    print("Migration 072 complete.")
     # NOTE (R1-H2): no broad try/except — a DROP INDEX error must raise (unstamped,
     # retryable). DROP INDEX IF EXISTS is inherently idempotent + a guarded no-op.
 
 
 def downgrade() -> None:  # pragma: no cover
-    raise NotImplementedError("Migration 071 is forward-only.")
+    raise NotImplementedError("Migration 072 is forward-only.")
 
 
 if __name__ == "__main__":

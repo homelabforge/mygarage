@@ -79,3 +79,12 @@ migrations must swallow their own operational errors.
 | `066_add_time_format` | **FATAL** — Add time format preference (12h/24h) to user settings. |
 | `067_add_fuel_rebate` | **FATAL** — Add rebate column to fuel records. |
 | `068_drop_orphan_backup_tables` | Drop orphaned backup tables left by earlier restructures. |
+| `069_drop_maintenance_templates` | Drop the retired maintenance_templates table. |
+| `070_tighten_address_book_not_null` | Migration 070 — tighten address_book's four under-constrained NOT NULLs. |
+| `071_drop_dead_imperial_columns` | Drop dead legacy imperial columns left by pre-metric migrations. |
+| `072_dedupe_indexes` | Drop redundant hand-named indexes that duplicate model-declared ones. |
+| `073_torque_device_columns` | **FATAL** — Add Torque device support columns. |
+| `074_location_points` | Create location_points table for Torque GPS breadcrumbs (#118). |
+| `075_vehicle_location_tracking` | **FATAL** — Add vehicles.location_tracking_enabled (default on) for #118 GPS opt-out. |
+| `076_supply_inventory_tables` | Create parts & supplies inventory tables: supplies, supply_purchases, supply_usages. |
+| `077_attachment_supply_purchase_type` | Add 'supply_purchase' to attachments.record_type CHECK + widen file_type. |

@@ -1,6 +1,6 @@
-"""Tests for migration 069 (tighten address_book NOT NULL constraints).
+"""Tests for migration 070 (tighten address_book NOT NULL constraints).
 
-Migration 069 tightens the four historically under-constrained address_book
+Migration 070 tightens the four historically under-constrained address_book
 columns — ``source``, ``usage_count``, ``created_at``, ``updated_at`` — to
 NOT NULL. On PostgreSQL this is a backfill + ``ALTER COLUMN ... SET NOT NULL``;
 on SQLite it is an FK-safe table rebuild (mirroring migration 053) because
@@ -26,7 +26,7 @@ from sqlalchemy import event, inspect, text
 
 import app.migrations as _m
 
-MIGRATION = "069_tighten_address_book_not_null"
+MIGRATION = "070_tighten_address_book_not_null"
 _TARGETS = ("source", "usage_count", "created_at", "updated_at")
 
 # Full model column set, in model order. The SQLite rebuild reproduces this
@@ -73,7 +73,7 @@ def _create_under_constrained(engine, dialect: str) -> None:
     """Create address_book in migration 025's under-constrained shape.
 
     All 24 model columns are present, but the four targets are NULLABLE (no
-    NOT NULL) — exactly the drift 069 repairs. The three model indexes are
+    NOT NULL) — exactly the drift 070 repairs. The three model indexes are
     created so the test can assert they survive the rebuild.
     """
     id_type = "SERIAL PRIMARY KEY" if dialect == "pg" else "INTEGER PRIMARY KEY AUTOINCREMENT"
@@ -115,7 +115,7 @@ def _create_under_constrained(engine, dialect: str) -> None:
         )
 
 
-def test_069_notnull_backfill_indexes_idempotent(engine_for_migration) -> None:
+def test_070_notnull_backfill_indexes_idempotent(engine_for_migration) -> None:
     """NOT NULL is enforced, NULLs are backfilled, indexes survive, idempotent."""
     dialect, engine, _url = engine_for_migration
     _create_under_constrained(engine, dialect)
@@ -142,7 +142,7 @@ def test_069_notnull_backfill_indexes_idempotent(engine_for_migration) -> None:
 
     cols = {c["name"]: c for c in inspect(engine).get_columns("address_book")}
     for name in _TARGETS:
-        assert cols[name]["nullable"] is False, f"{name} should be NOT NULL after 069"
+        assert cols[name]["nullable"] is False, f"{name} should be NOT NULL after 070"
 
     with engine.connect() as conn:
         a = conn.execute(
@@ -174,7 +174,7 @@ def test_069_notnull_backfill_indexes_idempotent(engine_for_migration) -> None:
         assert cols[name]["nullable"] is False
 
 
-def test_069_full_column_value_preservation(engine_for_migration) -> None:
+def test_070_full_column_value_preservation(engine_for_migration) -> None:
     """A 24-column sentinel row survives value-for-value, including id."""
     dialect, engine, _url = engine_for_migration
     _create_under_constrained(engine, dialect)
@@ -237,7 +237,7 @@ def test_069_full_column_value_preservation(engine_for_migration) -> None:
     assert row["poi_metadata"] == '{"k": "v"}'
 
 
-def test_069_inbound_fk_preserved(engine_for_migration) -> None:
+def test_070_inbound_fk_preserved(engine_for_migration) -> None:
     """The inbound fuel_records FK survives the rebuild (SQLite only).
 
     fuel_records.station_address_book_id -> address_book.id (ON DELETE SET

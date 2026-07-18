@@ -1,4 +1,4 @@
-"""Tests for migration 071 — dedupe redundant duplicate indexes + adopt
+"""Tests for migration 072 — dedupe redundant duplicate indexes + adopt
 migration 011's partial oidc indexes in the ``User`` model.
 
 Redundant indexes (dossier map — each duplicates a model/create_all index on
@@ -19,11 +19,11 @@ indexes, so a fresh create_all-then-migrate replay carries both):
     (``unique=True, index=True`` / ``index=True``); superseded by migration
     011's leaner partial indexes (``idx_users_oidc_subject`` /
     ``idx_users_oidc_provider``), which the model now declares explicitly via
-    ``__table_args__`` and which 071 keeps.
+    ``__table_args__`` and which 072 keeps.
 
 Part 2 proves the Step-1 model change stands on its own: building just the
 ``User`` table via ``Base.metadata`` must produce migration 011's partial
-index directly (and never the old plain one), independent of the 071
+index directly (and never the old plain one), independent of the 072
 migration ever running.
 """
 
@@ -37,7 +37,7 @@ from sqlalchemy import inspect, text
 
 import app.migrations as _m
 
-MIGRATION = "071_dedupe_indexes"
+MIGRATION = "072_dedupe_indexes"
 
 DROPPED_INDEXES = (
     "idx_csrf_token",
@@ -83,7 +83,7 @@ def _sqlite_index_sql(engine, name: str) -> str:
 
 
 def _create_dossier_tables(engine, dialect: str) -> None:
-    """Create the three affected tables in their pre-071 shape: BOTH the
+    """Create the three affected tables in their pre-072 shape: BOTH the
     model-declared index and the redundant hand-named duplicate present.
     """
     id_type = "SERIAL PRIMARY KEY" if dialect == "pg" else "INTEGER PRIMARY KEY AUTOINCREMENT"
@@ -155,7 +155,7 @@ def _create_dossier_tables(engine, dialect: str) -> None:
 
 
 def test_dedupes_redundant_indexes_and_keeps_predicates(engine_for_migration):
-    """071 drops the five redundant hand-named indexes and leaves the kept
+    """072 drops the five redundant hand-named indexes and leaves the kept
     (model-matching) ones in place; on SQLite the kept partial oidc indexes
     still carry their ``IS NOT NULL`` predicate after the migration runs.
     """

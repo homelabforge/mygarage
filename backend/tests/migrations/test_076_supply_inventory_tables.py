@@ -30,10 +30,10 @@ def _make_deps(engine):
         )
 
 
-def test_068_creates_inventory_tables(engine_for_migration):
+def test_076_creates_inventory_tables(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _make_deps(engine)
-    _load("068_supply_inventory_tables").upgrade(engine)
+    _load("076_supply_inventory_tables").upgrade(engine)
     insp = inspect(engine)
     assert insp.has_table("supplies")
     assert insp.has_table("supply_purchases")
@@ -46,16 +46,16 @@ def test_068_creates_inventory_tables(engine_for_migration):
     assert "idx_supply_usages_line_item" in usage_idx
 
 
-def test_068_idempotent(engine_for_migration):
+def test_076_idempotent(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _make_deps(engine)
-    mod = _load("068_supply_inventory_tables")
+    mod = _load("076_supply_inventory_tables")
     mod.upgrade(engine)
     mod.upgrade(engine)  # must not raise
     assert inspect(engine).has_table("supplies")
 
 
-def test_068_create_all_matches_migration(engine_for_migration):
+def test_076_create_all_matches_migration(engine_for_migration):
     """Prod runs Base.metadata.create_all BEFORE the migration runner, so the
     model-built schema is authoritative on a fresh boot — assert column parity
     and that is_active carries a server default (R1-F3 / recommended edit 6)."""
@@ -64,7 +64,7 @@ def test_068_create_all_matches_migration(engine_for_migration):
 
     _dialect, mig_engine, _url = engine_for_migration
     _make_deps(mig_engine)
-    _load("068_supply_inventory_tables").upgrade(mig_engine)
+    _load("076_supply_inventory_tables").upgrade(mig_engine)
     mig = inspect(mig_engine)
 
     model_engine = create_engine("sqlite://")

@@ -40,7 +40,7 @@ def _make_attachments(engine):
         )
 
 
-def test_069_allows_supply_purchase(engine_for_migration):
+def test_077_allows_supply_purchase(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _make_attachments(engine)
     # Before: the new type is rejected.
@@ -52,7 +52,7 @@ def test_069_allows_supply_purchase(engine_for_migration):
                     "VALUES ('supply_purchase', 1, 'x')"
                 )
             )
-    _load("069_attachment_supply_purchase_type").upgrade(engine)
+    _load("077_attachment_supply_purchase_type").upgrade(engine)
     # After: accepted, and the old types still work.
     with engine.begin() as conn:
         conn.execute(
@@ -69,21 +69,21 @@ def test_069_allows_supply_purchase(engine_for_migration):
         )
 
 
-def test_069_idempotent(engine_for_migration):
+def test_077_idempotent(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _make_attachments(engine)
-    mod = _load("069_attachment_supply_purchase_type")
+    mod = _load("077_attachment_supply_purchase_type")
     mod.upgrade(engine)
     mod.upgrade(engine)  # must not raise
 
 
-def test_069_widens_file_type_for_mime(engine_for_migration):
+def test_077_widens_file_type_for_mime(engine_for_migration):
     """After upgrade, a full MIME string fits file_type — the PG-visible fix for R1-H2."""
     from sqlalchemy import inspect
 
     _dialect, engine, _url = engine_for_migration
     _make_attachments(engine)  # starts at VARCHAR(10)
-    _load("069_attachment_supply_purchase_type").upgrade(engine)
+    _load("077_attachment_supply_purchase_type").upgrade(engine)
     with engine.begin() as conn:
         conn.execute(
             text(
@@ -97,12 +97,12 @@ def test_069_widens_file_type_for_mime(engine_for_migration):
         assert col["type"].length == 50
 
 
-def test_069_one_receipt_per_purchase(engine_for_migration):
+def test_077_one_receipt_per_purchase(engine_for_migration):
     """R1-H4: the partial unique index rejects a second receipt for the same purchase,
     but still allows a different record_type to reuse the same record_id."""
     _dialect, engine, _url = engine_for_migration
     _make_attachments(engine)
-    _load("069_attachment_supply_purchase_type").upgrade(engine)
+    _load("077_attachment_supply_purchase_type").upgrade(engine)
     with engine.begin() as conn:
         conn.execute(
             text(

@@ -1,4 +1,4 @@
-"""Tests for migration 070 — add `vehicles.location_tracking_enabled` opt-out column.
+"""Tests for migration 075 — add `vehicles.location_tracking_enabled` opt-out column.
 
 Parameterized over SQLite *and* PostgreSQL via the ``engine_for_migration``
 fixture (PG runs skip when ``TEST_DATABASE_URL`` is unset).
@@ -25,12 +25,12 @@ def _make_vehicles(engine):
         conn.execute(text("CREATE TABLE vehicles (vin VARCHAR(17) PRIMARY KEY)"))
 
 
-def test_070_adds_column(engine_for_migration):
+def test_075_adds_column(engine_for_migration):
     _dialect, engine, _url = engine_for_migration
     _make_vehicles(engine)
     with engine.begin() as conn:
         conn.execute(text("INSERT INTO vehicles (vin) VALUES ('1FT0000000000000X')"))
-    _load("070_vehicle_location_tracking").upgrade(engine)
+    _load("075_vehicle_location_tracking").upgrade(engine)
     insp = inspect(engine)
     assert "location_tracking_enabled" in {c["name"] for c in insp.get_columns("vehicles")}
     with engine.connect() as conn:
@@ -38,11 +38,11 @@ def test_070_adds_column(engine_for_migration):
     assert bool(val) is True
 
 
-def test_070_idempotent(engine_for_migration):
+def test_075_idempotent(engine_for_migration):
     """Second run is a no-op — no raise, no duplicate column."""
     _dialect, engine, _url = engine_for_migration
     _make_vehicles(engine)
-    mod = _load("070_vehicle_location_tracking")
+    mod = _load("075_vehicle_location_tracking")
 
     mod.upgrade(engine)
     mod.upgrade(engine)  # must not raise
@@ -52,7 +52,7 @@ def test_070_idempotent(engine_for_migration):
     assert cols.count("location_tracking_enabled") == 1
 
 
-def test_070_missing_table_skips(engine_for_migration):
+def test_075_missing_table_skips(engine_for_migration):
     """Fresh DB without vehicles table → migration must skip, not raise."""
     _dialect, engine, _url = engine_for_migration
-    _load("070_vehicle_location_tracking").upgrade(engine)  # no table created
+    _load("075_vehicle_location_tracking").upgrade(engine)  # no table created

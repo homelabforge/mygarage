@@ -1,4 +1,4 @@
-"""Tests for migration 070 — drop dead legacy imperial columns.
+"""Tests for migration 071 — drop dead legacy imperial columns.
 
 Dead columns (superseded by metric-canonical equivalents in migration 053,
 but never removed on the create_all-then-migrate fresh-install path):
@@ -26,7 +26,7 @@ def _load(name):
     return mod
 
 
-MIGRATION = "070_drop_dead_imperial_columns"
+MIGRATION = "071_drop_dead_imperial_columns"
 
 
 def _create_tables(engine) -> None:

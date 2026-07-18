@@ -41,7 +41,7 @@ def upgrade(engine=None) -> None:
     """Drop dead imperial columns that hold no non-NULL values."""
     if engine is None:
         engine = _get_fallback_engine()
-    print("Migration 070: drop dead imperial columns (empty only)...")
+    print("Migration 071: drop dead imperial columns (empty only)...")
     for table, columns in DEAD_COLUMNS.items():
         if not inspect(engine).has_table(table):
             continue
@@ -64,14 +64,14 @@ def upgrade(engine=None) -> None:
                     continue
                 conn.execute(text(f'ALTER TABLE "{table}" DROP COLUMN "{col}"'))
                 print(f"  - dropped {table}.{col}")
-    print("Migration 070 complete.")
+    print("Migration 071 complete.")
     # NOTE (R1-H2): no broad try/except — an ALTER/connection error must raise so the
-    # runner leaves 070 unstamped and retryable. Guards (has_table / column-exists /
+    # runner leaves 071 unstamped and retryable. Guards (has_table / column-exists /
     # non-NULL count) keep normal runs from raising.
 
 
 def downgrade() -> None:  # pragma: no cover
-    raise NotImplementedError("Migration 070 is forward-only.")
+    raise NotImplementedError("Migration 071 is forward-only.")
 
 
 if __name__ == "__main__":

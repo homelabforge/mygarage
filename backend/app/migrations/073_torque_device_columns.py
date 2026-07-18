@@ -63,7 +63,7 @@ def upgrade(engine=None):
 
 
 def downgrade():  # pragma: no cover
-    raise NotImplementedError("Migration 068 is forward-only.")
+    raise NotImplementedError("Migration 073 is forward-only.")
 
 
 if __name__ == "__main__":
