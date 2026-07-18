@@ -1,21 +1,48 @@
-import { useState, useMemo, useRef, type SyntheticEvent } from 'react'
+import { useState, useMemo, useRef, useEffect, type SyntheticEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Save, Plus, AlertTriangle, Paperclip } from 'lucide-react'
 import FormModalWrapper from './FormModalWrapper'
 import CurrencyInputPrefix from './common/CurrencyInputPrefix'
 import { toast } from 'sonner'
-import type { ServiceVisit, ServiceVisitCreate, ServiceVisitFormData, ServiceVisitFormLineItem, ServiceLineItemCreate, ServiceLineItemUpdate, ServiceCategory } from '../types/serviceVisit'
+import type { ServiceVisit, ServiceVisitCreate, ServiceVisitFormData, ServiceVisitFormLineItem, ServiceLineItemCreate, ServiceLineItemUpdate, ServiceCategory, SupplyUsedEntry } from '../types/serviceVisit'
 import type { VehicleType } from '../types/vehicle'
+import type { Supply } from '../types/supplies'
+import type { UnitSystem } from '../utils/units'
 import { SERVICE_CATEGORIES } from '../schemas/serviceVisit'
 import VendorSearch from './VendorSearch'
 import LineItemEditor from './LineItemEditor'
 import ServiceVisitAttachmentUpload from './ServiceVisitAttachmentUpload'
 import ServiceVisitAttachmentList from './ServiceVisitAttachmentList'
 import { useCreateServiceVisit, useUpdateServiceVisit } from '../hooks/queries/useServiceVisits'
+import { useSupplies } from '../hooks/queries/useSupplies'
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { useLatestMileage } from '../hooks/useLatestMileage'
 import { UnitConverter, UnitFormatter } from '../utils/units'
 import { toCanonicalKm } from '../utils/decimalSafe'
+import { canonicalToDisplay, displayToCanonical } from '../utils/supplyUnits'
+
+// Shared by the edit-hydration effect (canonical -> display, via
+// canonicalToDisplay) and mapSuppliesUsedForSubmit (display -> canonical, via
+// displayToCanonical) — same shape, same "drop what can't be resolved"
+// fallback, opposite direction. A miss here almost never means the supply was
+// hard-deleted (delete_supply only allows that for supplies with zero usage
+// history); it's far more likely a vin-repin moved it out of this vehicle's
+// scope. Either way, dropping silently is the least-bad option available
+// without turning a units-conversion helper into a place that also owns
+// user-facing warnings.
+function convertSupplyUsages(
+  usages: { supply_id: number; quantity: number | string }[],
+  suppliesById: Map<number, Supply>,
+  system: UnitSystem,
+  convert: (value: number, unitType: Supply['unit_type'], system: UnitSystem) => number,
+): SupplyUsedEntry[] {
+  return usages.reduce<SupplyUsedEntry[]>((acc, usage) => {
+    const supply = suppliesById.get(usage.supply_id)
+    if (!supply) return acc
+    acc.push({ supply_id: usage.supply_id, quantity: convert(Number(usage.quantity), supply.unit_type, system) })
+    return acc
+  }, [])
+}
 
 interface ServiceVisitFormProps {
   vin: string
@@ -35,6 +62,7 @@ const createEmptyLineItem = (tempId: number): ServiceVisitFormLineItem => ({
   inspection_result: '',
   inspection_severity: '',
   triggered_by_inspection_id: undefined,
+  supplies_used: [],
 })
 
 const NON_MOTORIZED_TYPES: VehicleType[] = ['Trailer', 'FifthWheel', 'TravelTrailer']
@@ -53,6 +81,21 @@ export default function ServiceVisitForm({
   const updateMutation = useUpdateServiceVisit(vin)
   const isMotorized = !vehicleType || !NON_MOTORIZED_TYPES.includes(vehicleType)
   const { data: currentMileage } = useLatestMileage(vin)
+  // UNFILTERED (include archived, NO vin scope): this lookup backs cost-breakdown,
+  // edit-hydration and the submit map, all of which must resolve EVERY consumed
+  // supply — including one later archived OR repinned to a different vehicle. A
+  // vin-scoped fetch here would drop such a usage on hydrate/submit, and the
+  // backend's wholesale-replace would then silently delete the historical row.
+  // The picker (SupplyUsedPicker) re-applies the vin scope for its ADDABLE options,
+  // so only shared/this-vehicle supplies can be newly added.
+  const { data: suppliesData, isSuccess: suppliesLoaded, isError: suppliesError } =
+    useSupplies(true)
+  const supplies = useMemo(() => suppliesData?.supplies ?? [], [suppliesData])
+  const suppliesById = useMemo(() => {
+    const map = new Map<number, Supply>()
+    for (const s of supplies) map.set(s.id, s)
+    return map
+  }, [supplies])
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [attachmentRefreshKey, setAttachmentRefreshKey] = useState(0)
@@ -94,6 +137,10 @@ export default function ServiceVisitForm({
           inspection_result: item.inspection_result || '',
           inspection_severity: item.inspection_severity || '',
           triggered_by_inspection_id: item.triggered_by_inspection_id ?? undefined,
+          // Hydrated from visit.line_items[*].supply_usages once the supplies
+          // list loads (see the hydration effect below) — supply_usages carries
+          // canonical quantities and needs each supply's unit_type to convert.
+          supplies_used: [],
         })),
       }
     }
@@ -113,14 +160,63 @@ export default function ServiceVisitForm({
     }
   })
 
+  // Hydrate supplies_used from visit.line_items[*].supply_usages once the
+  // supplies list has loaded. This can't happen in the formData initializer
+  // above because useSupplies() resolves asynchronously and supply_usages
+  // carries canonical quantities — converting to the user's display units
+  // needs each supply's unit_type, which only the loaded list provides.
+  //
+  // MANDATORY: the backend replaces a line item's usages with whatever
+  // supplies_used is submitted (diffed by supply_id). If this hydration is
+  // skipped, editing any field on an existing visit silently wipes its
+  // logged supply usages on save.
+  const suppliesHydratedRef = useRef(false)
+  const [editHydrated, setEditHydrated] = useState(false)
+  useEffect(() => {
+    if (!isEdit || !visit || suppliesHydratedRef.current || !suppliesLoaded) return
+    suppliesHydratedRef.current = true
+    setFormData((prev) => ({
+      ...prev,
+      line_items: prev.line_items.map((item) => {
+        const responseItem = visit.line_items.find((li) => li.id === item.id)
+        const usages = responseItem?.supply_usages
+        if (!usages || usages.length === 0) return item
+        return { ...item, supplies_used: convertSupplyUsages(usages, suppliesById, system, canonicalToDisplay) }
+      }),
+    }))
+    setEditHydrated(true)
+  }, [isEdit, visit, suppliesLoaded, suppliesById, system])
+
   // Calculate subtotal and total cost
   const subtotal = useMemo(() => {
     return formData.line_items.reduce((sum, item) => sum + (item.cost || 0), 0)
   }, [formData.line_items])
 
+  // Informational estimate only — the authoritative cost snapshot (frozen at
+  // each usage's unit_cost_snapshot) is computed server-side.
+  const partsSupplies = useMemo(() => {
+    let total = 0
+    for (const item of formData.line_items) {
+      for (const usage of item.supplies_used ?? []) {
+        const supply = suppliesById.get(usage.supply_id)
+        if (!supply) continue
+        const unitCost = supply.avg_unit_cost != null ? Number(supply.avg_unit_cost) : 0
+        const canonicalQty = displayToCanonical(usage.quantity, supply.unit_type, system)
+        total += unitCost * canonicalQty
+      }
+    }
+    return total
+  }, [formData.line_items, suppliesById, system])
+
   const totalCost = useMemo(() => {
-    return subtotal + (formData.tax_amount || 0) + (formData.shop_supplies || 0) + (formData.misc_fees || 0)
-  }, [subtotal, formData.tax_amount, formData.shop_supplies, formData.misc_fees])
+    return (
+      subtotal +
+      (formData.tax_amount || 0) +
+      (formData.shop_supplies || 0) +
+      (formData.misc_fees || 0) +
+      partsSupplies
+    )
+  }, [subtotal, formData.tax_amount, formData.shop_supplies, formData.misc_fees, partsSupplies])
 
   // Get failed inspections from current line items (for linking repairs)
   // Use tempId or id as the identifier — NOT array index
@@ -178,9 +274,22 @@ export default function ServiceVisitForm({
     }))
   }
 
+  // Display -> canonical for the wire payload.
+  const mapSuppliesUsedForSubmit = (item: ServiceVisitFormLineItem): SupplyUsedEntry[] =>
+    convertSupplyUsages(item.supplies_used ?? [], suppliesById, system, displayToCanonical)
+
   const handleSubmit = async (e: SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault()
     setError(null)
+
+    // On edit, refuse to submit until the supplies list has loaded and hydrated.
+    // Otherwise supplies_used is still [] and the backend (which replaces a line
+    // item's usages from the submitted list) would silently delete every logged
+    // usage on this visit — the wipe-on-edit failure via a slow/failed fetch.
+    if (isEdit && !editHydrated) {
+      setError(suppliesError ? t('service.suppliesLoadFailed') : t('service.suppliesLoading'))
+      return
+    }
 
     // Validate
     const emptyDescriptions = formData.line_items.some((item) => !item.description.trim())
@@ -224,6 +333,10 @@ export default function ServiceVisitForm({
           inspection_result: item.inspection_result || undefined,
           inspection_severity: item.inspection_severity || undefined,
           triggered_by_inspection_id: item.triggered_by_inspection_id,
+          // ALWAYS sent (even []) — the backend replaces a line item's usages
+          // wholesale from this field, so omitting it for an existing item
+          // that was never touched here would wipe its logged usages.
+          supplies_used: mapSuppliesUsedForSubmit(item),
           // Reminder only for new items (no id) that have an enabled draft
           reminder: !item.id && item.reminderDraft?.enabled ? {
             title: item.reminderDraft.title,
@@ -259,6 +372,7 @@ export default function ServiceVisitForm({
           inspection_severity: item.inspection_severity || undefined,
           triggered_by_inspection_id: item.triggered_by_inspection_id,
           temp_id: item.tempId,
+          supplies_used: mapSuppliesUsedForSubmit(item),
           reminder: item.reminderDraft?.enabled ? {
             title: item.reminderDraft.title,
             reminder_type: item.reminderDraft.reminder_type,
@@ -405,6 +519,8 @@ export default function ServiceVisitForm({
                   <LineItemEditor
                     item={item}
                     index={index}
+                    vin={vin}
+                    supplies={supplies}
                     failedInspections={failedInspections.filter((fi) => fi.refId !== (item.id ?? item.tempId ?? 0))}
                     onChange={handleLineItemChange}
                     onRemove={handleRemoveLineItem}
@@ -493,7 +609,7 @@ export default function ServiceVisitForm({
               <span>{t('service.subtotal')}:</span>
               <span>${subtotal.toFixed(2)}</span>
             </div>
-            {(formData.tax_amount || formData.shop_supplies || formData.misc_fees) && (
+            {(formData.tax_amount || formData.shop_supplies || formData.misc_fees || partsSupplies > 0) && (
               <>
                 {formData.tax_amount && (
                   <div className="flex items-center justify-end gap-2 text-sm text-garage-text-muted">
@@ -511,6 +627,12 @@ export default function ServiceVisitForm({
                   <div className="flex items-center justify-end gap-2 text-sm text-garage-text-muted">
                     <span>{t('service.miscFees')}:</span>
                     <span>${formData.misc_fees.toFixed(2)}</span>
+                  </div>
+                )}
+                {partsSupplies > 0 && (
+                  <div className="flex items-center justify-end gap-2 text-sm text-garage-text-muted">
+                    <span>{t('service.partsSupplies')}:</span>
+                    <span>${partsSupplies.toFixed(2)}</span>
                   </div>
                 )}
               </>
@@ -547,7 +669,7 @@ export default function ServiceVisitForm({
           <div className="flex gap-3 pt-4">
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || (isEdit && !editHydrated)}
               className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Save className="w-4 h-4" />
@@ -563,6 +685,12 @@ export default function ServiceVisitForm({
               {t('common:cancel')}
             </button>
           </div>
+
+          {isEdit && !editHydrated && (
+            <p className="text-sm text-garage-text-muted">
+              {suppliesError ? t('service.suppliesLoadFailed') : t('service.suppliesLoading')}
+            </p>
+          )}
         </form>
     </FormModalWrapper>
   )

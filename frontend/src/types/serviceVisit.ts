@@ -26,6 +26,15 @@ export type InspectionSeverity = NonNullable<ServiceLineItem['inspection_severit
 
 import type { ReminderDraft } from './reminder'
 
+// A supply consumed by a line item, quantity in the CALLER's units — display
+// units in form state (SupplyUsedPicker, ServiceVisitFormLineItem), canonical
+// units on the wire (ServiceLineItemCreate/Update.supplies_used). Shared name
+// so both ends of the display<->canonical conversion agree on shape.
+export interface SupplyUsedEntry {
+  supply_id: number
+  quantity: number
+}
+
 // Form data types for creating visits with inline line items
 export interface ServiceVisitFormLineItem {
   id?: number
@@ -39,6 +48,7 @@ export interface ServiceVisitFormLineItem {
   inspection_severity: InspectionSeverity | ''
   triggered_by_inspection_id: number | undefined
   reminderDraft?: ReminderDraft
+  supplies_used?: SupplyUsedEntry[]
 }
 
 export interface ServiceVisitFormData {

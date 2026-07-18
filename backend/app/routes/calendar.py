@@ -262,6 +262,10 @@ async def get_calendar_events(
 
     # Fetch service history (past records only for historical context)
     if "service" in type_list:
+        # NB: line_items only (reads scalars below). If a visit-level COST property
+        # (subtotal / parts_supplies_cost / calculated_total_cost) is ever read here,
+        # add `.selectinload(ServiceLineItem.supply_usages)` — the cost property
+        # traverses supply_usages and MissingGreenlets on a shallow load.
         service_query = (
             select(ServiceVisit)
             .options(selectinload(ServiceVisit.line_items))

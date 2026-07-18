@@ -321,9 +321,11 @@ from app.routes import (
     shop_discovery_router,
     spot_rental_billing_router,
     spot_rental_router,
+    supplies_router,
     tax_router,
     toll_tags_router,
     toll_transactions_router,
+    vehicle_supplies_router,
     vehicles_router,
     vendors_router,
     vin_router,
@@ -380,6 +382,8 @@ app.include_router(shop_discovery_router)  # Backward compatibility (deprecated)
 app.include_router(vendors_router)
 app.include_router(service_visits_router)
 app.include_router(reminders_router)
+app.include_router(supplies_router)
+app.include_router(vehicle_supplies_router)
 app.include_router(livelink_ingest_router)
 app.include_router(livelink_admin_router)
 app.include_router(livelink_vehicle_router)

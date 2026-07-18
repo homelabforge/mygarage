@@ -82,9 +82,23 @@ class ServiceVisit(Base):
         return total
 
     @property
+    def parts_supplies_cost(self) -> Decimal:
+        """Σ of supply-usage cost snapshots across all line items.
+
+        Requires line_items → supply_usages to be eager-loaded (async: unloaded
+        relationships raise, they do not lazy-load — see _reload_visit_full).
+        """
+        total = Decimal(0)
+        for item in self.line_items:
+            for usage in item.supply_usages:
+                if usage.cost_snapshot:
+                    total += usage.cost_snapshot
+        return total
+
+    @property
     def calculated_total_cost(self) -> Decimal:
-        """Calculate total cost from line items + tax + fees."""
-        total = self.subtotal
+        """Calculate total cost from line items + supplies + tax + fees."""
+        total = self.subtotal + self.parts_supplies_cost
         if self.tax_amount:
             total += self.tax_amount
         if self.shop_supplies:

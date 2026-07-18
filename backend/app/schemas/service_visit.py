@@ -10,6 +10,7 @@ from typing import Literal
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.schemas.reminder import ReminderCreate  # noqa: F401 — used in type annotations
+from app.schemas.supply import SupplyUsageInput, SupplyUsageResponse
 
 # Service category type (same as existing)
 ServiceCategory = Literal["Maintenance", "Inspection", "Collision", "Upgrades", "Detailing"]
@@ -67,6 +68,9 @@ class ServiceLineItemCreate(ServiceLineItemBase):
         None, description="Optional reminder to create after flush"
     )
     temp_id: int | None = Field(None, description="Transient client temp ID; not persisted to DB")
+    supplies_used: list[SupplyUsageInput] = Field(
+        default_factory=list, description="Supplies consumed by this line item"
+    )
 
     @model_validator(mode="after")
     def validate_temp_id(self) -> ServiceLineItemCreate:
@@ -108,6 +112,9 @@ class ServiceLineItemUpdate(BaseModel):
     inspection_severity: InspectionSeverity | None = None
     triggered_by_inspection_id: int | None = None
     reminder: ReminderCreate | None = None
+    supplies_used: list[SupplyUsageInput] = Field(
+        default_factory=list, description="Supplies consumed by this line item"
+    )
 
     @model_validator(mode="after")
     def validate_temp_id(self) -> ServiceLineItemUpdate:
@@ -129,6 +136,7 @@ class ServiceLineItemResponse(ServiceLineItemBase):
     needs_followup: bool = Field(
         default=False, description="Whether this inspection needs followup"
     )
+    supply_usages: list[SupplyUsageResponse] = Field(default_factory=list)
 
     model_config = {
         "from_attributes": True,
@@ -316,6 +324,9 @@ class ServiceVisitResponse(ServiceVisitBase):
     total_cost: Decimal | None = None
     subtotal: Decimal = Field(description="Sum of line item costs (before tax/fees)")
     calculated_total_cost: Decimal = Field(description="Total including line items + tax + fees")
+    parts_supplies_cost: Decimal = Field(
+        default=Decimal(0), description="Σ supply usage cost snapshots across line items"
+    )
     line_item_count: int = Field(description="Number of line items")
     has_failed_inspections: bool = Field(description="Whether any inspections failed")
     created_at: datetime

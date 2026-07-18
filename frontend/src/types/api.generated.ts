@@ -2989,6 +2989,186 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/supplies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Supplies
+         * @description List catalog supplies with ledger-derived balances.
+         */
+        get: operations["list_supplies_api_supplies_get"];
+        put?: never;
+        /**
+         * Create Supply
+         * @description Create a catalog supply.
+         */
+        post: operations["create_supply_api_supplies_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/supplies/{supply_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Supply
+         * @description Get a single catalog supply with its current balance.
+         */
+        get: operations["get_supply_api_supplies__supply_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Supply
+         * @description Delete a catalog supply — hard-delete if unused, soft-archive if it has ledger history.
+         */
+        delete: operations["delete_supply_api_supplies__supply_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Supply
+         * @description Patch a catalog supply. unit_type is intentionally immutable.
+         */
+        patch: operations["update_supply_api_supplies__supply_id__patch"];
+        trace?: never;
+    };
+    "/api/supplies/{supply_id}/adjustments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Adjustment
+         * @description Record a standalone stock-out (not tied to a service line item).
+         */
+        post: operations["add_adjustment_api_supplies__supply_id__adjustments_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/supplies/{supply_id}/adjustments/{usage_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Adjustment
+         * @description Delete a standalone adjustment. Job-linked usages must be edited via the visit.
+         */
+        delete: operations["delete_adjustment_api_supplies__supply_id__adjustments__usage_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/supplies/{supply_id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Supply History
+         * @description Full chronological purchase/usage ledger for a supply, with running balance.
+         */
+        get: operations["supply_history_api_supplies__supply_id__history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/supplies/{supply_id}/purchases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Purchase
+         * @description Record a stock-in purchase for a supply.
+         */
+        post: operations["add_purchase_api_supplies__supply_id__purchases_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/supplies/{supply_id}/purchases/{purchase_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Purchase
+         * @description Delete a purchase (and its receipt, if any) from the ledger.
+         */
+        delete: operations["delete_purchase_api_supplies__supply_id__purchases__purchase_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/supplies/{supply_id}/purchases/{purchase_id}/receipt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download Receipt
+         * @description Download the receipt file for a purchase.
+         */
+        get: operations["download_receipt_api_supplies__supply_id__purchases__purchase_id__receipt_get"];
+        put?: never;
+        /**
+         * Upload Receipt
+         * @description Upload (or REPLACE) the single receipt for a purchase — one-per-purchase (R1-H4).
+         */
+        post: operations["upload_receipt_api_supplies__supply_id__purchases__purchase_id__receipt_post"];
+        /**
+         * Delete Receipt
+         * @description Delete the receipt for a purchase, if any.
+         */
+        delete: operations["delete_receipt_api_supplies__supply_id__purchases__purchase_id__receipt_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/livelink/ingest": {
         parameters: {
             query?: never;
@@ -5037,6 +5217,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/vehicles/{vin}/supply-usages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Vehicle Supply Usages
+         * @description All supply usages consumed on this vehicle's service visits (read-gated).
+         */
+        get: operations["list_vehicle_supply_usages_api_vehicles__vin__supply_usages_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/vehicles/{vin}/tax-records": {
         parameters: {
             query?: never;
@@ -6228,6 +6428,11 @@ export interface components {
             file: string;
             /** Title */
             title: string;
+        };
+        /** Body_upload_receipt_api_supplies__supply_id__purchases__purchase_id__receipt_post */
+        Body_upload_receipt_api_supplies__supply_id__purchases__purchase_id__receipt_post: {
+            /** File */
+            file: string;
         };
         /** Body_upload_service_visit_attachment_api_service_visits__visit_id__attachments_post */
         Body_upload_service_visit_attachment_api_service_visits__visit_id__attachments_post: {
@@ -10167,6 +10372,11 @@ export interface components {
             /** @description Optional reminder to create after flush */
             reminder?: components["schemas"]["ReminderCreate"] | null;
             /**
+             * Supplies Used
+             * @description Supplies consumed by this line item
+             */
+            supplies_used?: components["schemas"]["SupplyUsageInput"][];
+            /**
              * Temp Id
              * @description Transient client temp ID; not persisted to DB
              */
@@ -10249,6 +10459,8 @@ export interface components {
              * @description Additional notes
              */
             notes?: string | null;
+            /** Supply Usages */
+            supply_usages?: components["schemas"]["SupplyUsageResponse"][];
             /**
              * Triggered By Inspection Id
              * @description ID of inspection that triggered this repair
@@ -10288,6 +10500,11 @@ export interface components {
             /** Notes */
             notes?: string | null;
             reminder?: components["schemas"]["ReminderCreate"] | null;
+            /**
+             * Supplies Used
+             * @description Supplies consumed by this line item
+             */
+            supplies_used?: components["schemas"]["SupplyUsageInput"][];
             /**
              * Temp Id
              * @description Client temp ID; must be negative; not persisted
@@ -10497,6 +10714,12 @@ export interface components {
              * @description Odometer reading in kilometers
              */
             odometer_km?: string | null;
+            /**
+             * Parts Supplies Cost
+             * @description Σ supply usage cost snapshots across line items
+             * @default 0
+             */
+            parts_supplies_cost: string;
             /**
              * Service Category
              * @description Primary service category
@@ -11045,6 +11268,280 @@ export interface components {
             water?: number | string | null;
             /** Weekly Rate */
             weekly_rate?: number | string | null;
+        };
+        /**
+         * SupplyAdjustmentCreate
+         * @description A standalone stock-out (not tied to a service line item).
+         */
+        SupplyAdjustmentCreate: {
+            /**
+             * Quantity
+             * @description Canonical units
+             */
+            quantity: number | string;
+        };
+        /**
+         * SupplyCreate
+         * @description Create a catalog supply.
+         */
+        SupplyCreate: {
+            /** Category */
+            category?: string | null;
+            /** Name */
+            name: string;
+            /** Notes */
+            notes?: string | null;
+            /** Part Number */
+            part_number?: string | null;
+            /**
+             * Unit Type
+             * @description volume (stored L) or count
+             * @enum {string}
+             */
+            unit_type: "volume" | "count";
+            /**
+             * Vin
+             * @description Pin to a vehicle; null = shared across all
+             */
+            vin?: string | null;
+        };
+        /** SupplyHistoryResponse */
+        SupplyHistoryResponse: {
+            /** Avg Unit Cost */
+            avg_unit_cost?: string | null;
+            /** Entries */
+            entries: components["schemas"]["SupplyLedgerEntry"][];
+            /** On Hand */
+            on_hand: string;
+            /** Supply Id */
+            supply_id: number;
+        };
+        /** SupplyLedgerEntry */
+        SupplyLedgerEntry: {
+            /**
+             * At
+             * Format: date-time
+             * @description Effective ledger date: purchase.date (midnight), a job usage's OWNING VISIT date, or a standalone adjustment's created_at (R1-H3 ordering)
+             */
+            at: string;
+            /**
+             * Cost
+             * @description purchase total_cost or usage cost_snapshot
+             */
+            cost?: string | null;
+            /**
+             * Entry Type
+             * @enum {string}
+             */
+            entry_type: "purchase" | "usage";
+            /** Id */
+            id: number;
+            /**
+             * Quantity
+             * @description signed: + for purchase, − for usage
+             */
+            quantity: string;
+            /** @description Receipt metadata for a purchase entry (R1-H4) */
+            receipt?: components["schemas"]["SupplyReceiptSummary"] | null;
+            /** Running Balance */
+            running_balance: string;
+            /** Service Line Item Id */
+            service_line_item_id?: number | null;
+            /** Service Visit Date */
+            service_visit_date?: string | null;
+            /**
+             * Service Visit Id
+             * @description Owning visit for a job usage
+             */
+            service_visit_id?: number | null;
+            /** Supplier Id */
+            supplier_id?: number | null;
+        };
+        /** SupplyListResponse */
+        SupplyListResponse: {
+            /** Supplies */
+            supplies: components["schemas"]["SupplyResponse"][];
+            /** Total */
+            total: number;
+        };
+        /** SupplyPurchaseCreate */
+        SupplyPurchaseCreate: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Notes */
+            notes?: string | null;
+            /** Part Number */
+            part_number?: string | null;
+            /**
+             * Quantity
+             * @description Canonical units (L or count)
+             */
+            quantity: number | string;
+            /** Supplier Id */
+            supplier_id?: number | null;
+            /** Total Cost */
+            total_cost?: number | string | null;
+        };
+        /** SupplyPurchaseResponse */
+        SupplyPurchaseResponse: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Id */
+            id: number;
+            /** Notes */
+            notes?: string | null;
+            /** Part Number */
+            part_number?: string | null;
+            /** Quantity */
+            quantity: string;
+            receipt?: components["schemas"]["SupplyReceiptSummary"] | null;
+            /** Supplier Id */
+            supplier_id?: number | null;
+            /** Supply Id */
+            supply_id: number;
+            /** Total Cost */
+            total_cost?: string | null;
+        };
+        /** SupplyReceiptSummary */
+        SupplyReceiptSummary: {
+            /** File Type */
+            file_type?: string | null;
+            /** Id */
+            id: number;
+        };
+        /**
+         * SupplyResponse
+         * @description Catalog row with ledger-derived on-hand + average cost.
+         */
+        SupplyResponse: {
+            /**
+             * Avg Unit Cost
+             * @description Lifetime weighted avg per canonical unit; null if no costed purchases
+             */
+            avg_unit_cost?: string | null;
+            /** Category */
+            category?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Id */
+            id: number;
+            /** Is Active */
+            is_active: boolean;
+            /**
+             * Is Negative
+             * @description on_hand < 0 (logged usage exceeds recorded purchases)
+             */
+            is_negative: boolean;
+            /** Name */
+            name: string;
+            /** Notes */
+            notes?: string | null;
+            /**
+             * On Hand
+             * @description Σ purchases − Σ usages, canonical units
+             */
+            on_hand: string;
+            /** Part Number */
+            part_number?: string | null;
+            /**
+             * Unit Type
+             * @description volume (stored L) or count
+             * @enum {string}
+             */
+            unit_type: "volume" | "count";
+            /** Updated At */
+            updated_at?: string | null;
+            /**
+             * Vin
+             * @description Pin to a vehicle; null = shared across all
+             */
+            vin?: string | null;
+        };
+        /**
+         * SupplyUpdate
+         * @description Patch a catalog supply. unit_type is intentionally immutable (ledger interpretation).
+         */
+        SupplyUpdate: {
+            /** Category */
+            category?: string | null;
+            /**
+             * Is Active
+             * @description false = archive, true = restore
+             */
+            is_active?: boolean | null;
+            /** Name */
+            name?: string | null;
+            /** Notes */
+            notes?: string | null;
+            /** Part Number */
+            part_number?: string | null;
+            /** Vin */
+            vin?: string | null;
+        };
+        /**
+         * SupplyUsageInput
+         * @description Consume-picker input carried on a service line item.
+         */
+        SupplyUsageInput: {
+            /**
+             * Quantity
+             * @description Canonical units (L or count)
+             */
+            quantity: number | string;
+            /** Supply Id */
+            supply_id: number;
+        };
+        /** SupplyUsageResponse */
+        SupplyUsageResponse: {
+            /** Cost Snapshot */
+            cost_snapshot?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Id */
+            id: number;
+            /** Quantity */
+            quantity: string;
+            /** Service Line Item Id */
+            service_line_item_id?: number | null;
+            /**
+             * Service Visit Date
+             * @description Owning visit's date; the real consumption date (not created_at)
+             */
+            service_visit_date?: string | null;
+            /**
+             * Service Visit Id
+             * @description Owning service visit (null for standalone adjustments) — R1-H3
+             */
+            service_visit_id?: number | null;
+            /** Supply Id */
+            supply_id: number;
+            /** Supply Name */
+            supply_name: string;
+            /** Unit Cost Snapshot */
+            unit_cost_snapshot?: string | null;
+            /**
+             * Unit Type
+             * @description Owning supply's unit_type — lets read-only views convert the canonical quantity to display units (L↔qt) instead of showing raw liters
+             * @enum {string}
+             */
+            unit_type: "volume" | "count";
         };
         /**
          * SystemInfoResponse
@@ -13080,6 +13577,13 @@ export interface components {
             vin: string;
             /** Year */
             year?: number | null;
+        };
+        /** VehicleSupplyUsagesResponse */
+        VehicleSupplyUsagesResponse: {
+            /** Total */
+            total: number;
+            /** Usages */
+            usages: components["schemas"]["SupplyUsageResponse"][];
         };
         /**
          * VehicleTransferRequest
@@ -18170,6 +18674,427 @@ export interface operations {
             };
         };
     };
+    list_supplies_api_supplies_get: {
+        parameters: {
+            query?: {
+                include_archived?: boolean;
+                vin?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupplyListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_supply_api_supplies_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SupplyCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupplyResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_supply_api_supplies__supply_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                supply_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupplyResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_supply_api_supplies__supply_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                supply_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_supply_api_supplies__supply_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                supply_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SupplyUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupplyResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_adjustment_api_supplies__supply_id__adjustments_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                supply_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SupplyAdjustmentCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupplyUsageResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_adjustment_api_supplies__supply_id__adjustments__usage_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                supply_id: number;
+                usage_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    supply_history_api_supplies__supply_id__history_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                supply_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupplyHistoryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_purchase_api_supplies__supply_id__purchases_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                supply_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SupplyPurchaseCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupplyPurchaseResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_purchase_api_supplies__supply_id__purchases__purchase_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                supply_id: number;
+                purchase_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    download_receipt_api_supplies__supply_id__purchases__purchase_id__receipt_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                supply_id: number;
+                purchase_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_receipt_api_supplies__supply_id__purchases__purchase_id__receipt_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                supply_id: number;
+                purchase_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_receipt_api_supplies__supply_id__purchases__purchase_id__receipt_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_receipt_api_supplies__supply_id__purchases__purchase_id__receipt_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                supply_id: number;
+                purchase_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     ingest_wican_payload_api_v1_livelink_ingest_post: {
         parameters: {
             query?: never;
@@ -21722,6 +22647,37 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_vehicle_supply_usages_api_vehicles__vin__supply_usages_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vin: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VehicleSupplyUsagesResponse"];
+                };
             };
             /** @description Validation Error */
             422: {

@@ -36,6 +36,7 @@ import {
   Clock,
   Share2,
   Droplets,
+  Package,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import vehicleService from '../services/vehicleService'
@@ -54,6 +55,7 @@ import WarrantiesTab from '../components/tabs/WarrantiesTab'
 import InsuranceTab from '../components/tabs/InsuranceTab'
 import ReportsTab from '../components/tabs/ReportsTab'
 import TollsTab from '../components/tabs/TollsTab'
+import SuppliesUsedTab from '../components/SuppliesUsedTab'
 import SafetyTab from '../components/tabs/SafetyTab'
 import TaxRecordList from '../components/TaxRecordList'
 import SpotRentalsTab from '../components/tabs/SpotRentalsTab'
@@ -116,7 +118,7 @@ const getApiErrorMessage = (error: unknown, fallback: string) => {
 
 type ModalType = 'remove' | 'transfer' | 'sharing' | 'windowSticker' | 'torqueSource' | null
 type PrimaryTabType = 'overview' | 'media' | 'maintenance' | 'fuel' | 'tracking' | 'financial' | 'livelink'
-type SubTabType = 'photos' | 'documents' | 'service' | 'fuel' | 'def' | 'propane' | 'odometer' | 'notes' | 'warranties' | 'insurance' | 'tax' | 'tolls' | 'spotrentals' | 'recalls' | 'reports' | 'reminders' | 'live' | 'dtcs' | 'sessions' | 'charts' | 'trips'
+type SubTabType = 'photos' | 'documents' | 'service' | 'fuel' | 'def' | 'propane' | 'odometer' | 'notes' | 'warranties' | 'insurance' | 'tax' | 'tolls' | 'spotrentals' | 'suppliesused' | 'recalls' | 'reports' | 'reminders' | 'live' | 'dtcs' | 'sessions' | 'charts' | 'trips'
 
 export default function VehicleDetail() {
   const { t } = useTranslation('vehicles')
@@ -537,6 +539,7 @@ export default function VehicleDetail() {
       { id: 'tax' as const, label: 'Tax & Registration', icon: DollarSign },
       { id: 'tolls' as const, label: 'Tolls', icon: CreditCard },
       { id: 'spotrentals' as const, label: 'Spot Rentals', icon: MapPin, visible: isRVOrFifthWheel },
+      { id: 'suppliesused' as const, label: 'Supplies', icon: Package },
     ],
     livelink: [
       { id: 'live' as const, label: 'Live', icon: Activity },
@@ -1331,6 +1334,7 @@ export default function VehicleDetail() {
         {activePrimaryTab === 'financial' && activeSubTab === 'tax' && vin && <TaxRecordList vin={vin} />}
         {activePrimaryTab === 'financial' && activeSubTab === 'tolls' && vin && <TollsTab vin={vin} />}
         {activePrimaryTab === 'financial' && activeSubTab === 'spotrentals' && vin && <SpotRentalsTab vin={vin} />}
+        {activePrimaryTab === 'financial' && activeSubTab === 'suppliesused' && vin && <SuppliesUsedTab vin={vin} />}
 
         {/* LiveLink Sub-tabs */}
         {activePrimaryTab === 'livelink' && activeSubTab === 'live' && vin && <LiveLinkLiveTab vin={vin} />}

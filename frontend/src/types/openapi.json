@@ -1482,6 +1482,20 @@
         "title": "Body_upload_document_api_vehicles__vin__documents_post",
         "type": "object"
       },
+      "Body_upload_receipt_api_supplies__supply_id__purchases__purchase_id__receipt_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_receipt_api_supplies__supply_id__purchases__purchase_id__receipt_post",
+        "type": "object"
+      },
       "Body_upload_service_visit_attachment_api_service_visits__visit_id__attachments_post": {
         "properties": {
           "file": {
@@ -10154,6 +10168,14 @@
             ],
             "description": "Optional reminder to create after flush"
           },
+          "supplies_used": {
+            "description": "Supplies consumed by this line item",
+            "items": {
+              "$ref": "#/components/schemas/SupplyUsageInput"
+            },
+            "title": "Supplies Used",
+            "type": "array"
+          },
           "temp_id": {
             "anyOf": [
               {
@@ -10315,6 +10337,13 @@
             "description": "Additional notes",
             "title": "Notes"
           },
+          "supply_usages": {
+            "items": {
+              "$ref": "#/components/schemas/SupplyUsageResponse"
+            },
+            "title": "Supply Usages",
+            "type": "array"
+          },
           "triggered_by_inspection_id": {
             "anyOf": [
               {
@@ -10454,6 +10483,14 @@
                 "type": "null"
               }
             ]
+          },
+          "supplies_used": {
+            "description": "Supplies consumed by this line item",
+            "items": {
+              "$ref": "#/components/schemas/SupplyUsageInput"
+            },
+            "title": "Supplies Used",
+            "type": "array"
           },
           "temp_id": {
             "anyOf": [
@@ -10872,6 +10909,13 @@
             ],
             "description": "Odometer reading in kilometers",
             "title": "Odometer Km"
+          },
+          "parts_supplies_cost": {
+            "default": "0",
+            "description": "\u03a3 supply usage cost snapshots across line items",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Parts Supplies Cost",
+            "type": "string"
           },
           "service_category": {
             "anyOf": [
@@ -12535,6 +12579,815 @@
           }
         },
         "title": "SpotRentalUpdate",
+        "type": "object"
+      },
+      "SupplyAdjustmentCreate": {
+        "description": "A standalone stock-out (not tied to a service line item).",
+        "properties": {
+          "quantity": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "description": "Canonical units",
+            "title": "Quantity"
+          }
+        },
+        "required": [
+          "quantity"
+        ],
+        "title": "SupplyAdjustmentCreate",
+        "type": "object"
+      },
+      "SupplyCreate": {
+        "description": "Create a catalog supply.",
+        "properties": {
+          "category": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 5000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "part_number": {
+            "anyOf": [
+              {
+                "maxLength": 60,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Part Number"
+          },
+          "unit_type": {
+            "description": "volume (stored L) or count",
+            "enum": [
+              "volume",
+              "count"
+            ],
+            "title": "Unit Type",
+            "type": "string"
+          },
+          "vin": {
+            "anyOf": [
+              {
+                "maxLength": 17,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Pin to a vehicle; null = shared across all",
+            "title": "Vin"
+          }
+        },
+        "required": [
+          "name",
+          "unit_type"
+        ],
+        "title": "SupplyCreate",
+        "type": "object"
+      },
+      "SupplyHistoryResponse": {
+        "properties": {
+          "avg_unit_cost": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Unit Cost"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/SupplyLedgerEntry"
+            },
+            "title": "Entries",
+            "type": "array"
+          },
+          "on_hand": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "On Hand",
+            "type": "string"
+          },
+          "supply_id": {
+            "title": "Supply Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "supply_id",
+          "on_hand",
+          "entries"
+        ],
+        "title": "SupplyHistoryResponse",
+        "type": "object"
+      },
+      "SupplyLedgerEntry": {
+        "properties": {
+          "at": {
+            "description": "Effective ledger date: purchase.date (midnight), a job usage's OWNING VISIT date, or a standalone adjustment's created_at (R1-H3 ordering)",
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "cost": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "purchase total_cost or usage cost_snapshot",
+            "title": "Cost"
+          },
+          "entry_type": {
+            "enum": [
+              "purchase",
+              "usage"
+            ],
+            "title": "Entry Type",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "quantity": {
+            "description": "signed: + for purchase, \u2212 for usage",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Quantity",
+            "type": "string"
+          },
+          "receipt": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SupplyReceiptSummary"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Receipt metadata for a purchase entry (R1-H4)"
+          },
+          "running_balance": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Running Balance",
+            "type": "string"
+          },
+          "service_line_item_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service Line Item Id"
+          },
+          "service_visit_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service Visit Date"
+          },
+          "service_visit_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Owning visit for a job usage",
+            "title": "Service Visit Id"
+          },
+          "supplier_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supplier Id"
+          }
+        },
+        "required": [
+          "entry_type",
+          "id",
+          "at",
+          "quantity",
+          "running_balance"
+        ],
+        "title": "SupplyLedgerEntry",
+        "type": "object"
+      },
+      "SupplyListResponse": {
+        "properties": {
+          "supplies": {
+            "items": {
+              "$ref": "#/components/schemas/SupplyResponse"
+            },
+            "title": "Supplies",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "supplies",
+          "total"
+        ],
+        "title": "SupplyListResponse",
+        "type": "object"
+      },
+      "SupplyPurchaseCreate": {
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 5000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "part_number": {
+            "anyOf": [
+              {
+                "maxLength": 60,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Part Number"
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "description": "Canonical units (L or count)",
+            "title": "Quantity"
+          },
+          "supplier_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supplier Id"
+          },
+          "total_cost": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Cost"
+          }
+        },
+        "required": [
+          "date",
+          "quantity"
+        ],
+        "title": "SupplyPurchaseCreate",
+        "type": "object"
+      },
+      "SupplyPurchaseResponse": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "part_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Part Number"
+          },
+          "quantity": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Quantity",
+            "type": "string"
+          },
+          "receipt": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SupplyReceiptSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "supplier_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supplier Id"
+          },
+          "supply_id": {
+            "title": "Supply Id",
+            "type": "integer"
+          },
+          "total_cost": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Cost"
+          }
+        },
+        "required": [
+          "id",
+          "supply_id",
+          "date",
+          "quantity",
+          "created_at"
+        ],
+        "title": "SupplyPurchaseResponse",
+        "type": "object"
+      },
+      "SupplyReceiptSummary": {
+        "properties": {
+          "file_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Type"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "SupplyReceiptSummary",
+        "type": "object"
+      },
+      "SupplyResponse": {
+        "description": "Catalog row with ledger-derived on-hand + average cost.",
+        "properties": {
+          "avg_unit_cost": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Lifetime weighted avg per canonical unit; null if no costed purchases",
+            "title": "Avg Unit Cost"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "is_negative": {
+            "description": "on_hand < 0 (logged usage exceeds recorded purchases)",
+            "title": "Is Negative",
+            "type": "boolean"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 5000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "on_hand": {
+            "description": "\u03a3 purchases \u2212 \u03a3 usages, canonical units",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "On Hand",
+            "type": "string"
+          },
+          "part_number": {
+            "anyOf": [
+              {
+                "maxLength": 60,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Part Number"
+          },
+          "unit_type": {
+            "description": "volume (stored L) or count",
+            "enum": [
+              "volume",
+              "count"
+            ],
+            "title": "Unit Type",
+            "type": "string"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "vin": {
+            "anyOf": [
+              {
+                "maxLength": 17,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Pin to a vehicle; null = shared across all",
+            "title": "Vin"
+          }
+        },
+        "required": [
+          "name",
+          "unit_type",
+          "id",
+          "is_active",
+          "on_hand",
+          "is_negative",
+          "created_at"
+        ],
+        "title": "SupplyResponse",
+        "type": "object"
+      },
+      "SupplyUpdate": {
+        "description": "Patch a catalog supply. unit_type is intentionally immutable (ledger interpretation).",
+        "properties": {
+          "category": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "false = archive, true = restore",
+            "title": "Is Active"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 5000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "part_number": {
+            "anyOf": [
+              {
+                "maxLength": 60,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Part Number"
+          },
+          "vin": {
+            "anyOf": [
+              {
+                "maxLength": 17,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vin"
+          }
+        },
+        "title": "SupplyUpdate",
+        "type": "object"
+      },
+      "SupplyUsageInput": {
+        "description": "Consume-picker input carried on a service line item.",
+        "properties": {
+          "quantity": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "description": "Canonical units (L or count)",
+            "title": "Quantity"
+          },
+          "supply_id": {
+            "title": "Supply Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "supply_id",
+          "quantity"
+        ],
+        "title": "SupplyUsageInput",
+        "type": "object"
+      },
+      "SupplyUsageResponse": {
+        "properties": {
+          "cost_snapshot": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Snapshot"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "quantity": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Quantity",
+            "type": "string"
+          },
+          "service_line_item_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service Line Item Id"
+          },
+          "service_visit_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Owning visit's date; the real consumption date (not created_at)",
+            "title": "Service Visit Date"
+          },
+          "service_visit_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Owning service visit (null for standalone adjustments) \u2014 R1-H3",
+            "title": "Service Visit Id"
+          },
+          "supply_id": {
+            "title": "Supply Id",
+            "type": "integer"
+          },
+          "supply_name": {
+            "title": "Supply Name",
+            "type": "string"
+          },
+          "unit_cost_snapshot": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Cost Snapshot"
+          },
+          "unit_type": {
+            "description": "Owning supply's unit_type \u2014 lets read-only views convert the canonical quantity to display units (L\u2194qt) instead of showing raw liters",
+            "enum": [
+              "volume",
+              "count"
+            ],
+            "title": "Unit Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "supply_id",
+          "supply_name",
+          "unit_type",
+          "quantity",
+          "created_at"
+        ],
+        "title": "SupplyUsageResponse",
         "type": "object"
       },
       "SystemInfoResponse": {
@@ -17130,6 +17983,27 @@
           "overdue_maintenance_count"
         ],
         "title": "VehicleStatistics",
+        "type": "object"
+      },
+      "VehicleSupplyUsagesResponse": {
+        "properties": {
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "usages": {
+            "items": {
+              "$ref": "#/components/schemas/SupplyUsageResponse"
+            },
+            "title": "Usages",
+            "type": "array"
+          }
+        },
+        "required": [
+          "usages",
+          "total"
+        ],
+        "title": "VehicleSupplyUsagesResponse",
         "type": "object"
       },
       "VehicleTransferRequest": {
@@ -26100,6 +26974,693 @@
         ]
       }
     },
+    "/api/supplies": {
+      "get": {
+        "description": "List catalog supplies with ledger-derived balances.",
+        "operationId": "list_supplies_api_supplies_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "include_archived",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Archived",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "vin",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Vin"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupplyListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Supplies",
+        "tags": [
+          "supplies"
+        ]
+      },
+      "post": {
+        "description": "Create a catalog supply.",
+        "operationId": "create_supply_api_supplies_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SupplyCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupplyResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Supply",
+        "tags": [
+          "supplies"
+        ]
+      }
+    },
+    "/api/supplies/{supply_id}": {
+      "delete": {
+        "description": "Delete a catalog supply \u2014 hard-delete if unused, soft-archive if it has ledger history.",
+        "operationId": "delete_supply_api_supplies__supply_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "supply_id",
+            "required": true,
+            "schema": {
+              "title": "Supply Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Supply",
+        "tags": [
+          "supplies"
+        ]
+      },
+      "get": {
+        "description": "Get a single catalog supply with its current balance.",
+        "operationId": "get_supply_api_supplies__supply_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "supply_id",
+            "required": true,
+            "schema": {
+              "title": "Supply Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupplyResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Supply",
+        "tags": [
+          "supplies"
+        ]
+      },
+      "patch": {
+        "description": "Patch a catalog supply. unit_type is intentionally immutable.",
+        "operationId": "update_supply_api_supplies__supply_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "supply_id",
+            "required": true,
+            "schema": {
+              "title": "Supply Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SupplyUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupplyResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Supply",
+        "tags": [
+          "supplies"
+        ]
+      }
+    },
+    "/api/supplies/{supply_id}/adjustments": {
+      "post": {
+        "description": "Record a standalone stock-out (not tied to a service line item).",
+        "operationId": "add_adjustment_api_supplies__supply_id__adjustments_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "supply_id",
+            "required": true,
+            "schema": {
+              "title": "Supply Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SupplyAdjustmentCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupplyUsageResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Add Adjustment",
+        "tags": [
+          "supplies"
+        ]
+      }
+    },
+    "/api/supplies/{supply_id}/adjustments/{usage_id}": {
+      "delete": {
+        "description": "Delete a standalone adjustment. Job-linked usages must be edited via the visit.",
+        "operationId": "delete_adjustment_api_supplies__supply_id__adjustments__usage_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "supply_id",
+            "required": true,
+            "schema": {
+              "title": "Supply Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "usage_id",
+            "required": true,
+            "schema": {
+              "title": "Usage Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Adjustment",
+        "tags": [
+          "supplies"
+        ]
+      }
+    },
+    "/api/supplies/{supply_id}/history": {
+      "get": {
+        "description": "Full chronological purchase/usage ledger for a supply, with running balance.",
+        "operationId": "supply_history_api_supplies__supply_id__history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "supply_id",
+            "required": true,
+            "schema": {
+              "title": "Supply Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupplyHistoryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Supply History",
+        "tags": [
+          "supplies"
+        ]
+      }
+    },
+    "/api/supplies/{supply_id}/purchases": {
+      "post": {
+        "description": "Record a stock-in purchase for a supply.",
+        "operationId": "add_purchase_api_supplies__supply_id__purchases_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "supply_id",
+            "required": true,
+            "schema": {
+              "title": "Supply Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SupplyPurchaseCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupplyPurchaseResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Add Purchase",
+        "tags": [
+          "supplies"
+        ]
+      }
+    },
+    "/api/supplies/{supply_id}/purchases/{purchase_id}": {
+      "delete": {
+        "description": "Delete a purchase (and its receipt, if any) from the ledger.",
+        "operationId": "delete_purchase_api_supplies__supply_id__purchases__purchase_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "supply_id",
+            "required": true,
+            "schema": {
+              "title": "Supply Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "purchase_id",
+            "required": true,
+            "schema": {
+              "title": "Purchase Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Purchase",
+        "tags": [
+          "supplies"
+        ]
+      }
+    },
+    "/api/supplies/{supply_id}/purchases/{purchase_id}/receipt": {
+      "delete": {
+        "description": "Delete the receipt for a purchase, if any.",
+        "operationId": "delete_receipt_api_supplies__supply_id__purchases__purchase_id__receipt_delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "supply_id",
+            "required": true,
+            "schema": {
+              "title": "Supply Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "purchase_id",
+            "required": true,
+            "schema": {
+              "title": "Purchase Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Receipt",
+        "tags": [
+          "supplies"
+        ]
+      },
+      "get": {
+        "description": "Download the receipt file for a purchase.",
+        "operationId": "download_receipt_api_supplies__supply_id__purchases__purchase_id__receipt_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "supply_id",
+            "required": true,
+            "schema": {
+              "title": "Supply Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "purchase_id",
+            "required": true,
+            "schema": {
+              "title": "Purchase Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Download Receipt",
+        "tags": [
+          "supplies"
+        ]
+      },
+      "post": {
+        "description": "Upload (or REPLACE) the single receipt for a purchase \u2014 one-per-purchase (R1-H4).",
+        "operationId": "upload_receipt_api_supplies__supply_id__purchases__purchase_id__receipt_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "supply_id",
+            "required": true,
+            "schema": {
+              "title": "Supply Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "purchase_id",
+            "required": true,
+            "schema": {
+              "title": "Purchase Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_receipt_api_supplies__supply_id__purchases__purchase_id__receipt_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Upload Receipt Api Supplies  Supply Id  Purchases  Purchase Id  Receipt Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Upload Receipt",
+        "tags": [
+          "supplies"
+        ]
+      }
+    },
     "/api/v1/livelink/ingest": {
       "post": {
         "description": "Receive telemetry data from WiCAN OBD2 devices.\n\nThis endpoint is called by WiCAN PRO devices configured for HTTPS POST.\nAuthentication is via Bearer token (global or per-device).\n\nWiCAN sends two types of payloads:\n- Status payloads (with device_id) - used for discovery and status updates\n- Telemetry-only payloads (just autopid_data) - for high-frequency data\n\n**Headers:**\n- **Authorization**: Bearer token (required)\n\n**Request Body:**\nWiCAN payload containing:\n- **autopid_data**: Dictionary of parameter names to values (decoded OBD2 data)\n- **config**: Dictionary of parameter metadata (units, classes) - optional\n- **status**: Device status information - optional (sent periodically)\n\n**Returns:**\n- 202 Accepted: Payload queued for processing\n- 401 Unauthorized: Invalid or missing token\n- 422 Unprocessable Entity: Invalid payload format",
@@ -32467,6 +34028,54 @@
         "summary": "Update Billing",
         "tags": [
           "spot-rental-billings"
+        ]
+      }
+    },
+    "/api/vehicles/{vin}/supply-usages": {
+      "get": {
+        "description": "All supply usages consumed on this vehicle's service visits (read-gated).",
+        "operationId": "list_vehicle_supply_usages_api_vehicles__vin__supply_usages_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vin",
+            "required": true,
+            "schema": {
+              "title": "Vin",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleSupplyUsagesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Vehicle Supply Usages",
+        "tags": [
+          "vehicle-supplies"
         ]
       }
     },

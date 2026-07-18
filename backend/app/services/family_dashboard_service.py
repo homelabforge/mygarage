@@ -150,7 +150,12 @@ class FamilyDashboardService:
         """Build a vehicle summary with service and maintenance schedule info."""
         today = date.today()
 
-        # Get last service visit with line items
+        # Get last service visit with line items.
+        # NB: this loads line_items only (reads line-item scalars below). If you ever
+        # read a visit-level COST property here (subtotal / parts_supplies_cost /
+        # calculated_total_cost), also `.selectinload(ServiceLineItem.supply_usages)`
+        # — the cost property traverses supply_usages and will MissingGreenlet on a
+        # shallow load (see service_visit_service.service_visit_cost_load_options).
         last_service_result = await self.db.execute(
             select(ServiceVisit)
             .options(selectinload(ServiceVisit.line_items))

@@ -3,8 +3,10 @@ import { useTranslation } from 'react-i18next'
 import { Trash2, ChevronDown, ChevronUp, Clipboard, Wrench, Bell } from 'lucide-react'
 import type { ServiceVisitFormLineItem } from '../types/serviceVisit'
 import type { ReminderDraft } from '../types/reminder'
+import type { Supply } from '../types/supplies'
 import InspectionResult from './InspectionResult'
 import CurrencyInputPrefix from './common/CurrencyInputPrefix'
+import SupplyUsedPicker from './SupplyUsedPicker'
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { UnitConverter, UnitFormatter } from '../utils/units'
 
@@ -20,6 +22,14 @@ const SERVICE_SUGGESTIONS: Record<string, string[]> = {
 interface LineItemEditorProps {
   item: ServiceVisitFormLineItem
   index: number
+  // The visit's vehicle VIN — scopes SupplyUsedPicker's ADDABLE options to
+  // shared + this-vehicle supplies.
+  vin: string
+  // Full (active + archived, UNFILTERED by vin) supplies list, resolved once by
+  // ServiceVisitForm and threaded through — see SupplyUsedPicker for why this
+  // isn't fetched here. Unfiltered so existing usages of an archived/repinned
+  // supply still resolve their name.
+  supplies: Supply[]
   failedInspections: { refId: number; description: string }[]
   onChange: (index: number, field: keyof ServiceVisitFormLineItem, value: unknown) => void
   onRemove: (index: number) => void
@@ -32,6 +42,8 @@ interface LineItemEditorProps {
 export default function LineItemEditor({
   item,
   index,
+  vin,
+  supplies,
   failedInspections,
   onChange,
   onRemove,
@@ -263,6 +275,17 @@ export default function LineItemEditor({
               rows={2}
               disabled={disabled}
               className="w-full px-3 py-2 border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text"
+            />
+          </div>
+
+          {/* Supplies used — consume-picker so supply cost rolls into this repair */}
+          <div className="border-t border-garage-border pt-4">
+            <SupplyUsedPicker
+              vin={vin}
+              supplies={supplies}
+              value={item.supplies_used ?? []}
+              onChange={(next) => onChange(index, 'supplies_used', next)}
+              disabled={disabled}
             />
           </div>
 

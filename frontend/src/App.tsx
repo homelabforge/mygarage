@@ -24,6 +24,7 @@ const MobileQuickEntryGate = lazy(() => import('./components/MobileQuickEntryGat
 const QuickEntry = lazy(() => import('./pages/QuickEntry'))
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const AddressBook = lazy(() => import('./pages/AddressBook'))
+const Supplies = lazy(() => import('./pages/Supplies'))
 const POIFinder = lazy(() => import('./pages/POIFinder'))
 const ShopFinder = lazy(() => import('./pages/ShopFinder')) // Backward compatibility
 const Calendar = lazy(() => import('./pages/Calendar'))
@@ -90,6 +91,7 @@ function App() {
                     <Route path="analytics" element={<GarageAnalytics />} />
                     <Route path="calendar" element={<Calendar />} />
                     <Route path="address-book" element={<AddressBook />} />
+                    <Route path="supplies" element={<Supplies />} />
                     <Route path="poi-finder" element={<POIFinder />} />
                     <Route path="shop-finder" element={<ShopFinder />} /> {/* Backward compatibility */}
                     <Route path="vin-demo" element={<Navigate to="/about" replace />} />

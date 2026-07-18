@@ -61,6 +61,7 @@ from app.schemas.analytics import (
 from app.services import analytics_service
 from app.services.auth import get_vehicle_or_403, require_auth
 from app.services.def_service import DEFRecordService
+from app.services.service_visit_service import service_visit_cost_load_options
 from app.utils.cache import cached
 
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
@@ -90,11 +91,15 @@ def calculate_trend(values: list[float]) -> str:
 
 
 def _load_service_visits_query(vin: str):
-    """Build a ServiceVisit query with line_items + vendor eager-loaded."""
+    """Build a ServiceVisit query with line_items (+ supply usages) + vendor eager-loaded.
+
+    Uses service_visit_cost_load_options: this route only ever reads
+    calculated_total_cost (needs cost_snapshot), never a usage's Supply row,
+    so the chain stops at supply_usages.
+    """
     return (
         select(ServiceVisit)
-        .options(selectinload(ServiceVisit.line_items))
-        .options(selectinload(ServiceVisit.vendor))
+        .options(*service_visit_cost_load_options())
         .where(ServiceVisit.vin == vin)
         .order_by(ServiceVisit.date)
     )
@@ -757,7 +762,10 @@ async def get_garage_analytics(
     """
     # Build vehicle query with eager loading
     query = select(Vehicle).options(
-        selectinload(Vehicle.service_visits).selectinload(ServiceVisit.line_items),
+        # cost_snapshot only — this route never reads a usage's Supply row.
+        selectinload(Vehicle.service_visits)
+        .selectinload(ServiceVisit.line_items)
+        .selectinload(ServiceLineItem.supply_usages),
         selectinload(Vehicle.service_visits).selectinload(ServiceVisit.vendor),
         selectinload(Vehicle.fuel_records),
         selectinload(Vehicle.def_records),

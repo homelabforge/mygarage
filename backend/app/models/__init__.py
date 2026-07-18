@@ -25,6 +25,7 @@ from app.models.service_visit import ServiceVisit
 from app.models.settings import Setting
 from app.models.spot_rental import SpotRental
 from app.models.spot_rental_billing import SpotRentalBilling
+from app.models.supply import Supply, SupplyPurchase, SupplyUsage
 from app.models.tax import TaxRecord
 from app.models.vehicle import TrailerDetails, Vehicle
 from app.models.vehicle_dtc import VehicleDTC
@@ -57,6 +58,9 @@ __all__ = [
     "Document",
     "WarrantyRecord",
     "InsurancePolicy",
+    "Supply",
+    "SupplyPurchase",
+    "SupplyUsage",
     # LiveLink (Telemetry)
     "LiveLinkDevice",
     "LiveLinkParameter",

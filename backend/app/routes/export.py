@@ -10,7 +10,6 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.config import settings
 from app.database import get_db
@@ -27,6 +26,7 @@ from app.models import (
 from app.models.user import User
 from app.services.auth import get_vehicle_or_403, require_auth
 from app.services.fuel_service import resolve_station_names
+from app.services.service_visit_service import service_visit_cost_load_options
 from app.utils.csv_safe import sanitize_csv_row
 
 router = APIRouter(prefix="/api/export", tags=["export"])
@@ -77,11 +77,13 @@ async def export_service_records_csv(
     # Verify vehicle exists and user has access
     vehicle = await get_vehicle_or_403(vin, current_user, db)
 
-    # Get all service visits with line items and vendor
+    # Get all service visits with line items (+ supply usages) and vendor.
+    # service_visit_cost_load_options: this route only reads
+    # calculated_total_cost (needs cost_snapshot), never a usage's Supply row.
     result = await db.execute(
         select(ServiceVisit)
         .where(ServiceVisit.vin == vin)
-        .options(selectinload(ServiceVisit.line_items), selectinload(ServiceVisit.vendor))
+        .options(*service_visit_cost_load_options())
         .order_by(ServiceVisit.date.desc())
     )
     visits = result.scalars().all()
@@ -564,11 +566,13 @@ async def export_vehicle_json(
     # Verify vehicle exists and user has access
     vehicle = await get_vehicle_or_403(vin, current_user, db)
 
-    # Get all related records
+    # Get all related records. service_visit_cost_load_options: this route
+    # only reads calculated_total_cost (needs cost_snapshot), never a usage's
+    # Supply row.
     service_result = await db.execute(
         select(ServiceVisit)
         .where(ServiceVisit.vin == vin)
-        .options(selectinload(ServiceVisit.line_items), selectinload(ServiceVisit.vendor))
+        .options(*service_visit_cost_load_options())
         .order_by(ServiceVisit.date.desc())
     )
     service_visits = service_result.scalars().all()

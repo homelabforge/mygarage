@@ -8,7 +8,6 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy import extract, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.models import (
@@ -17,6 +16,7 @@ from app.models import (
 from app.models.service_visit import ServiceVisit
 from app.models.user import User
 from app.services.auth import get_vehicle_or_403, require_auth
+from app.services.service_visit_service import service_visit_cost_load_options
 from app.utils.csv_safe import sanitize_csv_row
 from app.utils.pdf_generator import PDFReportGenerator
 
@@ -24,11 +24,14 @@ router = APIRouter(prefix="/api/vehicles", tags=["Reports"])
 
 
 def _service_visits_query(vin: str):
-    """Build base query for service visits with eager-loaded line items + vendor."""
+    """Build base query for service visits with eager-loaded line items + vendor.
+
+    Uses service_visit_cost_load_options: this route only ever reads
+    calculated_total_cost (needs cost_snapshot), never a usage's Supply row.
+    """
     return (
         select(ServiceVisit)
-        .options(selectinload(ServiceVisit.line_items))
-        .options(selectinload(ServiceVisit.vendor))
+        .options(*service_visit_cost_load_options())
         .where(ServiceVisit.vin == vin)
     )
 

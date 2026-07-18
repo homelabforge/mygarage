@@ -24,6 +24,7 @@ from app.database import Base
 
 if TYPE_CHECKING:
     from app.models.service_visit import ServiceVisit
+    from app.models.supply import SupplyUsage
 
 
 class ServiceLineItem(Base):
@@ -56,6 +57,11 @@ class ServiceLineItem(Base):
         foreign_keys=[triggered_by_inspection_id],
         remote_side=[id],
         backref="triggered_by_inspection",
+    )
+    supply_usages: Mapped[list[SupplyUsage]] = relationship(
+        "SupplyUsage",
+        back_populates="line_item",
+        cascade="all, delete-orphan",
     )
 
     __table_args__ = (
