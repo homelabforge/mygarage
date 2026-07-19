@@ -1,8 +1,33 @@
 [
  {
   "file": "src/components/AddressBookAutocomplete.tsx",
+  "kind": "jsx-text",
+  "text": "Type at least 2 characters to search address book"
+ },
+ {
+  "file": "src/components/AddressBookAutocomplete.tsx",
   "kind": "prop:aria-label",
   "text": "Clear station"
+ },
+ {
+  "file": "src/components/AddressBookQuickAddModal.tsx",
+  "kind": "jsx-text",
+  "text": "Cancel"
+ },
+ {
+  "file": "src/components/AddressBookQuickAddModal.tsx",
+  "kind": "jsx-text",
+  "text": "City"
+ },
+ {
+  "file": "src/components/AddressBookQuickAddModal.tsx",
+  "kind": "jsx-text",
+  "text": "Name"
+ },
+ {
+  "file": "src/components/AddressBookQuickAddModal.tsx",
+  "kind": "jsx-text",
+  "text": "State"
  },
  {
   "file": "src/components/AddressBookQuickAddModal.tsx",
@@ -13,6 +38,11 @@
   "file": "src/components/AddressBookSelect.tsx",
   "kind": "jsx-text",
   "text": "Quick select from address book..."
+ },
+ {
+  "file": "src/components/AddressBookSelect.tsx",
+  "kind": "jsx-text",
+  "text": "Select from address book above to auto-fill vendor details"
  },
  {
   "file": "src/components/AnalyticsHelpModal.tsx",
@@ -57,6 +87,16 @@
  {
   "file": "src/components/AnalyticsHelpModal.tsx",
   "kind": "jsx-text",
+  "text": "Anomaly detection automatically identifies months where spending was significantly higher or lower than your average. This uses statistical analysis to find outliers."
+ },
+ {
+  "file": "src/components/AnalyticsHelpModal.tsx",
+  "kind": "jsx-text",
+  "text": "Automatically calculated from consecutive full-tank fill-ups. Partial fills are not used in MPG calculations."
+ },
+ {
+  "file": "src/components/AnalyticsHelpModal.tsx",
+  "kind": "jsx-text",
   "text": "Average monthly cost over the last 12 months."
  },
  {
@@ -87,7 +127,17 @@
  {
   "file": "src/components/AnalyticsHelpModal.tsx",
   "kind": "jsx-text",
+  "text": "Based on your service history, the system predicts when recurring maintenance is due. Predictions are more accurate with more historical data."
+ },
+ {
+  "file": "src/components/AnalyticsHelpModal.tsx",
+  "kind": "jsx-text",
   "text": "Battery, tires, heating system"
+ },
+ {
+  "file": "src/components/AnalyticsHelpModal.tsx",
+  "kind": "jsx-text",
+  "text": "Compare costs between two custom date ranges to see how spending has changed year-over-year or between different time periods. Useful for identifying trends and validating budget changes."
  },
  {
   "file": "src/components/AnalyticsHelpModal.tsx",
@@ -138,6 +188,11 @@
   "file": "src/components/AnalyticsHelpModal.tsx",
   "kind": "jsx-text",
   "text": "Generate a professional report with charts and summaries for records or tax purposes."
+ },
+ {
+  "file": "src/components/AnalyticsHelpModal.tsx",
+  "kind": "jsx-text",
+  "text": "Got it"
  },
  {
   "file": "src/components/AnalyticsHelpModal.tsx",
@@ -222,6 +277,11 @@
  {
   "file": "src/components/AnalyticsHelpModal.tsx",
   "kind": "jsx-text",
+  "text": "Rolling averages smooth out temporary spikes and help identify long-term trends. Compare these values to spot whether your costs are trending up or down."
+ },
+ {
+  "file": "src/components/AnalyticsHelpModal.tsx",
+  "kind": "jsx-text",
   "text": "Seasonal Patterns"
  },
  {
@@ -248,6 +308,11 @@
   "file": "src/components/AnalyticsHelpModal.tsx",
   "kind": "jsx-text",
   "text": "Spending Anomalies"
+ },
+ {
+  "file": "src/components/AnalyticsHelpModal.tsx",
+  "kind": "jsx-text",
+  "text": "Spending grouped by season to identify patterns. Many vehicles have seasonal maintenance needs:"
  },
  {
   "file": "src/components/AnalyticsHelpModal.tsx",
@@ -295,6 +360,31 @@
   "text": "Close"
  },
  {
+  "file": "src/components/ArchivedVehiclesList.tsx",
+  "kind": "jsx-text",
+  "text": "Cancel"
+ },
+ {
+  "file": "src/components/ArchivedVehiclesList.tsx",
+  "kind": "jsx-text",
+  "text": "Confirm Delete"
+ },
+ {
+  "file": "src/components/ArchivedVehiclesList.tsx",
+  "kind": "jsx-text",
+  "text": "Delete Selected"
+ },
+ {
+  "file": "src/components/AttachmentPreview.tsx",
+  "kind": "jsx-text",
+  "text": "Click outside or press ESC to close"
+ },
+ {
+  "file": "src/components/AttachmentPreview.tsx",
+  "kind": "jsx-text",
+  "text": "Download to view"
+ },
+ {
   "file": "src/components/AttachmentPreview.tsx",
   "kind": "jsx-text",
   "text": "Preview not available for this file type"
@@ -322,7 +412,17 @@
  {
   "file": "src/components/AttachmentQuickView.tsx",
   "kind": "jsx-text",
+  "text": "Loading attachments..."
+ },
+ {
+  "file": "src/components/AttachmentQuickView.tsx",
+  "kind": "jsx-text",
   "text": "No attachments"
+ },
+ {
+  "file": "src/components/AttachmentQuickView.tsx",
+  "kind": "jsx-text",
+  "text": "void position:"
  },
  {
   "file": "src/components/AttachmentQuickView.tsx",
@@ -356,6 +456,21 @@
  },
  {
   "file": "src/components/BillingEntryForm.tsx",
+  "kind": "jsx-text",
+  "text": "Electric"
+ },
+ {
+  "file": "src/components/BillingEntryForm.tsx",
+  "kind": "jsx-text",
+  "text": "Waste"
+ },
+ {
+  "file": "src/components/BillingEntryForm.tsx",
+  "kind": "jsx-text",
+  "text": "Water"
+ },
+ {
+  "file": "src/components/BillingEntryForm.tsx",
   "kind": "prop:placeholder",
   "text": "Auto-calculated"
  },
@@ -372,6 +487,11 @@
  {
   "file": "src/components/DocumentList.tsx",
   "kind": "jsx-text",
+  "text": "Cancel"
+ },
+ {
+  "file": "src/components/DocumentList.tsx",
+  "kind": "jsx-text",
   "text": "Inspection"
  },
  {
@@ -398,6 +518,11 @@
   "file": "src/components/DocumentList.tsx",
   "kind": "jsx-text",
   "text": "Registration"
+ },
+ {
+  "file": "src/components/DocumentList.tsx",
+  "kind": "jsx-text",
+  "text": "Save"
  },
  {
   "file": "src/components/DocumentUpload.tsx",
@@ -407,6 +532,26 @@
  {
   "file": "src/components/DocumentUpload.tsx",
   "kind": "jsx-text",
+  "text": "Cancel"
+ },
+ {
+  "file": "src/components/DocumentUpload.tsx",
+  "kind": "jsx-text",
+  "text": "Description"
+ },
+ {
+  "file": "src/components/DocumentUpload.tsx",
+  "kind": "jsx-text",
+  "text": "Document Type"
+ },
+ {
+  "file": "src/components/DocumentUpload.tsx",
+  "kind": "jsx-text",
+  "text": "Drag and drop a document here, or click to select"
+ },
+ {
+  "file": "src/components/DocumentUpload.tsx",
+  "kind": "jsx-text",
   "text": "Inspection"
  },
  {
@@ -437,7 +582,17 @@
  {
   "file": "src/components/DocumentUpload.tsx",
   "kind": "jsx-text",
+  "text": "Select File"
+ },
+ {
+  "file": "src/components/DocumentUpload.tsx",
+  "kind": "jsx-text",
   "text": "Select type"
+ },
+ {
+  "file": "src/components/DocumentUpload.tsx",
+  "kind": "jsx-text",
+  "text": "Title"
  },
  {
   "file": "src/components/DocumentUpload.tsx",
@@ -452,7 +607,17 @@
  {
   "file": "src/components/ErrorBoundary.tsx",
   "kind": "jsx-text",
+  "text": "An unexpected error occurred. Please try refreshing the page or contact support if the problem persists."
+ },
+ {
+  "file": "src/components/ErrorBoundary.tsx",
+  "kind": "jsx-text",
   "text": "Component Stack:"
+ },
+ {
+  "file": "src/components/ErrorBoundary.tsx",
+  "kind": "jsx-text",
+  "text": "Go to Dashboard"
  },
  {
   "file": "src/components/ErrorBoundary.tsx",
@@ -460,9 +625,24 @@
   "text": "Something went wrong"
  },
  {
+  "file": "src/components/ErrorBoundary.tsx",
+  "kind": "jsx-text",
+  "text": "Try Again"
+ },
+ {
   "file": "src/components/ExportMenu.tsx",
   "kind": "jsx-text",
   "text": "Export"
+ },
+ {
+  "file": "src/components/FamilyMemberCard.tsx",
+  "kind": "jsx-text",
+  "text": "Admin"
+ },
+ {
+  "file": "src/components/FamilyMemberCard.tsx",
+  "kind": "jsx-text",
+  "text": "Inactive"
  },
  {
   "file": "src/components/FamilyMemberCard.tsx",
@@ -647,6 +827,11 @@
  {
   "file": "src/components/GarageAnalyticsHelpModal.tsx",
   "kind": "jsx-text",
+  "text": "Exported data includes:"
+ },
+ {
+  "file": "src/components/GarageAnalyticsHelpModal.tsx",
+  "kind": "jsx-text",
   "text": "For accurate garage analytics:"
  },
  {
@@ -678,6 +863,11 @@
   "file": "src/components/GarageAnalyticsHelpModal.tsx",
   "kind": "jsx-text",
   "text": "Generate a professional garage report with summary tables and totals for stakeholders or records."
+ },
+ {
+  "file": "src/components/GarageAnalyticsHelpModal.tsx",
+  "kind": "jsx-text",
+  "text": "Got it"
  },
  {
   "file": "src/components/GarageAnalyticsHelpModal.tsx",
@@ -787,12 +977,32 @@
  {
   "file": "src/components/GarageAnalyticsHelpModal.tsx",
   "kind": "jsx-text",
+  "text": "Sort this data mentally to identify:"
+ },
+ {
+  "file": "src/components/GarageAnalyticsHelpModal.tsx",
+  "kind": "jsx-text",
   "text": "Spot months with unusually high or low expenses"
  },
  {
   "file": "src/components/GarageAnalyticsHelpModal.tsx",
   "kind": "jsx-text",
   "text": "Spot vehicles with unusually high maintenance costs"
+ },
+ {
+  "file": "src/components/GarageAnalyticsHelpModal.tsx",
+  "kind": "jsx-text",
+  "text": "The bar chart and detailed table compare costs across all vehicles. This helps you:"
+ },
+ {
+  "file": "src/components/GarageAnalyticsHelpModal.tsx",
+  "kind": "jsx-text",
+  "text": "The detailed table at the bottom provides a side-by-side comparison of all vehicles:"
+ },
+ {
+  "file": "src/components/GarageAnalyticsHelpModal.tsx",
+  "kind": "jsx-text",
+  "text": "The stacked bar chart shows garage-wide spending over time, separated into maintenance and fuel costs. Trend lines overlay the bars to show rolling averages:"
  },
  {
   "file": "src/components/GarageAnalyticsHelpModal.tsx",
@@ -872,6 +1082,11 @@
  {
   "file": "src/components/GarageAnalyticsHelpModal.tsx",
   "kind": "jsx-text",
+  "text": "Use these trends to:"
+ },
+ {
+  "file": "src/components/GarageAnalyticsHelpModal.tsx",
+  "kind": "jsx-text",
   "text": "Vehicle Cost Comparison Table"
  },
  {
@@ -940,9 +1155,29 @@
   "text": "Severe"
  },
  {
+  "file": "src/components/InspectionResult.tsx",
+  "kind": "jsx-text",
+  "text": "Inspection Result"
+ },
+ {
+  "file": "src/components/InspectionResult.tsx",
+  "kind": "jsx-text",
+  "text": "Severity Level"
+ },
+ {
   "file": "src/components/InstallPrompt.tsx",
   "kind": "jsx-text",
   "text": "Promise"
+ },
+ {
+  "file": "src/components/InsuranceForm.tsx",
+  "kind": "jsx-text",
+  "text": "Cancel"
+ },
+ {
+  "file": "src/components/InsuranceForm.tsx",
+  "kind": "jsx-text",
+  "text": "Import from PDF"
  },
  {
   "file": "src/components/InsuranceForm.tsx",
@@ -960,9 +1195,59 @@
   "text": "Failed to parse PDF"
  },
  {
+  "file": "src/components/InsurancePDFUpload.tsx",
+  "kind": "jsx-text",
+  "text": "Choose File"
+ },
+ {
+  "file": "src/components/InsurancePDFUpload.tsx",
+  "kind": "jsx-text",
+  "text": "Extracted Data"
+ },
+ {
+  "file": "src/components/InsurancePDFUpload.tsx",
+  "kind": "jsx-text",
+  "text": "Found"
+ },
+ {
+  "file": "src/components/InsurancePDFUpload.tsx",
+  "kind": "jsx-text",
+  "text": "Import Insurance Policy from PDF"
+ },
+ {
+  "file": "src/components/InsurancePDFUpload.tsx",
+  "kind": "jsx-text",
+  "text": "PDF parsed successfully!"
+ },
+ {
+  "file": "src/components/InsurancePDFUpload.tsx",
+  "kind": "jsx-text",
+  "text": "Upload Different PDF"
+ },
+ {
+  "file": "src/components/InsurancePDFUpload.tsx",
+  "kind": "jsx-text",
+  "text": "Use This Data"
+ },
+ {
+  "file": "src/components/InsurancePDFUpload.tsx",
+  "kind": "jsx-text",
+  "text": "You can review and edit all fields before saving the policy"
+ },
+ {
   "file": "src/components/LineItemEditor.tsx",
   "kind": "jsx-text",
   "text": "Both"
+ },
+ {
+  "file": "src/components/LineItemEditor.tsx",
+  "kind": "jsx-text",
+  "text": "Category"
+ },
+ {
+  "file": "src/components/LineItemEditor.tsx",
+  "kind": "jsx-text",
+  "text": "Description"
  },
  {
   "file": "src/components/LineItemEditor.tsx",
@@ -997,7 +1282,27 @@
  {
   "file": "src/components/LineItemEditor.tsx",
   "kind": "jsx-text",
+  "text": "Set a reminder for next service"
+ },
+ {
+  "file": "src/components/LineItemEditor.tsx",
+  "kind": "jsx-text",
   "text": "Smart"
+ },
+ {
+  "file": "src/components/LineItemEditor.tsx",
+  "kind": "jsx-text",
+  "text": "This is an inspection item"
+ },
+ {
+  "file": "src/components/LineItemEditor.tsx",
+  "kind": "jsx-text",
+  "text": "To manage reminders for this service, go to the Tracking tab."
+ },
+ {
+  "file": "src/components/LineItemEditor.tsx",
+  "kind": "jsx-text",
+  "text": "Triggered by Failed Inspection"
  },
  {
   "file": "src/components/LineItemEditor.tsx",
@@ -1030,9 +1335,44 @@
   "text": "✓ API key is valid"
  },
  {
+  "file": "src/components/modals/AddProviderModal.tsx",
+  "kind": "jsx-text",
+  "text": "Cancel"
+ },
+ {
+  "file": "src/components/modals/AddProviderModal.tsx",
+  "kind": "jsx-text",
+  "text": "enum ModalStep"
+ },
+ {
+  "file": "src/components/modals/AddProviderModal.tsx",
+  "kind": "jsx-text",
+  "text": "Finish"
+ },
+ {
+  "file": "src/components/modals/AddProviderModal.tsx",
+  "kind": "jsx-text",
+  "text": "Get API key →"
+ },
+ {
+  "file": "src/components/modals/CreateWidgetKeyModal.tsx",
+  "kind": "jsx-text",
+  "text": "A label to help you identify this key later."
+ },
+ {
   "file": "src/components/modals/CreateWidgetKeyModal.tsx",
   "kind": "jsx-text",
   "text": "All my vehicles"
+ },
+ {
+  "file": "src/components/modals/CreateWidgetKeyModal.tsx",
+  "kind": "jsx-text",
+  "text": "API Key"
+ },
+ {
+  "file": "src/components/modals/CreateWidgetKeyModal.tsx",
+  "kind": "jsx-text",
+  "text": "Cancel"
  },
  {
   "file": "src/components/modals/CreateWidgetKeyModal.tsx",
@@ -1042,12 +1382,42 @@
  {
   "file": "src/components/modals/CreateWidgetKeyModal.tsx",
   "kind": "jsx-text",
+  "text": "Done"
+ },
+ {
+  "file": "src/components/modals/CreateWidgetKeyModal.tsx",
+  "kind": "jsx-text",
+  "text": "Key sees every vehicle you currently own. New vehicles are included automatically."
+ },
+ {
+  "file": "src/components/modals/CreateWidgetKeyModal.tsx",
+  "kind": "jsx-text",
   "text": "Loading vehicles…"
  },
  {
   "file": "src/components/modals/CreateWidgetKeyModal.tsx",
   "kind": "jsx-text",
+  "text": "Name"
+ },
+ {
+  "file": "src/components/modals/CreateWidgetKeyModal.tsx",
+  "kind": "jsx-text",
+  "text": "Pick the exact vehicles this key is allowed to read."
+ },
+ {
+  "file": "src/components/modals/CreateWidgetKeyModal.tsx",
+  "kind": "jsx-text",
+  "text": "Scope"
+ },
+ {
+  "file": "src/components/modals/CreateWidgetKeyModal.tsx",
+  "kind": "jsx-text",
   "text": "Selected vehicles only"
+ },
+ {
+  "file": "src/components/modals/CreateWidgetKeyModal.tsx",
+  "kind": "jsx-text",
+  "text": "This is the only time it will be shown. If you lose it, revoke this key and create a new one."
  },
  {
   "file": "src/components/modals/CreateWidgetKeyModal.tsx",
@@ -1058,6 +1428,46 @@
   "file": "src/components/modals/DeleteUserModal.tsx",
   "kind": "jsx-text",
   "text": "⚠️ This is an admin user"
+ },
+ {
+  "file": "src/components/modals/DeleteUserModal.tsx",
+  "kind": "jsx-text",
+  "text": "Cancel"
+ },
+ {
+  "file": "src/components/modals/DeleteUserModal.tsx",
+  "kind": "jsx-text",
+  "text": "to confirm:"
+ },
+ {
+  "file": "src/components/modals/DeleteUserModal.tsx",
+  "kind": "jsx-text",
+  "text": "Type"
+ },
+ {
+  "file": "src/components/modals/EditProviderModal.tsx",
+  "kind": "jsx-text",
+  "text": "Cancel"
+ },
+ {
+  "file": "src/components/modals/EditProviderModal.tsx",
+  "kind": "jsx-text",
+  "text": "Save"
+ },
+ {
+  "file": "src/components/modals/FamilyManagementModal.tsx",
+  "kind": "jsx-text",
+  "text": "Add User"
+ },
+ {
+  "file": "src/components/modals/FamilyManagementModal.tsx",
+  "kind": "jsx-text",
+  "text": "Multi-user mode"
+ },
+ {
+  "file": "src/components/modals/LiveLinkSettingsModal.tsx",
+  "kind": "dialog",
+  "text": "Revoke this device token? The device will fall back to using the global token."
  },
  {
   "file": "src/components/modals/LiveLinkSettingsModal.tsx",
@@ -1083,6 +1493,16 @@
   "file": "src/components/modals/LiveLinkSettingsModal.tsx",
   "kind": "jsx-text",
   "text": "Check GitHub daily for new WiCAN firmware releases"
+ },
+ {
+  "file": "src/components/modals/LiveLinkSettingsModal.tsx",
+  "kind": "jsx-text",
+  "text": "Check Now"
+ },
+ {
+  "file": "src/components/modals/LiveLinkSettingsModal.tsx",
+  "kind": "jsx-text",
+  "text": "Close"
  },
  {
   "file": "src/components/modals/LiveLinkSettingsModal.tsx",
@@ -1117,6 +1537,11 @@
  {
   "file": "src/components/modals/LiveLinkSettingsModal.tsx",
   "kind": "jsx-text",
+  "text": "Done"
+ },
+ {
+  "file": "src/components/modals/LiveLinkSettingsModal.tsx",
+  "kind": "jsx-text",
   "text": "Firmware"
  },
  {
@@ -1128,6 +1553,16 @@
   "file": "src/components/modals/LiveLinkSettingsModal.tsx",
   "kind": "jsx-text",
   "text": "Firmware Updates"
+ },
+ {
+  "file": "src/components/modals/LiveLinkSettingsModal.tsx",
+  "kind": "jsx-text",
+  "text": "It will not be shown again."
+ },
+ {
+  "file": "src/components/modals/LiveLinkSettingsModal.tsx",
+  "kind": "jsx-text",
+  "text": "It will not be shown again."
  },
  {
   "file": "src/components/modals/LiveLinkSettingsModal.tsx",
@@ -1147,6 +1582,11 @@
  {
   "file": "src/components/modals/LiveLinkSettingsModal.tsx",
   "kind": "jsx-text",
+  "text": "No token configured"
+ },
+ {
+  "file": "src/components/modals/LiveLinkSettingsModal.tsx",
+  "kind": "jsx-text",
   "text": "Parameter threshold breaches"
  },
  {
@@ -1158,6 +1598,21 @@
   "file": "src/components/modals/LiveLinkSettingsModal.tsx",
   "kind": "jsx-text",
   "text": "Promise"
+ },
+ {
+  "file": "src/components/modals/LiveLinkSettingsModal.tsx",
+  "kind": "jsx-text",
+  "text": "Pull SD logs now"
+ },
+ {
+  "file": "src/components/modals/LiveLinkSettingsModal.tsx",
+  "kind": "jsx-text",
+  "text": "Save"
+ },
+ {
+  "file": "src/components/modals/LiveLinkSettingsModal.tsx",
+  "kind": "jsx-text",
+  "text": "Save"
  },
  {
   "file": "src/components/modals/LiveLinkSettingsModal.tsx",
@@ -1182,6 +1637,21 @@
  {
   "file": "src/components/modals/LiveLinkSettingsModal.tsx",
   "kind": "jsx-text",
+  "text": "Test"
+ },
+ {
+  "file": "src/components/modals/LiveLinkSettingsModal.tsx",
+  "kind": "jsx-text",
+  "text": "Token configured"
+ },
+ {
+  "file": "src/components/modals/LiveLinkSettingsModal.tsx",
+  "kind": "jsx-text",
+  "text": "Token for device"
+ },
+ {
+  "file": "src/components/modals/LiveLinkSettingsModal.tsx",
+  "kind": "jsx-text",
   "text": "Unlinked"
  },
  {
@@ -1193,6 +1663,11 @@
   "file": "src/components/modals/LiveLinkSettingsModal.tsx",
   "kind": "jsx-text",
   "text": "Vehicle"
+ },
+ {
+  "file": "src/components/modals/LiveLinkSettingsModal.tsx",
+  "kind": "jsx-text",
+  "text": "View Release"
  },
  {
   "file": "src/components/modals/LiveLinkSettingsModal.tsx",
@@ -1277,6 +1752,16 @@
  {
   "file": "src/components/modals/LocalAuthModal.tsx",
   "kind": "jsx-text",
+  "text": "// Validate password strength using Zod schema try"
+ },
+ {
+  "file": "src/components/modals/LocalAuthModal.tsx",
+  "kind": "jsx-text",
+  "text": "Add User"
+ },
+ {
+  "file": "src/components/modals/LocalAuthModal.tsx",
+  "kind": "jsx-text",
   "text": "Admin"
  },
  {
@@ -1287,7 +1772,97 @@
  {
   "file": "src/components/modals/LocalAuthModal.tsx",
   "kind": "jsx-text",
+  "text": "Change Password"
+ },
+ {
+  "file": "src/components/modals/LocalAuthModal.tsx",
+  "kind": "jsx-text",
+  "text": "Change Password"
+ },
+ {
+  "file": "src/components/modals/LocalAuthModal.tsx",
+  "kind": "jsx-text",
+  "text": "Changing authentication settings requires administrator privileges. Contact your administrator for account management or authentication changes."
+ },
+ {
+  "file": "src/components/modals/LocalAuthModal.tsx",
+  "kind": "jsx-text",
+  "text": "Close"
+ },
+ {
+  "file": "src/components/modals/LocalAuthModal.tsx",
+  "kind": "jsx-text",
+  "text": "Confirm New Password"
+ },
+ {
+  "file": "src/components/modals/LocalAuthModal.tsx",
+  "kind": "jsx-text",
+  "text": "Confirm New Password"
+ },
+ {
+  "file": "src/components/modals/LocalAuthModal.tsx",
+  "kind": "jsx-text",
+  "text": "Current Password"
+ },
+ {
+  "file": "src/components/modals/LocalAuthModal.tsx",
+  "kind": "jsx-text",
+  "text": "Current Password"
+ },
+ {
+  "file": "src/components/modals/LocalAuthModal.tsx",
+  "kind": "jsx-text",
   "text": "Inactive"
+ },
+ {
+  "file": "src/components/modals/LocalAuthModal.tsx",
+  "kind": "jsx-text",
+  "text": "Local authentication is currently not set up. Register the first user to enable authentication."
+ },
+ {
+  "file": "src/components/modals/LocalAuthModal.tsx",
+  "kind": "jsx-text",
+  "text": "Local authentication is enabled. You must be logged in as an administrator to manage authentication settings."
+ },
+ {
+  "file": "src/components/modals/LocalAuthModal.tsx",
+  "kind": "jsx-text",
+  "text": "Login"
+ },
+ {
+  "file": "src/components/modals/LocalAuthModal.tsx",
+  "kind": "jsx-text",
+  "text": "Manage Users"
+ },
+ {
+  "file": "src/components/modals/LocalAuthModal.tsx",
+  "kind": "jsx-text",
+  "text": "more users"
+ },
+ {
+  "file": "src/components/modals/LocalAuthModal.tsx",
+  "kind": "jsx-text",
+  "text": "New Password"
+ },
+ {
+  "file": "src/components/modals/LocalAuthModal.tsx",
+  "kind": "jsx-text",
+  "text": "New Password"
+ },
+ {
+  "file": "src/components/modals/LocalAuthModal.tsx",
+  "kind": "jsx-text",
+  "text": "Register First User"
+ },
+ {
+  "file": "src/components/modals/LocalAuthModal.tsx",
+  "kind": "jsx-text",
+  "text": "registered users"
+ },
+ {
+  "file": "src/components/modals/LocalAuthModal.tsx",
+  "kind": "jsx-text",
+  "text": "The first registered user will automatically become an administrator."
  },
  {
   "file": "src/components/modals/LocalAuthModal.tsx",
@@ -1342,7 +1917,27 @@
  {
   "file": "src/components/modals/OIDCModal.tsx",
   "kind": "jsx-text",
+  "text": "Auto-create users on first login"
+ },
+ {
+  "file": "src/components/modals/OIDCModal.tsx",
+  "kind": "jsx-text",
+  "text": "Automatically create new users when they login via SSO for the first time"
+ },
+ {
+  "file": "src/components/modals/OIDCModal.tsx",
+  "kind": "jsx-text",
   "text": "Azure AD / Entra ID"
+ },
+ {
+  "file": "src/components/modals/OIDCModal.tsx",
+  "kind": "jsx-text",
+  "text": "Base issuer URL — e.g."
+ },
+ {
+  "file": "src/components/modals/OIDCModal.tsx",
+  "kind": "jsx-text",
+  "text": "Callback URL"
  },
  {
   "file": "src/components/modals/OIDCModal.tsx",
@@ -1352,7 +1947,27 @@
  {
   "file": "src/components/modals/OIDCModal.tsx",
   "kind": "jsx-text",
+  "text": "Client ID"
+ },
+ {
+  "file": "src/components/modals/OIDCModal.tsx",
+  "kind": "jsx-text",
+  "text": "Client Secret"
+ },
+ {
+  "file": "src/components/modals/OIDCModal.tsx",
+  "kind": "jsx-text",
+  "text": "Close"
+ },
+ {
+  "file": "src/components/modals/OIDCModal.tsx",
+  "kind": "jsx-text",
   "text": "Configure Scopes: openid, profile, email"
+ },
+ {
+  "file": "src/components/modals/OIDCModal.tsx",
+  "kind": "jsx-text",
+  "text": "Configure single sign-on with your identity provider. Supported providers include:"
  },
  {
   "file": "src/components/modals/OIDCModal.tsx",
@@ -1377,12 +1992,27 @@
  {
   "file": "src/components/modals/OIDCModal.tsx",
   "kind": "jsx-text",
+  "text": "Email Claim"
+ },
+ {
+  "file": "src/components/modals/OIDCModal.tsx",
+  "kind": "jsx-text",
+  "text": "Full Name Claim"
+ },
+ {
+  "file": "src/components/modals/OIDCModal.tsx",
+  "kind": "jsx-text",
   "text": "Google Workspace"
  },
  {
   "file": "src/components/modals/OIDCModal.tsx",
   "kind": "jsx-text",
   "text": "In Authentik, create a new OAuth2/OIDC Provider"
+ },
+ {
+  "file": "src/components/modals/OIDCModal.tsx",
+  "kind": "jsx-text",
+  "text": "Issuer URL"
  },
  {
   "file": "src/components/modals/OIDCModal.tsx",
@@ -1407,7 +2037,17 @@
  {
   "file": "src/components/modals/OIDCModal.tsx",
   "kind": "jsx-text",
+  "text": "Provider Name"
+ },
+ {
+  "file": "src/components/modals/OIDCModal.tsx",
+  "kind": "jsx-text",
   "text": "Save the settings to enable OIDC authentication"
+ },
+ {
+  "file": "src/components/modals/OIDCModal.tsx",
+  "kind": "jsx-text",
+  "text": "Scopes"
  },
  {
   "file": "src/components/modals/OIDCModal.tsx",
@@ -1417,7 +2057,22 @@
  {
   "file": "src/components/modals/OIDCModal.tsx",
   "kind": "jsx-text",
+  "text": "Test Connection"
+ },
+ {
+  "file": "src/components/modals/OIDCModal.tsx",
+  "kind": "jsx-text",
   "text": "Token algorithms:"
+ },
+ {
+  "file": "src/components/modals/OIDCModal.tsx",
+  "kind": "jsx-text",
+  "text": "Username Claim"
+ },
+ {
+  "file": "src/components/modals/OIDCModal.tsx",
+  "kind": "jsx-text",
+  "text": "Users in this group will be granted admin privileges"
  },
  {
   "file": "src/components/modals/OIDCModal.tsx",
@@ -1438,6 +2093,11 @@
   "file": "src/components/modals/UserManagementModal.tsx",
   "kind": "jsx-text",
   "text": "Inactive"
+ },
+ {
+  "file": "src/components/modals/UserManagementModal.tsx",
+  "kind": "jsx-text",
+  "text": "Showing"
  },
  {
   "file": "src/components/modals/UserManagementModal.tsx",
@@ -1502,6 +2162,31 @@
  {
   "file": "src/components/modals/VehicleRemoveModal.tsx",
   "kind": "jsx-text",
+  "text": "Archive Vehicle"
+ },
+ {
+  "file": "src/components/modals/VehicleRemoveModal.tsx",
+  "kind": "jsx-text",
+  "text": "Back"
+ },
+ {
+  "file": "src/components/modals/VehicleRemoveModal.tsx",
+  "kind": "jsx-text",
+  "text": "Back"
+ },
+ {
+  "file": "src/components/modals/VehicleRemoveModal.tsx",
+  "kind": "jsx-text",
+  "text": "Consider archiving instead of deleting. Archived vehicles preserve your history and analytics while keeping your main list clean."
+ },
+ {
+  "file": "src/components/modals/VehicleRemoveModal.tsx",
+  "kind": "jsx-text",
+  "text": "Delete Forever"
+ },
+ {
+  "file": "src/components/modals/VehicleRemoveModal.tsx",
+  "kind": "jsx-text",
   "text": "Delete Permanently"
  },
  {
@@ -1522,12 +2207,32 @@
  {
   "file": "src/components/modals/VehicleRemoveModal.tsx",
   "kind": "jsx-text",
+  "text": "to confirm:"
+ },
+ {
+  "file": "src/components/modals/VehicleRemoveModal.tsx",
+  "kind": "jsx-text",
   "text": "Totaled"
  },
  {
   "file": "src/components/modals/VehicleRemoveModal.tsx",
   "kind": "jsx-text",
   "text": "Trade-in"
+ },
+ {
+  "file": "src/components/modals/VehicleRemoveModal.tsx",
+  "kind": "jsx-text",
+  "text": "Type"
+ },
+ {
+  "file": "src/components/modals/VehicleSharingModal.tsx",
+  "kind": "jsx-text",
+  "text": "Cancel"
+ },
+ {
+  "file": "src/components/modals/VehicleSharingModal.tsx",
+  "kind": "jsx-text",
+  "text": "Done"
  },
  {
   "file": "src/components/modals/VehicleSharingModal.tsx",
@@ -1630,6 +2335,46 @@
   "text": "Recipient"
  },
  {
+  "file": "src/components/modals/VehicleTransferWizard.tsx",
+  "kind": "jsx-text",
+  "text": ". This action cannot be undone."
+ },
+ {
+  "file": "src/components/modals/VehicleTransferWizard.tsx",
+  "kind": "jsx-text",
+  "text": "All vehicle data stays with the vehicle regardless of these selections. This is for audit purposes to document what data exists at transfer time."
+ },
+ {
+  "file": "src/components/modals/VehicleTransferWizard.tsx",
+  "kind": "jsx-text",
+  "text": "Next"
+ },
+ {
+  "file": "src/components/modals/VehicleTransferWizard.tsx",
+  "kind": "jsx-text",
+  "text": "This action will transfer ownership of"
+ },
+ {
+  "file": "src/components/modals/VehicleTransferWizard.tsx",
+  "kind": "jsx-text",
+  "text": "to confirm"
+ },
+ {
+  "file": "src/components/modals/VehicleTransferWizard.tsx",
+  "kind": "jsx-text",
+  "text": "Transfer Vehicle"
+ },
+ {
+  "file": "src/components/modals/VehicleTransferWizard.tsx",
+  "kind": "jsx-text",
+  "text": "Type"
+ },
+ {
+  "file": "src/components/modals/VINDecoderModal.tsx",
+  "kind": "jsx-text",
+  "text": "Close"
+ },
+ {
   "file": "src/components/NoteForm.tsx",
   "kind": "prop:placeholder",
   "text": "e.g., Took road trip to the mountains"
@@ -1647,7 +2392,17 @@
  {
   "file": "src/components/notifications/DiscordConfig.tsx",
   "kind": "jsx-text",
+  "text": "Create a webhook in your Discord channel settings"
+ },
+ {
+  "file": "src/components/notifications/DiscordConfig.tsx",
+  "kind": "jsx-text",
   "text": "Discord Configuration"
+ },
+ {
+  "file": "src/components/notifications/DiscordConfig.tsx",
+  "kind": "jsx-text",
+  "text": "Discord Webhooks Guide"
  },
  {
   "file": "src/components/notifications/DiscordConfig.tsx",
@@ -1670,6 +2425,11 @@
   "text": "To create a Discord webhook:"
  },
  {
+  "file": "src/components/notifications/DiscordConfig.tsx",
+  "kind": "jsx-text",
+  "text": "Webhook URL"
+ },
+ {
   "file": "src/components/notifications/EmailConfig.tsx",
   "kind": "jsx-text",
   "text": "Common SMTP settings:"
@@ -1687,7 +2447,37 @@
  {
   "file": "src/components/notifications/EmailConfig.tsx",
   "kind": "jsx-text",
+  "text": "From Address"
+ },
+ {
+  "file": "src/components/notifications/EmailConfig.tsx",
+  "kind": "jsx-text",
+  "text": "Port"
+ },
+ {
+  "file": "src/components/notifications/EmailConfig.tsx",
+  "kind": "jsx-text",
+  "text": "Recipient Address"
+ },
+ {
+  "file": "src/components/notifications/EmailConfig.tsx",
+  "kind": "jsx-text",
   "text": "Send notifications via SMTP email"
+ },
+ {
+  "file": "src/components/notifications/EmailConfig.tsx",
+  "kind": "jsx-text",
+  "text": "SMTP Password / App Password"
+ },
+ {
+  "file": "src/components/notifications/EmailConfig.tsx",
+  "kind": "jsx-text",
+  "text": "SMTP Server"
+ },
+ {
+  "file": "src/components/notifications/EmailConfig.tsx",
+  "kind": "jsx-text",
+  "text": "SMTP Username"
  },
  {
   "file": "src/components/notifications/EmailConfig.tsx",
@@ -1825,6 +2615,16 @@
   "text": "Retry settings for high-priority notifications"
  },
  {
+  "file": "src/components/notifications/EventNotificationsCard.tsx",
+  "kind": "jsx-text",
+  "text": "to configure event notifications."
+ },
+ {
+  "file": "src/components/notifications/GotifyConfig.tsx",
+  "kind": "jsx-text",
+  "text": "Create an application in Gotify and copy the token"
+ },
+ {
   "file": "src/components/notifications/GotifyConfig.tsx",
   "kind": "jsx-text",
   "text": "Gotify Configuration"
@@ -1838,6 +2638,11 @@
   "file": "src/components/notifications/GotifyConfig.tsx",
   "kind": "jsx-text",
   "text": "Self-hosted push notification server"
+ },
+ {
+  "file": "src/components/notifications/GotifyConfig.tsx",
+  "kind": "jsx-text",
+  "text": "Server URL"
  },
  {
   "file": "src/components/notifications/NotificationSubTabs.tsx",
@@ -1867,7 +2672,17 @@
  {
   "file": "src/components/notifications/NtfyConfig.tsx",
   "kind": "jsx-text",
+  "text": "API Token"
+ },
+ {
+  "file": "src/components/notifications/NtfyConfig.tsx",
+  "kind": "jsx-text",
   "text": "ntfy Configuration"
+ },
+ {
+  "file": "src/components/notifications/NtfyConfig.tsx",
+  "kind": "jsx-text",
+  "text": "Required for authenticated topics or self-hosted servers with auth"
  },
  {
   "file": "src/components/notifications/NtfyConfig.tsx",
@@ -1882,12 +2697,42 @@
  {
   "file": "src/components/notifications/NtfyConfig.tsx",
   "kind": "jsx-text",
+  "text": "Server URL"
+ },
+ {
+  "file": "src/components/notifications/NtfyConfig.tsx",
+  "kind": "jsx-text",
+  "text": "Subscribe to this topic in your ntfy app to receive notifications"
+ },
+ {
+  "file": "src/components/notifications/NtfyConfig.tsx",
+  "kind": "jsx-text",
+  "text": "Topic Name"
+ },
+ {
+  "file": "src/components/notifications/NtfyConfig.tsx",
+  "kind": "jsx-text",
   "text": "Use unique, hard-to-guess topic names for private notifications. ntfy.sh topics are public by default unless you enable authentication."
  },
  {
   "file": "src/components/notifications/PushoverConfig.tsx",
   "kind": "jsx-text",
+  "text": "API Token / App Token"
+ },
+ {
+  "file": "src/components/notifications/PushoverConfig.tsx",
+  "kind": "jsx-text",
+  "text": "Create an application at pushover.net to get a token"
+ },
+ {
+  "file": "src/components/notifications/PushoverConfig.tsx",
+  "kind": "jsx-text",
   "text": "Cross-platform push notifications"
+ },
+ {
+  "file": "src/components/notifications/PushoverConfig.tsx",
+  "kind": "jsx-text",
+  "text": "Found on your Pushover dashboard"
  },
  {
   "file": "src/components/notifications/PushoverConfig.tsx",
@@ -1900,6 +2745,11 @@
   "text": "Pushover requires a one-time $5 purchase per platform (iOS, Android, Desktop). Visit pushover.net to set up your account and create an application."
  },
  {
+  "file": "src/components/notifications/PushoverConfig.tsx",
+  "kind": "jsx-text",
+  "text": "User Key"
+ },
+ {
   "file": "src/components/notifications/SlackConfig.tsx",
   "kind": "jsx-text",
   "text": "Copy the webhook URL"
@@ -1908,6 +2758,11 @@
   "file": "src/components/notifications/SlackConfig.tsx",
   "kind": "jsx-text",
   "text": "Create a new webhook and select a channel"
+ },
+ {
+  "file": "src/components/notifications/SlackConfig.tsx",
+  "kind": "jsx-text",
+  "text": "Create an Incoming Webhook in your Slack workspace"
  },
  {
   "file": "src/components/notifications/SlackConfig.tsx",
@@ -1932,7 +2787,27 @@
  {
   "file": "src/components/notifications/SlackConfig.tsx",
   "kind": "jsx-text",
+  "text": "Slack Webhooks Documentation"
+ },
+ {
+  "file": "src/components/notifications/SlackConfig.tsx",
+  "kind": "jsx-text",
   "text": "To create a Slack webhook:"
+ },
+ {
+  "file": "src/components/notifications/SlackConfig.tsx",
+  "kind": "jsx-text",
+  "text": "Webhook URL"
+ },
+ {
+  "file": "src/components/notifications/TelegramConfig.tsx",
+  "kind": "jsx-text",
+  "text": "Bot Token"
+ },
+ {
+  "file": "src/components/notifications/TelegramConfig.tsx",
+  "kind": "jsx-text",
+  "text": "Chat ID"
  },
  {
   "file": "src/components/notifications/TelegramConfig.tsx",
@@ -1948,6 +2823,11 @@
   "file": "src/components/notifications/TelegramConfig.tsx",
   "kind": "jsx-text",
   "text": "For groups/channels, add your bot to the group and use the group chat ID (starts with -)."
+ },
+ {
+  "file": "src/components/notifications/TelegramConfig.tsx",
+  "kind": "jsx-text",
+  "text": "Get from @BotFather on Telegram"
  },
  {
   "file": "src/components/notifications/TelegramConfig.tsx",
@@ -1977,12 +2857,32 @@
  {
   "file": "src/components/notifications/TelegramConfig.tsx",
   "kind": "jsx-text",
+  "text": "Telegram Bot Documentation"
+ },
+ {
+  "file": "src/components/notifications/TelegramConfig.tsx",
+  "kind": "jsx-text",
   "text": "Telegram Configuration"
  },
  {
   "file": "src/components/notifications/TelegramConfig.tsx",
   "kind": "jsx-text",
   "text": "To set up Telegram notifications:"
+ },
+ {
+  "file": "src/components/notifications/TelegramConfig.tsx",
+  "kind": "jsx-text",
+  "text": "Your user ID, group ID, or channel ID"
+ },
+ {
+  "file": "src/components/OdometerRecordForm.tsx",
+  "kind": "jsx-text",
+  "text": "Cancel"
+ },
+ {
+  "file": "src/components/OdometerRecordForm.tsx",
+  "kind": "jsx-text",
+  "text": "Notes"
  },
  {
   "file": "src/components/OdometerRecordList.tsx",
@@ -1993,6 +2893,11 @@
   "file": "src/components/OfflineBanner.tsx",
   "kind": "jsx-text",
   "text": "You’re offline. Data shown may be from the last saved session."
+ },
+ {
+  "file": "src/components/PhotoGallery.tsx",
+  "kind": "dialog",
+  "text": "Are you sure you want to delete this photo?"
  },
  {
   "file": "src/components/PhotoGallery.tsx",
@@ -2017,7 +2922,32 @@
  {
   "file": "src/components/PhotoGallery.tsx",
   "kind": "jsx-text",
+  "text": "Cancel"
+ },
+ {
+  "file": "src/components/PhotoGallery.tsx",
+  "kind": "jsx-text",
+  "text": "Edit caption"
+ },
+ {
+  "file": "src/components/PhotoGallery.tsx",
+  "kind": "jsx-text",
+  "text": "Main Photo"
+ },
+ {
+  "file": "src/components/PhotoGallery.tsx",
+  "kind": "jsx-text",
   "text": "No caption"
+ },
+ {
+  "file": "src/components/PhotoGallery.tsx",
+  "kind": "jsx-text",
+  "text": "Offline actions disabled"
+ },
+ {
+  "file": "src/components/PhotoGallery.tsx",
+  "kind": "jsx-text",
+  "text": "Photo Gallery"
  },
  {
   "file": "src/components/PhotoGallery.tsx",
@@ -2072,6 +3002,26 @@
  {
   "file": "src/components/PhotoUpload.tsx",
   "kind": "jsx-text",
+  "text": "Cancel"
+ },
+ {
+  "file": "src/components/PhotoUpload.tsx",
+  "kind": "jsx-text",
+  "text": "Drag and drop an image here, or click to select"
+ },
+ {
+  "file": "src/components/PhotoUpload.tsx",
+  "kind": "jsx-text",
+  "text": "Select File"
+ },
+ {
+  "file": "src/components/PhotoUpload.tsx",
+  "kind": "jsx-text",
+  "text": "Set as main vehicle photo"
+ },
+ {
+  "file": "src/components/PhotoUpload.tsx",
+  "kind": "jsx-text",
   "text": "Upload Photo"
  },
  {
@@ -2111,6 +3061,26 @@
  },
  {
   "file": "src/components/PropaneRecordForm.tsx",
+  "kind": "jsx-text",
+  "text": "Auto-calculated:"
+ },
+ {
+  "file": "src/components/PropaneRecordForm.tsx",
+  "kind": "jsx-text",
+  "text": "Cancel"
+ },
+ {
+  "file": "src/components/PropaneRecordForm.tsx",
+  "kind": "jsx-text",
+  "text": "Notes"
+ },
+ {
+  "file": "src/components/PropaneRecordForm.tsx",
+  "kind": "jsx-text",
+  "text": "Total Cost"
+ },
+ {
+  "file": "src/components/PropaneRecordForm.tsx",
   "kind": "prop:placeholder",
   "text": "e.g., AmeriGas, U-Haul Propane"
  },
@@ -2118,6 +3088,11 @@
   "file": "src/components/ProtectedRoute.tsx",
   "kind": "prop:aria-label",
   "text": "Loading"
+ },
+ {
+  "file": "src/components/RecallForm.tsx",
+  "kind": "jsx-text",
+  "text": "Cancel"
  },
  {
   "file": "src/components/RecallForm.tsx",
@@ -2207,7 +3182,22 @@
  {
   "file": "src/components/ReportsPanel.tsx",
   "kind": "jsx-text",
-  "text": "Download PDF"
+  "text": "Breakdown of all expenses by category"
+ },
+ {
+  "file": "src/components/ReportsPanel.tsx",
+  "kind": "jsx-text",
+  "text": "Complete service and maintenance history"
+ },
+ {
+  "file": "src/components/ReportsPanel.tsx",
+  "kind": "jsx-text",
+  "text": "CSV Exports"
+ },
+ {
+  "file": "src/components/ReportsPanel.tsx",
+  "kind": "jsx-text",
+  "text": "Date Range Selection"
  },
  {
   "file": "src/components/ReportsPanel.tsx",
@@ -2218,6 +3208,16 @@
   "file": "src/components/ReportsPanel.tsx",
   "kind": "jsx-text",
   "text": "Download PDF"
+ },
+ {
+  "file": "src/components/ReportsPanel.tsx",
+  "kind": "jsx-text",
+  "text": "Download PDF"
+ },
+ {
+  "file": "src/components/ReportsPanel.tsx",
+  "kind": "jsx-text",
+  "text": "End Date"
  },
  {
   "file": "src/components/ReportsPanel.tsx",
@@ -2228,11 +3228,21 @@
   "file": "src/components/ReportsPanel.tsx",
   "kind": "jsx-text",
   "text": "Export CSV"
+ },
+ {
+  "file": "src/components/ReportsPanel.tsx",
+  "kind": "jsx-text",
+  "text": "Export service records to spreadsheet"
  },
  {
   "file": "src/components/ReportsPanel.tsx",
   "kind": "jsx-text",
   "text": "Generating report..."
+ },
+ {
+  "file": "src/components/ReportsPanel.tsx",
+  "kind": "jsx-text",
+  "text": "PDF Reports"
  },
  {
   "file": "src/components/ReportsPanel.tsx",
@@ -2247,7 +3257,17 @@
  {
   "file": "src/components/ReportsPanel.tsx",
   "kind": "jsx-text",
+  "text": "Start Date"
+ },
+ {
+  "file": "src/components/ReportsPanel.tsx",
+  "kind": "jsx-text",
   "text": "Tax Deduction Report"
+ },
+ {
+  "file": "src/components/ServiceAttachmentList.tsx",
+  "kind": "dialog",
+  "text": "Are you sure you want to delete this attachment?"
  },
  {
   "file": "src/components/ServiceAttachmentList.tsx",
@@ -2263,6 +3283,11 @@
   "file": "src/components/ServiceAttachmentList.tsx",
   "kind": "field:message",
   "text": "Failed to download attachment"
+ },
+ {
+  "file": "src/components/ServiceAttachmentList.tsx",
+  "kind": "jsx-text",
+  "text": "Loading attachments..."
  },
  {
   "file": "src/components/ServiceAttachmentList.tsx",
@@ -2298,6 +3323,11 @@
   "file": "src/components/ServiceAttachmentList.tsx",
   "kind": "prop:title",
   "text": "Preview"
+ },
+ {
+  "file": "src/components/ServiceVisitAttachmentList.tsx",
+  "kind": "dialog",
+  "text": "Are you sure you want to delete this attachment?"
  },
  {
   "file": "src/components/ServiceVisitAttachmentList.tsx",
@@ -2372,7 +3402,47 @@
  {
   "file": "src/components/settings/WidgetKeysPanel.tsx",
   "kind": "jsx-text",
+  "text": "in the system settings to enable."
+ },
+ {
+  "file": "src/components/settings/WidgetKeysPanel.tsx",
+  "kind": "jsx-text",
   "text": "Loading keys…"
+ },
+ {
+  "file": "src/components/settings/WidgetKeysPanel.tsx",
+  "kind": "jsx-text",
+  "text": "New Key"
+ },
+ {
+  "file": "src/components/settings/WidgetKeysPanel.tsx",
+  "kind": "jsx-text",
+  "text": "No API keys yet. Create one to start polling your garage from a dashboard."
+ },
+ {
+  "file": "src/components/settings/WidgetKeysPanel.tsx",
+  "kind": "jsx-text",
+  "text": "Read-only API keys for external integrations. Each key grants access to the vehicles you select."
+ },
+ {
+  "file": "src/components/settings/WidgetKeysPanel.tsx",
+  "kind": "jsx-text",
+  "text": "Switch auth mode to"
+ },
+ {
+  "file": "src/components/ShopDiscoveryModal.tsx",
+  "kind": "jsx-text",
+  "text": "Cancel"
+ },
+ {
+  "file": "src/components/ShopDiscoveryModal.tsx",
+  "kind": "jsx-text",
+  "text": "Discover auto repair shops near your location"
+ },
+ {
+  "file": "src/components/ShopDiscoveryModal.tsx",
+  "kind": "jsx-text",
+  "text": "Enable Location"
  },
  {
   "file": "src/components/ShopDiscoveryModal.tsx",
@@ -2387,6 +3457,16 @@
  {
   "file": "src/components/ShopDiscoveryModal.tsx",
   "kind": "jsx-text",
+  "text": "Finding nearby auto repair shops within 5 miles"
+ },
+ {
+  "file": "src/components/ShopDiscoveryModal.tsx",
+  "kind": "jsx-text",
+  "text": "Found"
+ },
+ {
+  "file": "src/components/ShopDiscoveryModal.tsx",
+  "kind": "jsx-text",
   "text": "No Shops Found"
  },
  {
@@ -2397,12 +3477,47 @@
  {
   "file": "src/components/ShopDiscoveryModal.tsx",
   "kind": "jsx-text",
+  "text": "Search Again"
+ },
+ {
+  "file": "src/components/ShopDiscoveryModal.tsx",
+  "kind": "jsx-text",
   "text": "Searching for Shops..."
+ },
+ {
+  "file": "src/components/ShopDiscoveryModal.tsx",
+  "kind": "jsx-text",
+  "text": "Select"
+ },
+ {
+  "file": "src/components/ShopDiscoveryModal.tsx",
+  "kind": "jsx-text",
+  "text": "Select"
+ },
+ {
+  "file": "src/components/ShopDiscoveryModal.tsx",
+  "kind": "jsx-text",
+  "text": "Try searching from a different location or expanding your search radius."
+ },
+ {
+  "file": "src/components/ShopDiscoveryModal.tsx",
+  "kind": "jsx-text",
+  "text": "Used"
+ },
+ {
+  "file": "src/components/ShopDiscoveryModal.tsx",
+  "kind": "jsx-text",
+  "text": "We need your location to find nearby auto repair shops within 5 miles."
  },
  {
   "file": "src/components/ShopDiscoveryModal.tsx",
   "kind": "prop:aria-label",
   "text": "Close"
+ },
+ {
+  "file": "src/components/SpotRentalForm.tsx",
+  "kind": "jsx-text",
+  "text": "Rate"
  },
  {
   "file": "src/components/SpotRentalForm.tsx",
@@ -2418,6 +3533,26 @@
   "file": "src/components/SpotRentalForm.tsx",
   "kind": "prop:placeholder",
   "text": "e.g., Happy Hills RV Park"
+ },
+ {
+  "file": "src/components/SpotRentalList.tsx",
+  "kind": "jsx-text",
+  "text": "Add Billing"
+ },
+ {
+  "file": "src/components/tabs/LiveLinkChartsTab.tsx",
+  "kind": "jsx-text",
+  "text": "Export CSV"
+ },
+ {
+  "file": "src/components/tabs/LiveLinkDTCsTab.tsx",
+  "kind": "jsx-text",
+  "text": "Cancel"
+ },
+ {
+  "file": "src/components/tabs/LiveLinkDTCsTab.tsx",
+  "kind": "jsx-text",
+  "text": "Save"
  },
  {
   "file": "src/components/tabs/SettingsBackupTab.tsx",
@@ -2450,9 +3585,94 @@
   "text": "• Restoring a full backup will OVERWRITE all current data and files"
  },
  {
+  "file": "src/components/tabs/SettingsBackupTab.tsx",
+  "kind": "jsx-text",
+  "text": "Safety"
+ },
+ {
+  "file": "src/components/tabs/SettingsBackupTab.tsx",
+  "kind": "jsx-text",
+  "text": "Safety"
+ },
+ {
+  "file": "src/components/tabs/SettingsFilesTab.tsx",
+  "kind": "jsx-text",
+  "text": "Allowed Attachment Types"
+ },
+ {
+  "file": "src/components/tabs/SettingsFilesTab.tsx",
+  "kind": "jsx-text",
+  "text": "Allowed Photo Types"
+ },
+ {
   "file": "src/components/tabs/SettingsFilesTab.tsx",
   "kind": "jsx-text",
   "text": "Supported formats:"
+ },
+ {
+  "file": "src/components/tabs/SettingsFilesTab.tsx",
+  "kind": "jsx-text",
+  "text": "Window stickers are only available for passenger cars and trucks, not RVs, trailers, or fifth wheels."
+ },
+ {
+  "file": "src/components/tabs/SettingsIntegrationsTab.tsx",
+  "kind": "jsx-text",
+  "text": "CarComplaints.com provides a database of consumer complaints, common problems, and issue trends for vehicles. This integration adds convenient links to research known issues for your specific vehicle make, model, and year."
+ },
+ {
+  "file": "src/components/tabs/SettingsIntegrationsTab.tsx",
+  "kind": "jsx-text",
+  "text": "Edit"
+ },
+ {
+  "file": "src/components/tabs/SettingsIntegrationsTab.tsx",
+  "kind": "jsx-text",
+  "text": "LiveLink connects WiCAN PRO OBD2 devices to MyGarage for real-time vehicle telemetry. Track engine parameters, detect drive sessions, and receive diagnostic trouble code alerts."
+ },
+ {
+  "file": "src/components/tabs/SettingsIntegrationsTab.tsx",
+  "kind": "jsx-text",
+  "text": "NHTSA Recalls API URL"
+ },
+ {
+  "file": "src/components/tabs/SettingsIntegrationsTab.tsx",
+  "kind": "jsx-text",
+  "text": "Recall Check Interval"
+ },
+ {
+  "file": "src/components/tabs/SettingsIntegrationsTab.tsx",
+  "kind": "jsx-text",
+  "text": "Remove"
+ },
+ {
+  "file": "src/components/tabs/SettingsIntegrationsTab.tsx",
+  "kind": "jsx-text",
+  "text": "This integration is only available for cars and trucks, not RVs, trailers, or fifth wheels."
+ },
+ {
+  "file": "src/components/tabs/SettingsIntegrationsTab.tsx",
+  "kind": "jsx-text",
+  "text": "WiCAN PRO with firmware v4.40 or newer"
+ },
+ {
+  "file": "src/components/TaxRecordForm.tsx",
+  "kind": "jsx-text",
+  "text": "Type"
+ },
+ {
+  "file": "src/components/TollTagForm.tsx",
+  "kind": "jsx-text",
+  "text": "Cancel"
+ },
+ {
+  "file": "src/components/TollTransactionForm.tsx",
+  "kind": "jsx-text",
+  "text": "Cancel"
+ },
+ {
+  "file": "src/components/TollTransactionList.tsx",
+  "kind": "jsx-text",
+  "text": "Add Transaction"
  },
  {
   "file": "src/components/TollTransactionList.tsx",
@@ -2463,6 +3683,16 @@
   "file": "src/components/TollTransactionList.tsx",
   "kind": "prop:title",
   "text": "Export to CSV"
+ },
+ {
+  "file": "src/components/VehicleStatisticsCard.tsx",
+  "kind": "jsx-text",
+  "text": "Shared"
+ },
+ {
+  "file": "src/components/VehicleStatisticsCard.tsx",
+  "kind": "jsx-text",
+  "text": "View Details"
  },
  {
   "file": "src/components/VehicleWizard.tsx",
@@ -2507,6 +3737,11 @@
  {
   "file": "src/components/VehicleWizard.tsx",
   "kind": "jsx-text",
+  "text": "Cancel"
+ },
+ {
+  "file": "src/components/VehicleWizard.tsx",
+  "kind": "jsx-text",
   "text": "Create Vehicle"
  },
  {
@@ -2527,6 +3762,16 @@
  {
   "file": "src/components/VehicleWizard.tsx",
   "kind": "jsx-text",
+  "text": "Enter Vehicle Identification Number"
+ },
+ {
+  "file": "src/components/VehicleWizard.tsx",
+  "kind": "jsx-text",
+  "text": "License Plate"
+ },
+ {
+  "file": "src/components/VehicleWizard.tsx",
+  "kind": "jsx-text",
   "text": "License Plate"
  },
  {
@@ -2538,6 +3783,11 @@
   "file": "src/components/VehicleWizard.tsx",
   "kind": "jsx-text",
   "text": "Model"
+ },
+ {
+  "file": "src/components/VehicleWizard.tsx",
+  "kind": "jsx-text",
+  "text": "Nickname"
  },
  {
   "file": "src/components/VehicleWizard.tsx",
@@ -2557,7 +3807,22 @@
  {
   "file": "src/components/VehicleWizard.tsx",
   "kind": "jsx-text",
+  "text": "Purchase Date"
+ },
+ {
+  "file": "src/components/VehicleWizard.tsx",
+  "kind": "jsx-text",
   "text": "Purchase Price"
+ },
+ {
+  "file": "src/components/VehicleWizard.tsx",
+  "kind": "jsx-text",
+  "text": "Purchase Price"
+ },
+ {
+  "file": "src/components/VehicleWizard.tsx",
+  "kind": "jsx-text",
+  "text": "Step"
  },
  {
   "file": "src/components/VehicleWizard.tsx",
@@ -2577,7 +3842,17 @@
  {
   "file": "src/components/VehicleWizard.tsx",
   "kind": "jsx-text",
+  "text": "Upload Photos"
+ },
+ {
+  "file": "src/components/VehicleWizard.tsx",
+  "kind": "jsx-text",
   "text": "Vehicle Details"
+ },
+ {
+  "file": "src/components/VehicleWizard.tsx",
+  "kind": "jsx-text",
+  "text": "Vehicle Type"
  },
  {
   "file": "src/components/VehicleWizard.tsx",
@@ -2588,6 +3863,11 @@
   "file": "src/components/VehicleWizard.tsx",
   "kind": "jsx-text",
   "text": "Year"
+ },
+ {
+  "file": "src/components/VehicleWizard.tsx",
+  "kind": "jsx-text",
+  "text": "You can upload photos now or add them later. Supported formats: JPG, PNG, WEBP"
  },
  {
   "file": "src/components/VehicleWizard.tsx",
@@ -2603,6 +3883,11 @@
   "file": "src/components/VendorSearch.tsx",
   "kind": "field:message",
   "text": "Failed to create vendor"
+ },
+ {
+  "file": "src/components/VendorSearch.tsx",
+  "kind": "jsx-text",
+  "text": "Cancel"
  },
  {
   "file": "src/components/VendorSearch.tsx",
@@ -2623,6 +3908,11 @@
   "file": "src/components/VINInput.tsx",
   "kind": "jsx-text",
   "text": "Made in:"
+ },
+ {
+  "file": "src/components/WarrantyForm.tsx",
+  "kind": "jsx-text",
+  "text": "Cancel"
  },
  {
   "file": "src/components/WarrantyForm.tsx",
@@ -2662,6 +3952,16 @@
  {
   "file": "src/components/WindowStickerUpload.tsx",
   "kind": "jsx-text",
+  "text": "Cancel"
+ },
+ {
+  "file": "src/components/WindowStickerUpload.tsx",
+  "kind": "jsx-text",
+  "text": "Cancel"
+ },
+ {
+  "file": "src/components/WindowStickerUpload.tsx",
+  "kind": "jsx-text",
   "text": "City"
  },
  {
@@ -2678,6 +3978,11 @@
   "file": "src/components/WindowStickerUpload.tsx",
   "kind": "jsx-text",
   "text": "Destination"
+ },
+ {
+  "file": "src/components/WindowStickerUpload.tsx",
+  "kind": "jsx-text",
+  "text": "Drag and drop your window sticker here, or click to select"
  },
  {
   "file": "src/components/WindowStickerUpload.tsx",
@@ -2733,6 +4038,11 @@
   "file": "src/components/WindowStickerUpload.tsx",
   "kind": "jsx-text",
   "text": "Powertrain"
+ },
+ {
+  "file": "src/components/WindowStickerUpload.tsx",
+  "kind": "jsx-text",
+  "text": "Select File"
  },
  {
   "file": "src/components/WindowStickerUpload.tsx",
@@ -2896,8 +4206,23 @@
  },
  {
   "file": "src/pages/Analytics.tsx",
+  "kind": "dialog",
+  "text": "Failed to fetch comparison data"
+ },
+ {
+  "file": "src/pages/Analytics.tsx",
+  "kind": "dialog",
+  "text": "Please fill in all date fields"
+ },
+ {
+  "file": "src/pages/Analytics.tsx",
   "kind": "field:message",
   "text": "An error occurred"
+ },
+ {
+  "file": "src/pages/Analytics.tsx",
+  "kind": "jsx-text",
+  "text": "12-Month Rolling Average"
  },
  {
   "file": "src/pages/Analytics.tsx",
@@ -2907,7 +4232,17 @@
  {
   "file": "src/pages/Analytics.tsx",
   "kind": "jsx-text",
+  "text": "3-Month Rolling Average"
+ },
+ {
+  "file": "src/pages/Analytics.tsx",
+  "kind": "jsx-text",
   "text": "6-month average (dashed orange)"
+ },
+ {
+  "file": "src/pages/Analytics.tsx",
+  "kind": "jsx-text",
+  "text": "6-Month Rolling Average"
  },
  {
   "file": "src/pages/Analytics.tsx",
@@ -2927,7 +4262,17 @@
  {
   "file": "src/pages/Analytics.tsx",
   "kind": "jsx-text",
+  "text": "Annual trend analysis"
+ },
+ {
+  "file": "src/pages/Analytics.tsx",
+  "kind": "jsx-text",
   "text": "Average"
+ },
+ {
+  "file": "src/pages/Analytics.tsx",
+  "kind": "jsx-text",
+  "text": "Average Cost:"
  },
  {
   "file": "src/pages/Analytics.tsx",
@@ -3007,6 +4352,11 @@
  {
   "file": "src/pages/Analytics.tsx",
   "kind": "jsx-text",
+  "text": "Cost Changes by Category"
+ },
+ {
+  "file": "src/pages/Analytics.tsx",
+  "kind": "jsx-text",
   "text": "Cost Projection"
  },
  {
@@ -3023,6 +4373,16 @@
   "file": "src/pages/Analytics.tsx",
   "kind": "jsx-text",
   "text": "DEF Analysis"
+ },
+ {
+  "file": "src/pages/Analytics.tsx",
+  "kind": "jsx-text",
+  "text": "End Date"
+ },
+ {
+  "file": "src/pages/Analytics.tsx",
+  "kind": "jsx-text",
+  "text": "End Date"
  },
  {
   "file": "src/pages/Analytics.tsx",
@@ -3048,6 +4408,11 @@
   "file": "src/pages/Analytics.tsx",
   "kind": "jsx-text",
   "text": "Fuel Efficiency Alerts"
+ },
+ {
+  "file": "src/pages/Analytics.tsx",
+  "kind": "jsx-text",
+  "text": "Help"
  },
  {
   "file": "src/pages/Analytics.tsx",
@@ -3112,6 +4477,11 @@
  {
   "file": "src/pages/Analytics.tsx",
   "kind": "jsx-text",
+  "text": "months tracked"
+ },
+ {
+  "file": "src/pages/Analytics.tsx",
+  "kind": "jsx-text",
   "text": "Most Used"
  },
  {
@@ -3147,6 +4517,16 @@
  {
   "file": "src/pages/Analytics.tsx",
   "kind": "jsx-text",
+  "text": "Recent short-term trend"
+ },
+ {
+  "file": "src/pages/Analytics.tsx",
+  "kind": "jsx-text",
+  "text": "SCHEDULE SET"
+ },
+ {
+  "file": "src/pages/Analytics.tsx",
+  "kind": "jsx-text",
   "text": "Seasonal Cost Distribution"
  },
  {
@@ -3163,6 +4543,16 @@
   "file": "src/pages/Analytics.tsx",
   "kind": "jsx-text",
   "text": "Service History Summary"
+ },
+ {
+  "file": "src/pages/Analytics.tsx",
+  "kind": "jsx-text",
+  "text": "since last"
+ },
+ {
+  "file": "src/pages/Analytics.tsx",
+  "kind": "jsx-text",
+  "text": "Smoothed medium-term trend"
  },
  {
   "file": "src/pages/Analytics.tsx",
@@ -3192,12 +4582,27 @@
  {
   "file": "src/pages/Analytics.tsx",
   "kind": "jsx-text",
+  "text": "Start Date"
+ },
+ {
+  "file": "src/pages/Analytics.tsx",
+  "kind": "jsx-text",
+  "text": "Start Date"
+ },
+ {
+  "file": "src/pages/Analytics.tsx",
+  "kind": "jsx-text",
   "text": "Total Cost"
  },
  {
   "file": "src/pages/Analytics.tsx",
   "kind": "jsx-text",
   "text": "Total Cost"
+ },
+ {
+  "file": "src/pages/Analytics.tsx",
+  "kind": "jsx-text",
+  "text": "Total Cost:"
  },
  {
   "file": "src/pages/Analytics.tsx",
@@ -3247,7 +4652,22 @@
  {
   "file": "src/pages/Calendar.tsx",
   "kind": "jsx-text",
+  "text": "Clear"
+ },
+ {
+  "file": "src/pages/Calendar.tsx",
+  "kind": "jsx-text",
+  "text": "Close"
+ },
+ {
+  "file": "src/pages/Calendar.tsx",
+  "kind": "jsx-text",
   "text": "Description"
+ },
+ {
+  "file": "src/pages/Calendar.tsx",
+  "kind": "jsx-text",
+  "text": "Due at:"
  },
  {
   "file": "src/pages/Calendar.tsx",
@@ -3262,12 +4682,27 @@
  {
   "file": "src/pages/Calendar.tsx",
   "kind": "jsx-text",
+  "text": "Found"
+ },
+ {
+  "file": "src/pages/Calendar.tsx",
+  "kind": "jsx-text",
   "text": "Has Notes"
  },
  {
   "file": "src/pages/Calendar.tsx",
   "kind": "jsx-text",
+  "text": "Insurance"
+ },
+ {
+  "file": "src/pages/Calendar.tsx",
+  "kind": "jsx-text",
   "text": "Insurance Renewals"
+ },
+ {
+  "file": "src/pages/Calendar.tsx",
+  "kind": "jsx-text",
+  "text": "Maintenance"
  },
  {
   "file": "src/pages/Calendar.tsx",
@@ -3292,6 +4727,16 @@
  {
   "file": "src/pages/Calendar.tsx",
   "kind": "jsx-text",
+  "text": "Service History"
+ },
+ {
+  "file": "src/pages/Calendar.tsx",
+  "kind": "jsx-text",
+  "text": "Warranties"
+ },
+ {
+  "file": "src/pages/Calendar.tsx",
+  "kind": "jsx-text",
   "text": "Warranty Expirations"
  },
  {
@@ -3306,13 +4751,43 @@
  },
  {
   "file": "src/pages/GarageAnalytics.tsx",
+  "kind": "dialog",
+  "text": "Failed to export PDF. Please try again."
+ },
+ {
+  "file": "src/pages/GarageAnalytics.tsx",
   "kind": "field:message",
   "text": "An error occurred"
  },
  {
   "file": "src/pages/GarageAnalytics.tsx",
   "kind": "jsx-text",
+  "text": "Add vehicles to your garage to start tracking garage-wide analytics"
+ },
+ {
+  "file": "src/pages/GarageAnalytics.tsx",
+  "kind": "jsx-text",
+  "text": "Collision"
+ },
+ {
+  "file": "src/pages/GarageAnalytics.tsx",
+  "kind": "jsx-text",
+  "text": "Comprehensive cost analysis across"
+ },
+ {
+  "file": "src/pages/GarageAnalytics.tsx",
+  "kind": "jsx-text",
+  "text": "Comprehensive cost analysis across all vehicles"
+ },
+ {
+  "file": "src/pages/GarageAnalytics.tsx",
+  "kind": "jsx-text",
   "text": "Cost by Category"
+ },
+ {
+  "file": "src/pages/GarageAnalytics.tsx",
+  "kind": "jsx-text",
+  "text": "Fuel"
  },
  {
   "file": "src/pages/GarageAnalytics.tsx",
@@ -3333,6 +4808,11 @@
   "file": "src/pages/GarageAnalytics.tsx",
   "kind": "jsx-text",
   "text": "Garage Value"
+ },
+ {
+  "file": "src/pages/GarageAnalytics.tsx",
+  "kind": "jsx-text",
+  "text": "Help"
  },
  {
   "file": "src/pages/GarageAnalytics.tsx",
@@ -3377,7 +4857,27 @@
  {
   "file": "src/pages/GarageAnalytics.tsx",
   "kind": "jsx-text",
+  "text": "Running Costs:"
+ },
+ {
+  "file": "src/pages/GarageAnalytics.tsx",
+  "kind": "jsx-text",
   "text": "Taxes"
+ },
+ {
+  "file": "src/pages/GarageAnalytics.tsx",
+  "kind": "jsx-text",
+  "text": "Total"
+ },
+ {
+  "file": "src/pages/GarageAnalytics.tsx",
+  "kind": "jsx-text",
+  "text": "Upgrades"
+ },
+ {
+  "file": "src/pages/GarageAnalytics.tsx",
+  "kind": "jsx-text",
+  "text": "Vehicle"
  },
  {
   "file": "src/pages/GarageAnalytics.tsx",
@@ -3386,8 +4886,28 @@
  },
  {
   "file": "src/pages/LinkAccount.tsx",
+  "kind": "jsx-text",
+  "text": "Cancel"
+ },
+ {
+  "file": "src/pages/LinkAccount.tsx",
+  "kind": "jsx-text",
+  "text": "Forgot your password?"
+ },
+ {
+  "file": "src/pages/LinkAccount.tsx",
+  "kind": "jsx-text",
+  "text": "Return to login"
+ },
+ {
+  "file": "src/pages/LinkAccount.tsx",
   "kind": "prop:placeholder",
   "text": "Enter your password"
+ },
+ {
+  "file": "src/pages/Login.tsx",
+  "kind": "jsx-text",
+  "text": "Signing in..."
  },
  {
   "file": "src/pages/Login.tsx",
@@ -3398,6 +4918,16 @@
   "file": "src/pages/Login.tsx",
   "kind": "prop:placeholder",
   "text": "Enter your username or email"
+ },
+ {
+  "file": "src/pages/POIFinder.tsx",
+  "kind": "jsx-text",
+  "text": "Found"
+ },
+ {
+  "file": "src/pages/POIFinder.tsx",
+  "kind": "jsx-text",
+  "text": "Used"
  },
  {
   "file": "src/pages/POIFinder.tsx",
@@ -3432,6 +4962,21 @@
  {
   "file": "src/pages/Register.tsx",
   "kind": "jsx-text",
+  "text": "At least 3 characters, letters, numbers, _ and - only"
+ },
+ {
+  "file": "src/pages/Register.tsx",
+  "kind": "jsx-text",
+  "text": "Confirm Password"
+ },
+ {
+  "file": "src/pages/Register.tsx",
+  "kind": "jsx-text",
+  "text": "Creating account..."
+ },
+ {
+  "file": "src/pages/Register.tsx",
+  "kind": "jsx-text",
   "text": "Registration Successful!"
  },
  {
@@ -3448,6 +4993,31 @@
   "file": "src/pages/Register.tsx",
   "kind": "prop:placeholder",
   "text": "Create a strong password"
+ },
+ {
+  "file": "src/pages/ShopFinder.tsx",
+  "kind": "jsx-text",
+  "text": "Finding nearby"
+ },
+ {
+  "file": "src/pages/ShopFinder.tsx",
+  "kind": "jsx-text",
+  "text": "Found"
+ },
+ {
+  "file": "src/pages/ShopFinder.tsx",
+  "kind": "jsx-text",
+  "text": "Search Radius"
+ },
+ {
+  "file": "src/pages/ShopFinder.tsx",
+  "kind": "jsx-text",
+  "text": "Used"
+ },
+ {
+  "file": "src/pages/ShopFinder.tsx",
+  "kind": "jsx-text",
+  "text": "We need your location to find nearby"
  },
  {
   "file": "src/pages/Supplies.tsx",
@@ -3707,7 +5277,17 @@
  {
   "file": "src/pages/VehicleDetail.tsx",
   "kind": "jsx-text",
+  "text": "Sold"
+ },
+ {
+  "file": "src/pages/VehicleDetail.tsx",
+  "kind": "jsx-text",
   "text": "Speeds"
+ },
+ {
+  "file": "src/pages/VehicleDetail.tsx",
+  "kind": "jsx-text",
+  "text": "Test OCR"
  },
  {
   "file": "src/pages/VehicleDetail.tsx",
@@ -3786,6 +5366,11 @@
  },
  {
   "file": "src/pages/VehicleEdit.tsx",
+  "kind": "jsx-text",
+  "text": "GVWR Class"
+ },
+ {
+  "file": "src/pages/VehicleEdit.tsx",
   "kind": "prop:placeholder",
   "text": "Blue"
  },
@@ -3842,12 +5427,22 @@
  {
   "file": "src/pages/WindowStickerTest.tsx",
   "kind": "jsx-text",
+  "text": "Raw Extracted Text"
+ },
+ {
+  "file": "src/pages/WindowStickerTest.tsx",
+  "kind": "jsx-text",
   "text": "Smog Rating"
  },
  {
   "file": "src/pages/WindowStickerTest.tsx",
   "kind": "jsx-text",
   "text": "Total MSRP:"
+ },
+ {
+  "file": "src/pages/WindowStickerTest.tsx",
+  "kind": "jsx-text",
+  "text": "Validation Warnings"
  },
  {
   "file": "src/pages/WindowStickerTest.tsx",
