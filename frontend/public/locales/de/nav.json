@@ -1,0 +1,16 @@
+{
+  "dashboard": "Dashboard",
+  "home": "Startseite",
+  "analytics": "Auswertungen",
+  "addressBook": "Adressbuch",
+  "contacts": "Kontakte",
+  "supplies": "Vorrat & Ersatzteile",
+  "findPOI": "POI finden",
+  "poi": "POI",
+  "calendar": "Kalender",
+  "settings": "Einstellungen",
+  "about": "Über",
+  "login": "Anmelden",
+  "logout": "Abmelden",
+  "admin": "ADMIN"
+}

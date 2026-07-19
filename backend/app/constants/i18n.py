@@ -4,7 +4,7 @@ These allowlists are the single source of truth for validation.
 Adding a new language or currency = add to the set here + provide translation files.
 """
 
-SUPPORTED_LANGUAGES: set[str] = {"en", "pl", "uk", "ru", "pt-BR"}
+SUPPORTED_LANGUAGES: set[str] = {"en", "pl", "uk", "ru", "pt-BR", "de"}
 
 SUPPORTED_CURRENCIES: set[str] = {
     "USD",
