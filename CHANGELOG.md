@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Settings: switching auth mode away from "none" silently failed to save — the admin OIDC endpoints rejected the auth-disabled state, so enabling local or OIDC auth required already being authenticated.
+
 ## [3.0.0-rc1] - 2026-07-17
 
 ### Added

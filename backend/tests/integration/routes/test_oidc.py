@@ -431,6 +431,43 @@ class TestOIDCRoutes:
         )
         assert result.scalar_one().value == "brand-new-secret"
 
+    async def test_admin_config_reachable_when_auth_disabled(
+        self, client: AsyncClient, db_session, set_auth_mode
+    ):
+        """auth_mode='none' must not lock the admin OIDC surface.
+
+        Regression: the endpoint 401'd whenever ``get_current_admin_user``
+        returned None (its documented auth-disabled signal), which made the
+        Settings → System save — it PUTs this endpoint before the settings
+        batch carrying ``auth_mode`` — fail outright. That left a bootstrap
+        deadlock: enabling auth required being authenticated.
+        """
+        await set_auth_mode("none")
+
+        get_response = await client.get("/api/auth/oidc/config/admin")
+        assert get_response.status_code == 200
+
+        payload = {
+            "enabled": True,
+            "provider_name": "Rauthy",
+            "issuer_url": "https://auth.example.com/",
+            "client_id": "bootstrap-id",
+            "client_secret": "bootstrap-secret",
+            "scopes": "openid profile email",
+            "auto_create_users": True,
+            "admin_group": "",
+            "username_claim": "preferred_username",
+            "email_claim": "email",
+            "full_name_claim": "name",
+        }
+        put_response = await client.put("/api/auth/oidc/config/admin", json=payload)
+        assert put_response.status_code == 200
+
+        result = await db_session.execute(
+            select(Setting).where(Setting.key == "oidc_client_secret")
+        )
+        assert result.scalar_one().value == "bootstrap-secret"
+
     # -------------------------------------------------------------------------
     # /link-account endpoint tests
     # The oidc_pending_links table is always present — created by

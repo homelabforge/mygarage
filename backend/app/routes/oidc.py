@@ -138,14 +138,14 @@ async def get_oidc_admin_config(
 
     Returns the canonical shape per plan §5.4; client_secret is masked with the
     literal "********" placeholder when stored.
-    """
-    if current_user is None:
-        # auth_mode == "none"; treat as unauthorized for admin-only surface.
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required",
-        )
 
+    ``current_user`` is None only when auth_mode == "none" (auth disabled), which
+    this endpoint allows — same as every other admin surface. Gating it instead
+    deadlocks bootstrap: Settings → System PUTs this endpoint before the batch
+    that carries ``auth_mode``, so enabling auth would require auth. Nothing
+    leaks either way — the secret is masked here, and GET /api/settings is
+    already open in that mode.
+    """
     config = await oidc_service.get_oidc_config(db)
     return OIDCAdminConfig(
         enabled=config.get("enabled", "false").lower() == "true",
@@ -173,13 +173,10 @@ async def put_oidc_admin_config(
     Enforces the §5.4 wire contract:
       - empty `client_secret` (or the masked placeholder) preserves the stored value
       - issuer_url has trailing slash + whitespace stripped before persisting
-    """
-    if current_user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required",
-        )
 
+    ``current_user`` is None only when auth_mode == "none" (auth disabled), which
+    this endpoint allows — see the GET above for why gating it deadlocks bootstrap.
+    """
     # §5.4(2): preserve stored secret when caller sends empty/placeholder.
     client_secret = payload.client_secret
     if not client_secret or oidc_service.is_masked_secret(client_secret):
@@ -207,7 +204,8 @@ async def put_oidc_admin_config(
     )
 
     logger.info(
-        "OIDC admin configuration updated by user %s", sanitize_for_log(current_user.username)
+        "OIDC admin configuration updated by user %s",
+        sanitize_for_log(current_user.username) if current_user else "<auth disabled>",
     )
     return {"message": "OIDC configuration updated successfully"}
 
