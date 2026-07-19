@@ -7,7 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- i18n: the Analytics and Garage Analytics pages and their help modals are now translatable (~350 strings) — they previously rendered in English regardless of the selected language.
+
 ### Fixed
+- Analytics: chart axis labels and the spending-anomaly figures showed a hardcoded `$` and are now formatted in the selected currency.
 - Settings: switching auth mode away from "none" silently failed to save — the admin OIDC endpoints rejected the auth-disabled state, so enabling local or OIDC auth required already being authenticated.
 - Settings: changing an unrelated setting (timezone, debug) no longer rewrites the OIDC configuration, so a failure there can no longer discard the rest of the save.
 

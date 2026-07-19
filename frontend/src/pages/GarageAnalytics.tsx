@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import api from '../services/api'
 import { Car, Wrench, Fuel, Shield, FileText, HelpCircle, Droplets } from 'lucide-react'
 import {
@@ -28,6 +29,7 @@ import { formatDateTime } from '../utils/parseAPITimestamp'
 const COLORS = ['#3B82F6', '#8B5CF6', '#F59E0B', '#EF4444', '#10B981', '#06B6D4', '#14B8A6', '#EC4899', '#6B7280']
 
 export default function GarageAnalytics() {
+  const { t } = useTranslation('analytics')
   const { currencyCode, locale } = useCurrencyPreference()
   const { timeFormat } = useTimeFormat()
   const [analytics, setAnalytics] = useState<GarageAnalytics | null>(null)
@@ -121,7 +123,7 @@ export default function GarageAnalytics() {
       window.URL.revokeObjectURL(url)
     } catch (err) {
       console.error('PDF export failed:', err)
-      alert('Failed to export PDF. Please try again.')
+      alert(t('garage.exportPdfFailed'))
     }
   }
 
@@ -159,7 +161,7 @@ export default function GarageAnalytics() {
           })
         )
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'An error occurred'
+        const errorMessage = err instanceof Error ? err.message : t('garage.genericError')
         setError(errorMessage)
 
         // If offline, try to load from cache
@@ -170,7 +172,7 @@ export default function GarageAnalytics() {
               const parsed = JSON.parse(cached)
               setAnalytics(parsed.data)
               setFromCache(true)
-              setError('Offline: showing cached analytics snapshot.')
+              setError(t('garage.offlineCached'))
             } catch {
               // Invalid cache
             }
@@ -182,7 +184,7 @@ export default function GarageAnalytics() {
     }
 
     fetchAnalytics()
-  }, [])
+  }, [t])
 
   // Custom tooltip styling for charts
   const customTooltipStyle = {
@@ -196,9 +198,9 @@ export default function GarageAnalytics() {
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
-        <div className="flex items-center justify-center py-16" role="status" aria-label="Loading analytics">
+        <div className="flex items-center justify-center py-16" role="status" aria-label={t('garage.loadingAria')}>
           <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-          <span className="sr-only">Loading garage analytics...</span>
+          <span className="sr-only">{t('garage.loading')}</span>
         </div>
       </div>
     )
@@ -207,17 +209,13 @@ export default function GarageAnalytics() {
   if (!analytics || analytics.vehicle_count === 0) {
     return (
       <div className="container mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold mb-2 text-garage-text">Garage Analytics</h1>
-        <p className="text-garage-text-muted mb-8">
-          Comprehensive cost analysis across all vehicles
-        </p>
+        <h1 className="text-3xl font-bold mb-2 text-garage-text">{t('garage.title')}</h1>
+        <p className="text-garage-text-muted mb-8">{t('garage.subtitle')}</p>
 
         <div className="bg-garage-surface rounded-lg border border-garage-border text-center py-16">
           <Car className="w-16 h-16 text-garage-text-muted mx-auto mb-4 opacity-50" />
-          <h3 className="text-xl font-semibold mb-2 text-garage-text">No Vehicles Yet</h3>
-          <p className="text-garage-text-muted mb-6">
-            Add vehicles to your garage to start tracking garage-wide analytics
-          </p>
+          <h3 className="text-xl font-semibold mb-2 text-garage-text">{t('garage.empty.title')}</h3>
+          <p className="text-garage-text-muted mb-6">{t('garage.empty.body')}</p>
         </div>
       </div>
     )
@@ -256,10 +254,9 @@ export default function GarageAnalytics() {
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-bold mb-2 text-garage-text">Garage Analytics</h1>
+          <h1 className="text-3xl font-bold mb-2 text-garage-text">{t('garage.title')}</h1>
           <p className="text-garage-text-muted">
-            Comprehensive cost analysis across {analytics.vehicle_count} vehicle
-            {analytics.vehicle_count !== 1 ? 's' : ''}
+            {t('garage.subtitleCount', { count: analytics.vehicle_count })}
           </p>
           {fromCache && error && (
             <p className="text-warning text-sm mt-1">{error}</p>
@@ -272,7 +269,7 @@ export default function GarageAnalytics() {
             className="px-4 py-2 bg-garage-surface border border-garage-border text-garage-text rounded-lg hover:bg-garage-surface-light transition-colors flex items-center gap-2"
           >
             <HelpCircle className="w-4 h-4" />
-            Help
+            {t('garage.help')}
           </button>
           <ExportMenu onExportCSV={exportToCSV} onExportPDF={exportToPDF} />
         </div>
@@ -282,7 +279,7 @@ export default function GarageAnalytics() {
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
         <div className="bg-garage-surface border border-garage-border rounded-lg p-6">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-medium text-garage-text-muted">Garage Value</h3>
+            <h3 className="text-sm font-medium text-garage-text-muted">{t('garage.cards.garageValue')}</h3>
             <Car className="w-5 h-5 text-primary" />
           </div>
           <p className="text-2xl font-bold text-garage-text">
@@ -292,7 +289,7 @@ export default function GarageAnalytics() {
 
         <div className="bg-garage-surface border border-garage-border rounded-lg p-6">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-medium text-garage-text-muted">Maintenance</h3>
+            <h3 className="text-sm font-medium text-garage-text-muted">{t('garage.cards.maintenance')}</h3>
             <Wrench className="w-5 h-5 text-primary" />
           </div>
           <p className="text-2xl font-bold text-garage-text">
@@ -302,7 +299,7 @@ export default function GarageAnalytics() {
 
         <div className="bg-garage-surface border border-garage-border rounded-lg p-6">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-medium text-garage-text-muted">Fuel</h3>
+            <h3 className="text-sm font-medium text-garage-text-muted">{t('garage.cards.fuel')}</h3>
             <Fuel className="w-5 h-5 text-success-500" />
           </div>
           <p className="text-2xl font-bold text-garage-text">
@@ -313,7 +310,7 @@ export default function GarageAnalytics() {
         {parseFloat(total_costs.total_def) > 0 && (
           <div className="bg-garage-surface border border-garage-border rounded-lg p-6">
             <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-garage-text-muted">DEF</h3>
+              <h3 className="text-sm font-medium text-garage-text-muted">{t('garage.cards.def')}</h3>
               <Droplets className="w-5 h-5 text-teal-500" />
             </div>
             <p className="text-2xl font-bold text-garage-text">
@@ -324,7 +321,7 @@ export default function GarageAnalytics() {
 
         <div className="bg-garage-surface border border-garage-border rounded-lg p-6">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-medium text-garage-text-muted">Insurance</h3>
+            <h3 className="text-sm font-medium text-garage-text-muted">{t('garage.cards.insurance')}</h3>
             <Shield className="w-5 h-5 text-warning-500" />
           </div>
           <p className="text-2xl font-bold text-garage-text">
@@ -334,7 +331,7 @@ export default function GarageAnalytics() {
 
         <div className="bg-garage-surface border border-garage-border rounded-lg p-6">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-medium text-garage-text-muted">Taxes</h3>
+            <h3 className="text-sm font-medium text-garage-text-muted">{t('garage.cards.taxes')}</h3>
             <FileText className="w-5 h-5 text-danger-500" />
           </div>
           <p className="text-2xl font-bold text-garage-text">
@@ -347,7 +344,7 @@ export default function GarageAnalytics() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         {/* Pie Chart - Cost by Category */}
         <div className="bg-garage-surface border border-garage-border rounded-lg p-6">
-          <h2 className="text-xl font-bold mb-4 text-garage-text">Cost by Category</h2>
+          <h2 className="text-xl font-bold mb-4 text-garage-text">{t('garage.costByCategory')}</h2>
           {pieData.length > 0 ? (
             <>
               <ResponsiveContainer width="100%" height={300}>
@@ -362,7 +359,7 @@ export default function GarageAnalytics() {
                       if (typeof percent !== 'number') {
                         return name?.toString() ?? ''
                       }
-                      const labelName = name?.toString() ?? 'Other'
+                      const labelName = name?.toString() ?? t('garage.otherCategory')
                       return `${labelName} ${(percent * 100).toFixed(0)}%`
                     }}
                     outerRadius={100}
@@ -409,13 +406,13 @@ export default function GarageAnalytics() {
               </div>
             </>
           ) : (
-            <p className="text-garage-text-muted text-center py-8">No cost data available</p>
+            <p className="text-garage-text-muted text-center py-8">{t('garage.noCostData')}</p>
           )}
         </div>
 
         {/* Bar Chart - Running Costs by Vehicle */}
         <div className="bg-garage-surface border border-garage-border rounded-lg p-6">
-          <h2 className="text-xl font-bold mb-4 text-garage-text">Running Costs by Vehicle</h2>
+          <h2 className="text-xl font-bold mb-4 text-garage-text">{t('garage.runningCostsByVehicle')}</h2>
           {barData.length > 0 ? (
             <>
               <ResponsiveContainer width="100%" height={Math.max(150, barData.length * 50)}>
@@ -450,7 +447,7 @@ export default function GarageAnalytics() {
                               {data.payload.name}
                             </p>
                             <p style={{ fontSize: '14px', color: '#9ca3af' }}>
-                              Running Costs: {formatCurrency(data.value as number, { currencyCode, locale })}
+                              {t('garage.runningCostsTooltip')}: {formatCurrency(data.value as number, { currencyCode, locale })}
                             </p>
                           </div>
                         )
@@ -468,31 +465,31 @@ export default function GarageAnalytics() {
                   <thead>
                     <tr className="border-b border-garage-border">
                       <th className="text-left py-2 px-3 text-sm font-medium text-garage-text-muted">
-                        Vehicle
+                        {t('garage.table.vehicle')}
                       </th>
                       <th className="text-right py-2 px-3 text-sm font-medium text-garage-text-muted">
-                        Maint.
+                        {t('garage.table.maintenance')}
                       </th>
                       <th className="text-right py-2 px-3 text-sm font-medium text-garage-text-muted">
-                        Upgrades
+                        {t('garage.table.upgrades')}
                       </th>
                       <th className="text-right py-2 px-3 text-sm font-medium text-garage-text-muted">
-                        Insp.
+                        {t('garage.table.inspection')}
                       </th>
                       <th className="text-right py-2 px-3 text-sm font-medium text-garage-text-muted">
-                        Collision
+                        {t('garage.table.collision')}
                       </th>
                       <th className="text-right py-2 px-3 text-sm font-medium text-garage-text-muted">
-                        Detail.
+                        {t('garage.table.detailing')}
                       </th>
                       <th className="text-right py-2 px-3 text-sm font-medium text-garage-text-muted">
-                        Fuel
+                        {t('garage.table.fuel')}
                       </th>
                       <th className="text-right py-2 px-3 text-sm font-medium text-garage-text-muted">
-                        DEF
+                        {t('garage.table.def')}
                       </th>
                       <th className="text-right py-2 px-3 text-sm font-medium text-garage-text-muted">
-                        Total
+                        {t('garage.table.total')}
                       </th>
                     </tr>
                   </thead>
@@ -531,7 +528,7 @@ export default function GarageAnalytics() {
               </div>
             </>
           ) : (
-            <p className="text-garage-text-muted text-center py-8">No vehicle data available</p>
+            <p className="text-garage-text-muted text-center py-8">{t('garage.noVehicleData')}</p>
           )}
         </div>
       </div>
@@ -539,7 +536,7 @@ export default function GarageAnalytics() {
       {/* Monthly Spending Trend */}
       {trendData.length > 0 && (
         <div className="bg-garage-surface border border-garage-border rounded-lg p-6 mb-8">
-          <h2 className="text-xl font-bold mb-4 text-garage-text">Monthly Spending Trend</h2>
+          <h2 className="text-xl font-bold mb-4 text-garage-text">{t('garage.monthlySpendingTrend')}</h2>
           <ResponsiveContainer width="100%" height={300}>
             <RechartsBarChart data={trendData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#333" />
@@ -554,7 +551,12 @@ export default function GarageAnalytics() {
               <YAxis
                 stroke="#9E9E9E"
                 style={{ fontSize: '12px' }}
-                label={{ value: 'Cost ($)', angle: -90, position: 'insideLeft', fill: '#9E9E9E' }}
+                label={{
+                  value: t('garage.costAxis', { currency: currencyCode }),
+                  angle: -90,
+                  position: 'insideLeft',
+                  fill: '#9E9E9E',
+                }}
               />
               <Tooltip
                 cursor={false}
@@ -594,7 +596,7 @@ export default function GarageAnalytics() {
                   strokeWidth={2}
                   strokeDasharray="5 5"
                   dot={false}
-                  name="3-Month Avg"
+                  name={t('garage.rollingAvg3')}
                   connectNulls={false}
                 />
               )}
@@ -606,7 +608,7 @@ export default function GarageAnalytics() {
                   strokeWidth={2}
                   strokeDasharray="5 5"
                   dot={false}
-                  name="6-Month Avg"
+                  name={t('garage.rollingAvg6')}
                   connectNulls={false}
                 />
               )}

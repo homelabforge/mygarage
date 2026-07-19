@@ -137,7 +137,7 @@ export default function PropaneRecordList({ vin }: PropaneRecordListProps) {
                 <span>{system === 'metric' ? t('propaneList.totalLiters') : t('propaneList.totalGallons')}</span>
               </div>
               <div className="text-lg font-semibold text-garage-text">
-                {UnitFormatter.formatVolumeTotal(totalLiters, system).replace(' total', '')}
+                {UnitFormatter.formatVolumeShort(totalLiters, system)}
               </div>
             </div>
             {avgCostPerLiter !== null && (

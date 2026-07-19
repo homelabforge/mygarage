@@ -3,6 +3,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useParams, Link } from 'react-router-dom'
 import api from '../services/api'
 import { useUnitPreference } from '../hooks/useUnitPreference'
@@ -63,6 +64,7 @@ import { useCurrencySymbol } from '../hooks/useCurrencySymbol'
 import { useDateLocale } from '../hooks/useDateLocale'
 
 export default function Analytics() {
+  const { t } = useTranslation('analytics')
   const { vin } = useParams<{ vin: string }>()
   const { system, showBoth } = useUnitPreference()
   const { currencyCode, locale } = useCurrencyPreference()
@@ -116,16 +118,16 @@ export default function Analytics() {
           const parsed = JSON.parse(cached)
           setAnalytics(parsed.data)
           setFromCache(true)
-          setError('Offline: showing cached analytics snapshot.')
+          setError(t('vehicle.offlineCached'))
           setLoading(false)
           return
         }
       }
-      setError(error instanceof Error ? error.message : 'An error occurred')
+      setError(error instanceof Error ? error.message : t('vehicle.genericError'))
     } finally {
       setLoading(false)
     }
-  }, [vin])
+  }, [vin, t])
 
   useEffect(() => {
     fetchAnalytics()
@@ -162,7 +164,7 @@ export default function Analytics() {
 
   const handleCompare = async () => {
     if (!vin || !period1Start || !period1End || !period2Start || !period2End) {
-      alert('Please fill in all date fields')
+      alert(t('vehicle.fillAllDates'))
       return
     }
 
@@ -178,7 +180,7 @@ export default function Analytics() {
       setComparisonData(response.data)
     } catch (error) {
       console.error('Failed to fetch comparison data:', error)
-      alert('Failed to fetch comparison data')
+      alert(t('vehicle.comparisonFailed'))
     } finally {
       setComparisonLoading(false)
     }
@@ -306,7 +308,7 @@ export default function Analytics() {
   }
 
   const formatDate = (dateString: string | null): string => {
-    if (!dateString) return 'N/A'
+    if (!dateString) return t('vehicle.notAvailable')
     return formatDateForDisplay(dateString, {
       year: 'numeric',
       month: 'short',
@@ -340,9 +342,9 @@ export default function Analytics() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen" role="status" aria-label="Loading analytics">
+      <div className="flex items-center justify-center min-h-screen" role="status" aria-label={t('vehicle.loadingAria')}>
         <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-        <span className="sr-only">Loading analytics...</span>
+        <span className="sr-only">{t('vehicle.loading')}</span>
       </div>
     )
   }
@@ -351,13 +353,13 @@ export default function Analytics() {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="bg-danger/10 border border-danger rounded-lg p-6 text-center">
-          <p className="text-danger mb-4">{error || 'Analytics not found'}</p>
+          <p className="text-danger mb-4">{error || t('vehicle.notFound')}</p>
           <Link
             to={`/vehicles/${vin}`}
             className="inline-flex items-center space-x-2 px-4 py-2 bg-garage-surface border border-garage-border rounded-lg hover:bg-garage-bg transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span>Back to Vehicle</span>
+            <span>{t('vehicle.backToVehicle')}</span>
           </Link>
         </div>
       </div>
@@ -380,12 +382,12 @@ export default function Analytics() {
           className="inline-flex items-center space-x-2 text-primary hover:text-primary-dark mb-4"
         >
           <ArrowLeft className="w-4 h-4" />
-          <span>Back to Vehicle</span>
+          <span>{t('vehicle.backToVehicle')}</span>
         </Link>
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-garage-text mb-2">
-              Analytics & Reports
+              {t('vehicle.title')}
             </h1>
             <p className="text-garage-text-muted">{analytics.vehicle_name}</p>
           </div>
@@ -395,7 +397,7 @@ export default function Analytics() {
               className="px-4 py-2 bg-garage-surface border border-garage-border text-garage-text rounded-lg hover:bg-garage-surface-light transition-colors flex items-center gap-2"
             >
               <HelpCircle className="w-4 h-4" />
-              Help
+              {t('vehicle.help')}
             </button>
             <ExportMenu
               onExportCSV={exportToCSV}
@@ -409,7 +411,7 @@ export default function Analytics() {
         {fromCache && (
           <div className="mt-2 inline-flex items-center gap-2 text-xs text-amber-500">
             <AlertTriangle className="w-4 h-4" />
-            <span>Offline: showing cached analytics snapshot.</span>
+            <span>{t('vehicle.offlineCached')}</span>
           </div>
         )}
       </div>
@@ -418,19 +420,19 @@ export default function Analytics() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
         <div className="bg-garage-surface border border-garage-border rounded-lg p-6">
           <div className="mb-4">
-            <h3 className="text-lg font-semibold text-garage-text">Cost Projection</h3>
+            <h3 className="text-lg font-semibold text-garage-text">{t('vehicle.costProjection')}</h3>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <p className="text-xs text-garage-text-muted">Monthly Avg</p>
+              <p className="text-xs text-garage-text-muted">{t('vehicle.monthlyAvg')}</p>
               <p className="text-xl font-semibold text-garage-text">{formatCurrency(cost_projection.monthly_average, { currencyCode, locale })}</p>
             </div>
             <div>
-              <p className="text-xs text-garage-text-muted">Next 6 Months</p>
+              <p className="text-xs text-garage-text-muted">{t('vehicle.next6Months')}</p>
               <p className="text-xl font-semibold text-garage-text">{formatCurrency(cost_projection.six_month_projection, { currencyCode, locale })}</p>
             </div>
             <div>
-              <p className="text-xs text-garage-text-muted">Next 12 Months</p>
+              <p className="text-xs text-garage-text-muted">{t('vehicle.next12Months')}</p>
               <p className="text-xl font-semibold text-garage-text">{formatCurrency(cost_projection.twelve_month_projection, { currencyCode, locale })}</p>
             </div>
           </div>
@@ -440,11 +442,11 @@ export default function Analytics() {
         {isMotorized && (
           <div className="bg-garage-surface border border-garage-border rounded-lg p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-garage-text">Fuel Efficiency Alerts</h3>
+              <h3 className="text-lg font-semibold text-garage-text">{t('vehicle.fuelEfficiencyAlerts')}</h3>
               <Fuel className="w-5 h-5 text-garage-text-muted" />
             </div>
             {(!fuel_alerts || fuel_alerts.length === 0) && (
-              <p className="text-sm text-garage-text-muted">No fuel efficiency concerns detected.</p>
+              <p className="text-sm text-garage-text-muted">{t('vehicle.noFuelConcerns')}</p>
             )}
             <div className="space-y-3">
               {fuel_alerts?.map((alert, idx) => (
@@ -459,7 +461,10 @@ export default function Analytics() {
                   <p className="text-sm">{alert.message}</p>
                   {(alert.recent_l_per_100km || alert.baseline_l_per_100km) && (
                     <p className="text-xs mt-2">
-                      Recent: {alert.recent_l_per_100km ? UnitFormatter.formatFuelEconomy(parseFloat(alert.recent_l_per_100km), system, showBoth) : '—'} • Baseline: {alert.baseline_l_per_100km ? UnitFormatter.formatFuelEconomy(parseFloat(alert.baseline_l_per_100km), system, showBoth) : '—'}
+                      {t('vehicle.recentBaseline', {
+                        recent: alert.recent_l_per_100km ? UnitFormatter.formatFuelEconomy(parseFloat(alert.recent_l_per_100km), system, showBoth) : '—',
+                        baseline: alert.baseline_l_per_100km ? UnitFormatter.formatFuelEconomy(parseFloat(alert.baseline_l_per_100km), system, showBoth) : '—',
+                      })}
                     </p>
                   )}
                 </div>
@@ -471,11 +476,11 @@ export default function Analytics() {
         {/* Spending Anomaly Alerts */}
         <div className="bg-garage-surface border border-garage-border rounded-lg p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-garage-text">Spending Anomalies</h3>
+            <h3 className="text-lg font-semibold text-garage-text">{t('vehicle.spendingAnomalies')}</h3>
             <AlertTriangle className="w-5 h-5 text-garage-text-muted" />
           </div>
           {(!cost_analysis.anomalies || cost_analysis.anomalies.length === 0) && (
-            <p className="text-sm text-garage-text-muted">No unusual spending patterns detected.</p>
+            <p className="text-sm text-garage-text-muted">{t('vehicle.noAnomalies')}</p>
           )}
           <div className="space-y-3">
             {cost_analysis.anomalies?.map((alert, idx) => (
@@ -493,7 +498,11 @@ export default function Analytics() {
                 </div>
                 <p className="text-sm">{alert.message}</p>
                 <p className="text-xs mt-2">
-                  Spent: ${parseFloat(alert.amount).toFixed(2)} • Avg: ${parseFloat(alert.baseline).toFixed(2)} • Deviation: {parseFloat(alert.deviation_percent).toFixed(1)}%
+                  {t('vehicle.anomalyStats', {
+                    spent: formatCurrency(alert.amount, { currencyCode, locale }),
+                    avg: formatCurrency(alert.baseline, { currencyCode, locale }),
+                    deviation: parseFloat(alert.deviation_percent).toFixed(1),
+                  })}
                 </p>
               </div>
             ))}
@@ -505,37 +514,37 @@ export default function Analytics() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <div className="bg-garage-surface border border-garage-border rounded-lg p-6">
           <div className="mb-2">
-            <h3 className="text-sm font-medium text-garage-text-muted">Total Cost</h3>
+            <h3 className="text-sm font-medium text-garage-text-muted">{t('vehicle.totalCost')}</h3>
           </div>
           <p className="text-2xl font-bold text-garage-text">
             {formatCurrency(cost_analysis.total_cost, { currencyCode, locale })}
           </p>
           <p className="text-xs text-garage-text-muted mt-1">
-            {cost_analysis.months_tracked} months tracked
+            {t('vehicle.monthsTracked', { count: cost_analysis.months_tracked })}
           </p>
         </div>
 
         <div className="bg-garage-surface border border-garage-border rounded-lg p-6">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-medium text-garage-text-muted">Avg Monthly</h3>
+            <h3 className="text-sm font-medium text-garage-text-muted">{t('vehicle.avgMonthly')}</h3>
             <BarChart3 className="w-5 h-5 text-garage-text-muted" />
           </div>
           <p className="text-2xl font-bold text-garage-text">
             {formatCurrency(cost_analysis.average_monthly_cost, { currencyCode, locale })}
           </p>
           <p className="text-xs text-garage-text-muted mt-1">
-            {cost_analysis.service_count + cost_analysis.fuel_count} records
+            {t('vehicle.recordsCount', { count: cost_analysis.service_count + cost_analysis.fuel_count })}
           </p>
         </div>
 
         {isMotorized && (
           <div className="bg-garage-surface border border-garage-border rounded-lg p-6">
             <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-garage-text-muted">Avg Fuel Economy</h3>
+              <h3 className="text-sm font-medium text-garage-text-muted">{t('vehicle.avgFuelEconomy')}</h3>
               <Fuel className="w-5 h-5 text-garage-text-muted" />
             </div>
             <p className="text-2xl font-bold text-garage-text">
-              {fuel_economy.average_l_per_100km ? UnitFormatter.formatFuelEconomy(parseFloat(fuel_economy.average_l_per_100km), system, showBoth) : 'N/A'}
+              {fuel_economy.average_l_per_100km ? UnitFormatter.formatFuelEconomy(parseFloat(fuel_economy.average_l_per_100km), system, showBoth) : t('vehicle.notAvailable')}
             </p>
             <div className="flex items-center gap-2 mt-1">
               {getTrendIcon(fuel_economy.trend)}
@@ -551,11 +560,11 @@ export default function Analytics() {
               <LineChart className="w-5 h-5 text-garage-text-muted" />
             </div>
             <p className="text-2xl font-bold text-garage-text">
-              {cost_analysis.cost_per_km ? UnitFormatter.formatCostPerDistance(parseFloat(String(cost_analysis.cost_per_km)), system, currencyCode, locale) : 'N/A'}
+              {cost_analysis.cost_per_km ? UnitFormatter.formatCostPerDistance(parseFloat(String(cost_analysis.cost_per_km)), system, currencyCode, locale) : t('vehicle.notAvailable')}
             </p>
             {analytics.total_km_driven && (
               <p className="text-xs text-garage-text-muted mt-1">
-                {UnitFormatter.formatDistance(parseFloat(String(analytics.total_km_driven)), system, showBoth)} driven
+                {t('vehicle.distanceDriven', { distance: UnitFormatter.formatDistance(parseFloat(String(analytics.total_km_driven)), system, showBoth) })}
               </p>
             )}
           </div>
@@ -567,20 +576,20 @@ export default function Analytics() {
         <div className="bg-garage-surface border border-garage-border rounded-lg p-6 mb-8">
           <div className="flex items-center gap-2 mb-4">
             <TrendingUp className="w-5 h-5 text-garage-text-muted" />
-            <h2 className="text-xl font-bold text-garage-text">Spending Trends</h2>
+            <h2 className="text-xl font-bold text-garage-text">{t('vehicle.spendingTrends')}</h2>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {cost_analysis.rolling_avg_3m && (
               <div className="p-4 bg-garage-bg border border-garage-border rounded-lg">
                 <h3 className="text-sm font-medium text-garage-text-muted mb-2">
-                  3-Month Rolling Average
+                  {t('vehicle.rollingAvg3Title')}
                 </h3>
                 <p className="text-2xl font-bold text-garage-text">
                   {formatCurrency(cost_analysis.rolling_avg_3m, { currencyCode, locale })}
                 </p>
                 <p className="text-xs text-garage-text-muted mt-1">
-                  Recent short-term trend
+                  {t('vehicle.rollingAvg3Desc')}
                 </p>
               </div>
             )}
@@ -588,13 +597,13 @@ export default function Analytics() {
             {cost_analysis.rolling_avg_6m && (
               <div className="p-4 bg-garage-bg border border-garage-border rounded-lg">
                 <h3 className="text-sm font-medium text-garage-text-muted mb-2">
-                  6-Month Rolling Average
+                  {t('vehicle.rollingAvg6Title')}
                 </h3>
                 <p className="text-2xl font-bold text-garage-text">
                   {formatCurrency(cost_analysis.rolling_avg_6m, { currencyCode, locale })}
                 </p>
                 <p className="text-xs text-garage-text-muted mt-1">
-                  Smoothed medium-term trend
+                  {t('vehicle.rollingAvg6Desc')}
                 </p>
               </div>
             )}
@@ -602,13 +611,13 @@ export default function Analytics() {
             {cost_analysis.rolling_avg_12m && (
               <div className="p-4 bg-garage-bg border border-garage-border rounded-lg">
                 <h3 className="text-sm font-medium text-garage-text-muted mb-2">
-                  12-Month Rolling Average
+                  {t('vehicle.rollingAvg12Title')}
                 </h3>
                 <p className="text-2xl font-bold text-garage-text">
                   {formatCurrency(cost_analysis.rolling_avg_12m, { currencyCode, locale })}
                 </p>
                 <p className="text-xs text-garage-text-muted mt-1">
-                  Annual trend analysis
+                  {t('vehicle.rollingAvg12Desc')}
                 </p>
               </div>
             )}
@@ -620,26 +629,26 @@ export default function Analytics() {
                 {cost_analysis.trend_direction === 'increasing' && (
                   <>
                     <TrendingUp className="w-5 h-5 text-danger" />
-                    <span className="font-medium text-danger">Increasing Trend</span>
+                    <span className="font-medium text-danger">{t('vehicle.trendIncreasing')}</span>
                   </>
                 )}
                 {cost_analysis.trend_direction === 'decreasing' && (
                   <>
                     <TrendingDown className="w-5 h-5 text-success" />
-                    <span className="font-medium text-success">Decreasing Trend</span>
+                    <span className="font-medium text-success">{t('vehicle.trendDecreasing')}</span>
                   </>
                 )}
                 {cost_analysis.trend_direction === 'stable' && (
                   <>
                     <Minus className="w-5 h-5 text-garage-text-muted" />
-                    <span className="font-medium text-garage-text-muted">Stable Spending</span>
+                    <span className="font-medium text-garage-text-muted">{t('vehicle.trendStable')}</span>
                   </>
                 )}
               </div>
               <p className="text-sm text-garage-text-muted">
-                {cost_analysis.trend_direction === 'increasing' && 'Your costs are trending upward over time'}
-                {cost_analysis.trend_direction === 'decreasing' && 'Your costs are trending downward over time'}
-                {cost_analysis.trend_direction === 'stable' && 'Your spending pattern is relatively consistent'}
+                {cost_analysis.trend_direction === 'increasing' && t('vehicle.trendIncreasingDesc')}
+                {cost_analysis.trend_direction === 'decreasing' && t('vehicle.trendDecreasingDesc')}
+                {cost_analysis.trend_direction === 'stable' && t('vehicle.trendStableDesc')}
               </p>
             </div>
           </div>
@@ -651,7 +660,7 @@ export default function Analytics() {
         <div className="bg-garage-surface border border-garage-border rounded-lg p-6 mb-8">
           <div className="flex items-center gap-2 mb-4">
             <LineChart className="w-5 h-5 text-garage-text-muted" />
-            <h2 className="text-xl font-bold text-garage-text">Cost Trends with Rolling Averages</h2>
+            <h2 className="text-xl font-bold text-garage-text">{t('vehicle.costTrendsTitle')}</h2>
           </div>
 
           <div className="bg-garage-bg rounded-lg p-4">
@@ -693,7 +702,7 @@ export default function Analytics() {
                 <YAxis
                   stroke="#9E9E9E"
                   style={{ fontSize: '12px' }}
-                  label={{ value: `Cost (${currencySymbol})`, angle: -90, position: 'insideLeft', fill: '#9E9E9E' }}
+                  label={{ value: t('vehicle.costAxis', { currency: currencySymbol }), angle: -90, position: 'insideLeft', fill: '#9E9E9E' }}
                 />
                 <Tooltip
                   cursor={false}
@@ -705,7 +714,7 @@ export default function Analytics() {
                         <div style={{ backgroundColor: '#1a1f28', border: '1px solid #3a4050', borderRadius: '8px', padding: '12px', color: '#e4e6eb' }}>
                           <p style={{ fontWeight: '600', marginBottom: '8px' }}>{label}</p>
                           {payload.map((entry, index) => {
-                            const entryName = entry.name?.toString() ?? entry.dataKey?.toString() ?? 'Value'
+                            const entryName = entry.name?.toString() ?? entry.dataKey?.toString() ?? t('vehicle.value')
                             const rawValue = Array.isArray(entry.value) ? entry.value[0] : entry.value
                             const numericValue = typeof rawValue === 'number' ? rawValue : Number(rawValue ?? 0)
                             if (numericValue === 0 || numericValue === null) return null
@@ -734,7 +743,7 @@ export default function Analytics() {
                   strokeWidth={3}
                   dot={{ fill: '#3B82F6', r: 5 }}
                   activeDot={{ r: 7 }}
-                  name="Actual Monthly Cost"
+                  name={t('vehicle.legendActualCost')}
                 />
                 <Line
                   type="monotone"
@@ -743,7 +752,7 @@ export default function Analytics() {
                   strokeWidth={2}
                   strokeDasharray="5 5"
                   dot={false}
-                  name="3-Month Rolling Avg"
+                  name={t('vehicle.legendRollingAvg3')}
                 />
                 <Line
                   type="monotone"
@@ -752,26 +761,26 @@ export default function Analytics() {
                   strokeWidth={2}
                   strokeDasharray="3 3"
                   dot={false}
-                  name="6-Month Rolling Avg"
+                  name={t('vehicle.legendRollingAvg6')}
                 />
               </RechartsLineChart>
             </ResponsiveContainer>
           </div>
 
           <div className="mt-4 p-4 bg-garage-bg rounded-lg">
-            <h3 className="text-sm font-semibold text-garage-text mb-2">Chart Legend</h3>
+            <h3 className="text-sm font-semibold text-garage-text mb-2">{t('vehicle.chartLegend')}</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm text-garage-text-muted">
               <div className="flex items-center gap-2">
                 <div className="w-4 h-0.5 bg-primary"></div>
-                <span>Actual monthly cost (solid blue)</span>
+                <span>{t('vehicle.legendDescActual')}</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-4 h-0.5 bg-success border-dashed"></div>
-                <span>3-month average (dashed green)</span>
+                <span>{t('vehicle.legendDesc3m')}</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-4 h-0.5 bg-warning border-dashed"></div>
-                <span>6-month average (dashed orange)</span>
+                <span>{t('vehicle.legendDesc6m')}</span>
               </div>
             </div>
           </div>
@@ -783,7 +792,7 @@ export default function Analytics() {
         <div className="bg-garage-surface border border-garage-border rounded-lg p-6 mb-8">
           <div className="flex items-center gap-2 mb-4">
             <Calendar className="w-5 h-5 text-garage-text-muted" />
-            <h2 className="text-xl font-bold text-garage-text">Maintenance Predictions</h2>
+            <h2 className="text-xl font-bold text-garage-text">{t('vehicle.maintenancePredictions')}</h2>
           </div>
           <div className="space-y-3">
             {predictions.slice(0, 5).map((prediction, idx) => (
@@ -797,14 +806,14 @@ export default function Analytics() {
                     {getConfidenceBadge(prediction.confidence)}
                     {prediction.has_schedule_item && (
                       <span className="px-2 py-1 text-xs rounded bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200 border border-purple-300 dark:border-purple-700">
-                        SCHEDULE SET
+                        {t('vehicle.scheduleSet')}
                       </span>
                     )}
                   </div>
                   <div className="space-y-2">
                     {/* AI Prediction */}
                     <div className="flex items-center gap-4 text-sm">
-                      <span className="font-medium text-blue-600 dark:text-blue-400">AI predicts:</span>
+                      <span className="font-medium text-blue-600 dark:text-blue-400">{t('vehicle.aiPredicts')}</span>
                       {prediction.predicted_date && (
                         <span className="text-garage-text-muted">{formatDate(prediction.predicted_date)}</span>
                       )}
@@ -815,7 +824,7 @@ export default function Analytics() {
                     {/* Scheduled Maintenance if exists */}
                     {prediction.has_schedule_item && (
                       <div className="flex items-center gap-4 text-sm">
-                        <span className="font-medium text-purple-600 dark:text-purple-400">Scheduled:</span>
+                        <span className="font-medium text-purple-600 dark:text-purple-400">{t('vehicle.scheduled')}</span>
                         {prediction.schedule_item_next_date && (
                           <span className="text-garage-text-muted">{formatDate(prediction.schedule_item_next_date)}</span>
                         )}
@@ -833,14 +842,14 @@ export default function Analytics() {
                       prediction.days_until_due < 60 ? 'text-warning' :
                       'text-garage-text-muted'
                     }`}>
-                      {prediction.days_until_due < 0 ? 'Overdue' :
-                       prediction.days_until_due === 0 ? 'Due today' :
-                       `${prediction.days_until_due} days`}
+                      {prediction.days_until_due < 0 ? t('vehicle.overdue') :
+                       prediction.days_until_due === 0 ? t('vehicle.dueToday') :
+                       t('vehicle.daysCount', { count: prediction.days_until_due })}
                     </p>
                   )}
                   {prediction.km_until_due != null && (
                     <p className="text-xs text-garage-text-muted mt-1">
-                      {parseFloat(prediction.km_until_due) < 0 ? 'Past mileage' : UnitFormatter.formatDistance(parseFloat(prediction.km_until_due), system, false)}
+                      {parseFloat(prediction.km_until_due) < 0 ? t('vehicle.pastMileage') : UnitFormatter.formatDistance(parseFloat(prediction.km_until_due), system, false)}
                     </p>
                   )}
                 </div>
@@ -856,7 +865,7 @@ export default function Analytics() {
         <div className="bg-garage-surface border border-garage-border rounded-lg p-6">
           <div className="flex items-center gap-2 mb-4">
             <PieChart className="w-5 h-5 text-garage-text-muted" />
-            <h2 className="text-xl font-bold text-garage-text">Cost by Service Type</h2>
+            <h2 className="text-xl font-bold text-garage-text">{t('vehicle.costByServiceType')}</h2>
           </div>
 
           {/* Pie Chart */}
@@ -876,7 +885,7 @@ export default function Analytics() {
                     if (typeof percent !== 'number') {
                       return name?.toString() ?? ''
                     }
-                    const labelName = name?.toString() ?? 'Other'
+                    const labelName = name?.toString() ?? t('vehicle.other')
                     return `${labelName} ${(percent * 100).toFixed(0)}%`
                   }}
                   outerRadius={100}
@@ -895,7 +904,7 @@ export default function Analytics() {
                     const { active, payload } = tooltipProps
                     if (active && payload && payload.length) {
                       const dataPoint = payload[0]
-                      const dataName = dataPoint.name?.toString() ?? 'Total'
+                      const dataName = dataPoint.name?.toString() ?? t('vehicle.total')
                       const rawValue = Array.isArray(dataPoint.value) ? dataPoint.value[0] : dataPoint.value
                       const numericValue = typeof rawValue === 'number' ? rawValue : Number(rawValue ?? 0)
 
@@ -920,7 +929,10 @@ export default function Analytics() {
                 <div className="flex-1">
                   <p className="font-medium text-garage-text">{item.service_type}</p>
                   <p className="text-xs text-garage-text-muted">
-                    {item.count} service{item.count !== 1 ? 's' : ''} • Avg: {formatCurrency(item.average_cost, { currencyCode, locale })}
+                    {t('vehicle.serviceCountAvg', {
+                      count: item.count,
+                      avg: formatCurrency(item.average_cost, { currencyCode, locale }),
+                    })}
                   </p>
                 </div>
                 <p className="font-bold text-garage-text">{formatCurrency(item.total_cost, { currencyCode, locale })}</p>
@@ -933,7 +945,7 @@ export default function Analytics() {
         <div className="bg-garage-surface border border-garage-border rounded-lg p-6">
           <div className="flex items-center gap-2 mb-4">
             <BarChart3 className="w-5 h-5 text-garage-text-muted" />
-            <h2 className="text-xl font-bold text-garage-text">Monthly Cost Trend</h2>
+            <h2 className="text-xl font-bold text-garage-text">{t('vehicle.monthlyCostTrend')}</h2>
           </div>
 
           {/* Bar Chart */}
@@ -961,7 +973,7 @@ export default function Analytics() {
                 <YAxis
                   stroke="#9E9E9E"
                   style={{ fontSize: '12px' }}
-                  label={{ value: `Cost (${currencySymbol})`, angle: -90, position: 'insideLeft', fill: '#9E9E9E' }}
+                  label={{ value: t('vehicle.costAxis', { currency: currencySymbol }), angle: -90, position: 'insideLeft', fill: '#9E9E9E' }}
                 />
                 <Tooltip
                   cursor={false}
@@ -973,7 +985,7 @@ export default function Analytics() {
                         <div style={{ backgroundColor: '#1a1f28', border: '1px solid #3a4050', borderRadius: '8px', padding: '12px', color: '#e4e6eb' }}>
                           <p style={{ fontWeight: '600', marginBottom: '8px' }}>{label}</p>
                           {payload.map((entry, index) => {
-                            const entryName = entry.name?.toString() ?? entry.dataKey?.toString() ?? 'Value'
+                            const entryName = entry.name?.toString() ?? entry.dataKey?.toString() ?? t('vehicle.value')
                             const rawValue = Array.isArray(entry.value) ? entry.value[0] : entry.value
                             const numericValue = typeof rawValue === 'number' ? rawValue : Number(rawValue ?? 0)
                             return (
@@ -994,10 +1006,10 @@ export default function Analytics() {
                 <Legend
                   wrapperStyle={{ paddingTop: '10px', fontSize: '12px' }}
                 />
-                <Bar dataKey="Service" fill="#3B82F6" stackId="a" />
-                <Bar dataKey="Fuel" fill="#10B981" stackId="a" />
-                {defAnalysis && <Bar dataKey="DEF" fill="#14B8A6" stackId="a" />}
-                {hasPropane && <Bar dataKey="Spot Rental" fill="#F59E0B" stackId="a" />}
+                <Bar dataKey="Service" fill="#3B82F6" stackId="a" name={t('vehicle.categoryService')} />
+                <Bar dataKey="Fuel" fill="#10B981" stackId="a" name={t('vehicle.categoryFuel')} />
+                {defAnalysis && <Bar dataKey="DEF" fill="#14B8A6" stackId="a" name={t('vehicle.categoryDef')} />}
+                {hasPropane && <Bar dataKey="Spot Rental" fill="#F59E0B" stackId="a" name={t('vehicle.categorySpotRental')} />}
               </RechartsBarChart>
             </ResponsiveContainer>
           </div>
@@ -1011,9 +1023,12 @@ export default function Analytics() {
                     {month.month_name} {month.year}
                   </p>
                   <p className="text-xs text-garage-text-muted">
-                    Service: {formatCurrency(month.total_service_cost, { currencyCode, locale })} • Fuel: {formatCurrency(month.total_fuel_cost, { currencyCode, locale })}
-                    {parseFloat(month.total_def_cost) > 0 && ` • DEF: ${formatCurrency(month.total_def_cost, { currencyCode, locale })}`}
-                    {parseFloat(month.total_spot_rental_cost) > 0 && ` • Spot Rental: ${formatCurrency(month.total_spot_rental_cost, { currencyCode, locale })}`}
+                    {t('vehicle.monthServiceFuel', {
+                      service: formatCurrency(month.total_service_cost, { currencyCode, locale }),
+                      fuel: formatCurrency(month.total_fuel_cost, { currencyCode, locale }),
+                    })}
+                    {parseFloat(month.total_def_cost) > 0 && t('vehicle.monthDefSuffix', { value: formatCurrency(month.total_def_cost, { currencyCode, locale }) })}
+                    {parseFloat(month.total_spot_rental_cost) > 0 && t('vehicle.monthSpotRentalSuffix', { value: formatCurrency(month.total_spot_rental_cost, { currencyCode, locale }) })}
                   </p>
                 </div>
                 <p className="font-bold text-garage-text">{formatCurrency(month.total_cost, { currencyCode, locale })}</p>
@@ -1028,30 +1043,30 @@ export default function Analytics() {
         <div className="bg-garage-surface border border-garage-border rounded-lg p-6 mb-8">
           <div className="flex items-center gap-2 mb-4">
             <Fuel className="w-5 h-5 text-garage-text-muted" />
-            <h2 className="text-xl font-bold text-garage-text">Fuel Economy Analysis</h2>
+            <h2 className="text-xl font-bold text-garage-text">{t('vehicle.fuelEconomyAnalysis')}</h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
             <div className="text-center p-4 bg-garage-bg rounded-lg">
-              <p className="text-sm text-garage-text-muted mb-1">Average</p>
-              <p className="text-2xl font-bold text-garage-text">{fuel_economy.average_l_per_100km ? UnitFormatter.formatFuelEconomy(parseFloat(fuel_economy.average_l_per_100km), system, showBoth) : 'N/A'}</p>
+              <p className="text-sm text-garage-text-muted mb-1">{t('vehicle.average')}</p>
+              <p className="text-2xl font-bold text-garage-text">{fuel_economy.average_l_per_100km ? UnitFormatter.formatFuelEconomy(parseFloat(fuel_economy.average_l_per_100km), system, showBoth) : t('vehicle.notAvailable')}</p>
             </div>
             <div className="text-center p-4 bg-garage-bg rounded-lg">
-              <p className="text-sm text-garage-text-muted mb-1">Best</p>
-              <p className="text-2xl font-bold text-green-500">{fuel_economy.best_l_per_100km ? UnitFormatter.formatFuelEconomy(parseFloat(fuel_economy.best_l_per_100km), system, showBoth) : 'N/A'}</p>
+              <p className="text-sm text-garage-text-muted mb-1">{t('vehicle.best')}</p>
+              <p className="text-2xl font-bold text-green-500">{fuel_economy.best_l_per_100km ? UnitFormatter.formatFuelEconomy(parseFloat(fuel_economy.best_l_per_100km), system, showBoth) : t('vehicle.notAvailable')}</p>
             </div>
             <div className="text-center p-4 bg-garage-bg rounded-lg">
-              <p className="text-sm text-garage-text-muted mb-1">Worst</p>
-              <p className="text-2xl font-bold text-red-500">{fuel_economy.worst_l_per_100km ? UnitFormatter.formatFuelEconomy(parseFloat(fuel_economy.worst_l_per_100km), system, showBoth) : 'N/A'}</p>
+              <p className="text-sm text-garage-text-muted mb-1">{t('vehicle.worst')}</p>
+              <p className="text-2xl font-bold text-red-500">{fuel_economy.worst_l_per_100km ? UnitFormatter.formatFuelEconomy(parseFloat(fuel_economy.worst_l_per_100km), system, showBoth) : t('vehicle.notAvailable')}</p>
             </div>
             <div className="text-center p-4 bg-garage-bg rounded-lg">
-              <p className="text-sm text-garage-text-muted mb-1">Latest Fill-Up</p>
-              <p className="text-2xl font-bold text-primary">{fuel_economy.recent_l_per_100km ? UnitFormatter.formatFuelEconomy(parseFloat(fuel_economy.recent_l_per_100km), system, showBoth) : 'N/A'}</p>
+              <p className="text-sm text-garage-text-muted mb-1">{t('vehicle.latestFillUp')}</p>
+              <p className="text-2xl font-bold text-primary">{fuel_economy.recent_l_per_100km ? UnitFormatter.formatFuelEconomy(parseFloat(fuel_economy.recent_l_per_100km), system, showBoth) : t('vehicle.notAvailable')}</p>
             </div>
           </div>
 
           {/* Fuel Economy Trend Chart */}
           <div className="mb-6 bg-garage-bg rounded-lg p-4">
-            <h3 className="text-sm font-medium text-garage-text-muted mb-4">Fuel Economy Trend Over Time</h3>
+            <h3 className="text-sm font-medium text-garage-text-muted mb-4">{t('vehicle.fuelEconomyTrendTitle')}</h3>
             <ResponsiveContainer width="100%" height={300}>
               <RechartsLineChart
                 data={fuel_economy.data_points.map(point => {
@@ -1111,7 +1126,7 @@ export default function Analytics() {
                   strokeWidth={2}
                   dot={{ fill: '#3B82F6', r: 4 }}
                   activeDot={{ r: 6 }}
-                  name={`Fuel Economy (${UnitFormatter.getFuelEconomyUnit(system)})`}
+                  name={t('vehicle.fuelEconomyUnitLabel', { unit: UnitFormatter.getFuelEconomyUnit(system) })}
                   connectNulls
                 />
               </RechartsLineChart>
@@ -1122,11 +1137,11 @@ export default function Analytics() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-garage-border">
-                  <th className="text-left py-2 px-4 text-sm font-medium text-garage-text-muted">Date</th>
-                  <th className="text-right py-2 px-4 text-sm font-medium text-garage-text-muted">Fuel Economy</th>
-                  <th className="text-right py-2 px-4 text-sm font-medium text-garage-text-muted">Mileage ({UnitFormatter.getDistanceUnit(system)})</th>
-                  <th className="text-right py-2 px-4 text-sm font-medium text-garage-text-muted">Volume ({UnitFormatter.getVolumeUnit(system)})</th>
-                  <th className="text-right py-2 px-4 text-sm font-medium text-garage-text-muted">Cost</th>
+                  <th className="text-left py-2 px-4 text-sm font-medium text-garage-text-muted">{t('vehicle.table.date')}</th>
+                  <th className="text-right py-2 px-4 text-sm font-medium text-garage-text-muted">{t('vehicle.table.fuelEconomy')}</th>
+                  <th className="text-right py-2 px-4 text-sm font-medium text-garage-text-muted">{t('vehicle.table.mileage', { unit: UnitFormatter.getDistanceUnit(system) })}</th>
+                  <th className="text-right py-2 px-4 text-sm font-medium text-garage-text-muted">{t('vehicle.table.volume', { unit: UnitFormatter.getVolumeUnit(system) })}</th>
+                  <th className="text-right py-2 px-4 text-sm font-medium text-garage-text-muted">{t('vehicle.table.cost')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -1150,27 +1165,27 @@ export default function Analytics() {
         <div className="bg-garage-surface border border-garage-border rounded-lg p-6 mb-8">
           <div className="flex items-center gap-2 mb-4">
             <Fuel className="w-5 h-5 text-garage-text-muted" />
-            <h2 className="text-xl font-bold text-garage-text">Propane Analysis</h2>
+            <h2 className="text-xl font-bold text-garage-text">{t('vehicle.propaneAnalysis')}</h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div className="text-center p-4 bg-garage-bg rounded-lg">
-              <p className="text-sm text-garage-text-muted mb-1">Total Spent</p>
+              <p className="text-sm text-garage-text-muted mb-1">{t('vehicle.totalSpent')}</p>
               <p className="text-2xl font-bold text-garage-text">
                 {formatCurrency(propane.total_spent, { currencyCode, locale })}
               </p>
             </div>
             <div className="text-center p-4 bg-garage-bg rounded-lg">
-              <p className="text-sm text-garage-text-muted mb-1">{system === 'metric' ? 'Total Liters' : 'Total Gallons'}</p>
+              <p className="text-sm text-garage-text-muted mb-1">{system === 'metric' ? t('vehicle.totalLiters') : t('vehicle.totalGallons')}</p>
               <p className="text-2xl font-bold text-garage-text">
-                {UnitFormatter.formatVolumeTotal(parseFloat(propane.total_liters), system).replace(' total', '')}
+                {UnitFormatter.formatVolumeShort(parseFloat(propane.total_liters), system)}
               </p>
             </div>
             <div className="text-center p-4 bg-garage-bg rounded-lg">
-              <p className="text-sm text-garage-text-muted mb-1">Avg Price/{UnitFormatter.getVolumeUnit(system)}</p>
+              <p className="text-sm text-garage-text-muted mb-1">{t('vehicle.avgPricePerUnit', { unit: UnitFormatter.getVolumeUnit(system) })}</p>
               <p className="text-2xl font-bold text-primary">
                 {propane.avg_price_per_liter
                   ? UnitFormatter.formatCostPerVolume(parseFloat(propane.avg_price_per_liter), system, currencyCode, locale)
-                  : 'N/A'}
+                  : t('vehicle.notAvailable')}
               </p>
             </div>
           </div>
@@ -1178,7 +1193,7 @@ export default function Analytics() {
           {/* Propane Cost Trend Chart */}
           {propane.monthly_trend && propane.monthly_trend.length > 0 && (
             <div className="mb-6 bg-garage-bg rounded-lg p-4">
-              <h3 className="text-sm font-medium text-garage-text-muted mb-4">Monthly Propane Costs</h3>
+              <h3 className="text-sm font-medium text-garage-text-muted mb-4">{t('vehicle.monthlyPropaneCosts')}</h3>
               <ResponsiveContainer width="100%" height={300}>
                 <RechartsBarChart data={propane.monthly_trend}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
@@ -1204,7 +1219,7 @@ export default function Analytics() {
                     }}
                   />
                   <Legend />
-                  <Bar dataKey="total_cost" fill="#3B82F6" name="Total Cost" />
+                  <Bar dataKey="total_cost" fill="#3B82F6" name={t('vehicle.totalCost')} />
                 </RechartsBarChart>
               </ResponsiveContainer>
             </div>
@@ -1216,23 +1231,23 @@ export default function Analytics() {
       {hasPropane && spotRental && spotRental.billing_count > 0 && (
         <div className="bg-garage-surface border border-garage-border rounded-lg p-6 mb-8">
           <div className="mb-4">
-            <h2 className="text-xl font-bold text-garage-text">Spot Rental Analysis</h2>
+            <h2 className="text-xl font-bold text-garage-text">{t('vehicle.spotRentalAnalysis')}</h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div className="text-center p-4 bg-garage-bg rounded-lg">
-              <p className="text-sm text-garage-text-muted mb-1">Total Cost</p>
+              <p className="text-sm text-garage-text-muted mb-1">{t('vehicle.totalCost')}</p>
               <p className="text-2xl font-bold text-garage-text">
                 {formatCurrency(spotRental.total_cost, { currencyCode, locale })}
               </p>
             </div>
             <div className="text-center p-4 bg-garage-bg rounded-lg">
-              <p className="text-sm text-garage-text-muted mb-1">Billing Periods</p>
+              <p className="text-sm text-garage-text-muted mb-1">{t('vehicle.billingPeriods')}</p>
               <p className="text-2xl font-bold text-garage-text">
                 {spotRental.billing_count}
               </p>
             </div>
             <div className="text-center p-4 bg-garage-bg rounded-lg">
-              <p className="text-sm text-garage-text-muted mb-1">Monthly Average</p>
+              <p className="text-sm text-garage-text-muted mb-1">{t('vehicle.monthlyAverage')}</p>
               <p className="text-2xl font-bold text-primary">
                 {formatCurrency(spotRental.monthly_average, { currencyCode, locale })}
               </p>
@@ -1242,7 +1257,7 @@ export default function Analytics() {
           {/* Spot Rental Cost Trend Chart */}
           {spotRental.monthly_trend && spotRental.monthly_trend.length > 0 && (
             <div className="bg-garage-bg rounded-lg p-4">
-              <h3 className="text-sm font-medium text-garage-text-muted mb-4">Monthly Spot Rental Costs</h3>
+              <h3 className="text-sm font-medium text-garage-text-muted mb-4">{t('vehicle.monthlySpotRentalCosts')}</h3>
               <ResponsiveContainer width="100%" height={300}>
                 <RechartsBarChart data={spotRental.monthly_trend}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
@@ -1254,11 +1269,11 @@ export default function Analytics() {
                     content={({ active, payload, label }) => {
                       if (active && payload && payload.length) {
                         const labels: Record<string, string> = {
-                          total_cost: 'Total',
-                          monthly_rate: 'Monthly Rate',
-                          electric: 'Electric',
-                          water: 'Water',
-                          waste: 'Waste',
+                          total_cost: t('vehicle.total'),
+                          monthly_rate: t('vehicle.monthlyRate'),
+                          electric: t('vehicle.electric'),
+                          water: t('vehicle.water'),
+                          waste: t('vehicle.waste'),
                         }
                         return (
                           <div style={{ backgroundColor: '#1a1f28', border: '1px solid #3a4050', borderRadius: '8px', padding: '12px', color: '#e4e6eb' }}>
@@ -1275,10 +1290,10 @@ export default function Analytics() {
                     }}
                   />
                   <Legend />
-                  <Bar dataKey="monthly_rate" stackId="a" fill="#3B82F6" name="Monthly Rate" />
-                  <Bar dataKey="electric" stackId="a" fill="#FBBF24" name="Electric" />
-                  <Bar dataKey="water" stackId="a" fill="#10B981" name="Water" />
-                  <Bar dataKey="waste" stackId="a" fill="#8B5CF6" name="Waste" />
+                  <Bar dataKey="monthly_rate" stackId="a" fill="#3B82F6" name={t('vehicle.monthlyRate')} />
+                  <Bar dataKey="electric" stackId="a" fill="#FBBF24" name={t('vehicle.electric')} />
+                  <Bar dataKey="water" stackId="a" fill="#10B981" name={t('vehicle.water')} />
+                  <Bar dataKey="waste" stackId="a" fill="#8B5CF6" name={t('vehicle.waste')} />
                 </RechartsBarChart>
               </ResponsiveContainer>
             </div>
@@ -1291,19 +1306,19 @@ export default function Analytics() {
         <div className="bg-garage-surface border border-garage-border rounded-lg p-6 mb-8">
           <div className="flex items-center gap-2 mb-4">
             <Droplets className="w-5 h-5 text-teal-500" />
-            <h2 className="text-xl font-bold text-garage-text">DEF Analysis</h2>
+            <h2 className="text-xl font-bold text-garage-text">{t('vehicle.defAnalysis')}</h2>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="text-center p-4 bg-garage-bg rounded-lg">
-              <p className="text-sm text-garage-text-muted mb-1">Total Spent</p>
+              <p className="text-sm text-garage-text-muted mb-1">{t('vehicle.totalSpent')}</p>
               <p className="text-2xl font-bold text-garage-text">
                 {formatCurrency(defAnalysis.total_spent, { currencyCode, locale })}
               </p>
             </div>
             <div className="text-center p-4 bg-garage-bg rounded-lg">
-              <p className="text-sm text-garage-text-muted mb-1">{system === 'metric' ? 'Total Liters' : 'Total Gallons'}</p>
+              <p className="text-sm text-garage-text-muted mb-1">{system === 'metric' ? t('vehicle.totalLiters') : t('vehicle.totalGallons')}</p>
               <p className="text-2xl font-bold text-garage-text">
-                {UnitFormatter.formatVolumeTotal(parseFloat(defAnalysis.total_liters), system).replace(' total', '')}
+                {UnitFormatter.formatVolumeShort(parseFloat(defAnalysis.total_liters), system)}
               </p>
             </div>
             <div className="text-center p-4 bg-garage-bg rounded-lg">
@@ -1315,7 +1330,7 @@ export default function Analytics() {
               </p>
             </div>
             <div className="text-center p-4 bg-garage-bg rounded-lg">
-              <p className="text-sm text-garage-text-muted mb-1">Consumption Rate</p>
+              <p className="text-sm text-garage-text-muted mb-1">{t('vehicle.consumptionRate')}</p>
               <p className="text-2xl font-bold text-primary">
                 {defAnalysis.liters_per_1000_km
                   ? `${UnitFormatter.formatVolumePerDistance(parseFloat(defAnalysis.liters_per_1000_km), system)} ${UnitFormatter.getVolumePerDistanceLabel(system)}`
@@ -1331,7 +1346,7 @@ export default function Analytics() {
         <div className="bg-garage-surface border border-garage-border rounded-lg p-6 mb-8">
           <div className="flex items-center gap-2 mb-4">
             <Wrench className="w-5 h-5 text-garage-text-muted" />
-            <h2 className="text-xl font-bold text-garage-text">Service History Summary</h2>
+            <h2 className="text-xl font-bold text-garage-text">{t('vehicle.serviceHistorySummary')}</h2>
           </div>
           <div className="space-y-3">
             {service_history.slice(0, 10).map((item, idx) => (
@@ -1351,12 +1366,12 @@ export default function Analytics() {
                     {item.vendor_name && <span>{item.vendor_name}</span>}
                     {item.days_since_last && (
                       <span className="text-primary">
-                        {item.days_since_last} days since last {item.service_type.toLowerCase()}
+                        {t('vehicle.daysSinceLast', { count: item.days_since_last, type: item.service_type.toLowerCase() })}
                       </span>
                     )}
                     {item.km_since_last && (
                       <span className="text-primary">
-                        {UnitFormatter.formatDistance(parseFloat(item.km_since_last), system, false)} since last
+                        {t('vehicle.distanceSinceLast', { distance: UnitFormatter.formatDistance(parseFloat(item.km_since_last), system, false) })}
                       </span>
                     )}
                   </div>
@@ -1375,24 +1390,24 @@ export default function Analytics() {
         <div className="bg-garage-surface border border-garage-border rounded-lg p-6 mb-8">
           <div className="flex items-center gap-2 mb-4">
             <Wrench className="w-5 h-5 text-garage-text-muted" />
-            <h2 className="text-xl font-bold text-garage-text">Vendor Analysis</h2>
+            <h2 className="text-xl font-bold text-garage-text">{t('vehicle.vendorAnalysis')}</h2>
           </div>
 
           {/* Summary cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div className="p-4 bg-garage-bg border border-garage-border rounded-lg">
-              <h3 className="text-sm font-medium text-garage-text-muted mb-2">Total Vendors</h3>
+              <h3 className="text-sm font-medium text-garage-text-muted mb-2">{t('vehicle.totalVendors')}</h3>
               <p className="text-2xl font-bold text-garage-text">{vendorAnalytics.total_vendors}</p>
             </div>
             {vendorAnalytics.most_used_vendor && (
               <div className="p-4 bg-garage-bg border border-garage-border rounded-lg">
-                <h3 className="text-sm font-medium text-garage-text-muted mb-2">Most Used</h3>
+                <h3 className="text-sm font-medium text-garage-text-muted mb-2">{t('vehicle.mostUsed')}</h3>
                 <p className="text-lg font-bold text-garage-text">{vendorAnalytics.most_used_vendor}</p>
               </div>
             )}
             {vendorAnalytics.highest_spending_vendor && (
               <div className="p-4 bg-garage-bg border border-garage-border rounded-lg">
-                <h3 className="text-sm font-medium text-garage-text-muted mb-2">Highest Spending</h3>
+                <h3 className="text-sm font-medium text-garage-text-muted mb-2">{t('vehicle.highestSpending')}</h3>
                 <p className="text-lg font-bold text-garage-text">{vendorAnalytics.highest_spending_vendor}</p>
               </div>
             )}
@@ -1400,7 +1415,7 @@ export default function Analytics() {
 
           {/* Vendor Spending Bar Chart */}
           <div className="mb-6 bg-garage-bg rounded-lg p-4">
-            <h3 className="text-sm font-medium text-garage-text-muted mb-4">Spending by Vendor</h3>
+            <h3 className="text-sm font-medium text-garage-text-muted mb-4">{t('vehicle.spendingByVendor')}</h3>
             <ResponsiveContainer width="100%" height={300}>
               <RechartsBarChart
                 data={vendorAnalytics.vendors
@@ -1420,7 +1435,7 @@ export default function Analytics() {
                   type="number"
                   stroke="#9E9E9E"
                   style={{ fontSize: '12px' }}
-                  label={{ value: `Total Spent (${currencySymbol})`, position: 'insideBottom', offset: -5, fill: '#9E9E9E' }}
+                  label={{ value: t('vehicle.totalSpentAxis', { currency: currencySymbol }), position: 'insideBottom', offset: -5, fill: '#9E9E9E' }}
                 />
                 <YAxis
                   type="category"
@@ -1440,10 +1455,10 @@ export default function Analytics() {
                         <div style={{ backgroundColor: '#1a1f28', border: '1px solid #3a4050', borderRadius: '8px', padding: '12px', color: '#e4e6eb' }}>
                           <p style={{ fontWeight: '600', marginBottom: '8px' }}>{data.vendor}</p>
                           <p style={{ fontSize: '14px', color: '#9ca3af', marginBottom: '4px' }}>
-                            Total: {formatCurrency(data.spending, { currencyCode, locale })}
+                            {t('vehicle.tooltipTotal', { value: formatCurrency(data.spending, { currencyCode, locale }) })}
                           </p>
                           <p style={{ fontSize: '14px', color: '#9ca3af' }}>
-                            Services: {data.services}
+                            {t('vehicle.tooltipServices', { count: data.services })}
                           </p>
                         </div>
                       )
@@ -1463,10 +1478,10 @@ export default function Analytics() {
                 <div className="flex-1">
                   <h3 className="font-semibold text-garage-text mb-1">{vendor.vendor_name}</h3>
                   <div className="flex items-center gap-4 text-sm text-garage-text-muted">
-                    <span>{vendor.service_count} services</span>
-                    <span>Avg: {formatCurrency(vendor.average_cost, { currencyCode, locale })}</span>
+                    <span>{t('vehicle.servicesCount', { count: vendor.service_count })}</span>
+                    <span>{t('vehicle.avgValue', { value: formatCurrency(vendor.average_cost, { currencyCode, locale }) })}</span>
                     {vendor.last_service_date && (
-                      <span>Last visit: {formatDate(vendor.last_service_date)}</span>
+                      <span>{t('vehicle.lastVisit', { date: formatDate(vendor.last_service_date) })}</span>
                     )}
                   </div>
                   {vendor.service_types.length > 0 && (
@@ -1491,24 +1506,24 @@ export default function Analytics() {
         <div className="bg-garage-surface border border-garage-border rounded-lg p-6 mb-8">
           <div className="flex items-center gap-2 mb-4">
             <Calendar className="w-5 h-5 text-garage-text-muted" />
-            <h2 className="text-xl font-bold text-garage-text">Seasonal Spending Patterns</h2>
+            <h2 className="text-xl font-bold text-garage-text">{t('vehicle.seasonalSpendingPatterns')}</h2>
           </div>
 
           {/* Summary */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div className="p-4 bg-garage-bg border border-garage-border rounded-lg">
-              <h3 className="text-sm font-medium text-garage-text-muted mb-2">Annual Average</h3>
+              <h3 className="text-sm font-medium text-garage-text-muted mb-2">{t('vehicle.annualAverage')}</h3>
               <p className="text-2xl font-bold text-garage-text">{formatCurrency(seasonalAnalytics.annual_average, { currencyCode, locale })}</p>
             </div>
             {seasonalAnalytics.highest_cost_season && (
               <div className="p-4 bg-garage-bg border border-garage-border rounded-lg">
-                <h3 className="text-sm font-medium text-garage-text-muted mb-2">Highest Cost Season</h3>
+                <h3 className="text-sm font-medium text-garage-text-muted mb-2">{t('vehicle.highestCostSeason')}</h3>
                 <p className="text-lg font-bold text-danger">{seasonalAnalytics.highest_cost_season}</p>
               </div>
             )}
             {seasonalAnalytics.lowest_cost_season && (
               <div className="p-4 bg-garage-bg border border-garage-border rounded-lg">
-                <h3 className="text-sm font-medium text-garage-text-muted mb-2">Lowest Cost Season</h3>
+                <h3 className="text-sm font-medium text-garage-text-muted mb-2">{t('vehicle.lowestCostSeason')}</h3>
                 <p className="text-lg font-bold text-success">{seasonalAnalytics.lowest_cost_season}</p>
               </div>
             )}
@@ -1516,7 +1531,7 @@ export default function Analytics() {
 
           {/* Seasonal Pattern Radar Chart */}
           <div className="mb-6 bg-garage-bg rounded-lg p-4">
-            <h3 className="text-sm font-medium text-garage-text-muted mb-4">Seasonal Cost Distribution</h3>
+            <h3 className="text-sm font-medium text-garage-text-muted mb-4">{t('vehicle.seasonalCostDistribution')}</h3>
             <ResponsiveContainer width="100%" height={400}>
               <RadarChart
                 data={seasonalAnalytics.seasons.map(season => ({
@@ -1540,7 +1555,7 @@ export default function Analytics() {
                   style={{ fontSize: '12px' }}
                 />
                 <Radar
-                  name="Total Cost"
+                  name={t('vehicle.totalCost')}
                   dataKey="cost"
                   stroke="#3B82F6"
                   fill="#3B82F6"
@@ -1548,7 +1563,7 @@ export default function Analytics() {
                   strokeWidth={2}
                 />
                 <Radar
-                  name="Service Count"
+                  name={t('vehicle.serviceCount')}
                   dataKey="services"
                   stroke="#10B981"
                   fill="#10B981"
@@ -1565,13 +1580,13 @@ export default function Analytics() {
                         <div style={{ backgroundColor: '#1a1f28', border: '1px solid #3a4050', borderRadius: '8px', padding: '12px', color: '#e4e6eb' }}>
                           <p style={{ fontWeight: '600', marginBottom: '8px' }}>{data.season}</p>
                           <p style={{ fontSize: '14px', color: '#9ca3af', marginBottom: '4px' }}>
-                            Total Cost: {formatCurrency(data.cost, { currencyCode, locale })}
+                            {t('vehicle.tooltipTotalCost', { value: formatCurrency(data.cost, { currencyCode, locale }) })}
                           </p>
                           <p style={{ fontSize: '14px', color: '#9ca3af', marginBottom: '4px' }}>
-                            Average Cost: {formatCurrency(data.avgCost, { currencyCode, locale })}
+                            {t('vehicle.tooltipAverageCost', { value: formatCurrency(data.avgCost, { currencyCode, locale }) })}
                           </p>
                           <p style={{ fontSize: '14px', color: '#9ca3af' }}>
-                            Services: {data.services}
+                            {t('vehicle.tooltipServices', { count: data.services })}
                           </p>
                         </div>
                       )
@@ -1596,15 +1611,15 @@ export default function Analytics() {
                 </div>
                 <div className="space-y-2 text-sm text-garage-text-muted">
                   <div className="flex justify-between">
-                    <span>Average Cost:</span>
+                    <span>{t('vehicle.averageCostLabel')}</span>
                     <span className="font-medium text-garage-text">{formatCurrency(season.average_cost, { currencyCode, locale })}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>Services:</span>
+                    <span>{t('vehicle.servicesLabel')}</span>
                     <span className="font-medium text-garage-text">{season.service_count}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>vs Annual Avg:</span>
+                    <span>{t('vehicle.vsAnnualAvg')}</span>
                     <span className={`font-medium ${
                       parseFloat(season.variance_from_annual) > 0 ? 'text-danger' : 'text-success'
                     }`}>
@@ -1615,7 +1630,7 @@ export default function Analytics() {
                 </div>
                 {season.common_services.length > 0 && (
                   <div className="mt-3">
-                    <p className="text-xs text-garage-text-muted mb-2">Common Services:</p>
+                    <p className="text-xs text-garage-text-muted mb-2">{t('vehicle.commonServices')}</p>
                     <div className="flex flex-wrap gap-2">
                       {season.common_services.slice(0, 3).map((service, i) => (
                         <span key={i} className="px-2 py-1 text-xs rounded-full bg-garage-surface border border-garage-border text-garage-text">
@@ -1636,13 +1651,13 @@ export default function Analytics() {
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <Calendar className="w-5 h-5 text-garage-text-muted" />
-            <h2 className="text-xl font-bold text-garage-text">Period Comparison</h2>
+            <h2 className="text-xl font-bold text-garage-text">{t('vehicle.periodComparison')}</h2>
           </div>
           <button
             onClick={() => setShowComparison(!showComparison)}
             className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors"
           >
-            {showComparison ? 'Hide' : 'Compare Periods'}
+            {showComparison ? t('vehicle.hide') : t('vehicle.comparePeriods')}
           </button>
         </div>
 
@@ -1652,11 +1667,11 @@ export default function Analytics() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Period 1 */}
               <div className="p-4 bg-garage-bg border border-garage-border rounded-lg">
-                <h3 className="text-lg font-semibold text-garage-text mb-4">Period 1</h3>
+                <h3 className="text-lg font-semibold text-garage-text mb-4">{t('vehicle.period1')}</h3>
                 <div className="space-y-3">
                   <div>
                     <label className="block text-sm font-medium text-garage-text-muted mb-1">
-                      Start Date
+                      {t('vehicle.startDate')}
                     </label>
                     <input
                       type="date"
@@ -1667,7 +1682,7 @@ export default function Analytics() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-garage-text-muted mb-1">
-                      End Date
+                      {t('vehicle.endDate')}
                     </label>
                     <input
                       type="date"
@@ -1681,11 +1696,11 @@ export default function Analytics() {
 
               {/* Period 2 */}
               <div className="p-4 bg-garage-bg border border-garage-border rounded-lg">
-                <h3 className="text-lg font-semibold text-garage-text mb-4">Period 2</h3>
+                <h3 className="text-lg font-semibold text-garage-text mb-4">{t('vehicle.period2')}</h3>
                 <div className="space-y-3">
                   <div>
                     <label className="block text-sm font-medium text-garage-text-muted mb-1">
-                      Start Date
+                      {t('vehicle.startDate')}
                     </label>
                     <input
                       type="date"
@@ -1696,7 +1711,7 @@ export default function Analytics() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-garage-text-muted mb-1">
-                      End Date
+                      {t('vehicle.endDate')}
                     </label>
                     <input
                       type="date"
@@ -1716,7 +1731,7 @@ export default function Analytics() {
                 disabled={comparisonLoading}
                 className="px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {comparisonLoading ? 'Comparing...' : 'Run Comparison'}
+                {comparisonLoading ? t('vehicle.comparing') : t('vehicle.runComparison')}
               </button>
             </div>
 
@@ -1732,20 +1747,20 @@ export default function Analytics() {
                     </h3>
                     <div className="space-y-3">
                       <div className="flex justify-between">
-                        <span className="text-garage-text-muted">Total Cost:</span>
+                        <span className="text-garage-text-muted">{t('vehicle.totalCostLabel')}</span>
                         <span className="font-bold text-garage-text text-xl">
                           {formatCurrency(comparisonData.period1_total_cost, { currencyCode, locale })}
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-garage-text-muted">Services:</span>
+                        <span className="text-garage-text-muted">{t('vehicle.servicesLabel')}</span>
                         <span className="font-medium text-garage-text">
                           {comparisonData.period1_service_count}
                         </span>
                       </div>
                       {comparisonData.period1_avg_l_per_100km && (
                         <div className="flex justify-between">
-                          <span className="text-garage-text-muted">Avg Fuel Economy:</span>
+                          <span className="text-garage-text-muted">{t('vehicle.avgFuelEconomyLabel')}</span>
                           <span className="font-medium text-garage-text">
                             {UnitFormatter.formatFuelEconomy(parseFloat(comparisonData.period1_avg_l_per_100km), system, showBoth)}
                           </span>
@@ -1761,20 +1776,20 @@ export default function Analytics() {
                     </h3>
                     <div className="space-y-3">
                       <div className="flex justify-between">
-                        <span className="text-garage-text-muted">Total Cost:</span>
+                        <span className="text-garage-text-muted">{t('vehicle.totalCostLabel')}</span>
                         <span className="font-bold text-garage-text text-xl">
                           {formatCurrency(comparisonData.period2_total_cost, { currencyCode, locale })}
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-garage-text-muted">Services:</span>
+                        <span className="text-garage-text-muted">{t('vehicle.servicesLabel')}</span>
                         <span className="font-medium text-garage-text">
                           {comparisonData.period2_service_count}
                         </span>
                       </div>
                       {comparisonData.period2_avg_l_per_100km && (
                         <div className="flex justify-between">
-                          <span className="text-garage-text-muted">Avg Fuel Economy:</span>
+                          <span className="text-garage-text-muted">{t('vehicle.avgFuelEconomyLabel')}</span>
                           <span className="font-medium text-garage-text">
                             {UnitFormatter.formatFuelEconomy(parseFloat(comparisonData.period2_avg_l_per_100km), system, showBoth)}
                           </span>
@@ -1786,10 +1801,10 @@ export default function Analytics() {
 
                 {/* Change Summary */}
                 <div className="p-6 bg-garage-bg border border-garage-border rounded-lg">
-                  <h3 className="text-lg font-semibold text-garage-text mb-4">Overall Changes</h3>
+                  <h3 className="text-lg font-semibold text-garage-text mb-4">{t('vehicle.overallChanges')}</h3>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="text-center p-4 bg-garage-surface rounded-lg">
-                      <p className="text-sm text-garage-text-muted mb-1">Cost Change</p>
+                      <p className="text-sm text-garage-text-muted mb-1">{t('vehicle.costChange')}</p>
                       <p className={`text-2xl font-bold ${
                         parseFloat(comparisonData.cost_change_percent) > 0
                           ? 'text-danger'
@@ -1804,7 +1819,7 @@ export default function Analytics() {
                     </div>
 
                     <div className="text-center p-4 bg-garage-surface rounded-lg">
-                      <p className="text-sm text-garage-text-muted mb-1">Service Count Change</p>
+                      <p className="text-sm text-garage-text-muted mb-1">{t('vehicle.serviceCountChange')}</p>
                       <p className={`text-2xl font-bold ${
                         comparisonData.service_count_change > 0
                           ? 'text-warning'
@@ -1817,7 +1832,7 @@ export default function Analytics() {
 
                     {comparisonData.l_per_100km_change_percent && (
                       <div className="text-center p-4 bg-garage-surface rounded-lg">
-                        <p className="text-sm text-garage-text-muted mb-1">Fuel Economy Change</p>
+                        <p className="text-sm text-garage-text-muted mb-1">{t('vehicle.fuelEconomyChange')}</p>
                         {/* L/100km: lower is better, so a NEGATIVE change is good (success).
                             Sign flip vs the old MPG-canonical version. */}
                         <p className={`text-2xl font-bold ${
@@ -1837,7 +1852,7 @@ export default function Analytics() {
                 {comparisonData.category_changes.length > 0 && (
                   <div className="p-6 bg-garage-bg border border-garage-border rounded-lg">
                     <h3 className="text-lg font-semibold text-garage-text mb-4">
-                      Cost Changes by Category
+                      {t('vehicle.costChangesByCategory')}
                     </h3>
                     <div className="space-y-3">
                       {comparisonData.category_changes.map((category, idx) => (
@@ -1848,11 +1863,11 @@ export default function Analytics() {
                             </h4>
                             <div className="flex items-center gap-4 text-sm text-garage-text-muted">
                               <span>
-                                Period 1: {formatCurrency(category.period1_value, { currencyCode, locale })}
+                                {t('vehicle.period1Value', { value: formatCurrency(category.period1_value, { currencyCode, locale }) })}
                               </span>
                               <span>→</span>
                               <span>
-                                Period 2: {formatCurrency(category.period2_value, { currencyCode, locale })}
+                                {t('vehicle.period2Value', { value: formatCurrency(category.period2_value, { currencyCode, locale }) })}
                               </span>
                             </div>
                           </div>

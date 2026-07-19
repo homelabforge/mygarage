@@ -654,12 +654,23 @@ export class UnitFormatter {
    * Format a volume total for summary cards.
    * Input: liters (canonical metric). Output: "47.3 L total" or "12.5 gal total".
    */
-  static formatVolumeTotal(liters: number, system: UnitSystem): string {
+  /**
+   * Volume at total-precision (1 decimal) WITHOUT the trailing "total".
+   *
+   * Callers that want the number but not the word used to do
+   * `formatVolumeTotal(...).replace(' total', '')`. That substring hack breaks
+   * silently the moment this file is localized, so it has its own method.
+   */
+  static formatVolumeShort(liters: number, system: UnitSystem): string {
     if (system === 'imperial') {
       const gallons = UnitConverter.litersToGallons(liters);
-      return `${(gallons ?? 0).toFixed(1)} gal total`;
+      return `${(gallons ?? 0).toFixed(1)} gal`;
     }
-    return `${liters.toFixed(1)} L total`;
+    return `${liters.toFixed(1)} L`;
+  }
+
+  static formatVolumeTotal(liters: number, system: UnitSystem): string {
+    return `${UnitFormatter.formatVolumeShort(liters, system)} total`;
   }
 
   /**
