@@ -1,0 +1,268 @@
+{
+  "title": "Einstellungen",
+  "subtitle": "Verwalte deine Präferenzen und die Anwendungskonfiguration",
+  "tabs": {
+    "system": "System",
+    "fileManagement": "Dateiverwaltung",
+    "integrations": "Integrationen",
+    "notifications": "Benachrichtigungen",
+    "backupRestore": "Sichern & Wiederherstellen"
+  },
+  "systemConfig": {
+    "title": "Systemkonfiguration",
+    "description": "Konfiguriere grundlegende System-Einstellungen wie die Zeitzone und den Debug-Modus."
+  },
+  "timezone": {
+    "label": "Zeitzone",
+    "description": "Beeinflusst Protokoll-Zeitstempel, geplante Aufgaben und Datumsanzeigen in der gesamten Anwendung."
+  },
+  "debug": {
+    "label": "Debug-Modus",
+    "tooltip": "Erfordert einen Neustart der Anwendung",
+    "enable": "Ausführliche Protokollierung und detaillierte Fehlermeldungen aktivieren",
+    "warning": "⚠️ Erfordert einen Neustart der Anwendung, um wirksam zu werden. Nur zur Fehlerbehebung aktivieren."
+  },
+  "theme": {
+    "label": "Design / Theme",
+    "dark": "Dunkel",
+    "light": "Hell",
+    "description": "Wähle zwischen hellem und dunklem Design. Deine Auswahl wird automatisch gespeichert."
+  },
+  "units": {
+    "label": "Einheitensystem",
+    "imperial": "Imperiales System",
+    "metric": "Metrisches System",
+    "imperialDescription": "Verwendet imperiale Einheiten: gallons, miles, MPG, °F, PSI, lbs, lb-ft",
+    "metricDescription": "Verwendet metrische Einheiten: liters, kilometers, L/100km, °C, bar, kg, Nm",
+    "showBoth": "Beide Einheiten anzeigen",
+    "showBothDescription": "Zeigt Werte in imperialen und metrischen Einheiten an (z. B. „25 MPG (9.4 L/100km)“)"
+  },
+  "language": {
+    "label": "Sprache",
+    "description": "Wähle deine bevorzugte Anzeigesprache. Community-Übersetzungen können unvollständig sein.",
+    "saved": "Sprachpräferenz gespeichert!",
+    "error": "Sprachpräferenz konnte nicht gespeichert werden"
+  },
+  "currency": {
+    "label": "Währung",
+    "description": "Wähle deine bevorzugte Währung zur Anzeige von Kosten und Preisen.",
+    "preview": "Vorschau: {{amount}}",
+    "saved": "Währungspräferenz gespeichert!",
+    "error": "Währungspräferenz konnte nicht gespeichert werden",
+    "confirmTitle": "Währung ändern?",
+    "confirmMessage": "Dies ändert nur die Art und Weise, wie Kosten angezeigt werden. Es findet keine Umrechnung bestehender Werte zwischen Währungen statt.",
+    "confirmAction": "Währung ändern"
+  },
+  "mobile": {
+    "title": "Mobile Ansicht",
+    "description": "Passe das Verhalten der App auf Mobilgeräten an.",
+    "quickEntry": "Schnelleingabe auf Mobilgeräten",
+    "quickEntryDescription": "Nach der Anmeldung auf einem Mobilgerät direkt zur Schnelleingabe statt zum Dashboard weiterleiten"
+  },
+  "family": {
+    "title": "Familienverwaltung",
+    "description": "Verwalte Familienmitglieder, Benutzerkonten und die Dashboard-Sichtbarkeit.",
+    "manage": "Familie verwalten"
+  },
+  "auth": {
+    "title": "Authentifizierungsmodus",
+    "description": "Konfiguriere, wie Benutzer auf MyGarage zugreifen und sich authentifizieren.",
+    "restartWarning": "⚠️ Erfordert einen Neustart der Anwendung, um wirksam zu werden.",
+    "none": "Keine",
+    "local": "Lokal",
+    "oidc": "OIDC",
+    "noneDetected": "Externer Authentifikator erkannt",
+    "noneDetectedDescription": "MyGarage läuft hinter einem Reverse-Proxy-Authentifikator. Zusätzliche Authentifizierungsmodi sind nur erforderlich, wenn du eine Zugriffskontrolle über dein bestehendes Setup hinaus benötigst.",
+    "noneWarning": "Keine Authentifizierung aktiviert",
+    "noneWarningDescription": "Jeder mit Netzwerkzugriff kann Daten in MyGarage einsehen und ändern. Erwäge die Aktivierung der lokalen Authentifizierung oder nutze MyGarage hinter einem Authentifikator wie Authelia oder Authentik.",
+    "checking": "Suche nach Authentifikatoren läuft...",
+    "localTitle": "Lokale Authentifizierung",
+    "localConfigured": "Lokale Authentifizierung ist konfiguriert.",
+    "localDescription": "Die lokale Authentifizierung ermöglicht es Benutzern, sich mit einem lokal gespeicherten Benutzernamen und Passwort anzumelden.",
+    "manageAuth": "Familie & Authentifizierung verwalten →",
+    "oidcTitle": "OpenID Connect (OIDC) Authentifizierung",
+    "oidcConfigured": "Konfiguriert mit {{provider}}",
+    "oidcDescription": "Konfiguriere Single Sign-On (SSO) mit deinem Identitätsanbieter (Authentik, Keycloak, Auth0, Okta, etc.)",
+    "configureOIDC": "OIDC konfigurieren"
+  },
+  "archive": {
+    "title": "Archivierte Fahrzeuge",
+    "description": "Zeige und verwalte Fahrzeuge, die du archiviert hast (verkauft, Totalschaden, verschenkt, etc.). Archivierte Fahrzeuge bleiben in den Auswertungen enthalten, können aber in der Hauptliste ausgeblendet werden."
+  },
+  "secretKey": {
+    "label": "Geheimschlüssel (Secret Key):",
+    "description": "Automatisch generiert und gespeichert unter {{path}} oder über die Umgebungsvariable MYGARAGE_SECRET_KEY gesetzt. Der Schlüssel bleibt über Anwendungsneustarts hinweg erhalten."
+  },
+  "stats": {
+    "serviceRecords": "Service-Einträge",
+    "fuelRecords": "Tankeinträge",
+    "maintenanceItems": "Wartungspunkte",
+    "documents": "Dokumente",
+    "notes": "Notizen",
+    "photos": "Fotos"
+  },
+  "preferences": {
+    "unitSaved": "Einheitenpräferenz gespeichert!",
+    "unitError": "Einheitenpräferenz konnte nicht gespeichert werden",
+    "displaySaved": "Anzeigepräferenz gespeichert!",
+    "displayError": "Anzeigepräferenz konnte nicht gespeichert werden",
+    "mobileSaved": "Präferenz für mobile Ansicht gespeichert!",
+    "mobileError": "Präferenz für mobile Ansicht konnte nicht gespeichert werden"
+  },
+  "files": {
+    "title": "Dateiverwaltung",
+    "description": "Konfiguriere Limits für Datei-Uploads, erlaubte Dateitypen und Speicher-Einstellungen.",
+    "loading": "Dateieinstellungen werden geladen...",
+    "loadError": "Dateieinstellungen konnten nicht geladen werden",
+    "maxUploadSize": "Maximale Upload-Größe (MB)",
+    "maxUploadSizeDesc": "Maximal erlaubte Dateigröße für Uploads in Megabyte.",
+    "allowedPhotoTypes": "Erlaubte Fototypen",
+    "allowedPhotoTypesDesc": "Wähle aus, welche Bildformate als Fahrzeugfotos hochgeladen werden dürfen.",
+    "allowedAttachmentTypes": "Erlaubte Anhangtypen",
+    "allowedAttachmentTypesDesc": "Wähle aus, welche Dateiformate als Dokumentanhänge hochgeladen werden dürfen.",
+    "storageInfo": "Speicherinformationen",
+    "dataDirectory": "Datenverzeichnis (Data Directory)",
+    "photosDirectory": "Fotoverzeichnis (Photos Directory)",
+    "documentsDirectory": "Dokumentenverzeichnis (Documents Directory)",
+    "windowSticker": "Fenster-Sticker (Fahrzeugdatenblatt)",
+    "windowStickerDesc": "Konfiguriere den Upload und die OCR-Verarbeitung von Fenster-Stickern (z. B. US-Monroney-Labels).",
+    "enableWindowSticker": "Fenster-Sticker-Upload aktivieren",
+    "enableWindowStickerDesc": "Erlaube Benutzern das Hochladen von Fenster-Stickern zur automatischen Datenerfassung.",
+    "enableOCR": "OCR-Verarbeitung aktivieren",
+    "enableOCRDesc": "Preise und Spezifikationsdaten automatisch mittels Texterkennung (OCR) aus hochgeladenen Fenster-Stickern extrahieren.",
+    "aboutWindowStickers": "Über Fenster-Sticker"
+  },
+  "integrations": {
+    "loading": "Integrations-Einstellungen werden geladen...",
+    "loadError": "Integrations-Einstellungen konnten nicht geladen werden",
+    "loadProvidersError": "POI-Anbieter konnten nicht geladen werden",
+    "nhtsa": "NHTSA-Rückrufe",
+    "nhtsaDesc": "Automatische Überprüfung auf Fahrzeugrückrufe über die National Highway Traffic Safety Administration.",
+    "enableNHTSA": "NHTSA-Integration aktivieren",
+    "enableNHTSADesc": "Überprüfe mithilfe der NHTSA-Datenbank auf Fahrzeugrückrufe.",
+    "enableAutoCheck": "Automatische Rückrufprüfung",
+    "enableAutoCheckDesc": "Überprüfe in regelmäßigen Intervallen automatisch auf neue Rückrufe.",
+    "daily": "Täglich",
+    "weeklyRecommended": "Wöchentlich (Empfohlen)",
+    "biWeekly": "Zweiwöchentlich",
+    "monthly": "Monatlich",
+    "quarterly": "Vierteljährlich",
+    "recallCheckIntervalDesc": "Wie oft automatisch auf neue Rückrufe geprüft werden soll.",
+    "nhtsaApiUrlDesc": "Der NHTSA-API-Endpunkt für Rückrufabfragen. Nur ändern, wenn ein Proxy oder ein benutzerdefinierter Endpunkt verwendet wird.",
+    "testingConnection": "Wird getestet...",
+    "testNHTSA": "NHTSA-Verbindung testen",
+    "testNHTSADesc": "Testet die Verbindung zur NHTSA-API durch Dekodieren einer Beispiel-VIN.",
+    "nhtsaTestSuccess": "Verbindung zur NHTSA-API erfolgreich!",
+    "nhtsaTestFailed": "Verbindung zur NHTSA-API fehlgeschlagen. Überprüfe die URL und versuche es erneut.",
+    "carComplaints": "CarComplaints",
+    "carComplaintsDesc": "Verlinkt zu Verbraucherbeschwerdedaten für deine Fahrzeuge.",
+    "enableCarComplaints": "CarComplaints-Integration aktivieren",
+    "enableCarComplaintsDesc": "Füge Links zu CarComplaints.com hinzu, um bekannte Fahrzeugprobleme zu recherchieren.",
+    "aboutCarComplaints": "Über CarComplaints",
+    "shopFinder": "Werkstattsuche",
+    "shopFinderDesc": "Konfiguriere POI-Anbieter, um nahegelegene Autowerkstätten und Servicecenter zu finden.",
+    "provider": "Anbieter",
+    "active": "Aktiv",
+    "apiLimits": "API-Limits",
+    "options": "Optionen",
+    "addService": "Anbieter hinzufügen",
+    "providerRemoved": "Anbieter erfolgreich entfernt",
+    "removeProviderError": "Anbieter konnte nicht entfernt werden",
+    "livelink": "LiveLink",
+    "livelinkDesc": "Echtzeit-Fahrzeugtelemetrie über WiCAN PRO OBD2-Geräte.",
+    "livelinkLoading": "LiveLink-Status wird geladen...",
+    "disabled": "Deaktiviert",
+    "receivingData": "Live-Daten werden empfangen",
+    "noDevices": "Keine Geräte konfiguriert",
+    "firmwareUpdate": "Firmware-Update für ein oder mehrere Geräte verfügbar",
+    "configureLiveLink": "LiveLink konfigurieren",
+    "configureDesc": "Verwalte WiCAN-Geräte, MQTT-Einstellungen und Telemetrieparameter.",
+    "aboutLiveLink": "Über LiveLink"
+  },
+  "notifications": {
+    "loading": "Benachrichtigungs-Einstellungen werden geladen...",
+    "loadError": "Benachrichtigungs-Einstellungen konnten nicht geladen werden",
+    "testFailed": "Testbenachrichtigung über {{service}} konnte nicht gesendet werden"
+  },
+  "ntfy": {
+    "enable": "ntfy-Benachrichtigungen aktivieren",
+    "serverUrl": "Server-URL"
+  },
+  "gotify": {
+    "enable": "Gotify-Benachrichtigungen aktivieren",
+    "appToken": "Anwendungs-Token (Application Token)",
+    "serverUrl": "Server-URL"
+  },
+  "pushover": {
+    "apiToken": "API-Token",
+    "enable": "Pushover-Benachrichtigungen aktivieren",
+    "userKey": "Benutzerschlüssel (User Key)"
+  },
+  "slack": {
+    "enable": "Slack-Benachrichtigungen aktivieren",
+    "webhookUrl": "Webhook-URL"
+  },
+  "discord": {
+    "enable": "Discord-Benachrichtigungen aktivieren",
+    "webhookUrl": "Webhook-URL"
+  },
+  "telegram": {
+    "botToken": "Bot-Token",
+    "enable": "Telegram-Benachrichtigungen aktivieren"
+  },
+  "email": {
+    "enable": "E-Mail-Benachrichtigungen aktivieren",
+    "fromAddress": "Absenderadresse",
+    "smtpHost": "SMTP-Host",
+    "smtpPassword": "SMTP-Passwort",
+    "smtpUsername": "SMTP-Benutzername",
+    "toAddress": "Empfängeradresse"
+  },
+  "events": {
+    "title": "Ereignis-Benachrichtigungen",
+    "enableServiceFirst": "Aktiviere mindestens einen Benachrichtigungsdienst",
+    "defLow": {
+      "group": "AdBlue-Füllstand",
+      "label": "AdBlue-Füllstand niedrig",
+      "description": "Benachrichtigen, wenn der AdBlue-Füllstand den Schwellenwert erreicht oder unterschreitet"
+    }
+  },
+  "backup": {
+    "loading": "Backup-Daten werden geladen...",
+    "loadError": "Backup-Daten konnten nicht geladen werden",
+    "settingsBackup": "Einstellungen sichern",
+    "settingsBackupDesc": "Sichere und wiederherstelle deine Anwendungs-Einstellungen als JSON-Dateien.",
+    "databaseSize": "Datenbankgröße",
+    "settingsBackups": "Einstellungs-Backups",
+    "lastModified": "Zuletzt geändert",
+    "never": "Nie",
+    "creatingBackup": "Wird erstellt...",
+    "createSettingsBackup": "Einstellungs-Backup erstellen",
+    "uploadSettingsBackup": "Einstellungs-Backup hochladen",
+    "createSettingsError": "Einstellungs-Backup konnte nicht erstellt werden",
+    "filename": "Dateiname",
+    "size": "Größe",
+    "created": "Erstellt",
+    "actions": "Aktionen",
+    "download": "Herunterladen",
+    "restore": "Wiederherstellen",
+    "noSettingsBackups": "Noch keine Einstellungs-Backups vorhanden. Erstelle eines, um zu beginnen.",
+    "fullDataBackup": "Vollständige Datensicherung",
+    "fullDataBackupDesc": "Sichere deine gesamte Datenbank, Fotos, Dokumente und Anhänge.",
+    "fullBackups": "Vollständige Backups",
+    "dataIncluded": "Enthaltene Daten",
+    "importantInfo": "Wichtige Information",
+    "creatingFullBackup": "Wird erstellt...",
+    "createFullBackup": "Vollständiges Backup erstellen",
+    "uploadFullBackup": "Vollständiges Backup hochladen",
+    "createFullError": "Vollständiges Backup konnte nicht erstellt werden",
+    "restoreOverwrite": "Wiederherstellen (überschreibt alle Daten)",
+    "noFullBackups": "Noch keine vollständigen Backups vorhanden. Erstelle eines, um zu beginnen."
+    },
+    "timeFormat": {
+      "label": "Zeitformat",
+      "twelveHour": "12-Stunden-Format (2:30 PM)",
+      "twentyFourHour": "24-Stunden-Format (14:30)",
+      "description": "Wähle aus, wie Uhrzeiten in der App angezeigt werden."
+  }
+}
