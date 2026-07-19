@@ -142,7 +142,7 @@ export default function UserManagementModal({
                     <td className="py-3">
                       {user.relationship ? (
                         <span className="px-2 py-1 text-xs bg-info/20 text-info rounded">
-                          {formatRelationship(user.relationship, user.relationship_custom)}
+                          {formatRelationship(user.relationship, user.relationship_custom, t)}
                         </span>
                       ) : (
                         <span className="text-xs text-garage-text-muted">-</span>

@@ -117,7 +117,7 @@ export default function TransferHistorySection({ vin }: TransferHistorySectionPr
                         </span>
                         {transfer.from_user.relationship && (
                           <span className="text-xs text-garage-text-muted px-1.5 py-0.5 bg-garage-bg rounded">
-                            {formatRelationship(transfer.from_user.relationship, null)}
+                            {formatRelationship(transfer.from_user.relationship, null, t)}
                           </span>
                         )}
                       </div>
@@ -128,7 +128,7 @@ export default function TransferHistorySection({ vin }: TransferHistorySectionPr
                         </span>
                         {transfer.to_user.relationship && (
                           <span className="text-xs text-garage-text-muted px-1.5 py-0.5 bg-garage-bg rounded">
-                            {formatRelationship(transfer.to_user.relationship, null)}
+                            {formatRelationship(transfer.to_user.relationship, null, t)}
                           </span>
                         )}
                       </div>

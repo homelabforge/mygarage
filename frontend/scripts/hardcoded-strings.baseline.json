@@ -1940,6 +1940,11 @@
   "text": "User interface theme (light or dark)"
  },
  {
+  "file": "src/hooks/useFormSubmit.ts",
+  "kind": "field:message",
+  "text": "An error occurred"
+ },
+ {
   "file": "src/pages/About.tsx",
   "kind": "jsx-text",
   "text": "Claude"
@@ -2248,5 +2253,60 @@
   "file": "src/pages/WindowStickerTest.tsx",
   "kind": "toast",
   "text": "Extraction completed successfully"
+ },
+ {
+  "file": "src/schemas/auth.ts",
+  "kind": "field:label",
+  "text": "Medium"
+ },
+ {
+  "file": "src/schemas/auth.ts",
+  "kind": "field:label",
+  "text": "Strong"
+ },
+ {
+  "file": "src/schemas/auth.ts",
+  "kind": "field:label",
+  "text": "Weak"
+ },
+ {
+  "file": "src/schemas/auth.ts",
+  "kind": "field:message",
+  "text": "Passwords do not match"
+ },
+ {
+  "file": "src/schemas/serviceVisit.ts",
+  "kind": "field:message",
+  "text": "Inspection result is required for inspection items"
+ },
+ {
+  "file": "src/schemas/serviceVisit.ts",
+  "kind": "field:message",
+  "text": "Invalid inspection result"
+ },
+ {
+  "file": "src/schemas/serviceVisit.ts",
+  "kind": "field:message",
+  "text": "Invalid inspection severity"
+ },
+ {
+  "file": "src/schemas/supplies.ts",
+  "kind": "field:message",
+  "text": "Unit type is required"
+ },
+ {
+  "file": "src/schemas/tollTag.ts",
+  "kind": "field:message",
+  "text": "Toll system is required"
+ },
+ {
+  "file": "src/utils/httpErrorHandler.ts",
+  "kind": "field:message",
+  "text": "An unexpected error occurred."
+ },
+ {
+  "file": "src/utils/httpErrorHandler.ts",
+  "kind": "field:message",
+  "text": "Network error. Please check your connection."
  }
 ]

@@ -301,7 +301,7 @@ export default function VehicleTransferWizard({
                       </div>
                       {recipient.relationship && (
                         <span className="px-2 py-1 text-xs bg-info/20 text-info rounded">
-                          {formatRelationship(recipient.relationship, null)}
+                          {formatRelationship(recipient.relationship, null, t)}
                         </span>
                       )}
                     </button>

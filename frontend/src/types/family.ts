@@ -39,16 +39,19 @@ export interface ShareableUser {
 // Relationship Types
 // =============================================================================
 
+/** Minimal shape of i18next's `t`, so this module needn't import react-i18next. */
+export type TranslateFn = (key: string) => string
+
 export const RELATIONSHIP_PRESETS = [
-  { value: 'spouse', label: 'Spouse/Partner' },
-  { value: 'child', label: 'Child' },
-  { value: 'parent', label: 'Parent' },
-  { value: 'sibling', label: 'Sibling' },
-  { value: 'grandparent', label: 'Grandparent' },
-  { value: 'grandchild', label: 'Grandchild' },
-  { value: 'in_law', label: 'In-Law' },
-  { value: 'friend', label: 'Friend' },
-  { value: 'other', label: 'Other' },
+  { value: 'spouse', labelKey: 'common:relationships.spouse' },
+  { value: 'child', labelKey: 'common:relationships.child' },
+  { value: 'parent', labelKey: 'common:relationships.parent' },
+  { value: 'sibling', labelKey: 'common:relationships.sibling' },
+  { value: 'grandparent', labelKey: 'common:relationships.grandparent' },
+  { value: 'grandchild', labelKey: 'common:relationships.grandchild' },
+  { value: 'in_law', labelKey: 'common:relationships.inLaw' },
+  { value: 'friend', labelKey: 'common:relationships.friend' },
+  { value: 'other', labelKey: 'common:relationships.other' },
 ] as const
 
 export type RelationshipType = (typeof RELATIONSHIP_PRESETS)[number]['value'] | null
@@ -60,19 +63,24 @@ export type RelationshipType = (typeof RELATIONSHIP_PRESETS)[number]['value'] | 
 /**
  * Get the display label for a relationship value.
  */
-export function getRelationshipLabel(value: string | null): string {
+export function getRelationshipLabel(value: string | null, t: TranslateFn): string {
   if (!value) return ''
-  const preset = RELATIONSHIP_PRESETS.find(p => p.value === value)
-  return preset ? preset.label : value
+  const preset = RELATIONSHIP_PRESETS.find((p) => p.value === value)
+  return preset ? t(preset.labelKey) : value
 }
 
 /**
  * Format a relationship for display (handles custom relationships).
  */
-export function formatRelationship(relationship: string | null, relationshipCustom?: string | null): string {
+export function formatRelationship(
+  relationship: string | null,
+  relationshipCustom: string | null | undefined,
+  t: TranslateFn,
+): string {
   if (!relationship) return ''
+  // A custom relationship is user-entered text — never run it through t().
   if (relationship === 'other' && relationshipCustom) {
     return relationshipCustom
   }
-  return getRelationshipLabel(relationship)
+  return getRelationshipLabel(relationship, t)
 }

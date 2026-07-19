@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import type { FamilyMemberData, FamilyVehicleSummary } from '@/types/family'
 import type { User as UserType } from '@/types/user'
+import { useTranslation } from 'react-i18next'
 import { formatRelationship } from '@/types/family'
 import { formatDateForDisplay } from '@/utils/dateUtils'
 import { withBase } from '@/utils/basePath'
@@ -123,10 +124,11 @@ export default function FamilyMemberCard({
   canMoveUp = false,
   canMoveDown = false,
 }: FamilyMemberCardProps) {
+  const { t } = useTranslation('common')
   const [isExpanded, setIsExpanded] = useState(defaultExpanded)
 
   const displayName = member.full_name || member.username
-  const relationshipLabel = formatRelationship(member.relationship ?? null, member.relationship_custom)
+  const relationshipLabel = formatRelationship(member.relationship ?? null, member.relationship_custom, t)
 
   const isOidc = user?.auth_method === 'oidc'
   const isInactive = user ? !user.is_active : false

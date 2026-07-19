@@ -196,7 +196,7 @@ export default function VehicleSharingModal({
                             </span>
                             {share.user.relationship && (
                               <span className="px-1.5 py-0.5 text-xs bg-info/20 text-info rounded">
-                                {formatRelationship(share.user.relationship, null)}
+                                {formatRelationship(share.user.relationship, null, t)}
                               </span>
                             )}
                           </div>
@@ -248,7 +248,7 @@ export default function VehicleSharingModal({
                         {availableUsers.map((user) => (
                           <option key={user.id} value={user.id}>
                             {user.display_name}
-                            {user.relationship ? ` (${formatRelationship(user.relationship, null)})` : ''}
+                            {user.relationship ? ` (${formatRelationship(user.relationship, null, t)})` : ''}
                           </option>
                         ))}
                       </select>

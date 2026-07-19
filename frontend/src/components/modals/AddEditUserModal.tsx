@@ -282,7 +282,7 @@ export default function AddEditUserModal({ isOpen, onClose, user, onSave, curren
               <option value="">{t('common:none')}</option>
               {RELATIONSHIP_PRESETS.map((preset) => (
                 <option key={preset.value} value={preset.value}>
-                  {preset.label}
+                  {t(preset.labelKey)}
                 </option>
               ))}
             </select>

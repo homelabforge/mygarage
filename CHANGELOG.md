@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - i18n: the Analytics and Garage Analytics pages and their help modals are now translatable (~350 strings) — they previously rendered in English regardless of the selected language.
 - i18n: the vehicle detail page, the OIDC / local-auth / LiveLink settings modals, and the event notification card are now translatable (~222 strings).
 - i18n: the vehicle wizard, transfer and remove modals, window-sticker upload, reports panel, and calendar are now translatable (~165 strings).
+- i18n: family relationship labels (Spouse/Partner, Child, Parent, …) are now translatable wherever they appear — sharing, transfers, user management, and the family member card.
 
 ### Fixed
 - Calendar: the month grid and weekday headers rendered in English for every language — the calendar had no locale set. Dates, month names and number separators now follow the selected language, and update on a live language switch.

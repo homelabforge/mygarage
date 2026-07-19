@@ -282,5 +282,16 @@
   "total": "Total",
   "totalCost": "Total Cost",
   "update": "Update",
-  "user": "User"
+  "user": "User",
+  "relationships": {
+    "spouse": "Spouse/Partner",
+    "child": "Child",
+    "parent": "Parent",
+    "sibling": "Sibling",
+    "grandparent": "Grandparent",
+    "grandchild": "Grandchild",
+    "inLaw": "In-Law",
+    "friend": "Friend",
+    "other": "Other"
+  }
 }
