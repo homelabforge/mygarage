@@ -9,12 +9,12 @@
   "error": "Fehler",
   "shopFinder": {
     "title": "Werkstätten finden",
-    "subtitle": "Entdecke Auto- und Wohnmobil-Werkstätten in deiner Nähe",
+    "subtitle": "Finde Auto- und Wohnmobil-Werkstätten in der Nähe",
     "searchOptions": "Suchoptionen",
-    "shopType": "Werkstatt-Typ",
+    "shopType": "Werkstattart",
     "autoRepair": "Autowerkstatt",
-    "rvRepair": "Wohnmobil-Werkstatt",
-    "previouslyUsed": "Zuletzt genutzt",
+    "rvRepair": "Wohnmobilwerkstatt",
+    "previouslyUsed": "Zuvor genutzt",
     "enableLocation": "Standortzugriff aktivieren",
     "enableLocationBtn": "Meinen Standort verwenden",
     "searching": "Suche in der Nähe...",
@@ -23,7 +23,27 @@
     "noShopsHint": "Versuche es mit einem größeren Suchradius.",
     "saveToAddressBook": "Im Adressbuch speichern",
     "saved": "Gespeichert",
-    "website": "Website"
+    "website": "Website",
+    "distanceUnknown": "Entfernung unbekannt",
+    "searchRadius": "Suchradius",
+    "usedTimes": "{{count}}-mal genutzt",
+    "foundShops": "{{count}} Werkstatt/Werkstätten gefunden",
+    "source": "Quelle",
+    "poweredBy": "Unterstützt durch",
+    "distanceAway": "{{distance}} entfernt",
+    "savedToAddressBook": "Im Adressbuch gespeichert",
+    "locationPromptAuto": "Wir benötigen deinen Standort, um Autowerkstätten im Umkreis von {{radius}} {{unit}} zu finden.",
+    "locationPromptRv": "Wir benötigen deinen Standort, um Wohnmobilwerkstätten im Umkreis von {{radius}} {{unit}} zu finden.",
+    "searchingHintAuto": "Suche nach Autowerkstätten im Umkreis von {{radius}} {{unit}}",
+    "searchingHintRv": "Suche nach Wohnmobilwerkstätten im Umkreis von {{radius}} {{unit}}",
+    "geolocationUnsupported": "Geolokalisierung wird von deinem Browser nicht unterstützt",
+    "locationFailed": "Dein Standort konnte nicht ermittelt werden",
+    "locationDenied": "Standortzugriff verweigert. Bitte aktiviere den Standortzugriff in deinen Browsereinstellungen.",
+    "locationUnavailable": "Standortinformationen sind nicht verfügbar.",
+    "locationTimeout": "Zeitüberschreitung bei der Standortabfrage.",
+    "searchFailed": "Werkstattsuche fehlgeschlagen",
+    "saveFailed": "Werkstatt konnte nicht gespeichert werden",
+    "savedToast": "{{name}} wurde im Adressbuch gespeichert!"
   },
   "success": "Erfolgreich",
   "confirm": "Bestätigen",
@@ -59,14 +79,14 @@
     "usernameOrEmail": "Benutzername",
     "password": "Passwort",
     "submit": "Anmelden",
-    "noAccount": "Noch kein Konto?",
+    "noAccount": "Hast du noch kein Konto?",
     "registerLink": "Hier registrieren",
     "oidcSignIn": "Mit {{provider}} anmelden",
     "continueWithPassword": "Oder mit Passwort fortfahren",
-    "error": "Ungültiger Benutzername oder Passwort"
+    "error": "Ungültiger Benutzername oder ungültiges Passwort"
   },
   "oidc": {
-    "signingIn": "Anmeldung läuft...",
+    "signingIn": "Anmeldung wird durchgeführt...",
     "success": "Authentifizierung erfolgreich!",
     "redirecting": "Weiterleitung zu deiner Garage...",
     "error": "Authentifizierung fehlgeschlagen",
@@ -74,7 +94,7 @@
     "linkDescription": "Verknüpfe dein bestehendes Konto mit deiner SSO-Identität"
   },
   "auth": {
-    "tagline": "Selbstgehosteter Fahrzeug-Wartungsplaner"
+    "tagline": "Selbst gehosteter Tracker für die Fahrzeugwartung"
   },
   "addressBook": {
     "title": "Adressbuch",
@@ -108,45 +128,48 @@
     "zipCode": "PLZ",
     "notes": "Notizen",
     "notesPlaceholder": "Zusätzliche Notizen zu diesem Kontakt...",
-    "gasStationFlag": "Tankstelle"
+    "gasStationFlag": "Tankstelle",
+    "gasStations": "Tankstellen",
+    "gasStationsFilterHint": "Nur Tankstellen anzeigen, die aus Kraftstoffeinträgen erstellt wurden",
+    "categoryRvPark": "Wohnmobilstellplatz"
   },
   "supplies": {
-    "title": "Vorrat & Ersatzteile",
-    "subtitle": "Behalte Flüssigkeiten, Filter und vorhandene Teile im Blick – Einkäufe, Nutzung und laufende Kosten",
-    "addSupply": "Artikel hinzufügen",
-    "addFirstSupply": "Füge deinen ersten Artikel hinzu",
-    "editSupply": "Artikel bearbeiten",
-    "loading": "Vorrat wird geladen...",
-    "loadError": "Vorrat konnte nicht geladen werden",
-    "noSupplies": "Noch kein Vorrat vorhanden.",
+    "title": "Vorräte",
+    "subtitle": "Verwalte Flüssigkeiten, Filter und Ersatzteile auf Lager — Einkäufe, Verbrauch und laufende Kosten",
+    "addSupply": "Vorrat hinzufügen",
+    "addFirstSupply": "Füge deinen ersten Vorrat hinzu",
+    "editSupply": "Vorrat bearbeiten",
+    "loading": "Vorräte werden geladen...",
+    "loadError": "Vorräte konnten nicht geladen werden",
+    "noSupplies": "Noch keine Vorräte vorhanden.",
     "showArchived": "Archivierte anzeigen",
     "archived": "Archiviert",
-    "confirmDelete": "Diesen Artikel löschen?",
-    "deleted": "Artikel gelöscht",
-    "deleteError": "Artikel konnte nicht gelöscht werden",
+    "confirmDelete": "Diesen Vorrat löschen?",
+    "deleted": "Vorrat gelöscht",
+    "deleteError": "Vorrat konnte nicht gelöscht werden",
     "name": "Name",
-    "unitType": "Einheitstyp",
+    "unitType": "Einheitentyp",
     "unitTypeVolume": "Volumen",
     "unitTypeCount": "Anzahl",
-    "unitTypeImmutable": "Der Einheitstyp kann nach dem Erstellen des Artikels nicht mehr geändert werden.",
+    "unitTypeImmutable": "Der Einheitentyp kann nach dem Erstellen eines Vorrats nicht mehr geändert werden.",
     "partNumber": "Teilenummer",
     "category": "Kategorie",
     "vehicle": "Fahrzeug",
     "sharedAcrossVehicles": "Für alle Fahrzeuge freigegeben",
-    "onHand": "Verfügbar",
-    "avgUnitCost": "Durchschnittl. Stückkosten",
-    "negativeWarning": "Die protokollierte Nutzung überschreitet die erfassten Einkäufe",
+    "onHand": "Vorrätig",
+    "avgUnitCost": "Durchschn. Stückkosten",
+    "negativeWarning": "Der erfasste Verbrauch übersteigt die aufgezeichneten Einkäufe",
     "activeToggle": "Aktiv (Abwählen zum Archivieren)",
     "viewHistory": "Verlauf anzeigen",
     "history": {
       "title": "Verlauf: {{name}}",
       "loading": "Verlauf wird geladen...",
       "loadError": "Verlauf konnte nicht geladen werden",
-      "empty": "Noch keine Einkäufe oder Nutzungen protokolliert.",
+      "empty": "Noch keine Einkäufe oder Verbräuche erfasst.",
       "ledger": "Bestandsbuch",
       "purchase": "Einkauf",
       "adjustment": "Anpassung",
-      "job": "Wartung / Job",
+      "job": "Auftrag",
       "balance": "Bestand",
       "serviceVisitDate": "Besuchsdatum",
       "downloadReceipt": "Beleg herunterladen",
@@ -160,7 +183,7 @@
       "receiptUploaded": "Beleg hochgeladen",
       "receiptUploadError": "Beleg konnte nicht hochgeladen werden",
       "deletePurchase": "Einkauf löschen",
-      "confirmDeletePurchase": "Diesen Einkauf löschen? Dadurch wird auch der Beleg entfernt.",
+      "confirmDeletePurchase": "Diesen Einkauf löschen? Dadurch wird auch der zugehörige Beleg entfernt.",
       "purchaseDeleted": "Einkauf gelöscht",
       "purchaseDeleteError": "Einkauf konnte nicht gelöscht werden",
       "deleteAdjustment": "Anpassung löschen",
@@ -174,18 +197,18 @@
       "supplier": "Lieferant",
       "noSupplier": "Kein Lieferant",
       "receipt": "Beleg (optional)",
-      "purchaseLogged": "Einkauf protokolliert",
-      "adjustmentLogged": "Anpassung protokolliert",
-      "adjustmentHint": "Erfasst Bestände, die außerhalb eines Service-Auftrags entfernt wurden (z. B. verschüttet, verschenkt, entsorgt)."
+      "purchaseLogged": "Einkauf erfasst",
+      "adjustmentLogged": "Anpassung erfasst",
+      "adjustmentHint": "Erfasst Bestandsabgänge außerhalb eines Serviceauftrags (z. B. Verschütten, verschenkt, entsorgt)."
     },
     "usedTab": {
-      "title": "Verwendete Artikel",
-      "count": "{{count}} Artikelnutzungen protokolliert",
-      "loading": "Verwendete Artikel werden geladen...",
-      "loadError": "Verwendete Artikel konnten nicht geladen werden",
-      "empty": "Für dieses Fahrzeug wurden noch keine Artikel protokolliert.",
+      "title": "Verwendete Vorräte",
+      "count": "{{count}} Vorratsverbräuche erfasst",
+      "loading": "Verwendete Vorräte werden geladen...",
+      "loadError": "Verwendete Vorräte konnten nicht geladen werden",
+      "empty": "Für dieses Fahrzeug wurden noch keine Vorräte erfasst.",
       "quantity": "Menge",
-      "viewVisit": "Service-Besuch anzeigen"
+      "viewVisit": "Servicebesuch anzeigen"
     }
   },
   "poiFinder": {
@@ -200,37 +223,59 @@
     "searchingHint": "Dies kann je nach Anbieter einige Sekunden dauern.",
     "newSearch": "Neue Suche",
     "noPOIsFound": "Keine Points of Interest gefunden",
-    "noPOIsHint": "Versuche es mit einem größeren Radius oder aktiviere mehr Kategorien."
+    "noPOIsHint": "Versuche es mit einem größeren Radius oder aktiviere mehr Kategorien.",
+    "or": "oder",
+    "addressPlaceholder": "Nach Adresse suchen (Stadt, Postleitzahl etc.)",
+    "searchByAddress": "Nach Adresse suchen",
+    "addressTooShort": "Gib eine Adresse ein (≥2 Zeichen)",
+    "addressNotFound": "Keine Ergebnisse für diese Adresse",
+    "geocodeFailed": "Geokodierung fehlgeschlagen",
+    "categoryAutoShops": "Werkstätten",
+    "categoryEvCharging": "E-Ladestationen",
+    "categoryGasStations": "Tankstellen",
+    "categoryPropane": "Propan",
+    "categoryRvShops": "Wohnmobil-Werkstätten",
+    "usedTimes": "{{count}}-mal genutzt",
+    "foundCount": "{{count}} POI(s) gefunden",
+    "source": "Quelle",
+    "geolocationUnsupported": "Geolokalisierung wird von deinem Browser nicht unterstützt",
+    "locationFailed": "Dein Standort konnte nicht ermittelt werden",
+    "locationDenied": "Standortzugriff verweigert. Bitte aktiviere den Standortzugriff in deinen Browsereinstellungen.",
+    "locationUnavailable": "Standortinformationen sind nicht verfügbar.",
+    "locationTimeout": "Zeitüberschreitung bei der Standortabfrage.",
+    "searchFailed": "Suche nach POIs fehlgeschlagen",
+    "saveFailed": "POI konnte nicht gespeichert werden",
+    "savedToAddressBook": "{{name}} wurde im Adressbuch gespeichert!"
   },
   "about": {
     "title": "Über",
     "subtitle": "Erfahre mehr über MyGarage",
-    "tagline": "Selbstgehosteter Fahrzeug-Wartungsplaner für die Homelab-Community",
+    "tagline": "Selbst gehosteter Tracker für die Fahrzeugwartung für die Homelab-Community",
     "whatIsTitle": "Was ist MyGarage?",
-    "whatIsDescription1": "MyGarage ist ein selbstgehosteter Fahrzeug-Wartungsplaner, der jedes Detail deines Fuhrparks – Tankfüllungen, Service-Besuche, Flüssigkeiten, Zulassungen, Garantien, Rückrufe und Notizen – an einem zentralen Ort unter deiner eigenen Kontrolle hält.",
-    "whatIsDescription2": "Entwickelt für die Homelab-Community läuft MyGarage auf deiner eigenen Infrastruktur, ohne Datenweitergabe an Dritte oder Telemetrie. Deine Fahrzeugdaten gehören dir.",
+    "whatIsDescription1": "MyGarage ist ein selbst gehosteter Tracker für die Fahrzeugwartung, der jedes Detail deines Fuhrparks — Tankvorgänge, Servicebesuche, Flüssigkeiten, Zulassungen, Garantien, Rückrufe und Notizen — an einem Ort unter deiner Kontrolle aufbewahrt.",
+    "whatIsDescription2": "MyGarage wurde für die Homelab-Community entwickelt und läuft auf deiner eigenen Infrastruktur, ohne Datenweitergabe an Dritte oder Telemetrie. Deine Fahrzeugdaten bleiben deine.",
     "whyTitle": "Warum MyGarage?",
     "privacyFirst": "Datenschutz an erster Stelle",
-    "privacyFirstDesc": "Deine Daten leben auf deiner eigenen Hardware. Keine externen Server, keine Analysen, keine überraschenden Integrationen.",
+    "privacyFirstDesc": "Deine Daten leben auf deiner Hardware. Keine externen Server, keine Analysen, keine überraschenden Integrationen.",
     "databaseSettings": "Datenbank-Einstellungen",
-    "databaseSettingsDesc": "Wähle SQLite (Standard) für die einfache Homelab-Nutzung oder PostgreSQL für Setups mit mehreren Benutzern. Migrationen werden beim Start automatisch angewendet.",
+    "databaseSettingsDesc": "Wähle SQLite (Standard) für die einfache Homelab-Nutzung oder PostgreSQL für Multi-User-Bereitstellungen. Migrationen werden beim Start automatisch angewendet.",
     "multiNotifications": "Multi-Channel-Benachrichtigungen",
-    "multiNotificationsDesc": "Lass dich per Ntfy, Apprise, E-Mail oder Webhook an Wartungen erinnern – ganz so, wie es in dein Homelab passt.",
-    "comprehensiveTracking": "Umfassendes Tracking",
-    "comprehensiveTrackingDesc": "Kraftstoffverbrauch, AdBlue-Nutzung, Reifendruckverlauf, geplante Wartungen, Fotos, Dokumente und Live-OBD-II-Telemetrie – alles abgedeckt.",
+    "multiNotificationsDesc": "Lass dich über Ntfy, Apprise, E-Mail oder Webhook an Wartungsarbeiten erinnern — ganz so, wie es in dein Homelab passt.",
+    "comprehensiveTracking": "Umfassende Erfassung",
+    "comprehensiveTrackingDesc": "Kraftstoffverbrauch, DEF-Verbrauch, Reifendruckhistorie, geplante Wartungsarbeiten, Fotos, Dokumente und Live-OBD-II-Telemetrie — alles abgedeckt.",
     "builtWithAI": "Mit KI entwickelt",
     "builtWithAIDesc": "MyGarage ist das Ergebnis einer Human-in-the-Loop-Zusammenarbeit zwischen Jamey und einem Team von KI-Assistenten. Jeder Agent ist auf einen anderen Teil des Workflows spezialisiert.",
     "claudeRole": "Design, Planung, Code-Review und Implementierung",
     "operatorRole": "Browser-Automatisierung und UI-Verifizierung",
-    "codexRole": "Code-Review aus zweiter Hand und Validierung",
-    "poweredByNHTSA": "Unterstützt durch die NHTSA",
-    "nhtsaDesc1": "VIN-Dekodierung, Rückruf-Suchen und Sicherheitsdaten stammen alle aus den öffentlichen APIs der US-amerikanischen National Highway Traffic Safety Administration – kostenlos, offiziell und maßgebend.",
+    "codexRole": "Zweitmeinungs-Code-Review und Validierung",
+    "poweredByNHTSA": "Unterstützt durch NHTSA",
+    "nhtsaDesc1": "VIN-Decodierung, Rückrufsuche und Sicherheitsdaten stammen alle aus den öffentlichen APIs der US-amerikanischen National Highway Traffic Safety Administration — kostenlos, offiziell und maßgeblich.",
     "nhtsaDesc2": "Hinweis: Die NHTSA-Daten sind für Fahrzeuge, die in den Vereinigten Staaten verkauft wurden, am vollständigsten.",
     "learnMore": "Mehr erfahren",
     "projectWebsite": "Projekt-Website",
     "githubRepo": "GitHub-Repository",
     "nhtsaVINSearch": "NHTSA-VIN-Suche",
-    "vinDecoder": "VIN-Dekoder",
+    "vinDecoder": "VIN-Decoder",
     "madeWith": "Erstellt mit",
     "forCommunity": "für die Homelab-Community"
   },
@@ -238,15 +283,15 @@
     "generic": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
     "network": "Netzwerkfehler. Bitte überprüfe deine Verbindung.",
     "unauthorized": "Bitte melde dich an, um fortzufahren.",
-    "forbidden": "Du hast keine Berechtigung für diese Aktion.",
+    "forbidden": "Du hast keine Berechtigung, dies zu tun.",
     "notFound": "Die angeforderte Ressource wurde nicht gefunden.",
     "validation": "Bitte überprüfe deine Eingabe und versuche es erneut."
   },
-  "footer": "MyGarage v{{version}} - Selbstgehosteter Fahrzeug-Wartungsplaner",
+  "footer": "MyGarage v{{version}} - Selbst gehosteter Tracker für die Fahrzeugwartung",
   "active": "Aktiv",
   "additionalNotes": "Zusätzliche Notizen",
   "admin": "Admin",
-  "amount": "Menge",
+  "amount": "Betrag",
   "appName": "MyGarage",
   "autoCalculated": "Automatisch berechnet",
   "characters": "Zeichen",
@@ -281,5 +326,285 @@
   "total": "Gesamt",
   "totalCost": "Gesamtkosten",
   "update": "Aktualisieren",
-  "user": "Benutzer"
+  "user": "Benutzer",
+  "relationships": {
+    "spouse": "Ehepartner/Partner",
+    "child": "Kind",
+    "parent": "Elternteil",
+    "sibling": "Geschwisterteil",
+    "grandparent": "Großelternteil",
+    "grandchild": "Enkelkind",
+    "inLaw": "Schwiegerfamilie",
+    "friend": "Freund/Freundin",
+    "other": "Sonstige"
+  },
+  "familyCard": {
+    "columnLastService": "Letzter Service",
+    "columnNextMaintenance": "Nächste Wartung",
+    "columnVehicle": "Fahrzeug",
+    "deleteUser": "Benutzer löschen",
+    "disableUser": "Benutzer deaktivieren",
+    "editUser": "Benutzer bearbeiten",
+    "enableUser": "Benutzer aktivieren",
+    "hideFromDashboard": "Vom Dashboard ausblenden",
+    "moveDown": "Nach unten verschieben",
+    "moveUp": "Nach oben verschieben",
+    "noMaintenanceScheduled": "Keine Wartung geplant",
+    "noServiceRecords": "Keine Serviceberichte",
+    "noVehicles": "Keine Fahrzeuge",
+    "resetPassword": "Passwort zurücksetzen",
+    "showOnDashboard": "Auf dem Dashboard anzeigen"
+  },
+  "registerPage": {
+    "successTitle": "Registrierung erfolgreich!",
+    "successAdminRedirect": "Du bist der Admin! Weiterleitung zum Login...",
+    "successRedirect": "Dein Konto wurde erstellt. Weiterleitung zum Login...",
+    "adminBadge": "Du wirst der Admin sein!",
+    "usernamePlaceholder": "Wähle einen Benutzernamen",
+    "usernameHint": "Mindestens 3 Zeichen, nur Buchstaben, Zahlen, _ und -",
+    "passwordPlaceholder": "Erstelle ein sicheres Passwort",
+    "confirmPasswordLabel": "Passwort bestätigen",
+    "confirmPasswordPlaceholder": "Bestätige dein Passwort",
+    "showPassword": "Passwort anzeigen",
+    "hidePassword": "Passwort ausblenden",
+    "passwordStrength": "Passwortstärke: {{strength}}",
+    "passwordRequirements": "Erforderlich: 8+ Zeichen, Großbuchstabe, Kleinbuchstabe, Zahl, Sonderzeichen (!@#$...)",
+    "submitting": "Konto wird erstellt...",
+    "failed": "Registrierung fehlgeschlagen. Bitte versuche es erneut.",
+    "strength": {
+      "weak": "Schwach",
+      "medium": "Mittel",
+      "strong": "Stark"
+    }
+  },
+  "loginPage": {
+    "usernamePlaceholder": "Gib deinen Benutzernamen oder deine E-Mail ein",
+    "passwordPlaceholder": "Gib dein Passwort ein",
+    "showPassword": "Passwort anzeigen",
+    "hidePassword": "Passwort ausblenden",
+    "submitting": "Anmeldung läuft..."
+  },
+  "linkAccountPage": {
+    "passwordPlaceholder": "Gib dein Passwort ein",
+    "cancel": "Abbrechen",
+    "linking": "Verknüpfung wird durchgeführt...",
+    "forgotPassword": "Passwort vergessen?",
+    "returnToLogin": "Zurück zum Login",
+    "missingToken": "Verknüpfungs-Token fehlt. Bitte starte den Login-Prozess neu.",
+    "passwordRequired": "Passwort ist erforderlich",
+    "failed": "Konto konnte nicht verknüpft werden. Bitte versuche es erneut."
+  },
+  "protectedRoute": {
+    "loadingAriaLabel": "Wird geladen"
+  },
+  "addressBookPage": {
+    "edit": "Bearbeiten",
+    "delete": "Löschen",
+    "businessNamePlaceholder": "ABC Autowerkstatt",
+    "contactNamePlaceholder": "Max Mustermann",
+    "streetAddressPlaceholder": "Hauptstraße 123",
+    "cityPlaceholder": "Musterstadt"
+  },
+  "poiCard": {
+    "categoryAutoShop": "Autowerkstatt",
+    "categoryRvShop": "Wohnmobilwerkstatt",
+    "categoryEvCharging": "E-Ladestation",
+    "categoryGasStation": "Tankstelle",
+    "categoryPropane": "Propan",
+    "connectors": "Steckertypen",
+    "network": "Ladenetzwerk",
+    "saveToAddressBook": "Im Adressbuch speichern",
+    "savedToAddressBook": "Im Adressbuch gespeichert",
+    "source": "Quelle"
+  },
+  "addressBookQuickAdd": {
+    "title": "Adressbucheintrag hinzufügen",
+    "close": "Schließen",
+    "name": "Name",
+    "address": "Adresse (optional)",
+    "city": "Stadt",
+    "state": "Bundesland / Region",
+    "cancel": "Abbrechen",
+    "add": "Hinzufügen",
+    "adding": "Wird hinzugefügt...",
+    "addFailed": "Eintrag konnte nicht hinzugefügt werden"
+  },
+  "addressBookAutocomplete": {
+    "placeholder": "Tippen zum Suchen...",
+    "clear": "Station löschen",
+    "helperText": "Mindestens 2 Zeichen eingeben, um das Adressbuch zu durchsuchen",
+    "noMatches": "Keine Kontakte für „{{query}}“ gefunden",
+    "noMatchesInCategory": "Keine Kontakte für „{{query}}“ in der Kategorie {{category}} gefunden",
+    "addToAddressBook": "„{{query}}“ zum Adressbuch hinzufügen"
+  },
+  "exportMenu": {
+    "export": "Exportieren"
+  },
+  "suppliesPage": {
+    "namePlaceholder": "Motoröl 5W-30",
+    "categoryPlaceholder": "Flüssigkeiten"
+  },
+  "errorBoundary": {
+    "title": "Etwas ist schiefgelaufen",
+    "description": "Ein unerwarteter Fehler ist aufgetreten. Bitte versuche, die Seite zu aktualisieren, oder kontaktiere den Support, falls das Problem weiterhin besteht.",
+    "tryAgain": "Erneut versuchen",
+    "goToDashboard": "Zum Dashboard"
+  },
+  "offlineBanner": {
+    "message": "Du bist offline. Die angezeigten Daten stammen möglicherweise aus der letzten gespeicherten Sitzung."
+  },
+  "leafletMap": {
+    "yourLocation": "Dein Standort"
+  },
+  "validation": {
+    "username": {
+      "required": "Benutzername ist erforderlich",
+      "minLength": "Benutzername muss mindestens 3 Zeichen lang sein",
+      "maxLength": "Benutzername darf maximal 100 Zeichen lang sein",
+      "pattern": "Benutzername darf nur Buchstaben, Zahlen, Unterstriche und Bindestriche enthalten"
+    },
+    "password": {
+      "required": "Passwort ist erforderlich",
+      "minLength": "Passwort muss mindestens 8 Zeichen lang sein",
+      "maxLength": "Passwort darf maximal 100 Zeichen lang sein",
+      "uppercase": "Passwort muss mindestens einen Großbuchstaben enthalten",
+      "lowercase": "Passwort muss mindestens einen Kleinbuchstaben enthalten",
+      "digit": "Passwort muss mindestens eine Ziffer enthalten",
+      "specialChar": "Passwort muss mindestens ein Sonderzeichen enthalten",
+      "confirmRequired": "Bitte bestätige dein Passwort",
+      "mismatch": "Die Passwörter stimmen nicht überein",
+      "invalid": "Ungültiges Passwort"
+    },
+    "email": {
+      "required": "E-Mail ist erforderlich",
+      "invalid": "Ungültige E-Mail-Adresse",
+      "maxLength": "E-Mail darf maximal 255 Zeichen lang sein"
+    },
+    "serviceVisit": {
+      "descriptionRequired": "Beschreibung ist erforderlich",
+      "descriptionTooLong": "Beschreibung zu lang (maximal 200 Zeichen)",
+      "lineItemNotesTooLong": "Notizen zu lang (maximal 1000 Zeichen)",
+      "inspectionResultInvalid": "Ungültiges Inspektionsergebnis",
+      "inspectionSeverityInvalid": "Ungültige Inspektionsschwere",
+      "notesTooLong": "Notizen zu lang (maximal 5000 Zeichen)",
+      "insuranceClaimNumberTooLong": "Schadensnummer der Versicherung zu lang (maximal 50 Zeichen)",
+      "lineItemsRequired": "Mindestens ein Posten ist erforderlich",
+      "inspectionResultRequired": "Für Inspektionspunkte ist ein Inspektionsergebnis erforderlich"
+    },
+    "supply": {
+      "nameRequired": "Name ist erforderlich",
+      "nameTooLong": "Name zu lang",
+      "unitTypeRequired": "Einheitentyp ist erforderlich",
+      "partNumberTooLong": "Teilenummer zu lang",
+      "categoryTooLong": "Kategorie zu lang",
+      "notesTooLong": "Notizen zu lang"
+    },
+    "tollTag": {
+      "systemRequired": "Mautsystem ist erforderlich",
+      "tagNumberRequired": "Transpondernummer ist erforderlich",
+      "tagNumberTooLong": "Transpondernummer zu lang (maximal 50 Zeichen)"
+    },
+    "odometer": {
+      "negative": "Kilometerstand kann nicht negativ sein",
+      "tooLarge": "Wert des Kilometerstands zu groß"
+    },
+    "amount": {
+      "negative": "Betrag kann nicht negativ sein",
+      "tooLarge": "Betrag zu groß"
+    },
+    "volume": {
+      "negative": "Volumen kann nicht negativ sein",
+      "tooLarge": "Volumen zu groß"
+    },
+    "price": {
+      "negative": "Preis kann nicht negativ sein",
+      "tooLarge": "Preis zu groß"
+    },
+    "kwh": {
+      "negative": "kWh kann nicht negativ sein",
+      "tooLarge": "kWh zu groß"
+    },
+    "date": {
+      "required": "Datum ist erforderlich",
+      "invalidFormat": "Ungültiges Datumsformat"
+    },
+    "description": {
+      "required": "Beschreibung ist erforderlich",
+      "tooLong": "Beschreibung zu lang (maximal 500 Zeichen)"
+    },
+    "notes": {
+      "tooLong": "Notizen zu lang (maximal 1000 Zeichen)"
+    },
+    "vendorName": {
+      "tooLong": "Dienstleistername zu lang (maximal 100 Zeichen)"
+    },
+    "vin": {
+      "length": "Die VIN muss genau 17 Zeichen lang sein",
+      "invalidFormat": "Ungültiges VIN-Format"
+    },
+    "spotRental": {
+      "nightlyRateNegative": "Der Preis pro Nacht kann nicht negativ sein",
+      "nightlyRateTooLarge": "Der Preis pro Nacht ist zu groß (maximal 9.999,99 $)",
+      "rateNegative": "Die Rate kann nicht negativ sein",
+      "rateTooLarge": "Die Rate ist zu groß (maximal 99.999,99 $)",
+      "utilityNegative": "Nebenkosten können nicht negativ sein",
+      "utilityTooLarge": "Nebenkosten zu groß (maximal 9.999,99 $)",
+      "locationNameTooLong": "Standortname zu lang (maximal 100 Zeichen)"
+    },
+    "note": {
+      "titleTooLong": "Titel zu lang (maximal 100 Zeichen)",
+      "contentRequired": "Inhalt ist erforderlich",
+      "contentTooLong": "Inhalt zu lang (maximal 10.000 Zeichen)"
+    },
+    "def": {
+      "fillLevelNegative": "Füllstand kann nicht negativ sein",
+      "fillLevelTooLarge": "Füllstand darf 100 % nicht überschreiten"
+    },
+    "recall": {
+      "campaignNumberTooLong": "Kampagnennummer zu lang (maximal 50 Zeichen)",
+      "componentRequired": "Komponente ist erforderlich",
+      "componentTooLong": "Komponentenbeschreibung zu lang (maximal 200 Zeichen)",
+      "summaryRequired": "Zusammenfassung ist erforderlich",
+      "summaryTooLong": "Zusammenfassung zu lang (maximal 2.000 Zeichen)",
+      "consequenceTooLong": "Beschreibung der Auswirkung zu lang (maximal 2.000 Zeichen)",
+      "remedyTooLong": "Beschreibung der Abhilfe zu lang (maximal 2.000 Zeichen)"
+    },
+    "fuel": {
+      "fuelTypeTooLong": "Kraftstoffart zu lang",
+      "obcTripDurationFormat": "Verwende Sekunden (z. B. 8100), HH:MM (z. B. 2:15) oder HH:MM:SS"
+    }
+  },
+  "httpError": {
+    "status": {
+      "badRequest": "Ungültige Anfrage. Bitte überprüfe deine Eingabe.",
+      "unauthorized": "Sitzung abgelaufen. Bitte melde dich erneut an.",
+      "forbidden": "Du hast keine Berechtigung, diese Aktion auszuführen.",
+      "notFound": "Die angeforderte Ressource wurde nicht gefunden.",
+      "conflict": "Diese Aktion steht im Konflikt mit bestehenden Daten.",
+      "unprocessable": "Die übermittelten Daten konnten nicht verarbeitet werden.",
+      "serverError": "Ein unerwarteter Serverfehler ist aufgetreten.",
+      "badGateway": "Der Server ist vorübergehend nicht verfügbar. Bitte versuche es erneut.",
+      "serviceUnavailable": "Dienst vorübergehend nicht verfügbar. Bitte versuche es in Kürze erneut.",
+      "gatewayTimeout": "Zeitüberschreitung der Anfrage. Bitte versuche es erneut."
+    },
+    "database": {
+      "conflict": "Ein Eintrag mit diesen Daten existiert bereits.",
+      "unavailable": "Datenbank vorübergehend nicht verfügbar. Bitte versuche es erneut."
+    },
+    "file": {
+      "forbidden": "Zugriff verweigert. Datei kann nicht aufgerufen werden.",
+      "notFound": "Datei nicht gefunden.",
+      "serverError": "Fehler beim Zugriff auf die Datei."
+    },
+    "externalApi": {
+      "unavailable": "Externer Dienst nicht verfügbar. Bitte versuche es später noch einmal.",
+      "timeout": "Zeitüberschreitung beim externen Dienst. Bitte versuche es erneut."
+    },
+    "network": "Netzwerkfehler. Bitte überprüfe deine Verbindung.",
+    "generic": "Ein Fehler ist aufgetreten.",
+    "unexpected": "Ein unerwarteter Fehler ist aufgetreten.",
+    "formSubmitFallback": "Ein Fehler ist aufgetreten",
+    "actionFailed": "Fehler beim Ausführen von {{action}}. {{message}}",
+    "actionFailedCheckInput": "Fehler beim Ausführen von {{action}}. Bitte überprüfe deine Eingabe."
+  }
 }
