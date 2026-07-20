@@ -596,7 +596,7 @@ export default function SettingsSystemTab() {
               className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 transition-all ${
                 theme === 'dark'
                   ? 'border-primary bg-primary/10 text-primary'
-                  : 'border-garage-border bg-garage-bg text-garage-text hover:border-garage-border-light'
+                  : 'border-garage-border bg-garage-bg text-garage-text hover:border-garage-border'
               }`}
             >
               <Moon className="w-5 h-5" />
@@ -607,7 +607,7 @@ export default function SettingsSystemTab() {
               className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 transition-all ${
                 theme === 'light'
                   ? 'border-primary bg-primary/10 text-primary'
-                  : 'border-garage-border bg-garage-bg text-garage-text hover:border-garage-border-light'
+                  : 'border-garage-border bg-garage-bg text-garage-text hover:border-garage-border'
               }`}
             >
               <Sun className="w-5 h-5" />
@@ -631,7 +631,7 @@ export default function SettingsSystemTab() {
               className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 transition-all ${
                 unitPreference === 'imperial'
                   ? 'border-primary bg-primary/10 text-primary'
-                  : 'border-garage-border bg-garage-bg text-garage-text hover:border-garage-border-light'
+                  : 'border-garage-border bg-garage-bg text-garage-text hover:border-garage-border'
               } ${unitPreferenceSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               <Ruler className="w-5 h-5" />
@@ -643,7 +643,7 @@ export default function SettingsSystemTab() {
               className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 transition-all ${
                 unitPreference === 'metric'
                   ? 'border-primary bg-primary/10 text-primary'
-                  : 'border-garage-border bg-garage-bg text-garage-text hover:border-garage-border-light'
+                  : 'border-garage-border bg-garage-bg text-garage-text hover:border-garage-border'
               } ${unitPreferenceSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               <Ruler className="w-5 h-5" />
@@ -692,7 +692,7 @@ export default function SettingsSystemTab() {
               className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 transition-all ${
                 timeFormat === '12h'
                   ? 'border-primary bg-primary/10 text-primary'
-                  : 'border-garage-border bg-garage-bg text-garage-text hover:border-garage-border-light'
+                  : 'border-garage-border bg-garage-bg text-garage-text hover:border-garage-border'
               } ${timeFormatSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               <Clock className="w-5 h-5" />
@@ -704,7 +704,7 @@ export default function SettingsSystemTab() {
               className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 transition-all ${
                 timeFormat === '24h'
                   ? 'border-primary bg-primary/10 text-primary'
-                  : 'border-garage-border bg-garage-bg text-garage-text hover:border-garage-border-light'
+                  : 'border-garage-border bg-garage-bg text-garage-text hover:border-garage-border'
               } ${timeFormatSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               <Clock className="w-5 h-5" />

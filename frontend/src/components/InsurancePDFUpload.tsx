@@ -271,7 +271,7 @@ export default function InsurancePDFUpload({ vin, onDataExtracted, onClose }: In
                 )}
 
                 {/* Extracted Data */}
-                <div className="bg-garage-background border border-garage-border rounded-lg p-4">
+                <div className="bg-garage-bg border border-garage-border rounded-lg p-4">
                   <h3 className="text-sm font-semibold text-garage-text mb-3">
                     {t('insurancePdfUpload.extractedData')}
                   </h3>

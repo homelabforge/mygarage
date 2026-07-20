@@ -159,7 +159,7 @@ export default function WindowStickerTest() {
         <div className="flex items-center gap-4 mb-6">
           <Link
             to={`/vehicles/${vin}`}
-            className="p-2 rounded-lg bg-garage-card hover:bg-garage-card-hover transition-colors"
+            className="p-2 rounded-lg bg-garage-surface hover:bg-garage-surface-light transition-colors"
           >
             <ArrowLeft className="w-5 h-5 text-garage-text" />
           </Link>
@@ -175,7 +175,7 @@ export default function WindowStickerTest() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Upload Section */}
-          <div className="bg-garage-card rounded-xl p-6 border border-garage-border">
+          <div className="bg-garage-surface rounded-xl p-6 border border-garage-border">
             <h2 className="text-lg font-semibold text-garage-text mb-4 flex items-center gap-2">
               <Upload className="w-5 h-5" />
               {t('windowSticker.upload')}
@@ -187,12 +187,12 @@ export default function WindowStickerTest() {
               onDragOver={(e) => e.preventDefault()}
               className={`
                 relative border-2 border-dashed rounded-lg p-8 text-center transition-colors
-                ${file ? 'border-garage-accent bg-garage-accent/10' : 'border-garage-border hover:border-garage-accent/50'}
+                ${file ? 'border-primary bg-primary/10' : 'border-garage-border hover:border-primary/50'}
               `}
             >
               {file ? (
                 <div className="flex flex-col items-center gap-2">
-                  <FileText className="w-12 h-12 text-garage-accent" />
+                  <FileText className="w-12 h-12 text-primary" />
                   <p className="text-garage-text font-medium">{file.name}</p>
                   <p className="text-garage-text-muted text-sm">
                     {t('windowSticker.test.fileSizeMb', { size: formatDecimal(file.size / 1024 / 1024, 2) })}
@@ -231,7 +231,7 @@ export default function WindowStickerTest() {
               <select
                 value={selectedParser}
                 onChange={(e) => setSelectedParser(e.target.value)}
-                className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-garage-accent"
+                className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary"
               >
                 <option value="">{t('windowSticker.test.autoDetect')}</option>
                 {parsers.map((p) => (
@@ -249,7 +249,7 @@ export default function WindowStickerTest() {
               className={`
                 w-full mt-4 py-3 px-4 rounded-lg font-medium transition-colors
                 ${file && !loading
-                  ? 'bg-garage-accent text-white hover:bg-garage-accent-hover'
+                  ? 'bg-primary text-white hover:bg-primary-600'
                   : 'bg-garage-border text-garage-text-muted cursor-not-allowed'
                 }
               `}
@@ -259,7 +259,7 @@ export default function WindowStickerTest() {
           </div>
 
           {/* Results Section */}
-          <div className="bg-garage-card rounded-xl p-6 border border-garage-border">
+          <div className="bg-garage-surface rounded-xl p-6 border border-garage-border">
             <h2 className="text-lg font-semibold text-garage-text mb-4 flex items-center gap-2">
               <FileText className="w-5 h-5" />
               {t('windowSticker.extractionResults')}
@@ -363,7 +363,7 @@ export default function WindowStickerTest() {
                           {Object.entries(result.extracted_data.options_detail).map(([name, price]) => (
                             <div key={name} className="flex justify-between text-sm p-2 bg-garage-bg rounded">
                               <span className="text-garage-text truncate mr-2">{name}</span>
-                              <span className="text-garage-accent whitespace-nowrap">{formatCurrency(price, { currencyCode, locale })}</span>
+                              <span className="text-primary whitespace-nowrap">{formatCurrency(price, { currencyCode, locale })}</span>
                             </div>
                           ))}
                         </div>
@@ -461,7 +461,7 @@ export default function WindowStickerTest() {
                       <div>
                         <button
                           onClick={() => setShowEquipment(!showEquipment)}
-                          className="flex items-center gap-2 text-sm font-medium text-garage-text hover:text-garage-accent"
+                          className="flex items-center gap-2 text-sm font-medium text-garage-text hover:text-primary"
                         >
                           {showEquipment ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                           {t('windowSticker.test.equipmentLists', {
@@ -504,7 +504,7 @@ export default function WindowStickerTest() {
                   <div>
                     <button
                       onClick={() => setShowRawText(!showRawText)}
-                      className="flex items-center gap-2 text-sm font-medium text-garage-text hover:text-garage-accent"
+                      className="flex items-center gap-2 text-sm font-medium text-garage-text hover:text-primary"
                     >
                       {showRawText ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                       {t('windowSticker.test.rawExtractedText')}
@@ -513,7 +513,7 @@ export default function WindowStickerTest() {
                       <div className="mt-2 relative">
                         <button
                           onClick={() => copyToClipboard(result.raw_text!)}
-                          className="absolute top-2 right-2 p-1 bg-garage-card rounded hover:bg-garage-card-hover"
+                          className="absolute top-2 right-2 p-1 bg-garage-surface rounded hover:bg-garage-surface-light"
                           title={t('windowSticker.test.copyToClipboard')}
                         >
                           <Copy className="w-4 h-4 text-garage-text-muted" />
@@ -537,7 +537,7 @@ export default function WindowStickerTest() {
                       a.download = `window_sticker_${vin}.json`
                       a.click()
                     }}
-                    className="flex items-center gap-2 text-sm text-garage-accent hover:underline"
+                    className="flex items-center gap-2 text-sm text-primary hover:underline"
                   >
                     <Download className="w-4 h-4" />
                     {t('windowSticker.exportJSON')}

@@ -395,7 +395,7 @@ export default function Analytics() {
       <div className="mb-6">
         <Link
           to={`/vehicles/${vin}`}
-          className="inline-flex items-center space-x-2 text-primary hover:text-primary-dark mb-4"
+          className="inline-flex items-center space-x-2 text-primary hover:text-primary-600 mb-4"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>{t('vehicle.backToVehicle')}</span>
@@ -1671,7 +1671,7 @@ export default function Analytics() {
           </div>
           <button
             onClick={() => setShowComparison(!showComparison)}
-            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors"
+            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-600 transition-colors"
           >
             {showComparison ? t('vehicle.hide') : t('vehicle.comparePeriods')}
           </button>
@@ -1745,7 +1745,7 @@ export default function Analytics() {
               <button
                 onClick={handleCompare}
                 disabled={comparisonLoading}
-                className="px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {comparisonLoading ? t('vehicle.comparing') : t('vehicle.runComparison')}
               </button>

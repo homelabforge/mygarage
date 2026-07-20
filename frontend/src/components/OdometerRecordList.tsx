@@ -259,7 +259,7 @@ export default function OdometerRecordList({ vin, onAddClick, onEditClick }: Odo
                       <div className="flex justify-end gap-2">
                         <button
                           onClick={() => onEditClick(record)}
-                          className="text-primary hover:text-primary-dark"
+                          className="text-primary hover:text-primary-600"
                           title={t('common:edit')}
                         >
                           <Edit className="w-4 h-4" />

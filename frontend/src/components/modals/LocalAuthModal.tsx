@@ -152,7 +152,7 @@ export default function LocalAuthModal({
         <div className="flex justify-end">
           <button
             onClick={handleClose}
-            className="px-4 py-2 text-sm font-medium text-garage-text bg-garage-bg border border-garage-border rounded-lg hover:bg-garage-muted transition-colors"
+            className="px-4 py-2 text-sm font-medium text-garage-text bg-garage-bg border border-garage-border rounded-lg hover:bg-garage-text-muted transition-colors"
           >
             {t('modal.localAuth.close')}
           </button>

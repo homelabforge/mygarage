@@ -170,7 +170,7 @@ export default function AddEditUserModal({ isOpen, onClose, user, onSave, curren
           <h2 className="text-xl font-bold text-garage-text">
             {isEditMode ? t('modal.editUser') : t('modal.addUser')}
           </h2>
-          <button onClick={onClose} className="p-2 hover:bg-garage-muted rounded-lg transition-colors">
+          <button onClick={onClose} className="p-2 hover:bg-garage-text-muted rounded-lg transition-colors">
             <X className="w-5 h-5 text-garage-text-muted" />
           </button>
         </div>
