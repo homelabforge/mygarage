@@ -213,7 +213,7 @@ export default function VehicleTransferWizard({
             <h2 className="text-xl font-bold text-garage-text">{t('modal.transferVehicle')}</h2>
             <p className="text-sm text-garage-text-muted mt-1">{vehicleNickname}</p>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-garage-text-muted rounded-lg transition-colors">
+          <button onClick={onClose} className="p-2 hover:bg-garage-surface-light rounded-lg transition-colors">
             <X className="w-5 h-5 text-garage-text-muted" />
           </button>
         </div>

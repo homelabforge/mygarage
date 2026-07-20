@@ -26,7 +26,7 @@ export default function AnalyticsHelpModal({ isOpen, onClose }: AnalyticsHelpMod
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-garage-text-muted rounded-lg transition-colors"
+            className="p-2 hover:bg-garage-surface-light rounded-lg transition-colors"
             aria-label={t('vehicleHelp.close')}
           >
             <X className="w-5 h-5 text-garage-text-muted" />

@@ -40,7 +40,7 @@ export default function VINDecoderModal({ isOpen, onClose }: VINDecoderModalProp
               </p>
             </div>
           </div>
-          <button onClick={handleClose} className="p-2 hover:bg-garage-text-muted rounded-lg transition-colors">
+          <button onClick={handleClose} className="p-2 hover:bg-garage-surface-light rounded-lg transition-colors">
             <X className="w-5 h-5 text-garage-text-muted" />
           </button>
         </div>
@@ -94,7 +94,7 @@ export default function VINDecoderModal({ isOpen, onClose }: VINDecoderModalProp
         <div className="p-4 border-t border-garage-border flex justify-end flex-shrink-0">
           <button
             onClick={handleClose}
-            className="px-4 py-2 text-sm font-medium text-garage-text bg-garage-bg border border-garage-border rounded-lg hover:bg-garage-text-muted transition-colors"
+            className="px-4 py-2 text-sm font-medium text-garage-text bg-garage-bg border border-garage-border rounded-lg hover:bg-garage-surface-light transition-colors"
           >
             {t('vinDecoderModal.close')}
           </button>
