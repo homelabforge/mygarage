@@ -193,8 +193,20 @@ async def verify_id_token(
 
         # Validate standard + provider-specific claims (iss/aud/nonce) and
         # time-based claims (exp/nbf/iat) in one pass.
+        #
+        # `iss` is matched against the ISSUER FROM DISCOVERY, not the issuer URL the
+        # admin typed. OIDC Core §3.1.3.7(2) requires the claim to exactly equal the
+        # provider's Issuer Identifier, and that is what the metadata document reports.
+        # The stored setting is not a reliable stand-in: routes/oidc.py rstrips a
+        # trailing slash on save, while Rauthy's issuer ends in one — so the stored
+        # value can never match and every login fails with
+        # `invalid_claim: 'iss'`. Falls back to the stored value only if a provider
+        # omits `issuer` from its metadata.
         claims_registry = jwt.JWTClaimsRegistry(
-            iss={"essential": True, "value": config.get("issuer_url", "")},
+            iss={
+                "essential": True,
+                "value": metadata.get("issuer") or config.get("issuer_url", ""),
+            },
             aud={"essential": True, "value": config.get("client_id", "")},
             nonce={"essential": True, "value": nonce},
         )
