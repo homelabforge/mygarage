@@ -38,7 +38,18 @@ export default tseslint.config(
       'no-restricted-syntax': [
         'warn',
         {
-          selector: 'TemplateLiteral[quasis.0.value.raw=/\\$\\$/]',
+          // Matches a template chunk ending in `$` immediately before an
+          // interpolation — i.e. `$${amount}`.
+          //
+          // The previous selector was TemplateLiteral[quasis.0.value.raw=/\$\$/]
+          // and never fired: it demanded TWO literal dollars, but `$${amount}`
+          // produces a quasi of exactly one (`$`), the second being the start of
+          // `${`. It also only inspected quasis.0, so `Total: $${x}` was invisible
+          // even to the intended pattern. Verified dead against a probe file.
+          //
+          // tail=false restricts this to chunks followed by an interpolation, so
+          // prose like `costs 5 $` is not flagged.
+          selector: 'TemplateElement[tail=false][value.raw=/\\$$/]',
           message: 'Avoid raw $ in template literals for currency. Use formatCurrency() from utils/formatUtils.ts instead.',
         },
         {
@@ -51,6 +62,16 @@ export default tseslint.config(
   // Exempt utility files from the i18n lint guards (they ARE the centralized implementation)
   {
     files: ['src/utils/formatUtils.ts', 'src/utils/units.ts', 'src/utils/dateUtils.ts'],
+    rules: {
+      'no-restricted-syntax': 'off',
+    },
+  },
+  // Tests legitimately write a raw `$`: they either mock formatCurrency (and so
+  // must produce its output shape) or assert against what that mock rendered.
+  // Same reasoning as the utils exemption above — these stand in for the
+  // implementation rather than bypassing it.
+  {
+    files: ['src/**/__tests__/**/*.{ts,tsx}', 'src/**/*.test.{ts,tsx}'],
     rules: {
       'no-restricted-syntax': 'off',
     },
