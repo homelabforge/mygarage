@@ -1,9 +1,9 @@
 import { z } from 'zod'
 import type { TFunction } from 'i18next'
 import {
-  dateSchema,
-  optionalOdometerSchema,
-  optionalCurrencySchema,
+  makeDateSchema,
+  makeOptionalOdometerSchema,
+  makeOptionalCurrencySchema,
 } from './shared'
 // Service categories matching backend Literal type
 export const SERVICE_CATEGORIES = ['Maintenance', 'Inspection', 'Collision', 'Upgrades', 'Detailing'] as const
@@ -27,7 +27,7 @@ export const makeServiceLineItemSchema = (t: TFunction) =>
       .min(1, t('common:validation.serviceVisit.descriptionRequired'))
       .max(200, t('common:validation.serviceVisit.descriptionTooLong')),
     category: z.enum(SERVICE_CATEGORIES).optional().or(z.literal('')),
-    cost: optionalCurrencySchema,
+    cost: makeOptionalCurrencySchema(t),
     notes: z
       .string()
       .max(1000, t('common:validation.serviceVisit.lineItemNotesTooLong'))
@@ -63,8 +63,8 @@ export const makeServiceVisitSchema = (t: TFunction) =>
       .optional()
       .or(z.nan())
       .transform(val => (typeof val === 'number' && isNaN(val) ? undefined : val)),
-    date: dateSchema,
-    odometer_km: optionalOdometerSchema,
+    date: makeDateSchema(t),
+    odometer_km: makeOptionalOdometerSchema(t),
     notes: z.string().max(5000, t('common:validation.serviceVisit.notesTooLong')).optional(),
     insurance_claim_number: z
       .string()

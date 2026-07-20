@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import type { TFunction } from 'i18next'
 
-import { vinSchema } from './shared'
+import { makeVinSchema } from './shared'
 
 /**
  * Supply validation schema.
@@ -23,7 +23,7 @@ export const makeSupplySchema = (t: TFunction) =>
     part_number: z.string().max(60, t('common:validation.supply.partNumberTooLong')).optional(),
     category: z.string().max(40, t('common:validation.supply.categoryTooLong')).optional(),
     notes: z.string().max(5000, t('common:validation.supply.notesTooLong')).optional(),
-    vin: vinSchema.or(z.literal('')).optional(),
+    vin: makeVinSchema(t).or(z.literal('')).optional(),
   })
 
 export type SupplyFormData = z.infer<ReturnType<typeof makeSupplySchema>>

@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - i18n: the attachment lists and quick view, window-sticker test page, family member card, widget-keys panel, and the Slack/Discord notification setup are now translatable (~124 strings).
 
 - i18n: the notification setup panels, settings tabs, uploads and document lists, auth pages, POI and address-book screens, record forms, and the vehicle edit/archive screens are now translatable (~400 strings).
-- i18n: form validation messages, dropdown options (policy, warranty, tax, toll and address-book types), and status values supplied by the server (calendar event type, inspection result, prediction confidence, toll status) are now translatable. The shared field validators (date, odometer, VIN, notes) are still English and are the last remaining set.
+- i18n: form validation messages — including the shared field validators for date, odometer, VIN, currency and notes — dropdown options (policy, warranty, tax, toll and address-book types), and status values supplied by the server (calendar event type, inspection result, prediction confidence, toll status) are now translatable. The UI no longer contains untranslated user-facing English.
 
 ### Removed
 - Dropped the unused shop-discovery modal, orphaned when the legacy service-record form it fed was removed; the shop finder page replaces it.

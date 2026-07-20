@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { defRecordSchema } from '../def'
+import type { TFunction } from 'i18next'
+import { makeDefRecordSchema } from '../def'
+
+// Same shape as the global react-i18next mock in src/__tests__/setup.ts:
+// messages come back as their i18n key, which is all these tests need.
+const t = ((key: string) => key) as unknown as TFunction
+
+const defRecordSchema = makeDefRecordSchema(t)
 
 describe('DEF Record Schema', () => {
   const validDef = {

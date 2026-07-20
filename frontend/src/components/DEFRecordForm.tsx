@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Save } from 'lucide-react'
 import FormModalWrapper from './FormModalWrapper'
 import type { DEFRecord, DEFRecordCreate } from '../types/def'
-import { defRecordSchema, type DefRecordFormData } from '../schemas/def'
+import { makeDefRecordSchema, type DefRecordFormData } from '../schemas/def'
 import { FormError } from './FormError'
 import { useCreateDEFRecord, useUpdateDEFRecord } from '../hooks/queries/useDEFRecords'
 import { useUnitPreference } from '../hooks/useUnitPreference'
@@ -65,6 +65,11 @@ export default function DEFRecordForm({
     return isNaN(num) ? undefined : num
   }
 
+  // Zod bakes its messages in at construction, so the schema is rebuilt when
+  // the language changes. Only the resolver depends on it — no fetch, no
+  // reset() — so a rebuild can't discard what the user typed.
+  const schema = useMemo(() => makeDefRecordSchema(t), [t])
+
   const {
     register,
     handleSubmit,
@@ -72,7 +77,7 @@ export default function DEFRecordForm({
     setValue,
     watch,
   } = useForm<DefRecordFormData>({
-    resolver: zodResolver(defRecordSchema) as Resolver<DefRecordFormData>,
+    resolver: zodResolver(schema) as Resolver<DefRecordFormData>,
     defaultValues: {
       date: formatDateForInput(record?.date),
       odometer_km: (() => {

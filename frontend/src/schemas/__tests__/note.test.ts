@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { noteSchema } from '../note'
+import type { TFunction } from 'i18next'
+import { makeNoteSchema } from '../note'
+
+// Same shape as the global react-i18next mock in src/__tests__/setup.ts:
+// messages come back as their i18n key, which is all these tests need.
+const t = ((key: string) => key) as unknown as TFunction
+
+const noteSchema = makeNoteSchema(t)
 
 describe('Note Schema', () => {
   const validNote = {

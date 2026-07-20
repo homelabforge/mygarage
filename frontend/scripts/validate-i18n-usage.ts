@@ -125,20 +125,37 @@ for (const file of walk(SRC)) {
 
   // Literal t('key') / t('key', { ... }) only. Template literals are dynamic and
   // every one in the codebase carries a defaultValue, so they can't render raw.
-  if (bound.length > 0) {
-    for (const m of text.matchAll(/\bt\(\s*'([^']+)'\s*(,\s*\{[^}]*\})?\s*\)/g)) {
-      const [, rawKey, opts = ''] = m
-      if (opts.includes('defaultValue')) continue
+  //
+  // Note this runs even when the file binds no namespace. Skipping bound-less
+  // files was a silent hole: the Zod schema factories take `t` as a parameter
+  // and never call useTranslation, so every `t('common:validation.…')` in them
+  // went unchecked — the entire factory-schema effort was invisible to this
+  // gate. A namespace-qualified key carries its own scope and needs no binding;
+  // only a BARE key in a bound-less file is genuinely unresolvable, and that is
+  // reported rather than skipped.
+  for (const m of text.matchAll(/\bt\(\s*'([^']+)'\s*(,\s*\{[^}]*\})?\s*\)/g)) {
+    const [, rawKey, opts = ''] = m
+    if (opts.includes('defaultValue')) continue
 
-      // i18next takes the namespace two ways: the 'ns:key' prefix, and an
-      // { ns: 'forms' } option. Only honouring the prefix made every
-      // { ns } call a false positive once its defaultValue was removed —
-      // the key exists, just not in the namespace this file binds.
-      const nsOpt = opts.match(/\bns:\s*'([^']+)'/)
-      const scope = nsOpt && !rawKey.includes(':') ? [nsOpt[1]] : bound
+    // i18next takes the namespace two ways: the 'ns:key' prefix, and an
+    // { ns: 'forms' } option. Only honouring the prefix made every
+    // { ns } call a false positive once its defaultValue was removed —
+    // the key exists, just not in the namespace this file binds.
+    const nsOpt = opts.match(/\bns:\s*'([^']+)'/)
+    const scope = nsOpt && !rawKey.includes(':') ? [nsOpt[1]] : bound
 
-      record(file, text, m.index ?? 0, rawKey, scope, 'call')
+    if (scope.length === 0 && !rawKey.includes(':')) {
+      violations.push({
+        file: relative(ROOT, file),
+        line: text.slice(0, m.index ?? 0).split('\n').length,
+        key: rawKey,
+        searched: ['<no useTranslation in this file — qualify the key as "ns:key">'],
+        via: 'call',
+      })
+      continue
     }
+
+    record(file, text, m.index ?? 0, rawKey, scope, 'call')
   }
 
   // `labelKey` / `descriptionKey` fields on option-list constants, resolved at

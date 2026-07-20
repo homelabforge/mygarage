@@ -1,11 +1,11 @@
 import { useTranslation } from 'react-i18next'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Save } from 'lucide-react'
 import FormModalWrapper from './FormModalWrapper'
 import type { Recall, RecallCreate, RecallUpdate } from '../types/recall'
-import { recallSchema, type RecallFormData } from '../schemas/recall'
+import { makeRecallSchema, type RecallFormData } from '../schemas/recall'
 import { FormError } from './FormError'
 import { useCreateRecallRecord, useUpdateRecallRecord } from '../hooks/queries/useRecallRecords'
 
@@ -23,12 +23,17 @@ export default function RecallForm({ vin, recall, onClose, onSuccess }: RecallFo
   const createMutation = useCreateRecallRecord(vin)
   const updateMutation = useUpdateRecallRecord(vin)
 
+  // Zod bakes its messages in at construction, so the schema is rebuilt when
+  // the language changes. Only the resolver depends on it — no fetch, no
+  // reset() — so a rebuild can't discard what the user typed.
+  const schema = useMemo(() => makeRecallSchema(t), [t])
+
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<RecallFormData>({
-    resolver: zodResolver(recallSchema),
+    resolver: zodResolver(schema),
     defaultValues: {
       nhtsa_campaign_number: recall?.nhtsa_campaign_number || '',
       component: recall?.component || '',

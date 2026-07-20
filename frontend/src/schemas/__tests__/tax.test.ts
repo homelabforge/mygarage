@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { taxRecordSchema, TAX_TYPES, TAX_TYPE_VALUES } from '../tax'
+import type { TFunction } from 'i18next'
+import { makeTaxRecordSchema, TAX_TYPES, TAX_TYPE_VALUES } from '../tax'
+
+// Same shape as the global react-i18next mock in src/__tests__/setup.ts:
+// messages come back as their i18n key, which is all these tests need.
+const t = ((key: string) => key) as unknown as TFunction
+
+const taxRecordSchema = makeTaxRecordSchema(t)
 
 describe('Tax Record Schema', () => {
   const validTax = {

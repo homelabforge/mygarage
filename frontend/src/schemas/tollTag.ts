@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import type { TFunction } from 'i18next'
-import { notesSchema } from './shared'
+import { makeNotesSchema } from './shared'
 
 /**
  * Toll tag schema matching backend Pydantic validators.
@@ -56,7 +56,7 @@ export const makeTollTagSchema = (t: TFunction) =>
       .min(1, t('common:validation.tollTag.tagNumberRequired'))
       .max(50, t('common:validation.tollTag.tagNumberTooLong')),
     status: z.enum(['active', 'inactive']),
-    notes: notesSchema.optional(),
+    notes: makeNotesSchema(t).optional(),
   })
 
 export type TollTagFormData = z.infer<ReturnType<typeof makeTollTagSchema>>

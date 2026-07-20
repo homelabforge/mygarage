@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -9,7 +9,7 @@ import AddressBookQuickAddModal from './AddressBookQuickAddModal'
 import type { FuelRecord, FuelRecordCreate, FuelRecordUpdate } from '../types/fuel'
 import type { Vehicle } from '../types/vehicle'
 import type { AddressBookEntry } from '../types/addressBook'
-import { fuelRecordSchema, type FuelRecordFormData } from '../schemas/fuel'
+import { makeFuelRecordSchema, type FuelRecordFormData } from '../schemas/fuel'
 import {
   FUEL_TYPE_VALUES,
   PAYMENT_METHOD_VALUES,
@@ -117,6 +117,11 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
     return isNaN(num) ? undefined : num
   }
 
+  // Zod bakes its messages in at construction, so the schema is rebuilt when
+  // the language changes. Only the resolver depends on it — no fetch, no
+  // reset() — so a rebuild can't discard what the user typed.
+  const schema = useMemo(() => makeFuelRecordSchema(t), [t])
+
   const {
     register,
     handleSubmit,
@@ -125,7 +130,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
     watch,
     getValues,
   } = useForm<FuelRecordFormData>({
-    resolver: zodResolver(fuelRecordSchema) as Resolver<FuelRecordFormData>,
+    resolver: zodResolver(schema) as Resolver<FuelRecordFormData>,
     defaultValues: {
       date: formatDateForInput(record?.date),
       // Immediately overwritten by the sub-field mirror effect below once

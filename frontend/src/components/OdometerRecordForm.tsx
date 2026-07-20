@@ -1,11 +1,11 @@
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Save } from 'lucide-react'
 import FormModalWrapper from './FormModalWrapper'
 import type { OdometerRecord, OdometerRecordCreate, OdometerRecordUpdate } from '../types/odometer'
-import { odometerRecordSchema, type OdometerRecordFormData } from '../schemas/odometer'
+import { makeOdometerRecordSchema, type OdometerRecordFormData } from '../schemas/odometer'
 import { FormError } from './FormError'
 import { useCreateOdometerRecord, useUpdateOdometerRecord } from '../hooks/queries/useOdometerRecords'
 import { useUnitPreference } from '../hooks/useUnitPreference'
@@ -46,12 +46,17 @@ export default function OdometerRecordForm({ vin, record, onClose, onSuccess }: 
 
   const { error, handleSubmit: onSubmit } = useFormSubmit(submitFn, { onSuccess, onClose })
 
+  // Zod bakes its messages in at construction, so the schema is rebuilt when
+  // the language changes. Only the resolver depends on it — no fetch, no
+  // reset() — so a rebuild can't discard what the user typed.
+  const schema = useMemo(() => makeOdometerRecordSchema(t), [t])
+
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<OdometerRecordFormData>({
-    resolver: zodResolver(odometerRecordSchema) as Resolver<OdometerRecordFormData>,
+    resolver: zodResolver(schema) as Resolver<OdometerRecordFormData>,
     defaultValues: {
       date: formatDateForInput(record?.date),
       odometer_km: (() => {

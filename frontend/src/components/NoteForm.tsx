@@ -1,11 +1,11 @@
 import { useTranslation } from 'react-i18next'
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Save } from 'lucide-react'
 import FormModalWrapper from './FormModalWrapper'
 import type { Note, NoteCreate, NoteUpdate } from '../types/note'
-import { noteSchema, type NoteFormData } from '../schemas/note'
+import { makeNoteSchema, type NoteFormData } from '../schemas/note'
 import { FormError } from './FormError'
 import { useCreateNote, useUpdateNote } from '../hooks/queries/useNotes'
 import { useFormSubmit } from '../hooks/useFormSubmit'
@@ -40,13 +40,18 @@ export default function NoteForm({ vin, note, onClose, onSuccess }: NoteFormProp
 
   const { error, handleSubmit: onSubmit } = useFormSubmit(submitFn, { onSuccess, onClose })
 
+  // Zod bakes its messages in at construction, so the schema is rebuilt when
+  // the language changes. Only the resolver depends on it — no fetch, no
+  // reset() — so a rebuild can't discard what the user typed.
+  const schema = useMemo(() => makeNoteSchema(t), [t])
+
   const {
     register,
     handleSubmit,
     watch,
     formState: { errors, isSubmitting },
   } = useForm<NoteFormData>({
-    resolver: zodResolver(noteSchema),
+    resolver: zodResolver(schema),
     defaultValues: {
       date: note?.date || new Date().toISOString().split('T')[0],
       title: note?.title || '',

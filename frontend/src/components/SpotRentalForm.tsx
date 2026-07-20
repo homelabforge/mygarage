@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { useState, useEffect } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Save } from 'lucide-react'
@@ -7,7 +7,7 @@ import FormModalWrapper from './FormModalWrapper'
 import CurrencyInputPrefix from './common/CurrencyInputPrefix'
 import type { SpotRental, SpotRentalCreate, SpotRentalUpdate } from '../types/spotRental'
 import type { AddressBookEntry } from '../types/addressBook'
-import { spotRentalSchema, type SpotRentalFormData } from '../schemas/spotRental'
+import { makeSpotRentalSchema, type SpotRentalFormData } from '../schemas/spotRental'
 import { FormError } from './FormError'
 import AddressBookAutocomplete from './AddressBookAutocomplete'
 import api from '../services/api'
@@ -37,6 +37,11 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
     return 'nightly'
   })
 
+  // Zod bakes its messages in at construction, so the schema is rebuilt when
+  // the language changes. Only the resolver depends on it — no fetch, no
+  // reset() — so a rebuild can't discard what the user typed.
+  const schema = useMemo(() => makeSpotRentalSchema(t), [t])
+
   const {
     register,
     handleSubmit,
@@ -44,7 +49,7 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
     setValue,
     formState: { errors, isSubmitting },
   } = useForm<SpotRentalFormData>({
-    resolver: zodResolver(spotRentalSchema) as Resolver<SpotRentalFormData>,
+    resolver: zodResolver(schema) as Resolver<SpotRentalFormData>,
     defaultValues: {
       location_name: rental?.location_name || '',
       location_address: rental?.location_address || '',
