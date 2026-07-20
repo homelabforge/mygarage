@@ -1,0 +1,20 @@
+/*
+ * Self-hosted fonts, imported from node_modules so Vite fingerprints them and
+ * rewrites their URLs relative to the injected <base href>.
+ *
+ * Do NOT move these into public/. Vite copies public/ verbatim, so a
+ * `/fonts/x.woff2` reference 404s under the #107 subpath proxy and
+ * `font-display: swap` then falls back to system-ui *silently* — the exact
+ * failure this file exists to fix.
+ *
+ * One import per family. Fontsource ships a single stylesheet containing an
+ * @font-face per subset (latin, latin-ext, cyrillic, cyrillic-ext, greek,
+ * vietnamese), each with its own unicode-range and woff2. The browser fetches
+ * only the ranges a page actually uses, so full Cyrillic coverage — required,
+ * `ru` and `uk` are shipped locales — costs a latin-only user nothing.
+ *
+ * Variable fonts: one file spans Inter 100-900 and JetBrains Mono 100-800,
+ * covering every weight the design calls for.
+ */
+@import '@fontsource-variable/inter';
+@import '@fontsource-variable/jetbrains-mono';
