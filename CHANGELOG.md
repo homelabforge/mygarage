@@ -8,39 +8,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- i18n: the Analytics and Garage Analytics pages and their help modals are now translatable (~350 strings) — they previously rendered in English regardless of the selected language.
-- i18n: the vehicle detail page, the OIDC / local-auth / LiveLink settings modals, and the event notification card are now translatable (~222 strings).
-- i18n: the vehicle wizard, transfer and remove modals, window-sticker upload, reports panel, and calendar are now translatable (~165 strings).
-- i18n: family relationship labels (Spouse/Partner, Child, Parent, …) are now translatable wherever they appear — sharing, transfers, user management, and the family member card.
-- i18n: the photo gallery, document upload, line-item editor (including all 82 service autocomplete suggestions), shop finder, widget-key modal, and the Telegram/email notification setup are now translatable (~209 strings).
-- i18n: the attachment lists and quick view, window-sticker test page, family member card, widget-keys panel, and the Slack/Discord notification setup are now translatable (~124 strings).
-
-- i18n: the notification setup panels, settings tabs, uploads and document lists, auth pages, POI and address-book screens, record forms, and the vehicle edit/archive screens are now translatable (~400 strings).
-- i18n: form validation messages — including the shared field validators for date, odometer, VIN, currency and notes — dropdown options (policy, warranty, tax, toll and address-book types), and status values supplied by the server (calendar event type, inspection result, prediction confidence, toll status) are now translatable. The UI no longer contains untranslated user-facing English.
+- The interface is now fully translatable — roughly 1,600 strings extracted across analytics, vehicle detail, wizards, modals, settings, notification setup, record forms, validation messages, dropdown options and server-supplied status values.
+- German: complete translation of all six namespaces; thanks [@SCDT95](https://github.com/SCDT95) (#125, #126).
 
 ### Removed
-- Dropped the unused shop-discovery modal, orphaned when the legacy service-record form it fed was removed; the shop finder page replaces it.
-- Dropped 12 more unreachable components and types (~1360 lines) left behind by earlier refactors, along with the translation keys only they used.
+- Dropped 14 unreachable components, schemas and types (~1790 lines) left behind by earlier refactors, along with the translation keys only they used.
 
 ### Fixed
-- Theme: the `primary` colour token was never defined, so roughly 560 uses of `bg-primary` / `text-primary` / `border-primary` — icons, spinners and accents throughout the app — generated no CSS at all and rendered uncoloured.
+- Theme: the `primary` colour token was never defined, so roughly 560 uses of `bg-primary` / `text-primary` / `border-primary` rendered uncoloured.
+- Dates, numbers and units now follow the selected language rather than the browser's locale.
+- Calendar: the month grid and weekday headers rendered in English for every language.
+- Nearby places and shop finder: distances and the search radius ignored the unit preference.
+- Analytics, vehicle wizard, window sticker and service line items: a hardcoded `$` is now formatted in the selected currency.
+- Vehicle edit: switching language while editing silently discarded everything typed.
+- Family management: the multi-user toggle showed the literal text `{t('modal.multiUserMode')} enabled` in its confirmation toast.
 - Fuel defaults: saving a default payment method or trip type reported "Unit preference saved!".
-- Several settings and fuel labels shipped different text than the code appeared to specify, because a stale inline fallback sat next to a translation key that had since diverged.
-- Vehicle edit: switching language while editing silently discarded everything typed — the form refetched and reset itself whenever the translation function changed identity.
-- Family management: enabling or disabling multi-user mode showed the literal text `{t('modal.multiUserMode')} enabled` in the confirmation toast.
-- Nearby places: distances always displayed in miles regardless of the unit preference, and fell back to metres below a mile — metric users saw miles, imperial users saw metres. The shop finder likewise offered to search "within 25 miles" while actually searching 25 km.
-- Toll transactions: the vendor-name lookup shadowed the translation function, so translating that list would have crashed it.
 - Pushover setup: the API token field lost the "/ App Token" half of its label.
-- Dates: most dates rendered in US English regardless of language — the shared date formatter defaulted to `en-US` and the majority of callers relied on that default. Dates, and the "created/last used X ago" timestamps on API keys, now follow the selected language.
-- Notification and file settings: several field labels (Server URL, User Key, Allowed Photo/Attachment Types, Last Billing) rendered in English even though their translations already existed — the translation call had been commented out beside the hardcoded text.
-- Numbers: thousands separators followed the browser's locale rather than the language selected in the app, so a German user could still see `12,345` instead of `12.345`. All unit and telemetry formatting now follows the selected language.
-- Shop finder: distances and the search-radius options were always in miles regardless of the unit preference. Metric users now get kilometres, and the radius sent to the API matches what they picked.
-- Calendar: the month grid and weekday headers rendered in English for every language — the calendar had no locale set. Dates, month names and number separators now follow the selected language, and update on a live language switch.
-- Analytics: chart axis labels and the spending-anomaly figures showed a hardcoded `$` and are now formatted in the selected currency.
-- Vehicle wizard and window sticker: purchase price and option prices showed a hardcoded `$` and are now formatted in the selected currency.
-- Service line items: the collapsed line-item cost showed a hardcoded `$` and is now formatted in the selected currency.
-- Settings: switching auth mode away from "none" silently failed to save — the admin OIDC endpoints rejected the auth-disabled state, so enabling local or OIDC auth required already being authenticated.
-- Settings: changing an unrelated setting (timezone, debug) no longer rewrites the OIDC configuration, so a failure there can no longer discard the rest of the save.
+- Notification and file settings: several field labels rendered in English even though their translations already existed.
+- Several settings and fuel labels shipped different text than the code appeared to specify, from stale inline fallbacks.
+- Toll transactions: the vendor-name lookup shadowed the translation function.
+- Settings: switching auth mode away from "none" silently failed to save.
+- Settings: changing an unrelated setting (timezone, debug) no longer rewrites the OIDC configuration.
 
 ### Security
 - Settings: sensitive values (OIDC client secret, notification tokens, SMTP password, POI API keys) are masked as `********` in API responses; saving a masked value keeps the stored secret.
