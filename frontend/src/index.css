@@ -368,3 +368,89 @@
 .sx-calendar-wrapper .sx-react-calendar-wrapper {
   height: 100%;
 }
+
+/* --- Interaction layer (design §4.8) ---------------------------------
+   The prototype supplies no focus, hover or disabled states. These are
+   invented once here; primitives compose them rather than re-deriving a
+   focus ring 26 times. Every colour routes through --accent so all six
+   accents get correct affordances for free.
+
+   Declared with @utility, NOT @layer components. Tailwind v4's layer order
+   is theme, base, components, utilities, so a rule in `components` is
+   outranked by every competing utility on the same element. That failure is
+   silent and partial: on a focused input .ui-focus-input's box-shadow lands
+   (nothing competes with it) while its border-color is discarded by
+   border-border, and the result reads as "the focus ring looks weak" rather
+   than as a broken rule. @utility emits these in the utilities layer, where
+   .ui-hover-line:hover (0,2,0) correctly outranks .border-border (0,1,0). */
+
+/* Buttons, tabs, chips, links: a ring outside the box. */
+@utility ui-focus-ring {
+  &:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+}
+
+/* Inputs: the border itself moves, plus a soft halo. Distinct from
+   ui-focus-ring because an outline-offset ring around a 42px input collides
+   with adjacent fields in a two-column form. */
+@utility ui-focus-input {
+  &:focus-visible,
+  &:focus-within {
+    border-color: var(--accent-line);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+    outline: none;
+  }
+}
+
+@utility ui-disabled {
+  &:disabled,
+  &[aria-disabled='true'] {
+    opacity: .45;
+    cursor: not-allowed;
+  }
+}
+
+@utility ui-hover-surface {
+  &:hover:not(:disabled) {
+    background: var(--color-surface-2);
+  }
+}
+
+/* Solid accent surfaces: the §4.8 "color-mix lift". Mixing toward white
+   brightens the solid in both themes without introducing a second token. */
+@utility ui-hover-solid {
+  &:hover:not(:disabled) {
+    background: color-mix(in oklab, var(--accent-solid) 88%, white);
+  }
+}
+
+/* Rows and cards: the border picks up the accent on hover. */
+@utility ui-hover-line {
+  &:hover {
+    border-color: var(--accent-line);
+  }
+}
+
+@utility ui-motion {
+  transition:
+    border-color var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-standard);
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+}
+
+@utility ui-motion-toggle {
+  transition:
+    background-color var(--duration-toggle) var(--ease-standard),
+    transform var(--duration-toggle) var(--ease-standard);
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+}

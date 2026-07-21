@@ -564,3 +564,48 @@ describe('non-colour token scales', () => {
     expect(z('drawer')).toBe('60')
   })
 })
+
+describe('interaction layer', () => {
+  const css = stripCssComments(readFileSync(resolve(__dirname, '../index.css'), 'utf-8'))
+
+  const REQUIRED_UTILITIES = [
+    'ui-focus-ring', 'ui-focus-input', 'ui-disabled',
+    'ui-hover-surface', 'ui-hover-solid', 'ui-hover-line',
+    'ui-motion', 'ui-motion-toggle',
+  ]
+
+  /** The source text of one `@utility <name> { … }` block: from its header to
+   *  the start of the next `@utility`. The interaction layer is written as one
+   *  contiguous run at the end of index.css, so this needs no brace counting —
+   *  and must not use a `[^}]*` capture, which would stop at the first nested
+   *  rule's closing brace. */
+  const utilityBlock = (name: string): string => {
+    const start = css.search(new RegExp(String.raw`@utility\s+${name}(?![\w-])`))
+    if (start === -1) return ''
+    const rest = css.slice(start)
+    const next = rest.slice(1).search(/@utility\s/)
+    return next === -1 ? rest : rest.slice(0, next + 1)
+  }
+
+  it.each(REQUIRED_UTILITIES)('defines @utility %s', (name) => {
+    // The (?![\w-]) guard is what keeps `ui-motion` from matching the header
+    // of `ui-motion-toggle`, and `ui-hover-surface` from matching nothing.
+    expect(css).toMatch(new RegExp(String.raw`@utility\s+${name}(?![\w-])`))
+  })
+
+  it('declares them as utilities, not in @layer components', () => {
+    // Layer order is theme, base, components, utilities. In `components`,
+    // .ui-focus-input's border-color loses to border-border silently.
+    expect(css).not.toMatch(/@layer\s+components\s*\{[\s\S]*\.ui-focus-ring/)
+  })
+
+  it('honours prefers-reduced-motion', () => {
+    expect(css).toMatch(/@media\s*\(prefers-reduced-motion:\s*reduce\)/)
+  })
+
+  it('routes focus through the accent, not a hardcoded colour', () => {
+    const ring = utilityBlock('ui-focus-ring')
+    expect(ring).toMatch(/var\(--accent\)/)
+    expect(ring).not.toMatch(/#[0-9a-f]{3,8}/i)
+  })
+})
