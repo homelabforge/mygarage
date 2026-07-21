@@ -2,8 +2,8 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react-swc'
 import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
-import fs from 'node:fs'
 import pkg from './package.json' with { type: 'json' }
+import { injectSwFontAssets } from './scripts/inject-sw-font-assets'
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -30,26 +30,22 @@ export default defineConfig({
      * copy and the chunk/asset writes, so it rewrites the already-on-disk
      * dist/sw.js directly. `bundle` still lists the hashed .woff2 files
      * (those go through Rollup's asset pipeline, unlike sw.js).
+     *
+     * `injectSwFontAssets` (scripts/inject-sw-font-assets.ts) throws on every
+     * failure path — missing dist/sw.js, a missing/already-consumed marker,
+     * or an implausibly small font count — so a broken substitution fails
+     * `vite build` itself rather than silently shipping a dead precache list.
      */
     {
       name: 'mygarage-sw-font-assets',
       apply: 'build',
       writeBundle(options, bundle) {
-        const fonts = Object.keys(bundle)
-          .filter((f) => f.endsWith('.woff2'))
-          .map((f) => `./${f}`)
         const outDir = options.dir
-        if (!outDir) return
-        const swPath = path.resolve(outDir, 'sw.js')
-        if (!fs.existsSync(swPath)) return
-        const source = fs.readFileSync(swPath, 'utf-8')
-        const replaced = source.replace(
-          '/*__FONT_ASSETS__*/[]',
-          JSON.stringify(fonts),
-        )
-        if (replaced !== source) {
-          fs.writeFileSync(swPath, replaced)
+        if (!outDir) {
+          throw new Error('mygarage-sw-font-assets: rollup output has no dir; cannot locate dist/sw.js')
         }
+        const swPath = path.resolve(outDir, 'sw.js')
+        injectSwFontAssets(swPath, Object.keys(bundle))
       },
     },
   ],

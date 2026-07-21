@@ -32,8 +32,23 @@ const SRC = resolve(ROOT, 'src')
  */
 const COLOR_PREFIXES = [
   'bg', 'text', 'border', 'ring', 'from', 'to', 'via', 'fill', 'stroke', 'divide',
-  'outline', 'decoration', 'accent', 'caret', 'shadow',
+  'outline', 'decoration', 'accent', 'caret', 'shadow', 'placeholder',
 ]
+
+/**
+ * The `(?:prefix1|prefix2|...)` alternation built from COLOR_PREFIXES, shared
+ * verbatim by every scanner that needs to recognize a color-utility prefix:
+ * `collectUsedColorTokens` (AST scan of .ts/.tsx) below, and the `@apply`
+ * checker further down (raw-CSS scan of index.css). Before this, the two
+ * scanners each hand-wrote their own copy of this alternation, and the copies
+ * had drifted: COLOR_PREFIXES omitted `placeholder` while the @apply
+ * checker's inline regex had it, so `placeholder-*` classes in .tsx source
+ * were invisible to collectUsedColorTokens even though the identical prefix
+ * was already recognized a few hundred lines away. That is the exact bug
+ * class this file exists to prevent, just inside itself instead of in
+ * src/. One list, derived here, used everywhere a prefix set is needed.
+ */
+const COLOR_PREFIX_ALTERNATION = COLOR_PREFIXES.join('|')
 
 /** Palette names Tailwind ships by default — always defined, never our problem. */
 const BUILTIN = new Set([
@@ -90,9 +105,19 @@ function walk(dir: string, out: string[] = []): string[] {
   return out
 }
 
-/** Every `--color-<name>` declared in index.css. */
+/**
+ * Every `--color-<name>` declared in index.css, comments stripped first via
+ * the same `stripCssComments` helper `collectDefinedCustomProperties` below
+ * already uses — so a token name only ever *mentioned* inside a CSS comment
+ * (e.g. "same omission as --color-warning:" in the doc comment above
+ * `--color-info` today) can never register as defined. Previously this
+ * function regexed the raw file directly, its own copy of the same mistake
+ * `collectDefinedCustomProperties` had already been fixed for: a token named
+ * only in a comment counted as defined, so a class pointed at that
+ * never-really-defined token passed clean.
+ */
 function collectDefinedColorTokens(): Set<string> {
-  const css = readFileSync(resolve(SRC, 'index.css'), 'utf8')
+  const css = stripCssComments(readFileSync(resolve(SRC, 'index.css'), 'utf8'))
   const defined = new Set<string>()
   for (const m of css.matchAll(/--color-([a-z0-9-]+)\s*:/g)) defined.add(m[1])
   return defined
@@ -167,7 +192,7 @@ function stripPositionalSegment(token: string): string {
 function collectUsedColorTokens(): Map<string, string[]> {
   const used = new Map<string, string[]>()
   const pattern = new RegExp(
-    String.raw`(?<![a-z0-9-])(?:${COLOR_PREFIXES.join('|')})-([a-z][a-z0-9]*(?:-[a-z0-9]+)*)(?![a-z0-9-])`,
+    String.raw`(?<![a-z0-9-])(?:${COLOR_PREFIX_ALTERNATION})-([a-z][a-z0-9]*(?:-[a-z0-9]+)*)(?![a-z0-9-])`,
     'g',
   )
   for (const file of walk(SRC)) {
@@ -328,9 +353,10 @@ describe('design tokens', () => {
       for (const cls of m[1].split(/\s+/).filter(Boolean)) {
         // Drop any variant prefixes (hover:, focus:, html.light &, etc.)
         const bare = cls.split(':').pop() as string
-        const hit = bare.match(
-          /^(?:bg|text|border|ring|from|to|via|fill|stroke|divide|outline|decoration|caret|shadow|placeholder)-(.+)$/,
-        )
+        // Derived from COLOR_PREFIXES (see its doc comment) rather than a
+        // second hand-maintained alternation — this is exactly the list
+        // collectUsedColorTokens uses for the AST scan above.
+        const hit = bare.match(new RegExp(String.raw`^(?:${COLOR_PREFIX_ALTERNATION})-(.+)$`))
         if (!hit) continue
         // Strip a Tailwind opacity modifier (`bg-black/50`, `bg-success-600/20`) —
         // unlike collectUsedColorTokens's character-class match, this naive
@@ -418,9 +444,16 @@ describe('design tokens', () => {
 
   it('repalettes the offline page off the old GitHub-dark colours', () => {
     const offline = readFileSync(resolve(ROOT, 'public/offline.html'), 'utf8')
-    for (const stale of ['#0d1117', '#161b22', '#30363d']) {
+    for (const stale of ['#0d1117', '#161b22', '#30363d', '#f5f6f8', '#c9d1d9']) {
       expect(offline, `offline.html still uses ${stale}`).not.toContain(stale)
     }
-    expect(offline).toContain('#07090c')
+    // Positively pin all four colours the page actually uses — not just the
+    // background. The previous version of this guard only pinned #07090c,
+    // so #f5f6f8 (body text) and #c9d1d9 (.card p text) — both stale
+    // GitHub-dark hexes — shipped unconverted and unnoticed.
+    expect(offline).toContain('#07090c') // body background
+    expect(offline).toContain('#0f1319') // .card background
+    expect(offline).toContain('#e8eaed') // body text — --color-text
+    expect(offline).toContain('#cbd0d8') // .card p text — --color-text-dim
   })
 })

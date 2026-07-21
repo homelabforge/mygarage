@@ -22,8 +22,10 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
 
-    /* Path aliases */
+    /* Node types available to config/build scripts (vite.config.ts, scripts/) */
     "types": ["node"],
+
+    /* Path aliases */
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
