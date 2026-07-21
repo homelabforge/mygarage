@@ -1,10 +1,10 @@
 import { useState } from 'react'
-import { Wrench } from 'lucide-react'
+import { Box, Wrench } from 'lucide-react'
 import Section from './Section'
 // Import through the barrel, never from a component file directly: this single
 // specifier is the only thing that puts ../index.ts — and, through it,
 // ../types.ts — on the graph validate-reachability walks from main.tsx.
-import { Badge, Chip, Mono, type Size } from '..'
+import { Avatar, Badge, Chip, EmptyState, Mono, type Size } from '..'
 import { ACCENT_KEYS } from '../../../constants/accents'
 import { useAccent } from '../../../contexts/AccentContext'
 import { useTheme } from '../../../contexts/ThemeContext'
@@ -121,6 +121,28 @@ export default function Gallery() {
         <Chip tone="accent">Fifth Wheel</Chip>
         <Chip icon={Wrench} onClick={() => {}}>Service</Chip>
         <Chip onClick={() => {}} selected>Gas Station</Chip>
+      </Section>
+
+      <Section title="Avatar" note="Gradient tracks the accent. Accessible name is the full name.">
+        <Avatar name="Jamey Starett" size="sm" />
+        <Avatar name="Jamey Starett" />
+        <Avatar name="Jamey Starett" size="lg" />
+        <Avatar name="Wendy" />
+      </Section>
+
+      <Section title="EmptyState" note="Replaces 38 hand-rolled copies across 23 files.">
+        <div className="w-full rounded-card border border-border bg-surface">
+          <EmptyState
+            icon={Box}
+            title="No supplies yet"
+            description="Track oil, filters and fluids across your vehicles."
+            action={
+              <button className="ui-focus-ring ui-motion h-btn-md rounded-control bg-(--accent-solid) px-4 text-sm font-semibold text-(--accent-on-solid)">
+                Add Your First Supply
+              </button>
+            }
+          />
+        </div>
       </Section>
     </div>
   )
