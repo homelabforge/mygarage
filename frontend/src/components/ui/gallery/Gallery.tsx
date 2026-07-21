@@ -4,7 +4,18 @@ import Section from './Section'
 // Import through the barrel, never from a component file directly: this single
 // specifier is the only thing that puts ../index.ts — and, through it,
 // ../types.ts — on the graph validate-reachability walks from main.tsx.
-import { Avatar, Badge, Chip, EmptyState, Mono, PageContainer, PageHeader, type Size } from '..'
+import {
+  Avatar,
+  Badge,
+  Card,
+  CardHeader,
+  Chip,
+  EmptyState,
+  Mono,
+  PageContainer,
+  PageHeader,
+  type Size,
+} from '..'
 import { ACCENT_KEYS } from '../../../constants/accents'
 import { useAccent } from '../../../contexts/AccentContext'
 import { useTheme } from '../../../contexts/ThemeContext'
@@ -161,6 +172,17 @@ export default function Gallery() {
             </div>
           </PageContainer>
         </div>
+      </Section>
+
+      <Section title="Card / CardHeader" note="Interactive cards are real buttons — the whole vehicle card is clickable.">
+        <Card className="w-64">
+          <CardHeader title="Basic Information" icon={Wrench} />
+          <p className="text-sm text-text-mute">Inert card.</p>
+        </Card>
+        <Card interactive onClick={() => {}} className="w-64">
+          <CardHeader title="2019 Mitsubishi Mirage" />
+          <p className="text-sm text-text-mute">Hover me — border picks up the accent.</p>
+        </Card>
       </Section>
     </div>
   )
