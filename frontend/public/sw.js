@@ -20,6 +20,9 @@ const PREFETCH_URLS = [
   SCOPE + 'api/dashboard',
 ];
 
+// Replaced at build time by the mygarage-sw-font-assets Vite plugin.
+const FONT_ASSETS = /*__FONT_ASSETS__*/[];
+
 // Precache only immutable shell pieces. Do NOT precache `/` or `/index.html`:
 // those are mutable on each deploy and the navigation handler already serves
 // them network-first with a cache fallback.
@@ -28,6 +31,7 @@ const STATIC_ASSETS = [
   SCOPE + 'icon-192.png',
   SCOPE + 'icon-512.png',
   OFFLINE_URL,
+  ...FONT_ASSETS.map((f) => SCOPE + f.replace(/^\.\//, '')),
 ];
 
 // Install event - cache static assets
