@@ -157,7 +157,12 @@ describe('primitive semantics', () => {
     // covers everything rendered above.
     const html = document.body.innerHTML
 
-    expect(html).not.toMatch(/\b(bg|text|border)-(red|green|blue|amber|yellow|orange|purple|zinc|gray|slate)-\d{2,3}\b/)
+    // Full Tailwind palette, not a hand-picked subset: the earlier list omitted
+    // teal and violet — two of THIS app's own six accent-family names
+    // (constants/accents.ts) — so a primitive regressing to text-teal-500 /
+    // bg-violet-600 instead of --accent-fg / --accent-soft would have passed
+    // undetected, and raw text-teal-500 already exists elsewhere in the app.
+    expect(html).not.toMatch(/\b(bg|text|border)-(red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose|slate|gray|zinc|neutral|stone)-\d{2,3}\b/)
 
     // Separate assertion, separate reason. text-white and bg-white carry no
     // numeric suffix, so the ramp regex above cannot see them — and they are
