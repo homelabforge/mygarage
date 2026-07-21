@@ -16,8 +16,17 @@ export interface SelectOption {
  */
 interface SelectProps extends Omit<SelectHTMLAttributes<HTMLSelectElement>, 'size'> {
   options: SelectOption[]
-  /** Renders one leading disabled option. Counts toward option length. */
+  /** Renders one leading option. Counts toward option length. Selectable by
+   *  default (not `disabled`) — every one of the 25 empty-placeholder
+   *  `<option value="">` sites in this codebase is non-disabled, and at
+   *  VehicleEdit.tsx / VehicleWizard.tsx that empty option is a real,
+   *  re-selectable choice letting a user clear `fuel_type` back to null.
+   *  Pass `placeholderDisabled` for the rare caller that truly wants an
+   *  unselectable prompt. */
   placeholder?: string
+  /** Makes the placeholder option `disabled`. Defaults to false — see
+   *  `placeholder` above for why selectable is the correct default. */
+  placeholderDisabled?: boolean
   size?: Size
   invalid?: boolean
 }
@@ -45,6 +54,7 @@ const HEIGHT: Record<Size, string> = {
 export default function Select({
   options,
   placeholder,
+  placeholderDisabled = false,
   size = 'md',
   invalid = false,
   className = '',
@@ -65,7 +75,12 @@ export default function Select({
         {...rest}
       >
         {placeholder ? (
-          <option value="" disabled>
+          // Non-disabled by default: a disabled <option> cannot be selected
+          // by mouse or keyboard in any browser, which breaks the real
+          // "clear this field back to empty" flow some callers rely on
+          // (e.g. clearing fuel_type to null). Do not "helpfully" hardcode
+          // `disabled` here again — see placeholderDisabled above.
+          <option value="" disabled={placeholderDisabled}>
             {placeholder}
           </option>
         ) : null}

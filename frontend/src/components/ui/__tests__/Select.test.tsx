@@ -23,11 +23,43 @@ describe('Select', () => {
     expect(container.querySelectorAll('optgroup')).toHaveLength(0)
   })
 
-  it('is visible, not a hidden control behind a custom combobox', () => {
-    // i18n.spec.ts:32,62 assert toBeVisible() on the select itself.
+  it('is not hidden via a known class-name convention or the native hidden/display mechanisms', () => {
+    // This only proves the absence of a few specific hiding mechanisms
+    // jsdom can see (literal sr-only/hidden/invisible class substrings, the
+    // native `hidden` attribute, inline display:none). jsdom applies no
+    // Tailwind CSS, so it cannot prove the element is actually visible on
+    // screen (e.g. opacity-0, w-0 overflow-hidden, off-screen positioning
+    // would all pass here). Full on-screen visibility is enforced by
+    // Playwright's real toBeVisible() in e2e/i18n.spec.ts:32,62.
     const { container } = render(<Select options={OPTIONS} aria-label="Fuel" />)
     const select = container.querySelector('select') as HTMLSelectElement
     expect(select.className).not.toMatch(/\b(sr-only|hidden|invisible)\b/)
+    expect(select).toBeVisible()
+  })
+
+  it('renders the placeholder option as selectable (not disabled) by default', () => {
+    // A disabled option cannot be selected by mouse or keyboard in any
+    // browser. VehicleEdit.tsx/VehicleWizard.tsx rely on a selectable empty
+    // option to let a user clear fuel_type back to null; see
+    // VehicleEdit.test.tsx's "submits fuel_type as null" test.
+    const { container } = render(
+      <Select options={OPTIONS} placeholder="Select fuel" aria-label="Fuel" />,
+    )
+    const placeholderOption = container.querySelector('option[value=""]')
+    expect(placeholderOption).not.toBeDisabled()
+  })
+
+  it('disables the placeholder option when placeholderDisabled is passed', () => {
+    const { container } = render(
+      <Select
+        options={OPTIONS}
+        placeholder="Select fuel"
+        placeholderDisabled
+        aria-label="Fuel"
+      />,
+    )
+    const placeholderOption = container.querySelector('option[value=""]')
+    expect(placeholderOption).toBeDisabled()
   })
 
   it('forwards id verbatim', () => {
