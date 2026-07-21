@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs'
 import { resolve, join } from 'node:path'
 import * as ts from 'typescript'
 
@@ -587,25 +587,136 @@ describe('interaction layer', () => {
     return next === -1 ? rest : rest.slice(0, next + 1)
   }
 
+  /** Brace depth at every index of `text`: 0 outside any block, 1 inside one
+   *  enclosing `{ }`, and so on. Used below to prove an `@utility <name>`
+   *  header sits at the stylesheet root rather than nested inside some other
+   *  block, e.g. `@layer components { ... }`. */
+  const braceDepthAt = (text: string): number[] => {
+    const depths: number[] = new Array(text.length)
+    let depth = 0
+    for (let i = 0; i < text.length; i++) {
+      depths[i] = depth
+      if (text[i] === '{') depth++
+      else if (text[i] === '}') depth--
+    }
+    return depths
+  }
+
   it.each(REQUIRED_UTILITIES)('defines @utility %s', (name) => {
     // The (?![\w-]) guard is what keeps `ui-motion` from matching the header
     // of `ui-motion-toggle`, and `ui-hover-surface` from matching nothing.
     expect(css).toMatch(new RegExp(String.raw`@utility\s+${name}(?![\w-])`))
   })
 
-  it('declares them as utilities, not in @layer components', () => {
-    // Layer order is theme, base, components, utilities. In `components`,
-    // .ui-focus-input's border-color loses to border-border silently.
-    expect(css).not.toMatch(/@layer\s+components\s*\{[\s\S]*\.ui-focus-ring/)
+  /**
+   * Replaces a regex that could never fail:
+   *   `expect(css).not.toMatch(/@layer\s+components\s*\{[\s\S]*\.ui-focus-ring/)`
+   * `@utility ui-focus-ring { ... }` contains no literal `.ui-focus-ring`
+   * substring — the leading dot only ever appears in a hand-written class
+   * selector — so that check matched nothing regardless of where the rule
+   * actually lived, and would have stayed green even with the whole
+   * interaction layer moved into @layer components.
+   *
+   * This walks the file tracking brace depth and asserts, per utility name,
+   * both halves of "correctly placed":
+   *   - its `@utility <name>` header sits at depth 0 (the stylesheet root,
+   *     not nested inside @layer components or anything else), and
+   *   - no `.<name>` class-selector form of it exists anywhere in the file —
+   *     what a hand-rewrite into `@layer components { .ui-focus-ring { ... }
+   *     }` would look like.
+   *
+   * Verified to discriminate, not just pass vacuously: temporarily wrapping
+   * one @utility block in `@layer components { ... }` makes this test fail;
+   * restoring the file makes it pass again. Both outputs are recorded in
+   * p1-task-2-report.md.
+   */
+  it('declares them at the stylesheet root, not nested inside @layer components', () => {
+    const depths = braceDepthAt(css)
+    const bad: string[] = []
+
+    for (const name of REQUIRED_UTILITIES) {
+      const header = css.match(new RegExp(String.raw`@utility\s+${name}(?![\w-])`))
+      const depth = header?.index !== undefined ? depths[header.index] : undefined
+      if (depth !== 0) {
+        bad.push(`@utility ${name} is not declared at the stylesheet root (depth: ${depth ?? 'not found'})`)
+      }
+      if (new RegExp(String.raw`\.${name}(?![\w-])`).test(css)) {
+        bad.push(`.${name} exists as a class selector somewhere in the file`)
+      }
+    }
+
+    expect(bad, bad.join('\n')).toEqual([])
   })
 
-  it('honours prefers-reduced-motion', () => {
-    expect(css).toMatch(/@media\s*\(prefers-reduced-motion:\s*reduce\)/)
+  const MOTION_UTILITIES = ['ui-motion', 'ui-motion-toggle']
+
+  it.each(MOTION_UTILITIES)('collapses %s to no transition under prefers-reduced-motion', (name) => {
+    const block = utilityBlock(name)
+    expect(block, `@utility ${name} not found`).not.toBe('')
+    const media = block.match(/@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{([^}]*)\}/)
+    expect(media, `${name} has no prefers-reduced-motion collapse`).not.toBeNull()
+    expect(media?.[1] ?? '').toMatch(/transition\s*:\s*none/)
   })
 
   it('routes focus through the accent, not a hardcoded colour', () => {
     const ring = utilityBlock('ui-focus-ring')
     expect(ring).toMatch(/var\(--accent\)/)
     expect(ring).not.toMatch(/#[0-9a-f]{3,8}/i)
+  })
+
+  const OTHER_COLOR_UTILITIES = ['ui-focus-input', 'ui-hover-line', 'ui-hover-solid', 'ui-hover-surface']
+
+  it.each(OTHER_COLOR_UTILITIES)('routes %s through --accent* or --color-*, not a hardcoded colour', (name) => {
+    const block = utilityBlock(name)
+    expect(block, `@utility ${name} not found`).not.toBe('')
+    expect(block).toMatch(/var\(--(?:accent|color-)/)
+    expect(block).not.toMatch(/#[0-9a-f]{3,8}/i)
+  })
+})
+
+describe('motion utility collision tripwire', () => {
+  const UI_DIR = resolve(SRC, 'components/ui')
+
+  /**
+   * ui-motion / ui-motion-toggle are not state-scoped (see the warning
+   * comment above them in index.css), so each is a plain (0,1,0)
+   * utility-layer rule — the same specificity as Tailwind's own transition,
+   * duration and ease utilities. If a Task-4+ primitive ever carries both on
+   * one element, the `transition` shorthand collision is
+   * decided by Tailwind's internal emission order, not by design intent —
+   * structurally the same bug class the rest of this file exists to
+   * eliminate, just for `transition` instead of `border-color`.
+   *
+   * src/components/ui doesn't exist yet — Task 2 predates the primitives
+   * Task 4 builds there — so this scan passes vacuously when the directory
+   * is absent. That's an explicit, intentional existence check, not an
+   * accident of a crashing glob: the moment the directory appears, this
+   * test has real teeth.
+   */
+  it('never combines a ui-motion utility with a native transition/duration/ease utility in one class list', () => {
+    if (!existsSync(UI_DIR)) return // nothing to scan yet — Task 4 creates this directory
+
+    const MOTION_TOKENS = new Set(['ui-motion', 'ui-motion-toggle'])
+    const NATIVE_MOTION_PATTERN = /(?:^|\s)(?:transition|duration|ease)-[\w-]*/
+
+    const offenders: string[] = []
+    for (const file of walk(UI_DIR)) {
+      const rel = file.slice(ROOT.length + 1)
+      for (const text of collectLiteralTexts(file)) {
+        const hasMotionUtility = text.split(/\s+/).some((token) => MOTION_TOKENS.has(token))
+        if (hasMotionUtility && NATIVE_MOTION_PATTERN.test(text)) {
+          offenders.push(`${rel}: "${text.trim()}"`)
+        }
+      }
+    }
+
+    expect(offenders,
+      'A className combines a ui-motion utility with a native Tailwind ' +
+      'transition-*/duration-*/ease-* utility. Both are equal-specificity ' +
+      '(0,1,0) rules with no state scoping, so the `transition` shorthand ' +
+      'collision has no deterministic winner. Use var(--duration-*) / ' +
+      'var(--ease-*) directly, or drop the native utility.\n\n' +
+      offenders.join('\n'),
+    ).toEqual([])
   })
 })

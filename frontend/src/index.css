@@ -433,6 +433,15 @@
   }
 }
 
+/* WARNING: never pair ui-motion or ui-motion-toggle with a native Tailwind
+   transition-*, duration-*, or ease-* utility on the same element. Neither
+   motion utility is state-scoped, so each is a plain (0,1,0) rule in the
+   utilities layer — the same specificity as those native utilities. Two
+   equal-specificity rules writing the same `transition` shorthand have no
+   deterministic winner; which one wins is decided by Tailwind's internal
+   emission order, not by design intent. That's the same cascade-collision
+   bug class this whole section exists to eliminate, just for `transition`
+   instead of `border-color`. */
 @utility ui-motion {
   transition:
     border-color var(--duration-fast) var(--ease-standard),
