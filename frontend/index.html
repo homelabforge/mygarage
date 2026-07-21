@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="icon-192.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#3b82f6" />
+    <meta name="theme-color" content="#0b0e13" />
     <meta name="description" content="Self-hosted vehicle maintenance tracking application" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -13,6 +13,43 @@
     <link rel="manifest" href="manifest.json" />
     <link rel="apple-touch-icon" href="icon-192.png" />
     <title>MyGarage - Vehicle Maintenance Tracker</title>
+    <script>
+      // Applies theme + accent before first paint. ThemeProvider renders null
+      // until it has initialized, so without this there is a blank flash on
+      // every load; adding accent would add a wrong-colour flash on top.
+      //
+      // This duplicates src/constants/accents.ts because a pre-React inline
+      // script cannot import a module. The drift test in
+      // src/__tests__/accent-contrast.test.ts pins the two together — if you
+      // change an accent, change it in both places or CI fails.
+      (function () {
+        try {
+          var A = {
+            blue:   ['#4f8cff', '#2f6fe4', '#ffffff', '#7aa8ff', '#1d4ed8', 'rgba(79,140,255,.15)', 'rgba(79,140,255,.45)'],
+            amber:  ['#f9aa0b', '#f9aa0b', '#3a2600', '#f7b953', '#92600a', 'rgba(249,170,11,.15)', 'rgba(249,170,11,.45)'],
+            teal:   ['#2dd4bf', '#2dd4bf', '#04231d', '#5ce0d0', '#0f766e', 'rgba(45,212,191,.15)', 'rgba(45,212,191,.45)'],
+            red:    ['#f43f5e', '#e11d48', '#ffffff', '#fb7185', '#be123c', 'rgba(244,63,94,.15)', 'rgba(244,63,94,.45)'],
+            violet: ['#a78bfa', '#7c5cf0', '#ffffff', '#bda6ff', '#6d28d9', 'rgba(167,139,250,.15)', 'rgba(167,139,250,.45)'],
+            green:  ['#51cd76', '#257e40', '#ffffff', '#88dda2', '#22773c', 'rgba(81,205,118,.15)', 'rgba(81,205,118,.45)']
+          };
+          var d = document.documentElement;
+          var theme = localStorage.getItem('theme');
+          if (theme !== 'light' && theme !== 'dark') theme = 'dark';
+          d.classList.add(theme);
+
+          var key = localStorage.getItem('accent');
+          var r = A[key] || A.blue;
+          d.style.setProperty('--accent', r[0]);
+          d.style.setProperty('--accent-solid', r[1]);
+          d.style.setProperty('--accent-on-solid', r[2]);
+          d.style.setProperty('--accent-fg', theme === 'light' ? r[4] : r[3]);
+          d.style.setProperty('--accent-soft', r[5]);
+          d.style.setProperty('--accent-line', r[6]);
+        } catch (e) {
+          /* localStorage unavailable (private mode) — CSS defaults apply. */
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

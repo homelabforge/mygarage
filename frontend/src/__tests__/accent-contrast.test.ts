@@ -134,3 +134,16 @@ describe('index.css accent defaults', () => {
     expect(light).toMatch(new RegExp(`--accent-fg\\s*:\\s*${blue.fgLight}`, 'i'))
   })
 })
+
+describe('pre-React inline script', () => {
+  const html = readFileSync(resolve(__dirname, '../../index.html'), 'utf8')
+
+  it.each(ACCENT_KEYS)('carries the same base hex for %s as constants/accents.ts', (key) => {
+    expect(html, `index.html inline script is out of sync for "${key}"`)
+      .toContain(ACCENTS[key].accent)
+  })
+
+  it.each(ACCENT_KEYS)('carries the same onSolid hex for %s', (key) => {
+    expect(html).toContain(ACCENTS[key].onSolid)
+  })
+})
