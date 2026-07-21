@@ -7,7 +7,14 @@ import { ACCENTS, ACCENT_KEYS, DEFAULT_ACCENT, accentCssVars } from '../constant
 const SURFACE = { dark: '#0f1319', light: '#ffffff' } as const
 
 /** Fixed status colours (design §4.9) — accents must stay distinguishable. */
-const STATUS = ['#f0503a', '#f0a53a', '#34d399', '#22c55e', '#22d3ee'] as const
+const STATUS = [
+  '#f0503a', '#f0a53a', '#34d399', '#22c55e', '#22d3ee',
+  // warning-alt — calendar warranty events, the "Create Full Backup"
+  // action, and the 6-month rolling average series. A real fixed status
+  // colour in its own right, not a duplicate of warning (#f0a53a) — do
+  // not trim it.
+  '#f5a524',
+] as const
 
 function srgbToLinear(c: number): number {
   const s = c / 255
@@ -77,12 +84,15 @@ describe('accent roles', () => {
       // colour," not at a comfortable design distance.
       //
       // Handoff green (#34d399) and amber (#f5a524) were BYTE-IDENTICAL
-      // (0.00 units) to fixed success/warning-alt respectively — genuine,
-      // indefensible collisions, kept shifted (see their entries in
-      // accents.ts). Handoff red (40.01 from danger) and teal (38.65 from
-      // success) are comfortably distinct hues that only ever failed
-      // because the floor used to sit at exactly 40; both are reverted to
-      // their handoff values.
+      // (0.00 units) to fixed success and warning-alt respectively —
+      // genuine, indefensible collisions, kept shifted (see their entries
+      // in accents.ts). Warning proper (#f0a53a) is a DIFFERENT fixed
+      // colour and only a nearer-miss for handoff amber, at 22.56 units —
+      // it's warning-alt, not warning, that was the exact collision.
+      // Handoff red (40.01 from danger) and teal (38.65 from success) are
+      // comfortably distinct hues that only ever failed because the floor
+      // used to sit at exactly 40; both are reverted to their handoff
+      // values.
       expect(colourDistance(roles.accent, status),
         `${key} accent ${roles.accent} is indistinguishable from status ${status}`)
         .toBeGreaterThan(25)

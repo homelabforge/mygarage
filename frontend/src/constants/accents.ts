@@ -43,13 +43,18 @@ export const ACCENTS: Record<AccentKey, AccentRoles> = {
     // accent-contrast.test.ts:
     //  - onSolid exists at all because white text on #f5a524 is ~2:1; the
     //    prototype's own fixed amber button already uses dark ink here.
-    //  - #f5a524 is only 22.6 perceptual units from the fixed warning colour
-    //    #f0a53a (they differ by R+5/G+0/B-22) — functionally the same hue,
-    //    which would make an amber accent read as a warning badge. Moved
-    //    accent+solid to #f9aa0b (H37→40°, S91%→95%, L55%→51%): 48.1 units
-    //    from warning, the tightest of amber's five status gaps. fgDark/
-    //    fgLight are untouched — SURFACE-relative, not status-relative, so
-    //    the hue nudge doesn't affect them.
+    //  - #f5a524 IS the fixed status colour warning-alt (design §4.9;
+    //    calendar warranty events / "Create Full Backup" action / 6-month
+    //    rolling average series) — BYTE-IDENTICAL, 0.00 units, an
+    //    indefensible collision. It's a separate, near-miss 22.6 units from
+    //    the other fixed warning colour #f0a53a too (they differ by
+    //    R+5/G+0/B-22) — same hue family either way, which would make an
+    //    amber accent read as a warning badge. Moved accent+solid to
+    //    #f9aa0b (H37→40°, S91%→95%, L55%→51%): 48.1 units clear of warning,
+    //    but only 25.8 from warning-alt — the tightest of amber's six status
+    //    gaps, clearing the >25 floor but only just. fgDark/fgLight are
+    //    untouched — SURFACE-relative, not status-relative, so the hue
+    //    nudge doesn't affect them.
     accent: '#f9aa0b', solid: '#f9aa0b', onSolid: '#3a2600',
     fgDark: '#f7b953', fgLight: '#92600a',
     soft: 'rgba(249,170,11,.15)', line: 'rgba(249,170,11,.45)',
