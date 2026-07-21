@@ -14,8 +14,15 @@ describe('Avatar', () => {
   })
 
   it('exposes the name to assistive tech, not the initials', () => {
-    render(<Avatar name="Jamey Starett" />)
+    const { container } = render(<Avatar name="Jamey Starett" />)
     expect(screen.getByLabelText('Jamey Starett')).toBeInTheDocument()
+    // The aria-label assertion above passes whether or not the initials span
+    // is hidden — getByLabelText does a literal attribute match and never
+    // inspects subtree content. Assert the hiding directly, or nothing guards
+    // it: 'JS' reaching a screen reader as text is the bug this prevents.
+    const initials = container.querySelector('span[aria-hidden="true"]')
+    expect(initials).not.toBeNull()
+    expect(initials?.textContent).toBe('JS')
   })
 
   it('renders an image when given one', () => {
