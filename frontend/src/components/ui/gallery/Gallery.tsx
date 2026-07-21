@@ -19,6 +19,7 @@ import {
   Mono,
   PageContainer,
   PageHeader,
+  Select,
   Textarea,
   Tile,
   type Size,
@@ -267,6 +268,22 @@ export default function Gallery() {
           <Input invalid placeholder="Invalid" aria-label="Invalid" />
           <Input disabled={disabled} placeholder="Respects toggle" aria-label="Disabled demo" />
           <Textarea placeholder="Notes" aria-label="Notes" />
+        </div>
+      </Section>
+
+      <Section title="Select" note="Native select, visible, exactly options.length + 1 options.">
+        <div className="grid w-full max-w-xl gap-3">
+          <Select
+            aria-label="Fuel type"
+            placeholder="Select fuel type"
+            options={[
+              { value: 'gasoline', label: 'Gasoline' },
+              { value: 'diesel', label: 'Diesel' },
+              { value: 'electric', label: 'Electric' },
+            ]}
+          />
+          <Select aria-label="Small" size="sm" options={[{ value: 'a', label: 'Small' }]} />
+          <Select aria-label="Invalid" invalid options={[{ value: 'a', label: 'Invalid' }]} />
         </div>
       </Section>
     </div>
