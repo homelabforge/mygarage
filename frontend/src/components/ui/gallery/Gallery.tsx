@@ -14,10 +14,12 @@ import {
   EmptyState,
   Field,
   IconButton,
+  Input,
   ListRow,
   Mono,
   PageContainer,
   PageHeader,
+  Textarea,
   Tile,
   type Size,
 } from '..'
@@ -253,6 +255,18 @@ export default function Gallery() {
               className="ui-focus-input h-input-md w-full rounded-control border border-danger bg-surface-2 px-3"
             />
           </Field>
+        </div>
+      </Section>
+
+      <Section title="Input / Textarea" note="type forwards untouched — implicit roles hang off it. mono for numeric/currency/date.">
+        <div className="grid w-full max-w-xl gap-3">
+          <Input placeholder="Standard" aria-label="Standard" />
+          <Input mono placeholder="1HGCM82633A004352" aria-label="VIN" />
+          <Input prefix="$" mono placeholder="0.00" aria-label="Cost" />
+          <Input type="number" placeholder="0" aria-label="Quantity" />
+          <Input invalid placeholder="Invalid" aria-label="Invalid" />
+          <Input disabled={disabled} placeholder="Respects toggle" aria-label="Disabled demo" />
+          <Textarea placeholder="Notes" aria-label="Notes" />
         </div>
       </Section>
     </div>
