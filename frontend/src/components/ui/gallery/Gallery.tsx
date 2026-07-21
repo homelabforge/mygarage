@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Box, Wrench } from 'lucide-react'
+import { Box, Plus, Wrench } from 'lucide-react'
 import Section from './Section'
 // Import through the barrel, never from a component file directly: this single
 // specifier is the only thing that puts ../index.ts — and, through it,
@@ -7,6 +7,7 @@ import Section from './Section'
 import {
   Avatar,
   Badge,
+  Button,
   Card,
   CardHeader,
   Chip,
@@ -206,6 +207,18 @@ export default function Gallery() {
             trailing={<Badge tone="accent">New</Badge>}
           />
         </div>
+      </Section>
+
+      <Section title="Button" note="Solid variant uses --accent-on-solid; text-white on amber is ~2:1. Hover: solid lifts, bordered variants move their border.">
+        <Button variant="primary" icon={Plus}>Add Vehicle</Button>
+        <Button variant="secondary">Cancel</Button>
+        <Button variant="ghost">Ghost</Button>
+        <Button variant="danger">Remove</Button>
+        <Button variant="accentTint">Analytics</Button>
+        <Button loading>Saving</Button>
+        <Button disabled={disabled}>Respects toggle</Button>
+        <Button size="sm">Small</Button>
+        <Button size="lg">Large</Button>
       </Section>
     </div>
   )
