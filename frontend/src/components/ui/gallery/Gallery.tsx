@@ -12,6 +12,7 @@ import {
   CardHeader,
   Chip,
   EmptyState,
+  Field,
   IconButton,
   ListRow,
   Mono,
@@ -228,6 +229,31 @@ export default function Gallery() {
         <IconButton icon={X} label="Close" variant="surface" />
         <IconButton icon={Trash2} label="Delete" size="sm" />
         <IconButton icon={Trash2} label="Delete" size="lg" disabled={disabled} />
+      </Section>
+
+      <Section title="Field" note="Required marker and unit live INSIDE the label — two VehicleEdit tests query the composed string. The caller wires aria-describedby.">
+        <div className="w-72">
+          <Field id="g-nickname" label="Nickname" required>
+            <input
+              id="g-nickname"
+              className="ui-focus-input h-input-md w-full rounded-control border border-border bg-surface-2 px-3"
+            />
+          </Field>
+          <Field id="g-def" label="DEF Tank Capacity" unit="L" hint="Leave blank if not equipped.">
+            <input
+              id="g-def"
+              aria-describedby="g-def-hint"
+              className="ui-focus-input h-input-md w-full rounded-control border border-border bg-surface-2 px-3"
+            />
+          </Field>
+          <Field id="g-cost" label="Cost" error="Required">
+            <input
+              id="g-cost"
+              aria-describedby="g-cost-error"
+              className="ui-focus-input h-input-md w-full rounded-control border border-danger bg-surface-2 px-3"
+            />
+          </Field>
+        </div>
       </Section>
     </div>
   )
