@@ -5,7 +5,17 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
-  { ignores: ['dist', 'node_modules'] },
+  {
+    ignores: [
+      'dist',
+      'node_modules',
+      // openapi-typescript-generated; double-quoted by the generator itself and
+      // reconciled against a fresh regen by check:api-freshness (git diff
+      // --exit-code). Hand-fixing quotes here fights the tool on every future
+      // regen instead of catching anything real.
+      'src/types/api.generated.ts',
+    ],
+  },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ['**/*.{ts,tsx}'],
@@ -34,6 +44,10 @@ export default tseslint.config(
         'warn',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
       ],
+      // The i18n validators' regexes are single-quote-only, so a double-quoted
+      // t("key") or label: "English" is invisible to both gates. Zero
+      // double-quoted t( exists today by luck; the reskin rewrites ~180 files.
+      quotes: ['error', 'single', { avoidEscape: true, allowTemplateLiterals: true }],
       // i18n guards: prevent raw currency and hardcoded locale outside utility files
       'no-restricted-syntax': [
         'warn',

@@ -67,7 +67,7 @@ const USER_FACING_PROPS = /\b(placeholder|title|aria-label|alt|label|tooltip)\s*
  * so it does not match.
  */
 const OBJECT_FIELDS =
-  /\b(label|description|title|placeholder|message|heading|text|defaultValue)\s*:\s*'([A-Z][^']{2,})'/g
+  /\b(label|description|title|placeholder|message|heading|text|defaultValue)\s*:\s*['"]([A-Z][^'"]{2,})['"]/g
 const TOAST_CALL = /toast\.(?:success|error|info|warning|message)\(\s*['"]([^'"]{3,})['"]/g
 const BROWSER_DIALOG = /\b(?:alert|confirm)\(\s*['"]([^'"]{3,})['"]/g
 const JSX_TEXT = />([^<>{}\n]{3,})</g

@@ -166,7 +166,7 @@ for (const file of walk(SRC)) {
   // These constants often live in schema modules that never call
   // useTranslation, so a bare key there has no namespace to resolve against and
   // is reported — such a key MUST be written namespace-qualified.
-  for (const m of text.matchAll(/\b(?:labelKey|descriptionKey):\s*'([^']+)'/g)) {
+  for (const m of text.matchAll(/\b(?:labelKey|descriptionKey):\s*['"]([^'"]+)['"]/g)) {
     const rawKey = m[1]
     if (bound.length === 0 && !rawKey.includes(':')) {
       violations.push({

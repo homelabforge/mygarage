@@ -4,7 +4,7 @@ import { FormError } from '../FormError'
 
 describe('FormError', () => {
   it('renders error message', () => {
-    render(<FormError error={{ type: 'required', message: "This field is required" }} />)
+    render(<FormError error={{ type: 'required', message: 'This field is required' }} />)
 
     expect(screen.getByText(/This field is required/i)).toBeInTheDocument()
   })
@@ -16,7 +16,7 @@ describe('FormError', () => {
   })
 
   it('applies error styling', () => {
-    const { container } = render(<FormError error={{ type: 'validation', message: "Error" }} />)
+    const { container } = render(<FormError error={{ type: 'validation', message: 'Error' }} />)
 
     const errorElement = container.firstChild
     expect(errorElement).toHaveClass('text-red-500')
