@@ -20,6 +20,7 @@ import {
   Mono,
   PageContainer,
   PageHeader,
+  SearchField,
   Select,
   Textarea,
   Tile,
@@ -65,6 +66,7 @@ export default function Gallery() {
   // remove as dead code.
   const [disabled, setDisabled] = useState(false)
   const [toggleOn, setToggleOn] = useState(true)
+  const [searchValue, setSearchValue] = useState('')
 
   return (
     <div className="mx-auto max-w-[1320px] px-6 py-10">
@@ -296,6 +298,17 @@ export default function Gallery() {
         <Toggle label="Disabled" checked={false} onChange={() => {}} disabled />
         <Checkbox id="g-jpg" label=".jpg" defaultChecked />
         <Checkbox id="g-png" label=".png" />
+      </Section>
+
+      <Section title="SearchField" note="Replaces six copies whose icon size had drifted.">
+        <SearchField
+          value={searchValue}
+          onChange={setSearchValue}
+          label="Search contacts"
+          placeholder="Search contacts"
+          className="w-64"
+        />
+        <SearchField value="ram" onChange={() => {}} label="Search" size="sm" className="w-48" />
       </Section>
     </div>
   )
