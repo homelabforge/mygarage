@@ -290,4 +290,18 @@ describe('design tokens', () => {
       'Tailwind emits nothing for these.\n\n' + bad.join('\n'),
     ).toEqual([])
   })
+
+  it('does not leave .btn-primary on the gray ramp', () => {
+    const css = readFileSync(resolve(SRC, 'index.css'), 'utf8')
+    const block = css.match(/\.btn-primary\s*\{[^}]*\}/)?.[0] ?? ''
+    expect(block, '.btn-primary is live in 47 files; it must use the accent').not.toMatch(/gray-\d{3}/)
+    expect(block).toMatch(/bg-primary|var\(--accent/)
+  })
+
+  it('still defines the legacy component classes (deleted in P12, not now)', () => {
+    const css = readFileSync(resolve(SRC, 'index.css'), 'utf8')
+    for (const cls of ['.btn', '.btn-primary', '.btn-secondary', '.input', '.card', '.badge']) {
+      expect(css, `${cls} is still referenced in source`).toContain(`${cls} {`)
+    }
+  })
 })

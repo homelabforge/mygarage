@@ -201,11 +201,21 @@
 
 @layer components {
   .btn {
-    @apply px-4 py-2 rounded-lg font-medium transition-colors duration-200;
+    @apply px-4 py-2 font-medium transition-colors duration-200;
+    border-radius: var(--radius-control);
   }
 
+  /* Live in 47 files / 114 call sites. Re-pointed onto the accent here; the
+   * call sites migrate to <Button> per phase and this rule is deleted in P12. */
   .btn-primary {
-    @apply bg-gray-700 border border-gray-600 hover:bg-gray-800 text-white;
+    background: var(--accent-solid);
+    color: var(--accent-on-solid);
+    border: 1px solid transparent;
+    box-shadow: var(--shadow-accent);
+  }
+
+  .btn-primary:hover {
+    background: color-mix(in oklab, var(--accent-solid) 88%, black);
   }
 
   .btn-secondary {
@@ -213,15 +223,22 @@
   }
 
   .btn-danger {
-    @apply bg-danger-600 hover:bg-danger-700 text-white;
+    @apply bg-danger-500 hover:bg-danger-600 text-white;
   }
 
   .input {
-    @apply w-full px-3 py-2 bg-garage-surface border border-garage-border rounded-lg text-garage-text placeholder-garage-text-muted focus:outline-none focus:ring-2 focus:ring-primary-500;
+    @apply w-full px-3 py-2 bg-surface border border-garage-border text-garage-text placeholder-garage-text-muted focus:outline-none;
+    border-radius: var(--radius-control);
+  }
+
+  .input:focus {
+    border-color: var(--accent-line);
+    box-shadow: 0 0 0 3px var(--accent-soft);
   }
 
   .card {
-    @apply bg-garage-surface border border-garage-border rounded-lg p-6;
+    @apply bg-garage-surface border border-garage-border p-6;
+    border-radius: var(--radius-card);
   }
 
   .badge {
@@ -250,10 +267,6 @@
   }
 
   /* Light theme component overrides */
-  html.light .btn-primary {
-    @apply bg-gray-100 border-gray-300 hover:bg-gray-200 text-gray-900;
-  }
-
   html.light .badge-neutral {
     @apply bg-gray-200 text-gray-700;
   }
