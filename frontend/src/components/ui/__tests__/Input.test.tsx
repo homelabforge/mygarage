@@ -20,7 +20,9 @@ describe('Input', () => {
 
   it('keeps the textbox role for text inputs', () => {
     render(<Input type="text" aria-label="VIN" />)
-    expect(screen.getByRole('textbox', { name: 'VIN' })).toBeInTheDocument()
+    const input = screen.getByRole('textbox', { name: 'VIN' })
+    expect(input).toBeInTheDocument()
+    expect(input).toHaveAttribute('type', 'text')
   })
 
   it('applies the mono family when asked', () => {
@@ -36,6 +38,12 @@ describe('Input', () => {
   it('renders a prefix before the control', () => {
     const { container } = render(<Input prefix="$" aria-label="Cost" />)
     expect(container.querySelector('span')).toHaveTextContent('$')
+  })
+
+  it('renders a suffix after the control', () => {
+    const { container } = render(<Input suffix="kg" aria-label="Weight" />)
+    expect(container.querySelector('span')).toHaveTextContent('kg')
+    expect(screen.getByRole('textbox', { name: 'Weight' })).toHaveClass('pr-7')
   })
 })
 
