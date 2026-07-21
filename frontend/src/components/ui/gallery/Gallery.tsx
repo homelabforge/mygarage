@@ -25,6 +25,7 @@ import {
   PageHeader,
   SearchField,
   Select,
+  ShareBar,
   Stepper,
   Tabs,
   Textarea,
@@ -430,6 +431,15 @@ export default function Gallery() {
             rows={[] as Array<{ id: string; date: string; cost: string }>}
             emptyState={<EmptyState icon={Box} title="No fuel records yet" size="sm" />}
           />
+        </div>
+      </Section>
+
+      <Section title="ShareBar" note="Ranked legend row beside the Analytics donut. Plain DOM, not a chart — a progressbar role announces the share.">
+        <div className="w-full max-w-md">
+          <ShareBar label="Maintenance" value="$1,284.00" percent={42} color="#f0a53a" />
+          <ShareBar label="Fuel" value="$903.20" percent={30} color="#22d3ee" />
+          <ShareBar label="Insurance" value="$612.00" percent={20} color="#a78bfa" />
+          <ShareBar label="Taxes" value="$240.00" percent={8} color="#34d399" />
         </div>
       </Section>
     </div>
