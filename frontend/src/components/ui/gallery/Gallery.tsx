@@ -1,9 +1,10 @@
 import { useState } from 'react'
+import { Wrench } from 'lucide-react'
 import Section from './Section'
 // Import through the barrel, never from a component file directly: this single
 // specifier is the only thing that puts ../index.ts — and, through it,
 // ../types.ts — on the graph validate-reachability walks from main.tsx.
-import { Mono, type Size } from '..'
+import { Badge, Chip, Mono, type Size } from '..'
 import { ACCENT_KEYS } from '../../../constants/accents'
 import { useAccent } from '../../../contexts/AccentContext'
 import { useTheme } from '../../../contexts/ThemeContext'
@@ -106,6 +107,20 @@ export default function Gallery() {
         <Mono tone="success">+12.4%</Mono>
         <Mono tone="muted" size="sm">2026-07-21</Mono>
         <Mono tone="accent" weight="semibold">89,230 mi</Mono>
+      </Section>
+
+      <Section title="Badge" note="Status marker. Not interactive.">
+        <Badge tone="danger" count={2} />
+        <Badge tone="warning" icon={Wrench}>1 Upcoming</Badge>
+        <Badge tone="success">Active</Badge>
+        <Badge>Default</Badge>
+      </Section>
+
+      <Section title="Chip" note="Category label, or filter button with aria-pressed.">
+        <Chip>Truck</Chip>
+        <Chip tone="accent">Fifth Wheel</Chip>
+        <Chip icon={Wrench} onClick={() => {}}>Service</Chip>
+        <Chip onClick={() => {}} selected>Gas Station</Chip>
       </Section>
     </div>
   )

@@ -84,6 +84,14 @@
    * at 12 sites across 5 files and was a silent no-op on main. Task 2 restored it. */
   --color-info:        #22d3ee;
 
+  /* Foreground for the FIXED status fills (success/warning/danger/info).
+     Deliberately not theme-dependent: those fills do not change between
+     themes, so a foreground that did would invert against them. Not white —
+     white on --color-danger #f0503a is 3.55:1, below AA for small text.
+     Measured against this near-black: danger 5.9:1, success 10.9:1,
+     warning 10.1:1, info 11.6:1. */
+  --color-on-status: #0b0e13;
+
   /* ---------------------------------------------------------------------
    * Photo placeholder + scrim + neutral badge (prototype vocabulary)
    * ------------------------------------------------------------------- */
