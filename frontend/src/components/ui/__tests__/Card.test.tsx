@@ -27,19 +27,25 @@ describe('Card', () => {
 })
 
 describe('CardHeader', () => {
-  it('renders title and icon', () => {
+  it('renders title alongside the icon element', () => {
+    // This only proves CardHeader renders an icon element next to the title —
+    // not that CardHeader sets aria-hidden itself. lucide-react icons
+    // (Wrench above) default to aria-hidden="true" on their own, so an
+    // assertion on that attribute here would pass identically whether or not
+    // CardHeader sets it; see the bare-icon test below for that contract.
     const { container } = render(<CardHeader title="Cost by Category" icon={Wrench} />)
     expect(screen.getByRole('heading', { name: 'Cost by Category' })).toBeInTheDocument()
-    expect(container.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
+    expect(container.querySelector('svg')).toBeInTheDocument()
   })
 
   it('marks the icon aria-hidden itself, not just relying on the icon default', () => {
-    // lucide-react icons (Wrench above) already default to aria-hidden="true"
-    // whenever no other a11y prop is passed (dist/cjs/lucide-react.js:
+    // lucide-react icons default to aria-hidden="true" whenever no other
+    // a11y prop is passed (dist/cjs/lucide-react.js:
     // `...!children && !hasA11yProp(rest) && { 'aria-hidden': 'true' }`), so
-    // the assertion above passes identically whether or not CardHeader passes
-    // aria-hidden itself. A bare SVG component has no such default, so this
-    // proves CardHeader supplies the attribute rather than inheriting it.
+    // a test using a lucide icon (e.g. Wrench above) can't tell whether
+    // CardHeader sets the attribute itself or is only inheriting lucide's
+    // default. A bare SVG component has no such default, so this proves
+    // CardHeader supplies the attribute itself rather than relying on it.
     const BareIcon: IconType = (props) => <svg data-testid="bare-icon" {...props} />
     render(<CardHeader title="X" icon={BareIcon} />)
     expect(screen.getByTestId('bare-icon')).toHaveAttribute('aria-hidden', 'true')

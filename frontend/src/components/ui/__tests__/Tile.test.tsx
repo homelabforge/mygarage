@@ -27,17 +27,14 @@ describe('Tile', () => {
     expect(screen.getByText('Overdue')).not.toHaveClass('text-danger')
   })
 
-  it('hides the decorative icon from assistive tech', () => {
-    const { container } = render(<Tile icon={Wrench} label="Service" value={1} />)
-    expect(container.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
-  })
-
   it('marks the icon aria-hidden itself, not just relying on the icon default', () => {
-    // lucide-react icons (Wrench above) already default to aria-hidden="true"
-    // whenever no other a11y prop is passed, so the assertion above passes
-    // identically whether or not Tile passes aria-hidden itself. A bare SVG
-    // component has no such default, so this proves Tile supplies the
-    // attribute rather than inheriting it (see standing instructions).
+    // lucide-react icons default to aria-hidden="true" whenever no other
+    // a11y prop is passed (dist/cjs/lucide-react.js:
+    // `...!children && !hasA11yProp(rest) && { 'aria-hidden': 'true' }`), so
+    // a test using a lucide icon (e.g. Wrench above) can't tell whether Tile
+    // sets the attribute itself or is only inheriting lucide's default. A
+    // bare SVG component has no such default, so this proves Tile supplies
+    // the attribute itself rather than relying on it.
     const BareIcon: IconType = (props) => <svg data-testid="bare-icon" {...props} />
     render(<Tile icon={BareIcon} label="Service" value={1} />)
     expect(screen.getByTestId('bare-icon')).toHaveAttribute('aria-hidden', 'true')
