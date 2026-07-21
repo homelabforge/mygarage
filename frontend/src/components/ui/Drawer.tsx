@@ -16,6 +16,38 @@ const WIDTH: Record<DrawerWidth, string> = {
   xl: 'w-[min(820px,97vw)]',
 }
 
+/**
+ * Shared by the initial-focus query (scoped to the body slot only, so it
+ * never lands on the header's Close button — see Finding 1 in Task 20's
+ * review) and the Tab-trap query (scoped to the whole panel, where the
+ * Close button must stay reachable by Tab). One constant so the two
+ * selector strings cannot drift apart.
+ */
+const FOCUSABLE_SELECTOR =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])'
+/** Tab-trap only: also honours elements made focusable purely via tabindex. */
+const TAB_TRAP_SELECTOR = `${FOCUSABLE_SELECTOR}, [tabindex]:not([tabindex="-1"])`
+
+/** Added on top of the measured transition duration before the closing
+ *  timeout fallback fires — covers rAF/paint scheduling jitter so it never
+ *  races a `transitionend` that is genuinely still in flight. */
+const TRANSITION_FALLBACK_BUFFER_MS = 50
+
+/**
+ * Reads the panel's own computed `transition-duration` — which is owned by
+ * the `--duration-drawer` token, see index.css — instead of hard-coding a
+ * number here, so the closing-transition timeout fallback tracks the token
+ * if it's ever changed. `transitionend` is the primary signal; this is only
+ * a backstop, so falling back to 0 (immediate) when it can't be read/parsed
+ * (e.g. no stylesheet loaded, as in a unit-test environment) is safe.
+ */
+function readTransitionDurationMs(el: HTMLElement): number {
+  const raw = window.getComputedStyle(el).transitionDuration.split(',')[0]?.trim() ?? ''
+  const value = Number.parseFloat(raw)
+  if (Number.isNaN(value)) return 0
+  return raw.endsWith('ms') ? value : value * 1000
+}
+
 interface DrawerProps {
   open: boolean
   onClose: () => void
@@ -61,8 +93,14 @@ export default function Drawer({
   children,
 }: DrawerProps) {
   const panelRef = useRef<HTMLDivElement>(null)
+  const bodyRef = useRef<HTMLDivElement>(null)
   const restoreRef = useRef<HTMLElement | null>(null)
   const [entered, setEntered] = useState(false)
+  // Whether the panel is still in the DOM. True the whole time `open` is
+  // true, and for the tail of a closing transition after `open` flips to
+  // false — see the second effect below. Initialised from `open` so a
+  // Drawer that is never opened renders nothing on its very first paint.
+  const [rendered, setRendered] = useState(open)
 
   // onClose is held in a ref and deliberately NOT in the effect's dep array.
   // Every consumer passes an inline arrow, so its identity changes on every
@@ -91,9 +129,7 @@ export default function Drawer({
         return
       }
       if (event.key !== 'Tab') return
-      const focusable = panelRef.current?.querySelectorAll<HTMLElement>(
-        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-      )
+      const focusable = panelRef.current?.querySelectorAll<HTMLElement>(TAB_TRAP_SELECTOR)
       if (!focusable || focusable.length === 0) return
       const first = focusable[0]
       const last = focusable[focusable.length - 1]
@@ -107,10 +143,13 @@ export default function Drawer({
     }
 
     document.addEventListener('keydown', onKey)
-    // Focus the first focusable node, falling back to the panel itself.
-    const first = panelRef.current?.querySelector<HTMLElement>(
-      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])',
-    )
+    // Focus the first focusable node *in the body slot* — not the header's
+    // Close button, which a whole-panel, document-order query would always
+    // hit first, since the header renders before the body in every
+    // instance (Finding 1). Falls back to the panel itself so focus never
+    // escapes to <body> when the body has no focusable control; this
+    // deliberately does not fall further to the footer.
+    const first = bodyRef.current?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR)
     ;(first ?? panelRef.current)?.focus()
 
     // Next frame, so the browser paints the off-screen start state first and
@@ -125,7 +164,66 @@ export default function Drawer({
     }
   }, [open])
 
-  if (!open) return null
+  // Closing-transition mount lifecycle — deliberately a separate effect from
+  // the one above, so that effect's [open]-only dependency (load-bearing,
+  // see its own comment) stays untouched. Keeps the panel mounted for the
+  // tail of the exit transition instead of unmounting in the same render
+  // that flips `open` false, which previously skipped the slide/fade
+  // entirely (Finding 2).
+  useEffect(() => {
+    if (open) {
+      setRendered(true)
+      return
+    }
+    const panel = panelRef.current
+    if (!panel) {
+      setRendered(false)
+      return
+    }
+    // Reduced-motion users already get an instant close from the CSS
+    // (`motion-reduce:transition-none` sets transition-property to `none`,
+    // so `transitionend` never fires for them). Waiting on that event here
+    // would strand the drawer mounted — with its full-screen, now-invisible
+    // backdrop still catching clicks — for no visible benefit. Skip the
+    // wait entirely and unmount in the same tick, matching pre-fix
+    // behaviour exactly for these users.
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setRendered(false)
+      return
+    }
+
+    let finished = false
+    const finish = (): void => {
+      if (finished) return
+      finished = true
+      window.clearTimeout(timeoutId)
+      panel.removeEventListener('transitionend', onTransitionEnd)
+      setRendered(false)
+    }
+    // Ignore transitionend bubbling up from a descendant's own transition
+    // (e.g. the Close button's hover ui-motion) — only the panel's own
+    // slide-out should end the drawer's life.
+    const onTransitionEnd = (event: TransitionEvent): void => {
+      if (event.target !== panel) return
+      finish()
+    }
+    // Belt-and-braces: if transitionend never fires (a mismatched property,
+    // a duration that reads as 0, a browser quirk) this still unmounts
+    // rather than leaving the drawer's invisible backdrop blocking the page
+    // forever.
+    const timeoutId = window.setTimeout(
+      finish,
+      readTransitionDurationMs(panel) + TRANSITION_FALLBACK_BUFFER_MS,
+    )
+    panel.addEventListener('transitionend', onTransitionEnd)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+      panel.removeEventListener('transitionend', onTransitionEnd)
+    }
+  }, [open])
+
+  if (!rendered) return null
 
   return createPortal(
     <>
@@ -164,7 +262,7 @@ export default function Drawer({
           </button>
         </header>
 
-        <div className="flex-1 overflow-y-auto px-6 py-5">{children}</div>
+        <div ref={bodyRef} className="flex-1 overflow-y-auto px-6 py-5">{children}</div>
 
         {footer ? (
           <footer className="sticky bottom-0 flex items-center justify-end gap-3 border-t border-border bg-surface px-6 py-4">
