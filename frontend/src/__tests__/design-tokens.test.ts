@@ -192,6 +192,69 @@ function collectUsedColorTokens(): Map<string, string[]> {
   return used
 }
 
+/** Strip CSS comments so a var()-shaped string inside a comment can't create a false reference. */
+function stripCssComments(css: string): string {
+  return css.replace(/\/\*[\s\S]*?\*\//g, '')
+}
+
+/**
+ * Every custom property defined anywhere in index.css — @theme, :root,
+ * html.light, or any other block. Deliberately not scoped to one selector: a
+ * property defined only under html.light (e.g. the light-mode overrides of
+ * --color-bg/--color-text/etc.) still counts as defined, because the cascade
+ * makes it resolve there at runtime exactly as intended.
+ */
+function collectDefinedCustomProperties(css: string): Set<string> {
+  const defined = new Set<string>()
+  for (const m of stripCssComments(css).matchAll(/(--[a-zA-Z][a-zA-Z0-9-]*)\s*:/g)) {
+    defined.add(m[1])
+  }
+  return defined
+}
+
+/**
+ * Tailwind's own reserved custom-property namespace (`--tw-*`: ring/shadow/
+ * transform composition vars it writes at build time from utility classes) is
+ * never declared in index.css and never should be — those are Tailwind's
+ * problem, not this file's. Checked empirically: every var() reference in
+ * index.css today resolves to a token this same file defines; none of them are
+ * --tw-*. This set stays empty on purpose — per the finding, a raw --tw-*
+ * reference must be added here BY NAME with a comment explaining why it's
+ * exempt, never covered by a blanket --tw- prefix check.
+ */
+const TAILWIND_GENERATED_PROPERTIES = new Set<string>([])
+
+interface VarReference {
+  property: string
+  fallback: string | null
+  declaration: string
+}
+
+/**
+ * Every `var(--x)` reference anywhere in index.css, paired with the raw
+ * declaration it appeared in (for the failure message) and its fallback value,
+ * if any. Declarations are found generically (`prop: value;`, value containing
+ * neither `;` nor `{`/`}`) rather than scoped to any one block, so a reference
+ * inside @theme itself is caught the same as one in .btn-primary — e.g.
+ * `--color-primary: var(--accent)` inside @theme is exactly the shape this
+ * check exists to verify, not just raw declarations in @layer components.
+ */
+function collectVarReferences(css: string): VarReference[] {
+  const stripped = stripCssComments(css)
+  const refs: VarReference[] = []
+  for (const decl of stripped.matchAll(/[a-zA-Z-]+\s*:\s*[^;{}]*;/g)) {
+    const declaration = decl[0].trim()
+    for (const v of declaration.matchAll(/var\(\s*(--[a-zA-Z][a-zA-Z0-9-]*)\s*(,\s*[^)]*)?\)/g)) {
+      refs.push({
+        property: v[1],
+        fallback: v[2] ? v[2].replace(/^,\s*/, '').trim() : null,
+        declaration,
+      })
+    }
+  }
+  return refs
+}
+
 describe('design tokens', () => {
   it('every custom color utility in source resolves to a defined token', () => {
     const defined = collectDefinedColorTokens()
@@ -288,6 +351,39 @@ describe('design tokens', () => {
     expect(bad,
       'index.css @apply references a colour token that @theme never defines. ' +
       'Tailwind emits nothing for these.\n\n' + bad.join('\n'),
+    ).toEqual([])
+  })
+
+  /**
+   * The AST scanner covers .ts/.tsx class names and the previous test covers
+   * @apply rules, but Task 4 moved .btn-primary's background/color/box-shadow
+   * (plus .btn-primary:hover and .input:focus) off @apply and onto raw CSS
+   * declarations like `background: var(--accent-solid);` — a shape neither
+   * existing check can see. Proven empirically: renaming --accent-solid to
+   * --accent-solid-TYPO inside .btn-primary's `background` left lint,
+   * type-check, every other test, and build completely green. Tailwind and
+   * plain CSS both fail silently on an undefined custom property — the
+   * declaration is simply dropped, no error anywhere — so this is the only
+   * thing that can catch a typo'd or renamed var() in the app's primary
+   * button, the single rule Task 4 exists to fix.
+   */
+  it('every var() reference in index.css resolves to a property defined in the file', () => {
+    const css = readFileSync(resolve(SRC, 'index.css'), 'utf8')
+    const defined = collectDefinedCustomProperties(css)
+    const refs = collectVarReferences(css)
+
+    const undefinedRefs = refs
+      .filter((ref) => !defined.has(ref.property) && !TAILWIND_GENERATED_PROPERTIES.has(ref.property))
+      .map((ref) => {
+        const fallbackNote = ref.fallback ? ` (has fallback ${ref.fallback} — primary name must still resolve)` : ''
+        return `${ref.property} ← ${ref.declaration}${fallbackNote}`
+      })
+
+    expect(undefinedRefs,
+      'index.css references a custom property via var() that is never defined ' +
+      'anywhere in this file. Tailwind and CSS both fail silently here — an ' +
+      'undefined custom property produces no error, the declaration is simply ' +
+      'dropped.\n\n' + undefinedRefs.join('\n'),
     ).toEqual([])
   })
 
