@@ -812,12 +812,18 @@ describe('motion utility collision tripwire', () => {
    *   1. A literal hoisted into a variable and interpolated by reference:
    *      `const base = 'ui-motion'` followed by
    *      `` className={`${base} ${cond ? 'transition-transform' : ''}`} ``.
-   *      `base` is an Identifier, not a literal-text node — its string
-   *      ('ui-motion') lives in a separate part of the AST (the variable
-   *      declarator's initializer) and is never joined with the template's
-   *      own literal group. collectClassNameGroups groups by
-   *      TemplateExpression; it has no notion of "also resolve an
-   *      Identifier substitution back to whatever string it was assigned."
+   *      `base` is an Identifier, not a literal-text node — collectClassNameGroups
+   *      groups by TemplateExpression and has no notion of resolving an
+   *      Identifier substitution back to the string it was assigned, so
+   *      'ui-motion' (which lives in the variable declarator's initializer,
+   *      a separate AST node) is never joined with the template's group.
+   *      This is not a hypothetical shape: see collectLiteralTexts' doc
+   *      comment above for two REAL instances of the same hoisted-constant
+   *      and cross-file flows already in this codebase
+   *      (CurrencyInputPrefix.tsx / TimeInput24.tsx, and schemas/auth.ts
+   *      into Register.tsx). Those are why that scanner is deliberately not
+   *      scoped to className attributes — the same blind spot, already
+   *      documented there with named examples rather than invented ones.
    *
    *   2. Class names assembled by array + join:
    *      `className={[baseClass, isActive && 'transition-transform'].join(' ')}`.
