@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Search, Check, X, Loader2 } from 'lucide-react'
 import { vinService } from '@/services/vinService'
+import { Card } from '@/components/ui'
 import type { VINDecodeResponse } from '@/types/vin'
 
 interface VINInputProps {
@@ -220,7 +221,7 @@ export default function VINInput({
 
       {/* Decoded data display */}
       {decodedData && !errorMessage && (
-        <div className="card bg-garage-surface-light">
+        <Card className="bg-surface-2">
           <h4 className="text-lg font-semibold mb-3">{t('vinInput.decodedTitle')}</h4>
           <div className="grid grid-cols-2 gap-3 text-sm">
             {decodedData.year && (
@@ -290,7 +291,7 @@ export default function VINInput({
               </div>
             )}
           </div>
-        </div>
+        </Card>
       )}
     </div>
   )

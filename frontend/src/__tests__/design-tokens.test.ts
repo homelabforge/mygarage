@@ -556,7 +556,10 @@ describe('design tokens', () => {
 
   it('still defines the legacy component classes (deleted in P12, not now)', () => {
     const css = readFileSync(resolve(SRC, 'index.css'), 'utf8')
-    for (const cls of ['.btn', '.btn-primary', '.btn-secondary', '.input', '.card', '.badge']) {
+    // .card and .badge deleted in P1 Task 25 — one and four callers
+    // respectively, all re-pointed to <Card> / <Badge>. The remaining four
+    // are the P4-P11 bridge and are deleted in P12.
+    for (const cls of ['.btn', '.btn-primary', '.btn-secondary', '.input']) {
       expect(css, `${cls} is still referenced in source`).toContain(`${cls} {`)
     }
   })

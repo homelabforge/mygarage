@@ -12,7 +12,7 @@ export function FormError({ error }: FormErrorProps) {
   if (!error) return null
 
   return (
-    <p className="text-xs text-red-500 mt-1" role="alert">
+    <p className="text-xs text-danger mt-1" role="alert">
       {error.message}
     </p>
   )

@@ -10,7 +10,7 @@ import { useTranslation } from 'react-i18next'
 import { MapPin, Loader2, Navigation, AlertTriangle, Search } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '@/services/api'
-import CategoryToggle from '@/components/CategoryToggle'
+import { Toggle } from '@/components/ui'
 import POICard from '@/components/POICard'
 import MapDisplay from '@/components/MapDisplay'
 import { useUnitPreference } from '@/hooks/useUnitPreference'
@@ -267,35 +267,35 @@ export default function POIFinder() {
           <div className="mb-8 bg-garage-surface border border-garage-border rounded-lg p-6">
             <h2 className="text-lg font-semibold text-garage-text mb-4">{t('poiFinder.categories')}</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <CategoryToggle
+              <Toggle
                 label={t('poiFinder.categoryAutoShops')}
-                category="auto_shop"
-                enabled={categories.auto_shop}
-                onToggle={(enabled) => handleCategoryToggle('auto_shop', enabled)}
+                checked={categories.auto_shop}
+                onChange={(next) => handleCategoryToggle('auto_shop', next)}
+                variant="onOff"
               />
-              <CategoryToggle
+              <Toggle
                 label={t('poiFinder.categoryEvCharging')}
-                category="ev_charging"
-                enabled={categories.ev_charging}
-                onToggle={(enabled) => handleCategoryToggle('ev_charging', enabled)}
+                checked={categories.ev_charging}
+                onChange={(next) => handleCategoryToggle('ev_charging', next)}
+                variant="onOff"
               />
-              <CategoryToggle
+              <Toggle
                 label={t('poiFinder.categoryGasStations')}
-                category="gas_station"
-                enabled={categories.gas_station}
-                onToggle={(enabled) => handleCategoryToggle('gas_station', enabled)}
+                checked={categories.gas_station}
+                onChange={(next) => handleCategoryToggle('gas_station', next)}
+                variant="onOff"
               />
-              <CategoryToggle
+              <Toggle
                 label={t('poiFinder.categoryPropane')}
-                category="propane"
-                enabled={categories.propane}
-                onToggle={(enabled) => handleCategoryToggle('propane', enabled)}
+                checked={categories.propane}
+                onChange={(next) => handleCategoryToggle('propane', next)}
+                variant="onOff"
               />
-              <CategoryToggle
+              <Toggle
                 label={t('poiFinder.categoryRvShops')}
-                category="rv_shop"
-                enabled={categories.rv_shop}
-                onToggle={(enabled) => handleCategoryToggle('rv_shop', enabled)}
+                checked={categories.rv_shop}
+                onChange={(next) => handleCategoryToggle('rv_shop', next)}
+                variant="onOff"
               />
             </div>
 

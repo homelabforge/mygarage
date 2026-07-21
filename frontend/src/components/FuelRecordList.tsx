@@ -12,6 +12,7 @@ import { useUnitPreference } from '../hooks/useUnitPreference'
 import { UnitFormatter } from '../utils/units'
 import { priceToDisplay } from '../utils/decimalSafe'
 import { useFuelRecords, useDeleteFuelRecord, useImportFuelCSV } from '../hooks/queries/useFuelRecords'
+import { Badge } from './ui'
 
 interface FuelRecordListProps {
   vin: string
@@ -437,7 +438,7 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick }: FuelRec
                       {record.is_full_tank ? (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">{t('fuelList.full')}</span>
                       ) : (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium badge-neutral">{t('fuelList.partial')}</span>
+                        <Badge>{t('fuelList.partial')}</Badge>
                       )}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">

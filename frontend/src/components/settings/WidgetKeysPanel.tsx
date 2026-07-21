@@ -9,6 +9,7 @@ import {
   useWidgetKeys,
 } from '@/hooks/queries/useWidgetKeys'
 import { parseAPITimestamp } from '@/utils/parseAPITimestamp'
+import { Badge } from '@/components/ui'
 import CreateWidgetKeyModal from '../modals/CreateWidgetKeyModal'
 import type { WidgetKeySummary } from '@/types/widgetKey'
 
@@ -109,14 +110,10 @@ export default function WidgetKeysPanel(): React.ReactElement {
                   <div className="flex items-center gap-2">
                     <span className="font-medium text-garage-text">{k.name}</span>
                     {revoked && (
-                      <span className="badge badge-neutral">
-                        {t('widgetKeys.panel.revokedBadge')}
-                      </span>
+                      <Badge>{t('widgetKeys.panel.revokedBadge')}</Badge>
                     )}
                     {stale && (
-                      <span className="badge badge-warning">
-                        {t('widgetKeys.panel.staleBadge')}
-                      </span>
+                      <Badge tone="warning">{t('widgetKeys.panel.staleBadge')}</Badge>
                     )}
                   </div>
                   <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-garage-text-muted">

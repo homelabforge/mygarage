@@ -19,7 +19,7 @@ describe('FormError', () => {
     const { container } = render(<FormError error={{ type: 'validation', message: 'Error' }} />)
 
     const errorElement = container.firstChild
-    expect(errorElement).toHaveClass('text-red-500')
+    expect(errorElement).toHaveClass('text-danger')
   })
 
   it('handles long error messages', () => {

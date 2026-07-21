@@ -57,6 +57,7 @@ import type {
 } from '../types/analytics'
 import AnalyticsHelpModal from '../components/AnalyticsHelpModal'
 import ExportMenu from '../components/ExportMenu'
+import { Badge } from '../components/ui'
 import { formatCurrencyZero as formatCurrency } from '../utils/formatUtils'
 import { formatDateForDisplay } from '../utils/dateUtils'
 import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
@@ -344,16 +345,23 @@ export default function Analytics() {
   }
 
   const getConfidenceBadge = (confidence: string) => {
+    const label = t(CONFIDENCE_LEVEL_KEYS[confidence] ?? CONFIDENCE_FALLBACK_KEY)
+    // high/medium keep the prototype's raw Tailwind colours (out of scope
+    // for P1 Task 25 — swept in the P12 raw-palette purge). low and any
+    // unrecognised value re-point the deleted .badge-neutral rule onto
+    // <Badge>, matching the old `|| colors.low` fallback.
     const colors = {
       high: 'bg-green-100 text-green-800 border-green-300',
       medium: 'bg-yellow-100 text-yellow-800 border-yellow-300',
-      low: 'badge-neutral border-gray-300',
     }
-    return (
-      <span className={`px-2 py-1 text-xs font-medium uppercase rounded border ${colors[confidence as keyof typeof colors] || colors.low}`}>
-        {t(CONFIDENCE_LEVEL_KEYS[confidence] ?? CONFIDENCE_FALLBACK_KEY)}
-      </span>
-    )
+    if (confidence === 'high' || confidence === 'medium') {
+      return (
+        <span className={`px-2 py-1 text-xs font-medium uppercase rounded border ${colors[confidence]}`}>
+          {label}
+        </span>
+      )
+    }
+    return <Badge className="uppercase">{label}</Badge>
   }
 
   if (loading) {
