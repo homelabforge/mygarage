@@ -104,4 +104,37 @@ describe('Drawer', () => {
     render(<Drawer open onClose={() => {}} title="Add Fuel" icon={BareIcon}>body</Drawer>)
     expect(screen.getByTestId('bare-icon')).toHaveAttribute('aria-hidden', 'true')
   })
+
+  it('traps Tab focus, wrapping from the last focusable element to the first', () => {
+    // Not in the brief's own test list either, but "focus trap" is the
+    // explicit point of this primitive (FormModalWrapper never had one) and
+    // none of the brief's 11 tests exercise the Tab-wrapping code path at
+    // all — without this, that whole branch could be deleted and every
+    // required test would still pass.
+    render(
+      <Drawer open onClose={() => {}} title="Add Fuel" footer={<button>Save</button>}>
+        <input aria-label="Litres" />
+      </Drawer>,
+    )
+    const closeButton = screen.getByRole('button', { name: 'Close' })
+    const saveButton = screen.getByRole('button', { name: 'Save' })
+    saveButton.focus()
+    expect(document.activeElement).toBe(saveButton)
+    fireEvent.keyDown(document, { key: 'Tab' })
+    expect(document.activeElement).toBe(closeButton)
+  })
+
+  it('traps Shift+Tab focus, wrapping from the first focusable element to the last', () => {
+    render(
+      <Drawer open onClose={() => {}} title="Add Fuel" footer={<button>Save</button>}>
+        <input aria-label="Litres" />
+      </Drawer>,
+    )
+    const closeButton = screen.getByRole('button', { name: 'Close' })
+    const saveButton = screen.getByRole('button', { name: 'Save' })
+    closeButton.focus()
+    expect(document.activeElement).toBe(closeButton)
+    fireEvent.keyDown(document, { key: 'Tab', shiftKey: true })
+    expect(document.activeElement).toBe(saveButton)
+  })
 })
