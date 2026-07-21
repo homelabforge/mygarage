@@ -43,15 +43,49 @@ describe('Dropdown', () => {
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
   })
 
-  it('marks a checked item for assistive tech', () => {
+  // Standard menu-button ARIA pattern: ArrowDown opens a closed menu and
+  // focuses the first item, without requiring a prior click/Enter/Space.
+  it('opens the menu and focuses the first item on ArrowDown from the trigger', () => {
+    render(<Dropdown label="Export" items={items()} />)
+    const trigger = screen.getByRole('button', { name: 'Export' })
+    fireEvent.keyDown(trigger, { key: 'ArrowDown' })
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'CSV' })).toHaveFocus()
+  })
+
+  // ArrowUp conventionally opens and focuses the *last* item, not the first.
+  it('opens the menu and focuses the last item on ArrowUp from the trigger', () => {
+    render(<Dropdown label="Export" items={items()} />)
+    const trigger = screen.getByRole('button', { name: 'Export' })
+    fireEvent.keyDown(trigger, { key: 'ArrowUp' })
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'PDF' })).toHaveFocus()
+  })
+
+  // aria-checked is only valid ARIA on menuitemradio/menuitemcheckbox, never
+  // on plain menuitem — so a menu with any `checked` item renders every item
+  // (checked or not) as menuitemradio, with aria-checked explicit on both.
+  it('marks a checked item for assistive tech, as a menuitemradio group', () => {
     render(
       <Dropdown
         label="Sort"
-        items={[{ id: 'name', label: 'Name', onSelect: () => {}, checked: true }]}
+        items={[
+          { id: 'name', label: 'Name', onSelect: () => {}, checked: true },
+          { id: 'newest', label: 'Newest First', onSelect: () => {} },
+        ]}
       />,
     )
     fireEvent.click(screen.getByRole('button', { name: 'Sort' }))
-    expect(screen.getByRole('menuitem', { name: 'Name' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('menuitemradio', { name: 'Name' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
+    // The sibling has no `checked` prop at all, but stays part of the same
+    // radio group and must get an explicit "false", not a missing attribute.
+    expect(screen.getByRole('menuitemradio', { name: 'Newest First' })).toHaveAttribute(
+      'aria-checked',
+      'false',
+    )
   })
 
   // Beyond the brief: proves the icon contract from the "Consumes" interface
@@ -99,6 +133,26 @@ describe('Dropdown', () => {
     const trigger = screen.getByRole('button', { name: 'Export' })
     fireEvent.click(trigger)
     fireEvent.keyDown(document, { key: 'Escape' })
+    expect(trigger).toHaveFocus()
+  })
+
+  // The other two closing paths share close() with Escape but had no
+  // coverage of their own for the focus-return behaviour.
+  it('returns focus to the trigger after selecting an item', () => {
+    render(<Dropdown label="Export" items={items()} />)
+    const trigger = screen.getByRole('button', { name: 'Export' })
+    fireEvent.click(trigger)
+    fireEvent.click(screen.getByRole('menuitem', { name: 'CSV' }))
+    expect(trigger).toHaveFocus()
+  })
+
+  it('returns focus to the trigger after closing via outside click', () => {
+    const { container } = render(<Dropdown label="Export" items={items()} />)
+    const trigger = screen.getByRole('button', { name: 'Export' })
+    fireEvent.click(trigger)
+    const catcher = container.querySelector('.z-dropdown-catcher')
+    expect(catcher).not.toBeNull()
+    fireEvent.click(catcher as Element)
     expect(trigger).toHaveFocus()
   })
 })
