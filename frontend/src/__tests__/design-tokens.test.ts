@@ -132,6 +132,56 @@ function collectDefinedShadowTokens(): Set<string> {
   return defined
 }
 
+/** Parses one .ts/.tsx file into a TypeScript AST. Shared by every AST-based
+ *  scanner in this file so script-kind detection (.tsx vs .ts) is written
+ *  in exactly one place. */
+function parseSourceFile(file: string): ts.SourceFile {
+  const sourceText = readFileSync(file, 'utf8')
+  const scriptKind = file.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS
+  return ts.createSourceFile(file, sourceText, ts.ScriptTarget.Latest, false, scriptKind)
+}
+
+/**
+ * True for every AST node kind that carries a literal-shaped text span:
+ * whole string literals, no-substitution template literals, and each
+ * literal segment (head/middle/tail) of a substitution template literal.
+ * Single source of truth for "what counts as a literal" — shared by
+ * collectLiteralsWithin (below) and by collectClassNameGroups's own
+ * standalone-literal branch further down, so no scan in this file can drift
+ * on what a literal even is. Drift between independently-typed copies of the
+ * same rule is the exact bug class this file's own doc comments elsewhere
+ * warn about (see COLOR_PREFIX_ALTERNATION's history).
+ */
+function isLiteralTextNode(node: ts.Node): node is ts.LiteralLikeNode {
+  switch (node.kind) {
+    case ts.SyntaxKind.StringLiteral:
+    case ts.SyntaxKind.NoSubstitutionTemplateLiteral:
+    case ts.SyntaxKind.TemplateHead:
+    case ts.SyntaxKind.TemplateMiddle:
+    case ts.SyntaxKind.TemplateTail:
+      return true
+    default:
+      return false
+  }
+}
+
+/**
+ * Every literal-shaped text span within `node`'s own subtree (`node`
+ * included), in traversal order. The one walk both collectLiteralTexts
+ * (over a whole file) and collectClassNameGroups (over a single grouping
+ * boundary's subtree) run — so, like isLiteralTextNode above, the traversal
+ * itself has exactly one copy instead of two that could drift apart.
+ */
+function collectLiteralsWithin(node: ts.Node): string[] {
+  const texts: string[] = []
+  const visit = (n: ts.Node): void => {
+    if (isLiteralTextNode(n)) texts.push(n.text)
+    ts.forEachChild(n, visit)
+  }
+  visit(node)
+  return texts
+}
+
 /**
  * Every string-literal-shaped text span in a file, extracted from the parsed AST
  * rather than from raw text: whole string literals, no-substitution template
@@ -169,25 +219,72 @@ function collectDefinedShadowTokens(): Set<string> {
  * absorb, and both of those are already-documented entries there.
  */
 function collectLiteralTexts(file: string): string[] {
-  const sourceText = readFileSync(file, 'utf8')
-  const scriptKind = file.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS
-  const sourceFile = ts.createSourceFile(file, sourceText, ts.ScriptTarget.Latest, false, scriptKind)
+  return collectLiteralsWithin(parseSourceFile(file))
+}
 
-  const texts: string[] = []
+/**
+ * Every className-producing expression in a file, each collapsed to ONE
+ * string — the concatenation of every literal segment nested anywhere
+ * inside it — rather than collectLiteralTexts's one-entry-per-literal-node
+ * granularity.
+ *
+ * That distinction is the whole fix. This codebase's dominant conditional-
+ * class idiom is a ternary inside a template substitution —
+ * `` `ui-motion ${isActive ? 'transition-transform' : ''}` `` (10+ call
+ * sites, e.g. Calendar.tsx, WarrantyForm.tsx, LiveLinkSettingsModal.tsx) —
+ * and a ternary's two branches are their own independent StringLiteral AST
+ * nodes, siblings of the TemplateHead/TemplateTail, not merged with them by
+ * the parser. collectLiteralTexts's flat, per-literal output reports that
+ * expression as four unrelated strings ("ui-motion ", "transition-transform",
+ * "", ""), and no single one of them contains both a `ui-motion*` token and a
+ * native motion utility — a same-element co-occurrence check run against
+ * each literal independently can never see the collision it exists to catch.
+ *
+ * The grouping boundary is the outermost TemplateExpression a literal is
+ * nested in — NOT the enclosing JSX `className` attribute. That distinction
+ * matters: a ConditionalExpression can also sit directly at the attribute
+ * level (`className={cond ? \`ui-motion ...\` : \`ui-motion ...\`}`), picking
+ * ONE whole template at runtime, never both — grouping at the attribute
+ * level would concatenate two branches that can never co-occur and
+ * manufacture a false collision. Grouping at the TemplateExpression itself is
+ * still correct for the real idiom above, because a template's head/tail
+ * text is unconditionally emitted every time that template is chosen, so
+ * anything its own substitution contributes (however conditional) genuinely
+ * does co-occur with it whenever that branch is taken. Un-scoped from
+ * `className` attributes specifically for the same reason collectLiteralTexts
+ * is (see its doc comment): a class string can be built in a hoisted constant
+ * before ever reaching a `className=` attribute.
+ *
+ * A template whose ENTIRE content is one conditional substitution with no
+ * unconditional literal glue (e.g. `` `${cond ? 'ui-motion' : 'transition-x'}` ``)
+ * can, in theory, reproduce the attribute-level false-collision case above —
+ * this boundary doesn't distinguish "has unconditional glue" from "is 100%
+ * conditional." That's the same fail-safe trade this file makes everywhere
+ * else (see COLOR_PREFIXES's design-principle comment near the top of this
+ * file): an occasional spurious flag costs a human one look; a silent miss
+ * is the bug class this whole tripwire exists to prevent.
+ */
+function collectClassNameGroups(file: string): string[] {
+  const groups: string[] = []
+
   const visit = (node: ts.Node): void => {
-    switch (node.kind) {
-      case ts.SyntaxKind.StringLiteral:
-      case ts.SyntaxKind.NoSubstitutionTemplateLiteral:
-      case ts.SyntaxKind.TemplateHead:
-      case ts.SyntaxKind.TemplateMiddle:
-      case ts.SyntaxKind.TemplateTail:
-        texts.push((node as ts.LiteralLikeNode).text)
-        break
+    if (node.kind === ts.SyntaxKind.TemplateExpression) {
+      groups.push(collectLiteralsWithin(node).join(' '))
+      return // fully absorbed — do not also descend into it below
+    }
+    if (isLiteralTextNode(node)) {
+      // A standalone literal not nested inside a TemplateExpression above
+      // (that branch already returned) — already one complete unit on its
+      // own, e.g. `className="ui-motion transition"`. TemplateHead/Middle/Tail
+      // can never reach this branch: they only ever occur as children of a
+      // TemplateExpression, already intercepted above.
+      groups.push(node.text)
+      return
     }
     ts.forEachChild(node, visit)
   }
-  visit(sourceFile)
-  return texts
+  visit(parseSourceFile(file))
+  return groups
 }
 
 /** Strip a leading directional/positional segment; '' if nothing colored follows. */
@@ -692,20 +789,41 @@ describe('motion utility collision tripwire', () => {
    * is absent. That's an explicit, intentional existence check, not an
    * accident of a crashing glob: the moment the directory appears, this
    * test has real teeth.
+   *
+   * Scans via collectClassNameGroups, not collectLiteralTexts — a first
+   * version of this tripwire tested each string-literal-shaped text span
+   * independently and had a demonstrated false negative: this codebase's
+   * dominant conditional-class idiom, a ternary inside a template
+   * substitution (`` `ui-motion ${isActive ? 'transition-transform' : ''}` ``,
+   * 10+ call sites), parses to four separate literal nodes and no single one
+   * of them contains both tokens, so the per-literal check reported zero
+   * offenders on exactly the input it exists to catch. See
+   * collectClassNameGroups's doc comment for why the grouping boundary is
+   * the TemplateExpression, not the enclosing `className` attribute.
    */
   it('never combines a ui-motion utility with a native transition/duration/ease utility in one class list', () => {
     if (!existsSync(UI_DIR)) return // nothing to scan yet — Task 4 creates this directory
 
     const MOTION_TOKENS = new Set(['ui-motion', 'ui-motion-toggle'])
-    const NATIVE_MOTION_PATTERN = /(?:^|\s)(?:transition|duration|ease)-[\w-]*/
+    // Bare `transition`/`duration`/`ease` are real Tailwind v4 utilities in
+    // their own right (not just prefixes of `transition-*` etc.) and set the
+    // exact same `transition` shorthand `ui-motion` does — arguably the most
+    // likely collision of all, and the previous pattern's mandatory trailing
+    // `-[\w-]*` missed it entirely. The optional hyphen-suffix group covers
+    // the prefixed forms; the trailing `(?=\s|$)` lookahead (mirrored by the
+    // `(?:^|\s)` lookbehind-equivalent at the front) keeps both the bare and
+    // hyphenated forms from matching mid-word — `transitionend` or
+    // `please-note` never match, only whitespace/string-boundary-delimited
+    // tokens do.
+    const NATIVE_MOTION_PATTERN = /(?:^|\s)(?:transition|duration|ease)(?:-[\w-]*)?(?=\s|$)/
 
     const offenders: string[] = []
     for (const file of walk(UI_DIR)) {
       const rel = file.slice(ROOT.length + 1)
-      for (const text of collectLiteralTexts(file)) {
-        const hasMotionUtility = text.split(/\s+/).some((token) => MOTION_TOKENS.has(token))
-        if (hasMotionUtility && NATIVE_MOTION_PATTERN.test(text)) {
-          offenders.push(`${rel}: "${text.trim()}"`)
+      for (const group of collectClassNameGroups(file)) {
+        const hasMotionUtility = group.split(/\s+/).some((token) => MOTION_TOKENS.has(token))
+        if (hasMotionUtility && NATIVE_MOTION_PATTERN.test(group)) {
+          offenders.push(`${rel}: "${group.trim()}"`)
         }
       }
     }
