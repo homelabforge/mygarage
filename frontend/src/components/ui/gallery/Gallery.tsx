@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Box, Plus, Wrench } from 'lucide-react'
+import { Box, Pencil, Plus, Trash2, Wrench, X } from 'lucide-react'
 import Section from './Section'
 // Import through the barrel, never from a component file directly: this single
 // specifier is the only thing that puts ../index.ts — and, through it,
@@ -12,6 +12,7 @@ import {
   CardHeader,
   Chip,
   EmptyState,
+  IconButton,
   ListRow,
   Mono,
   PageContainer,
@@ -219,6 +220,14 @@ export default function Gallery() {
         <Button disabled={disabled}>Respects toggle</Button>
         <Button size="sm">Small</Button>
         <Button size="lg">Large</Button>
+      </Section>
+
+      <Section title="IconButton" note="title stays alongside aria-label — e2e pins button[title='Delete'].">
+        <IconButton icon={Trash2} label="Delete" variant="danger" />
+        <IconButton icon={Pencil} label="Edit" />
+        <IconButton icon={X} label="Close" variant="surface" />
+        <IconButton icon={Trash2} label="Delete" size="sm" />
+        <IconButton icon={Trash2} label="Delete" size="lg" disabled={disabled} />
       </Section>
     </div>
   )
