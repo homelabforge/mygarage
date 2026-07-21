@@ -24,6 +24,7 @@ import {
   PageHeader,
   SearchField,
   Select,
+  Stepper,
   Tabs,
   Textarea,
   Tile,
@@ -383,6 +384,22 @@ export default function Gallery() {
           </Field>
           <p className="text-sm text-text-mute">Tab is trapped. Escape closes. Focus restores to the trigger. Type in the field — focus must stay put.</p>
         </Drawer>
+      </Section>
+
+      <Section title="Stepper" note="Extracted from two near-identical wizard copies. Now announces progress as a progressbar.">
+        <div className="w-full max-w-lg">
+          <Stepper
+            label="Add vehicle progress"
+            valueText="Step 2 of 4"
+            current={2}
+            steps={[
+              { number: 1, title: 'VIN' },
+              { number: 2, title: 'Details' },
+              { number: 3, title: 'Photos' },
+              { number: 4, title: 'Review' },
+            ]}
+          />
+        </div>
       </Section>
     </div>
   )

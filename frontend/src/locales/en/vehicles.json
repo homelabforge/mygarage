@@ -1093,11 +1093,13 @@
     "model": "Model",
     "next": "Next",
     "nickname": "Nickname",
+    "stepOf": "Step {{current}} of {{total}}",
     "title": "Add New Vehicle",
     "trim": "Trim",
     "vin": "VIN",
     "year": "Year",
     "misc": {
+      "progressLabel": "Add vehicle progress",
       "stepProgress": "Step {{current}} of {{total}}: {{description}}",
       "stepDetailsTitle": "Details",
       "stepDetailsDesc": "Basic info",

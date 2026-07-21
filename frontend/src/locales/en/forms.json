@@ -477,6 +477,8 @@
       "viewRelease": "View Release"
     },
     "transfer": {
+      "progressLabel": "Vehicle transfer progress",
+      "stepOf": "Step {{current}} of {{total}}",
       "stepRecipient": "Recipient",
       "stepRecipientDesc": "Select new owner",
       "stepData": "Data",

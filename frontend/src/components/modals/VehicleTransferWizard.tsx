@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next'
 import { useState, useEffect } from 'react'
 import { X, ChevronLeft, ChevronRight, Check, AlertTriangle, User, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { Stepper } from '@/components/ui'
 import { familyService } from '@/services/familyService'
 import type { EligibleRecipient, VehicleTransferResponse } from '@/types/family'
 import { formatRelationship } from '@/types/family'
@@ -116,10 +117,13 @@ export default function VehicleTransferWizard({
     }
   }, [isOpen])
 
+  // Step captions (Recipient/Data/Confirm) — no per-step description here.
+  // Stepper doesn't render one, and unlike VehicleWizard this wizard has no
+  // header slot that showed the current step's description either.
   const steps = [
-    { number: 1, title: t('modal.transfer.stepRecipient'), description: t('modal.transfer.stepRecipientDesc') },
-    { number: 2, title: t('modal.transfer.stepData'), description: t('modal.transfer.stepDataDesc') },
-    { number: 3, title: t('modal.transfer.stepConfirm'), description: t('modal.transfer.stepConfirmDesc') },
+    { number: 1, title: t('modal.transfer.stepRecipient') },
+    { number: 2, title: t('modal.transfer.stepData') },
+    { number: 3, title: t('modal.transfer.stepConfirm') },
   ]
 
   // Filter recipients by search
@@ -220,36 +224,12 @@ export default function VehicleTransferWizard({
 
         {/* Step Indicator */}
         <div className="px-6 py-4 border-b border-garage-border">
-          <div className="flex items-center justify-between">
-            {steps.map((step, index) => (
-              <div key={step.number} className="flex items-center">
-                <div className="flex flex-col items-center">
-                  <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${
-                      currentStep > step.number
-                        ? 'bg-success text-white'
-                        : currentStep === step.number
-                          ? 'bg-primary text-white'
-                          : 'bg-garage-border text-garage-text-muted'
-                    }`}
-                  >
-                    {currentStep > step.number ? <Check className="w-4 h-4" /> : step.number}
-                  </div>
-                  <div className="mt-1 text-center">
-                    <p className="text-xs font-medium text-garage-text">{step.title}</p>
-                    <p className="text-xs text-garage-text-muted">{step.description}</p>
-                  </div>
-                </div>
-                {index < steps.length - 1 && (
-                  <div
-                    className={`flex-1 h-0.5 mx-4 mt-[-20px] ${
-                      currentStep > step.number ? 'bg-success' : 'bg-garage-border'
-                    }`}
-                  />
-                )}
-              </div>
-            ))}
-          </div>
+          <Stepper
+            steps={steps}
+            current={currentStep}
+            label={t('modal.transfer.progressLabel')}
+            valueText={t('modal.transfer.stepOf', { current: currentStep, total: steps.length })}
+          />
         </div>
 
         {/* Content */}

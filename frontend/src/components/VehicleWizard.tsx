@@ -14,6 +14,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { X, ChevronLeft, ChevronRight, Check } from 'lucide-react'
 import VINInput from './VINInput'
 import { FormError } from './FormError'
+import { Stepper } from './ui'
 import type { VINDecodeResponse } from '../types/vin'
 import type { VehicleCreate } from '../types/vehicle'
 import { FUEL_TYPE_VALUES, FUEL_TYPE_LABELS, type FuelType } from '../constants/fuel'
@@ -226,30 +227,13 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
         </div>
 
         {/* Progress Steps */}
-        <div className="flex items-center justify-between px-6 py-4 bg-garage-bg">
-          {steps.map((step, index) => (
-            <div key={step.number} className="flex items-center flex-1">
-              <div className="flex items-center">
-                <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center font-semibold ${
-                    currentStep > step.number
-                      ? 'bg-primary text-white'
-                      : currentStep === step.number
-                      ? 'bg-primary text-white'
-                      : 'bg-garage-surface text-garage-text-muted border-2 border-garage-border'
-                  }`}
-                >
-                  {currentStep > step.number ? <Check className="w-4 h-4" /> : step.number}
-                </div>
-                <div className="ml-3">
-                  <div className="text-sm font-medium text-garage-text">{step.title}</div>
-                </div>
-              </div>
-              {index < steps.length - 1 && (
-                <div className="flex-1 h-0.5 bg-garage-border mx-4" />
-              )}
-            </div>
-          ))}
+        <div className="px-6 py-4 bg-garage-bg">
+          <Stepper
+            steps={steps}
+            current={currentStep}
+            label={t('wizard.misc.progressLabel')}
+            valueText={t('wizard.stepOf', { current: currentStep, total: steps.length })}
+          />
         </div>
 
         {/* Content */}
