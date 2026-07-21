@@ -111,6 +111,38 @@
   --shadow-menu:       0 20px 44px -18px rgba(0, 0, 0, .6);
   --shadow-drawer:     -24px 0 60px -24px rgba(0, 0, 0, .7);
 
+  /* Control heights — design §4.9. The --height-* namespace generates h-*
+     utilities (h-btn-md). Verified by probe build 2026-07-21: the --h-*
+     naming the design doc uses generates NOTHING. */
+  --height-btn-sm:   34px;
+  --height-btn-md:   38px;
+  --height-btn-lg:   42px;
+  --height-input-sm: 36px;
+  --height-input-md: 42px;
+  --height-input-lg: 46px;
+  --height-icon-sm:  30px;
+  --height-icon-md:  34px;
+  --height-icon-lg:  38px;
+
+  /* z-index ladder — design §4.9, matching the prototype exactly
+     (40/44/45/55/60 are the only z values it uses). --z-index-* generates
+     z-* utilities; --z-* does not. Nested overlays add +10 per level at the
+     call site (§4.6). Toasts sit at sonner's default 999999 and are
+     deliberately above everything (§4.10). */
+  --z-index-nav:              40;
+  --z-index-dropdown-catcher: 44;
+  --z-index-dropdown:         45;
+  --z-index-drawer-backdrop:  55;
+  --z-index-drawer:           60;
+
+  /* Motion — design §4.8. --ease-* generates ease-standard. --duration-*
+     does NOT generate a named utility despite being a documented namespace
+     (probe build 2026-07-21), so callers write duration-(--duration-fast). */
+  --ease-standard:   cubic-bezier(0, 0, .2, 1);
+  --duration-fast:   .15s;
+  --duration-toggle: .18s;
+  --duration-drawer: .2s;
+
   /* Fonts — v4 token names. The old --font-family-* names were inert, which is
    * why font-mono fell through to Tailwind's default ui-monospace stack. */
   --font-sans: 'Inter Variable', Inter, system-ui, sans-serif;

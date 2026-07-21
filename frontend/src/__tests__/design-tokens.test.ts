@@ -123,6 +123,15 @@ function collectDefinedColorTokens(): Set<string> {
   return defined
 }
 
+/** Tokens defined in the --shadow-* namespace. shadow-* utilities resolve here,
+ *  not against --color-*, even though 'shadow' is a COLOR_PREFIXES member. */
+function collectDefinedShadowTokens(): Set<string> {
+  const css = stripCssComments(readFileSync(resolve(SRC, 'index.css'), 'utf8'))
+  const defined = new Set<string>()
+  for (const m of css.matchAll(/--shadow-([a-z0-9-]+)\s*:/g)) defined.add(m[1])
+  return defined
+}
+
 /**
  * Every string-literal-shaped text span in a file, extracted from the parsed AST
  * rather than from raw text: whole string literals, no-substitution template
@@ -191,15 +200,19 @@ function stripPositionalSegment(token: string): string {
 /** Every custom color token referenced by a utility class in source. */
 function collectUsedColorTokens(): Map<string, string[]> {
   const used = new Map<string, string[]>()
+  const shadows = collectDefinedShadowTokens()
   const pattern = new RegExp(
-    String.raw`(?<![a-z0-9-])(?:${COLOR_PREFIX_ALTERNATION})-([a-z][a-z0-9]*(?:-[a-z0-9]+)*)(?![a-z0-9-])`,
+    // Prefix is now captured (group 1) so a shadow-* utility can be resolved
+    // against --shadow-* before falling through to the --color-* check.
+    String.raw`(?<![a-z0-9-])(${COLOR_PREFIX_ALTERNATION})-([a-z][a-z0-9]*(?:-[a-z0-9]+)*)(?![a-z0-9-])`,
     'g',
   )
   for (const file of walk(SRC)) {
     const rel = file.slice(ROOT.length + 1)
     for (const text of collectLiteralTexts(file)) {
       for (const m of text.matchAll(pattern)) {
-        const token = stripPositionalSegment(m[1])
+        const prefix = m[1]
+        const token = stripPositionalSegment(m[2])
         if (!token || !/^[a-z]/.test(token)) continue // bare directional utility, no color
 
         // Provably not a color reference — everything else falls through to the
@@ -208,7 +221,11 @@ function collectUsedColorTokens(): Map<string, string[]> {
         if (BUILTIN.has(head)) continue
         if (NON_COLOR_VALUES.has(token)) continue
         if (/^opacity-\d+$/.test(token)) continue
-        if (/^gradient-to-(t|tr|r|br|b|bl|l|tl)$/.test(token)) continue
+        // v4 renamed bg-gradient-to-* to bg-linear-to-*, and added radial/conic.
+        if (/^(?:gradient|linear|radial|conic)-to-(t|tr|r|br|b|bl|l|tl)$/.test(token)) continue
+        // shadow-card-hover / shadow-accent / shadow-menu / shadow-drawer live
+        // in --shadow-*, which is the correct namespace for them.
+        if (prefix === 'shadow' && shadows.has(token)) continue
 
         used.set(token, [...(used.get(token) ?? []), rel])
       }
@@ -455,5 +472,42 @@ describe('design tokens', () => {
     expect(offline).toContain('#0f1319') // .card background
     expect(offline).toContain('#e8eaed') // body text — --color-text
     expect(offline).toContain('#cbd0d8') // .card p text — --color-text-dim
+  })
+})
+
+describe('non-colour token scales', () => {
+  const css = readFileSync(resolve(__dirname, '../index.css'), 'utf-8')
+  const theme = stripCssComments(css)
+
+  const REQUIRED = [
+    '--height-btn-sm', '--height-btn-md', '--height-btn-lg',
+    '--height-input-sm', '--height-input-md', '--height-input-lg',
+    '--height-icon-sm', '--height-icon-md', '--height-icon-lg',
+    '--z-index-nav', '--z-index-dropdown-catcher', '--z-index-dropdown',
+    '--z-index-drawer-backdrop', '--z-index-drawer',
+    '--ease-standard',
+    '--duration-fast', '--duration-toggle', '--duration-drawer',
+  ]
+
+  it.each(REQUIRED)('defines %s', (name) => {
+    expect(theme).toMatch(new RegExp(`${name}\\s*:`))
+  })
+
+  it('uses namespaces Tailwind actually recognises', () => {
+    // Verified by probe build 2026-07-21: --h-* and --z-* emit the variable
+    // but generate NO utility, so `h-btn-md` / `z-drawer` would silently
+    // produce no CSS. Same failure mode as the 103 dead bg-warning sites.
+    expect(theme).not.toMatch(/--h-(btn|input|icon)-/)
+    expect(theme).not.toMatch(/--z-(nav|dropdown|drawer)/)
+  })
+
+  it('pins the z-ladder to the design §4.9 values', () => {
+    const z = (n: string): string =>
+      theme.match(new RegExp(`--z-index-${n}\\s*:\\s*([^;]+);`))?.[1].trim() ?? ''
+    expect(z('nav')).toBe('40')
+    expect(z('dropdown-catcher')).toBe('44')
+    expect(z('dropdown')).toBe('45')
+    expect(z('drawer-backdrop')).toBe('55')
+    expect(z('drawer')).toBe('60')
   })
 })
