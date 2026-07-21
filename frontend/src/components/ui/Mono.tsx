@@ -3,6 +3,11 @@ import type { Tone } from './types'
 
 type MonoSize = 'xs' | 'sm' | 'base' | 'lg' | 'xl' | '2xl'
 type MonoWeight = 'medium' | 'semibold' | 'bold'
+/** `inherit` emits no colour class of its own, so Mono can sit inside a
+ *  caller's already-toned container (a solid-fill circle, a status pill) and
+ *  pick up that ambient colour via ordinary CSS inheritance instead of
+ *  overriding it with its own default. */
+type MonoTone = Tone | 'inherit'
 
 interface MonoProps {
   children: ReactNode
@@ -10,7 +15,7 @@ interface MonoProps {
   as?: ElementType
   size?: MonoSize
   weight?: MonoWeight
-  tone?: Tone
+  tone?: MonoTone
   /** Fixed-width digits. On by default — the whole point of mono figures is
    *  that a column of them lines up. Turn off for identifier strings where
    *  proportional glyphs read better. */
@@ -70,7 +75,7 @@ export default function Mono({
     'font-mono',
     SIZE[size],
     WEIGHT[weight],
-    TONE[tone],
+    tone === 'inherit' ? '' : TONE[tone],
     tabular ? 'tabular-nums' : '',
     align === 'right' ? 'text-right' : '',
     variant === 'vin' ? 'tracking-[.02em]' : '',

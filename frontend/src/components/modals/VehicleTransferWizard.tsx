@@ -117,13 +117,13 @@ export default function VehicleTransferWizard({
     }
   }, [isOpen])
 
-  // Step captions (Recipient/Data/Confirm) — no per-step description here.
-  // Stepper doesn't render one, and unlike VehicleWizard this wizard has no
-  // header slot that showed the current step's description either.
+  // Step captions (Recipient/Data/Confirm). Stepper itself doesn't render a
+  // description — the current step's shows up in the header caption below,
+  // mirroring VehicleWizard's stepProgress pattern.
   const steps = [
-    { number: 1, title: t('modal.transfer.stepRecipient') },
-    { number: 2, title: t('modal.transfer.stepData') },
-    { number: 3, title: t('modal.transfer.stepConfirm') },
+    { number: 1, title: t('modal.transfer.stepRecipient'), description: t('modal.transfer.stepRecipientDesc') },
+    { number: 2, title: t('modal.transfer.stepData'), description: t('modal.transfer.stepDataDesc') },
+    { number: 3, title: t('modal.transfer.stepConfirm'), description: t('modal.transfer.stepConfirmDesc') },
   ]
 
   // Filter recipients by search
@@ -216,6 +216,13 @@ export default function VehicleTransferWizard({
           <div>
             <h2 className="text-xl font-bold text-garage-text">{t('modal.transferVehicle')}</h2>
             <p className="text-sm text-garage-text-muted mt-1">{vehicleNickname}</p>
+            <p className="text-sm text-garage-text-muted mt-1">
+              {t('modal.transfer.stepProgress', {
+                current: currentStep,
+                total: steps.length,
+                description: steps[currentStep - 1].description,
+              })}
+            </p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-garage-surface-light rounded-lg transition-colors">
             <X className="w-5 h-5 text-garage-text-muted" />

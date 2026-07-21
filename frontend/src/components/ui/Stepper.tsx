@@ -31,6 +31,19 @@ interface StepperProps {
  * attributes and every AT ignores them on a group. A test using
  * toHaveAttribute would not have caught that (it reads the DOM, not the
  * accessibility tree) and eslint-plugin-jsx-a11y is not installed here.
+ *
+ * Deliberate design change vs. `VehicleWizard`'s pre-extraction markup: it
+ * used to render "complete" and "current" identically (same fill, same
+ * text colour — distinguished only by the check icon) and its connector was
+ * always grey. Here "current" gets the solid accent fill and "complete"
+ * gets a coloured connector, matching `VehicleTransferWizard`'s original
+ * behaviour instead. Recorded here so the divergence from `VehicleWizard`'s
+ * old look reads as intended, not as a regression — see review findings on
+ * task 21 (`.superpowers/sdd/p1-task-21-report.md`).
+ *
+ * Step titles render at every width. An earlier version of this component
+ * hid them below `sm`; neither original wizard ever did that, and losing
+ * step names on mobile made a 3-4 step wizard materially harder to follow.
  */
 export default function Stepper({ steps, current, label, valueText }: StepperProps) {
   return (
@@ -63,13 +76,16 @@ export default function Stepper({ steps, current, label, valueText }: StepperPro
               {state === 'complete' ? (
                 <Check aria-hidden="true" className="h-4 w-4" />
               ) : (
-                <Mono size="xs" weight="semibold">{step.number}</Mono>
+                // inherit: the circle above already sets the contrast colour
+                // for this state (--accent-on-solid current / text-text-mute
+                // upcoming) — Mono's own default ('text-text') would override
+                // it and, for `current` in light theme, fail AA against the
+                // solid accent fill (~3.8:1 vs the intended ~4.65:1).
+                <Mono size="xs" weight="semibold" tone="inherit">{step.number}</Mono>
               )}
             </div>
             <span
-              className={`hidden text-sm sm:inline ${
-                state === 'upcoming' ? 'text-text-mute' : 'text-text'
-              }`}
+              className={`text-sm ${state === 'upcoming' ? 'text-text-mute' : 'text-text'}`}
             >
               {step.title}
             </span>

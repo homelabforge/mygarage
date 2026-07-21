@@ -479,6 +479,7 @@
     "transfer": {
       "progressLabel": "Vehicle transfer progress",
       "stepOf": "Step {{current}} of {{total}}",
+      "stepProgress": "Step {{current}} of {{total}}: {{description}}",
       "stepRecipient": "Recipient",
       "stepRecipientDesc": "Select new owner",
       "stepData": "Data",

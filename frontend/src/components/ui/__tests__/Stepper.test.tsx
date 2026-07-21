@@ -42,4 +42,17 @@ describe('Stepper', () => {
     expect(screen.getByTestId('step-2')).toHaveAttribute('data-state', 'current')
     expect(screen.getByTestId('step-3')).toHaveAttribute('data-state', 'upcoming')
   })
+
+  it("does not force the current step's digit to text-text, so it can inherit the circle's contrast colour", () => {
+    // The circle sets text-(--accent-on-solid) for the current state. If the
+    // digit (a Mono) applies its own default 'text-text' on top, the digit
+    // renders near-black-on-accent in light theme instead of white-on-accent
+    // — an AA contrast failure. Querying the actual Mono span (not the
+    // circle div) is what makes this non-vacuous.
+    render(<Stepper steps={STEPS} current={2} label="Progress" />)
+    const circle = screen.getByTestId('step-2')
+    const digit = circle.querySelector('span')
+    expect(digit).not.toBeNull()
+    expect(digit).not.toHaveClass('text-text')
+  })
 })

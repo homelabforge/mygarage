@@ -34,4 +34,18 @@ describe('Mono', () => {
     expect(el).toHaveClass('text-danger')
     expect(el.className).not.toMatch(/text-(red|green|blue|amber|yellow)-\d/)
   })
+
+  it('emits no colour class of its own for the inherit tone, so an ambient colour cascades in', () => {
+    render(<Mono tone="inherit">42</Mono>)
+    const el = screen.getByText('42')
+    expect(el).not.toHaveClass('text-text')
+    expect(el).not.toHaveClass('text-text-mute')
+    expect(el).not.toHaveClass('text-success')
+    expect(el).not.toHaveClass('text-warning')
+    expect(el).not.toHaveClass('text-danger')
+    expect(el).not.toHaveClass('text-info')
+    expect(el).not.toHaveClass('text-(--accent-fg)')
+    // still gets everything else the primitive normally applies
+    expect(el).toHaveClass('font-mono')
+  })
 })
