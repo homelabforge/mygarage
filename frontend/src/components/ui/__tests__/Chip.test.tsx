@@ -35,4 +35,32 @@ describe('Chip', () => {
     render(<Chip icon={BareIcon}>Service</Chip>)
     expect(screen.getByTestId('bare-icon')).toHaveAttribute('aria-hidden', 'true')
   })
+
+  // jsdom renders no CSS, so these can only assert on the class string, not
+  // on an actual computed border-color — they cannot see that `ui-hover-line`
+  // (index.css) hardcodes border-color: var(--accent-line). But they do
+  // genuinely discriminate against the regression: the prior implementation
+  // applied `ui-hover-line` unconditionally on the interactive branch, so a
+  // toned chip's button carried it and never carried a `hover:bg-{tone}/25`
+  // class. Each case below fails against that prior code (present
+  // ui-hover-line, absent hover:bg-*/25) and passes only once a fixed-status
+  // tone gets its own-colour hover instead of the accent-derived one.
+  it.each([
+    ['success', 'hover:bg-success/25'],
+    ['warning', 'hover:bg-warning/25'],
+    ['danger', 'hover:bg-danger/25'],
+    ['info', 'hover:bg-info/25'],
+  ] as const)('keeps a %s interactive chip on its own colour on hover, not the accent border', (tone, hoverClass) => {
+    render(<Chip onClick={() => {}} tone={tone}>Status</Chip>)
+    const button = screen.getByRole('button', { name: 'Status' })
+    expect(button.className).toContain(hoverClass)
+    expect(button.className).not.toMatch(/\bui-hover-line\b/)
+  })
+
+  it('still uses the shared accent-line hover for default, muted and accent tones', () => {
+    for (const tone of ['default', 'muted', 'accent'] as const) {
+      render(<Chip onClick={() => {}} tone={tone}>{tone}</Chip>)
+      expect(screen.getByRole('button', { name: tone }).className).toMatch(/\bui-hover-line\b/)
+    }
+  })
 })

@@ -22,6 +22,25 @@ const TONE: Record<Tone, string> = {
 }
 
 /**
+ * Interactive-only hover treatment, kept separate from TONE because it
+ * diverges by tone family. `ui-hover-line` (index.css) hardcodes
+ * border-color: var(--accent-line) — correct for default/muted/accent,
+ * which are accent-following, but wrong for the fixed-status tones (design
+ * §4.9: status colours never shift toward the user's accent). Those instead
+ * bump the same-colour background on hover, matching Button's danger variant
+ * (`hover:bg-danger/25`) rather than borrowing an accent-derived utility.
+ */
+const HOVER: Record<Tone, string> = {
+  default: 'ui-hover-line',
+  muted: 'ui-hover-line',
+  accent: 'ui-hover-line',
+  success: 'hover:bg-success/25',
+  warning: 'hover:bg-warning/25',
+  danger: 'hover:bg-danger/25',
+  info: 'hover:bg-info/25',
+}
+
+/**
  * A categorical label or filter control — Car/Truck/RV on a vehicle card,
  * the Address Book category filters.
  *
@@ -53,7 +72,7 @@ export default function Chip({
       type="button"
       onClick={onClick}
       aria-pressed={selected}
-      className={`${base} ui-focus-ring ui-motion ui-hover-line cursor-pointer`}
+      className={`${base} ui-focus-ring ui-motion ${HOVER[selected ? 'accent' : tone]} cursor-pointer`}
     >
       {content}
     </button>

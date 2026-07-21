@@ -63,7 +63,7 @@ export default function Button({
       type={type}
       disabled={disabled || loading}
       className={[
-        'ui-focus-ring ui-motion ui-disabled inline-flex items-center justify-center gap-2 rounded-control whitespace-nowrap',
+        'ui-focus-ring ui-motion ui-disabled cursor-pointer inline-flex items-center justify-center gap-2 rounded-control whitespace-nowrap',
         HEIGHT[size],
         VARIANT[variant],
         className,
