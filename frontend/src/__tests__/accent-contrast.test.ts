@@ -1,7 +1,13 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { ACCENTS, ACCENT_KEYS, DEFAULT_ACCENT, accentCssVars } from '../constants/accents'
+import {
+  ACCENTS,
+  ACCENT_KEYS,
+  DEFAULT_ACCENT,
+  accentCssVars,
+  type AccentRoles,
+} from '../constants/accents'
 
 /** Surface colours the accent roles are judged against, per theme. */
 const SURFACE = { dark: '#0f1319', light: '#ffffff' } as const
@@ -138,12 +144,56 @@ describe('index.css accent defaults', () => {
 describe('pre-React inline script', () => {
   const html = readFileSync(resolve(__dirname, '../../index.html'), 'utf8')
 
-  it.each(ACCENT_KEYS)('carries the same base hex for %s as constants/accents.ts', (key) => {
-    expect(html, `index.html inline script is out of sync for "${key}"`)
-      .toContain(ACCENTS[key].accent)
-  })
+  // The inline script cannot `import` constants/accents.ts — it runs before
+  // React, ahead of the module graph — so it duplicates the accent table as
+  // a plain object literal: `key: [accent, solid, onSolid, fgDark, fgLight,
+  // soft, line]` (see the `var A = {...}` block in index.html). This test
+  // parses that literal out of index.html and compares it POSITIONALLY
+  // against ACCENTS, role by role. No substring matching: a value that
+  // merely appears somewhere else in the file (e.g. an identical `solid`
+  // coincidentally matching another accent's `accent`) must not pass.
+  const ROLE_ORDER: readonly (keyof AccentRoles)[] = [
+    'accent', 'solid', 'onSolid', 'fgDark', 'fgLight', 'soft', 'line',
+  ]
 
-  it.each(ACCENT_KEYS)('carries the same onSolid hex for %s', (key) => {
-    expect(html).toContain(ACCENTS[key].onSolid)
-  })
+  const tableMatch = html.match(/var A = \{([\s\S]*?)\};/)
+  if (!tableMatch) {
+    throw new Error(
+      'index.html: could not locate the inline accent table (`var A = { ... };`) — ' +
+        'has the pre-React script been restructured? Update this test to match.',
+    )
+  }
+  const tableBody = tableMatch[1]
+
+  /** Pulls accent[key]'s 7-element row out of the parsed table body, in source order. */
+  function parseRow(key: string): string[] {
+    const rowMatch = new RegExp(`\\b${key}:\\s*\\[([^\\]]*)\\]`).exec(tableBody)
+    if (!rowMatch) {
+      throw new Error(`index.html: inline accent table has no row for "${key}"`)
+    }
+    const values = [...rowMatch[1].matchAll(/'([^']*)'/g)].map((m) => m[1])
+    if (values.length !== ROLE_ORDER.length) {
+      throw new Error(
+        `index.html: "${key}" row has ${values.length} values, expected ${ROLE_ORDER.length} ` +
+          `(${ROLE_ORDER.join(', ')})`,
+      )
+    }
+    return values
+  }
+
+  it.each(ACCENT_KEYS)(
+    'matches constants/accents.ts positionally for all 7 roles — %s',
+    (key) => {
+      const found = parseRow(key)
+
+      ROLE_ORDER.forEach((role, i) => {
+        const expected = ACCENTS[key][role]
+        expect(
+          found[i],
+          `index.html "${key}.${role}" is out of sync with constants/accents.ts: ` +
+            `expected "${expected}", found "${found[i]}"`,
+        ).toBe(expected)
+      })
+    },
+  )
 })
