@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { resolve, join } from 'node:path'
+import * as ts from 'typescript'
 
 const ROOT = resolve(__dirname, '../..')
 const SRC = resolve(ROOT, 'src')
@@ -66,11 +67,17 @@ const POSITIONAL_SEGMENTS = new Set(['t', 'r', 'b', 'l', 's', 'e', 'x', 'y', 'of
  * and plain English inside a string literal (`text-anchor` in an inline SVG
  * attribute, `border-radius` in an inline style string) — real, but not colors.
  */
+// This list is hand-maintained and expected to grow as the reskin introduces new
+// utility keywords. A false positive here (a real Tailwind keyword not yet listed)
+// is the intended safe direction — a loud CI failure a human resolves by adding the
+// keyword, never a silent pass. Confirmed misses get added as they're found, e.g.
+// `shadow-inner` (reported `inner`) and `text-start` (reported `start`).
 const NON_COLOR_VALUES = new Set([
   'xs', 'sm', 'md', 'lg', 'xl', '2xl', '3xl',
   'base', 'center', 'left', 'right', 'none', 'hidden',
   'dashed', 'solid', 'double', 'collapse', 'separate', 'cover', 'contain',
   'radius', 'anchor',
+  'inner', 'start', 'end', 'justify', 'dotted', 'wavy', 'auto', 'from-font',
 ])
 
 function walk(dir: string, out: string[] = []): string[] {
@@ -92,15 +99,61 @@ function collectDefinedColorTokens(): Set<string> {
 }
 
 /**
- * Tailwind classes never live inside a comment. Stripping comments before
- * scanning removes prose that only coincidentally reads like a utility class —
- * a line comment mentioning "fill-ups", a doc comment describing "text-based"
- * behavior — without hiding anything a generated class could actually appear in.
+ * Every string-literal-shaped text span in a file, extracted from the parsed AST
+ * rather than from raw text: whole string literals, no-substitution template
+ * literals, and each literal segment (head/middle/tail) of a substitution template
+ * literal — wherever in the file they appear syntactically.
+ *
+ * This replaces a `stripComments()` regex (`/\*[\s\S]*?\*\//g`) that matched
+ * against raw source with no awareness of string boundaries. A bare `/*` inside a
+ * string literal, paired by the regex with the next unrelated `*\/` anywhere later
+ * in the file, silently deleted everything between them from the scan — live in
+ * this codebase: `VehicleWizard.tsx` has `accept="image/*"` followed some lines
+ * later by the JSX comment `{/* Step 4: Review *\/}`, hiding a real span of
+ * `className` attributes from the gate. Comments are never part of this scan at
+ * all — the parser treats them as trivia, not text — so that failure mode is
+ * structurally impossible here, regardless of what any string literal contains.
+ *
+ * Deliberately not scoped to `className`/`class` JSX attributes only (the AST
+ * would trivially support that narrower scope). Two real patterns in this
+ * codebase put color-utility strings outside any JSX attribute entirely:
+ *   - `CurrencyInputPrefix.tsx` / `TimeInput24.tsx` hoist a `DEFAULT_CLASS`
+ *     constant and reference it (`className={className ?? DEFAULT_CLASS}`); the
+ *     literal itself lives in a plain `const` initializer.
+ *   - `schemas/auth.ts` returns `{ color: 'text-red-500' | ... }` from a plain
+ *     function, consumed via `` className={`text-xs font-medium ${passwordStrength.color}`} ``
+ *     in `Register.tsx` — a cross-file, non-JSX flow a `className`-attribute-only
+ *     scope can't see without full data-flow analysis.
+ * Scoping strictly to `className` attributes would silently stop scanning both,
+ * trading the comment blind spot for an equally silent new one. Scanning every
+ * literal instead has no such gap: no color-utility string, wherever it's
+ * declared, can go unseen. Comments and JSX text (`JsxText` nodes, never string
+ * literals) are excluded structurally either way. The remaining risk — a plain
+ * string that happens to read like `prefix-word` but isn't a class reference
+ * (`text-anchor` in an inline SVG data URI, `border-radius` in a Leaflet HTML
+ * template literal) — is exactly what `NON_COLOR_VALUES` already exists to
+ * absorb, and both of those are already-documented entries there.
  */
-function stripComments(src: string): string {
-  return src
-    .replace(/\/\*[\s\S]*?\*\//g, ' ')
-    .replace(/(?<!:)\/\/.*$/gm, ' ')
+function collectLiteralTexts(file: string): string[] {
+  const sourceText = readFileSync(file, 'utf8')
+  const scriptKind = file.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS
+  const sourceFile = ts.createSourceFile(file, sourceText, ts.ScriptTarget.Latest, false, scriptKind)
+
+  const texts: string[] = []
+  const visit = (node: ts.Node): void => {
+    switch (node.kind) {
+      case ts.SyntaxKind.StringLiteral:
+      case ts.SyntaxKind.NoSubstitutionTemplateLiteral:
+      case ts.SyntaxKind.TemplateHead:
+      case ts.SyntaxKind.TemplateMiddle:
+      case ts.SyntaxKind.TemplateTail:
+        texts.push((node as ts.LiteralLikeNode).text)
+        break
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(sourceFile)
+  return texts
 }
 
 /** Strip a leading directional/positional segment; '' if nothing colored follows. */
@@ -118,21 +171,22 @@ function collectUsedColorTokens(): Map<string, string[]> {
     'g',
   )
   for (const file of walk(SRC)) {
-    const src = stripComments(readFileSync(file, 'utf8'))
-    for (const m of src.matchAll(pattern)) {
-      const token = stripPositionalSegment(m[1])
-      if (!token || !/^[a-z]/.test(token)) continue // bare directional utility, no color
+    const rel = file.slice(ROOT.length + 1)
+    for (const text of collectLiteralTexts(file)) {
+      for (const m of text.matchAll(pattern)) {
+        const token = stripPositionalSegment(m[1])
+        if (!token || !/^[a-z]/.test(token)) continue // bare directional utility, no color
 
-      // Provably not a color reference — everything else falls through to the
-      // defined-token check below, whatever family it claims to be.
-      const head = token.split('-')[0]
-      if (BUILTIN.has(head)) continue
-      if (NON_COLOR_VALUES.has(token)) continue
-      if (/^opacity-\d+$/.test(token)) continue
-      if (/^gradient-to-(t|tr|r|br|b|bl|l|tl)$/.test(token)) continue
+        // Provably not a color reference — everything else falls through to the
+        // defined-token check below, whatever family it claims to be.
+        const head = token.split('-')[0]
+        if (BUILTIN.has(head)) continue
+        if (NON_COLOR_VALUES.has(token)) continue
+        if (/^opacity-\d+$/.test(token)) continue
+        if (/^gradient-to-(t|tr|r|br|b|bl|l|tl)$/.test(token)) continue
 
-      const rel = file.slice(ROOT.length + 1)
-      used.set(token, [...(used.get(token) ?? []), rel])
+        used.set(token, [...(used.get(token) ?? []), rel])
+      }
     }
   }
   return used
