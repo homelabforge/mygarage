@@ -14,19 +14,22 @@ interface CheckboxProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'typ
  * are located by document.getElementById in three unit-test files, and
  * AddressBook.test.tsx:18 documents that getByLabelText would NOT match.
  */
-export default function Checkbox({ id, label, className = '', ...rest }: CheckboxProps) {
+export default function Checkbox({ id, label, disabled, className = '', ...rest }: CheckboxProps) {
   const fallbackId = useId()
   const inputId = id ?? fallbackId
 
   return (
     <label
       htmlFor={inputId}
-      className="flex cursor-pointer items-center gap-3 text-sm text-text"
+      className={`flex items-center gap-3 text-sm text-text ${
+        disabled ? '' : 'cursor-pointer'
+      }`}
     >
       <input
         id={inputId}
         type="checkbox"
-        className={`ui-focus-ring h-4 w-4 rounded-[4px] border-border bg-surface-2 accent-(--accent-solid) ${className}`}
+        disabled={disabled}
+        className={`ui-focus-ring ui-disabled h-4 w-4 rounded-[4px] border-border bg-surface-2 accent-(--accent-solid) ${className}`}
         {...rest}
       />
       {label}
