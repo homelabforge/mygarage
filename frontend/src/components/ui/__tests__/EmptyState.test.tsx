@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { Box } from 'lucide-react'
 import { render, screen } from '../../../__tests__/test-utils'
 import EmptyState from '../EmptyState'
+import type { IconType } from '../types'
 
 describe('EmptyState', () => {
   it('renders title and description', () => {
@@ -20,5 +21,20 @@ describe('EmptyState', () => {
   it('hides the decorative icon from assistive tech', () => {
     const { container } = render(<EmptyState icon={Box} title="Empty" />)
     expect(container.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
+  })
+
+  it('marks the icon aria-hidden itself, not just relying on the icon default', () => {
+    // lucide-react icons (Box above) already default to aria-hidden="true"
+    // whenever no other a11y prop is passed (dist/cjs/lucide-react.js:
+    // `...!children && !hasA11yProp(rest) && { 'aria-hidden': 'true' }`), so
+    // the assertion above passes identically whether or not EmptyState passes
+    // aria-hidden itself. A bare SVG component has no such default, so this
+    // proves EmptyState supplies the attribute rather than inheriting it.
+    // This is not theoretical here: the heading carries the meaning and the
+    // icon is purely decorative, so a screen-reader user genuinely depends
+    // on EmptyState setting this itself.
+    const BareIcon: IconType = (props) => <svg data-testid="bare-icon" {...props} />
+    render(<EmptyState icon={BareIcon} title="Empty" />)
+    expect(screen.getByTestId('bare-icon')).toHaveAttribute('aria-hidden', 'true')
   })
 })
