@@ -778,11 +778,11 @@ describe('motion utility collision tripwire', () => {
    * ui-motion / ui-motion-toggle are not state-scoped (see the warning
    * comment above them in index.css), so each is a plain (0,1,0)
    * utility-layer rule — the same specificity as Tailwind's own transition,
-   * duration and ease utilities. If a Task-4+ primitive ever carries both on
-   * one element, the `transition` shorthand collision is
-   * decided by Tailwind's internal emission order, not by design intent —
-   * structurally the same bug class the rest of this file exists to
-   * eliminate, just for `transition` instead of `border-color`.
+   * duration and ease utilities. If a primitive ever carries both on one
+   * element, the `transition` shorthand collision is decided by Tailwind's
+   * internal emission order, not by design intent — structurally the same
+   * bug class the rest of this file exists to eliminate, just for
+   * `transition` instead of `border-color`.
    *
    * src/components/ui doesn't exist yet — Task 2 predates the primitives
    * Task 4 builds there — so this scan passes vacuously when the directory
@@ -800,8 +800,55 @@ describe('motion utility collision tripwire', () => {
    * offenders on exactly the input it exists to catch. See
    * collectClassNameGroups's doc comment for why the grouping boundary is
    * the TemplateExpression, not the enclosing `className` attribute.
+   *
+   * WHAT THIS DOES NOT CATCH — read this before trusting a green run here.
+   * This is literal-shaped-text-span analysis: it can only see tokens whose
+   * text is physically present, in one piece, inside the AST node(s) it
+   * walks. It has no data-flow analysis, so it cannot follow a string value
+   * through a variable binding, an array join, or a call into another
+   * module. Three concrete shapes are provably invisible to it — each has
+   * been hand-traced against this exact scanner, they are not hypothetical:
+   *
+   *   1. A literal hoisted into a variable and interpolated by reference:
+   *      `const base = 'ui-motion'` followed by
+   *      `` className={`${base} ${cond ? 'transition-transform' : ''}`} ``.
+   *      `base` is an Identifier, not a literal-text node — its string
+   *      ('ui-motion') lives in a separate part of the AST (the variable
+   *      declarator's initializer) and is never joined with the template's
+   *      own literal group. collectClassNameGroups groups by
+   *      TemplateExpression; it has no notion of "also resolve an
+   *      Identifier substitution back to whatever string it was assigned."
+   *
+   *   2. Class names assembled by array + join:
+   *      `className={[baseClass, isActive && 'transition-transform'].join(' ')}`.
+   *      The two class-bearing values are separate array elements, never
+   *      merged into one TemplateExpression or one string literal — there
+   *      is no single AST node whose joined text this scanner (or any
+   *      per-node text-span scan) could ever produce.
+   *
+   *   3. A className-building helper defined outside src/components/ui/.
+   *      This scan is directory-scoped (`walk(UI_DIR)`, by design — see the
+   *      vacuous-pass note above) and never parses files elsewhere, so a
+   *      shared helper such as `buildMotionClass()` living in, say,
+   *      src/lib/ is never even read, whatever string it returns.
+   *
+   * None of these are bugs to fix at this layer. Static literal analysis
+   * cannot perform data-flow analysis — following a value through a
+   * binding, a join, or a cross-module call is a fundamentally heavier
+   * class of tool, and building one here would only relocate this same
+   * list one level down (a reassigned Identifier, a mutated array, a
+   * helper that itself calls another helper). This tripwire is a
+   * best-effort authoring aid, not a guarantee: it catches the idiom this
+   * codebase actually uses in practice (the inline ternary-in-template
+   * case, 10+ call sites) and nothing with more indirection than that. Real
+   * coverage for the general case comes from two other places, not from
+   * static analysis — the WARNING comment directly above `@utility
+   * ui-motion` in src/index.css (the authoring rule itself: read it before
+   * writing a primitive), and the browser verification of primitives in
+   * the component gallery, where an actual cascade collision is visible as
+   * a real, observable rendering bug, not a pattern match.
    */
-  it('never combines a ui-motion utility with a native transition/duration/ease utility in one class list', () => {
+  it('flags inline ui-motion / native-transition collisions in a single class-list expression', () => {
     if (!existsSync(UI_DIR)) return // nothing to scan yet — Task 4 creates this directory
 
     const MOTION_TOKENS = new Set(['ui-motion', 'ui-motion-toggle'])
