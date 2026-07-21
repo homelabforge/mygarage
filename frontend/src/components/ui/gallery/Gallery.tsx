@@ -14,6 +14,7 @@ import {
   Mono,
   PageContainer,
   PageHeader,
+  Tile,
   type Size,
 } from '..'
 import { ACCENT_KEYS } from '../../../constants/accents'
@@ -183,6 +184,12 @@ export default function Gallery() {
           <CardHeader title="2019 Mitsubishi Mirage" />
           <p className="text-sm text-text-mute">Hover me — border picks up the accent.</p>
         </Card>
+      </Section>
+
+      <Section title="Tile" note="Extracted from StatBadge. Value is always Mono.">
+        <Tile icon={Wrench} label="Service" value={10} />
+        <Tile icon={Wrench} label="Overdue" value={2} tone="danger" />
+        <Tile icon={Wrench} label="Spent 2026" value="$1,284.00" tone="accent" />
       </Section>
     </div>
   )

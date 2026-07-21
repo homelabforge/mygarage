@@ -20,6 +20,7 @@ import { useUnitPreference } from '../hooks/useUnitPreference'
 import { UnitFormatter } from '../utils/units'
 import { withBase } from '../utils/basePath'
 import VehicleLiveLinkWidget from './livelink/VehicleLiveLinkWidget'
+import { Tile } from './ui'
 
 interface VehicleStatisticsCardProps {
   stats: VehicleStatistics
@@ -117,24 +118,24 @@ function VehicleStatisticsCard({ stats }: VehicleStatisticsCardProps) {
       <div className="p-4 space-y-3">
         {/* Quick Stats */}
         <div className="grid grid-cols-4 gap-2">
-          <StatBadge
-            icon={<Wrench className="w-3 h-3" />}
-            count={stats.total_service_records}
+          <Tile
+            icon={Wrench}
+            value={stats.total_service_records}
             label={t('vehicleStats.service')}
           />
-          <StatBadge
-            icon={<Fuel className="w-3 h-3" />}
-            count={stats.total_fuel_records}
+          <Tile
+            icon={Fuel}
+            value={stats.total_fuel_records}
             label={t('vehicleStats.fuel')}
           />
-          <StatBadge
-            icon={<Bell className="w-3 h-3" />}
-            count={stats.total_maintenance_items}
+          <Tile
+            icon={Bell}
+            value={stats.total_maintenance_items}
             label={t('vehicleStats.maintenance')}
           />
-          <StatBadge
-            icon={<FileText className="w-3 h-3" />}
-            count={stats.total_documents}
+          <Tile
+            icon={FileText}
+            value={stats.total_documents}
             label={t('vehicleStats.docs')}
           />
         </div>
@@ -218,24 +219,6 @@ function VehicleStatisticsCard({ stats }: VehicleStatisticsCardProps) {
           {t('vehicleStatisticsCardExtra.viewDetails')}
         </button>
       </div>
-    </div>
-  )
-}
-
-interface StatBadgeProps {
-  icon: React.ReactNode
-  count: number
-  label: string
-}
-
-function StatBadge({ icon, count, label }: StatBadgeProps) {
-  return (
-    <div className="flex flex-col items-center p-2 bg-garage-bg rounded-md">
-      <div className="flex items-center gap-1 text-garage-text-muted mb-0.5">
-        {icon}
-      </div>
-      <div className="text-lg font-bold text-garage-text">{count}</div>
-      <div className="text-xs text-garage-text-muted">{label}</div>
     </div>
   )
 }
