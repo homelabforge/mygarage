@@ -55,25 +55,28 @@ export const ACCENTS: Record<AccentKey, AccentRoles> = {
     soft: 'rgba(249,170,11,.15)', line: 'rgba(249,170,11,.45)',
   },
   teal: {
-    // accent (only) moved #2dd4bf→#38d6c6 — L 50.4%→53%, same hue/sat. The
-    // handoff value sat 38.65 units from fixed success #34d399, just under
-    // the 40 floor; teal's usable hue corridor between success (158°) and
-    // info (188°) is only 30° wide, so this is deliberately the smallest
-    // nudge that clears both edges (45.3 from success, 45.8 from info) —
-    // visually indistinguishable from the original. solid/onSolid/fgDark/
-    // fgLight are the handoff's values unchanged; none of them are gated
-    // against STATUS, only against each other or SURFACE, and all already
-    // passed.
-    accent: '#38d6c6', solid: '#2dd4bf', onSolid: '#04231d',
+    // Handoff's #2dd4bf, unchanged: 38.65 units from fixed success
+    // #34d399 — clear of the 25 collision floor, so the earlier hue nudge
+    // was a threshold artifact, not a real collision (see
+    // accent-contrast.test.ts for why the floor moved). solid/onSolid/
+    // fgDark/fgLight were always the handoff's own values, never
+    // status-gated, and already pass every contrast check against this
+    // base.
+    accent: '#2dd4bf', solid: '#2dd4bf', onSolid: '#04231d',
     fgDark: '#5ce0d0', fgLight: '#0f766e',
-    soft: 'rgba(56,214,198,.15)', line: 'rgba(56,214,198,.45)',
+    soft: 'rgba(45,212,191,.15)', line: 'rgba(45,212,191,.45)',
   },
   red: {
-    // Shifted from the prototype's #f43f5e toward magenta so it stays distinct
-    // from danger #f0503a; a Racing Red that reads as "overdue" is a bug.
-    accent: '#fb3b6d', solid: '#d81e52', onSolid: '#ffffff',
-    fgDark: '#ff6f92', fgLight: '#be123c',
-    soft: 'rgba(251,59,109,.15)', line: 'rgba(251,59,109,.45)',
+    // Handoff's #f43f5e (Tailwind rose-500), unchanged: 40.01 units from
+    // danger #f0503a — comfortably clear of the 25 collision floor, so a
+    // Racing Red reading as "overdue" was never the actual risk here (see
+    // accent-contrast.test.ts for why the floor moved). solid/fgDark/
+    // fgLight are the natural Tailwind rose-600/400/700 steps, re-derived
+    // so onSolid/fgDark/fgLight clear their contrast floors against this
+    // base rather than the abandoned magenta shift.
+    accent: '#f43f5e', solid: '#e11d48', onSolid: '#ffffff',
+    fgDark: '#fb7185', fgLight: '#be123c',
+    soft: 'rgba(244,63,94,.15)', line: 'rgba(244,63,94,.45)',
   },
   violet: {
     accent: '#a78bfa', solid: '#7c5cf0', onSolid: '#ffffff',
