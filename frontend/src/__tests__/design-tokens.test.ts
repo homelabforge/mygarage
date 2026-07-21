@@ -207,4 +207,87 @@ describe('design tokens', () => {
       undefinedTokens.join('\n'),
     ).toEqual([])
   })
+
+  const SEMANTIC = [
+    'bg', 'nav', 'surface', 'surface-2', 'surface-3',
+    'border', 'border-soft', 'hair',
+    'text', 'text-dim', 'text-mid', 'text-mute', 'text-faint',
+  ]
+
+  it.each(SEMANTIC)('defines the semantic token --color-%s', (token) => {
+    expect(collectDefinedColorTokens()).toContain(token)
+  })
+
+  const LEGACY_ALIASES = [
+    'garage-bg', 'garage-surface', 'garage-surface-light',
+    'garage-border', 'garage-text', 'garage-text-muted',
+    'garage-primary', 'garage-primary-dark',
+  ]
+
+  it.each(LEGACY_ALIASES)('keeps the legacy alias --color-%s alive', (token) => {
+    expect(collectDefinedColorTokens()).toContain(token)
+  })
+
+  it('re-points legacy aliases at semantic tokens rather than duplicating hex', () => {
+    const css = readFileSync(resolve(SRC, 'index.css'), 'utf8')
+    // Each alias must be defined as a var() reference, not a literal colour.
+    for (const alias of ['garage-bg', 'garage-surface', 'garage-border', 'garage-text']) {
+      const decl = new RegExp(String.raw`--color-${alias}\s*:\s*var\(`)
+      expect(css, `--color-${alias} must alias a semantic token`).toMatch(decl)
+    }
+  })
+
+  it('uses plain @theme, never @theme inline', () => {
+    const css = readFileSync(resolve(SRC, 'index.css'), 'utf8')
+    expect(css).not.toMatch(/@theme\s+inline/)
+  })
+
+  it('uses the Tailwind v4 font token names', () => {
+    const css = readFileSync(resolve(SRC, 'index.css'), 'utf8')
+    expect(css).toMatch(/--font-sans\s*:/)
+    expect(css).toMatch(/--font-mono\s*:/)
+    expect(css).not.toMatch(/--font-family-(sans|mono)\s*:/)
+  })
+
+  /**
+   * The AST scanner only walks .ts/.tsx, so the nine `@apply` lines in index.css
+   * itself — which back the .btn/.input/.card/.badge primitives — are invisible
+   * to it. That gap is harmless while token names are stable, but THIS task
+   * rewrites the whole @theme block and Task 4 rewrites those very @apply rules,
+   * which is precisely when a renamed token would slip through unprotected.
+   */
+  it('every color token used by an @apply rule in index.css is defined', () => {
+    const css = readFileSync(resolve(SRC, 'index.css'), 'utf8')
+    const defined = collectDefinedColorTokens()
+    const bad: string[] = []
+
+    for (const m of css.matchAll(/@apply\s+([^;]+);/g)) {
+      for (const cls of m[1].split(/\s+/).filter(Boolean)) {
+        // Drop any variant prefixes (hover:, focus:, html.light &, etc.)
+        const bare = cls.split(':').pop() as string
+        const hit = bare.match(
+          /^(?:bg|text|border|ring|from|to|via|fill|stroke|divide|outline|decoration|caret|shadow|placeholder)-(.+)$/,
+        )
+        if (!hit) continue
+        // Strip a Tailwind opacity modifier (`bg-black/50`, `bg-success-600/20`) —
+        // unlike collectUsedColorTokens's character-class match, this naive
+        // whitespace split keeps the slash, so `black/50` never matched the
+        // `black` BUILTIN and `success-600/20` never matched the defined
+        // `success-600` token. Same colour, same rule, just written differently.
+        const token = hit[1].replace(/\/\d+$/, '')
+        // Bare digits after a prefix are a width, not a colour: `ring-2`,
+        // `border-4`. Mirrors the `opacity-\d+` carve-out in
+        // collectUsedColorTokens below.
+        if (/^\d+$/.test(token)) continue
+        if (BUILTIN.has(token.split('-')[0])) continue
+        if (NON_COLOR_VALUES.has(token)) continue
+        if (!defined.has(token)) bad.push(`${cls} → --color-${token}`)
+      }
+    }
+
+    expect(bad,
+      'index.css @apply references a colour token that @theme never defines. ' +
+      'Tailwind emits nothing for these.\n\n' + bad.join('\n'),
+    ).toEqual([])
+  })
 })

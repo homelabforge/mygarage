@@ -1,71 +1,127 @@
 @import "tailwindcss";
 
 @theme {
-  /* Theme-aware colors - these change based on light/dark mode */
-  --color-garage-bg: #0a0e14;
-  --color-garage-surface: #1a1f28;
-  --color-garage-surface-light: #2a3040;
-  --color-garage-border: #3a4050;
-  --color-garage-text: #e4e6eb;
-  --color-garage-text-muted: #9ca3af;
+  /* ---------------------------------------------------------------------
+   * Semantic palette — the prototype's vocabulary. Dark is the default;
+   * html.light overrides these same names further down.
+   * ------------------------------------------------------------------- */
+  --color-bg:          #07090c;
+  --color-nav:         rgba(11, 14, 19, .9);
+  --color-surface:     #0f1319;
+  --color-surface-2:   #141922;
+  --color-surface-3:   #12161d;
+  --color-border:      rgba(255, 255, 255, .08);
+  --color-border-soft: rgba(255, 255, 255, .06);
+  --color-hair:        rgba(255, 255, 255, .07);
+  --color-text:        #e8eaed;
+  --color-text-dim:    #cbd0d8;
+  --color-text-mid:    #aeb4be;
+  --color-text-mute:   #8b93a0;
+  --color-text-faint:  #7b828e;
 
-  /*
-   * The bare `primary` token. Without it Tailwind never generates the
-   * `bg-primary` / `text-primary` / `border-primary` utilities at all, so the
-   * ~560 places using them rendered with no colour and failed silently — there
-   * is no error for a class that was never emitted.
+  /* ---------------------------------------------------------------------
+   * Back-compat aliases. `bg-garage-surface` alone is 385 occurrences across
+   * 94 files; aliasing re-points every one of them with zero edits. Removed
+   * in P12 only if every consumer has migrated.
+   * ------------------------------------------------------------------- */
+  --color-garage-bg:            var(--color-bg);
+  --color-garage-surface:       var(--color-surface);
+  --color-garage-surface-light: var(--color-surface-2);
+  --color-garage-border:        var(--color-border);
+  --color-garage-text:          var(--color-text);
+  --color-garage-text-muted:    var(--color-text-mute);
+
+  /* ---------------------------------------------------------------------
+   * Accent. --accent/-soft/-line are written to documentElement at runtime by
+   * AccentContext (see src/contexts/AccentContext.tsx). Pointing the primary
+   * ramp at them makes ~589 existing bg-primary/text-primary/border-primary
+   * sites follow the accent with no edits.
    *
-   * Aliased to the 500 step rather than duplicating the hex, so the accent has
-   * one source of truth. Matches --color-garage-primary, which is the same
-   * blue reached by a different name.
-   */
-  --color-primary: var(--color-primary-500);
+   * Do NOT declare --color-accent-soft here: it would generate an *opaque*
+   * bg-accent-soft, the opposite of every consumer. --accent-soft and
+   * --accent-line are consumed as raw vars.
+   * ------------------------------------------------------------------- */
+  --color-primary:     var(--accent);
+  --color-primary-50:  color-mix(in oklab, var(--accent) 10%, white);
+  --color-primary-100: color-mix(in oklab, var(--accent) 20%, white);
+  --color-primary-200: color-mix(in oklab, var(--accent) 40%, white);
+  --color-primary-300: color-mix(in oklab, var(--accent) 60%, white);
+  --color-primary-400: color-mix(in oklab, var(--accent) 78%, white);
+  --color-primary-500: var(--accent);
+  --color-primary-600: color-mix(in oklab, var(--accent) 85%, black);
+  --color-primary-700: color-mix(in oklab, var(--accent) 70%, black);
+  --color-primary-800: color-mix(in oklab, var(--accent) 55%, black);
+  --color-primary-900: color-mix(in oklab, var(--accent) 40%, black);
 
-  --color-primary-50: #eff6ff;
-  --color-primary-100: #dbeafe;
-  --color-primary-200: #bfdbfe;
-  --color-primary-300: #93c5fd;
-  --color-primary-400: #60a5fa;
-  --color-primary-500: #3b82f6;
-  --color-primary-600: #2563eb;
-  --color-primary-700: #1d4ed8;
-  --color-primary-800: #1e40af;
-  --color-primary-900: #1e3a8a;
+  /* These two are live in 6 places. Omitting them makes those utilities vanish;
+   * pinning them to literal blue breaks accent switching. */
+  --color-garage-primary:      var(--accent);
+  --color-garage-primary-dark: color-mix(in oklab, var(--accent) 85%, black);
 
-  --color-success-500: #10b981;
-  --color-success-600: #059669;
-  --color-success-700: #047857;
+  /* ---------------------------------------------------------------------
+   * Status — fixed, never themed, never accent-derived. 607 utility uses.
+   * Without re-pointing these the app is a two-palette hybrid after P0,
+   * worst on overdue badges, alerts and delete buttons.
+   * ------------------------------------------------------------------- */
+  --color-success-500: #34d399;
+  --color-success-600: #2bb98a;
+  --color-success-700: #229a72;
+  --color-success:     #34d399;
 
-  --color-warning-500: #f59e0b;
-  --color-warning-600: #d97706;
-  --color-warning-700: #b45309;
+  --color-warning-500: #f0a53a;
+  --color-warning-600: #d98d24;
+  --color-warning-700: #b8741b;
+  /* Bare alias. Its absence made `bg-warning`/`text-warning` — 103 sites across
+   * 29 files — silent no-ops on main. Task 2 restored it; keep it. */
+  --color-warning:     #f0a53a;
 
-  --color-danger-500: #ef4444;
-  --color-danger-600: #dc2626;
-  --color-danger-700: #b91c1c;
+  --color-danger-500:  #f0503a;
+  --color-danger-600:  #d63d29;
+  --color-danger-700:  #b32f1e;
+  --color-danger:      #f0503a;
 
-  /* Garage theme action colors */
-  --color-garage-primary: #3b82f6;
-  --color-garage-primary-dark: #2563eb;
-  --color-success: #10b981;
-  --color-warning: #f59e0b;
-  --color-danger: #ef4444;
-  --color-info: #22d3ee;
+  /* Bare alias, same omission as --color-warning: `bg-info`/`text-info` is live
+   * at 12 sites across 5 files and was a silent no-op on main. Task 2 restored it. */
+  --color-info:        #22d3ee;
 
-  /* Custom screens */
+  /* ---------------------------------------------------------------------
+   * Photo placeholder + scrim + neutral badge (prototype vocabulary)
+   * ------------------------------------------------------------------- */
+  --color-photo-a: #1a1f27;
+  --color-photo-b: #161a21;
+  --color-badge-bg: rgba(255, 255, 255, .1);
+  --color-badge-tx: #c3c9d2;
+
+  /* ---------------------------------------------------------------------
+   * Radii — one value per role. The prototype drifts 1-2px on identical
+   * components; these are the dominant values.
+   * ------------------------------------------------------------------- */
+  --radius-card:    16px;
+  --radius-panel:   14px;
+  --radius-row:     12px;
+  --radius-tile:    11px;
+  --radius-control: 10px;
+  --radius-icon:     9px;
+  --radius-chip:     8px;
+  --radius-pill:   999px;
+
+  /* Shadows — the only elevation anything gets. */
+  --shadow-accent:     0 6px 18px -6px var(--accent-line);
+  --shadow-card-hover: 0 14px 34px -18px rgba(0, 0, 0, .65);
+  --shadow-menu:       0 20px 44px -18px rgba(0, 0, 0, .6);
+  --shadow-drawer:     -24px 0 60px -24px rgba(0, 0, 0, .7);
+
+  /* Fonts — v4 token names. The old --font-family-* names were inert, which is
+   * why font-mono fell through to Tailwind's default ui-monospace stack. */
+  --font-sans: 'Inter Variable', Inter, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, monospace;
+
   --breakpoint-xs: 475px;
-
-  /* Custom spacing for safe areas */
-  --spacing-safe-top: env(safe-area-inset-top);
+  --spacing-safe-top:    env(safe-area-inset-top);
   --spacing-safe-bottom: env(safe-area-inset-bottom);
-  --spacing-safe-left: env(safe-area-inset-left);
-  --spacing-safe-right: env(safe-area-inset-right);
+  --spacing-safe-left:   env(safe-area-inset-left);
+  --spacing-safe-right:  env(safe-area-inset-right);
 
-  /* Custom fonts */
-  --font-family-sans: Inter, system-ui, sans-serif;
-  --font-family-mono: JetBrains Mono, monospace;
-
-  /* Custom animations */
   --animate-slide-up: slideUp 0.3s ease-out;
 }
 
@@ -92,22 +148,48 @@
   }
   body {
     @apply bg-garage-bg text-garage-text;
-    font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
-    /* Mobile optimizations */
+    font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
   }
 
-  /* Light theme - override CSS variables */
+  /* Default accent. AccentContext overwrites these on documentElement at
+   * runtime; this is the value used before React mounts and the fallback when
+   * localStorage is empty. Kept in sync with DEFAULT_ACCENT in
+   * src/constants/accents.ts by src/__tests__/accent-contrast.test.ts. */
+  :root {
+    --accent:          #4f8cff;
+    --accent-solid:    #2f6fe4;
+    --accent-on-solid: #ffffff;
+    --accent-fg:       #7aa8ff;
+    --accent-soft:     rgba(79, 140, 255, .15);
+    --accent-line:     rgba(79, 140, 255, .45);
+  }
+
+  /* Light theme — overrides the semantic tokens on documentElement, which is
+   * the same element AccentContext writes the accent vars to. Nothing may
+   * declare these on a descendant: an inline custom property on a child beats
+   * this rule for its whole subtree and would kill light mode. */
   html.light {
-    --color-garage-bg: #f3f4f6;
-    --color-garage-surface: #ffffff;
-    --color-garage-surface-light: #f9fafb;
-    --color-garage-border: #e5e7eb;
-    --color-garage-text: #111827;
-    --color-garage-text-muted: #6b7280;
+    --color-bg:          #eef1f6;
+    --color-nav:         rgba(255, 255, 255, .92);
+    --color-surface:     #ffffff;
+    --color-surface-2:   #f6f8fb;
+    --color-surface-3:   #f1f4f9;
+    --color-border:      rgba(15, 23, 42, .12);
+    --color-border-soft: rgba(15, 23, 42, .08);
+    --color-hair:        rgba(15, 23, 42, .09);
+    --color-text:        #0f172a;
+    --color-text-dim:    #334155;
+    --color-text-mid:    #475569;
+    --color-text-mute:   #64748b;
+    --color-text-faint:  #94a3b8;
+    --color-photo-a:     #dbe1ea;
+    --color-photo-b:     #e6ebf2;
+    --color-badge-bg:    rgba(15, 23, 42, .06);
+    --color-badge-tx:    #475569;
   }
 
   /* Better touch targets for mobile */
@@ -230,7 +312,7 @@
 
 /* Schedule-X Calendar — fill container height */
 .sx-calendar-wrapper {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-family: var(--font-sans);
 }
 
 .sx-calendar-wrapper .sx-react-calendar-wrapper {
