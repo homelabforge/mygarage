@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '../../../__tests__/test-utils'
 import Drawer from '../Drawer'
+import type { IconType } from '../types'
 
 describe('Drawer', () => {
   it('renders nothing when closed', () => {
@@ -89,5 +90,18 @@ describe('Drawer', () => {
 
     rerender(<Drawer open={false} onClose={() => {}} title="Add Fuel">body</Drawer>)
     expect(document.body.style.overflow).not.toBe('hidden')
+  })
+
+  it('marks the header icon aria-hidden itself, not just relying on the icon default', () => {
+    // Not in the brief's own test list. lucide-react icons default to
+    // aria-hidden="true" whenever no other a11y prop is present, so a test
+    // using a lucide icon here would pass whether or not Drawer sets the
+    // attribute itself (see the standing instructions' lucide aria-hidden
+    // trap — it already shipped into Badge, Chip and EmptyState this way).
+    // BareIcon has no such default, so this only passes if Drawer's own JSX
+    // sets aria-hidden="true".
+    const BareIcon: IconType = (props) => <svg data-testid="bare-icon" {...props} />
+    render(<Drawer open onClose={() => {}} title="Add Fuel" icon={BareIcon}>body</Drawer>)
+    expect(screen.getByTestId('bare-icon')).toHaveAttribute('aria-hidden', 'true')
   })
 })
