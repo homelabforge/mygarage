@@ -268,7 +268,7 @@ export default function Register() {
         <button
           type="submit"
           disabled={isSubmitting}
-          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-primary text-white font-medium rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-6"
+          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-primary text-(--accent-on-solid) font-medium rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-6"
         >
           {isSubmitting ? (
             <>

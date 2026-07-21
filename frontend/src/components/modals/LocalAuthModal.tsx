@@ -175,7 +175,7 @@ export default function LocalAuthModal({
                   </p>
                   <a
                     href={withBase('/register')}
-                    className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium"
+                    className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-primary text-(--accent-on-solid) rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium"
                   >
                     {t('modal.localAuth.registerFirstUser')}
                   </a>
@@ -205,7 +205,7 @@ export default function LocalAuthModal({
                         handleClose()
                         onShowUserManagement()
                       }}
-                      className="px-3 py-1.5 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+                      className="px-3 py-1.5 text-sm bg-primary text-(--accent-on-solid) rounded-lg hover:bg-primary/90 transition-colors"
                     >
                       {t('modal.localAuth.manageUsers')}
                     </button>
@@ -225,7 +225,7 @@ export default function LocalAuthModal({
                         handleClose()
                         onShowAddUser()
                       }}
-                      className="px-3 py-1.5 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+                      className="px-3 py-1.5 text-sm bg-primary text-(--accent-on-solid) rounded-lg hover:bg-primary/90 transition-colors"
                     >
                       {t('modal.addUser')}
                     </button>
@@ -596,7 +596,7 @@ export default function LocalAuthModal({
                   </p>
                   <a
                     href={withBase('/login')}
-                    className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium"
+                    className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-primary text-(--accent-on-solid) rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium"
                   >
                     {t('modal.localAuth.login')}
                   </a>

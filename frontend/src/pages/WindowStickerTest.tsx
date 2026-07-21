@@ -249,7 +249,7 @@ export default function WindowStickerTest() {
               className={`
                 w-full mt-4 py-3 px-4 rounded-lg font-medium transition-colors
                 ${file && !loading
-                  ? 'bg-primary text-white hover:bg-primary-600'
+                  ? 'bg-primary text-(--accent-on-solid) hover:bg-primary-600'
                   : 'bg-garage-border text-garage-text-muted cursor-not-allowed'
                 }
               `}

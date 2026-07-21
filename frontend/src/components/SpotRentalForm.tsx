@@ -496,7 +496,7 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
             <div className="flex gap-3">
               <button
                 onClick={handleSaveToAddressBook}
-                className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+                className="flex-1 px-4 py-2 bg-primary text-(--accent-on-solid) rounded-lg hover:bg-primary/90 transition-colors"
               >
                 {t('spotRental.yesSave')}
               </button>

@@ -85,7 +85,7 @@ export default function Supplies() {
             onClick={() => setIncludeArchived((prev) => !prev)}
             className={`px-4 py-2 border rounded-lg transition-colors ${
               includeArchived
-                ? 'bg-primary text-white border-primary'
+                ? 'bg-primary text-(--accent-on-solid) border-primary'
                 : 'bg-garage-surface text-garage-text border-garage-border hover:border-primary'
             }`}
           >

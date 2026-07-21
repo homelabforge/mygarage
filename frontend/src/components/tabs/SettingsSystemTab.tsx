@@ -793,7 +793,7 @@ export default function SettingsSystemTab() {
                 </button>
                 <button
                   onClick={handleCurrencyConfirm}
-                  className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors font-medium"
+                  className="px-4 py-2 text-sm bg-primary text-(--accent-on-solid) rounded-lg hover:bg-primary/90 transition-colors font-medium"
                 >
                   {t('currency.confirmAction')}
                 </button>
@@ -968,7 +968,7 @@ export default function SettingsSystemTab() {
           </div>
           <button
             onClick={() => setShowFamilyManagement(true)}
-            className="w-full px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors font-medium"
+            className="w-full px-4 py-2 bg-primary text-(--accent-on-solid) rounded-lg hover:bg-primary/90 transition-colors font-medium"
           >
             {t('family.manage')}
           </button>
@@ -1086,7 +1086,7 @@ export default function SettingsSystemTab() {
                     </p>
                     <button
                       onClick={() => setShowFamilyManagement(true)}
-                      className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium"
+                      className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-primary text-(--accent-on-solid) rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium"
                     >
                       {t('auth.manageAuth')}
                     </button>
@@ -1111,7 +1111,7 @@ export default function SettingsSystemTab() {
                     </p>
                     <button
                       onClick={() => setShowOIDCModal(true)}
-                      className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium"
+                      className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-primary text-(--accent-on-solid) rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium"
                     >
                       {t('auth.configureOIDC')}
                     </button>

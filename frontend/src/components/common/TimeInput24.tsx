@@ -168,7 +168,7 @@ function TimeField12({ id, ariaLabel, value, onChange, disabled, className }: Ti
       }}
       className={`px-3 py-2 text-sm rounded-md border transition-colors ${
         meridiem === m
-          ? 'bg-primary text-white border-primary'
+          ? 'bg-primary text-(--accent-on-solid) border-primary'
           : 'bg-garage-bg text-garage-text border-garage-border hover:border-primary'
       } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
     >

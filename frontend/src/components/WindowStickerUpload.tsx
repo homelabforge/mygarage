@@ -215,7 +215,7 @@ export default function WindowStickerUpload({ vin, onSuccess, onClose }: WindowS
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+                  className="px-4 py-2 bg-primary text-(--accent-on-solid) rounded-lg hover:bg-primary/90 transition-colors"
                 >
                   {t('windowSticker.misc.selectFile')}
                 </button>
@@ -246,7 +246,7 @@ export default function WindowStickerUpload({ vin, onSuccess, onClose }: WindowS
                 <button
                   type="submit"
                   disabled={!file || uploading}
-                  className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex items-center gap-2 px-4 py-2 bg-primary text-(--accent-on-solid) rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Upload className="w-4 h-4" />
                   {uploading ? t('windowSticker.uploading') : t('windowSticker.uploadAndExtract')}
@@ -691,7 +691,7 @@ export default function WindowStickerUpload({ vin, onSuccess, onClose }: WindowS
                   type="button"
                   onClick={handleSaveEdits}
                   disabled={uploading}
-                  className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
+                  className="flex items-center gap-2 px-4 py-2 bg-primary text-(--accent-on-solid) rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
                 >
                   <Save className="w-4 h-4" />
                   {uploading ? t('windowSticker.misc.saving') : t('windowSticker.misc.saveData')}

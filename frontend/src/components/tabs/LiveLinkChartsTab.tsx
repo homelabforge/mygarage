@@ -226,7 +226,7 @@ export default function LiveLinkChartsTab({ vin }: LiveLinkChartsTabProps) {
                 onClick={() => setTimeRange(range)}
                 className={`px-2 sm:px-3 py-1.5 rounded text-sm font-medium transition-colors ${
                   timeRange === range
-                    ? 'bg-primary text-white'
+                    ? 'bg-primary text-(--accent-on-solid)'
                     : 'bg-garage-surface text-garage-text-muted hover:text-garage-text border border-garage-border'
                 }`}
               >

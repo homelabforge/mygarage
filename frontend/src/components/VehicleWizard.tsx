@@ -529,7 +529,7 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
                   accept="image/*"
                   multiple
                   onChange={handlePhotoChange}
-                  className="w-full bg-garage-bg border border-garage-border rounded-lg px-4 py-2 text-garage-text focus:outline-none focus:border-primary file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-primary file:text-white file:cursor-pointer"
+                  className="w-full bg-garage-bg border border-garage-border rounded-lg px-4 py-2 text-garage-text focus:outline-none focus:border-primary file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-primary file:text-(--accent-on-solid) file:cursor-pointer"
                 />
                 <p className="text-sm text-garage-text-muted mt-2">
                   {t('wizard.misc.photoUploadHelp')}

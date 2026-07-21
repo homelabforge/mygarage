@@ -768,7 +768,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
                     onClick={() => setValue('def_fill_level', preset.value)}
                     className={`px-3 py-1.5 text-sm rounded-md border transition-colors ${
                       watch('def_fill_level') === preset.value
-                        ? 'bg-primary text-white border-primary'
+                        ? 'bg-primary text-(--accent-on-solid) border-primary'
                         : 'bg-garage-bg text-garage-text border-garage-border hover:border-primary'
                     }`}
                   >
@@ -1050,7 +1050,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
                         <button
                           type="button"
                           onClick={acceptObcSuggestion}
-                          className="text-xs px-2 py-1 rounded bg-primary text-white"
+                          className="text-xs px-2 py-1 rounded bg-primary text-(--accent-on-solid)"
                         >
                           {t('fuel.obcSuggestionAccept')}
                         </button>

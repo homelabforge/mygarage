@@ -291,7 +291,7 @@ export default function TorqueSourceModal({ vin, isOpen, onClose }: TorqueSource
                       <button
                         onClick={handleCreate}
                         disabled={creating}
-                        className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        className="flex-1 px-4 py-2 bg-primary text-(--accent-on-solid) rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                       >
                         {creating ? (
                           <span className="flex items-center justify-center gap-2">

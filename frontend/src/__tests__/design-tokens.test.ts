@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs'
-import { resolve, join } from 'node:path'
+import { resolve, join, relative } from 'node:path'
 import * as ts from 'typescript'
 
 const ROOT = resolve(__dirname, '../..')
@@ -889,5 +889,23 @@ describe('motion utility collision tripwire', () => {
       'var(--ease-*) directly, or drop the native utility.\n\n' +
       offenders.join('\n'),
     ).toEqual([])
+  })
+})
+
+describe('accent foreground', () => {
+  it('never pairs a solid accent background with text-white', () => {
+    // white on amber #f9aa0b is ~2:1. Each accent ships its own readable
+    // foreground (--accent-on-solid) for exactly this reason (design §4.3).
+    // Until every site uses it, the P10a accent picker cannot ship.
+    const offenders: string[] = []
+    for (const file of walk(SRC)) {
+      const text = readFileSync(file, 'utf-8')
+      text.split('\n').forEach((line, i) => {
+        if (/\bbg-primary\b/.test(line) && /\btext-white\b/.test(line)) {
+          offenders.push(`${relative(SRC, file)}:${i + 1}`)
+        }
+      })
+    }
+    expect(offenders).toEqual([])
   })
 })

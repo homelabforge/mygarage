@@ -443,7 +443,7 @@ export default function VehicleTransferWizard({
             <button
               onClick={handleNext}
               disabled={!canProceed()}
-              className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-primary text-(--accent-on-solid) rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {t('common:next')}
               <ChevronRight className="w-4 h-4" />

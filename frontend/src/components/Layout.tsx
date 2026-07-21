@@ -132,7 +132,7 @@ export default function Layout() {
                   ) : (
                     <Link
                       to="/login"
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-(--accent-on-solid) rounded-lg hover:bg-primary/90 transition-colors"
                     >
                       <User className="w-4 h-4" />
                       <span>{t('login')}</span>

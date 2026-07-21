@@ -475,7 +475,7 @@ export default function CalendarPage() {
                 onClick={() => setBulkMode(!bulkMode)}
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
                   bulkMode
-                    ? 'bg-primary text-white'
+                    ? 'bg-primary text-(--accent-on-solid)'
                     : 'bg-garage-bg text-garage-text-muted border border-garage-border hover:border-primary'
                 }`}
               >
@@ -557,7 +557,7 @@ export default function CalendarPage() {
                     onClick={() => toggleVehicle(vehicle.vin)}
                     className={`px-3 py-1 rounded-lg text-sm transition-colors ${
                       selectedVehicles.length === 0 || selectedVehicles.includes(vehicle.vin)
-                        ? 'bg-primary text-white'
+                        ? 'bg-primary text-(--accent-on-solid)'
                         : 'bg-garage-bg text-garage-text-muted border border-garage-border'
                     }`}
                   >
@@ -895,7 +895,7 @@ export default function CalendarPage() {
               <div className="mt-6 flex justify-end">
                 <button
                   onClick={() => setShowNotesModal(false)}
-                  className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-600 transition-colors"
+                  className="px-4 py-2 bg-primary text-(--accent-on-solid) rounded-lg hover:bg-primary-600 transition-colors"
                 >
                   {t('calendar.misc.close')}
                 </button>

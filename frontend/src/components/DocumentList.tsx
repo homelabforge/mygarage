@@ -203,7 +203,7 @@ export default function DocumentList({ vin, onAddClick }: DocumentListProps) {
                   <div className="flex gap-2">
                     <button
                       onClick={() => saveEdit(doc.id)}
-                      className="flex items-center gap-1 px-3 py-1 bg-primary text-white rounded-md hover:bg-primary-600 text-sm"
+                      className="flex items-center gap-1 px-3 py-1 bg-primary text-(--accent-on-solid) rounded-md hover:bg-primary-600 text-sm"
                     >
                       <Save className="w-3 h-3" />
                       {t('documentList.save')}

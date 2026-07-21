@@ -305,7 +305,7 @@ export default function ShopFinder() {
 
               <button
                 onClick={handleRequestLocation}
-                className="px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors flex items-center gap-2 mx-auto"
+                className="px-6 py-3 bg-primary text-(--accent-on-solid) rounded-lg hover:bg-primary/90 transition-colors flex items-center gap-2 mx-auto"
               >
                 <Navigation className="w-4 h-4" />
                 {t('shopFinder.enableLocationBtn')}
@@ -433,7 +433,7 @@ export default function ShopFinder() {
                         className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
                           isSaved
                             ? 'bg-success/20 text-success cursor-not-allowed'
-                            : 'bg-primary text-white hover:bg-primary/90'
+                            : 'bg-primary text-(--accent-on-solid) hover:bg-primary/90'
                         }`}
                         title={isSaved ? t('shopFinder.savedToAddressBook') : t('shopFinder.saveToAddressBook')}
                       >

@@ -285,7 +285,7 @@ function PhotoGallery({ vin, onAddClick }: PhotoGalleryProps) {
                         <button
                           onClick={handleCaptionSave}
                           disabled={savingCaption}
-                          className="px-3 py-1 text-sm bg-primary text-white rounded-md flex items-center gap-1 disabled:opacity-50"
+                          className="px-3 py-1 text-sm bg-primary text-(--accent-on-solid) rounded-md flex items-center gap-1 disabled:opacity-50"
                         >
                           <Check className="w-4 h-4" />
                           {savingCaption

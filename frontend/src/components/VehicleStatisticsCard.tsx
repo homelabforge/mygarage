@@ -214,7 +214,7 @@ function VehicleStatisticsCard({ stats }: VehicleStatisticsCardProps) {
         {/* View Details Button */}
         <button
           onClick={handleClick}
-          className="w-full py-2 mt-2 bg-primary/10 text-primary rounded-md hover:bg-primary hover:text-white transition-colors font-medium text-sm"
+          className="w-full py-2 mt-2 bg-primary/10 text-primary rounded-md hover:bg-primary hover:text-(--accent-on-solid) transition-colors font-medium text-sm"
         >
           {t('vehicleStatisticsCardExtra.viewDetails')}
         </button>

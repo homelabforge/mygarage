@@ -214,7 +214,7 @@ export default function DEFRecordForm({
                   onClick={() => setValue('fill_level', preset.value)}
                   className={`px-3 py-1.5 text-sm rounded-md border transition-colors ${
                     watch('fill_level') === preset.value
-                      ? 'bg-primary text-white border-primary'
+                      ? 'bg-primary text-(--accent-on-solid) border-primary'
                       : 'bg-garage-bg text-garage-text border-garage-border hover:border-primary'
                   }`}
                 >

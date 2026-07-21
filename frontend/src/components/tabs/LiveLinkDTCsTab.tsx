@@ -136,7 +136,7 @@ export default function LiveLinkDTCsTab({ vin }: LiveLinkDTCsTabProps) {
               onClick={() => setFilter(f)}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                 filter === f
-                  ? 'bg-primary text-white'
+                  ? 'bg-primary text-(--accent-on-solid)'
                   : 'bg-garage-surface text-garage-text-muted hover:text-garage-text border border-garage-border'
               }`}
             >
@@ -230,7 +230,7 @@ export default function LiveLinkDTCsTab({ vin }: LiveLinkDTCsTabProps) {
                     />
                     <button
                       onClick={() => handleSaveNotes(dtc)}
-                      className="px-3 py-1.5 bg-primary text-white rounded text-sm"
+                      className="px-3 py-1.5 bg-primary text-(--accent-on-solid) rounded text-sm"
                     >
                       {t('livelinkDtcs.saveNotes')}
                     </button>
