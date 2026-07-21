@@ -51,7 +51,7 @@ export default function ListRow({
         type="button"
         data-testid="list-row"
         onClick={onClick}
-        className={`${classes} ui-focus-ring ui-motion ui-hover-surface rounded-row px-2 text-left`}
+        className={`${classes} ui-focus-ring ui-motion ui-hover-surface rounded-row px-2 text-left cursor-pointer`}
       >
         {body}
       </button>

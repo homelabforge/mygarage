@@ -44,4 +44,15 @@ describe('ListRow', () => {
     render(<ListRow icon={BareIcon} label="Last Service" value="Jun 19, 2026" />)
     expect(screen.getByTestId('bare-icon')).toHaveAttribute('aria-hidden', 'true')
   })
+
+  it('renders a trailing node alongside the value', () => {
+    render(
+      <ListRow
+        label="Warranty"
+        value="Active"
+        trailing={<span data-testid="trailing-node">New</span>}
+      />,
+    )
+    expect(screen.getByTestId('trailing-node')).toBeInTheDocument()
+  })
 })

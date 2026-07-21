@@ -199,6 +199,12 @@ export default function Gallery() {
           <ListRow label="Latest Odometer" value="89,230 mi" />
           <ListRow label="Type" value="Truck" mono={false} />
           <ListRow label="Docs" value="2" onClick={() => {}} />
+          <ListRow
+            label="Warranty"
+            value="Active"
+            mono={false}
+            trailing={<Badge tone="accent">New</Badge>}
+          />
         </div>
       </Section>
     </div>
