@@ -6,6 +6,7 @@ import { Toaster } from 'sonner'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { AuthProvider } from './contexts/AuthContext'
 import { ThemeProvider } from './contexts/ThemeContext'
+import { AccentProvider } from './contexts/AccentContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import { useAuth } from './contexts/AuthContext'
 import Layout from './components/Layout'
@@ -67,6 +68,7 @@ function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider>
+        <AccentProvider>
         <AuthProvider>
           <LanguageSyncProvider>
           <QueryClientProvider client={queryClient}>
@@ -113,6 +115,7 @@ function App() {
           </QueryClientProvider>
           </LanguageSyncProvider>
         </AuthProvider>
+        </AccentProvider>
       </ThemeProvider>
     </ErrorBoundary>
   )
