@@ -20,6 +20,16 @@ describe('Badge', () => {
     expect((container.firstChild as HTMLElement).className).not.toMatch(/-(red|amber)-\d/)
   })
 
+  it("does not force a toned badge's count digit to text-text, so it can inherit the badge's own foreground", () => {
+    // tone="danger" sets bg-danger text-on-status on the badge span. If the
+    // count digit (a Mono) applies its own default 'text-text' on top, the
+    // digit ignores --color-on-status and falls back to the page foreground
+    // instead of the contrast colour the tone map chose for this fill.
+    render(<Badge tone="danger" count={2} />)
+    const digit = screen.getByText('2')
+    expect(digit).not.toHaveClass('text-text')
+  })
+
   it('marks the icon aria-hidden itself, not just relying on the icon default', () => {
     // lucide-react icons default to aria-hidden="true" whenever no other
     // a11y prop is passed (dist/cjs/lucide-react.js:

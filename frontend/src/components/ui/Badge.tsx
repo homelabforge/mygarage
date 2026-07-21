@@ -47,7 +47,11 @@ export default function Badge({
     >
       {Icon ? <Icon aria-hidden="true" className="h-3.5 w-3.5" /> : null}
       {count !== undefined ? (
-        <Mono size="xs" weight="semibold">{count}</Mono>
+        // inherit: the span above already sets this tone's own foreground
+        // (text-badge-tx / text-text-mute / --accent-fg / text-on-status) —
+        // Mono's own default ('text-text') would override it, same defect
+        // just fixed in Stepper (d212dd9).
+        <Mono size="xs" weight="semibold" tone="inherit">{count}</Mono>
       ) : (
         children
       )}
