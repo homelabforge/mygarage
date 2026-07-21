@@ -12,6 +12,7 @@ import {
   CardHeader,
   Checkbox,
   Chip,
+  Dropdown,
   EmptyState,
   Field,
   IconButton,
@@ -348,6 +349,17 @@ export default function Gallery() {
             />
           </div>
         </div>
+      </Section>
+
+      <Section title="Dropdown" note="Catcher at z-dropdown-catcher (44), panel at z-dropdown (45). Escape and arrow keys work.">
+        <Dropdown
+          label="Sort by Name"
+          items={[
+            { id: 'name', label: 'Name', onSelect: () => {}, checked: true },
+            { id: 'newest', label: 'Newest First', onSelect: () => {} },
+            { id: 'maint', label: 'By Maintenance', onSelect: () => {} },
+          ]}
+        />
       </Section>
     </div>
   )
