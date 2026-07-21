@@ -197,6 +197,34 @@ function stripPositionalSegment(token: string): string {
   return token
 }
 
+/**
+ * True when a (prefix, token) pair is provably not a color reference and must
+ * be exempted from the defined-token check — every `continue` branch inside
+ * collectUsedColorTokens's loop below, factored out into one pure function so
+ * the carve-out logic can be driven directly by synthetic inputs in a test
+ * instead of only indirectly via "the rest of the suite still passes." That
+ * indirection is exactly how the gradient carve-out over-matching
+ * `radial-to-*`/`conic-to-*` (neither of which is a real Tailwind v4 utility
+ * shape) went unnoticed: nothing in this file exercised the carve-out itself.
+ */
+function isExemptColorToken(prefix: string, token: string, shadows: Set<string>): boolean {
+  const head = token.split('-')[0]
+  if (BUILTIN.has(head)) return true
+  if (NON_COLOR_VALUES.has(token)) return true
+  if (/^opacity-\d+$/.test(token)) return true
+  // v4 renamed bg-gradient-to-* to bg-linear-to-*. Deliberately NOT
+  // widened to radial/conic: those families have no `-to-<direction>`
+  // form at all (they are bg-radial-<angle> / bg-conic-<angle>), so
+  // exempting `radial-to-br` would silently bless a class that
+  // generates no CSS — a fail-open hole in the one gate that exists
+  // to catch exactly that. Let them fall through to the token check.
+  if (/^(?:gradient|linear)-to-(t|tr|r|br|b|bl|l|tl)$/.test(token)) return true
+  // shadow-card-hover / shadow-accent / shadow-menu / shadow-drawer live
+  // in --shadow-*, which is the correct namespace for them.
+  if (prefix === 'shadow' && shadows.has(token)) return true
+  return false
+}
+
 /** Every custom color token referenced by a utility class in source. */
 function collectUsedColorTokens(): Map<string, string[]> {
   const used = new Map<string, string[]>()
@@ -217,15 +245,7 @@ function collectUsedColorTokens(): Map<string, string[]> {
 
         // Provably not a color reference — everything else falls through to the
         // defined-token check below, whatever family it claims to be.
-        const head = token.split('-')[0]
-        if (BUILTIN.has(head)) continue
-        if (NON_COLOR_VALUES.has(token)) continue
-        if (/^opacity-\d+$/.test(token)) continue
-        // v4 renamed bg-gradient-to-* to bg-linear-to-*, and added radial/conic.
-        if (/^(?:gradient|linear|radial|conic)-to-(t|tr|r|br|b|bl|l|tl)$/.test(token)) continue
-        // shadow-card-hover / shadow-accent / shadow-menu / shadow-drawer live
-        // in --shadow-*, which is the correct namespace for them.
-        if (prefix === 'shadow' && shadows.has(token)) continue
+        if (isExemptColorToken(prefix, token, shadows)) continue
 
         used.set(token, [...(used.get(token) ?? []), rel])
       }
@@ -475,8 +495,41 @@ describe('design tokens', () => {
   })
 })
 
+/**
+ * Direct regression coverage for isExemptColorToken's two carve-outs. Neither
+ * had ever been driven by a synthetic input before — both were validated only
+ * by "the rest of the suite still passes," and that gap is exactly how the
+ * gradient carve-out over-matching `radial-to-*`/`conic-to-*` (not real
+ * Tailwind v4 utility shapes) shipped unnoticed. These tests call the same
+ * `isExemptColorToken` function collectUsedColorTokens uses — no regex is
+ * re-typed here — so a future change to the real carve-out is what these
+ * assertions actually exercise, not a second, driftable copy of it.
+ */
+describe('color-token exemption carve-outs', () => {
+  const shadows = collectDefinedShadowTokens()
+
+  it.each(['card-hover', 'accent', 'menu', 'drawer'])(
+    'accepts shadow-%s (resolves against --shadow-*, not --color-*)',
+    (name) => {
+      expect(isExemptColorToken('shadow', name, shadows)).toBe(true)
+    },
+  )
+
+  it('still rejects a misspelled shadow token (falls through to the --color-* check)', () => {
+    expect(isExemptColorToken('shadow', 'crad-hover', shadows)).toBe(false)
+  })
+
+  it.each(['linear-to-br', 'gradient-to-br'])('accepts bg-%s', (token) => {
+    expect(isExemptColorToken('bg', token, shadows)).toBe(true)
+  })
+
+  it('rejects bg-radial-to-br — radial has no -to-<direction> form in Tailwind v4', () => {
+    expect(isExemptColorToken('bg', 'radial-to-br', shadows)).toBe(false)
+  })
+})
+
 describe('non-colour token scales', () => {
-  const css = readFileSync(resolve(__dirname, '../index.css'), 'utf-8')
+  const css = readFileSync(resolve(__dirname, '../index.css'), 'utf8')
   const theme = stripCssComments(css)
 
   const REQUIRED = [
