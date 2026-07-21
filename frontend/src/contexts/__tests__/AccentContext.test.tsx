@@ -4,8 +4,10 @@ import userEvent from '@testing-library/user-event'
 import { AccentProvider, useAccent } from '../AccentContext'
 import { ACCENTS } from '../../constants/accents'
 
+const themeState = vi.hoisted(() => ({ theme: 'dark' as 'light' | 'dark' }))
+
 vi.mock('../ThemeContext', () => ({
-  useTheme: () => ({ theme: 'dark', toggleTheme: () => {}, setTheme: () => {} }),
+  useTheme: () => ({ theme: themeState.theme, toggleTheme: () => {}, setTheme: () => {} }),
 }))
 
 function Probe() {
@@ -22,6 +24,7 @@ describe('AccentProvider', () => {
   beforeEach(() => {
     localStorage.clear()
     document.documentElement.removeAttribute('style')
+    themeState.theme = 'dark'
   })
 
   it('defaults to blue when localStorage is empty', () => {
@@ -58,6 +61,15 @@ describe('AccentProvider', () => {
     expect(localStorage.getItem('accent')).toBe('amber')
     expect(document.documentElement.style.getPropertyValue('--accent-on-solid'))
       .toBe(ACCENTS.amber.onSolid)
+  })
+
+  it('reapplies --accent-fg when theme changes with the accent held constant', () => {
+    const { rerender } = render(<AccentProvider><Probe /></AccentProvider>)
+    expect(document.documentElement.style.getPropertyValue('--accent-fg')).toBe(ACCENTS.blue.fgDark)
+
+    themeState.theme = 'light'
+    rerender(<AccentProvider><Probe /></AccentProvider>)
+    expect(document.documentElement.style.getPropertyValue('--accent-fg')).toBe(ACCENTS.blue.fgLight)
   })
 
   it('throws outside a provider', () => {
