@@ -12,6 +12,7 @@ import {
   CardHeader,
   Checkbox,
   Chip,
+  Drawer,
   Dropdown,
   EmptyState,
   Field,
@@ -69,6 +70,7 @@ export default function Gallery() {
   const [disabled, setDisabled] = useState(false)
   const [toggleOn, setToggleOn] = useState(true)
   const [searchValue, setSearchValue] = useState('')
+  const [drawerOpen, setDrawerOpen] = useState(false)
 
   return (
     <div className="mx-auto max-w-[1320px] px-6 py-10">
@@ -360,6 +362,27 @@ export default function Gallery() {
             { id: 'maint', label: 'By Maintenance', onSelect: () => {} },
           ]}
         />
+      </Section>
+
+      <Section title="Drawer" note="Right-anchored, focus-trapped, Escape-closing. The app has no side drawer today.">
+        <Button onClick={() => setDrawerOpen(true)}>Open drawer</Button>
+        <Drawer
+          open={drawerOpen}
+          onClose={() => setDrawerOpen(false)}
+          title="Add Fuel"
+          width="md"
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => setDrawerOpen(false)}>Cancel</Button>
+              <Button onClick={() => setDrawerOpen(false)}>Save</Button>
+            </>
+          }
+        >
+          <Field id="g-liters" label="Litres" required>
+            <Input id="g-liters" type="number" mono placeholder="0.00" />
+          </Field>
+          <p className="text-sm text-text-mute">Tab is trapped. Escape closes. Focus restores to the trigger. Type in the field — focus must stay put.</p>
+        </Drawer>
       </Section>
     </div>
   )
