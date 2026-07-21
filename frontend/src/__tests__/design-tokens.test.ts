@@ -400,4 +400,27 @@ describe('design tokens', () => {
       expect(css, `${cls} is still referenced in source`).toContain(`${cls} {`)
     }
   })
+
+  it('keeps the PWA manifest on the current palette', () => {
+    const manifest = JSON.parse(
+      readFileSync(resolve(ROOT, 'public/manifest.json'), 'utf8'),
+    )
+    // Static file — cannot use tokens. Pinned to the DEFAULT accent's nav/bg.
+    expect(manifest.background_color).toBe('#07090c')
+    expect(manifest.theme_color).toBe('#0b0e13')
+  })
+
+  it('keeps index.html theme-color on the nav surface, not the old primary', () => {
+    const html = readFileSync(resolve(ROOT, 'index.html'), 'utf8')
+    expect(html).toContain('content="#0b0e13"')
+    expect(html).not.toContain('content="#3b82f6"')
+  })
+
+  it('repalettes the offline page off the old GitHub-dark colours', () => {
+    const offline = readFileSync(resolve(ROOT, 'public/offline.html'), 'utf8')
+    for (const stale of ['#0d1117', '#161b22', '#30363d']) {
+      expect(offline, `offline.html still uses ${stale}`).not.toContain(stale)
+    }
+    expect(offline).toContain('#07090c')
+  })
 })
