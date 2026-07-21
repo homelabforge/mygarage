@@ -12,6 +12,7 @@ import {
   CardHeader,
   Checkbox,
   Chip,
+  DataTable,
   Drawer,
   Dropdown,
   EmptyState,
@@ -398,6 +399,36 @@ export default function Gallery() {
               { number: 3, title: 'Photos' },
               { number: 4, title: 'Review' },
             ]}
+          />
+        </div>
+      </Section>
+
+      <Section title="DataTable" note="Owns its overflow wrapper. Numeric columns are right-aligned Mono.">
+        <div className="w-full max-w-xl rounded-card border border-border bg-surface">
+          <DataTable
+            caption="Fuel records"
+            rowKey={(r) => r.id}
+            columns={[
+              { id: 'date', header: 'Date', render: (r) => r.date },
+              { id: 'volume', header: 'Litres', align: 'right', mono: true, render: (r) => r.volume },
+              { id: 'cost', header: 'Cost', align: 'right', mono: true, render: (r) => r.cost },
+            ]}
+            rows={[
+              { id: '1', date: 'Jul 13, 2026', volume: '41.2', cost: '$62.40' },
+              { id: '2', date: 'Jun 30, 2026', volume: '38.9', cost: '$58.10' },
+            ]}
+          />
+        </div>
+        <div className="w-full max-w-xl rounded-card border border-border bg-surface">
+          <DataTable
+            caption="Fuel records (empty)"
+            rowKey={(r) => r.id}
+            columns={[
+              { id: 'date', header: 'Date', render: (r) => r.date },
+              { id: 'cost', header: 'Cost', align: 'right', mono: true, render: (r) => r.cost },
+            ]}
+            rows={[] as Array<{ id: string; date: string; cost: string }>}
+            emptyState={<EmptyState icon={Box} title="No fuel records yet" size="sm" />}
           />
         </div>
       </Section>
