@@ -491,5 +491,15 @@
     "defaultTripType": "Default trip type",
     "defaultsSaved": "Fuel defaults saved",
     "defaultsError": "Failed to save fuel defaults"
+  },
+  "accent": {
+    "label": "Accent Color",
+    "description": "Changes the accent color across the entire app.",
+    "blue": "Blue",
+    "amber": "Amber",
+    "teal": "Teal",
+    "red": "Racing Red",
+    "violet": "Violet",
+    "green": "Green"
   }
 }

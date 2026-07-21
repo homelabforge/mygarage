@@ -41,7 +41,13 @@ const ENTRIES = ['src/main.tsx']
  * something outside the module graph loads. Keep this list short and justified;
  * an entry here is a claim that nothing imports the file ON PURPOSE.
  */
-const ALLOWLIST = new Set<string>([])
+const ALLOWLIST = new Set<string>([
+  // Landed by Task 5 (accent definitions + contrast gate); wired into the
+  // module graph by Task 6 (AccentContext), which imports accentCssVars into
+  // a provider mounted from main.tsx. Only accent-contrast.test.ts imports it
+  // until then — remove this entry once Task 6 lands.
+  'src/constants/accents.ts',
+])
 
 const EXTS = ['.tsx', '.ts', '/index.tsx', '/index.ts']
 

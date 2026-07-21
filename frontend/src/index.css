@@ -190,6 +190,11 @@
     --color-photo-b:     #e6ebf2;
     --color-badge-bg:    rgba(15, 23, 42, .06);
     --color-badge-tx:    #475569;
+
+    /* Accent foreground only — the base hue is identical across themes, only
+     * the text-on-surface role needs a darker variant for AA on white. Kept
+     * in sync with DEFAULT_ACCENT.fgLight by accent-contrast.test.ts. */
+    --accent-fg:         #1d4ed8;
   }
 
   /* Better touch targets for mobile */
