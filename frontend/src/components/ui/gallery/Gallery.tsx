@@ -11,6 +11,7 @@ import {
   CardHeader,
   Chip,
   EmptyState,
+  ListRow,
   Mono,
   PageContainer,
   PageHeader,
@@ -190,6 +191,15 @@ export default function Gallery() {
         <Tile icon={Wrench} label="Service" value={10} />
         <Tile icon={Wrench} label="Overdue" value={2} tone="danger" />
         <Tile icon={Wrench} label="Spent 2026" value="$1,284.00" tone="accent" />
+      </Section>
+
+      <Section title="ListRow" note="Key → mono value. The prototype carries a per-row mono flag.">
+        <div className="w-80 rounded-card border border-border bg-surface p-4">
+          <ListRow icon={Wrench} label="Last Service" value="Jun 19, 2026" />
+          <ListRow label="Latest Odometer" value="89,230 mi" />
+          <ListRow label="Type" value="Truck" mono={false} />
+          <ListRow label="Docs" value="2" onClick={() => {}} />
+        </div>
       </Section>
     </div>
   )

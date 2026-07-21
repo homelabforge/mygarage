@@ -20,7 +20,7 @@ import { useUnitPreference } from '../hooks/useUnitPreference'
 import { UnitFormatter } from '../utils/units'
 import { withBase } from '../utils/basePath'
 import VehicleLiveLinkWidget from './livelink/VehicleLiveLinkWidget'
-import { Tile } from './ui'
+import { ListRow, Tile } from './ui'
 
 interface VehicleStatisticsCardProps {
   stats: VehicleStatistics
@@ -146,22 +146,22 @@ function VehicleStatisticsCard({ stats }: VehicleStatisticsCardProps) {
             <h4 className="text-xs font-semibold text-garage-text-muted uppercase">{t('vehicleStats.recentActivity')}</h4>
             <div className="space-y-1.5 text-sm">
               {stats.latest_service_date && (
-                <ActivityRow
-                  icon={<Wrench className="w-3.5 h-3.5" />}
+                <ListRow
+                  icon={Wrench}
                   label={t('vehicleStats.lastService')}
                   value={formatDate(stats.latest_service_date)}
                 />
               )}
               {stats.latest_fuel_date && (
-                <ActivityRow
-                  icon={<Fuel className="w-3.5 h-3.5" />}
+                <ListRow
+                  icon={Fuel}
                   label={t('vehicleStats.lastFillUp')}
                   value={formatDate(stats.latest_fuel_date)}
                 />
               )}
               {stats.latest_odometer_km && (
-                <ActivityRow
-                  icon={<Gauge className="w-3.5 h-3.5" />}
+                <ListRow
+                  icon={Gauge}
                   label={t('vehicleStats.latestOdometer')}
                   value={UnitFormatter.formatDistance(parseFloat(String(stats.latest_odometer_km)), system, false)}
                 />
@@ -219,24 +219,6 @@ function VehicleStatisticsCard({ stats }: VehicleStatisticsCardProps) {
           {t('vehicleStatisticsCardExtra.viewDetails')}
         </button>
       </div>
-    </div>
-  )
-}
-
-interface ActivityRowProps {
-  icon: React.ReactNode
-  label: string
-  value: string
-}
-
-function ActivityRow({ icon, label, value }: ActivityRowProps) {
-  return (
-    <div className="flex items-center justify-between text-garage-text">
-      <div className="flex items-center gap-2">
-        <div className="text-garage-text-muted">{icon}</div>
-        <span className="text-garage-text-muted">{label}</span>
-      </div>
-      <span className="font-medium">{value}</span>
     </div>
   )
 }
