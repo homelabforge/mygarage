@@ -48,6 +48,7 @@ function SettingsContent() {
         tabs={tabs}
         activeTab={activeTab}
         onTabChange={(id: string) => setActiveTab(id as TabType)}
+        label={t('tabs.sections')}
       />
 
       {/* Tab Content */}

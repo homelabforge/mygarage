@@ -783,6 +783,7 @@ export default function VehicleDetail() {
           tabs={subTabsConfig[activePrimaryTab]}
           activeTab={activeSubTab || ''}
           onTabChange={handleSubTabClick}
+          label={t('detail.misc.vehicleSections')}
         />
       )}
 

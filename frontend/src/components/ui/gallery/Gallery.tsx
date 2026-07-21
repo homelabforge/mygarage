@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Box, Pencil, Plus, Trash2, Wrench, X } from 'lucide-react'
+import { Box, Fuel, Pencil, Plus, Trash2, Wrench, X } from 'lucide-react'
 import Section from './Section'
 // Import through the barrel, never from a component file directly: this single
 // specifier is the only thing that puts ../index.ts — and, through it,
@@ -22,6 +22,7 @@ import {
   PageHeader,
   SearchField,
   Select,
+  Tabs,
   Textarea,
   Tile,
   Toggle,
@@ -309,6 +310,44 @@ export default function Gallery() {
           className="w-64"
         />
         <SearchField value="ram" onChange={() => {}} label="Search" size="sm" className="w-48" />
+      </Section>
+
+      <Section title="Tabs" note="One tablist, three containers. Label rendered once — the dual-span pattern computes 'FuelFuel' in jsdom.">
+        <div className="w-full">
+          <Tabs
+            label="Vehicle sections"
+            activeId="fuel"
+            onChange={() => {}}
+            items={[
+              { id: 'overview', label: 'Overview' },
+              { id: 'fuel', label: 'Fuel', icon: Fuel, count: 29 },
+              { id: 'media', label: 'Media' },
+            ]}
+          />
+          <div className="mt-4 flex gap-4">
+            <Tabs
+              label="Channels"
+              variant="pill"
+              activeId="discord"
+              onChange={() => {}}
+              items={[
+                { id: 'discord', label: 'Discord', dot: true },
+                { id: 'slack', label: 'Slack' },
+              ]}
+            />
+            <Tabs
+              label="Auth mode"
+              variant="segmented"
+              activeId="local"
+              onChange={() => {}}
+              items={[
+                { id: 'none', label: 'None' },
+                { id: 'local', label: 'Local' },
+                { id: 'oidc', label: 'OIDC' },
+              ]}
+            />
+          </div>
+        </div>
       </Section>
     </div>
   )

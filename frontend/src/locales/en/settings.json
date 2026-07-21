@@ -6,7 +6,8 @@
     "fileManagement": "File Management",
     "integrations": "Integrations",
     "notifications": "Notifications",
-    "backupRestore": "Backup & Restore"
+    "backupRestore": "Backup & Restore",
+    "sections": "Settings sections"
   },
   "systemConfig": {
     "title": "System Configuration",
