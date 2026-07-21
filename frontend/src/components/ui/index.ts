@@ -16,4 +16,4 @@
 export type { IconType, Size, Tone } from './types'
 
 // Primitives are appended here as each task lands (Tasks 4-23).
-export {}
+export { default as Mono } from './Mono'

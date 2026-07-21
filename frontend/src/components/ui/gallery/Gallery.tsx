@@ -3,7 +3,7 @@ import Section from './Section'
 // Import through the barrel, never from a component file directly: this single
 // specifier is the only thing that puts ../index.ts — and, through it,
 // ../types.ts — on the graph validate-reachability walks from main.tsx.
-import type { Size } from '..'
+import { Mono, type Size } from '..'
 import { ACCENT_KEYS } from '../../../constants/accents'
 import { useAccent } from '../../../contexts/AccentContext'
 import { useTheme } from '../../../contexts/ThemeContext'
@@ -97,6 +97,15 @@ export default function Gallery() {
             h-btn-{size}
           </div>
         ))}
+      </Section>
+
+      <Section title="Mono" note="All technical and numeric values. Tabular by default so columns align.">
+        <Mono variant="vin" tone="muted" size="sm">1HGCM82633A004352</Mono>
+        <Mono size="2xl" weight="bold">29.9</Mono>
+        <Mono tone="danger" weight="semibold">$1,284.00</Mono>
+        <Mono tone="success">+12.4%</Mono>
+        <Mono tone="muted" size="sm">2026-07-21</Mono>
+        <Mono tone="accent" weight="semibold">89,230 mi</Mono>
       </Section>
     </div>
   )
