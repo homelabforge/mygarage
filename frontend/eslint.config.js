@@ -6,15 +6,7 @@ import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
   {
-    ignores: [
-      'dist',
-      'node_modules',
-      // openapi-typescript-generated; double-quoted by the generator itself and
-      // reconciled against a fresh regen by check:api-freshness (git diff
-      // --exit-code). Hand-fixing quotes here fights the tool on every future
-      // regen instead of catching anything real.
-      'src/types/api.generated.ts',
-    ],
+    ignores: ['dist', 'node_modules'],
   },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
@@ -72,6 +64,13 @@ export default tseslint.config(
         },
       ],
     },
+  },
+  // openapi-typescript emits double-quoted strings and the file is regenerated
+  // by CI's check:api-freshness — hand-fixing quote style would fight the
+  // generator forever. Silence only `quotes`; every other rule still applies.
+  {
+    files: ['src/types/api.generated.ts'],
+    rules: { quotes: 'off' },
   },
   // Exempt utility files from the i18n lint guards (they ARE the centralized implementation)
   {

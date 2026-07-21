@@ -109,7 +109,12 @@ export const ACCENTS: Record<AccentKey, AccentRoles> = {
   },
 }
 
-/** i18n keys — never English literals; the hardcoded-strings gate would flag them. */
+/**
+ * i18n keys — never English literals. Unlike `labelKey`/`descriptionKey`
+ * fields, this shape (`blue`/`amber`/etc.) is not matched by either
+ * validate-i18n-usage.ts or validate-hardcoded-strings.ts, so no automated
+ * gate enforces this. It's a manual convention only.
+ */
 export const ACCENT_LABEL_KEYS: Record<AccentKey, string> = {
   blue: 'settings:accent.blue',
   amber: 'settings:accent.amber',
