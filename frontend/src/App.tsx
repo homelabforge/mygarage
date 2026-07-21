@@ -36,6 +36,14 @@ const Analytics = lazy(() => import('./pages/Analytics'))
 const GarageAnalytics = lazy(() => import('./pages/GarageAnalytics'))
 const Settings = lazy(() => import('./pages/Settings'))
 const About = lazy(() => import('./pages/About'))
+
+// Dev-only primitive gallery. `import.meta.env.DEV` is statically replaced at
+// build time, so Rollup drops this chunk entirely from production bundles —
+// while validate-reachability.ts, which reads import specifiers as text, still
+// walks into it. That combination is what lets ALLOWLIST stay empty.
+const UIGallery = import.meta.env.DEV
+  ? lazy(() => import('./components/ui/gallery/Gallery'))
+  : null
 // Loading component
 const LoadingFallback = () => (
   <div className="flex items-center justify-center min-h-screen bg-garage-bg">
@@ -80,6 +88,7 @@ function App() {
                 <Route path="/register" element={<Register />} />
                 <Route path="/auth/oidc/success" element={<OIDCSuccess />} />
                 <Route path="/auth/link-account" element={<LinkAccount />} />
+                {UIGallery ? <Route path="/__ui" element={<UIGallery />} /> : null}
 
                 {/* Protected routes */}
                 <Route element={<ProtectedRoute />}>

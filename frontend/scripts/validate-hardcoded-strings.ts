@@ -96,11 +96,24 @@ function isUserFacing(raw: string): boolean {
   return LOOKS_LIKE_PROSE.test(s)
 }
 
+/**
+ * Path (relative to SRC_DIR) of the one directory provably dev-only enough to
+ * skip entirely: `src/components/ui/gallery/`. Matched against the full
+ * relative path, not the bare leaf name — "gallery" alone is an ordinary
+ * English word, and matching it bare would exempt any future directory with
+ * that name anywhere under src/ (e.g. a hypothetical
+ * `PhotoGallery/gallery/`), silently hiding real user-facing strings. Same
+ * precedent as `ALLOWLIST` in validate-reachability.ts, which stores full
+ * relative paths for the same reason.
+ */
+const GALLERY_DIR = join('components', 'ui', 'gallery')
+
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {
     const full = join(dir, entry)
     if (statSync(full).isDirectory()) {
       if (entry === '__tests__' || entry === 'node_modules') continue
+      if (relative(SRC_DIR, full) === GALLERY_DIR) continue
       walk(full, out)
     } else if (
       (entry.endsWith('.tsx') || entry.endsWith('.ts')) &&
