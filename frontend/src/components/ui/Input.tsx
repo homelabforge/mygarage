@@ -65,13 +65,13 @@ export default function Input({
   return (
     <div className="relative">
       {prefix ? (
-        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-text-mute">
+        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-text-mute">
           {prefix}
         </span>
       ) : null}
       {control}
       {suffix ? (
-        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-text-mute">
+        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-text-mute">
           {suffix}
         </span>
       ) : null}

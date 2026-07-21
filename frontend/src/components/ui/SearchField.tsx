@@ -29,6 +29,16 @@ interface SearchFieldProps {
  * type="search" gives the searchbox role, which is more precise than
  * textbox and is not pinned by any existing test (no current search input
  * is queried by role).
+ *
+ * The caller's `className` is applied to an outer wrapper `<div>`, never
+ * forwarded into `Input`'s own `className` slot. `Input` puts its
+ * `className` on the `<input>` element itself alongside its unconditional
+ * `w-full` — same specificity, and `.w-full` is declared later in the
+ * compiled stylesheet than any `w-<n>` utility, so it always wins a
+ * conflict. A width class handed to `Input` directly is silently defeated.
+ * The wrapper here carries the width instead: it has no competing width
+ * class of its own, and `Input`'s prefix-mode wrapper div (`className=
+ * "relative"`, width:auto) simply fills it.
  */
 export default function SearchField({
   value,
@@ -39,15 +49,16 @@ export default function SearchField({
   className = '',
 }: SearchFieldProps) {
   return (
-    <Input
-      type="search"
-      aria-label={label}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
-      size={size}
-      className={className}
-      prefix={<Search aria-hidden="true" className="h-4 w-4" />}
-    />
+    <div className={className}>
+      <Input
+        type="search"
+        aria-label={label}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        size={size}
+        prefix={<Search aria-hidden="true" className="h-4 w-4" />}
+      />
+    </div>
   )
 }
