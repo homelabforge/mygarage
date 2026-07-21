@@ -1,6 +1,7 @@
 import { test, expect } from './helpers/fixtures'
 import { nav } from './helpers/selectors'
 import { TEST_VEHICLE } from './helpers/seed'
+import { familyLoads, trackWoff2Requests } from './helpers/fonts'
 
 /**
  * Prefixed (subpath) E2E — issue #107.
@@ -105,6 +106,52 @@ test.describe('Subpath hosting (/mygarage)', () => {
     // had rebased the fragment the clipPath def would be absent/orphaned.
     const clipDefs = await page.locator('svg.recharts-surface clipPath').count()
     expect(clipDefs).toBeGreaterThan(0)
+  })
+
+  test.describe('Fonts under the prefix', () => {
+    // Task 11 added font coverage to foundation.spec.ts, but that file runs
+    // ONLY under the `chromium` project (root, Vite dev server) — nothing
+    // exercised font resolution through the /mygarage prefix, which is
+    // exactly the scenario src/styles/fonts.css's own doc comment warns
+    // about: a font referenced from public/ (Vite copies public/ verbatim,
+    // unprefixed) 404s under the #107 subpath proxy, and `font-display: swap`
+    // falls back to system-ui *silently*. These two tests are the subpath
+    // analogue of the foundation.spec.ts P0 exit-criteria font tests, reusing
+    // the same helpers (see e2e/helpers/fonts.ts for why a bare
+    // `document.fonts.check()` and a plain status check are both insufficient).
+    test('both font families actually load', async ({ page }) => {
+      await page.goto('.')
+      await page.waitForLoadState('networkidle')
+
+      expect(
+        await familyLoads(page, 'Inter Variable'),
+        'Inter did not load under the /mygarage prefix',
+      ).toBe(true)
+      expect(
+        await familyLoads(page, 'JetBrains Mono Variable'),
+        'JetBrains Mono did not load under the /mygarage prefix',
+      ).toBe(true)
+    })
+
+    test('font files resolve under the prefix, not an HTML fallback', async ({ page }) => {
+      const { seen, bad } = trackWoff2Requests(page)
+      await page.goto('.')
+      await page.waitForLoadState('networkidle')
+
+      // Prove the observer actually saw font traffic — see fonts.ts doc
+      // comment. Without this, a font moved to public/ (which starts
+      // returning 404 -> HTML under the prefix) wouldn't even register a
+      // .woff2 request in some browsers' font-matching short-circuits, and
+      // an empty `bad` would pass for the wrong reason.
+      expect(seen.length, 'no .woff2 requests were observed at all').toBeGreaterThan(0)
+      // Every observed font request actually resolved under the prefix
+      // (not e.g. an unprefixed /fonts/x.woff2 that happened to 200 against
+      // something else entirely).
+      for (const url of seen) {
+        expect(url, `.woff2 request should resolve under ${PREFIX}`).toContain(`${PREFIX}/`)
+      }
+      expect(bad).toEqual([])
+    })
   })
 
   test.describe('PWA runtime', () => {

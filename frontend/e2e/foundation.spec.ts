@@ -1,6 +1,7 @@
 import { test, expect } from './helpers/fixtures'
 import type { Page } from '@playwright/test'
 import { ACCENTS, DEFAULT_ACCENT } from '../src/constants/accents'
+import { familyLoads, trackWoff2Requests } from './helpers/fonts'
 
 // Block every script request by RESOURCE TYPE, not URL glob. A glob like
 // '**/assets/*.js' only matches a preview/production build's output path —
@@ -71,30 +72,6 @@ async function paintBgPrimary(page: Page): Promise<string> {
   return page.locator('#accent-probe').evaluate((el) => getComputedStyle(el).backgroundColor)
 }
 
-/**
- * Resolves whether a font family actually loads — NOT via
- * `document.fonts.check()` alone. That method has two failure modes here:
- * it reflects only whether a font happens to already be in use on the
- * current DOM (Dashboard renders no monospace text, so JetBrains Mono stays
- * 'unloaded' regardless of whether the asset works), AND — verified by
- * temporarily deleting the font import while writing this test — it
- * returns `true` when ZERO `@font-face` rules match the family at all,
- * because there is trivially nothing "pending". So this filters
- * `document.fonts` down to faces that actually declare the family, fails
- * outright if that set is empty, then calls `.load()` on each match and
- * requires every one to reach `status === 'loaded'`.
- */
-async function familyLoads(page: Page, family: string): Promise<boolean> {
-  return page.evaluate(async (fam) => {
-    const matches = [...document.fonts].filter(
-      (f) => f.family.replace(/^["']|["']$/g, '') === fam,
-    )
-    if (matches.length === 0) return false
-    await Promise.all(matches.map((f) => f.load()))
-    return matches.every((f) => f.status === 'loaded')
-  }, family)
-}
-
 test.describe('P0 exit criteria', () => {
   test('JetBrains Mono actually loads', async ({ page }) => {
     await page.goto('/')
@@ -110,26 +87,7 @@ test.describe('P0 exit criteria', () => {
   })
 
   test('font files are served, not 404', async ({ page }) => {
-    const seen: string[] = []
-    const bad: string[] = []
-    page.on('response', (r) => {
-      if (!r.url().endsWith('.woff2')) return
-      seen.push(r.url())
-      // NOT a plain !r.ok() check. Verified while writing this test: both the
-      // Vite dev server (SPA history fallback) and the production backend's
-      // custom_404_handler (backend/app/main.py) return 200 + text/html for
-      // ANY unmatched path, including a broken /assets/*.woff2 reference —
-      // confirmed by requesting a deliberately nonexistent .woff2 path and
-      // getting back 200 OK. So a status-only check can never observe this
-      // failure here: the browser would silently receive an HTML document,
-      // fail to parse it as a font, and fall back to a system font — exactly
-      // the silent failure src/styles/fonts.css exists to prevent. Checking
-      // content-type catches it instead.
-      const contentType = r.headers()['content-type'] ?? ''
-      if (r.status() !== 200 || !contentType.startsWith('font/')) {
-        bad.push(`${r.status()} ${contentType} ${r.url()}`)
-      }
-    })
+    const { seen, bad } = trackWoff2Requests(page)
     await page.goto('/')
     await page.waitForLoadState('networkidle')
 
