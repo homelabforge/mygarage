@@ -10,6 +10,7 @@ import {
   Button,
   Card,
   CardHeader,
+  Checkbox,
   Chip,
   EmptyState,
   Field,
@@ -22,6 +23,7 @@ import {
   Select,
   Textarea,
   Tile,
+  Toggle,
   type Size,
 } from '..'
 import { ACCENT_KEYS } from '../../../constants/accents'
@@ -62,6 +64,7 @@ export default function Gallery() {
   // toggle every primitive's disabled state from this one control. Do not
   // remove as dead code.
   const [disabled, setDisabled] = useState(false)
+  const [toggleOn, setToggleOn] = useState(true)
 
   return (
     <div className="mx-auto max-w-[1320px] px-6 py-10">
@@ -285,6 +288,14 @@ export default function Gallery() {
           <Select aria-label="Small" size="sm" options={[{ value: 'a', label: 'Small' }]} />
           <Select aria-label="Invalid" invalid options={[{ value: 'a', label: 'Invalid' }]} />
         </div>
+      </Section>
+
+      <Section title="Toggle / Checkbox" note="Toggle keeps the implicit checkbox role — role='switch' would break 5 tests. Check the knob against the off-track in LIGHT theme.">
+        <Toggle label="Safety alerts" checked={toggleOn} onChange={setToggleOn} />
+        <Toggle label="Gas Stations" checked={toggleOn} onChange={setToggleOn} variant="onOff" />
+        <Toggle label="Disabled" checked={false} onChange={() => {}} disabled />
+        <Checkbox id="g-jpg" label=".jpg" defaultChecked />
+        <Checkbox id="g-png" label=".png" />
       </Section>
     </div>
   )

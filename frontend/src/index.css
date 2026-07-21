@@ -156,6 +156,13 @@
   --font-sans: 'Inter Variable', Inter, system-ui, sans-serif;
   --font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, monospace;
 
+  /* Toggle switch. The knob is a fixed near-white in both themes; the OFF
+     track needs its own token rather than reusing --color-border, because in
+     light theme that is rgba(15, 23, 42, .12) — about #dfe2e6 over the
+     surface — and a white knob on it is very nearly invisible. */
+  --color-toggle-knob:      #ffffff;
+  --color-toggle-track-off: #3f4650;
+
   --breakpoint-xs: 475px;
   --spacing-safe-top:    env(safe-area-inset-top);
   --spacing-safe-bottom: env(safe-area-inset-bottom);
@@ -235,6 +242,10 @@
      * the text-on-surface role needs a darker variant for AA on white. Kept
      * in sync with DEFAULT_ACCENT.fgLight by accent-contrast.test.ts. */
     --accent-fg:         #1d4ed8;
+
+    /* White knob on this measures 4.8:1 — comfortably past the 3:1 a
+       non-text UI boundary needs. On the dark-theme track it is 9.5:1. */
+    --color-toggle-track-off: #64748b;
   }
 
   /* Better touch targets for mobile */
