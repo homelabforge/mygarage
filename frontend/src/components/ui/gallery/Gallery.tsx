@@ -4,7 +4,7 @@ import Section from './Section'
 // Import through the barrel, never from a component file directly: this single
 // specifier is the only thing that puts ../index.ts — and, through it,
 // ../types.ts — on the graph validate-reachability walks from main.tsx.
-import { Avatar, Badge, Chip, EmptyState, Mono, type Size } from '..'
+import { Avatar, Badge, Chip, EmptyState, Mono, PageContainer, PageHeader, type Size } from '..'
 import { ACCENT_KEYS } from '../../../constants/accents'
 import { useAccent } from '../../../contexts/AccentContext'
 import { useTheme } from '../../../contexts/ThemeContext'
@@ -142,6 +142,24 @@ export default function Gallery() {
               </button>
             }
           />
+        </div>
+      </Section>
+
+      <Section title="PageContainer / PageHeader" note="1320px measure, clamp gutters — not Tailwind container. Resize the window and watch the gutters.">
+        <div className="w-full outline-1 outline-dashed outline-(--accent-line)">
+          <PageContainer>
+            <div className="outline-1 outline-dashed outline-border">
+              <PageHeader
+                title="My Garage"
+                subtitle="Managing 3 vehicle(s)"
+                actions={
+                  <button className="ui-focus-ring ui-motion h-btn-md rounded-control bg-(--accent-solid) px-4 text-sm font-semibold text-(--accent-on-solid)">
+                    Add Vehicle
+                  </button>
+                }
+              />
+            </div>
+          </PageContainer>
         </div>
       </Section>
     </div>
