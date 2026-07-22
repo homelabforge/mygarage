@@ -1,10 +1,11 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
-import { Car, Settings, Home, Info, BookUser, BarChart3, Calendar, LogOut, User, MapPin, Package } from 'lucide-react'
+import { Settings, Home, Info, BookUser, BarChart3, Calendar, LogOut, User, MapPin, Package } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
 import { useAppVersion } from '../hooks/useAppVersion'
 import { useEffect, useState } from 'react'
 import OfflineBanner from './OfflineBanner'
+import Logo from './shell/Logo'
 import api from '../services/api'
 
 export default function Layout() {
@@ -37,10 +38,7 @@ export default function Layout() {
       <header className="bg-garage-surface border-b border-garage-border sticky top-0 z-40">
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between h-14 md:h-16">
-            <Link to="/" className="flex items-center space-x-2">
-              <Car className="w-6 h-6 md:w-8 md:h-8 text-primary-500" />
-              <span className="text-lg md:text-xl font-bold">MyGarage</span>
-            </Link>
+            <Logo />
 
             {/* Desktop Navigation */}
             <nav className="hidden md:flex space-x-6">
