@@ -10,6 +10,8 @@
   "calendar": "Calendar",
   "settings": "Settings",
   "about": "About",
+  "quickSettings": "Quick settings",
+  "allSettings": "All settings",
   "login": "Login",
   "logout": "Logout",
   "admin": "ADMIN",

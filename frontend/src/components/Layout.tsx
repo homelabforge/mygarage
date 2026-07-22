@@ -10,6 +10,7 @@ import TopNavLink from './shell/TopNavLink'
 import MobileTabBar from './shell/MobileTabBar'
 import NavSearch from './shell/NavSearch'
 import NotificationBell from './shell/NotificationBell'
+import QuickSettingsDrawer from './shell/QuickSettingsDrawer'
 import { DESKTOP_NAV_ITEMS } from './shell/navItems'
 import api from '../services/api'
 
@@ -54,6 +55,7 @@ export default function Layout() {
             <div className="hidden md:flex items-center space-x-4">
               <NavSearch placeholder={t('search')} className="hidden nav:flex w-[150px]" />
               <NotificationBell />
+              <QuickSettingsDrawer className="hidden md:inline-flex" />
               <Link
                 to="/about"
                 className="text-garage-text-muted hover:text-garage-text transition-colors"
