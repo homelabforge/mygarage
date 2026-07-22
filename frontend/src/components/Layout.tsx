@@ -6,6 +6,8 @@ import { useAppVersion } from '../hooks/useAppVersion'
 import { useEffect, useState } from 'react'
 import OfflineBanner from './OfflineBanner'
 import Logo from './shell/Logo'
+import TopNavLink from './shell/TopNavLink'
+import { DESKTOP_NAV_ITEMS } from './shell/navItems'
 import api from '../services/api'
 
 export default function Layout() {
@@ -42,48 +44,9 @@ export default function Layout() {
 
             {/* Desktop Navigation */}
             <nav className="hidden md:flex space-x-6">
-              <Link
-                to="/"
-                className="flex items-center space-x-2 text-garage-text-muted hover:text-garage-text transition-colors"
-              >
-                <Home className="w-4 h-4" />
-                <span>{t('dashboard')}</span>
-              </Link>
-              <Link
-                to="/analytics"
-                className="flex items-center space-x-2 text-garage-text-muted hover:text-garage-text transition-colors"
-              >
-                <BarChart3 className="w-4 h-4" />
-                <span>{t('analytics')}</span>
-              </Link>
-              <Link
-                to="/address-book"
-                className="flex items-center space-x-2 text-garage-text-muted hover:text-garage-text transition-colors"
-              >
-                <BookUser className="w-4 h-4" />
-                <span>{t('addressBook')}</span>
-              </Link>
-              <Link
-                to="/supplies"
-                className="flex items-center space-x-2 text-garage-text-muted hover:text-garage-text transition-colors"
-              >
-                <Package className="w-4 h-4" />
-                <span>{t('supplies')}</span>
-              </Link>
-              <Link
-                to="/poi-finder"
-                className="flex items-center space-x-2 text-garage-text-muted hover:text-garage-text transition-colors"
-              >
-                <MapPin className="w-4 h-4" />
-                <span>{t('findPOI')}</span>
-              </Link>
-              <Link
-                to="/calendar"
-                className="flex items-center space-x-2 text-garage-text-muted hover:text-garage-text transition-colors"
-              >
-                <Calendar className="w-4 h-4" />
-                <span>{t('calendar')}</span>
-              </Link>
+              {DESKTOP_NAV_ITEMS.map((item) => (
+                <TopNavLink key={item.to} to={item.to} label={t(item.labelKey)} variant="inline" />
+              ))}
             </nav>
 
             <div className="hidden md:flex items-center space-x-4">
