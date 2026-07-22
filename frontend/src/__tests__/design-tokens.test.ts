@@ -7,6 +7,15 @@ const ROOT = resolve(__dirname, '../..')
 const SRC = resolve(ROOT, 'src')
 
 /**
+ * The primitive library's source tree — src/components/ui/**\/*.tsx. Shared
+ * by every scanner in this file that is deliberately scoped to the
+ * primitives rather than all of src: the motion-collision tripwire below,
+ * and the prefix-(--var) dead-CSS check. One constant so both walk() calls
+ * stay pointed at the same corpus instead of drifting apart.
+ */
+const UI_DIR = resolve(SRC, 'components/ui')
+
+/**
  * Tailwind emits nothing for a color utility whose theme variable is undefined —
  * there is no error for a class that was never generated. That is how
  * `--color-primary` shipped undefined across ~589 call sites, and how the eight
@@ -547,6 +556,59 @@ describe('design tokens', () => {
     ).toEqual([])
   })
 
+  /**
+   * collectUsedColorTokens's regex (see its own comment above) requires a
+   * utility's VALUE to start `[a-z]` — so the arbitrary-value shorthand
+   * `prefix-(--var)`, whose value starts with `(`, is never captured and
+   * never checked there. That shorthand is the library's dominant colour
+   * idiom: `bg-(--accent-solid)`, `text-(--accent-fg)`, `border-(--accent-line)`,
+   * `from-(--accent)`, `accent-(--accent-solid)`, `outline-(--accent)`,
+   * `to-(--accent-solid)`, plus the non-colour `duration-(--duration-fast)`
+   * and `w-(--height-icon-*)`. And collectVarReferences (the check
+   * immediately above) only walks var() references written inside
+   * index.css itself — it never reads the primitives' .tsx source at all.
+   * Net: a typo like `text-(--accent-fgg)` renders nothing and was caught
+   * by no gate — this codebase's chronic silently-dead-CSS failure mode, in
+   * the idiom the primitives use most.
+   *
+   * Scans the same corpus the motion-collision tripwire below does
+   * (src/components/ui/**\/*.tsx via walk(UI_DIR)), not a fresh glob, and
+   * resolves each captured custom property against
+   * collectDefinedCustomProperties(index.css) — the same helper the
+   * var()-in-index.css check immediately above already uses, not a second
+   * CSS parser. Reads literal text via collectLiteralTexts (the same
+   * AST-literal extraction collectUsedColorTokens uses) rather than raw
+   * file text, so a shorthand merely *mentioned* in a comment — e.g.
+   * Button.tsx's doc comment for `text-(--accent-on-solid)` — can never
+   * register as a usage; comments are parser trivia, not literal nodes.
+   */
+  it('every prefix-(--var) shorthand in the ui primitives resolves to a defined custom property', () => {
+    if (!existsSync(UI_DIR)) return // nothing to scan yet — Task 4 creates this directory
+
+    const defined = collectDefinedCustomProperties(readFileSync(resolve(SRC, 'index.css'), 'utf8'))
+    const pattern = /\b[a-z][a-z-]*-\((--[a-z][a-z0-9-]*)\)/g
+
+    const undefinedRefs = new Set<string>()
+    for (const file of walk(UI_DIR)) {
+      const rel = file.slice(ROOT.length + 1)
+      for (const text of collectLiteralTexts(file)) {
+        for (const m of text.matchAll(pattern)) {
+          const property = m[1]
+          if (!defined.has(property) && !TAILWIND_GENERATED_PROPERTIES.has(property)) {
+            undefinedRefs.add(`${property}  ← ${m[0]}  (${rel})`)
+          }
+        }
+      }
+    }
+
+    expect([...undefinedRefs],
+      'These prefix-(--var) shorthands emit no CSS at all — the value starts ' +
+      '"(", so the AST colour scan above never sees them. Either define the ' +
+      'custom property in src/index.css @theme, or fix the class name.\n\n' +
+      [...undefinedRefs].join('\n'),
+    ).toEqual([])
+  })
+
   it('does not leave .btn-primary on the gray ramp', () => {
     const css = readFileSync(resolve(SRC, 'index.css'), 'utf8')
     const block = css.match(/\.btn-primary\s*\{[^}]*\}/)?.[0] ?? ''
@@ -775,8 +837,6 @@ describe('interaction layer', () => {
 })
 
 describe('motion utility collision tripwire', () => {
-  const UI_DIR = resolve(SRC, 'components/ui')
-
   /**
    * ui-motion / ui-motion-toggle are not state-scoped (see the warning
    * comment above them in index.css), so each is a plain (0,1,0)

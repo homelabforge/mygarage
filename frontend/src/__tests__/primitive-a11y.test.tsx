@@ -20,13 +20,37 @@ describe('primitive semantics', () => {
         <Card interactive onClick={() => {}}>Card</Card>
       </>,
     )
-    // Six controls, each reachable by role — no div-with-onClick anywhere.
-    expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument()
-    expect(screen.getByRole('checkbox', { name: 'Alerts' })).toBeInTheDocument()
-    expect(screen.getByRole('checkbox', { name: 'JPG' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Filter' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Card' })).toBeInTheDocument()
+    // Six controls, each reachable by role — no div-with-onClick anywhere —
+    // AND each still in the tab order. Role + accessible name alone would
+    // still pass a real <button> that also carries tabIndex={-1}: it keeps
+    // its role and its name, but a keyboard user can never reach it. The
+    // `not.toHaveAttribute('tabindex', '-1')` half of each pair is what
+    // catches that regression; today's primitives are native
+    // <button>/<input>, which carry no explicit tabindex at all, so this
+    // passes cleanly (sabotage-proofed in p1-fix-m1-m4-report.md).
+    const save = screen.getByRole('button', { name: 'Save' })
+    expect(save).toBeInTheDocument()
+    expect(save).not.toHaveAttribute('tabindex', '-1')
+
+    const deleteBtn = screen.getByRole('button', { name: 'Delete' })
+    expect(deleteBtn).toBeInTheDocument()
+    expect(deleteBtn).not.toHaveAttribute('tabindex', '-1')
+
+    const alertsToggle = screen.getByRole('checkbox', { name: 'Alerts' })
+    expect(alertsToggle).toBeInTheDocument()
+    expect(alertsToggle).not.toHaveAttribute('tabindex', '-1')
+
+    const jpgCheckbox = screen.getByRole('checkbox', { name: 'JPG' })
+    expect(jpgCheckbox).toBeInTheDocument()
+    expect(jpgCheckbox).not.toHaveAttribute('tabindex', '-1')
+
+    const filterChip = screen.getByRole('button', { name: 'Filter' })
+    expect(filterChip).toBeInTheDocument()
+    expect(filterChip).not.toHaveAttribute('tabindex', '-1')
+
+    const card = screen.getByRole('button', { name: 'Card' })
+    expect(card).toBeInTheDocument()
+    expect(card).not.toHaveAttribute('tabindex', '-1')
   })
 
   it('disabled controls are genuinely disabled, not just faded', () => {
@@ -172,10 +196,19 @@ describe('primitive semantics', () => {
     // through --color-on-status; accent foregrounds through
     // --accent-on-solid; the toggle knob through --color-toggle-knob.
     //
-    // The (?!\/) carve-out permits Drawer's bg-black/50 scrim and nothing
-    // else. A scrim is literally rgba(0, 0, 0, .5) in both themes — it is a
-    // dimming layer, not a colour role, so there is no token for it to route
-    // through. A bare bg-black or text-white still fails.
-    expect(html).not.toMatch(/\b(bg|text)-(white|black)\b(?!\/)/)
+    // Raw white/black on any colour-bearing utility is forbidden — text-white
+    // on a solid accent/status fill is a Task-24-class AA failure, and there
+    // is no token for it to route through. The ONE sanctioned exception is
+    // Drawer's dimming scrim (bg-black/50 = rgba(0,0,0,.5)), which is a
+    // dimming layer, not a colour role. Everything else — bg-white,
+    // text-white/80, border-black, any opacity suffix — fails. (An earlier
+    // version of this assertion, `/\b(bg|text)-(white|black)\b(?!\/)/`, both
+    // permitted ANY slash-suffix — not just the one sanctioned scrim — and
+    // omitted `border` from the alternation entirely, so `border-white` was
+    // invisible to it. Confirmed empirically; see p1-final-review.md M2.)
+    const SANCTIONED_SCRIM = 'bg-black/50'
+    const rawBW = (html.match(/\b(?:bg|text|border)-(?:white|black)(?:\/\d+)?\b/g) ?? [])
+      .filter((cls) => cls !== SANCTIONED_SCRIM)
+    expect(rawBW).toEqual([])
   })
 })

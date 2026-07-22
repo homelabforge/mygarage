@@ -66,10 +66,14 @@ const TOGGLE_BUTTON_BASE =
 export default function Gallery() {
   const { accent, setAccent } = useAccent()
   const { theme, setTheme } = useTheme()
-  // Unconsumed here by design: Task 11 (Button) and later primitive tasks
-  // render `disabled={disabled}` in their gallery sections so a reviewer can
-  // toggle every primitive's disabled state from this one control. Do not
-  // remove as dead code.
+  // Wired into exactly three demo controls, NOT every primitive: Button's
+  // "Respects toggle" example, one IconButton (size="lg" variant), and one
+  // Input ("Disabled demo"). Select, Checkbox, Textarea, Dropdown, Chip,
+  // Card and the rest ignore this state entirely, and Toggle's "Disabled"
+  // example below hardcodes `disabled` unconditionally — unrelated to this
+  // control. The label below says "demo controls", not "all", for exactly
+  // this reason (final-review M3). Do not remove as dead code; if you wire
+  // more primitives to it, keep the label and this comment truthful.
   const [disabled, setDisabled] = useState(false)
   const [toggleOn, setToggleOn] = useState(true)
   const [searchValue, setSearchValue] = useState('')
@@ -114,7 +118,7 @@ export default function Gallery() {
               checked={disabled}
               onChange={(e) => setDisabled(e.target.checked)}
             />
-            Disable all
+            Disable demo controls (Button / IconButton / Input)
           </label>
         </div>
       </header>
