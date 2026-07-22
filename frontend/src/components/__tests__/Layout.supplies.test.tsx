@@ -1,9 +1,11 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
+import * as ThemeContext from '../../contexts/ThemeContext'
 import * as AuthContext from '../../contexts/AuthContext'
 import Layout from '../Layout'
 
+vi.mock('../../contexts/ThemeContext')
 vi.mock('../../contexts/AuthContext')
 
 function setup(initialPath = '/supplies') {
@@ -12,7 +14,13 @@ function setup(initialPath = '/supplies') {
     isAuthenticated: false,
     isAdmin: false,
     logout: vi.fn(),
+    authMode: 'none',
   } as unknown as ReturnType<typeof AuthContext.useAuth>)
+  vi.spyOn(ThemeContext, 'useTheme').mockReturnValue({
+    theme: 'dark',
+    toggleTheme: vi.fn(),
+    setTheme: vi.fn(),
+  })
 
   return render(
     <MemoryRouter initialEntries={[initialPath]}>
