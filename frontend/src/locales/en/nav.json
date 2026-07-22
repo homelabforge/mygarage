@@ -15,5 +15,8 @@
   "admin": "ADMIN",
   "search": "Search",
   "searchShellTitle": "Search is coming soon",
-  "searchShellBody": "Global search across vehicles, service history, and VINs is on the way."
+  "searchShellBody": "Global search across vehicles, service history, and VINs is on the way.",
+  "notifications": "Notifications",
+  "notificationsEmptyTitle": "No notifications",
+  "notificationsEmptyBody": "You are all caught up. New alerts will appear here."
 }
