@@ -2,7 +2,6 @@ import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
-import { Toaster } from 'sonner'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { AuthProvider } from './contexts/AuthContext'
 import { ThemeProvider } from './contexts/ThemeContext'
@@ -11,6 +10,7 @@ import ProtectedRoute from './components/ProtectedRoute'
 import { useAuth } from './contexts/AuthContext'
 import Layout from './components/Layout'
 import InstallPrompt from './components/InstallPrompt'
+import AppToaster from './components/AppToaster'
 import { useLanguageSync } from './hooks/useLanguageSync'
 import { basePath } from './utils/basePath'
 
@@ -118,7 +118,7 @@ function App() {
               </Routes>
             </Suspense>
             <InstallPrompt />
-            <Toaster position="bottom-right" richColors />
+            <AppToaster />
           </BrowserRouter>
           <ReactQueryDevtools initialIsOpen={false} />
           </QueryClientProvider>
