@@ -164,6 +164,13 @@
   --color-toggle-track-off: #3f4650;
 
   --breakpoint-xs: 475px;
+
+  /* Nav collapse threshold — design §590-597 / LOCKED responsive model. Tailwind
+     v4 generates `nav:` (min-width) and `max-nav:` (max-width) variants from a
+     --breakpoint-* token. Verified by probe build 2026-07-22: without this token
+     `nav:flex` / `md:max-nav:inline-flex` emit NO css, silently. */
+  --breakpoint-nav: 56.25rem;
+
   --spacing-safe-top:    env(safe-area-inset-top);
   --spacing-safe-bottom: env(safe-area-inset-bottom);
   --spacing-safe-left:   env(safe-area-inset-left);

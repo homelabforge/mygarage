@@ -972,3 +972,14 @@ describe('accent foreground', () => {
     expect(offenders).toEqual([])
   })
 })
+
+describe('nav breakpoint token', () => {
+  const css = readFileSync(resolve(__dirname, '../index.css'), 'utf-8')
+  const theme = stripCssComments(css)
+
+  it('defines --breakpoint-nav at the prototype 900px threshold', () => {
+    // 900px = 56.25rem at the 16px root. Tailwind v4 turns a --breakpoint-*
+    // token into `nav:` (min-width) and `max-nav:` (max-width) variants.
+    expect(theme).toMatch(/--breakpoint-nav\s*:\s*56\.25rem\s*;/)
+  })
+})
