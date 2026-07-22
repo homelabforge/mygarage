@@ -1,5 +1,5 @@
-import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
-import { Settings, Home, Info, BookUser, BarChart3, Calendar, LogOut, User, MapPin, Package } from 'lucide-react'
+import { Outlet, Link, useNavigate } from 'react-router-dom'
+import { Settings, Info, LogOut, User } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
 import { useAppVersion } from '../hooks/useAppVersion'
@@ -7,13 +7,13 @@ import { useEffect, useState } from 'react'
 import OfflineBanner from './OfflineBanner'
 import Logo from './shell/Logo'
 import TopNavLink from './shell/TopNavLink'
+import MobileTabBar from './shell/MobileTabBar'
 import { DESKTOP_NAV_ITEMS } from './shell/navItems'
 import api from '../services/api'
 
 export default function Layout() {
   const { t } = useTranslation('nav')
   const { t: tc } = useTranslation('common')
-  const location = useLocation()
   const navigate = useNavigate()
   const { user, isAuthenticated, isAdmin, logout } = useAuth()
   const version = useAppVersion()
@@ -113,94 +113,7 @@ export default function Layout() {
         <Outlet />
       </main>
 
-      {/* Mobile Bottom Navigation */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-garage-surface border-t border-garage-border z-40">
-        <div className="flex items-center justify-around h-16 px-2">
-          <Link
-            to="/"
-            className={`flex flex-col items-center justify-center min-w-[56px] py-3 px-3 rounded-lg transition-colors ${
-              location.pathname === '/'
-                ? 'text-primary-500 bg-primary-500/10'
-                : 'text-garage-text-muted hover:text-garage-text'
-            }`}
-          >
-            <Home className="w-5 h-5" />
-            <span className="text-xs mt-1">{t('home')}</span>
-          </Link>
-
-          <Link
-            to="/address-book"
-            className={`flex flex-col items-center justify-center min-w-[56px] py-3 px-3 rounded-lg transition-colors ${
-              location.pathname === '/address-book'
-                ? 'text-primary-500 bg-primary-500/10'
-                : 'text-garage-text-muted hover:text-garage-text'
-            }`}
-          >
-            <BookUser className="w-5 h-5" />
-            <span className="text-xs mt-1">{t('contacts')}</span>
-          </Link>
-
-          <Link
-            to="/supplies"
-            className={`flex flex-col items-center justify-center min-w-[56px] py-3 px-3 rounded-lg transition-colors ${
-              location.pathname === '/supplies'
-                ? 'text-primary-500 bg-primary-500/10'
-                : 'text-garage-text-muted hover:text-garage-text'
-            }`}
-          >
-            <Package className="w-5 h-5" />
-            <span className="text-xs mt-1">{t('supplies')}</span>
-          </Link>
-
-          <Link
-            to="/poi-finder"
-            className={`flex flex-col items-center justify-center min-w-[56px] py-3 px-3 rounded-lg transition-colors ${
-              location.pathname === '/poi-finder'
-                ? 'text-primary-500 bg-primary-500/10'
-                : 'text-garage-text-muted hover:text-garage-text'
-            }`}
-          >
-            <MapPin className="w-5 h-5" />
-            <span className="text-xs mt-1">{t('poi')}</span>
-          </Link>
-
-          <Link
-            to="/calendar"
-            className={`flex flex-col items-center justify-center min-w-[56px] py-3 px-3 rounded-lg transition-colors ${
-              location.pathname === '/calendar'
-                ? 'text-primary-500 bg-primary-500/10'
-                : 'text-garage-text-muted hover:text-garage-text'
-            }`}
-          >
-            <Calendar className="w-5 h-5" />
-            <span className="text-xs mt-1">{t('calendar')}</span>
-          </Link>
-
-          <Link
-            to="/analytics"
-            className={`flex flex-col items-center justify-center min-w-[56px] py-3 px-3 rounded-lg transition-colors ${
-              location.pathname === '/analytics'
-                ? 'text-primary-500 bg-primary-500/10'
-                : 'text-garage-text-muted hover:text-garage-text'
-            }`}
-          >
-            <BarChart3 className="w-5 h-5" />
-            <span className="text-xs mt-1">{t('analytics')}</span>
-          </Link>
-
-          <Link
-            to="/settings"
-            className={`flex flex-col items-center justify-center min-w-[56px] py-3 px-3 rounded-lg transition-colors ${
-              location.pathname === '/settings'
-                ? 'text-primary-500 bg-primary-500/10'
-                : 'text-garage-text-muted hover:text-garage-text'
-            }`}
-          >
-            <Settings className="w-5 h-5" />
-            <span className="text-xs mt-1">{t('settings')}</span>
-          </Link>
-        </div>
-      </nav>
+      <MobileTabBar />
 
       {/* Footer - hidden on mobile */}
       <footer className="hidden md:block bg-garage-surface border-t border-garage-border py-4">

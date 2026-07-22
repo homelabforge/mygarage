@@ -34,12 +34,14 @@ describe('Layout supplies nav', () => {
     expect(links).toHaveLength(2)
   })
 
-  it('highlights the /supplies link as active when on that route', () => {
+  it('marks the mobile /supplies tab active on that route', () => {
     setup('/supplies')
-
-    const links = screen.getAllByRole('link', { name: 'supplies' })
-    // Mobile nav link uses the active-state classes; desktop nav has no active-state styling.
-    const activeLink = links.find(el => el.className.includes('text-primary-500'))
-    expect(activeLink).toHaveClass('text-primary-500')
+    const links = screen
+      .getAllByRole('link')
+      .filter((l) => l.getAttribute('href') === '/supplies')
+    // Only the mobile tab carries a background fill when active; the desktop
+    // inline link uses an underline span, not bg-(--accent-soft).
+    const active = links.find((el) => el.className.includes('bg-(--accent-soft)'))
+    expect(active).toHaveClass('bg-(--accent-soft)')
   })
 })
