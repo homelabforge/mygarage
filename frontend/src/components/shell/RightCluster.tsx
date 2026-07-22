@@ -10,8 +10,9 @@ import { useAuth } from '../../contexts/AuthContext'
 
 /**
  * The nav right cluster (LOCKED responsive model). Search collapses below 900px
- * (hidden nav:flex); the gear (QuickSettingsDrawer) drops on phone (hidden
- * md:inline-flex) where Settings lives in the bottom bar. The theme toggle is a
+ * (hidden nav:flex); the gear (QuickSettingsDrawer) drops on phone (max-md:hidden,
+ * visible via IconButton's base inline-flex) where Settings lives in the bottom
+ * bar. The theme toggle is a
  * standalone icon; the gear is a button that opens the quick-settings drawer
  * (I2) — there is no separate /settings link (About + full Settings live inside
  * the drawer). Auth behaviour preserved: cluster gated on authMode !== 'none'
@@ -38,7 +39,7 @@ export default function RightCluster() {
         onClick={toggleTheme}
       />
       <NotificationBell />
-      <QuickSettingsDrawer className="hidden md:inline-flex" />
+      <QuickSettingsDrawer className="max-md:hidden" />
       {authMode !== 'none' &&
         (isAuthenticated && user ? (
           <div className="flex items-center gap-2 border-l border-border pl-2">
@@ -53,7 +54,7 @@ export default function RightCluster() {
               label={t('logout')}
               variant="ghost"
               onClick={handleLogout}
-              className="hidden md:inline-flex"
+              className="max-md:hidden"
             />
           </div>
         ) : (

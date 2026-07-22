@@ -29,7 +29,9 @@ describe('TopNav', () => {
 
   it('renders the hamburger only in the tablet band', () => {
     setup()
-    expect(screen.getByRole('button', { name: 'openMenu' })).toHaveClass('hidden', 'md:max-nav:inline-flex')
+    // jsdom applies no CSS, so this only pins the class string — it cannot verify
+    // computed display. The real proof is the browser check (see task-10 fix report).
+    expect(screen.getByRole('button', { name: 'openMenu' })).toHaveClass('max-md:hidden', 'nav:hidden')
   })
 
   it('toggling the hamburger mounts and unmounts the panel', () => {

@@ -11,9 +11,11 @@ import { DESKTOP_NAV_ITEMS } from './navItems'
 /**
  * The 62px sticky top bar (prototype dc.html:38-39). One nav affordance per
  * band (LOCKED model): inline links `hidden nav:flex` (>=900); hamburger
- * `hidden md:max-nav:inline-flex` (768-899); bottom bar `md:hidden` lives in
- * MobileTabBar (<768). Owns menuOpen and renders HamburgerPanel below the bar
- * when open, so the closed DOM stays clean.
+ * `max-md:hidden nav:hidden` (768-899, visible via IconButton's base
+ * `inline-flex` — media-scoped hides win the cascade over a bare `hidden`,
+ * see IconButton); bottom bar `md:hidden` lives in MobileTabBar (<768). Owns
+ * menuOpen and renders HamburgerPanel below the bar when open, so the closed
+ * DOM stays clean.
  */
 export default function TopNav() {
   const { t } = useTranslation('nav')
@@ -36,7 +38,7 @@ export default function TopNav() {
             variant="surface"
             aria-expanded={menuOpen}
             onClick={() => setMenuOpen((v) => !v)}
-            className="hidden md:max-nav:inline-flex"
+            className="max-md:hidden nav:hidden"
           />
         </div>
       </div>
