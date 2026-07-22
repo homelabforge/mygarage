@@ -12,5 +12,8 @@
   "about": "About",
   "login": "Login",
   "logout": "Logout",
-  "admin": "ADMIN"
+  "admin": "ADMIN",
+  "search": "Search",
+  "searchShellTitle": "Search is coming soon",
+  "searchShellBody": "Global search across vehicles, service history, and VINs is on the way."
 }
