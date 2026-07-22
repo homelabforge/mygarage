@@ -11,7 +11,7 @@ export default function OfflineBanner() {
   }
 
   return (
-    <div className="bg-amber-500/90 text-white text-sm py-2 px-4 text-center">
+    <div className="bg-warning text-on-status text-sm py-2 px-4 text-center">
       <div className="flex items-center justify-center gap-2">
         <WifiOff className="w-4 h-4" />
         <span>{t('offlineBanner.message')}</span>
