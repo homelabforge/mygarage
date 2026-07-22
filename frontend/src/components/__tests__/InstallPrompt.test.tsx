@@ -31,6 +31,7 @@ describe('InstallPrompt', () => {
     await act(async () => { vi.advanceTimersByTime(3000) })
     fireEvent.click(screen.getByText('installPrompt.install').parentElement!.querySelector('button:last-child')!)
     expect(localStorage.getItem('pwa-install-dismissed')).toBe('true')
+    expect(screen.queryByText('installPrompt.install')).not.toBeInTheDocument()
     vi.useRealTimers()
   })
 })
