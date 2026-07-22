@@ -49,7 +49,12 @@ describe('RightCluster', () => {
 
   it('hides the search box below the nav breakpoint via the band class', () => {
     setup()
-    expect(screen.getByRole('button', { name: 'search' })).toHaveClass('hidden', 'nav:flex')
+    // NavSearch's button hardcodes `inline-flex`, which beats a plain `hidden` in
+    // the source-order cascade tie — so the band gate is a media-scoped `max-nav:hidden`
+    // (hide <900, visible >=900 via the base inline-flex), NOT `hidden nav:flex`.
+    // This class-string assertion cannot prove the box actually hides (jsdom has no
+    // CSS); the real proof is the Task 16 browser computed-display sweep.
+    expect(screen.getByRole('button', { name: 'search' })).toHaveClass('max-nav:hidden')
   })
 
   it('shows a login link and no avatar when signed out (auth enabled)', () => {

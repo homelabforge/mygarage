@@ -10,7 +10,7 @@ import { useAuth } from '../../contexts/AuthContext'
 
 /**
  * The nav right cluster (LOCKED responsive model). Search collapses below 900px
- * (hidden nav:flex); the gear (QuickSettingsDrawer) drops on phone (max-md:hidden,
+ * (max-nav:hidden); the gear (QuickSettingsDrawer) drops on phone (max-md:hidden,
  * visible via IconButton's base inline-flex) where Settings lives in the bottom
  * bar. The theme toggle is a
  * standalone icon; the gear is a button that opens the quick-settings drawer
@@ -31,7 +31,7 @@ export default function RightCluster() {
 
   return (
     <div className="flex items-center gap-2">
-      <NavSearch placeholder={t('search')} className="hidden nav:flex w-[150px]" />
+      <NavSearch placeholder={t('search')} className="max-nav:hidden w-[150px]" />
       <IconButton
         icon={theme === 'dark' ? Sun : Moon}
         label={t('themeToggle')}

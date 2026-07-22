@@ -13,7 +13,7 @@ interface NavSearchProps {
  * Shelled global search (D12). The prototype's nav search is display-only; ours
  * is an honest shell — a search-box-styled button (no <input>, no behaviour)
  * that opens a Drawer whose body says search is coming. Real global search is
- * §8 deferred #4. Rendered `hidden nav:flex` in the right cluster and re-shown
+ * §8 deferred #4. Rendered `max-nav:hidden` (visible >=900) in the right cluster and re-shown
  * full-width inside the hamburger panel.
  */
 export default function NavSearch({ placeholder, className = '' }: NavSearchProps) {
