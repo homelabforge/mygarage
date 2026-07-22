@@ -69,29 +69,29 @@ export default function InstallPrompt() {
   }
 
   return (
-    <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:max-w-sm z-50 animate-slide-up">
-      <div className="bg-garage-surface border border-garage-border rounded-lg shadow-2xl p-4">
+    <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:max-w-sm z-drawer animate-slide-up">
+      <div className="bg-surface border border-border rounded-lg shadow-2xl p-4">
         <div className="flex items-start gap-3">
           <div className="flex-shrink-0 mt-1">
-            <div className="w-10 h-10 bg-primary-600 rounded-lg flex items-center justify-center">
-              <Download className="w-6 h-6 text-white" />
+            <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
+              <Download className="w-6 h-6 text-(--accent-on-solid)" />
             </div>
           </div>
 
           <div className="flex-1 min-w-0">
-            <h3 className="text-sm font-semibold text-garage-text mb-1">{t('installPrompt.title')}</h3>
-            <p className="text-xs text-garage-text-muted mb-3">
+            <h3 className="text-sm font-semibold text-text mb-1">{t('installPrompt.title')}</h3>
+            <p className="text-xs text-text-mute mb-3">
               {t('installPrompt.description')}
             </p>
 
             <div className="flex gap-2">
               <button
                 onClick={handleInstallClick}
-                className="flex-1 bg-primary-600 hover:bg-primary-700 text-(--accent-on-solid) text-sm font-medium px-3 py-2 rounded-lg transition-colors duration-200"
+                className="flex-1 bg-primary hover:bg-primary/90 text-(--accent-on-solid) text-sm font-medium px-3 py-2 rounded-lg transition-colors duration-200"
               >{t('installPrompt.install')}</button>
               <button
                 onClick={handleDismiss}
-                className="px-3 py-2 text-garage-text-muted hover:text-garage-text transition-colors duration-200"
+                className="px-3 py-2 text-text-mute hover:text-text transition-colors duration-200"
               >
                 <X className="w-4 h-4" />
               </button>
