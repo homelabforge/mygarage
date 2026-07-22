@@ -1,12 +1,12 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
-import * as ThemeContext from '../../contexts/ThemeContext'
 import * as AuthContext from '../../contexts/AuthContext'
+import * as ThemeContext from '../../contexts/ThemeContext'
 import Layout from '../Layout'
 
-vi.mock('../../contexts/ThemeContext')
 vi.mock('../../contexts/AuthContext')
+vi.mock('../../contexts/ThemeContext')
 
 function setup(initialPath = '/supplies') {
   vi.spyOn(AuthContext, 'useAuth').mockReturnValue({
@@ -34,21 +34,23 @@ function setup(initialPath = '/supplies') {
 }
 
 describe('Layout supplies nav', () => {
+  // Counted by href, not accessible name: both navs now source labels from
+  // navItems.ts as `nav:supplies` (namespace-qualified for the i18n gate, G5),
+  // so the mock renders the raw key as the name. The href is stable and both
+  // links point at /supplies. The hamburger panel is closed by default, so the
+  // count stays 2 (inline TopNav link + MobileTabBar tab), not 3 — §7.2.
   it('renders both nav links to /supplies', () => {
     setup()
-    const links = screen
-      .getAllByRole('link')
-      .filter((l) => l.getAttribute('href') === '/supplies')
+    const links = screen.getAllByRole('link').filter((l) => l.getAttribute('href') === '/supplies')
     expect(links).toHaveLength(2)
   })
 
   it('marks the mobile /supplies tab active on that route', () => {
     setup('/supplies')
-    const links = screen
-      .getAllByRole('link')
-      .filter((l) => l.getAttribute('href') === '/supplies')
-    // Only the mobile tab carries a background fill when active; the desktop
-    // inline link uses an underline span, not bg-(--accent-soft).
+    const links = screen.getAllByRole('link').filter((l) => l.getAttribute('href') === '/supplies')
+    // Retokenized active class (MobileTabBar): the mobile tab carries
+    // bg-(--accent-soft); the inline desktop link uses an underline span, not a
+    // fill. This replaces the old literal text-primary-500 assertion (§7.2).
     const active = links.find((el) => el.className.includes('bg-(--accent-soft)'))
     expect(active).toHaveClass('bg-(--accent-soft)')
   })
