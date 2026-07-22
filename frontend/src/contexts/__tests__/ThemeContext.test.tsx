@@ -24,6 +24,14 @@ describe('ThemeContext', () => {
     vi.clearAllMocks()
     localStorage.clear()
     document.documentElement.classList.remove('light', 'dark')
+
+    let meta = document.querySelector('meta[name="theme-color"]')
+    if (!meta) {
+      meta = document.createElement('meta')
+      meta.setAttribute('name', 'theme-color')
+      document.head.appendChild(meta)
+    }
+    meta.setAttribute('content', '')
   })
 
   it('useTheme throws when used outside ThemeProvider', () => {
@@ -153,6 +161,25 @@ describe('ThemeContext', () => {
     await waitFor(() => {
       expect(screen.getByTestId('theme-value')).toHaveTextContent('dark')
     })
+  })
+
+  it('updates the theme-color meta to the nav colour on init and toggle', async () => {
+    mockedAxios.get.mockResolvedValueOnce({ data: { settings: [], total: 0 } })
+    mockedAxios.put.mockResolvedValueOnce({ data: {} })
+
+    render(
+      <ThemeProvider>
+        <ThemeConsumer />
+      </ThemeProvider>
+    )
+
+    const meta = () => document.querySelector('meta[name="theme-color"]')!.getAttribute('content')
+
+    await waitFor(() => expect(screen.getByTestId('theme-value')).toHaveTextContent('dark'))
+    expect(meta()).toBe('#0b0e13')
+
+    await act(async () => { screen.getByText('Toggle').click() })
+    expect(meta()).toBe('#ffffff')
   })
 
   it('does not render children until initialized', () => {

@@ -4,6 +4,14 @@ import { withBase } from '../utils/basePath';
 
 type Theme = 'light' | 'dark';
 
+/** Opaque form of --color-nav per theme (design §4.4 / §4.10). The browser
+ *  status bar wants a solid colour; jsdom cannot resolve the @theme rgba(), so
+ *  these are pinned constants matching the static index.html value (#0b0e13). */
+const NAV_THEME_COLOR: Record<Theme, string> = {
+  dark: '#0b0e13',
+  light: '#ffffff',
+};
+
 interface ThemeContextType {
   theme: Theme;
   toggleTheme: () => void;
@@ -36,6 +44,11 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
     } else {
       html.classList.add('dark');
       html.classList.remove('light');
+    }
+    // theme-color tracks the app bar (--color-nav), not the accent (§4.10).
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) {
+      meta.setAttribute('content', NAV_THEME_COLOR[newTheme]);
     }
   }, []);
 
