@@ -156,8 +156,33 @@ export default function DEFRecordForm({
   }
 
   return (
-    <FormModalWrapper title={isEdit ? t('def.editTitle') : t('def.createTitle')} onClose={onClose} width="md">
-        <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
+    <FormModalWrapper
+      title={isEdit ? t('def.editTitle') : t('def.createTitle')}
+      onClose={onClose}
+      width="md"
+      footer={
+        <>
+          <button
+            type="button"
+            onClick={onClose}
+            className="btn btn-primary rounded-lg transition-colors"
+            disabled={isSubmitting}
+          >
+            {t('common:cancel')}
+          </button>
+          <button
+            type="submit"
+            form="def-record-form"
+            disabled={isSubmitting}
+            className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Save className="w-4 h-4" />
+            <span>{isSubmitting ? t('common:saving') : isEdit ? t('common:update') : t('common:create')}</span>
+          </button>
+        </>
+      }
+    >
+        <form id="def-record-form" onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
           {error && (
             <div className="bg-danger/10 border border-danger rounded-lg p-3">
               <p className="text-sm text-danger">{error}</p>
@@ -384,26 +409,6 @@ export default function DEFRecordForm({
               disabled={isSubmitting}
             />
             <FormError error={errors.notes} />
-          </div>
-
-          <div className="flex gap-3 pt-4">
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Save className="w-4 h-4" />
-              <span>{isSubmitting ? t('common:saving') : isEdit ? t('common:update') : t('common:create')}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={onClose}
-              className="btn btn-primary rounded-lg transition-colors"
-              disabled={isSubmitting}
-            >
-              {t('common:cancel')}
-            </button>
           </div>
         </form>
     </FormModalWrapper>

@@ -314,3 +314,21 @@ describe('FuelRecordForm — station round-trip (issue #108)', () => {
     expect(putPayload().station_address_book_id).toBe(7)
   })
 })
+
+describe('FuelRecordForm — footer lift (P3 Task 4)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('submits via the footer button (form= association, outside the <form>)', async () => {
+    mockedApiGet.mockResolvedValue({ data: mockVehicle({ fuel_type: 'gasoline' }) })
+    render(<FuelRecordForm {...DEFAULT_PROPS} />)
+    await waitFor(() => expect(mockedApiGet).toHaveBeenCalled())
+
+    fireEvent.change(dateInput('date'), { target: { value: '2026-04-30' } }) // only hard-required field
+    // Create lives in the sticky footer, a sibling of the <form>, wired via form="fuel-record-form".
+    fireEvent.click(screen.getByRole('button', { name: 'common:create' }))
+
+    await waitFor(() => expect(mockedApiPost).toHaveBeenCalled())
+  })
+})
