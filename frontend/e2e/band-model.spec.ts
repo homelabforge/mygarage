@@ -133,16 +133,23 @@ test.describe('P2 motion tokens', () => {
       'zero ui-motion elements found — selector or /__ui route is broken',
     ).toBeGreaterThan(0)
 
-    const swept = await page.$$eval('[class*="ui-motion"]', (elements) =>
-      elements.map((el) => {
+    const swept = await page.$$eval('[class*="ui-motion"]', (elements) => {
+      // A multi-value transition splits on TOP-LEVEL commas only. Timing
+      // functions like `cubic-bezier(0, 0, 0.2, 1)` carry their own commas, so
+      // a naive `.split(',')` would shatter one value into "cubic-bezier(0",
+      // "0", … . Split on commas that are not inside parentheses (CSS timing
+      // functions never nest parens, so this lookahead is exact for them).
+      const splitTop = (value: string): string[] =>
+        value.split(/,(?![^(]*\))/).map((part) => part.trim())
+      return elements.map((el) => {
         const style = getComputedStyle(el)
         return {
           cls: el.getAttribute('class') ?? '',
-          durations: style.transitionDuration.split(',').map((part) => part.trim()),
-          timings: style.transitionTimingFunction.split(',').map((part) => part.trim()),
+          durations: splitTop(style.transitionDuration),
+          timings: splitTop(style.transitionTimingFunction),
         }
-      }),
-    )
+      })
+    })
 
     // Pinned tokens (index.css `--duration-fast` / `--duration-toggle` /
     // `--ease-standard`, P1 Task 26). No element's duration part may be
