@@ -14,8 +14,8 @@
 
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { X } from 'lucide-react'
 
+import { Drawer } from './ui'
 import api from '../services/api'
 import type { AddressBookEntry } from '../types/addressBook'
 
@@ -33,6 +33,8 @@ interface AddressBookQuickAddModalProps {
   poiCategory?: string
   /** Defaults to the translated generic heading when omitted. */
   title?: string
+  /** Rendered inside another open Drawer (FuelRecordForm) — see design §4.9. */
+  nested?: boolean
 }
 
 export default function AddressBookQuickAddModal({
@@ -42,6 +44,7 @@ export default function AddressBookQuickAddModal({
   initialName = '',
   poiCategory,
   title,
+  nested = false,
 }: AddressBookQuickAddModalProps) {
   const { t } = useTranslation('common')
   const [name, setName] = useState(initialName)
@@ -61,10 +64,6 @@ export default function AddressBookQuickAddModal({
       setErrorMessage(null)
     }
   }, [isOpen, initialName])
-
-  if (!isOpen) {
-    return null
-  }
 
   const trimmedName = name.trim()
   const canSubmit = trimmedName.length > 0 && !submitting
@@ -101,125 +100,108 @@ export default function AddressBookQuickAddModal({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose()
-      }}
-    >
-      <div
-        className="w-full max-w-md bg-garage-surface border border-garage-border rounded-lg shadow-xl"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="ab-quick-add-title"
-      >
-        <div className="flex items-center justify-between p-4 border-b border-garage-border">
-          <h2 id="ab-quick-add-title" className="text-lg font-semibold text-garage-text">
-            {title ?? t('addressBookQuickAdd.title')}
-          </h2>
+    <Drawer
+      open={isOpen}
+      onClose={onClose}
+      title={title ?? t('addressBookQuickAdd.title')}
+      width="sm"
+      nested={nested}
+      closeLabel={t('addressBookQuickAdd.close')}
+      footer={
+        <>
           <button
             type="button"
             onClick={onClose}
-            aria-label={t('addressBookQuickAdd.close')}
-            className="p-1 text-garage-text-muted hover:text-garage-text rounded hover:bg-garage-bg"
+            className="px-4 py-2 text-garage-text border border-garage-border rounded-md hover:bg-garage-bg cursor-pointer"
           >
-            <X className="w-5 h-5" />
+            {t('addressBookQuickAdd.cancel')}
           </button>
+          <button
+            type="submit"
+            form="ab-quick-add-form"
+            disabled={!canSubmit}
+            className="px-4 py-2 bg-primary text-(--accent-on-solid) rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+          >
+            {submitting ? t('addressBookQuickAdd.adding') : t('addressBookQuickAdd.add')}
+          </button>
+        </>
+      }
+    >
+      <form id="ab-quick-add-form" onSubmit={handleSubmit} className="space-y-3">
+        <div>
+          <label
+            htmlFor="ab-quick-name"
+            className="block text-sm font-medium text-garage-text mb-1"
+          >
+            {t('addressBookQuickAdd.name')}
+          </label>
+          <input
+            id="ab-quick-name"
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            autoFocus
+            required
+            className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-md text-garage-text focus:outline-none focus:ring-2 focus:ring-primary"
+          />
         </div>
 
-        <form onSubmit={handleSubmit} className="p-4 space-y-3">
+        <div>
+          <label
+            htmlFor="ab-quick-address"
+            className="block text-sm font-medium text-garage-text mb-1"
+          >
+            {t('addressBookQuickAdd.address')}
+          </label>
+          <input
+            id="ab-quick-address"
+            type="text"
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-md text-garage-text focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
           <div>
             <label
-              htmlFor="ab-quick-name"
+              htmlFor="ab-quick-city"
               className="block text-sm font-medium text-garage-text mb-1"
             >
-              {t('addressBookQuickAdd.name')}
+              {t('addressBookQuickAdd.city')}
             </label>
             <input
-              id="ab-quick-name"
+              id="ab-quick-city"
               type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              autoFocus
-              required
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
               className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-md text-garage-text focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
-
           <div>
             <label
-              htmlFor="ab-quick-address"
+              htmlFor="ab-quick-state"
               className="block text-sm font-medium text-garage-text mb-1"
             >
-              {t('addressBookQuickAdd.address')}
+              {t('addressBookQuickAdd.state')}
             </label>
             <input
-              id="ab-quick-address"
+              id="ab-quick-state"
               type="text"
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
+              value={state}
+              onChange={(e) => setState(e.target.value)}
+              maxLength={50}
               className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-md text-garage-text focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
+        </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label
-                htmlFor="ab-quick-city"
-                className="block text-sm font-medium text-garage-text mb-1"
-              >
-                {t('addressBookQuickAdd.city')}
-              </label>
-              <input
-                id="ab-quick-city"
-                type="text"
-                value={city}
-                onChange={(e) => setCity(e.target.value)}
-                className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-md text-garage-text focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-            </div>
-            <div>
-              <label
-                htmlFor="ab-quick-state"
-                className="block text-sm font-medium text-garage-text mb-1"
-              >
-                {t('addressBookQuickAdd.state')}
-              </label>
-              <input
-                id="ab-quick-state"
-                type="text"
-                value={state}
-                onChange={(e) => setState(e.target.value)}
-                maxLength={50}
-                className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-md text-garage-text focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-            </div>
+        {errorMessage && (
+          <div role="alert" className="text-sm text-danger-500">
+            {errorMessage}
           </div>
-
-          {errorMessage && (
-            <div role="alert" className="text-sm text-danger-500">
-              {errorMessage}
-            </div>
-          )}
-
-          <div className="flex justify-end gap-2 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-garage-text border border-garage-border rounded-md hover:bg-garage-bg"
-            >
-              {t('addressBookQuickAdd.cancel')}
-            </button>
-            <button
-              type="submit"
-              disabled={!canSubmit}
-              className="px-4 py-2 bg-primary text-(--accent-on-solid) rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {submitting ? t('addressBookQuickAdd.adding') : t('addressBookQuickAdd.add')}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        )}
+      </form>
+    </Drawer>
   )
 }

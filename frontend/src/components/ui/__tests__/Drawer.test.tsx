@@ -301,3 +301,26 @@ describe('Drawer — background inertness', () => {
     expect(root).not.toHaveAttribute('inert')
   })
 })
+
+describe('Drawer — nested overlay', () => {
+  it('renders a nested drawer at the +10 panel token', () => {
+    render(<Drawer open nested onClose={() => {}} title="Child">c</Drawer>)
+    expect(screen.getByRole('dialog', { name: 'Child' })).toHaveClass('z-drawer-nested')
+  })
+
+  it('a nested Escape closes only the nested drawer, not an open ancestor', () => {
+    const parentClose = vi.fn()
+    const childClose = vi.fn()
+    render(
+      <>
+        <Drawer open onClose={parentClose} title="Parent">p</Drawer>
+        <Drawer open nested onClose={childClose} title="Child">c</Drawer>
+      </>
+    )
+    // Dispatch from inside the child so the capture-phase listener runs first,
+    // matching a real keypress on a focused field in the child panel.
+    fireEvent.keyDown(screen.getByRole('dialog', { name: 'Child' }), { key: 'Escape' })
+    expect(childClose).toHaveBeenCalledOnce()
+    expect(parentClose).not.toHaveBeenCalled()
+  })
+})

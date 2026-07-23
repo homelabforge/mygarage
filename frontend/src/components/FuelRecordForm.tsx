@@ -1156,6 +1156,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
 
         <AddressBookQuickAddModal
           isOpen={quickAddOpen}
+          nested
           onClose={() => setQuickAddOpen(false)}
           initialName={quickAddName}
           poiCategory="gas_station"

@@ -4,6 +4,7 @@ import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Save } from 'lucide-react'
 import FormModalWrapper from './FormModalWrapper'
+import { Drawer } from './ui'
 import CurrencyInputPrefix from './common/CurrencyInputPrefix'
 import type { SpotRental, SpotRentalCreate, SpotRentalUpdate } from '../types/spotRental'
 import type { AddressBookEntry } from '../types/addressBook'
@@ -136,6 +137,15 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
       onSuccess()
       onClose()
     }
+  }
+
+  // The save already succeeded before the prompt shows; "Skip" is the No path.
+  // The nested Drawer routes its Esc / close button / backdrop click here.
+  const skipSaveToAddressBook = () => {
+    setShowSaveToAddressBook(false)
+    setPendingLocationData(null)
+    onSuccess()
+    onClose()
   }
 
   const onSubmit = async (data: SpotRentalFormData) => {
@@ -483,38 +493,38 @@ export default function SpotRentalForm({ vin, rental, onClose, onSuccess }: Spot
         </form>
     </FormModalWrapper>
 
-      {/* Save to Address Book Dialog */}
-      {showSaveToAddressBook && pendingLocationData && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60]">
-          <div className="bg-garage-surface rounded-lg shadow-xl max-w-md w-full p-6 border border-garage-border">
-            <h3 className="text-lg font-semibold text-garage-text mb-3">
-              {t('spotRental.saveToAddressBook')}
-            </h3>
-            <p className="text-sm text-garage-text-muted mb-4">
-              {t('spotRental.saveToAddressBookPrompt', { name: pendingLocationData.name })}
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={handleSaveToAddressBook}
-                className="flex-1 px-4 py-2 bg-primary text-(--accent-on-solid) rounded-lg hover:bg-primary/90 transition-colors"
-              >
-                {t('spotRental.yesSave')}
-              </button>
-              <button
-                onClick={() => {
-                  setShowSaveToAddressBook(false)
-                  setPendingLocationData(null)
-                  onSuccess()
-                  onClose()
-                }}
-                className="flex-1 px-4 py-2 bg-garage-bg border border-garage-border text-garage-text rounded-lg hover:bg-garage-bg/80 transition-colors"
-              >
-                {t('spotRental.noSkip')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Save to Address Book — nested drawer above the parent (+10). Esc /
+         close / backdrop all route to skipSaveToAddressBook (the "No" path). */}
+      <Drawer
+        open={showSaveToAddressBook && !!pendingLocationData}
+        nested
+        onClose={skipSaveToAddressBook}
+        title={t('spotRental.saveToAddressBook')}
+        width="2xs"
+        closeLabel={t('common:close')}
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={skipSaveToAddressBook}
+              className="btn btn-secondary rounded-lg cursor-pointer"
+            >
+              {t('spotRental.noSkip')}
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveToAddressBook}
+              className="btn btn-primary rounded-lg cursor-pointer"
+            >
+              {t('spotRental.yesSave')}
+            </button>
+          </>
+        }
+      >
+        <p className="text-sm text-garage-text-muted">
+          {t('spotRental.saveToAddressBookPrompt', { name: pendingLocationData?.name ?? '' })}
+        </p>
+      </Drawer>
     </>
   )
 }

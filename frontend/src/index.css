@@ -142,6 +142,8 @@
   --z-index-dropdown:         45;
   --z-index-drawer-backdrop:  55;
   --z-index-drawer:           60;
+  --z-index-drawer-nested-backdrop: 65;
+  --z-index-drawer-nested:          70;
 
   /* Motion — design §4.8. --ease-* generates ease-standard. --duration-*
      does NOT generate a named utility despite being a documented namespace

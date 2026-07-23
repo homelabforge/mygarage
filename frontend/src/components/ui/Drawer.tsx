@@ -85,6 +85,9 @@ interface DrawerProps {
   footer?: ReactNode
   /** Accessible name for the close control. Callers translate. */
   closeLabel?: string
+  /** Renders at +10 (z-drawer-nested*) and isolates Escape to this drawer so a
+   *  nested drawer's Esc does not also close its ancestor (design §4.9). */
+  nested?: boolean
   children: ReactNode
 }
 
@@ -117,6 +120,7 @@ export default function Drawer({
   width = 'md',
   footer,
   closeLabel = 'Close',
+  nested = false,
   children,
 }: DrawerProps) {
   const panelRef = useRef<HTMLDivElement>(null)
@@ -153,6 +157,7 @@ export default function Drawer({
 
     const onKey = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') {
+        if (nested) event.stopImmediatePropagation()
         onCloseRef.current()
         return
       }
@@ -170,7 +175,7 @@ export default function Drawer({
       }
     }
 
-    document.addEventListener('keydown', onKey)
+    document.addEventListener('keydown', onKey, nested)
     // Focus the first focusable node *in the body slot* — not the header's
     // Close button, which a whole-panel, document-order query would always
     // hit first, since the header renders before the body in every
@@ -186,12 +191,12 @@ export default function Drawer({
 
     return () => {
       cancelAnimationFrame(raf)
-      document.removeEventListener('keydown', onKey)
+      document.removeEventListener('keydown', onKey, nested)
       document.body.style.overflow = previousOverflow
       releaseBackgroundInert()
       restoreRef.current?.focus()
     }
-  }, [open])
+  }, [open, nested])
 
   // Closing-transition mount lifecycle — deliberately a separate effect from
   // the one above, so that effect's [open]-only dependency (load-bearing,
@@ -254,12 +259,15 @@ export default function Drawer({
 
   if (!rendered) return null
 
+  const backdropZ = nested ? 'z-drawer-nested-backdrop' : 'z-drawer-backdrop'
+  const panelZ = nested ? 'z-drawer-nested' : 'z-drawer'
+
   return createPortal(
     <>
       <div
         data-testid="drawer-backdrop"
         onClick={onClose}
-        className={`fixed inset-0 z-drawer-backdrop bg-black/50 transition-opacity duration-(--duration-fast) ease-standard motion-reduce:transition-none ${
+        className={`fixed inset-0 ${backdropZ} bg-black/50 transition-opacity duration-(--duration-fast) ease-standard motion-reduce:transition-none ${
           entered ? 'opacity-100' : 'opacity-0'
         }`}
         aria-hidden="true"
@@ -271,7 +279,7 @@ export default function Drawer({
         aria-label={title}
         data-testid="drawer"
         tabIndex={-1}
-        className={`fixed right-0 top-0 z-drawer flex h-full flex-col border-l border-border bg-surface shadow-drawer transition-transform duration-(--duration-drawer) ease-standard motion-reduce:transition-none ${
+        className={`fixed right-0 top-0 ${panelZ} flex h-full flex-col border-l border-border bg-surface shadow-drawer transition-transform duration-(--duration-drawer) ease-standard motion-reduce:transition-none ${
           entered ? 'translate-x-0' : 'translate-x-full'
         } ${WIDTH[width]}`}
       >
