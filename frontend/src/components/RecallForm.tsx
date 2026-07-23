@@ -79,8 +79,33 @@ export default function RecallForm({ vin, recall, onClose, onSuccess }: RecallFo
   }
 
   return (
-    <FormModalWrapper title={isEdit ? t('recall.editTitle') : t('recall.createTitle')} onClose={onClose} width="md">
-        <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
+    <FormModalWrapper
+      title={isEdit ? t('recall.editTitle') : t('recall.createTitle')}
+      onClose={onClose}
+      width="md"
+      footer={
+        <>
+          <button
+            type="button"
+            onClick={onClose}
+            className="btn btn-primary rounded-lg transition-colors"
+            disabled={isSubmitting}
+          >
+            {t('recallForm.cancel')}
+          </button>
+          <button
+            type="submit"
+            form="recall-form"
+            className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors disabled:opacity-50"
+            disabled={isSubmitting}
+          >
+            <Save className="w-4 h-4" />
+            {isSubmitting ? t('common:saving') : isEdit ? t('recall.updateRecall') : t('recall.addRecall')}
+          </button>
+        </>
+      }
+    >
+        <form id="recall-form" onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
           {error && (
             <div className="bg-danger/10 border border-danger rounded-lg p-3">
               <p className="text-sm text-danger">{error}</p>
@@ -220,24 +245,6 @@ export default function RecallForm({ vin, recall, onClose, onSuccess }: RecallFo
             </label>
           </div>
 
-          <div className="flex justify-end gap-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="btn btn-primary rounded-lg transition-colors"
-              disabled={isSubmitting}
-            >
-              {t('recallForm.cancel')}
-            </button>
-            <button
-              type="submit"
-              className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors disabled:opacity-50"
-              disabled={isSubmitting}
-            >
-              <Save className="w-4 h-4" />
-              {isSubmitting ? t('common:saving') : isEdit ? t('recall.updateRecall') : t('recall.addRecall')}
-            </button>
-          </div>
         </form>
     </FormModalWrapper>
   )

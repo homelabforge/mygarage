@@ -411,8 +411,33 @@ export default function ServiceVisitForm({
   }
 
   return (
-    <FormModalWrapper title={isEdit ? t('service.editTitle') : t('service.createTitle')} onClose={onClose} width="lg">
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+    <FormModalWrapper
+      title={isEdit ? t('service.editTitle') : t('service.createTitle')}
+      onClose={onClose}
+      width="lg"
+      footer={
+        <>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={submitting}
+            className="btn btn-primary rounded-lg transition-colors"
+          >
+            {t('common:cancel')}
+          </button>
+          <button
+            type="submit"
+            form="service-visit-form"
+            disabled={submitting || (isEdit && !editHydrated)}
+            className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Save className="w-4 h-4" />
+            <span>{submitting ? t('common:saving') : isEdit ? t('common:update') : t('common:create')}</span>
+          </button>
+        </>
+      }
+    >
+        <form id="service-visit-form" onSubmit={handleSubmit} className="p-6 space-y-6">
           {error && (
             <div className="bg-danger/10 border border-danger rounded-lg p-3 flex items-center gap-2">
               <AlertTriangle className="w-5 h-5 text-danger" />
@@ -664,27 +689,6 @@ export default function ServiceVisitForm({
               />
             </div>
           )}
-
-          {/* Actions */}
-          <div className="flex gap-3 pt-4">
-            <button
-              type="submit"
-              disabled={submitting || (isEdit && !editHydrated)}
-              className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Save className="w-4 h-4" />
-              <span>{submitting ? t('common:saving') : isEdit ? t('common:update') : t('common:create')}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={submitting}
-              className="btn btn-primary rounded-lg transition-colors"
-            >
-              {t('common:cancel')}
-            </button>
-          </div>
 
           {isEdit && !editHydrated && (
             <p className="text-sm text-garage-text-muted">

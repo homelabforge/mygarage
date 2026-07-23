@@ -323,3 +323,23 @@ describe('ServiceVisitForm — supplies used (Task 17)', () => {
     })
   })
 })
+
+describe('ServiceVisitForm — footer lift (P3 Task 5)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(useSupplies).mockReturnValue({
+      data: { supplies: [MOCK_SUPPLY], total: 1 },
+      isSuccess: true,
+      isLoading: false,
+      isError: false,
+    } as unknown as ReturnType<typeof useSupplies>)
+  })
+
+  it('submits via the footer button (form= association, outside the <form>)', async () => {
+    render(<ServiceVisitForm {...DEFAULT_PROPS} />)
+    fillRequiredDescription()
+    // Create lives in the sticky footer, a sibling of the <form>, wired via form="service-visit-form".
+    fireEvent.click(screen.getByRole('button', { name: 'common:create' }))
+    await waitFor(() => expect(mockedApiPost).toHaveBeenCalled())
+  })
+})
