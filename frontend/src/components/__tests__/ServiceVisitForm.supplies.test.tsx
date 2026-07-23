@@ -7,6 +7,9 @@ import { displayToCanonical, canonicalToDisplay } from '../../utils/supplyUnits'
 import type { Supply } from '../../types/supplies'
 import type { ServiceVisit } from '../../types/serviceVisit'
 
+const drawerForm = (): HTMLFormElement =>
+  screen.getByRole('dialog').querySelector('form') as HTMLFormElement
+
 const mockedApiGet = vi.fn().mockResolvedValue({ data: { items: [] } })
 const mockedApiPost = vi.fn().mockResolvedValue({ data: {} })
 const mockedApiPut = vi.fn().mockResolvedValue({ data: {} })
@@ -102,7 +105,7 @@ describe('ServiceVisitForm — supplies used (Task 17)', () => {
   })
 
   it('adds a supply to a line item, sends a CANONICAL quantity on create, and shows the breakdown line', async () => {
-    const { container } = render(<ServiceVisitForm {...DEFAULT_PROPS} />)
+    render(<ServiceVisitForm {...DEFAULT_PROPS} />)
 
     fillRequiredDescription()
 
@@ -120,7 +123,7 @@ describe('ServiceVisitForm — supplies used (Task 17)', () => {
     const partsSuppliesRow = screen.getByText('service.partsSupplies:').closest('div')
     expect(partsSuppliesRow).toHaveTextContent(`$${expectedPartsSuppliesCost}`)
 
-    fireEvent.submit(container.querySelector('form') as HTMLFormElement)
+    fireEvent.submit(drawerForm())
 
     await waitFor(() => expect(mockedApiPost).toHaveBeenCalled())
     const body = mockedApiPost.mock.calls.at(-1)?.[1] as {
@@ -135,7 +138,7 @@ describe('ServiceVisitForm — supplies used (Task 17)', () => {
   })
 
   it('removes a supply usage row and sends an empty supplies_used array', async () => {
-    const { container } = render(<ServiceVisitForm {...DEFAULT_PROPS} />)
+    render(<ServiceVisitForm {...DEFAULT_PROPS} />)
 
     fillRequiredDescription()
     fireEvent.click(screen.getByRole('button', { name: /suppliesAddRow/ }))
@@ -145,7 +148,7 @@ describe('ServiceVisitForm — supplies used (Task 17)', () => {
     expect(screen.queryByRole('spinbutton', { name: 'service.suppliesQuantity' })).not.toBeInTheDocument()
     expect(screen.queryByText('service.partsSupplies:')).not.toBeInTheDocument()
 
-    fireEvent.submit(container.querySelector('form') as HTMLFormElement)
+    fireEvent.submit(drawerForm())
 
     await waitFor(() => expect(mockedApiPost).toHaveBeenCalled())
     const body = mockedApiPost.mock.calls.at(-1)?.[1] as {
@@ -222,7 +225,7 @@ describe('ServiceVisitForm — supplies used (Task 17)', () => {
     })
 
     it('resends the hydrated supplies_used (converted back to canonical) even when nothing else was touched — proves editing does not wipe usages', async () => {
-      const { container } = render(<ServiceVisitForm {...DEFAULT_PROPS} visit={MOCK_VISIT} />)
+      render(<ServiceVisitForm {...DEFAULT_PROPS} visit={MOCK_VISIT} />)
 
       // Wait for hydration before submitting, otherwise the still-empty [] would
       // race the effect and falsely appear to "work".
@@ -230,7 +233,7 @@ describe('ServiceVisitForm — supplies used (Task 17)', () => {
         expect(screen.getByRole('spinbutton', { name: 'service.suppliesQuantity' })).toBeInTheDocument()
       })
 
-      fireEvent.submit(container.querySelector('form') as HTMLFormElement)
+      fireEvent.submit(drawerForm())
 
       await waitFor(() => expect(mockedApiPut).toHaveBeenCalled())
       const body = mockedApiPut.mock.calls.at(-1)?.[1] as {
@@ -303,13 +306,13 @@ describe('ServiceVisitForm — supplies used (Task 17)', () => {
         ],
       }
 
-      const { container } = render(<ServiceVisitForm {...DEFAULT_PROPS} visit={visit} />)
+      render(<ServiceVisitForm {...DEFAULT_PROPS} visit={visit} />)
       await waitFor(() => {
         expect(
           screen.getByRole('spinbutton', { name: 'service.suppliesQuantity' }),
         ).toBeInTheDocument()
       })
-      fireEvent.submit(container.querySelector('form') as HTMLFormElement)
+      fireEvent.submit(drawerForm())
 
       await waitFor(() => expect(mockedApiPut).toHaveBeenCalled())
       const body = mockedApiPut.mock.calls.at(-1)?.[1] as {

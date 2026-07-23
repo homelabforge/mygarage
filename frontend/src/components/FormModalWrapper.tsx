@@ -1,57 +1,51 @@
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { X } from 'lucide-react'
+import { Drawer } from './ui'
+import type { DrawerWidth } from './ui'
+import type { IconType } from './ui/types'
 
 interface FormModalWrapperProps {
   title: string
   onClose: () => void
-  children: React.ReactNode
-  maxWidth?: string
-  icon?: React.ReactNode
-  footer?: React.ReactNode
+  children: ReactNode
+  /** Content-complexity width (design §5.3), not a Tailwind max-w class. */
+  width?: DrawerWidth
+  /** lucide component, rendered aria-hidden by the Drawer header. */
+  icon?: IconType
+  footer?: ReactNode
+  /** Optional controlled mount; conditionally-mounted callers omit it. */
   isOpen?: boolean
-  zIndex?: string
 }
 
+/**
+ * Thin adapter: every create/edit modal renders through here, so re-chroming
+ * this one file turns all 19 importers into P1 <Drawer>s at once (design §4.6).
+ * The old centered `fixed inset-0` box, `maxWidth` Tailwind class, and `z-50`
+ * default are gone — the Drawer owns the portal, focus trap, Esc, scroll lock,
+ * inertness (Task 1), the 55/60 z ladder, and the slide. closeLabel is passed
+ * so the close control keeps its translated accessible name (G8).
+ */
 export default function FormModalWrapper({
   title,
   onClose,
   children,
-  maxWidth = 'max-w-2xl',
+  width = 'md',
   icon,
   footer,
   isOpen,
-  zIndex = 'z-50',
-}: FormModalWrapperProps): React.ReactElement | null {
+}: FormModalWrapperProps) {
   const { t } = useTranslation('forms')
-  if (isOpen !== undefined && !isOpen) return null
-
   return (
-    <div className={`fixed inset-0 modal-overlay flex items-center justify-center p-4 ${zIndex}`} onClick={onClose}>
-      <div className={`bg-garage-surface rounded-lg shadow-2xl ${maxWidth} w-full max-h-[90vh] flex flex-col border border-garage-border`} onClick={(e) => e.stopPropagation()}>
-        <div className="sticky top-0 bg-garage-surface border-b border-garage-border px-6 py-4 flex justify-between items-center rounded-t-lg">
-          <div className="flex items-center gap-2">
-            {icon}
-            <h2 className="text-xl font-semibold text-garage-text">
-              {title}
-            </h2>
-          </div>
-          <button
-            onClick={onClose}
-            className="text-garage-text-muted hover:text-garage-text"
-            aria-label={t('common:close')}
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-        <div className="overflow-y-auto flex-1">
-          {children}
-        </div>
-        {footer && (
-          <div className="sticky bottom-0 bg-garage-surface border-t border-garage-border px-6 py-4 rounded-b-lg">
-            {footer}
-          </div>
-        )}
-      </div>
-    </div>
+    <Drawer
+      open={isOpen ?? true}
+      onClose={onClose}
+      title={title}
+      icon={icon}
+      width={width}
+      footer={footer}
+      closeLabel={t('common:close')}
+    >
+      {children}
+    </Drawer>
   )
 }

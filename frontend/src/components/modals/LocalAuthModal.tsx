@@ -146,8 +146,8 @@ export default function LocalAuthModal({
       title={t('modal.localAuth.title')}
       onClose={handleClose}
       isOpen={isOpen}
-      maxWidth="max-w-lg"
-      icon={<Shield className="w-6 h-6 text-primary" />}
+      width="md"
+      icon={Shield}
       footer={
         <div className="flex justify-end">
           <button

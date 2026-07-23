@@ -73,7 +73,7 @@ export default function TaxRecordForm({ vin, record, onClose, onSuccess }: TaxRe
   })
 
   return (
-    <FormModalWrapper title={isEdit ? t('tax.editTitle') : t('tax.createTitle')} onClose={onClose}>
+    <FormModalWrapper title={isEdit ? t('tax.editTitle') : t('tax.createTitle')} onClose={onClose} width="sm">
         <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
           {error && (
             <div className="bg-danger/10 border border-danger rounded-lg p-3">

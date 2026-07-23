@@ -103,21 +103,22 @@ afterEach(() => {
 
 describe('SupplyHistoryModal', () => {
   it('renders the ledger entries from useSupplyHistory with dates and running balances', () => {
-    const { container } = render(<SupplyHistoryModal supply={mockSupply} onClose={vi.fn()} />)
+    render(<SupplyHistoryModal supply={mockSupply} onClose={vi.fn()} />)
+    const dialogText = screen.getByRole('dialog').textContent ?? ''
 
     // Purchase entry: date, signed quantity, running balance.
-    expect(container.textContent).toContain('Jan 5, 2026')
-    expect(container.textContent).toContain('+5.00 L')
+    expect(dialogText).toContain('Jan 5, 2026')
+    expect(dialogText).toContain('+5.00 L')
 
     // Job-tied usage entry: date, signed (negative) quantity, running balance.
-    expect(container.textContent).toContain('Jan 10, 2026')
-    expect(container.textContent).toContain('-1.00 L')
-    expect(container.textContent).toContain('4.00 L')
+    expect(dialogText).toContain('Jan 10, 2026')
+    expect(dialogText).toContain('-1.00 L')
+    expect(dialogText).toContain('4.00 L')
 
     // Standalone adjustment entry: date, signed quantity, running balance.
-    expect(container.textContent).toContain('Jan 12, 2026')
-    expect(container.textContent).toContain('-0.50 L')
-    expect(container.textContent).toContain('3.50 L')
+    expect(dialogText).toContain('Jan 12, 2026')
+    expect(dialogText).toContain('-0.50 L')
+    expect(dialogText).toContain('3.50 L')
   })
 
   it('labels a job-tied usage as a job and a standalone usage as an adjustment', () => {

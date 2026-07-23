@@ -139,7 +139,7 @@ export default function ReminderForm({ vin, reminder, currentMileage, onClose, o
     <FormModalWrapper
       title={isEdit ? t('reminder.editTitle') : t('reminder.createTitle')}
       onClose={onClose}
-      maxWidth="max-w-lg"
+      width="sm"
     >
       <form onSubmit={handleSubmit} className="p-6 space-y-4">
         {error && (

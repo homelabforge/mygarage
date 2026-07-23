@@ -76,7 +76,7 @@ export default function TollTagForm({ vin, tag, onClose, onSuccess }: TollTagFor
   }
 
   return (
-    <FormModalWrapper title={isEdit ? t('toll.editTagTitle') : t('toll.createTagTitle')} onClose={onClose}>
+    <FormModalWrapper title={isEdit ? t('toll.editTagTitle') : t('toll.createTagTitle')} onClose={onClose} width="sm">
         <form onSubmit={handleSubmit(onSubmit as Parameters<typeof handleSubmit>[0])} className="p-6 space-y-4">
           {error && (
             <div className="bg-danger/10 border border-danger rounded-lg p-3">

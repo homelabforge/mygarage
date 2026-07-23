@@ -196,7 +196,7 @@ export default function PropaneRecordForm({
   }
 
   return (
-    <FormModalWrapper title={isEdit ? t('propane.editTitle') : t('propane.createTitle')} onClose={onClose} maxWidth="max-w-lg">
+    <FormModalWrapper title={isEdit ? t('propane.editTitle') : t('propane.createTitle')} onClose={onClose} width="md">
         <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
           {error && (
             <div className="bg-danger/10 border border-danger rounded-lg p-3">

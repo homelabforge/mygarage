@@ -156,7 +156,7 @@ export default function DEFRecordForm({
   }
 
   return (
-    <FormModalWrapper title={isEdit ? t('def.editTitle') : t('def.createTitle')} onClose={onClose} maxWidth="max-w-lg">
+    <FormModalWrapper title={isEdit ? t('def.editTitle') : t('def.createTitle')} onClose={onClose} width="md">
         <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
           {error && (
             <div className="bg-danger/10 border border-danger rounded-lg p-3">

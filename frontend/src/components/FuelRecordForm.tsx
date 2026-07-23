@@ -469,7 +469,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
   const priceLabel = isElectric ? t('fuel.pricePerKwh') : `${t('fuel.pricePer')} ${UnitFormatter.getVolumeUnit(system)}`
 
   return (
-    <FormModalWrapper title={isEdit ? t('fuel.editTitle') : t('fuel.createTitle')} onClose={onClose}>
+    <FormModalWrapper title={isEdit ? t('fuel.editTitle') : t('fuel.createTitle')} onClose={onClose} width="lg">
         <form onSubmit={handleSubmit(onSubmit, (validationErrors) => {
           const fields = Object.keys(validationErrors).join(', ')
           setError(t('common:checkFields', { fields }))

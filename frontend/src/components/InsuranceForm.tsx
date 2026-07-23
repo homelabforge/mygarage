@@ -101,7 +101,7 @@ export default function InsuranceForm({ vin, record, onClose, onSuccess }: Insur
 
   return (
     <>
-    <FormModalWrapper title={isEdit ? t('insurance.editTitle') : t('insurance.createTitle')} onClose={onClose}>
+    <FormModalWrapper title={isEdit ? t('insurance.editTitle') : t('insurance.createTitle')} onClose={onClose} width="md">
         <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
 
           {/* PDF Import Button - Only show on create */}

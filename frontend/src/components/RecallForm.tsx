@@ -79,7 +79,7 @@ export default function RecallForm({ vin, recall, onClose, onSuccess }: RecallFo
   }
 
   return (
-    <FormModalWrapper title={isEdit ? t('recall.editTitle') : t('recall.createTitle')} onClose={onClose} maxWidth="max-w-3xl">
+    <FormModalWrapper title={isEdit ? t('recall.editTitle') : t('recall.createTitle')} onClose={onClose} width="md">
         <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
           {error && (
             <div className="bg-danger/10 border border-danger rounded-lg p-3">

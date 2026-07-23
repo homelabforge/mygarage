@@ -304,6 +304,7 @@ export function SupplyForm({ supply, onClose, onSuccess }: SupplyFormProps) {
     <FormModalWrapper
       title={isEdit ? t('supplies.editSupply') : t('supplies.addSupply')}
       onClose={onClose}
+      width="md"
     >
       <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
           {error && (

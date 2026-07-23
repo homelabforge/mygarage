@@ -73,7 +73,7 @@ export default function TollTransactionForm({ vin, tollTags, transaction, onClos
   const activeTollTags = tollTags.filter(tag => tag.status === 'active')
 
   return (
-    <FormModalWrapper title={isEdit ? t('toll.editTransactionTitle') : t('toll.createTransactionTitle')} onClose={onClose}>
+    <FormModalWrapper title={isEdit ? t('toll.editTransactionTitle') : t('toll.createTransactionTitle')} onClose={onClose} width="sm">
         <form onSubmit={handleSubmit(onSubmit as Parameters<typeof handleSubmit>[0])} className="p-6 space-y-4">
           {error && (
             <div className="bg-danger/10 border border-danger rounded-lg p-3">

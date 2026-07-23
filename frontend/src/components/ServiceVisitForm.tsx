@@ -411,7 +411,7 @@ export default function ServiceVisitForm({
   }
 
   return (
-    <FormModalWrapper title={isEdit ? t('service.editTitle') : t('service.createTitle')} onClose={onClose} maxWidth="max-w-full sm:max-w-3xl">
+    <FormModalWrapper title={isEdit ? t('service.editTitle') : t('service.createTitle')} onClose={onClose} width="lg">
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
           {error && (
             <div className="bg-danger/10 border border-danger rounded-lg p-3 flex items-center gap-2">

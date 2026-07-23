@@ -115,7 +115,8 @@ export default function OIDCModal({
       title={t('modal.oidcAuth')}
       onClose={handleClose}
       isOpen={isOpen}
-      icon={<Shield className="w-6 h-6 text-primary" />}
+      width="md"
+      icon={Shield}
       footer={
         <div className="flex justify-end">
           <button

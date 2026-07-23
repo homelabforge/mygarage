@@ -77,7 +77,7 @@ export default function WarrantyForm({ vin, record, onClose, onSuccess }: Warran
   })
 
   return (
-    <FormModalWrapper title={isEdit ? t('warranty.editTitle') : t('warranty.createTitle')} onClose={onClose}>
+    <FormModalWrapper title={isEdit ? t('warranty.editTitle') : t('warranty.createTitle')} onClose={onClose} width="md">
         <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
           {error && (
             <div className="bg-danger/10 border border-danger rounded-lg p-3">

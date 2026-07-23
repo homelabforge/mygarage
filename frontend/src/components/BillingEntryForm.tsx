@@ -118,7 +118,7 @@ export default function BillingEntryForm({
   }
 
   return (
-    <FormModalWrapper title={isEdit ? t('billing.editTitle') : t('billing.createTitle')} onClose={onClose}>
+    <FormModalWrapper title={isEdit ? t('billing.editTitle') : t('billing.createTitle')} onClose={onClose} width="md">
         <form onSubmit={handleSubmit(onSubmit as Parameters<typeof handleSubmit>[0])} className="p-6 space-y-6">
           {error && (
             <div className="bg-danger/10 border border-danger rounded-lg p-3">

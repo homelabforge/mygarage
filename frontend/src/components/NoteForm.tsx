@@ -62,7 +62,7 @@ export default function NoteForm({ vin, note, onClose, onSuccess }: NoteFormProp
   const title = watch('title', '')
 
   return (
-    <FormModalWrapper title={isEdit ? t('note.editTitle') : t('note.createTitle')} onClose={onClose}>
+    <FormModalWrapper title={isEdit ? t('note.editTitle') : t('note.createTitle')} onClose={onClose} width="sm">
         <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
           {error && (
             <div className="bg-danger/10 border border-danger rounded-lg p-3">

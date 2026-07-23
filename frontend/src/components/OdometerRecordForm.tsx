@@ -70,7 +70,7 @@ export default function OdometerRecordForm({ vin, record, onClose, onSuccess }: 
   })
 
   return (
-    <FormModalWrapper title={isEdit ? t('odometer.editTitle') : t('odometer.createTitle')} onClose={onClose} maxWidth="max-w-lg">
+    <FormModalWrapper title={isEdit ? t('odometer.editTitle') : t('odometer.createTitle')} onClose={onClose} width="sm">
         <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
           {error && (
             <div className="bg-danger/10 border border-danger rounded-lg p-3">

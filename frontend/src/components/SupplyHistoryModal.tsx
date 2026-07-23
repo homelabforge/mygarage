@@ -79,8 +79,8 @@ export default function SupplyHistoryModal({ supply, onClose }: SupplyHistoryMod
     <FormModalWrapper
       title={t('supplies.history.title', { name: supply.name })}
       onClose={onClose}
-      maxWidth="max-w-3xl"
-      icon={<History className="w-5 h-5 text-garage-text-muted" />}
+      width="lg"
+      icon={History}
     >
       <div className="p-6 space-y-6">
         <div className="grid grid-cols-2 gap-4">
