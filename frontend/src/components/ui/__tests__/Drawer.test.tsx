@@ -252,3 +252,52 @@ describe('Drawer', () => {
     expect(screen.getByTestId('drawer')).toBeInTheDocument()
   })
 })
+
+describe('Drawer — background inertness', () => {
+  function withRoot(): HTMLElement {
+    let root = document.getElementById('root')
+    if (!root) {
+      root = document.createElement('div')
+      root.id = 'root'
+      document.body.appendChild(root)
+    }
+    root.removeAttribute('inert')
+    root.removeAttribute('aria-hidden')
+    return root
+  }
+
+  it('marks #root inert + aria-hidden while open and clears both on close', () => {
+    const root = withRoot()
+    const { rerender } = render(<Drawer open onClose={() => {}} title="A">body</Drawer>)
+    expect(root).toHaveAttribute('inert')
+    expect(root).toHaveAttribute('aria-hidden', 'true')
+    rerender(<Drawer open={false} onClose={() => {}} title="A">body</Drawer>)
+    expect(root).not.toHaveAttribute('inert')
+    expect(root).not.toHaveAttribute('aria-hidden')
+  })
+
+  it('clears inertness only when the LAST of two stacked drawers closes', () => {
+    const root = withRoot()
+    const { rerender } = render(
+      <>
+        <Drawer open onClose={() => {}} title="A">a</Drawer>
+        <Drawer open onClose={() => {}} title="B">b</Drawer>
+      </>
+    )
+    expect(root).toHaveAttribute('inert')
+    rerender(
+      <>
+        <Drawer open onClose={() => {}} title="A">a</Drawer>
+        <Drawer open={false} onClose={() => {}} title="B">b</Drawer>
+      </>
+    )
+    expect(root).toHaveAttribute('inert') // one still open
+    rerender(
+      <>
+        <Drawer open={false} onClose={() => {}} title="A">a</Drawer>
+        <Drawer open={false} onClose={() => {}} title="B">b</Drawer>
+      </>
+    )
+    expect(root).not.toHaveAttribute('inert')
+  })
+})

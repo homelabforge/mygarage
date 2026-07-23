@@ -33,6 +33,32 @@ const TAB_TRAP_SELECTOR = `${FOCUSABLE_SELECTOR}, [tabindex]:not([tabindex="-1"]
  *  races a `transitionend` that is genuinely still in flight. */
 const TRANSITION_FALLBACK_BUFFER_MS = 50
 
+/** Background inertness (design §4.6, deferred from P1). Ref-counted so the app
+ *  root stays inert while ANY drawer — including a nested stack — is open, and
+ *  clears only when the last one closes. Portalled drawers live in <body>,
+ *  siblings of #root, so #root going inert never disables the drawer itself. */
+let openDrawerCount = 0
+function acquireBackgroundInert(): void {
+  openDrawerCount += 1
+  if (openDrawerCount === 1) {
+    const root = document.getElementById('root')
+    if (root) {
+      root.setAttribute('inert', '')
+      root.setAttribute('aria-hidden', 'true')
+    }
+  }
+}
+function releaseBackgroundInert(): void {
+  openDrawerCount = Math.max(0, openDrawerCount - 1)
+  if (openDrawerCount === 0) {
+    const root = document.getElementById('root')
+    if (root) {
+      root.removeAttribute('inert')
+      root.removeAttribute('aria-hidden')
+    }
+  }
+}
+
 /**
  * Reads the panel's own computed `transition-duration` — which is owned by
  * the `--duration-drawer` token, see index.css — instead of hard-coding a
@@ -80,7 +106,8 @@ interface DrawerProps {
  * Motion is §4.8's: a .2s ease-out slide on the panel and a .15s fade on the
  * backdrop, both consuming the Task 1 duration tokens. Body scroll is locked
  * while open (§4.6). Background *inertness* — inert/aria-hidden on the app
- * root — is deferred to P3 with the conversions; see plan §13.
+ * root — is ref-counted below so a stacked (nested) drawer only clears it
+ * once the last one closes; see plan §13.
  */
 export default function Drawer({
   open,
@@ -122,6 +149,7 @@ export default function Drawer({
     // Scroll lock (§4.6). Restored on close, including on unmount.
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
+    acquireBackgroundInert()
 
     const onKey = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') {
@@ -160,6 +188,7 @@ export default function Drawer({
       cancelAnimationFrame(raf)
       document.removeEventListener('keydown', onKey)
       document.body.style.overflow = previousOverflow
+      releaseBackgroundInert()
       restoreRef.current?.focus()
     }
   }, [open])
