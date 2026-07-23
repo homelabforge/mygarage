@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { X, Copy, AlertTriangle, Check, Car } from 'lucide-react'
+import { Copy, AlertTriangle, Check, Car } from 'lucide-react'
+import { Drawer } from '@/components/ui'
 import { useCreateWidgetKey } from '@/hooks/queries/useWidgetKeys'
 import { vehicleService } from '@/services/vehicleService'
 import { useQuery } from '@tanstack/react-query'
@@ -82,184 +83,176 @@ export default function CreateWidgetKeyModal({ isOpen, onClose }: Props) {
     (scope === 'selected_vins' && selectedVins.length === 0)
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="w-full max-w-xl rounded-lg bg-garage-surface border border-garage-border shadow-xl">
-        <div className="flex items-center justify-between border-b border-garage-border px-6 py-4">
-          <h2 className="text-lg font-semibold text-garage-text">
-            {revealed ? t('widgetKeys.createdTitle') : t('widgetKeys.createTitle')}
-          </h2>
+    <Drawer
+      open
+      onClose={close}
+      title={revealed ? t('widgetKeys.createdTitle') : t('widgetKeys.createTitle')}
+      width="md"
+      closeLabel={t('common:close')}
+      footer={
+        revealed ? (
           <button
             type="button"
             onClick={close}
-            className="rounded-lg p-1 text-garage-text-muted hover:bg-garage-bg"
-            aria-label={t('common:close')}
+            className="btn btn-secondary rounded-lg px-4 py-2 text-sm font-medium cursor-pointer"
           >
-            <X className="h-5 w-5" />
+            {t('widgetKeys.done')}
           </button>
-        </div>
-
-        {revealed ? (
-          <div className="space-y-4 p-6">
-            <div className="flex items-start gap-3 rounded-lg border border-danger-500/40 bg-danger-500/10 p-4">
-              <AlertTriangle className="h-5 w-5 flex-shrink-0 text-danger-500" />
-              <div className="text-sm text-danger-500">
-                <p className="font-semibold">{t('widgetKeys.revealWarningLabel')}</p>
-                <p className="mt-1">{t('widgetKeys.revealWarningDesc')}</p>
-              </div>
-            </div>
-
-            <label className="block text-sm font-medium text-garage-text">
-              {t('widgetKeys.secretLabel')}
-            </label>
-            <div className="flex items-center gap-2">
-              <code className="flex-1 overflow-x-auto rounded-lg border border-garage-border bg-garage-bg px-3 py-2 text-sm text-garage-text">
-                {revealed.secret}
-              </code>
-              <button
-                type="button"
-                onClick={copySecret}
-                className="btn btn-primary inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium"
-              >
-                {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                {copied ? t('widgetKeys.copied') : t('widgetKeys.copy')}
-              </button>
-            </div>
-
-            <div className="flex justify-end pt-2">
-              <button
-                type="button"
-                onClick={close}
-                className="btn btn-secondary rounded-lg px-4 py-2 text-sm font-medium"
-              >
-                {t('widgetKeys.done')}
-              </button>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={close}
+              className="btn btn-secondary rounded-lg px-4 py-2 text-sm font-medium cursor-pointer"
+            >
+              {t('common:cancel')}
+            </button>
+            <button
+              type="submit"
+              form="create-widget-key-form"
+              disabled={submitDisabled}
+              className="btn btn-primary rounded-lg px-4 py-2 text-sm font-medium cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {createMutation.isPending ? t('widgetKeys.creating') : t('widgetKeys.submit')}
+            </button>
+          </>
+        )
+      }
+    >
+      {revealed ? (
+        <div className="space-y-4">
+          <div className="flex items-start gap-3 rounded-lg border border-danger-500/40 bg-danger-500/10 p-4">
+            <AlertTriangle className="h-5 w-5 flex-shrink-0 text-danger-500" />
+            <div className="text-sm text-danger-500">
+              <p className="font-semibold">{t('widgetKeys.revealWarningLabel')}</p>
+              <p className="mt-1">{t('widgetKeys.revealWarningDesc')}</p>
             </div>
           </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-4 p-6">
-            <div>
-              <label className="block text-sm font-medium text-garage-text">
-                {t('widgetKeys.nameLabel')}
-              </label>
+
+          <label className="block text-sm font-medium text-garage-text">
+            {t('widgetKeys.secretLabel')}
+          </label>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 overflow-x-auto rounded-lg border border-garage-border bg-garage-bg px-3 py-2 text-sm text-garage-text">
+              {revealed.secret}
+            </code>
+            <button
+              type="button"
+              onClick={copySecret}
+              className="btn btn-primary inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium cursor-pointer"
+            >
+              {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+              {copied ? t('widgetKeys.copied') : t('widgetKeys.copy')}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <form id="create-widget-key-form" onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-garage-text">
+              {t('widgetKeys.nameLabel')}
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              maxLength={100}
+              placeholder={t('widgetKeys.namePlaceholder')}
+              className="mt-1 w-full rounded-lg border border-garage-border bg-garage-surface px-3 py-2 text-sm text-garage-text placeholder-garage-text-muted focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
+            <p className="mt-1 text-xs text-garage-text-muted">
+              {t('widgetKeys.nameHelp')}
+            </p>
+          </div>
+
+          <fieldset className="space-y-2">
+            <legend className="text-sm font-medium text-garage-text">
+              {t('widgetKeys.scopeLegend')}
+            </legend>
+            <label className="flex items-start gap-2 text-sm">
               <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                maxLength={100}
-                placeholder={t('widgetKeys.namePlaceholder')}
-                className="mt-1 w-full rounded-lg border border-garage-border bg-garage-surface px-3 py-2 text-sm text-garage-text placeholder-garage-text-muted focus:outline-none focus:ring-2 focus:ring-primary-500"
+                type="radio"
+                name="scope"
+                value="all_vehicles"
+                checked={scope === 'all_vehicles'}
+                onChange={() => setScope('all_vehicles')}
+                className="mt-1"
               />
-              <p className="mt-1 text-xs text-garage-text-muted">
-                {t('widgetKeys.nameHelp')}
-              </p>
-            </div>
-
-            <fieldset className="space-y-2">
-              <legend className="text-sm font-medium text-garage-text">
-                {t('widgetKeys.scopeLegend')}
-              </legend>
-              <label className="flex items-start gap-2 text-sm">
-                <input
-                  type="radio"
-                  name="scope"
-                  value="all_vehicles"
-                  checked={scope === 'all_vehicles'}
-                  onChange={() => setScope('all_vehicles')}
-                  className="mt-1"
-                />
-                <span>
-                  <span className="text-garage-text">{t('widgetKeys.scopeAllLabel')}</span>
-                  <span className="block text-xs text-garage-text-muted">
-                    {t('widgetKeys.scopeAllDesc')}
-                  </span>
+              <span>
+                <span className="text-garage-text">{t('widgetKeys.scopeAllLabel')}</span>
+                <span className="block text-xs text-garage-text-muted">
+                  {t('widgetKeys.scopeAllDesc')}
                 </span>
-              </label>
-              <label className="flex items-start gap-2 text-sm">
-                <input
-                  type="radio"
-                  name="scope"
-                  value="selected_vins"
-                  checked={scope === 'selected_vins'}
-                  onChange={() => setScope('selected_vins')}
-                  className="mt-1"
-                />
-                <span>
-                  <span className="text-garage-text">{t('widgetKeys.scopeSelectedLabel')}</span>
-                  <span className="block text-xs text-garage-text-muted">
-                    {t('widgetKeys.scopeSelectedDesc')}
-                  </span>
+              </span>
+            </label>
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="radio"
+                name="scope"
+                value="selected_vins"
+                checked={scope === 'selected_vins'}
+                onChange={() => setScope('selected_vins')}
+                className="mt-1"
+              />
+              <span>
+                <span className="text-garage-text">{t('widgetKeys.scopeSelectedLabel')}</span>
+                <span className="block text-xs text-garage-text-muted">
+                  {t('widgetKeys.scopeSelectedDesc')}
                 </span>
-              </label>
-            </fieldset>
+              </span>
+            </label>
+          </fieldset>
 
-            {scope === 'selected_vins' && (
-              <div className="rounded-lg border border-garage-border bg-garage-bg p-3">
-                {vehiclesQuery.isLoading ? (
-                  <p className="text-sm text-garage-text-muted">
-                    {t('widgetKeys.loadingVehicles')}
-                  </p>
-                ) : vehiclesQuery.data && vehiclesQuery.data.vehicles.length > 0 ? (
-                  <div className="space-y-1 max-h-48 overflow-y-auto">
-                    {vehiclesQuery.data.vehicles.map((v) => {
-                      const vin = v.vin
-                      const checked = selectedVins.includes(vin)
-                      return (
-                        <label
-                          key={vin}
-                          className="flex items-center gap-2 text-sm text-garage-text"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() =>
-                              setSelectedVins((prev) =>
-                                checked ? prev.filter((x) => x !== vin) : [...prev, vin],
-                              )
-                            }
-                          />
-                          <Car className="h-4 w-4 text-garage-text-muted" />
-                          <span>
-                            {v.year ? `${v.year} ` : ''}
-                            {v.make ?? ''} {v.model ?? ''}
-                          </span>
-                          <code className="ml-auto text-xs text-garage-text-muted">{vin}</code>
-                        </label>
-                      )
-                    })}
-                  </div>
-                ) : (
-                  <p className="text-sm text-garage-text-muted">
-                    {t('widgetKeys.noVehicles')}
-                  </p>
-                )}
-              </div>
-            )}
-
-            {errorMessage && (
-              <div className="rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2 text-sm text-danger-500">
-                {errorMessage}
-              </div>
-            )}
-
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={close}
-                className="btn btn-secondary rounded-lg px-4 py-2 text-sm font-medium"
-              >
-                {t('common:cancel')}
-              </button>
-              <button
-                type="submit"
-                disabled={submitDisabled}
-                className="btn btn-primary rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {createMutation.isPending ? t('widgetKeys.creating') : t('widgetKeys.submit')}
-              </button>
+          {scope === 'selected_vins' && (
+            <div className="rounded-lg border border-garage-border bg-garage-bg p-3">
+              {vehiclesQuery.isLoading ? (
+                <p className="text-sm text-garage-text-muted">
+                  {t('widgetKeys.loadingVehicles')}
+                </p>
+              ) : vehiclesQuery.data && vehiclesQuery.data.vehicles.length > 0 ? (
+                <div className="space-y-1 max-h-48 overflow-y-auto">
+                  {vehiclesQuery.data.vehicles.map((v) => {
+                    const vin = v.vin
+                    const checked = selectedVins.includes(vin)
+                    return (
+                      <label
+                        key={vin}
+                        className="flex items-center gap-2 text-sm text-garage-text"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() =>
+                            setSelectedVins((prev) =>
+                              checked ? prev.filter((x) => x !== vin) : [...prev, vin],
+                            )
+                          }
+                        />
+                        <Car className="h-4 w-4 text-garage-text-muted" />
+                        <span>
+                          {v.year ? `${v.year} ` : ''}
+                          {v.make ?? ''} {v.model ?? ''}
+                        </span>
+                        <code className="ml-auto text-xs text-garage-text-muted">{vin}</code>
+                      </label>
+                    )
+                  })}
+                </div>
+              ) : (
+                <p className="text-sm text-garage-text-muted">
+                  {t('widgetKeys.noVehicles')}
+                </p>
+              )}
             </div>
-          </form>
-        )}
-      </div>
-    </div>
+          )}
+
+          {errorMessage && (
+            <div className="rounded-lg border border-danger-500/40 bg-danger-500/10 px-3 py-2 text-sm text-danger-500">
+              {errorMessage}
+            </div>
+          )}
+        </form>
+      )}
+    </Drawer>
   )
 }
