@@ -10,5 +10,10 @@ describe('AddressBookQuickAddModal (Drawer-backed)', () => {
     const dialog = screen.getByRole('dialog', { name: 'Add station' })
     expect(dialog).toHaveClass('z-drawer-nested') // nested -> +10 panel token, mirrors the Drawer nested test
     expect(screen.getByRole('button', { name: 'addressBookQuickAdd.add' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'addressBookQuickAdd.add' })).toHaveAttribute(
+      'form',
+      'ab-quick-add-form',
+    )
+    expect(screen.getByRole('dialog').querySelector('#ab-quick-add-form')).toBeInTheDocument()
   })
 })

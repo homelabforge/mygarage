@@ -127,7 +127,7 @@ export default function AddressBookQuickAddModal({
         </>
       }
     >
-      <form id="ab-quick-add-form" onSubmit={handleSubmit} className="space-y-3">
+      <form id="ab-quick-add-form" onSubmit={handleSubmit} className="p-4 space-y-3">
         <div>
           <label
             htmlFor="ab-quick-name"
