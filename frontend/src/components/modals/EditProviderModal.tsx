@@ -1,7 +1,8 @@
 import { useTranslation } from 'react-i18next'
 import { useState } from 'react'
-import { X, Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff } from 'lucide-react'
 import api from '../../services/api'
+import { Drawer } from '../ui'
 
 interface POIProvider {
   name: string
@@ -49,74 +50,74 @@ function EditProviderModalContent({ provider, onClose, onSave }: Omit<Props, 'is
   if (!provider) return null
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-zinc-900 rounded-lg p-6 max-w-md w-full mx-4">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-bold text-zinc-100">{t('modal.editProvider', { name: provider.display_name })}</h2>
-          <button onClick={onClose} className="text-zinc-400 hover:text-zinc-100">
-            <X className="w-5 h-5" />
+    <Drawer
+      open
+      onClose={onClose}
+      title={t('modal.editProvider', { name: provider.display_name })}
+      width="sm"
+      closeLabel={t('common:close')}
+      footer={
+        <>
+          <button
+            type="button"
+            onClick={onClose}
+            className="btn btn-secondary rounded-lg cursor-pointer"
+          >
+            {t('editProviderModal.cancel')}
           </button>
-        </div>
+          <button
+            type="button"
+            onClick={handleSave}
+            className="btn btn-primary rounded-lg cursor-pointer"
+          >
+            {t('editProviderModal.save')}
+          </button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={enabled}
+            onChange={(e) => setEnabled(e.target.checked)}
+            className="w-4 h-4"
+          />
+          <span className="text-zinc-300">{t('common:enabled')}</span>
+        </label>
 
-        <div className="space-y-4">
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={enabled}
-              onChange={(e) => setEnabled(e.target.checked)}
-              className="w-4 h-4"
-            />
-            <span className="text-zinc-300">{t('common:enabled')}</span>
+        <div>
+          <label className="block text-sm font-medium text-zinc-300 mb-2">
+            {t('editProviderModal.apiKeyLabel')}
           </label>
-
-          <div>
-            <label className="block text-sm font-medium text-zinc-300 mb-2">
-              {t('editProviderModal.apiKeyLabel')}
-            </label>
-            <div className="relative">
-              <input
-                type={showApiKey ? 'text' : 'password'}
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder="••••••••"
-                className="w-full px-3 py-2 pr-10 bg-zinc-800 border border-zinc-700 rounded text-zinc-100 focus:outline-none focus:border-blue-500"
-              />
-              <button
-                type="button"
-                onClick={() => setShowApiKey(!showApiKey)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-100"
-              >
-                {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
-            {provider.api_key_masked && (
-              <p className="text-xs text-zinc-500 mt-1">
-                {t('editProviderModal.currentApiKey', { value: provider.api_key_masked })}
-              </p>
-            )}
+          <div className="relative">
+            <input
+              type={showApiKey ? 'text' : 'password'}
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              placeholder="••••••••"
+              className="w-full px-3 py-2 pr-10 bg-zinc-800 border border-zinc-700 rounded text-zinc-100 focus:outline-none focus:border-blue-500"
+            />
+            <button
+              type="button"
+              onClick={() => setShowApiKey(!showApiKey)}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-100"
+            >
+              {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
           </div>
-
-          {error && (
-            <p className="text-red-400 text-sm">{error}</p>
+          {provider.api_key_masked && (
+            <p className="text-xs text-zinc-500 mt-1">
+              {t('editProviderModal.currentApiKey', { value: provider.api_key_masked })}
+            </p>
           )}
-
-          <div className="flex gap-2 pt-4">
-            <button
-              onClick={handleSave}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded text-white"
-            >
-              {t('editProviderModal.save')}
-            </button>
-            <button
-              onClick={onClose}
-              className="px-4 py-2 bg-zinc-700 hover:bg-zinc-600 rounded text-white"
-            >
-              {t('editProviderModal.cancel')}
-            </button>
-          </div>
         </div>
+
+        {error && (
+          <p className="text-red-400 text-sm">{error}</p>
+        )}
       </div>
-    </div>
+    </Drawer>
   )
 }
 

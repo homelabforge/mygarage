@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { useState } from 'react'
-import { X } from 'lucide-react'
 import api from '../../services/api'
+import { Drawer } from '../ui'
 
 enum ModalStep {
   SELECT_PROVIDER = 'select',
@@ -103,88 +103,87 @@ export default function AddProviderModal({ isOpen, onClose, onProviderAdded }: P
   const selectedProvider = availableProviders.find(p => p.name === selectedProviderName)
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-zinc-900 rounded-lg p-6 max-w-2xl w-full mx-4">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-bold text-zinc-100">
-            {step === ModalStep.SELECT_PROVIDER ? t('modal.selectPoiProvider') : t('modal.addProvider', { name: selectedProvider?.displayName })}
-          </h2>
-          <button onClick={handleClose} className="text-zinc-400 hover:text-zinc-100">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {step === ModalStep.SELECT_PROVIDER && (
-          <div className="grid grid-cols-2 gap-4">
-            {availableProviders.map((provider) => (
-              <button
-                key={provider.name}
-                onClick={() => handleProviderSelect(provider.name)}
-                className="p-6 border border-zinc-700 rounded-lg hover:bg-zinc-800 hover:border-zinc-600 transition-colors"
-              >
-                <h3 className="text-lg font-semibold text-zinc-100">{provider.displayName}</h3>
-              </button>
-            ))}
-          </div>
-        )}
-
-        {step === ModalStep.ENTER_API_KEY && (
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-zinc-300 mb-2">{t('modal.apiKey')}</label>
-              <input
-                type="password"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder={t('modal.enterApiKey')}
-                className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-zinc-100 focus:outline-none focus:border-blue-500"
-              />
-            </div>
-
-            <a
-              href={selectedProvider?.docsUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-400 hover:text-blue-300 text-sm inline-block"
+    <Drawer
+      open
+      onClose={handleClose}
+      title={step === ModalStep.SELECT_PROVIDER ? t('modal.selectPoiProvider') : t('modal.addProvider', { name: selectedProvider?.displayName })}
+      width="md"
+      closeLabel={t('common:close')}
+      footer={
+        step === ModalStep.ENTER_API_KEY ? (
+          <>
+            <button
+              type="button"
+              onClick={handleClose}
+              className="btn btn-secondary rounded-lg cursor-pointer"
             >
-              {t('addProviderModal.getApiKey')}
-            </a>
+              {t('addProviderModal.cancel')}
+            </button>
+            <button
+              type="button"
+              onClick={handleTestApiKey}
+              disabled={!apiKey || isTestingKey}
+              className="btn btn-secondary rounded-lg cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isTestingKey ? t('modal.testing') : t('modal.test')}
+            </button>
+            <button
+              type="button"
+              onClick={handleFinish}
+              disabled={!isKeyValid}
+              className="btn btn-primary rounded-lg cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {t('addProviderModal.finish')}
+            </button>
+          </>
+        ) : undefined
+      }
+    >
+      {step === ModalStep.SELECT_PROVIDER && (
+        <div className="grid grid-cols-2 gap-4">
+          {availableProviders.map((provider) => (
+            <button
+              key={provider.name}
+              onClick={() => handleProviderSelect(provider.name)}
+              className="p-6 border border-zinc-700 rounded-lg hover:bg-zinc-800 hover:border-zinc-600 transition-colors cursor-pointer"
+            >
+              <h3 className="text-lg font-semibold text-zinc-100">{provider.displayName}</h3>
+            </button>
+          ))}
+        </div>
+      )}
 
-            {errorMessage && (
-              <p className="text-red-400 text-sm">{errorMessage}</p>
-            )}
-
-            {isKeyValid && (
-              <p className="text-green-400 text-sm">{t('addProviderModal.apiKeyValid')}</p>
-            )}
-
-            <div className="flex gap-2 pt-4">
-              <button
-                onClick={handleTestApiKey}
-                disabled={!apiKey || isTestingKey}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded disabled:opacity-50 disabled:cursor-not-allowed text-white"
-              >
-                {isTestingKey ? t('modal.testing') : t('modal.test')}
-              </button>
-
-              <button
-                onClick={handleFinish}
-                disabled={!isKeyValid}
-                className="px-4 py-2 bg-green-600 hover:bg-green-700 rounded disabled:opacity-50 disabled:cursor-not-allowed text-white"
-              >
-                {t('addProviderModal.finish')}
-              </button>
-
-              <button
-                onClick={handleClose}
-                className="px-4 py-2 bg-zinc-700 hover:bg-zinc-600 rounded text-white"
-              >
-                {t('addProviderModal.cancel')}
-              </button>
-            </div>
+      {step === ModalStep.ENTER_API_KEY && (
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-zinc-300 mb-2">{t('modal.apiKey')}</label>
+            <input
+              type="password"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              placeholder={t('modal.enterApiKey')}
+              className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-zinc-100 focus:outline-none focus:border-blue-500"
+            />
           </div>
-        )}
-      </div>
-    </div>
+
+          <a
+            href={selectedProvider?.docsUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-400 hover:text-blue-300 text-sm inline-block"
+          >
+            {t('addProviderModal.getApiKey')}
+          </a>
+
+          {errorMessage && (
+            <p className="text-red-400 text-sm">{errorMessage}</p>
+          )}
+
+          {isKeyValid && (
+            <p className="text-green-400 text-sm">{t('addProviderModal.apiKeyValid')}</p>
+          )}
+        </div>
+      )}
+    </Drawer>
   )
 }
