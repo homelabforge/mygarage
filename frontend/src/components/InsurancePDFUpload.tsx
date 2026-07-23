@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import api from '../services/api'
 import { InsurancePDFParseResponse, InsurancePolicyCreate } from '../types/insurance'
@@ -156,8 +157,8 @@ export default function InsurancePDFUpload({ vin, onDataExtracted, onClose }: In
     )
   }
 
-  return (
-    <div className="fixed inset-0 modal-overlay flex items-center justify-center z-50 p-4">
+  return createPortal(
+    <div className="fixed inset-0 modal-overlay flex items-center justify-center z-drawer-nested p-4">
       <div className="bg-garage-surface rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-garage-border">
         {/* Header */}
         <div className="sticky top-0 bg-garage-surface border-b border-garage-border px-6 py-4 flex justify-between items-center rounded-t-lg">
@@ -324,6 +325,7 @@ export default function InsurancePDFUpload({ vin, onDataExtracted, onClose }: In
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
