@@ -101,8 +101,33 @@ export default function InsuranceForm({ vin, record, onClose, onSuccess }: Insur
 
   return (
     <>
-    <FormModalWrapper title={isEdit ? t('insurance.editTitle') : t('insurance.createTitle')} onClose={onClose} width="md">
-        <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
+    <FormModalWrapper
+      title={isEdit ? t('insurance.editTitle') : t('insurance.createTitle')}
+      onClose={onClose}
+      width="md"
+      footer={
+        <>
+          <button
+            type="button"
+            onClick={onClose}
+            className="btn btn-primary rounded-lg transition-colors"
+            disabled={isSubmitting}
+          >
+            {t('common:cancel')}
+          </button>
+          <button
+            type="submit"
+            form="insurance-form"
+            className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={isSubmitting}
+          >
+            <Save size={16} />
+            {isSubmitting ? t('common:saving') : isEdit ? t('common:update') : t('common:create')}
+          </button>
+        </>
+      }
+    >
+        <form id="insurance-form" onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
 
           {/* PDF Import Button - Only show on create */}
           {!isEdit && (
@@ -279,24 +304,6 @@ export default function InsuranceForm({ vin, record, onClose, onSuccess }: Insur
             />
           </div>
 
-          <div className="flex justify-end gap-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="btn btn-primary rounded-lg transition-colors"
-              disabled={isSubmitting}
-            >
-              {t('common:cancel')}
-            </button>
-            <button
-              type="submit"
-              className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={isSubmitting}
-            >
-              <Save size={16} />
-              {isSubmitting ? t('common:saving') : isEdit ? t('common:update') : t('common:create')}
-            </button>
-          </div>
         </form>
     </FormModalWrapper>
 

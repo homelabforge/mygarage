@@ -73,8 +73,33 @@ export default function TollTransactionForm({ vin, tollTags, transaction, onClos
   const activeTollTags = tollTags.filter(tag => tag.status === 'active')
 
   return (
-    <FormModalWrapper title={isEdit ? t('toll.editTransactionTitle') : t('toll.createTransactionTitle')} onClose={onClose} width="sm">
-        <form onSubmit={handleSubmit(onSubmit as Parameters<typeof handleSubmit>[0])} className="p-6 space-y-4">
+    <FormModalWrapper
+      title={isEdit ? t('toll.editTransactionTitle') : t('toll.createTransactionTitle')}
+      onClose={onClose}
+      width="sm"
+      footer={
+        <>
+          <button
+            type="button"
+            onClick={onClose}
+            className="btn btn-primary rounded-lg transition-colors"
+            disabled={isSubmitting}
+          >
+            {t('tollTransactionForm.cancel')}
+          </button>
+          <button
+            type="submit"
+            form="toll-transaction-form"
+            className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={isSubmitting}
+          >
+            <Save className="w-4 h-4" />
+            {isSubmitting ? t('common:saving') : isEdit ? t('toll.updateTransaction') : t('toll.addTransaction')}
+          </button>
+        </>
+      }
+    >
+        <form id="toll-transaction-form" onSubmit={handleSubmit(onSubmit as Parameters<typeof handleSubmit>[0])} className="p-6 space-y-4">
           {error && (
             <div className="bg-danger/10 border border-danger rounded-lg p-3">
               <p className="text-sm text-danger">{error}</p>
@@ -181,24 +206,6 @@ export default function TollTransactionForm({ vin, tollTags, transaction, onClos
             <FormError error={errors.notes} />
           </div>
 
-          <div className="flex justify-end gap-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="btn btn-primary rounded-lg transition-colors"
-              disabled={isSubmitting}
-            >
-              {t('tollTransactionForm.cancel')}
-            </button>
-            <button
-              type="submit"
-              className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={isSubmitting}
-            >
-              <Save className="w-4 h-4" />
-              {isSubmitting ? t('common:saving') : isEdit ? t('toll.updateTransaction') : t('toll.addTransaction')}
-            </button>
-          </div>
         </form>
     </FormModalWrapper>
   )
