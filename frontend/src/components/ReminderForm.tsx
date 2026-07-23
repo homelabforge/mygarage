@@ -140,8 +140,29 @@ export default function ReminderForm({ vin, reminder, currentMileage, onClose, o
       title={isEdit ? t('reminder.editTitle') : t('reminder.createTitle')}
       onClose={onClose}
       width="sm"
+      footer={
+        <>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={submitting}
+            className="btn btn-primary rounded-lg transition-colors"
+          >
+            {t('common:cancel')}
+          </button>
+          <button
+            type="submit"
+            form="reminder-form"
+            disabled={submitting}
+            className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Save className="w-4 h-4" />
+            <span>{submitting ? t('common:saving') : isEdit ? t('common:update') : t('common:create')}</span>
+          </button>
+        </>
+      }
     >
-      <form onSubmit={handleSubmit} className="p-6 space-y-4">
+      <form id="reminder-form" onSubmit={handleSubmit} className="p-6 space-y-4">
         {error && (
           <div className="bg-danger/10 border border-danger rounded-lg p-3 flex items-center gap-2">
             <AlertTriangle className="w-5 h-5 text-danger" />
@@ -263,24 +284,6 @@ export default function ReminderForm({ vin, reminder, currentMileage, onClose, o
           />
         </div>
 
-        <div className="flex gap-3 pt-2">
-          <button
-            type="submit"
-            disabled={submitting}
-            className="flex items-center gap-2 btn btn-primary rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Save className="w-4 h-4" />
-            <span>{submitting ? t('common:saving') : isEdit ? t('common:update') : t('common:create')}</span>
-          </button>
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={submitting}
-            className="btn btn-primary rounded-lg transition-colors"
-          >
-            {t('common:cancel')}
-          </button>
-        </div>
       </form>
     </FormModalWrapper>
   )

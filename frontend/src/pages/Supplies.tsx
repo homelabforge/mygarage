@@ -305,8 +305,29 @@ export function SupplyForm({ supply, onClose, onSuccess }: SupplyFormProps) {
       title={isEdit ? t('supplies.editSupply') : t('supplies.addSupply')}
       onClose={onClose}
       width="md"
+      footer={
+        <>
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-5 py-3 btn btn-secondary rounded-lg"
+            disabled={isSubmitting}
+          >
+            {t('common:cancel')}
+          </button>
+          <button
+            type="submit"
+            form="supply-form"
+            disabled={isSubmitting}
+            className="flex items-center gap-2 px-5 py-3 btn btn-primary rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Save className="w-4 h-4" />
+            <span>{isSubmitting ? t('common:saving') : isEdit ? t('common:update') : t('common:create')}</span>
+          </button>
+        </>
+      }
     >
-      <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
+      <form id="supply-form" onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
           {error && (
             <div className="bg-danger/10 border border-danger rounded-lg p-3">
               <p className="text-sm text-danger">{error}</p>
@@ -445,25 +466,6 @@ export function SupplyForm({ supply, onClose, onSuccess }: SupplyFormProps) {
             </div>
           )}
 
-          <div className="flex gap-3 pt-4">
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="flex items-center gap-2 px-5 py-3 btn btn-primary rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Save className="w-4 h-4" />
-              <span>{isSubmitting ? t('common:saving') : isEdit ? t('common:update') : t('common:create')}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-5 py-3 btn btn-secondary rounded-lg"
-              disabled={isSubmitting}
-            >
-              {t('common:cancel')}
-            </button>
-          </div>
       </form>
     </FormModalWrapper>
   )
