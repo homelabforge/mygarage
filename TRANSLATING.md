@@ -123,6 +123,7 @@ the live percentages — they sit just under 100% because strings like `VIN`,
 | Code | Language |
 |------|----------|
 | en | English (canonical source) |
+| fr | French |
 | pl | Polish |
 | uk | Ukrainian |
 | ru | Russian |

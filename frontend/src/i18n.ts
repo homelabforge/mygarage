@@ -42,7 +42,7 @@ i18n
     // browsers (e.g. pl-PL) still resolve to their base (pl) via supportedLngs,
     // so no region-suffixed locale files are ever requested.
     load: 'currentOnly',
-    supportedLngs: ['en', 'pl', 'uk', 'ru', 'pt-BR', 'de'],
+    supportedLngs: ['en', 'fr', 'pl', 'uk', 'ru', 'pt-BR', 'de'],
     fallbackLng: 'en',
     defaultNS: 'common',
     ns: ['common', 'nav', 'settings', 'vehicles', 'forms', 'analytics'],

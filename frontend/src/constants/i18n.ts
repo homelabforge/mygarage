@@ -16,6 +16,7 @@ export interface SupportedCurrency {
 
 export const SUPPORTED_LANGUAGES: SupportedLanguage[] = [
   { code: 'en', name: 'English', nativeName: 'English' },
+  { code: 'fr', name: 'French', nativeName: 'Français' },
   { code: 'pl', name: 'Polish', nativeName: 'Polski' },
   { code: 'uk', name: 'Ukrainian', nativeName: 'Українська' },
   { code: 'ru', name: 'Russian', nativeName: 'Русский' },
@@ -46,6 +47,7 @@ export const SUPPORTED_CURRENCIES: SupportedCurrency[] = [
 export function languageToLocale(lang: string): string {
   const map: Record<string, string> = {
     en: 'en-US',
+    fr: 'fr-FR',
     pl: 'pl-PL',
     uk: 'uk-UA',
     ru: 'ru-RU',
