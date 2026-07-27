@@ -1,0 +1,49 @@
+name: Apply tested French fixes
+
+on:
+  push:
+    branches:
+      - feature/french-locale-clean
+    paths:
+      - .github/workflows/apply-tested-french-fixes.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/french-locale-clean
+          fetch-depth: 0
+
+      - name: Apply tested patches
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin docker/fr-test-image
+          git show origin/docker/fr-test-image:.github/scripts/apply-fr-test-patches.py > /tmp/apply-fr-test-patches.py
+          python /tmp/apply-fr-test-patches.py
+          rm -f .github/workflows/apply-tested-french-fixes.yml
+
+      - name: Commit changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add frontend/src/pages/VehicleEdit.tsx \
+                  frontend/src/components/VehicleWizard.tsx \
+                  frontend/src/components/vehicle-detail/VehicleOverviewTab.tsx \
+                  frontend/src/pages/GarageAnalytics.tsx \
+                  frontend/public/locales/fr/vehicles.json \
+                  .github/workflows/apply-tested-french-fixes.yml
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "fix: apply tested French UI localization fixes"
+          git push origin HEAD:feature/french-locale-clean
