@@ -93,7 +93,7 @@
     "fleet": {
       "overdueCaption": "Overdue · needs attention",
       "upcomingCaption": "Upcoming · next 30 days",
-      "spentLabel": "Spent",
+      "spentLabel": "Dépensé",
       "nextDueLabel": "Next due",
       "nextDueNone": "Nothing scheduled"
     },
@@ -165,12 +165,12 @@
     "exporting": "Export en cours...",
     "fuelEconomy": "Consommation",
     "hero": {
-      "logService": "Log Service",
-      "addFuel": "Add Fuel",
-      "reminder": "Reminder",
-      "equipment": "Equipment",
-      "standard": "Standard",
-      "optional": "Optional"
+      "logService": "Enregistrer un entretien",
+      "addFuel": "Ajouter du carburant",
+      "reminder": "Créer un rappel",
+      "equipment": "Équipement",
+      "standard": "De série",
+      "optional": "Optionnel"
     },
     "import": "Importer",
     "importData": "Importer des données",
@@ -178,8 +178,8 @@
     "importSuccess": "Import terminé avec succès",
     "importing": "Import en cours...",
     "keyFacts": {
-      "spent": "Spent",
-      "upcoming": "Upcoming"
+      "spent": "Dépensé",
+      "upcoming": "À venir"
     },
     "lastLocation": "Dernière position ici",
     "lastLocationSeenAt": "Dernière vue : {{time}}",
@@ -190,7 +190,7 @@
     "notSpecified": "Non spécifié",
     "offlineCachedData": "Hors ligne : affichage des données en cache",
     "optionalEquipment": "Équipement optionnel",
-    "packages": "Packages",
+    "packages": "Packs",
     "powertrain": "Groupe motopropulseur",
     "purchaseInformation": "Informations d'achat",
     "remove": "Supprimer",
@@ -204,7 +204,7 @@
     "tabs": {
       "financial": "Financier",
       "fuel": "Carburant",
-      "maintenance": "Maintenance",
+      "maintenance": "Entretien",
       "media": "Médias",
       "overview": "Aperçu",
       "tracking": "Suivi"
@@ -965,7 +965,7 @@
     "lastFillUp": "Dernier plein",
     "lastService": "Dernier entretien",
     "latestOdometer": "Dernier odomètre",
-    "maintenance": "Maintenance",
+    "maintenance": "Entretien",
     "never": "Jamais",
     "noteCount": "{{count}} note(s)",
     "overdue": "{{count}} en retard",
@@ -976,7 +976,7 @@
     "upcoming": "{{count}} à venir"
   },
   "vehicleTypeLabels": {
-    "Car": "Car",
+    "Car": "Voiture",
     "SUV": "SUV",
     "Truck": "Truck",
     "Motorcycle": "Motorcycle",
@@ -1289,7 +1289,7 @@
     "coolant": "Liquide de refroidissement"
   },
   "eventTypes": {
-    "maintenance": "Maintenance",
+    "maintenance": "Entretien",
     "insurance": "Assurance",
     "warranty": "Garantie",
     "service": "Entretien",
@@ -1299,7 +1299,7 @@
     "serviceRecords": "Dossiers d'entretien",
     "fuelLogs": "Journaux de carburant",
     "documents": "Documents",
-    "maintenance": "Maintenance",
+    "maintenance": "Entretien",
     "notes": "Notes",
     "expenses": "Dépenses",
     "photos": "Photos",
