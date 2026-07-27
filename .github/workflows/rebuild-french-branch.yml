@@ -33,7 +33,8 @@ jobs:
           from pathlib import Path
 
           root = Path('.')
-          locales = root / 'frontend/public/locales'
+          source_locales = root / 'frontend/src/locales/en'
+          translated_locales = root / 'frontend/public/locales/fr'
 
           def load(path: Path):
               with path.open(encoding='utf-8') as f:
@@ -55,12 +56,12 @@ jobs:
 
           namespaces = ['common', 'nav', 'settings', 'vehicles', 'forms', 'analytics']
           for namespace in namespaces:
-              en_path = locales / 'en' / f'{namespace}.json'
-              fr_path = locales / 'fr' / f'{namespace}.json'
+              en_path = source_locales / f'{namespace}.json'
+              fr_path = translated_locales / f'{namespace}.json'
               merged = merge_source(load(en_path), load(fr_path) if fr_path.exists() else {})
               save(fr_path, merged)
 
-          common_path = locales / 'fr/common.json'
+          common_path = translated_locales / 'common.json'
           common = load(common_path)
           if 'login' in common:
               common['login']['usernameOrEmail'] = 'Nom d’utilisateur ou adresse e-mail'
@@ -85,15 +86,15 @@ jobs:
               common['poiCard']['categoryEvCharging'] = 'Recharge de véhicules électriques'
           save(common_path, common)
 
-          forms_path = locales / 'fr/forms.json'
+          forms_path = translated_locales / 'forms.json'
           forms = load(forms_path)
           if 'fuel' in forms and 'mpgTip' in forms['fuel']:
               forms['fuel']['mpgTip'] = 'Le MPG est calculé uniquement pour les pleins complets. Cochez « Plein complet » pour activer le calcul du MPG.'
-          if 'service' in forms:
+          if 'service' in forms and 'insuranceClaim' in forms['service']:
               forms['service']['insuranceClaim'] = 'N° de dossier d’assurance'
           save(forms_path, forms)
 
-          analytics_path = locales / 'fr/analytics.json'
+          analytics_path = translated_locales / 'analytics.json'
           analytics = load(analytics_path)
           try:
               analytics['vehicleHelp']['tips']['markFullTank'] = 'Marquez les pleins comme « pleins complets » pour un suivi précis de la consommation'
@@ -101,7 +102,7 @@ jobs:
               pass
           save(analytics_path, analytics)
 
-          nav_path = locales / 'fr/nav.json'
+          nav_path = translated_locales / 'nav.json'
           nav = load(nav_path)
           if 'analytics' in nav:
               nav['analytics'] = 'Analyses'
@@ -141,7 +142,7 @@ jobs:
               translating.write_text(text, encoding='utf-8')
 
           for namespace in namespaces:
-              load(locales / 'fr' / f'{namespace}.json')
+              load(translated_locales / f'{namespace}.json')
 
           print('French locale synchronized with latest upstream source keys.')
           PY
