@@ -23,12 +23,12 @@ interface TileProps {
  */
 export default function Tile({ icon: Icon, label, value, tone = 'default' }: TileProps) {
   return (
-    <div className="rounded-tile bg-surface-2 px-[18px] py-[15px]">
-      <Icon aria-hidden="true" className="mb-2 h-4 w-4 text-text-mute" />
+    <div className="min-w-0 rounded-tile bg-surface-2 px-2.5 py-[15px] text-center">
+      <Icon aria-hidden="true" className="mx-auto mb-2 h-4 w-4 text-text-mute" />
       <Mono size="xl" weight="semibold" tone={tone}>
         {value}
       </Mono>
-      <div className="mt-1 text-[11px] font-semibold uppercase tracking-[.06em] text-text-faint">
+      <div className="mt-1 max-w-full text-[10.5px] font-semibold uppercase leading-tight tracking-[.025em] text-text-faint [overflow-wrap:anywhere]">
         {label}
       </div>
     </div>
