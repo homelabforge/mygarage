@@ -423,7 +423,7 @@ export default function VehicleEdit() {
                   id="displacement_l"
                   {...register('displacement_l')}
                   className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-garage-text"
-                  placeholder="2.0"
+                  placeholder="2,0"
                 />
                 <FormError error={errors.displacement_l} />
               </div>
@@ -454,7 +454,7 @@ export default function VehicleEdit() {
                   <option value="">—</option>
                   {FUEL_TYPE_VALUES.map((value) => (
                     <option key={value} value={value}>
-                      {FUEL_TYPE_LABELS[value]}
+                      {t(`forms:fuel.fuelTypes.${value}`, { defaultValue: FUEL_TYPE_LABELS[value] })}
                     </option>
                   ))}
                 </select>
@@ -584,7 +584,7 @@ export default function VehicleEdit() {
                   <option value="">—</option>
                   {FUEL_TYPE_VALUES.map((value) => (
                     <option key={value} value={value}>
-                      {FUEL_TYPE_LABELS[value]}
+                      {t(`forms:fuel.fuelTypes.${value}`, { defaultValue: FUEL_TYPE_LABELS[value] })}
                     </option>
                   ))}
                 </select>

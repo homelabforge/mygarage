@@ -428,7 +428,7 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
                   step="0.01"
                   {...register('purchase_price', { valueAsNumber: true })}
                   className="w-full bg-surface border border-border rounded-control px-4 py-2 text-text focus:outline-none focus:border-(--accent-solid)"
-                  placeholder="15000.00"
+                  placeholder="15 000,00"
                 />
                 <FormError error={errors.purchase_price} />
               </div>
@@ -493,7 +493,7 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
                   type="text"
                   {...register('displacement_l')}
                   className="w-full bg-surface border border-border rounded-control px-4 py-2 text-text focus:outline-none focus:border-(--accent-solid)"
-                  placeholder="2.0"
+                  placeholder="2,0"
                 />
                 <FormError error={errors.displacement_l} />
               </div>
@@ -525,7 +525,7 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
                   <option value="">—</option>
                   {FUEL_TYPE_VALUES.map((value) => (
                     <option key={value} value={value}>
-                      {FUEL_TYPE_LABELS[value]}
+                      {t(`forms:fuel.fuelTypes.${value}`, { defaultValue: FUEL_TYPE_LABELS[value] })}
                     </option>
                   ))}
                 </select>
