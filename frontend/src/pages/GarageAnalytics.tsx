@@ -240,8 +240,14 @@ export default function GarageAnalytics() {
   const rollingAvg3 = calculateRollingAverage(monthly_trends, 3)
   const rollingAvg6 = calculateRollingAverage(monthly_trends, 6)
 
+  const formatMonthLabel = (value: string) => {
+    const parsed = new Date(`${value} 1`)
+    if (Number.isNaN(parsed.getTime())) return value
+    return new Intl.DateTimeFormat(locale, { month: 'short', year: 'numeric' }).format(parsed)
+  }
+
   const trendData = monthly_trends.map((trend, idx) => ({
-    month: trend.month,
+    month: formatMonthLabel(trend.month),
     Service: parseFloat(trend.service),
     Fuel: parseFloat(trend.fuel),
     DEF: parseFloat(trend.def_cost),
@@ -583,9 +589,9 @@ export default function GarageAnalytics() {
                 }}
               />
               <Legend wrapperStyle={{ paddingTop: '10px', fontSize: '12px' }} />
-              <Bar dataKey="Service" fill="#3B82F6" stackId="a" />
-              <Bar dataKey="Fuel" fill="#10B981" stackId="a" />
-              <Bar dataKey="DEF" fill="#14B8A6" stackId="a" />
+              <Bar dataKey="Service" name={t('garage.cards.maintenance')} fill="#3B82F6" stackId="a" />
+              <Bar dataKey="Fuel" name={t('garage.cards.fuel')} fill="#10B981" stackId="a" />
+              <Bar dataKey="DEF" name={t('garage.cards.def')} fill="#14B8A6" stackId="a" />
 
               {/* Rolling average trend lines - data from trendData via chart's data prop */}
               {trendData.length >= 3 && (

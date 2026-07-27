@@ -337,7 +337,7 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
                 >
                   {VEHICLE_TYPES.map((type) => (
                     <option key={type} value={type}>
-                      {type}
+                      {t(`vehicleTypeLabels.${type}`, { defaultValue: type })}
                     </option>
                   ))}
                 </select>

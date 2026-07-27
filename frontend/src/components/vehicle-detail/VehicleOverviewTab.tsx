@@ -161,7 +161,7 @@ export default function VehicleOverviewTab({
             {vehicle.gvwr_class && (<div><p className="text-sm text-text-mute">{t('detail.misc.gvwrClass')}</p><p className="font-medium text-text">{vehicle.gvwr_class}</p></div>)}
             {vehicle.wheel_specs && (<div><p className="text-sm text-text-mute">{t('detail.misc.wheels')}</p><Mono size="sm" className="block">{vehicle.wheel_specs}</Mono></div>)}
             {vehicle.tire_specs && (<div><p className="text-sm text-text-mute">{t('detail.misc.tires')}</p><Mono size="sm" className="block">{vehicle.tire_specs}</Mono></div>)}
-            {!isMotorized && vehicle.fuel_type && (<div><p className="text-sm text-text-mute">{t('edit.fuelType')}</p><p className="font-medium text-text">{vehicle.fuel_type}</p></div>)}
+            {!isMotorized && vehicle.fuel_type && (<div><p className="text-sm text-text-mute">{t('edit.fuelType')}</p><p className="font-medium text-text">{t(`forms:fuel.fuelTypes.${vehicle.fuel_type}`, { defaultValue: vehicle.fuel_type })}</p></div>)}
           </div>
         </Card>
       )}
@@ -176,7 +176,7 @@ export default function VehicleOverviewTab({
                 {vehicle.sticker_engine_description && (<div className="md:col-span-2"><p className="text-sm text-text-mute">{t('detail.misc.engine')}</p><p className="font-medium text-text">{vehicle.sticker_engine_description}</p></div>)}
                 {vehicle.displacement_l && (<div><p className="text-sm text-text-mute">{t('detail.misc.displacement')}</p><Mono size="sm" className="block">{t('detail.misc.displacementLiters', { value: vehicle.displacement_l })}</Mono></div>)}
                 {vehicle.cylinders && (<div><p className="text-sm text-text-mute">{t('edit.cylinders')}</p><Mono size="sm" className="block">{vehicle.cylinders}</Mono></div>)}
-                {vehicle.fuel_type && (<div><p className="text-sm text-text-mute">{t('edit.fuelType')}</p><p className="font-medium text-text">{vehicle.fuel_type}</p></div>)}
+                {vehicle.fuel_type && (<div><p className="text-sm text-text-mute">{t('edit.fuelType')}</p><p className="font-medium text-text">{t(`forms:fuel.fuelTypes.${vehicle.fuel_type}`, { defaultValue: vehicle.fuel_type })}</p></div>)}
               </div>
             )}
             {(vehicle.transmission_type || vehicle.transmission_speeds || vehicle.sticker_transmission_description) && (

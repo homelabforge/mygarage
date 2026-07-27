@@ -258,7 +258,7 @@ export default function VehicleEdit() {
                     409 server-side and roll back the whole update. */}
                 {VEHICLE_TYPES.map((type) => (
                   <option key={type} value={type}>
-                    {type}
+                    {t(`vehicleTypeLabels.${type}`, { defaultValue: type })}
                   </option>
                 ))}
               </select>

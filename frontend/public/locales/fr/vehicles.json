@@ -978,14 +978,14 @@
   "vehicleTypeLabels": {
     "Car": "Voiture",
     "SUV": "SUV",
-    "Truck": "Truck",
-    "Motorcycle": "Motorcycle",
-    "RV": "RV",
-    "Trailer": "Trailer",
-    "FifthWheel": "Fifth Wheel",
-    "TravelTrailer": "Travel Trailer",
-    "Electric": "Electric",
-    "Hybrid": "Hybrid"
+    "Truck": "Camion",
+    "Motorcycle": "Moto",
+    "RV": "Camping-car",
+    "Trailer": "Remorque",
+    "FifthWheel": "Caravane à sellette",
+    "TravelTrailer": "Caravane",
+    "Electric": "Électrique",
+    "Hybrid": "Hybride"
   },
   "vendorSearch": {
     "noResults": "Aucun fournisseur trouvé",
