@@ -91,11 +91,11 @@
     "filterTrigger": "Filter: {{label}}",
     "filterVehicles": "Filtrer les véhicules",
     "fleet": {
-      "overdueCaption": "Overdue · needs attention",
-      "upcomingCaption": "Upcoming · next 30 days",
+      "overdueCaption": "En retard · nécessite votre attention",
+      "upcomingCaption": "À venir · 30 prochains jours",
       "spentLabel": "Dépensé",
-      "nextDueLabel": "Next due",
-      "nextDueNone": "Nothing scheduled"
+      "nextDueLabel": "Prochaine échéance",
+      "nextDueNone": "Aucune échéance prévue"
     },
     "getStarted": "Commencez par ajouter votre premier véhicule",
     "loadError": "Impossible de charger le tableau de bord. Veuillez réessayer.",
