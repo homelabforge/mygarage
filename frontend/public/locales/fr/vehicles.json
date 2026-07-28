@@ -277,7 +277,8 @@
       "vehicleSections": "Sections du véhicule",
       "vinMismatch": "VIN : non conforme",
       "vinVerified": "VIN : vérifié",
-      "wheels": "Roues"
+      "wheels": "Roues",
+      "hours": "Heures"
     }
   },
   "documentList": {
@@ -373,7 +374,11 @@
     "vehicleNotFound": "Véhicule introuvable",
     "vehicleType": "Type de véhicule",
     "vinDecodedInfo": "Informations décodées du VIN",
-    "year": "Année"
+    "year": "Année",
+    "usageTracking": "Suivi d'utilisation",
+    "usageDistance": "Distance (odomètre)",
+    "usageHours": "Heures (compteur horaire)",
+    "currentHours": "Heures actuelles"
   },
   "fuelList": {
     "actions": "Actions",
@@ -965,7 +970,7 @@
     "lastFillUp": "Dernier plein",
     "lastService": "Dernier entretien",
     "latestOdometer": "Dernier odomètre",
-    "maintenance": "Entretien",
+    "maintenance": "Rappels",
     "never": "Jamais",
     "noteCount": "{{count}} note(s)",
     "overdue": "{{count}} en retard",
@@ -973,7 +978,9 @@
     "recent": "Récent",
     "recentActivity": "Activité récente",
     "service": "Entretien",
-    "upcoming": "{{count}} à venir"
+    "upcoming": "{{count}} à venir",
+    "latestHours": "Dernières heures",
+    "hoursValue": "{{value}} h"
   },
   "vehicleTypeLabels": {
     "Car": "Voiture",
@@ -985,7 +992,8 @@
     "FifthWheel": "Caravane à sellette",
     "TravelTrailer": "Caravane",
     "Electric": "Électrique",
-    "Hybrid": "Hybride"
+    "Hybrid": "Hybride",
+    "ATV": "Quad"
   },
   "vendorSearch": {
     "noResults": "Aucun fournisseur trouvé",
@@ -1256,7 +1264,8 @@
     "driveTypePlaceholder": "FWD, RWD, AWD, 4WD",
     "gvwrClassPlaceholder": "Classe 1, 2, etc.",
     "transmissionTypePlaceholder": "Automatique, manuelle, CVT",
-    "transmissionSpeedsPlaceholder": "6 rapports, 8 rapports, etc."
+    "transmissionSpeedsPlaceholder": "6 rapports, 8 rapports, etc.",
+    "currentHoursPlaceholder": "ex. 123,5"
   },
   "inspectionResult": {
     "title": "Résultat de l'inspection",

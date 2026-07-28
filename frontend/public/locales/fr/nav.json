@@ -24,5 +24,16 @@
   "searchShellBody": "Global search across vehicles, service history, and VINs is on the way.",
   "notifications": "Notifications",
   "notificationsEmptyTitle": "No notifications",
-  "notificationsEmptyBody": "You are all caught up. New alerts will appear here."
+  "notificationsEmptyBody": "You are all caught up. New alerts will appear here.",
+  "appearance": "Apparence",
+  "accent": "Accent",
+  "accentError": "Impossible d'enregistrer votre accent",
+  "accents": {
+    "blue": "Bleu",
+    "amber": "Ambre",
+    "teal": "Sarcelle",
+    "red": "Rouge",
+    "violet": "Violet",
+    "green": "Vert"
+  }
 }
