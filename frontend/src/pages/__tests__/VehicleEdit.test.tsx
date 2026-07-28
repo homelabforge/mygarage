@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { FUEL_TYPE_VALUES, FUEL_TYPE_LABELS } from '../../constants/fuel'
+import { FUEL_TYPE_VALUES } from '../../constants/fuel'
 import type { Vehicle } from '../../types/vehicle'
 
 vi.mock('../../services/api', () => ({
@@ -76,7 +76,9 @@ describe('VehicleEdit — canonical fuel-type select', () => {
     FUEL_TYPE_VALUES.forEach((value, index) => {
       const option = options[index + 1]
       expect(option.value).toBe(value)
-      expect(option.textContent).toBe(FUEL_TYPE_LABELS[value])
+      // The option label is rendered via t(`forms:fuel.fuelTypes.${value}`);
+      // under the vitest i18n mock (t: key => key) that resolves to the key.
+      expect(option.textContent).toBe(`forms:fuel.fuelTypes.${value}`)
     })
 
     expect(select.value).toBe('diesel')
