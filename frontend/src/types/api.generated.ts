@@ -12597,11 +12597,8 @@ export interface components {
          * @description Schema for user response.
          */
         UserResponse: {
-            /**
-             * Accent Color
-             * @default blue
-             */
-            accent_color: string;
+            /** Accent Color */
+            accent_color?: string | null;
             /**
              * Created At
              * Format: date-time

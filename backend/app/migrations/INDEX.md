@@ -91,3 +91,4 @@ migrations must swallow their own operational errors.
 | `078_add_accent_color` | **FATAL** — Add per-account UI accent preference (accent_color) to user settings. |
 | `079_drop_vehicle_type_check` | Drop the vehicle_type CHECK constraint from vehicles. |
 | `080_add_usage_unit_hours` | **FATAL** — Add per-vehicle usage tracking dimension (usage_unit + current_hours). |
+| `081_accent_color_nullable` | Reset defaulted users.accent_color 'blue' to NULL (unset != chosen). |

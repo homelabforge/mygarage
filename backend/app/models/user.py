@@ -60,8 +60,11 @@ class User(Base):
 
     # UI theme accent (per-account). The frontend also mirrors this to
     # localStorage for instant apply and the logged-out / auth-none case.
-    accent_color: Mapped[str] = mapped_column(
-        String(20), default="blue", nullable=False
+    # NULL = the user has never explicitly picked an accent, so the client's
+    # localStorage seed / default wins and useAccentSync must NOT override it.
+    # A non-null value is an explicit choice that syncs across devices.
+    accent_color: Mapped[str | None] = mapped_column(
+        String(20), nullable=True
     )  # one of the six keys in frontend src/constants/accents.ts
 
     # Mobile experience

@@ -274,8 +274,8 @@ class UserResponse(UserBase):
     # i18n preferences
     language: str = "en"
     currency_code: str = "USD"
-    # UI theme accent
-    accent_color: str = "blue"
+    # UI theme accent — None when the user has never explicitly picked one.
+    accent_color: str | None = None
     # Fuel-tracking form defaults (issue #69)
     default_payment_method: str | None = None
     default_trip_type: str | None = None

@@ -79,11 +79,16 @@ class TestUpdateCurrentUserPreferences:
         )
         assert response.status_code == 422
 
-    async def test_accent_color_defaults_to_blue(self, client: AsyncClient, auth_headers):
-        """A freshly-created user reports the default accent from GET /auth/me."""
+    async def test_accent_color_unset_by_default(self, client: AsyncClient, auth_headers):
+        """A freshly-created user has NO explicit accent (NULL) from GET /auth/me.
+
+        NULL means "never picked" so the client's localStorage seed / default
+        applies and useAccentSync must not override it; an explicit pick stores
+        a non-null key that syncs across devices.
+        """
         response = await client.get("/api/auth/me", headers=auth_headers)
         assert response.status_code == 200
-        assert response.json()["accent_color"] == "blue"
+        assert response.json()["accent_color"] is None
 
     async def test_update_show_both_units(
         self, client: AsyncClient, auth_headers, test_user, db_session

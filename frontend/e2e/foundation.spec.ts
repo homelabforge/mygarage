@@ -110,6 +110,7 @@ test.describe('P0 exit criteria', () => {
     // rings, glows) switched correctly — a partial, silent failure. Assert on
     // the resolved paint, never on the --accent custom property's value.
     await page.goto('/')
+    await page.waitForLoadState('networkidle')
     const before = await paintBgPrimary(page)
     expect(before, 'default accent (blue) did not resolve through bg-primary').toBe(
       hexToRgb(ACCENTS[DEFAULT_ACCENT].accent),
@@ -117,6 +118,7 @@ test.describe('P0 exit criteria', () => {
 
     await page.evaluate(() => localStorage.setItem('accent', 'amber'))
     await page.reload()
+    await page.waitForLoadState('networkidle')
     const after = await paintBgPrimary(page)
 
     expect(

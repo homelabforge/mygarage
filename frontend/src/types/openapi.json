@@ -15481,9 +15481,15 @@
         "description": "Schema for user response.",
         "properties": {
           "accent_color": {
-            "default": "blue",
-            "title": "Accent Color",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accent Color"
           },
           "created_at": {
             "format": "date-time",
