@@ -7,6 +7,10 @@ import RightCluster from '../RightCluster'
 
 vi.mock('../../../contexts/ThemeContext')
 vi.mock('../../../contexts/AuthContext')
+// QuickSettingsDrawer (a child) reads useAccent; stub it — not under test here.
+vi.mock('../../../contexts/AccentContext', () => ({
+  useAccent: () => ({ accent: 'blue', setAccent: vi.fn() }),
+}))
 
 function setup(overrides: Partial<ReturnType<typeof AuthContext.useAuth>> = {}) {
   const toggleTheme = vi.fn()

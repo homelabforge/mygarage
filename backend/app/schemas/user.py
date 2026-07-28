@@ -8,6 +8,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
+from app.constants.accents import SUPPORTED_ACCENTS
 from app.constants.fuel import PAYMENT_METHOD_VALUES, TRIP_TYPE_VALUES
 from app.constants.i18n import SUPPORTED_CURRENCIES, SUPPORTED_LANGUAGES
 
@@ -93,6 +94,8 @@ class UserSelfUpdate(BaseModel):
     # i18n preferences
     language: str | None = Field(None, max_length=10)
     currency_code: str | None = Field(None, max_length=3)
+    # UI theme accent
+    accent_color: str | None = Field(None, max_length=20)
     # Fuel-tracking form defaults (issue #69)
     default_payment_method: str | None = Field(None, max_length=20)
     default_trip_type: str | None = Field(None, max_length=20)
@@ -113,6 +116,14 @@ class UserSelfUpdate(BaseModel):
             raise ValueError(
                 f"Unsupported currency: {v}. Supported: {sorted(SUPPORTED_CURRENCIES)}"
             )
+        return v
+
+    @field_validator("accent_color")
+    @classmethod
+    def validate_accent_color(cls, v: Any) -> Any:
+        """Validate accent against the six-key allowlist."""
+        if v is not None and v not in SUPPORTED_ACCENTS:
+            raise ValueError(f"Unsupported accent: {v}. Supported: {sorted(SUPPORTED_ACCENTS)}")
         return v
 
     @field_validator("default_payment_method")
@@ -148,6 +159,8 @@ class AdminUserUpdate(BaseModel):
     # i18n preferences
     language: str | None = Field(None, max_length=10)
     currency_code: str | None = Field(None, max_length=3)
+    # UI theme accent
+    accent_color: str | None = Field(None, max_length=20)
     # Family/relationship fields
     relationship: RelationshipType = None
     relationship_custom: str | None = Field(None, max_length=100)
@@ -170,6 +183,14 @@ class AdminUserUpdate(BaseModel):
             raise ValueError(
                 f"Unsupported currency: {v}. Supported: {sorted(SUPPORTED_CURRENCIES)}"
             )
+        return v
+
+    @field_validator("accent_color")
+    @classmethod
+    def validate_accent_color(cls, v: Any) -> Any:
+        """Validate accent against the six-key allowlist."""
+        if v is not None and v not in SUPPORTED_ACCENTS:
+            raise ValueError(f"Unsupported accent: {v}. Supported: {sorted(SUPPORTED_ACCENTS)}")
         return v
 
     @model_validator(mode="after")
@@ -253,6 +274,8 @@ class UserResponse(UserBase):
     # i18n preferences
     language: str = "en"
     currency_code: str = "USD"
+    # UI theme accent
+    accent_color: str = "blue"
     # Fuel-tracking form defaults (issue #69)
     default_payment_method: str | None = None
     default_trip_type: str | None = None

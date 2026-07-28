@@ -26,6 +26,8 @@ const STATS: VehicleStatistics = {
   model: 'F-150',
   vehicle_type: 'FifthWheel',
   main_photo_url: null,
+  usage_unit: 'distance',
+  current_hours: null,
   total_service_records: 0,
   total_fuel_records: 0,
   total_odometer_records: 0,
@@ -65,5 +67,44 @@ describe('VehicleStatisticsCard', () => {
       screen.getByRole('button', { name: /vehicleStatisticsCardExtra\.viewDetails/ }),
     )
     expect(mockNavigate).toHaveBeenCalledWith('/vehicles/1HGBH41JXMN109186')
+  })
+
+  it('shows the odometer row and MPG strip for a distance-tracked vehicle', () => {
+    render(
+      <VehicleStatisticsCard
+        stats={{
+          ...STATS,
+          usage_unit: 'distance',
+          total_odometer_records: 1,
+          latest_odometer_km: '5000',
+          average_l_per_100km: '8.5',
+        }}
+      />
+    )
+    expect(screen.getByText('vehicleStats.latestOdometer')).toBeInTheDocument()
+    expect(screen.queryByText('vehicleStats.latestHours')).not.toBeInTheDocument()
+    expect(screen.getByText(/vehicleStatisticsCardExtra\.averageFuelEconomy/)).toBeInTheDocument()
+  })
+
+  it('shows Latest Hours and hides odometer + MPG for an hour-metered vehicle', () => {
+    render(
+      <VehicleStatisticsCard
+        stats={{
+          ...STATS,
+          vehicle_type: 'ATV',
+          usage_unit: 'hours',
+          current_hours: '123.5',
+          // Present in the data but must be IGNORED when tracking hours:
+          latest_odometer_km: '5000',
+          average_l_per_100km: '8.5',
+        }}
+      />
+    )
+    expect(screen.getByText('vehicleStats.latestHours')).toBeInTheDocument()
+    expect(screen.queryByText('vehicleStats.latestOdometer')).not.toBeInTheDocument()
+    // Distance-based MPG strip is hidden for hour vehicles.
+    expect(
+      screen.queryByText(/vehicleStatisticsCardExtra\.averageFuelEconomy/)
+    ).not.toBeInTheDocument()
   })
 })

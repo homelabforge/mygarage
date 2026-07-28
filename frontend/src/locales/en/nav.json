@@ -13,6 +13,17 @@
   "quickSettings": "Quick settings",
   "themeToggle": "Toggle theme",
   "allSettings": "All settings",
+  "appearance": "Appearance",
+  "accent": "Accent",
+  "accentError": "Couldn't save your accent",
+  "accents": {
+    "blue": "Blue",
+    "amber": "Amber",
+    "teal": "Teal",
+    "red": "Red",
+    "violet": "Violet",
+    "green": "Green"
+  },
   "login": "Login",
   "logout": "Logout",
   "admin": "ADMIN",

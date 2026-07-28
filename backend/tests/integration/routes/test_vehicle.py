@@ -72,6 +72,47 @@ class TestVehicleRoutes:
         data = response.json()
         assert data["license_plate"] == "UPDATED-123"
 
+    async def test_create_vehicle_defaults_usage_unit_to_distance(
+        self, client: AsyncClient, auth_headers, sample_vehicle_payload
+    ):
+        """A vehicle created without usage_unit defaults to distance tracking."""
+        payload = {**sample_vehicle_payload, "vin": "1HGCM82633A100001"}
+        response = await client.post("/api/vehicles", json=payload, headers=auth_headers)
+        assert response.status_code == 201
+        assert response.json()["usage_unit"] == "distance"
+
+    async def test_create_and_update_hours_tracking(
+        self, client: AsyncClient, auth_headers, sample_vehicle_payload
+    ):
+        """usage_unit='hours' + current_hours round-trip on both create and update."""
+        payload = {
+            **sample_vehicle_payload,
+            "vin": "1HGCM82633A100002",
+            "usage_unit": "hours",
+            "current_hours": 123.5,
+        }
+        resp = await client.post("/api/vehicles", json=payload, headers=auth_headers)
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data["usage_unit"] == "hours"
+        assert float(data["current_hours"]) == 123.5
+
+        upd = await client.put(
+            f"/api/vehicles/{payload['vin']}",
+            json={"current_hours": 200.0},
+            headers=auth_headers,
+        )
+        assert upd.status_code == 200
+        assert float(upd.json()["current_hours"]) == 200.0
+
+    async def test_create_vehicle_rejects_bad_usage_unit(
+        self, client: AsyncClient, auth_headers, sample_vehicle_payload
+    ):
+        """usage_unit outside {distance, hours} is rejected (422)."""
+        payload = {**sample_vehicle_payload, "vin": "1HGCM82633A100003", "usage_unit": "lightyears"}
+        resp = await client.post("/api/vehicles", json=payload, headers=auth_headers)
+        assert resp.status_code == 422
+
     async def test_delete_vehicle(self, client: AsyncClient, auth_headers, test_user, db_session):
         """Test deleting a vehicle."""
         from app.models.vehicle import Vehicle

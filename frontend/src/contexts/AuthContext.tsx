@@ -12,6 +12,7 @@ interface User {
   mobile_quick_entry_enabled?: boolean
   language?: string
   currency_code?: string
+  accent_color?: string
   // Fuel-tracking form defaults (issue #69)
   default_payment_method?: string | null
   default_trip_type?: string | null

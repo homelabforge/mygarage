@@ -16,6 +16,7 @@ const VEHICLE = {
 
 const STATS: VehicleDetailStats = {
   overdue_count: 3, upcoming_count: 2,
+  usage_unit: 'distance', current_hours: null,
   latest_odometer_km: '160000.00', latest_odometer_date: '2026-07-01',
   last_service_date: '2026-06-15', last_fillup_date: '2026-07-10',
   spent_this_year: '1234.50', year: 2026,

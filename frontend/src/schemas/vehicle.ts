@@ -12,6 +12,7 @@ export const VEHICLE_TYPES = [
   'SUV',
   'Truck',
   'Motorcycle',
+  'ATV',
   'RV',
   'Trailer',
   'FifthWheel',
@@ -92,6 +93,16 @@ const soldPriceSchema = z
   .optional()
   .transform(numberOrNull)
 
+// Engine-hour reading for hour-metered vehicles. Float ≥ 0, optional (blank →
+// null), same form-coercion pattern as the price schemas above.
+const currentHoursSchema = z
+  .number()
+  .min(0, 'Hours cannot be negative')
+  .or(z.nan())
+  .nullable()
+  .optional()
+  .transform(numberOrNull)
+
 // `.optional()` stays outside the transform (same reasoning as the numeric
 // schemas above): a non-motorized vehicle (Trailer/FifthWheel/TravelTrailer)
 // never registers trim/body_class/drive_type/gvwr_class/displacement_l/
@@ -149,6 +160,11 @@ export const vehicleEditSchema = z.object({
   nickname: nicknameSchema,
   license_plate: optionalStringSchema,
   vehicle_type: vehicleTypeSchema,
+  // Usage tracking: distance (odometer) or hours (hour meter). Defaulted so a
+  // payload that omits it (older forms / tests) is treated as distance; the edit
+  // form always supplies the vehicle's real value via its <select>.
+  usage_unit: z.enum(['distance', 'hours']).default('distance'),
+  current_hours: currentHoursSchema,
   color: optionalStringSchema,
 
   // Vehicle Details

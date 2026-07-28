@@ -73,6 +73,8 @@ export default function VehicleEdit() {
         nickname: data.nickname,
         license_plate: data.license_plate,
         vehicle_type: data.vehicle_type,
+        usage_unit: data.usage_unit ?? 'distance',
+        current_hours: data.current_hours,
         color: data.color,
         year: data.year,
         make: data.make,
@@ -264,6 +266,42 @@ export default function VehicleEdit() {
               </select>
               <FormError error={errors.vehicle_type} />
             </div>
+
+            <div>
+              <label htmlFor="usage_unit" className="block text-sm font-medium text-garage-text mb-1">
+                {t('edit.usageTracking')}
+              </label>
+              <select
+                id="usage_unit"
+                {...register('usage_unit')}
+                className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-garage-text"
+              >
+                <option value="distance">{t('edit.usageDistance')}</option>
+                <option value="hours">{t('edit.usageHours')}</option>
+              </select>
+              <FormError error={errors.usage_unit} />
+            </div>
+
+            {watch('usage_unit') === 'hours' && (
+              <div>
+                <label
+                  htmlFor="current_hours"
+                  className="block text-sm font-medium text-garage-text mb-1"
+                >
+                  {t('edit.currentHours')}
+                </label>
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  id="current_hours"
+                  {...register('current_hours', { valueAsNumber: true })}
+                  className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-garage-text"
+                  placeholder={t('vehicleEditPage.currentHoursPlaceholder')}
+                />
+                <FormError error={errors.current_hours} />
+              </div>
+            )}
 
             <div>
               <label htmlFor="color" className="block text-sm font-medium text-garage-text mb-1">

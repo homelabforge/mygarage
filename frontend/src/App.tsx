@@ -12,6 +12,7 @@ import Layout from './components/Layout'
 import InstallPrompt from './components/InstallPrompt'
 import AppToaster from './components/AppToaster'
 import { useLanguageSync } from './hooks/useLanguageSync'
+import { useAccentSync } from './hooks/useAccentSync'
 import { basePath } from './utils/basePath'
 
 // Eager load login/register for instant access
@@ -51,9 +52,10 @@ const LoadingFallback = () => (
   </div>
 )
 
-/** Syncs i18n language with authenticated user's DB preference. */
-function LanguageSyncProvider({ children }: { children: React.ReactNode }) {
+/** Syncs language + UI accent with the authenticated user's DB preferences. */
+function PreferenceSyncProvider({ children }: { children: React.ReactNode }) {
   useLanguageSync()
+  useAccentSync()
   return <>{children}</>
 }
 
@@ -78,7 +80,7 @@ function App() {
       <ThemeProvider>
         <AccentProvider>
         <AuthProvider>
-          <LanguageSyncProvider>
+          <PreferenceSyncProvider>
           <QueryClientProvider client={queryClient}>
           <BrowserRouter basename={basePath() || undefined}>
             <Suspense fallback={<LoadingFallback />}>
@@ -122,7 +124,7 @@ function App() {
           </BrowserRouter>
           <ReactQueryDevtools initialIsOpen={false} />
           </QueryClientProvider>
-          </LanguageSyncProvider>
+          </PreferenceSyncProvider>
         </AuthProvider>
         </AccentProvider>
       </ThemeProvider>

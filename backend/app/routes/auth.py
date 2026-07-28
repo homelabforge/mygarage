@@ -333,6 +333,9 @@ async def update_current_user(
     if user_update.currency_code is not None:
         current_user.currency_code = user_update.currency_code
 
+    if user_update.accent_color is not None:
+        current_user.accent_color = user_update.accent_color
+
     # Fuel-tracking form defaults (issue #69). These two fields are explicitly
     # nullable — users need to be able to clear a previously-set default — so
     # we honor explicit `null` payloads via model_fields_set rather than the
@@ -581,6 +584,9 @@ async def update_user(
 
     if user_update.currency_code is not None:
         user.currency_code = user_update.currency_code
+
+    if user_update.accent_color is not None:
+        user.accent_color = user_update.accent_color
 
     user.updated_at = utc_now()
 

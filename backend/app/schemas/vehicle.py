@@ -42,6 +42,7 @@ VehicleType = Literal[
     "Truck",
     "SUV",
     "Motorcycle",
+    "ATV",
     "RV",
     "Trailer",
     "FifthWheel",
@@ -58,6 +59,13 @@ class VehicleBase(BaseModel):
         ..., description="User-friendly display name", min_length=1, max_length=100
     )
     vehicle_type: VehicleType = Field(..., description="Type of vehicle")
+    usage_unit: Literal["distance", "hours"] = Field(
+        "distance",
+        description="Usage tracking dimension: 'distance' (odometer) or 'hours' (hour meter)",
+    )
+    current_hours: Decimal | None = Field(
+        None, description="Current engine-hour reading (used when usage_unit == 'hours')", ge=0
+    )
     year: int | None = Field(None, description="Model year", ge=1900, le=2100)
     make: str | None = Field(None, description="Manufacturer brand", max_length=50)
     model: str | None = Field(None, description="Model name", max_length=50)
@@ -376,6 +384,8 @@ class VehicleDetailStats(BaseModel):
 
     overdue_count: int
     upcoming_count: int
+    usage_unit: str  # 'distance' | 'hours' — drives the odometer/hours relabel
+    current_hours: Decimal | None  # required-but-nullable — latest hours when usage_unit == 'hours'
     latest_odometer_km: Decimal | None  # required-but-nullable (M2) — NO `= None` default
     latest_odometer_date: date | None  # required-but-nullable (M2) — NO `= None` default
     last_service_date: date | None  # required-but-nullable (M2) — NO `= None` default

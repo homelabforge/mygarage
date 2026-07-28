@@ -33,15 +33,23 @@ export default function VehicleHero({ vehicle, photoUrl, fromCache, detailStats 
     vehicle.vehicle_type &&
     !['Trailer', 'FifthWheel', 'TravelTrailer'].includes(vehicle.vehicle_type)
 
-  const reading =
-    isMotorized && detailStats?.latest_odometer_km
+  // Usage reading: engine hours for hour-metered vehicles, odometer distance
+  // otherwise. Hours carry no companion date (a single current value).
+  const tracksHours = detailStats?.usage_unit === 'hours'
+  const reading = tracksHours
+    ? detailStats?.current_hours != null
+      ? t('vehicleStats.hoursValue', { value: Number(detailStats.current_hours).toLocaleString() })
+      : null
+    : isMotorized && detailStats?.latest_odometer_km
       ? UnitFormatter.formatDistance(parseFloat(detailStats.latest_odometer_km), system)
       : null
 
-  // Companion reading date (m2) — a formatted date is DATA, not UI copy (G2),
-  // so it needs no i18n key. Rendered only when there's a reading to date.
+  const readingLabel = tracksHours ? t('detail.misc.hours') : t('detail.misc.odometer')
+
+  // Companion reading date (m2) — distance only; a formatted date is DATA, not
+  // UI copy (G2), so it needs no i18n key. Rendered only when there's a reading.
   const readingDate =
-    reading && detailStats?.latest_odometer_date
+    !tracksHours && reading && detailStats?.latest_odometer_date
       ? formatDateForDisplay(
           detailStats.latest_odometer_date,
           { year: 'numeric', month: 'short', day: 'numeric' },
@@ -88,7 +96,7 @@ export default function VehicleHero({ vehicle, photoUrl, fromCache, detailStats 
           {reading ? (
             <span className="inline-flex items-center gap-1.5 rounded-chip bg-badge-bg px-2.5 py-1 text-text-dim">
               <Gauge aria-hidden="true" className="h-3.5 w-3.5" />
-              <span className="text-[11px] font-medium">{t('detail.misc.odometer')}</span>
+              <span className="text-[11px] font-medium">{readingLabel}</span>
               <span className="text-[11px]">·</span>
               <Mono size="sm">{reading}</Mono>
               {readingDate ? (

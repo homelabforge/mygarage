@@ -49,6 +49,11 @@ class Vehicle(Base):
     vin: Mapped[str] = mapped_column(String(17), primary_key=True)
     nickname: Mapped[str] = mapped_column(String(100), nullable=False)
     vehicle_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    # Usage tracking dimension: 'distance' (odometer, km-canonical) or 'hours'
+    # (engine-hour meter). Per-vehicle; 'distance' is the default. current_hours
+    # holds the latest hour reading when usage_unit == 'hours'. See migration 080.
+    usage_unit: Mapped[str] = mapped_column(String(10), default="distance", nullable=False)
+    current_hours: Mapped[Decimal | None] = mapped_column(Numeric(10, 1), nullable=True)
     year: Mapped[int | None] = mapped_column(Integer)
     make: Mapped[str | None] = mapped_column(String(50))
     model: Mapped[str | None] = mapped_column(String(50))
@@ -183,11 +188,10 @@ class Vehicle(Base):
         "Reminder", back_populates="vehicle", cascade="all, delete-orphan"
     )
 
+    # No DB-level CHECK on vehicle_type: it is validated by the Pydantic
+    # VehicleType Literal on every write path (the sole writer). Dropped in
+    # migration 079 so new types are code-only additions, not table rebuilds.
     __table_args__ = (
-        CheckConstraint(
-            "vehicle_type IN ('Car', 'Truck', 'SUV', 'Motorcycle', 'RV', 'Trailer', 'FifthWheel', 'TravelTrailer', 'Electric', 'Hybrid')",
-            name="check_vehicle_type",
-        ),
         Index("idx_vehicles_type", "vehicle_type"),
         Index("idx_vehicles_nickname", "nickname"),
     )

@@ -45,6 +45,8 @@ class TestVehicleDetailStats:
         assert set(body.keys()) == {
             "overdue_count",
             "upcoming_count",
+            "usage_unit",
+            "current_hours",
             "latest_odometer_km",
             "latest_odometer_date",
             "last_service_date",
@@ -65,6 +67,9 @@ class TestVehicleDetailStats:
         assert body["last_service_date"] is None
         assert body["last_fillup_date"] is None
         assert body["spent_this_year"] == "0.00"
+        # Usage tracking defaults to distance; no hours reading on a fresh vehicle.
+        assert body["usage_unit"] == "distance"
+        assert body["current_hours"] is None
 
     async def test_read_share_grants_access(
         self,

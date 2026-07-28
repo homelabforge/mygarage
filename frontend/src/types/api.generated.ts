@@ -6174,6 +6174,8 @@ export interface components {
          * @description Schema for admin updating any user. Includes privileged fields.
          */
         AdminUserUpdate: {
+            /** Accent Color */
+            accent_color?: string | null;
             /** Currency Code */
             currency_code?: string | null;
             /** Email */
@@ -12596,6 +12598,11 @@ export interface components {
          */
         UserResponse: {
             /**
+             * Accent Color
+             * @default blue
+             */
+            accent_color: string;
+            /**
              * Created At
              * Format: date-time
              */
@@ -12676,6 +12683,8 @@ export interface components {
          * @description Schema for users updating their own profile. Rejects privileged fields.
          */
         UserSelfUpdate: {
+            /** Accent Color */
+            accent_color?: string | null;
             /** Currency Code */
             currency_code?: string | null;
             /** Default Payment Method */
@@ -12960,6 +12969,11 @@ export interface components {
              */
             color?: string | null;
             /**
+             * Current Hours
+             * @description Current engine-hour reading (used when usage_unit == 'hours')
+             */
+            current_hours?: number | string | null;
+            /**
              * Cylinders
              * @description Number of cylinders
              */
@@ -13055,11 +13069,18 @@ export interface components {
              */
             trim?: string | null;
             /**
+             * Usage Unit
+             * @description Usage tracking dimension: 'distance' (odometer) or 'hours' (hour meter)
+             * @default distance
+             * @enum {string}
+             */
+            usage_unit: "distance" | "hours";
+            /**
              * Vehicle Type
              * @description Type of vehicle
              * @enum {string}
              */
-            vehicle_type: "Car" | "Truck" | "SUV" | "Motorcycle" | "RV" | "Trailer" | "FifthWheel" | "TravelTrailer" | "Electric" | "Hybrid";
+            vehicle_type: "Car" | "Truck" | "SUV" | "Motorcycle" | "ATV" | "RV" | "Trailer" | "FifthWheel" | "TravelTrailer" | "Electric" | "Hybrid";
             /**
              * Vin
              * @description 17-character Vehicle Identification Number
@@ -13203,6 +13224,8 @@ export interface components {
          *     boundary). spent_this_year is currency (Decimal -> JSON string).
          */
         VehicleDetailStats: {
+            /** Current Hours */
+            current_hours: string | null;
             /** Last Fillup Date */
             last_fillup_date: string | null;
             /** Last Service Date */
@@ -13217,6 +13240,8 @@ export interface components {
             spent_this_year: string;
             /** Upcoming Count */
             upcoming_count: number;
+            /** Usage Unit */
+            usage_unit: string;
             /** Year */
             year: number;
         };
@@ -13355,6 +13380,11 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /**
+             * Current Hours
+             * @description Current engine-hour reading (used when usage_unit == 'hours')
+             */
+            current_hours?: string | null;
             /**
              * Cylinders
              * @description Number of cylinders
@@ -13498,11 +13528,18 @@ export interface components {
             /** Updated At */
             updated_at?: string | null;
             /**
+             * Usage Unit
+             * @description Usage tracking dimension: 'distance' (odometer) or 'hours' (hour meter)
+             * @default distance
+             * @enum {string}
+             */
+            usage_unit: "distance" | "hours";
+            /**
              * Vehicle Type
              * @description Type of vehicle
              * @enum {string}
              */
-            vehicle_type: "Car" | "Truck" | "SUV" | "Motorcycle" | "RV" | "Trailer" | "FifthWheel" | "TravelTrailer" | "Electric" | "Hybrid";
+            vehicle_type: "Car" | "Truck" | "SUV" | "Motorcycle" | "ATV" | "RV" | "Trailer" | "FifthWheel" | "TravelTrailer" | "Electric" | "Hybrid";
             /** Vin */
             vin: string;
             /** Warranty Basic */
@@ -13608,6 +13645,8 @@ export interface components {
             archived_visible: boolean;
             /** Average L Per 100Km */
             average_l_per_100km?: string | null;
+            /** Current Hours */
+            current_hours?: string | null;
             /**
              * Is Shared With Me
              * @default false
@@ -13651,6 +13690,11 @@ export interface components {
             total_service_records: number;
             /** Upcoming Maintenance Count */
             upcoming_maintenance_count: number;
+            /**
+             * Usage Unit
+             * @default distance
+             */
+            usage_unit: string;
             /** Vehicle Type */
             vehicle_type?: string | null;
             /** Vin */
@@ -13732,6 +13776,11 @@ export interface components {
              * @description Vehicle color
              */
             color?: string | null;
+            /**
+             * Current Hours
+             * @description Current engine-hour reading (used when usage_unit == 'hours')
+             */
+            current_hours?: number | string | null;
             /**
              * Cylinders
              * @description Number of cylinders
@@ -13828,10 +13877,17 @@ export interface components {
              */
             trim?: string | null;
             /**
+             * Usage Unit
+             * @description Usage tracking dimension: 'distance' (odometer) or 'hours' (hour meter)
+             * @default distance
+             * @enum {string}
+             */
+            usage_unit: "distance" | "hours";
+            /**
              * Vehicle Type
              * @description Type of vehicle
              */
-            vehicle_type?: ("Car" | "Truck" | "SUV" | "Motorcycle" | "RV" | "Trailer" | "FifthWheel" | "TravelTrailer" | "Electric" | "Hybrid") | null;
+            vehicle_type?: ("Car" | "Truck" | "SUV" | "Motorcycle" | "ATV" | "RV" | "Trailer" | "FifthWheel" | "TravelTrailer" | "Electric" | "Hybrid") | null;
             /**
              * Year
              * @description Model year

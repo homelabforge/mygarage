@@ -161,6 +161,8 @@ async def calculate_vehicle_stats(
         model=vehicle.model,
         vehicle_type=vehicle.vehicle_type,
         main_photo_url=main_photo_url,
+        usage_unit=vehicle.usage_unit,
+        current_hours=vehicle.current_hours,
         total_service_records=service_count or 0,
         total_fuel_records=fuel_count or 0,
         total_odometer_records=odometer_count or 0,

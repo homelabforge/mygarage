@@ -102,6 +102,7 @@ const mockVehicle: Vehicle = {
   vin: 'TEST12345678901234',
   nickname: 'Test Car',
   vehicle_type: 'Car' as VehicleType,
+  usage_unit: 'distance',
   year: 2024,
   make: 'Toyota',
   model: 'Camry',

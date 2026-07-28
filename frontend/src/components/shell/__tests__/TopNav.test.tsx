@@ -7,6 +7,10 @@ import TopNav from '../TopNav'
 
 vi.mock('../../../contexts/ThemeContext')
 vi.mock('../../../contexts/AuthContext')
+// QuickSettingsDrawer (a descendant via RightCluster) reads useAccent; stub it.
+vi.mock('../../../contexts/AccentContext', () => ({
+  useAccent: () => ({ accent: 'blue', setAccent: vi.fn() }),
+}))
 
 function setup() {
   vi.spyOn(ThemeContext, 'useTheme').mockReturnValue({ theme: 'dark', toggleTheme: vi.fn(), setTheme: vi.fn() })

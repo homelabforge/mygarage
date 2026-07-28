@@ -46,6 +46,45 @@ class TestUpdateCurrentUserPreferences:
             headers=auth_headers,
         )
 
+    async def test_update_accent_color(
+        self, client: AsyncClient, auth_headers, test_user, db_session
+    ):
+        """Test that the per-account UI accent can be updated and persists."""
+        response = await client.put(
+            "/api/auth/me",
+            json={"accent_color": "violet"},
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+        assert response.json()["accent_color"] == "violet"
+
+        # Verify persisted
+        user = await db_session.get(User, test_user["id"])
+        await db_session.refresh(user)
+        assert user.accent_color == "violet"
+
+        # Restore
+        await client.put(
+            "/api/auth/me",
+            json={"accent_color": "blue"},
+            headers=auth_headers,
+        )
+
+    async def test_update_accent_color_rejects_unsupported(self, client: AsyncClient, auth_headers):
+        """An accent outside the six-key allowlist is rejected (422)."""
+        response = await client.put(
+            "/api/auth/me",
+            json={"accent_color": "chartreuse"},
+            headers=auth_headers,
+        )
+        assert response.status_code == 422
+
+    async def test_accent_color_defaults_to_blue(self, client: AsyncClient, auth_headers):
+        """A freshly-created user reports the default accent from GET /auth/me."""
+        response = await client.get("/api/auth/me", headers=auth_headers)
+        assert response.status_code == 200
+        assert response.json()["accent_color"] == "blue"
+
     async def test_update_show_both_units(
         self, client: AsyncClient, auth_headers, test_user, db_session
     ):

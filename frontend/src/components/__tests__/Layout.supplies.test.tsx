@@ -7,6 +7,10 @@ import Layout from '../Layout'
 
 vi.mock('../../contexts/AuthContext')
 vi.mock('../../contexts/ThemeContext')
+// QuickSettingsDrawer (a descendant via TopNav→RightCluster) reads useAccent; stub it.
+vi.mock('../../contexts/AccentContext', () => ({
+  useAccent: () => ({ accent: 'blue', setAccent: vi.fn() }),
+}))
 
 function setup(initialPath = '/supplies') {
   vi.spyOn(AuthContext, 'useAuth').mockReturnValue({

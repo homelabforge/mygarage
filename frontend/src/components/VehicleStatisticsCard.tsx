@@ -45,16 +45,19 @@ function VehicleStatisticsCard({ stats }: VehicleStatisticsCardProps) {
     })
   }
 
+  const tracksHours = stats.usage_unit === 'hours'
   const hasActivity =
     stats.total_service_records > 0 ||
     stats.total_fuel_records > 0 ||
-    stats.total_odometer_records > 0
+    stats.total_odometer_records > 0 ||
+    (tracksHours && stats.current_hours != null)
 
   const typeLabels: Record<string, string> = {
     Car: t('vehicleTypeLabels.Car'),
     SUV: t('vehicleTypeLabels.SUV'),
     Truck: t('vehicleTypeLabels.Truck'),
     Motorcycle: t('vehicleTypeLabels.Motorcycle'),
+    ATV: t('vehicleTypeLabels.ATV'),
     RV: t('vehicleTypeLabels.RV'),
     Trailer: t('vehicleTypeLabels.Trailer'),
     FifthWheel: t('vehicleTypeLabels.FifthWheel'),
@@ -169,19 +172,34 @@ function VehicleStatisticsCard({ stats }: VehicleStatisticsCardProps) {
               {stats.latest_fuel_date && (
                 <ListRow icon={Fuel} label={t('vehicleStats.lastFillUp')} value={formatDate(stats.latest_fuel_date)} />
               )}
-              {stats.latest_odometer_km && (
-                <ListRow
-                  icon={Gauge}
-                  label={t('vehicleStats.latestOdometer')}
-                  value={UnitFormatter.formatDistance(parseFloat(String(stats.latest_odometer_km)), system, false)}
-                />
-              )}
+              {tracksHours
+                ? stats.current_hours != null && (
+                    <ListRow
+                      icon={Gauge}
+                      label={t('vehicleStats.latestHours')}
+                      value={t('vehicleStats.hoursValue', {
+                        value: Number(stats.current_hours).toLocaleString(),
+                      })}
+                    />
+                  )
+                : stats.latest_odometer_km && (
+                    <ListRow
+                      icon={Gauge}
+                      label={t('vehicleStats.latestOdometer')}
+                      value={UnitFormatter.formatDistance(
+                        parseFloat(String(stats.latest_odometer_km)),
+                        system,
+                        false
+                      )}
+                    />
+                  )}
             </div>
           </div>
         )}
 
-        {/* Highlight strip — average fuel economy (accent) */}
-        {stats.average_l_per_100km && (
+        {/* Highlight strip — average fuel economy (accent). Distance-based, so
+            hidden for hour-metered vehicles (MPG is meaningless there). */}
+        {!tracksHours && stats.average_l_per_100km && (
           <div className="border-t border-border pt-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">

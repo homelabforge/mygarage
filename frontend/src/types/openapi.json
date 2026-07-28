@@ -838,6 +838,18 @@
       "AdminUserUpdate": {
         "description": "Schema for admin updating any user. Includes privileged fields.",
         "properties": {
+          "accent_color": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accent Color"
+          },
           "currency_code": {
             "anyOf": [
               {
@@ -15468,6 +15480,11 @@
       "UserResponse": {
         "description": "Schema for user response.",
         "properties": {
+          "accent_color": {
+            "default": "blue",
+            "title": "Accent Color",
+            "type": "string"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -15628,6 +15645,18 @@
         "additionalProperties": false,
         "description": "Schema for users updating their own profile. Rejects privileged fields.",
         "properties": {
+          "accent_color": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accent Color"
+          },
           "currency_code": {
             "anyOf": [
               {
@@ -16324,6 +16353,23 @@
             "description": "Vehicle color",
             "title": "Color"
           },
+          "current_hours": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Current engine-hour reading (used when usage_unit == 'hours')",
+            "title": "Current Hours"
+          },
           "cylinders": {
             "anyOf": [
               {
@@ -16574,6 +16620,16 @@
             "description": "Trim level",
             "title": "Trim"
           },
+          "usage_unit": {
+            "default": "distance",
+            "description": "Usage tracking dimension: 'distance' (odometer) or 'hours' (hour meter)",
+            "enum": [
+              "distance",
+              "hours"
+            ],
+            "title": "Usage Unit",
+            "type": "string"
+          },
           "vehicle_type": {
             "description": "Type of vehicle",
             "enum": [
@@ -16581,6 +16637,7 @@
               "Truck",
               "SUV",
               "Motorcycle",
+              "ATV",
               "RV",
               "Trailer",
               "FifthWheel",
@@ -16848,6 +16905,18 @@
       "VehicleDetailStats": {
         "description": "Read-aggregation for the Vehicle Detail hero + key-facts strip (P5).\n\nMetric-canonical: latest_odometer_km is raw km (frontend converts at the\nboundary). spent_this_year is currency (Decimal -> JSON string).",
         "properties": {
+          "current_hours": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Hours"
+          },
           "last_fillup_date": {
             "anyOf": [
               {
@@ -16909,6 +16978,10 @@
             "title": "Upcoming Count",
             "type": "integer"
           },
+          "usage_unit": {
+            "title": "Usage Unit",
+            "type": "string"
+          },
           "year": {
             "title": "Year",
             "type": "integer"
@@ -16917,6 +16990,8 @@
         "required": [
           "overdue_count",
           "upcoming_count",
+          "usage_unit",
+          "current_hours",
           "latest_odometer_km",
           "latest_odometer_date",
           "last_service_date",
@@ -17208,6 +17283,19 @@
             "format": "date-time",
             "title": "Created At",
             "type": "string"
+          },
+          "current_hours": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Current engine-hour reading (used when usage_unit == 'hours')",
+            "title": "Current Hours"
           },
           "cylinders": {
             "anyOf": [
@@ -17672,6 +17760,16 @@
             ],
             "title": "Updated At"
           },
+          "usage_unit": {
+            "default": "distance",
+            "description": "Usage tracking dimension: 'distance' (odometer) or 'hours' (hour meter)",
+            "enum": [
+              "distance",
+              "hours"
+            ],
+            "title": "Usage Unit",
+            "type": "string"
+          },
           "vehicle_type": {
             "description": "Type of vehicle",
             "enum": [
@@ -17679,6 +17777,7 @@
               "Truck",
               "SUV",
               "Motorcycle",
+              "ATV",
               "RV",
               "Trailer",
               "FifthWheel",
@@ -17967,6 +18066,18 @@
             ],
             "title": "Average L Per 100Km"
           },
+          "current_hours": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Hours"
+          },
           "is_shared_with_me": {
             "default": false,
             "title": "Is Shared With Me",
@@ -18122,6 +18233,11 @@
           "upcoming_maintenance_count": {
             "title": "Upcoming Maintenance Count",
             "type": "integer"
+          },
+          "usage_unit": {
+            "default": "distance",
+            "title": "Usage Unit",
+            "type": "string"
           },
           "vehicle_type": {
             "anyOf": [
@@ -18320,6 +18436,23 @@
             ],
             "description": "Vehicle color",
             "title": "Color"
+          },
+          "current_hours": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Current engine-hour reading (used when usage_unit == 'hours')",
+            "title": "Current Hours"
           },
           "cylinders": {
             "anyOf": [
@@ -18578,6 +18711,16 @@
             "description": "Trim level",
             "title": "Trim"
           },
+          "usage_unit": {
+            "default": "distance",
+            "description": "Usage tracking dimension: 'distance' (odometer) or 'hours' (hour meter)",
+            "enum": [
+              "distance",
+              "hours"
+            ],
+            "title": "Usage Unit",
+            "type": "string"
+          },
           "vehicle_type": {
             "anyOf": [
               {
@@ -18586,6 +18729,7 @@
                   "Truck",
                   "SUV",
                   "Motorcycle",
+                  "ATV",
                   "RV",
                   "Trailer",
                   "FifthWheel",

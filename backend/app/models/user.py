@@ -58,6 +58,12 @@ class User(Base):
         String(3), default="USD", nullable=False
     )  # ISO 4217 currency code
 
+    # UI theme accent (per-account). The frontend also mirrors this to
+    # localStorage for instant apply and the logged-out / auth-none case.
+    accent_color: Mapped[str] = mapped_column(
+        String(20), default="blue", nullable=False
+    )  # one of the six keys in frontend src/constants/accents.ts
+
     # Mobile experience
     mobile_quick_entry_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 

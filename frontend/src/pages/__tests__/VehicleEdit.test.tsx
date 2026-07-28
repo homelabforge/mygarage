@@ -34,6 +34,7 @@ const baseVehicle: Vehicle = {
   vin: 'TEST12345678901234',
   nickname: 'Test Car',
   vehicle_type: 'Car',
+  usage_unit: 'distance',
   year: 2024,
   make: 'Toyota',
   model: 'Camry',

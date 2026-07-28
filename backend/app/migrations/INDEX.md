@@ -88,3 +88,6 @@ migrations must swallow their own operational errors.
 | `075_vehicle_location_tracking` | **FATAL** — Add vehicles.location_tracking_enabled (default on) for #118 GPS opt-out. |
 | `076_supply_inventory_tables` | Create parts & supplies inventory tables: supplies, supply_purchases, supply_usages. |
 | `077_attachment_supply_purchase_type` | Add 'supply_purchase' to attachments.record_type CHECK + widen file_type. |
+| `078_add_accent_color` | **FATAL** — Add per-account UI accent preference (accent_color) to user settings. |
+| `079_drop_vehicle_type_check` | Drop the vehicle_type CHECK constraint from vehicles. |
+| `080_add_usage_unit_hours` | **FATAL** — Add per-vehicle usage tracking dimension (usage_unit + current_hours). |

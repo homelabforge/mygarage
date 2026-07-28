@@ -116,6 +116,16 @@ async def _vehicle_detail_stats(db: AsyncSession, vin: str) -> VehicleDetailStat
     year = today.year
     year_start = date(year, 1, 1)
 
+    # Usage tracking dimension (drives the odometer/hours relabel). One small fetch;
+    # the caller has already gated the vin's existence.
+    usage_row = (
+        await db.execute(
+            select(Vehicle.usage_unit, Vehicle.current_hours).where(Vehicle.vin == vin)
+        )
+    ).first()
+    usage_unit = usage_row[0] if usage_row else "distance"
+    current_hours = usage_row[1] if usage_row else None
+
     # Latest odometer reading (km) + its date — ONE deterministic fetch via the
     # SHARED helper (date DESC, id DESC), the SAME selection the dashboard's
     # calculate_vehicle_stats now uses (R2-B1/B2), so the two routes agree on a
@@ -223,6 +233,8 @@ async def _vehicle_detail_stats(db: AsyncSession, vin: str) -> VehicleDetailStat
     return VehicleDetailStats(
         overdue_count=overdue_count,
         upcoming_count=upcoming_count,
+        usage_unit=usage_unit,
+        current_hours=current_hours,
         latest_odometer_km=latest_odometer_km,
         latest_odometer_date=latest_odometer_date,
         last_service_date=last_service_date,

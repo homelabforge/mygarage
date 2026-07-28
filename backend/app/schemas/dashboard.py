@@ -15,6 +15,10 @@ class VehicleStatistics(BaseModel):
     vehicle_type: str | None = None
     main_photo_url: str | None = None
 
+    # Usage tracking dimension — drives the odometer/hours relabel on the card
+    usage_unit: str = "distance"
+    current_hours: Decimal | None = None
+
     # Counts
     total_service_records: int
     total_fuel_records: int
