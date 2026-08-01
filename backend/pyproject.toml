@@ -8,8 +8,8 @@ version = "3.0.0-rc1"
 description = "Self-hosted vehicle maintenance tracking application"
 requires-python = ">=3.14"
 dependencies = [
-    "fastapi>=0.138.2",
-    "granian>=2.7.8",
+    "fastapi>=0.140.13",
+    "granian>=2.7.9",
     "sqlalchemy>=2.0.51",
     "aiosqlite>=0.22.1",
     "asyncpg>=0.31.0",  # PostgreSQL async driver
@@ -21,20 +21,20 @@ dependencies = [
     "python-dateutil>=2.9.0.post0",
     "apscheduler>=3.11.3",
     "pillow>=12.3.0",
-    "pillow-heif>=1.4.0",
+    "pillow-heif>=1.5.0",
     "reportlab>=5.0.0",
-    "pandas>=3.0.3",
+    "pandas>=3.0.5",
     "email-validator>=2.3.0",
     "python-magic>=0.4.27",
     "slowapi>=0.1.10",
     "argon2-cffi>=25.1.0",
-    "joserfc>=1.7.2",  # JWT encoding/decoding and JWKS verification (replaces authlib.jose)
+    "joserfc>=1.7.4",  # JWT encoding/decoding and JWKS verification (replaces authlib.jose)
     "pymupdf>=1.28.0",
     "pytesseract>=0.3.13",
     "aiosmtplib>=5.1.2",  # Async SMTP for email notifications
     "pyyaml>=6.0.3",  # YAML parsing for maintenance templates
     "aiomqtt>=2.5.1",  # Async MQTT client for LiveLink WiCAN support
-    "matplotlib>=3.11.0",  # Chart generation for PDF analytics reports
+    "matplotlib>=3.11.1",  # Chart generation for PDF analytics reports
     "rich>=15.0.0",  # Pretty container log output when MYGARAGE_LOG_PRETTY=true
 ]
 
@@ -45,7 +45,7 @@ dev = [
     "pytest-cov>=7.1.0",
     "pyjwt>=2.13.0",  # Test-only: used by tests/integration/routes/test_auth.py to decode JWT exp/iat claims without verification. Production auth uses joserfc.
     "pyright>=1.1.411",
-    "ruff>=0.15.20",
+    "ruff>=0.16.0",
     "pandas-stubs>=3.0.3.260530",
     "types-Pillow>=10.2.0.20240822",
 ]
