@@ -38,7 +38,8 @@ from sqlalchemy import create_engine, inspect, text
 # constraint (`CHECK (vehicle_type IN (...))`). The inner IN-list has exactly one
 # paren level, so [^)]* is safe up to the list's closing paren.
 _CHECK_RE = re.compile(
-    r"(?:CONSTRAINT\s+\w+\s+)?CHECK\s*\(\s*vehicle_type\s+IN\s*\([^)]*\)\s*\)",
+    r"\s*,\s*(?:CONSTRAINT\s+\w+\s+)?CHECK\s*\(\s*vehicle_type\s+IN\s*\([^)]*\)\s*\)"
+    r"|\s*(?:CONSTRAINT\s+\w+\s+)?CHECK\s*\(\s*vehicle_type\s+IN\s*\([^)]*\)\s*\)\s*,\s*",
     re.IGNORECASE | re.DOTALL,
 )
 
