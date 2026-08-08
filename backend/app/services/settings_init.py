@@ -313,6 +313,31 @@ DEFAULT_SETTINGS = {
         "description": "Discord webhook URL",
         "encrypted": True,
     },
+    # Matrix service
+    "matrix_enabled": {
+        "value": "false",
+        "category": "notifications",
+        "description": "Enable Matrix notifications",
+        "encrypted": False,
+    },
+    "matrix_homeserver": {
+        "value": "",
+        "category": "notifications",
+        "description": "Matrix homeserver base URL (e.g., https://matrix.example.com)",
+        "encrypted": False,
+    },
+    "matrix_access_token": {
+        "value": "",
+        "category": "notifications",
+        "description": "Matrix access token for the notifying account",
+        "encrypted": True,
+    },
+    "matrix_room_id": {
+        "value": "",
+        "category": "notifications",
+        "description": "Matrix room ID to post notifications to (e.g., !abc:example.com)",
+        "encrypted": False,
+    },
     # Telegram service
     "telegram_enabled": {
         "value": "false",
@@ -455,6 +480,31 @@ DEFAULT_SETTINGS = {
         "category": "notifications",
         "description": "DEF level percentage at or below which to notify",
         "encrypted": False,
+    },
+    # Opt-in LLM receipt parse (local/self-hosted OpenAI-compatible API)
+    "llm_receipt_parse_enabled": {
+        "value": "false",
+        "category": "integrations",
+        "description": "Enable opt-in LLM-assisted fuel receipt parsing (draft only)",
+        "encrypted": False,
+    },
+    "llm_base_url": {
+        "value": "http://127.0.0.1:11434/v1",
+        "category": "integrations",
+        "description": "OpenAI-compatible LLM API base URL (default: local Ollama)",
+        "encrypted": False,
+    },
+    "llm_model": {
+        "value": "llama3.2",
+        "category": "integrations",
+        "description": "LLM model name for receipt parsing",
+        "encrypted": False,
+    },
+    "llm_api_key": {
+        "value": "",
+        "category": "integrations",
+        "description": "Optional API key for the LLM endpoint",
+        "encrypted": True,
     },
     # CarComplaints Integration
     "carcomplaints_enabled": {

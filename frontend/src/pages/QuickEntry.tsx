@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
 import { Car, Fuel, Wrench, Gauge, ChevronRight, LayoutDashboard } from 'lucide-react'
@@ -18,6 +18,7 @@ type EntryType = 'fuel' | 'service' | 'odometer' | null
 export default function QuickEntry() {
   const { t } = useTranslation('vehicles')
   const { user } = useAuth()
+  const [searchParams] = useSearchParams()
   const [selectedVin, setSelectedVin] = useState<string>('')
   const [entryType, setEntryType] = useState<EntryType>(null)
 
@@ -31,6 +32,22 @@ export default function QuickEntry() {
       sessionStorage.setItem(`qe_redirected:${user.id}`, '1')
     }
   }, [user?.id])
+
+  // Deep links / PWA shortcuts: /quick-entry?action=add-fuel|add-service|odometer&vin=...
+  useEffect(() => {
+    const action = (searchParams.get('action') || '').toLowerCase()
+    const vinParam = (searchParams.get('vin') || '').toUpperCase()
+    if (vinParam) {
+      setSelectedVin(vinParam)
+    }
+    if (action === 'add-fuel' || action === 'fuel') {
+      setEntryType('fuel')
+    } else if (action === 'add-service' || action === 'service') {
+      setEntryType('service')
+    } else if (action === 'odometer' || action === 'add-odometer') {
+      setEntryType('odometer')
+    }
+  }, [searchParams])
 
   // Auto-select when the account has exactly one vehicle, without clobbering a
   // selection the user already made.

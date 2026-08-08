@@ -4,7 +4,7 @@ import logging
 from datetime import datetime, timedelta
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,6 +12,7 @@ from app.database import get_db
 from app.models.drive_session import DriveSession
 from app.models.user import User
 from app.schemas.fuel import (
+    FuelReceiptParseResponse,
     FuelRecordCreate,
     FuelRecordListResponse,
     FuelRecordResponse,
@@ -20,6 +21,7 @@ from app.schemas.fuel import (
 )
 from app.services.auth import get_vehicle_or_403, require_auth
 from app.services.fuel_service import FuelRecordService, build_fuel_response
+from app.services.receipt_parse_service import parse_receipt_draft
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +76,41 @@ OBC_SUGGESTION_WINDOW = timedelta(hours=24)
 
 
 # IMPORTANT: must be declared BEFORE `/{record_id}` so FastAPI's declaration-
-# order routing doesn't try to parse "obc-suggestion" as an int record_id.
+# order routing doesn't try to parse path segments as an int record_id.
+@router.post("/parse-receipt", response_model=FuelReceiptParseResponse)
+async def parse_fuel_receipt(
+    vin: str,
+    text: str | None = Form(None),
+    file: UploadFile | None = File(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_auth),
+):
+    """Parse a fuel receipt into a draft FuelRecord payload (does not persist).
+
+    Requires ``llm_receipt_parse_enabled``. Accepts multipart image/file and/or
+    a ``text`` form field. Returns draft fields only — never writes FuelRecord.
+    """
+    vin = vin.upper().strip()
+    await get_vehicle_or_403(vin, current_user, db, require_write=True)
+
+    file_bytes: bytes | None = None
+    filename: str | None = None
+    content_type: str | None = None
+    if file is not None and file.filename:
+        file_bytes = await file.read()
+        filename = file.filename
+        content_type = file.content_type
+
+    result = await parse_receipt_draft(
+        db,
+        text=text,
+        file_bytes=file_bytes,
+        filename=filename,
+        content_type=content_type,
+    )
+    return FuelReceiptParseResponse.model_validate(result)
+
+
 @router.get("/obc-suggestion", response_model=ObcSuggestionResponse)
 async def obc_suggestion(
     vin: str,

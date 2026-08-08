@@ -88,6 +88,9 @@ desktop.ini
 
 # MyGarage Specific
 data/
+# Keep packaged static data (reminder packs, etc.) under the app tree
+!backend/app/data/
+!backend/app/data/**
 *.db
 *.db-shm
 *.db-wal
@@ -154,3 +157,4 @@ frontend/package-lock.json
 # Agent instruction files (local-only, not for the public repo)
 CLAUDE.md
 .claude/
+.pw-browsers/

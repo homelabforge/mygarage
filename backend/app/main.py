@@ -315,6 +315,7 @@ from app.routes import (
     odometer_router,
     photos_router,
     recalls_router,
+    reminder_packs_router,
     reminders_router,
     reports_router,
     service_visits_router,
@@ -384,6 +385,7 @@ app.include_router(shop_discovery_router)  # Backward compatibility (deprecated)
 app.include_router(vendors_router)
 app.include_router(service_visits_router)
 app.include_router(reminders_router)
+app.include_router(reminder_packs_router)
 app.include_router(supplies_router)
 app.include_router(vehicle_supplies_router)
 app.include_router(livelink_ingest_router)

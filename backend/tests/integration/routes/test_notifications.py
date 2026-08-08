@@ -43,6 +43,10 @@ async def clear_notification_settings(db_session) -> None:
         "slack_webhook_url",
         "discord_enabled",
         "discord_webhook_url",
+        "matrix_enabled",
+        "matrix_homeserver",
+        "matrix_access_token",
+        "matrix_room_id",
         "telegram_enabled",
         "telegram_bot_token",
         "telegram_chat_id",
@@ -320,6 +324,54 @@ class TestNotificationRoutes:
         assert response.status_code == 200
         data = response.json()
         assert data["success"] is True
+
+    # -------------------------------------------------------------------------
+    # matrix tests
+    # -------------------------------------------------------------------------
+
+    async def test_matrix_disabled(self, client: AsyncClient, auth_headers):
+        """Test matrix test when notifications are disabled."""
+        response = await client.post(
+            "/api/notifications/test/matrix",
+            headers=auth_headers,
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is False
+        assert "disabled" in data["message"].lower()
+
+    async def test_matrix_success(self, client: AsyncClient, auth_headers, db_session):
+        """Test matrix test success with mocked HTTP."""
+        await set_settings(
+            db_session,
+            {
+                "matrix_enabled": "true",
+                "matrix_homeserver": "https://matrix.example.com",
+                "matrix_access_token": "syt_test_token",
+                "matrix_room_id": "!abc:example.com",
+            },
+        )
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.raise_for_status = MagicMock()
+
+        with patch("httpx.AsyncClient") as mock_client:
+            mock_instance = AsyncMock()
+            mock_instance.put = AsyncMock(return_value=mock_response)
+            mock_instance.aclose = AsyncMock()
+            mock_client.return_value = mock_instance
+
+            response = await client.post(
+                "/api/notifications/test/matrix",
+                headers=auth_headers,
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        mock_instance.put.assert_awaited()
 
     # -------------------------------------------------------------------------
     # telegram tests

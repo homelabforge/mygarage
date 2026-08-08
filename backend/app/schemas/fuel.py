@@ -581,3 +581,24 @@ class ObcSuggestionResponse(BaseModel):
     obc_l_per_100km: Decimal | None = Field(None, description="Suggested consumption (L/100 km)")
     obc_avg_speed_kmh: Decimal | None = Field(None, description="Suggested average speed (km/h)")
     obc_trip_duration_s: int | None = Field(None, description="Suggested trip duration (seconds)")
+
+
+class FuelReceiptDraft(BaseModel):
+    """Draft fuel fields extracted from a receipt (never persisted automatically)."""
+
+    date: str | None = None
+    odometer_km: float | None = None
+    liters: float | None = None
+    kwh: float | None = None
+    cost: float | None = None
+    price_per_unit: float | None = None
+    fuel_type_used: str | None = None
+    notes: str | None = None
+    station_name: str | None = None
+
+
+class FuelReceiptParseResponse(BaseModel):
+    """Response for opt-in LLM receipt parse — draft only."""
+
+    draft: FuelReceiptDraft
+    source: str = "llm"

@@ -1,0 +1,39 @@
+{
+  "id": "boat_winterization",
+  "name": "Boat Winterization",
+  "description": "Starter checklist for seasonal boat winterization and spring recommission.",
+  "reminders": [
+    {
+      "title": "Winterize Engine & Fuel System",
+      "reminder_type": "date",
+      "due_mileage_km": null,
+      "due_date_offset_days": 30,
+      "due_hours": null,
+      "notes": "Stabilize fuel, fog cylinders if required, and drain/flush cooling system per manufacturer guidance."
+    },
+    {
+      "title": "Drain & Protect Water Systems",
+      "reminder_type": "date",
+      "due_mileage_km": null,
+      "due_date_offset_days": 30,
+      "due_hours": null,
+      "notes": "Drain fresh water / raw-water systems and add antifreeze where appropriate."
+    },
+    {
+      "title": "Battery Storage Check",
+      "reminder_type": "date",
+      "due_mileage_km": null,
+      "due_date_offset_days": 45,
+      "due_hours": null,
+      "notes": "Remove or disconnect batteries; store on a maintainer if possible."
+    },
+    {
+      "title": "Spring Recommission",
+      "reminder_type": "date",
+      "due_mileage_km": null,
+      "due_date_offset_days": 150,
+      "due_hours": null,
+      "notes": "Reinstall batteries, flush antifreeze, check fluids, and verify bilge / safety equipment before launch."
+    }
+  ]
+}

@@ -9,7 +9,7 @@ import FormModalWrapper from '../FormModalWrapper'
 import { Button, Field, Input, Select, Toggle } from '../ui'
 import vehicleService from '../../services/vehicleService'
 import type { Vehicle, VehicleUpdate } from '../../types/vehicle'
-import { vehicleEditSchema, type VehicleEditFormData, VEHICLE_TYPES } from '../../schemas/vehicle'
+import { vehicleEditSchema, type VehicleEditFormData, VEHICLE_TYPES, NON_MOTORIZED_TYPES } from '../../schemas/vehicle'
 import { FUEL_TYPE_VALUES, FUEL_TYPE_LABELS, isDieselFuelType } from '../../constants/fuel'
 import { useUnitPreference } from '../../hooks/useUnitPreference'
 import { UnitConverter, UnitFormatter } from '../../utils/units'
@@ -17,7 +17,8 @@ import { toCanonicalLiters } from '../../utils/decimalSafe'
 import { getUsageTracking } from '../../utils/usageTracking'
 
 /** Vehicles with no engine, VIN-decoded drivetrain, or DEF system. */
-const NON_MOTORIZED_TYPES = ['Trailer', 'FifthWheel', 'TravelTrailer']
+const NON_MOTORIZED: readonly string[] = NON_MOTORIZED_TYPES
+
 
 /** Only these carry a Monroney label, so only these get the sticker section. */
 const WINDOW_STICKER_TYPES = ['Car', 'Truck', 'SUV']
@@ -92,7 +93,7 @@ export default function VehicleEditDrawer({
   const [seedSource, setSeedSource] = useState<Vehicle | null>(null)
   const { system } = useUnitPreference()
 
-  const isMotorized = seedSource ? !NON_MOTORIZED_TYPES.includes(seedSource.vehicle_type) : false
+  const isMotorized = seedSource ? !NON_MOTORIZED.includes(seedSource.vehicle_type) : false
   const hasWindowSticker = seedSource
     ? WINDOW_STICKER_TYPES.includes(seedSource.vehicle_type)
     : false
