@@ -10,7 +10,6 @@ import type { TrailerDetails, Vehicle } from '../../types/vehicle'
 
 interface TrailerTowPanelProps {
   vehicle: Vehicle
-  garageVehicles: Vehicle[]
 }
 
 const HITCH_OPTIONS = ['Ball', 'Pintle', 'Fifth Wheel', 'Gooseneck']
@@ -20,11 +19,12 @@ const BRAKE_OPTIONS = ['None', 'Electric', 'Hydraulic']
  * Trailer details + tow-vehicle pairing for trailer-like vehicles,
  * or a list of linked trailers when viewing a tow vehicle.
  */
-export default function TrailerTowPanel({ vehicle, garageVehicles }: TrailerTowPanelProps) {
+export default function TrailerTowPanel({ vehicle }: TrailerTowPanelProps) {
   const { t } = useTranslation('vehicles')
   const isTrailerLike = (NON_MOTORIZED_TYPES as readonly string[]).includes(vehicle.vehicle_type)
   const [details, setDetails] = useState<TrailerDetails | null>(null)
   const [towed, setTowed] = useState<Vehicle[]>([])
+  const [garageVehicles, setGarageVehicles] = useState<Vehicle[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
@@ -38,6 +38,12 @@ export default function TrailerTowPanel({ vehicle, garageVehicles }: TrailerTowP
     setLoading(true)
     try {
       if (isTrailerLike) {
+        try {
+          const list = await vehicleService.list(0, 200)
+          setGarageVehicles(list.vehicles ?? [])
+        } catch {
+          setGarageVehicles([])
+        }
         try {
           const d = await vehicleService.getTrailerDetails(vehicle.vin)
           setDetails(d)
@@ -53,7 +59,7 @@ export default function TrailerTowPanel({ vehicle, garageVehicles }: TrailerTowP
         }
       } else {
         const list = await vehicleService.listTowedTrailers(vehicle.vin)
-        setTowed(list)
+        setTowed(Array.isArray(list) ? list : [])
       }
     } finally {
       setLoading(false)
@@ -107,30 +113,23 @@ export default function TrailerTowPanel({ vehicle, garageVehicles }: TrailerTowP
   }
 
   if (!isTrailerLike) {
+    if (towed.length === 0) return null
     return (
       <Card breakInside>
         <CardHeader
           title={t('detail.tow.linkedTrailers', { defaultValue: 'Linked trailers' })}
           icon={Link2}
         />
-        {towed.length === 0 ? (
-          <p className="text-sm text-text-mute">
-            {t('detail.tow.noLinkedTrailers', {
-              defaultValue: 'No trailers are paired to this vehicle yet.',
-            })}
-          </p>
-        ) : (
-          <ul className="space-y-2">
-            {towed.map((tr) => (
-              <li key={tr.vin}>
-                <Link className="text-primary hover:underline font-medium" to={`/vehicles/${tr.vin}`}>
-                  {tr.nickname}
-                </Link>
-                <span className="text-xs text-text-mute ml-2 font-mono">{tr.vin}</span>
-              </li>
-            ))}
-          </ul>
-        )}
+        <ul className="space-y-2">
+          {towed.map((tr) => (
+            <li key={tr.vin}>
+              <Link className="text-primary hover:underline font-medium" to={`/vehicles/${tr.vin}`}>
+                {tr.nickname}
+              </Link>
+              <span className="text-xs text-text-mute ml-2 font-mono">{tr.vin}</span>
+            </li>
+          ))}
+        </ul>
       </Card>
     )
   }
