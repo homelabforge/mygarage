@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import re
 import secrets
-from datetime import date
+from datetime import date as date_type
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
@@ -65,7 +65,7 @@ async def require_webhook_token(
 
 class WebhookFuelPayload(BaseModel):
     vin: str = Field(..., max_length=17)
-    date: date | None = None
+    date: date_type | None = None
     odometer_km: Decimal | None = None
     liters: Decimal | None = None
     kwh: Decimal | None = None
@@ -85,7 +85,7 @@ class WebhookFuelPayload(BaseModel):
 class WebhookOdometerPayload(BaseModel):
     vin: str = Field(..., max_length=17)
     odometer_km: Decimal
-    date: date | None = None
+    date: date_type | None = None
     notes: str | None = None
 
 
@@ -113,7 +113,7 @@ async def _resolve_vehicle(db: AsyncSession, vin_or_nick: str) -> Vehicle:
 
 async def _create_fuel_record(db: AsyncSession, payload: WebhookFuelPayload) -> dict[str, Any]:
     vehicle = await _resolve_vehicle(db, payload.vin)
-    fill_date = payload.date or date.today()
+    fill_date = payload.date or date_type.today()
     price_basis = payload.price_basis
     if price_basis is None and payload.kwh is not None:
         price_basis = "per_kwh"
@@ -164,7 +164,7 @@ async def webhook_odometer(
     vehicle = await _resolve_vehicle(db, payload.vin)
     reading = OdometerRecord(
         vin=vehicle.vin,
-        date=payload.date or date.today(),
+        date=payload.date or date_type.today(),
         odometer_km=payload.odometer_km,
         notes=payload.notes,
         source="webhook",
