@@ -159,6 +159,11 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
         ? UnitConverter.litersToGallons(toNumber(record.propane_liters)!) ?? undefined
         : toNumber(record?.propane_liters),
       kwh: toNumber(record?.kwh),
+      soc_start_pct: toNumber((record as { soc_start_pct?: number | string | null })?.soc_start_pct),
+      soc_end_pct: toNumber((record as { soc_end_pct?: number | string | null })?.soc_end_pct),
+      charge_level: (record as { charge_level?: 'L1' | 'L2' | 'DCFC' | null })?.charge_level ?? undefined,
+      charge_location: (record as { charge_location?: 'home' | 'public' | null })?.charge_location ?? undefined,
+      battery_soh_pct: toNumber((record as { battery_soh_pct?: number | string | null })?.battery_soh_pct),
       price_per_unit: priceToDisplay(record?.price_per_unit, system, record?.price_basis) ?? undefined,
       price_basis: (record?.price_basis as 'per_volume' | 'per_weight' | 'per_kwh' | 'per_tank' | undefined) ?? undefined,
       cost: toNumber(record?.cost),
@@ -417,6 +422,11 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
         liters: toCanonicalLiters(data.liters, system) ?? undefined,
         propane_liters: toCanonicalLiters(data.propane_liters, system) ?? undefined,
         kwh: data.kwh,
+        soc_start_pct: data.soc_start_pct,
+        soc_end_pct: data.soc_end_pct,
+        charge_level: data.charge_level,
+        charge_location: data.charge_location,
+        battery_soh_pct: data.battery_soh_pct,
         price_per_unit: priceToCanonical(data.price_per_unit, system, data.price_basis) ?? undefined,
         price_basis: data.price_basis,
         cost: data.cost,
@@ -618,6 +628,45 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
               </div>
             </Field>
           </div>
+
+          {showKwh && (
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+              <Field id="soc_start_pct" label={t('fuel.socStart', { defaultValue: 'SOC start' })} unit="%">
+                <Input type="number" id="soc_start_pct" mono {...register('soc_start_pct', { valueAsNumber: true })} min="0" max="100" step="0.1" disabled={isSubmitting} />
+              </Field>
+              <Field id="soc_end_pct" label={t('fuel.socEnd', { defaultValue: 'SOC end' })} unit="%">
+                <Input type="number" id="soc_end_pct" mono {...register('soc_end_pct', { valueAsNumber: true })} min="0" max="100" step="0.1" disabled={isSubmitting} />
+              </Field>
+              <Field id="battery_soh_pct" label={t('fuel.batterySoh', { defaultValue: 'Battery SOH' })} unit="%">
+                <Input type="number" id="battery_soh_pct" mono {...register('battery_soh_pct', { valueAsNumber: true })} min="0" max="100" step="0.1" disabled={isSubmitting} />
+              </Field>
+              <Field id="charge_level" label={t('fuel.chargeLevel', { defaultValue: 'Charge level' })}>
+                <Select
+                  id="charge_level"
+                  {...register('charge_level')}
+                  disabled={isSubmitting}
+                  placeholder=""
+                  options={[
+                    { value: 'L1', label: 'L1' },
+                    { value: 'L2', label: 'L2' },
+                    { value: 'DCFC', label: 'DCFC' },
+                  ]}
+                />
+              </Field>
+              <Field id="charge_location" label={t('fuel.chargeLocation', { defaultValue: 'Location' })}>
+                <Select
+                  id="charge_location"
+                  {...register('charge_location')}
+                  disabled={isSubmitting}
+                  placeholder=""
+                  options={[
+                    { value: 'home', label: t('fuel.chargeHome', { defaultValue: 'Home' }) },
+                    { value: 'public', label: t('fuel.chargePublic', { defaultValue: 'Public' }) },
+                  ]}
+                />
+              </Field>
+            </div>
+          )}
 
           <Field id="price_basis" label={t('fuel.priceBasis')} error={errors.price_basis}>
             {/* Phase 3.6 — labels respect the user's unit preference.

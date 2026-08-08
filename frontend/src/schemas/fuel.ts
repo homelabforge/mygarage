@@ -43,6 +43,29 @@ export const makeFuelRecordSchema = (t: TFunction) =>
     liters: makeOptionalVolumeSchema(t),
     propane_liters: makeOptionalVolumeSchema(t),
     kwh: makeOptionalKwhSchema(t),
+    soc_start_pct: z
+      .number()
+      .min(0)
+      .max(100)
+      .or(z.nan())
+      .transform((val) => (isNaN(val) ? undefined : val))
+      .optional(),
+    soc_end_pct: z
+      .number()
+      .min(0)
+      .max(100)
+      .or(z.nan())
+      .transform((val) => (isNaN(val) ? undefined : val))
+      .optional(),
+    charge_level: optionalEnum(['L1', 'L2', 'DCFC'] as const),
+    charge_location: optionalEnum(['home', 'public'] as const),
+    battery_soh_pct: z
+      .number()
+      .min(0)
+      .max(100)
+      .or(z.nan())
+      .transform((val) => (isNaN(val) ? undefined : val))
+      .optional(),
     cost: makeOptionalCurrencySchema(t),
     rebate: makeOptionalCurrencySchema(t),
     price_per_unit: makeOptionalPricePerUnitSchema(t),

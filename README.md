@@ -76,3 +76,9 @@ VIN decoding powered by the [NHTSA vPIC API](https://vpic.nhtsa.dot.gov/).
 ### Development Assistance
 
 MyGarage was developed through AI-assisted pair programming with **Claude** and **Codex**, combining human vision with AI capabilities for architecture, security patterns, and implementation.
+
+---
+
+## Home Assistant
+
+MyGarage includes a Supervisor **add-on** (`homeassistant/addon`) and a **HACS integration** (`custom_components/mygarage`). See [docs/homeassistant/README.md](docs/homeassistant/README.md).
