@@ -46,6 +46,7 @@ coverage.json
 frontend/test-results/
 frontend/playwright-report/
 frontend/e2e/.auth/
+.pw-browsers/
 
 # Node / Frontend
 node_modules/

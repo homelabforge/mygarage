@@ -95,3 +95,6 @@ migrations must swallow their own operational errors.
 | `082_add_theme` | **FATAL** — Add per-account light/dark theme preference (theme) to user settings. |
 | `083_add_hours_tracking` | **FATAL** — Add engine-hours usage tracking (hours_records, engine_hours, due_hours, secondary_usage_enabled). |
 | `084_backfill_fuel_price_basis` | Backfill fuel_records.price_basis on rows the importer left NULL (#128). |
+| `085_add_tire_tracking` | **FATAL** — Add tires + tire_readings tables for position/tread/DOT tracking. |
+| `086_add_ev_charge_session_fields` | **FATAL** — Add EV/PHEV charge-session fields onto fuel_records. |
+| `087_add_webhook_ingest_settings` | Add webhook_ingest_token setting for inbound fuel/odometer/reminder webhooks. |

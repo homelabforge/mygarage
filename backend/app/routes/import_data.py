@@ -1314,3 +1314,140 @@ async def import_vehicle_json(
         bucket["skipped_count"] = bucket.get("skipped", 0)
 
     return results
+
+
+@router.post("/vehicles/{vin}/fuel/fuelio")
+@limiter.limit(settings.rate_limit_uploads)
+async def import_fuelio_csv(
+    request: Request,
+    vin: str,
+    file: UploadFile = File(...),
+    skip_duplicates: bool = Form(True),
+    db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(require_auth),
+):
+    """Import fuel records from a Fuelio CSV export."""
+    return await _import_third_party_fuel(vin, file, skip_duplicates, db, current_user, "fuelio")
+
+
+@router.post("/vehicles/{vin}/fuel/drivvo")
+@limiter.limit(settings.rate_limit_uploads)
+async def import_drivvo_csv(
+    request: Request,
+    vin: str,
+    file: UploadFile = File(...),
+    skip_duplicates: bool = Form(True),
+    db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(require_auth),
+):
+    """Import fuel records from a Drivvo CSV export."""
+    return await _import_third_party_fuel(vin, file, skip_duplicates, db, current_user, "drivvo")
+
+
+@router.post("/vehicles/{vin}/fuel/tesla")
+@limiter.limit(settings.rate_limit_uploads)
+async def import_tesla_csv(
+    request: Request,
+    vin: str,
+    file: UploadFile = File(...),
+    skip_duplicates: bool = Form(True),
+    db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(require_auth),
+):
+    """Import charge sessions from a Tesla / ABRP-style charge history CSV."""
+    return await _import_third_party_fuel(vin, file, skip_duplicates, db, current_user, "tesla")
+
+
+@router.post("/vehicles/{vin}/fuel/external")
+@limiter.limit(settings.rate_limit_uploads)
+async def import_external_fuel_csv(
+    request: Request,
+    vin: str,
+    file: UploadFile = File(...),
+    skip_duplicates: bool = Form(True),
+    format: str | None = Form(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(require_auth),
+):
+    """Auto-detect Fuelio / Drivvo / Tesla CSV format (or pass format= explicitly)."""
+    csv_data = await validate_csv_upload(file)
+    from app.services.import_adapters import PARSERS, detect_format
+
+    fmt = (format or detect_format(csv_data) or "").lower()
+    if fmt not in PARSERS:
+        raise HTTPException(
+            status_code=400,
+            detail="Unrecognized CSV format — pass format=fuelio|drivvo|tesla",
+        )
+    # Re-wrap for the shared helper (it re-reads the upload); parse inline instead.
+    await get_vehicle_or_403(vin, current_user, db, require_write=True)
+    parsed = PARSERS[fmt](csv_data)
+    return await _persist_parsed_fuel(vin, parsed, skip_duplicates, db)
+
+
+async def _import_third_party_fuel(
+    vin: str,
+    file: UploadFile,
+    skip_duplicates: bool,
+    db: AsyncSession,
+    current_user: User | None,
+    format_name: str,
+):
+    from app.services.import_adapters import PARSERS
+
+    await get_vehicle_or_403(vin, current_user, db, require_write=True)
+    csv_data = await validate_csv_upload(file)
+    parsed = PARSERS[format_name](csv_data)
+    return await _persist_parsed_fuel(vin, parsed, skip_duplicates, db)
+
+
+async def _persist_parsed_fuel(
+    vin: str,
+    parsed: list[dict],
+    skip_duplicates: bool,
+    db: AsyncSession,
+):
+    import_result = ImportResult()
+    for row_num, row in enumerate(parsed, start=2):
+        try:
+            date = row.get("date")
+            if not date:
+                import_result.add_error(row_num, "Date is required")
+                continue
+            odometer_km = row.get("odometer_km")
+            if skip_duplicates:
+                existing = await db.execute(
+                    select(FuelRecord).where(
+                        FuelRecord.vin == vin,
+                        FuelRecord.date == date,
+                        FuelRecord.odometer_km == odometer_km,
+                    )
+                )
+                if existing.scalar_one_or_none():
+                    import_result.add_skip()
+                    continue
+            record = FuelRecord(
+                vin=vin,
+                date=date,
+                odometer_km=odometer_km,
+                liters=row.get("liters"),
+                kwh=row.get("kwh"),
+                cost=row.get("cost"),
+                price_per_unit=row.get("price_per_unit"),
+                price_basis=row.get("price_basis"),
+                is_full_tank=bool(row.get("is_full_tank", True)),
+                notes=row.get("notes"),
+                fuel_type_used=row.get("fuel_type_used"),
+                soc_start_pct=row.get("soc_start_pct"),
+                soc_end_pct=row.get("soc_end_pct"),
+                charge_level=row.get("charge_level"),
+                charge_location=row.get("charge_location"),
+                battery_soh_pct=row.get("battery_soh_pct"),
+            )
+            db.add(record)
+            import_result.add_success()
+        except Exception as e:
+            logger.error("External fuel import row %d failed: %s", row_num, e)
+            import_result.add_error(row_num, "Invalid fuel record data")
+    await db.commit()
+    return import_result.to_dict()
