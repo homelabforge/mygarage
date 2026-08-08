@@ -46,6 +46,26 @@ from app.utils.logging_utils import sanitize_for_log
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/vehicles", tags=["Vehicles"])
 
+_NON_MOTORIZED = frozenset({"Trailer", "FifthWheel", "TravelTrailer"})
+
+
+async def _validate_tow_vehicle_vin(
+    db: AsyncSession,
+    current_user: User,
+    tow_vin: str | None,
+) -> str | None:
+    """Ensure tow VIN is an accessible motorized vehicle when provided."""
+    if not tow_vin:
+        return None
+    tow_vin = tow_vin.upper().strip()
+    tow_vehicle = await get_vehicle_or_403(tow_vin, current_user, db)
+    if tow_vehicle.vehicle_type in _NON_MOTORIZED:
+        raise HTTPException(
+            status_code=400,
+            detail="Tow vehicle must be a motorized vehicle (not a trailer)",
+        )
+    return tow_vin
+
 
 @router.get("", response_model=VehicleListResponse)
 async def list_vehicles(
@@ -417,7 +437,11 @@ async def create_trailer_details(
 
         # Create trailer details
         trailer_data.vin = vin
-        trailer = TrailerDetails(**trailer_data.model_dump())
+        payload = trailer_data.model_dump()
+        payload["tow_vehicle_vin"] = await _validate_tow_vehicle_vin(
+            db, current_user, payload.get("tow_vehicle_vin")
+        )
+        trailer = TrailerDetails(**payload)
         db.add(trailer)
         await db.commit()
         await db.refresh(trailer)
@@ -475,6 +499,10 @@ async def update_trailer_details(
 
         # Update fields
         update_data = trailer_data.model_dump(exclude_unset=True)
+        if "tow_vehicle_vin" in update_data:
+            update_data["tow_vehicle_vin"] = await _validate_tow_vehicle_vin(
+                db, current_user, update_data.get("tow_vehicle_vin")
+            )
         for field, value in update_data.items():
             setattr(trailer, field, value)
 
@@ -503,6 +531,24 @@ async def update_trailer_details(
             sanitize_for_log(str(e)),
         )
         raise HTTPException(status_code=503, detail="Database temporarily unavailable")
+
+
+@router.get("/{vin}/towed-trailers", response_model=list[VehicleResponse])
+async def list_towed_trailers(
+    vin: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_auth),
+):
+    """List trailer vehicles paired to this tow vehicle via TrailerDetails.tow_vehicle_vin."""
+    vin = vin.upper().strip()
+    await get_vehicle_or_403(vin, current_user, db)
+    result = await db.execute(
+        select(Vehicle)
+        .join(TrailerDetails, TrailerDetails.vin == Vehicle.vin)
+        .where(TrailerDetails.tow_vehicle_vin == vin)
+        .order_by(Vehicle.nickname)
+    )
+    return [VehicleResponse.model_validate(v) for v in result.scalars().all()]
 
 
 # ========== ARCHIVE ENDPOINTS ==========

@@ -65,6 +65,11 @@ function VehicleStatisticsCard({ stats }: VehicleStatisticsCardProps) {
     TravelTrailer: t('vehicleTypeLabels.TravelTrailer'),
     Electric: t('vehicleTypeLabels.Electric'),
     Hybrid: t('vehicleTypeLabels.Hybrid'),
+    Boat: t('vehicleTypeLabels.Boat'),
+    UTV: t('vehicleTypeLabels.UTV'),
+    Snowmobile: t('vehicleTypeLabels.Snowmobile'),
+    Bicycle: t('vehicleTypeLabels.Bicycle'),
+    EBike: t('vehicleTypeLabels.EBike'),
   }
   const typeLabel = stats.vehicle_type
     ? (typeLabels[stats.vehicle_type] ?? stats.vehicle_type)

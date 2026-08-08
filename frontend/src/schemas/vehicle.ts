@@ -23,7 +23,18 @@ export const VEHICLE_TYPES = [
   'TravelTrailer',
   'Electric',
   'Hybrid',
+  'Boat',
+  'UTV',
+  'Snowmobile',
+  'Bicycle',
+  'EBike',
 ] as const
+
+/** Trailer-like types: no fuel / odometer as a primary motorized vehicle. */
+export const NON_MOTORIZED_TYPES = ['Trailer', 'FifthWheel', 'TravelTrailer'] as const
+
+/** Distance-tracked but typically no liquid/charge fuel log (EBike uses Electric fuel). */
+export const NO_FUEL_TYPES = ['Bicycle'] as const
 
 // Collapse a blank/missing value to an explicit `null` rather than
 // `undefined`. The vehicle update endpoint uses Pydantic's

@@ -110,6 +110,25 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
   const [obcSuggestion, setObcSuggestion] = useState<ObcSuggestion | null>(null)
   const [obcLoading, setObcLoading] = useState(false)
   const [obcMessage, setObcMessage] = useState<string | null>(null)
+  const [hasLinkedTrailers, setHasLinkedTrailers] = useState(false)
+
+  useEffect(() => {
+    if (record) return
+    let cancelled = false
+    void import('../services/vehicleService').then(({ default: vehicleService }) =>
+      vehicleService
+        .listTowedTrailers(vin)
+        .then((list) => {
+          if (!cancelled) setHasLinkedTrailers(list.length > 0)
+        })
+        .catch(() => {
+          if (!cancelled) setHasLinkedTrailers(false)
+        }),
+    )
+    return () => {
+      cancelled = true
+    }
+  }, [vin, record])
 
   // `labelKey` is translated at render time; the fraction labels are numerals
   // and stay as-is (they are not prose).
@@ -717,7 +736,16 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
           </div>
 
           {showHaulingCheckbox && (
-            <Checkbox id="is_hauling" label={t('fuel.towingHaulingLoad')} {...register('is_hauling')} disabled={isSubmitting} />
+            <div className="space-y-1">
+              <Checkbox id="is_hauling" label={t('fuel.towingHaulingLoad')} {...register('is_hauling')} disabled={isSubmitting} />
+              {hasLinkedTrailers && (
+                <p className="text-xs text-text-mute">
+                  {t('fuel.towPairHint', {
+                    defaultValue: 'This vehicle has linked trailers — consider marking hauling if you were towing.',
+                  })}
+                </p>
+              )}
+            </div>
           )}
 
           {/* DEF Level - diesel vehicles only; the server rejects DEF data on non-diesel */}

@@ -6,6 +6,7 @@ import CurrencyInputPrefix from './common/CurrencyInputPrefix'
 import { toast } from 'sonner'
 import type { ServiceVisit, ServiceVisitCreate, ServiceVisitFormData, ServiceVisitFormLineItem, ServiceLineItemCreate, ServiceLineItemUpdate, ServiceCategory, SupplyUsedEntry } from '../types/serviceVisit'
 import type { Vehicle, VehicleType } from '../types/vehicle'
+import { NON_MOTORIZED_TYPES } from '../schemas/vehicle'
 import type { Supply } from '../types/supplies'
 import type { UnitSystem } from '../utils/units'
 import { SERVICE_CATEGORIES } from '../schemas/serviceVisit'
@@ -72,7 +73,7 @@ const createEmptyLineItem = (tempId: number): ServiceVisitFormLineItem => ({
   supplies_used: [],
 })
 
-const NON_MOTORIZED_TYPES: VehicleType[] = ['Trailer', 'FifthWheel', 'TravelTrailer']
+const NON_MOTORIZED: readonly string[] = NON_MOTORIZED_TYPES
 
 export default function ServiceVisitForm({
   vin,
@@ -87,7 +88,7 @@ export default function ServiceVisitForm({
   const { currencyCode, locale } = useCurrencyPreference()
   const createMutation = useCreateServiceVisit(vin)
   const updateMutation = useUpdateServiceVisit(vin)
-  const isMotorized = !vehicleType || !NON_MOTORIZED_TYPES.includes(vehicleType)
+  const isMotorized = !vehicleType || !NON_MOTORIZED.includes(vehicleType)
   const { data: currentMileage } = useLatestMileage(vin)
   // Task 14 — which usage dimension(s) this vehicle tracks, driving the
   // odometer vs. engine-hours field visibility below. Defaults mirror

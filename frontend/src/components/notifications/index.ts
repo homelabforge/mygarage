@@ -5,5 +5,6 @@ export { GotifyConfig } from './GotifyConfig';
 export { PushoverConfig } from './PushoverConfig';
 export { SlackConfig } from './SlackConfig';
 export { DiscordConfig } from './DiscordConfig';
+export { MatrixConfig } from './MatrixConfig';
 export { TelegramConfig } from './TelegramConfig';
 export { EmailConfig } from './EmailConfig';
