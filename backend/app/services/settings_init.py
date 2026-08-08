@@ -332,6 +332,18 @@ DEFAULT_SETTINGS = {
         "description": "Telegram chat/group/channel ID",
         "encrypted": False,
     },
+    "telegram_inbound_enabled": {
+        "value": "false",
+        "category": "integrations",
+        "description": "Accept structured fuel commands via Telegram bot webhook",
+        "encrypted": False,
+    },
+    "webhook_ingest_token": {
+        "value": "",
+        "category": "integrations",
+        "description": "Shared secret for POST /api/v1/webhooks/* (HA, n8n, Telegram)",
+        "encrypted": True,
+    },
     # Email service
     "email_enabled": {
         "value": "false",

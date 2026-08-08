@@ -324,6 +324,7 @@ from app.routes import (
     spot_rental_router,
     supplies_router,
     tax_router,
+    tires_router,
     toll_tags_router,
     toll_transactions_router,
     vehicle_supplies_router,
@@ -346,6 +347,7 @@ from app.routes.torque import router as torque_router
 from app.routes.widget import router as widget_router
 from app.routes.widget_keys import router as widget_keys_router
 from app.routes.widget_v2 import router as widget_v2_router
+from app.routes.webhooks import router as webhooks_router
 
 app.include_router(auth_router)
 app.include_router(family_router)
@@ -373,6 +375,7 @@ app.include_router(settings_router)
 app.include_router(backup_router)
 app.include_router(attachments_router)
 app.include_router(tax_router)
+app.include_router(tires_router)
 app.include_router(spot_rental_router)
 app.include_router(spot_rental_billing_router)
 app.include_router(address_book_router)
@@ -395,6 +398,7 @@ app.include_router(quick_entry_router)
 app.include_router(widget_router)
 app.include_router(widget_keys_router)
 app.include_router(widget_v2_router)
+app.include_router(webhooks_router)
 
 
 # Serve static files (frontend build) in production
