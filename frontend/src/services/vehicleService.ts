@@ -160,6 +160,14 @@ export const vehicleService = {
     const response = await api.put<TrailerDetails>(`/vehicles/${vin}/trailer`, details)
     return response.data
   },
+
+  /**
+   * List trailers whose TrailerDetails.tow_vehicle_vin points at this VIN.
+   */
+  async listTowedTrailers(vin: string): Promise<Vehicle[]> {
+    const response = await api.get<Vehicle[]>(`/vehicles/${vin}/towed-trailers`)
+    return response.data
+  },
 }
 
 export default vehicleService

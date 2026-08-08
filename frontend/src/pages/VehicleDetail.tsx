@@ -78,6 +78,7 @@ import TorqueSourceModal from '../components/modals/TorqueSourceModal'
 import { useOnlineStatus } from '../hooks/useOnlineStatus'
 import { useAuth } from '../contexts/AuthContext'
 import { getUsageTracking } from '../utils/usageTracking'
+import { NON_MOTORIZED_TYPES, NO_FUEL_TYPES } from '../schemas/vehicle'
 
 type ApiError = {
   response?: {
@@ -411,7 +412,7 @@ export default function VehicleDetail() {
         // Fuel group is fuel/def/propane; pick the first sub-tab visible for this
         // vehicle (propane-only trailers aren't motorized, so 'fuel' would be hidden).
         // Order matches the Add Fuel hero button (config order Fuel -> DEF -> Propane).
-        setActiveSubTab(isMotorized ? 'fuel' : hasDEF ? 'def' : hasPropane ? 'propane' : 'fuel')
+        setActiveSubTab(showFuelLog ? 'fuel' : hasDEF ? 'def' : hasPropane ? 'propane' : 'fuel')
         break
       case 'tracking':
         setActiveSubTab('notes')
@@ -474,8 +475,15 @@ export default function VehicleDetail() {
 
   // Check if vehicle is motorized (excludes non-motorized trailers, fifth wheels, and travel trailers)
   // RVs ARE motorized and keep fuel/odometer tabs
-  const isMotorized = vehicle?.vehicle_type &&
-    !['Trailer', 'FifthWheel', 'TravelTrailer'].includes(vehicle.vehicle_type)
+  const isMotorized = Boolean(
+    vehicle?.vehicle_type &&
+      !(NON_MOTORIZED_TYPES as readonly string[]).includes(vehicle.vehicle_type),
+  )
+  const showFuelLog = Boolean(
+    isMotorized &&
+      vehicle?.vehicle_type &&
+      !(NO_FUEL_TYPES as readonly string[]).includes(vehicle.vehicle_type),
+  )
 
   // Task 16a — which usage dimension(s) this vehicle tracks, gating the
   // Odometer vs. Hours maintenance sub-tab below. A pure-hours vehicle sees
@@ -541,7 +549,7 @@ export default function VehicleDetail() {
       hasSubTabs: true
     },
     // Fuel tab — groups fuel/DEF/propane fill-ups; shown when any is relevant
-    ...((isMotorized || hasDEF || hasPropane) ? [{
+    ...((showFuelLog || hasDEF || hasPropane) ? [{
       id: 'fuel' as const,
       label: t('detail.tabs.fuel'),
       icon: Fuel,
@@ -581,7 +589,7 @@ export default function VehicleDetail() {
       { id: 'recalls' as const, label: t('detail.misc.recalls'), icon: AlertTriangle },
     ],
     fuel: [
-      { id: 'fuel' as const, label: t('detail.tabs.fuel'), icon: Fuel, visible: isMotorized },
+      { id: 'fuel' as const, label: t('detail.tabs.fuel'), icon: Fuel, visible: showFuelLog },
       // i18n-exempt — DEF is an untranslated acronym (Diesel Exhaust Fluid)
       { id: 'def' as const, label: 'DEF', icon: Droplets, visible: hasDEF },
       { id: 'propane' as const, label: t('detail.misc.propane'), icon: Fuel, visible: hasPropane },
@@ -663,11 +671,11 @@ export default function VehicleDetail() {
           importing={importing}
           exporting={exporting}
           isOnline={isOnline}
-          showFuelAction={Boolean(isMotorized || hasDEF || hasPropane)}
+          showFuelAction={Boolean(showFuelLog || hasDEF || hasPropane)}
           hasStandardEquipment={hasStandardEquipment}
           hasOptionalEquipment={hasOptionalEquipment}
           onLogService={() => goToSection('maintenance', 'service')}
-          onAddFuel={() => goToSection('fuel', isMotorized ? 'fuel' : hasDEF ? 'def' : hasPropane ? 'propane' : 'fuel')}
+          onAddFuel={() => goToSection('fuel', showFuelLog ? 'fuel' : hasDEF ? 'def' : hasPropane ? 'propane' : 'fuel')}
           onReminder={() => goToSection('tracking', 'reminders')}
           onEditEquipment={handleEquipmentClick}
           onEdit={() => setEditDrawerOpen(true)}

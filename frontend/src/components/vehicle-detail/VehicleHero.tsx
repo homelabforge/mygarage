@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { Car, AlertTriangle, AlertCircle, Bell, Gauge } from 'lucide-react'
 import type { Vehicle, VehicleDetailStats } from '../../types/vehicle'
+import { NON_MOTORIZED_TYPES } from '../../schemas/vehicle'
 import { useUnitPreference } from '../../hooks/useUnitPreference'
 import { UnitFormatter } from '../../utils/units'
 import { formatDateForDisplay } from '../../utils/dateUtils'
@@ -32,7 +33,7 @@ export default function VehicleHero({ vehicle, photoUrl, fromCache, detailStats 
 
   const isMotorized =
     vehicle.vehicle_type &&
-    !['Trailer', 'FifthWheel', 'TravelTrailer'].includes(vehicle.vehicle_type)
+    !(NON_MOTORIZED_TYPES as readonly string[]).includes(vehicle.vehicle_type)
 
   // Usage reading(s): engine hours for hour-metered vehicles, odometer
   // distance otherwise — derived from `latest_hours` (the maintained

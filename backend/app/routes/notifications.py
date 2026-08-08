@@ -252,6 +252,43 @@ async def test_discord_connection(
         }
 
 
+@router.post("/test/matrix")
+async def test_matrix_connection(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_admin_user),
+) -> dict[str, Any]:
+    """Test Matrix homeserver connection."""
+    try:
+        from app.services.notifications.matrix import MatrixNotificationService
+
+        matrix_enabled = await _get_setting_bool(db, "matrix_enabled")
+        homeserver = await _get_setting(db, "matrix_homeserver")
+        access_token = await _get_setting(db, "matrix_access_token")
+        room_id = await _get_setting(db, "matrix_room_id")
+
+        if not matrix_enabled:
+            return {"success": False, "message": "Matrix notifications are disabled"}
+
+        if not homeserver or not access_token or not room_id:
+            return {
+                "success": False,
+                "message": "Matrix homeserver, access token, or room ID not configured",
+            }
+
+        service = MatrixNotificationService(homeserver, access_token, room_id)
+        try:
+            success, message = await service.test_connection()
+            return {"success": success, "message": message}
+        finally:
+            await service.close()
+    except Exception as e:
+        logger.error("Matrix test failed: %s", e)
+        return {
+            "success": False,
+            "message": "Failed to send Matrix test. Check server logs for details.",
+        }
+
+
 @router.post("/test/telegram")
 async def test_telegram_connection(
     db: AsyncSession = Depends(get_db),

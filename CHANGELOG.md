@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Vehicle types: Boat, UTV, Snowmobile, Bicycle, and E-Bike (Bicycle hides the fuel log; others remain motorized / hours-friendly where relevant).
+- Tow pairing UI for trailer details (`tow_vehicle_vin`) plus linked-trailers list on tow vehicles.
+- Built-in OEM/DIY reminder packs with apply-from-UI and `/api/reminder-packs` APIs.
+- Matrix notification channel (homeserver + access token + room).
+- Quick Entry / PWA deep links: `/quick-entry?action=add-fuel|add-service|odometer`.
+- Opt-in LLM fuel receipt parse (Ollama/OpenAI-compatible; draft only). See [docs/tier2-features.md](docs/tier2-features.md).
+
 ## [3.0.0-rc3] - 2026-08-06
 
 _Pre-release; promoting to stable will keep these entries._

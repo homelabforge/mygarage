@@ -29,7 +29,7 @@
       "name": "Add Service Record",
       "short_name": "Service",
       "description": "Quickly add a service record",
-      "url": "./?action=add-service",
+      "url": "./quick-entry?action=add-service",
       "icons": [
         {
           "src": "./icon-192.png",
@@ -41,7 +41,19 @@
       "name": "Add Fuel Record",
       "short_name": "Fuel",
       "description": "Quickly add a fuel record",
-      "url": "./?action=add-fuel",
+      "url": "./quick-entry?action=add-fuel",
+      "icons": [
+        {
+          "src": "./icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Log Odometer",
+      "short_name": "Odometer",
+      "description": "Quickly log an odometer reading",
+      "url": "./quick-entry?action=odometer",
       "icons": [
         {
           "src": "./icon-192.png",
