@@ -29,6 +29,7 @@ from app.models.spot_rental import SpotRental
 from app.models.spot_rental_billing import SpotRentalBilling
 from app.models.supply import Supply, SupplyPurchase, SupplyUsage
 from app.models.tax import TaxRecord
+from app.models.tire import Tire, TireReading
 from app.models.vehicle import TrailerDetails, Vehicle
 from app.models.vehicle_dtc import VehicleDTC
 from app.models.vehicle_share import VehicleShare
@@ -64,6 +65,8 @@ __all__ = [
     "Supply",
     "SupplyPurchase",
     "SupplyUsage",
+    "Tire",
+    "TireReading",
     # LiveLink (Telemetry)
     "LiveLinkDevice",
     "LiveLinkParameter",

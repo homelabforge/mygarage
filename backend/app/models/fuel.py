@@ -46,6 +46,14 @@ class FuelRecord(Base):
     tank_size_kg: Mapped[Decimal | None] = mapped_column(Numeric(6, 2))
     tank_quantity: Mapped[int | None] = mapped_column(Integer)
     kwh: Mapped[Decimal | None] = mapped_column(Numeric(8, 3))
+    # EV / PHEV charge-session fields (migration 086). Optional; gasoline
+    # fill-ups leave these null. price_per_unit + price_basis='per_kwh' is the
+    # energy rate — no separate rate column.
+    soc_start_pct: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
+    soc_end_pct: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
+    charge_level: Mapped[str | None] = mapped_column(String(10))  # L1 / L2 / DCFC
+    charge_location: Mapped[str | None] = mapped_column(String(20))  # home / public
+    battery_soh_pct: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
     cost: Mapped[Decimal | None] = mapped_column(Numeric(8, 2))
     # Rebate/discount/points redeemed on this fill-up. `cost` stores the NET
     # (price × volume − rebate); this keeps the redeemed amount for display and
