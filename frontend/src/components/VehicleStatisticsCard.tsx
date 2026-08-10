@@ -154,6 +154,26 @@ function VehicleStatisticsCard({ stats }: VehicleStatisticsCardProps) {
 
       {/* Body */}
       <div className="space-y-3 p-4">
+        {stats.is_shared_with_me && (
+          <p className="text-sm text-text-mute">
+            {stats.share_permission === 'write'
+              ? t('vehicleStatisticsCardExtra.sharedByCanEdit', {
+                  username: stats.shared_by_username,
+                })
+              : t('vehicleStatisticsCardExtra.sharedByViewOnly', {
+                  username: stats.shared_by_username,
+                })}
+            {stats.owner_relationship
+              ? ` · ${
+                  stats.owner_relationship === 'other' && stats.owner_relationship_custom
+                    ? stats.owner_relationship_custom
+                    : t(`common:relationships.${stats.owner_relationship}`, {
+                        defaultValue: stats.owner_relationship,
+                      })
+                }`
+              : null}
+          </p>
+        )}
         {/* Four metric tiles */}
         <div className="grid grid-cols-4 gap-2">
           <Tile icon={Wrench} value={stats.total_service_records} label={t('vehicleStats.service')} />

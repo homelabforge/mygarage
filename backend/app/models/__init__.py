@@ -7,6 +7,7 @@ from app.models.def_record import DEFRecord
 from app.models.document import Document
 from app.models.drive_session import DriveSession
 from app.models.dtc_definition import DTCDefinition
+from app.models.external_vehicle import ExternalVehicle
 from app.models.fuel import FuelRecord
 from app.models.hours import HoursRecord
 from app.models.insurance import InsurancePolicy
@@ -81,6 +82,7 @@ __all__ = [
     # Family Multi-User
     "VehicleShare",
     "VehicleTransfer",
+    "ExternalVehicle",
     # System
     "Setting",
     "AddressBookEntry",

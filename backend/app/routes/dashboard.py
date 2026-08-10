@@ -18,6 +18,7 @@ from app.models import (
     ServiceVisit,
     Vehicle,
 )
+from app.models.settings import Setting
 from app.models.user import User
 from app.models.vehicle_share import VehicleShare
 from app.schemas.dashboard import (
@@ -46,6 +47,8 @@ async def calculate_vehicle_stats(
     is_shared_with_me: bool = False,
     shared_by_username: str | None = None,
     share_permission: str | None = None,
+    owner_relationship: str | None = None,
+    owner_relationship_custom: str | None = None,
 ) -> VehicleStatistics:
     """Calculate statistics for a single vehicle"""
 
@@ -189,6 +192,8 @@ async def calculate_vehicle_stats(
         is_shared_with_me=is_shared_with_me,
         shared_by_username=shared_by_username,
         share_permission=share_permission,
+        owner_relationship=owner_relationship,
+        owner_relationship_custom=owner_relationship_custom,
     )
 
 
@@ -430,6 +435,8 @@ async def get_dashboard(
                 is_shared_with_me=True,
                 shared_by_username=owner.username,
                 share_permission=share.permission,
+                owner_relationship=owner.relationship,
+                owner_relationship_custom=owner.relationship_custom,
             )
             vehicle_stats.append(stats)
     else:
@@ -457,6 +464,12 @@ async def get_dashboard(
 
     fleet_health = await calculate_fleet_health(db, vehicle_stats)
 
+    multi_user_enabled = False
+    setting_result = await db.execute(select(Setting).where(Setting.key == "multi_user_enabled"))
+    setting = setting_result.scalar_one_or_none()
+    if setting is not None and str(setting.value).lower() in {"1", "true", "yes", "on"}:
+        multi_user_enabled = True
+
     return DashboardResponse(
         total_vehicles=len(vehicle_stats),
         vehicles=vehicle_stats,
@@ -467,4 +480,5 @@ async def get_dashboard(
         total_notes=total_notes,
         total_photos=total_photos,
         fleet_health=fleet_health,
+        multi_user_enabled=multi_user_enabled,
     )
