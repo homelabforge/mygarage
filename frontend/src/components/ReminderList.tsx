@@ -2,9 +2,9 @@
  * Reminder list component for the Tracking tab
  */
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Bell, Plus, Check, X, Edit, Trash2, Clock, Gauge, Zap, Timer } from 'lucide-react'
+import { Bell, Plus, Check, X, Edit, Trash2, Clock, Gauge, Zap, Timer, Package } from 'lucide-react'
 import { toast } from 'sonner'
 import { useReminders, useMarkReminderDone, useMarkReminderDismissed, useDeleteReminder } from '../hooks/useReminders'
 import { useLatestMileage } from '../hooks/useLatestMileage'
@@ -15,7 +15,9 @@ import ReminderForm from './ReminderForm'
 import type { Reminder, ReminderStatus } from '../types/reminder'
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { UnitFormatter } from '../utils/units'
-import { Button, IconButton, Card, Chip, Mono, EmptyState } from './ui'
+import { Button, IconButton, Card, Chip, Mono, EmptyState, Select } from './ui'
+import api from '../services/api'
+import { useQueryClient } from '@tanstack/react-query'
 
 interface ReminderListProps {
   vin: string
@@ -39,9 +41,35 @@ export default function ReminderList({ vin }: ReminderListProps) {
   const { t } = useTranslation('vehicles')
   const dateLocale = useDateLocale()
   const { system, showBoth } = useUnitPreference()
+  const queryClient = useQueryClient()
   const [activeStatus, setActiveStatus] = useState<ReminderStatus | 'all'>('pending')
   const [showForm, setShowForm] = useState(false)
   const [editingReminder, setEditingReminder] = useState<Reminder | undefined>()
+  const [packs, setPacks] = useState<{ id: string; name: string; description?: string }[]>([])
+  const [selectedPack, setSelectedPack] = useState('')
+  const [applyingPack, setApplyingPack] = useState(false)
+
+  useEffect(() => {
+    void api
+      .get('/reminder-packs')
+      .then((res) => setPacks(res.data || []))
+      .catch(() => setPacks([]))
+  }, [])
+
+  const applyPack = async () => {
+    if (!selectedPack) return
+    setApplyingPack(true)
+    try {
+      await api.post(`/vehicles/${vin}/reminders/apply-pack`, { pack_id: selectedPack })
+      toast.success(t('reminderList.packApplied', { defaultValue: 'Reminder pack applied' }))
+      await queryClient.invalidateQueries({ queryKey: ['reminders', vin] })
+      setSelectedPack('')
+    } catch {
+      toast.error(t('reminderList.packApplyError', { defaultValue: 'Failed to apply pack' }))
+    } finally {
+      setApplyingPack(false)
+    }
+  }
 
   const formatDate = (dateStr: string | null): string => {
     if (!dateStr) return '-'
@@ -109,6 +137,33 @@ export default function ReminderList({ vin }: ReminderListProps) {
           {t('reminderList.addReminder')}
         </Button>
       </div>
+
+      {packs.length > 0 && (
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="min-w-[220px] flex-1">
+            <Select
+              id="reminder-pack"
+              aria-label={t('reminderList.applyPack', { defaultValue: 'Apply reminder pack' })}
+              value={selectedPack}
+              onChange={(e) => setSelectedPack(e.target.value)}
+              options={[
+                { value: '', label: t('reminderList.choosePack', { defaultValue: 'Choose a pack…' }) },
+                ...packs.map((p) => ({ value: p.id, label: p.name })),
+              ]}
+            />
+          </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={Package}
+            loading={applyingPack}
+            disabled={!selectedPack}
+            onClick={() => void applyPack()}
+          >
+            {t('reminderList.applyPack', { defaultValue: 'Apply pack' })}
+          </Button>
+        </div>
+      )}
 
       {/* Status filter */}
       <div className="flex flex-wrap gap-2">

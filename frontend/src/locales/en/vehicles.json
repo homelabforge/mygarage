@@ -1071,7 +1071,12 @@
     "FifthWheel": "Fifth Wheel",
     "TravelTrailer": "Travel Trailer",
     "Electric": "Electric",
-    "Hybrid": "Hybrid"
+    "Hybrid": "Hybrid",
+    "Boat": "Boat",
+    "UTV": "UTV / SxS",
+    "Snowmobile": "Snowmobile",
+    "Bicycle": "Bicycle",
+    "EBike": "E-Bike"
   },
   "vendorSearch": {
     "noResults": "No vendors found",

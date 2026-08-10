@@ -1,7 +1,7 @@
-import { Bell, Radio, Send, Hash, MessageSquare, AtSign, Mail } from 'lucide-react';
+import { Bell, Radio, Send, Hash, MessageSquare, AtSign, Mail, Network } from 'lucide-react';
 import { useTranslation } from 'react-i18next'
 
-export type NotificationSubTab = 'ntfy' | 'gotify' | 'pushover' | 'slack' | 'discord' | 'telegram' | 'email';
+export type NotificationSubTab = 'ntfy' | 'gotify' | 'pushover' | 'slack' | 'discord' | 'matrix' | 'telegram' | 'email';
 
 interface NotificationSubTabsProps {
   activeSubTab: NotificationSubTab;
@@ -19,6 +19,7 @@ export function NotificationSubTabs({ activeSubTab, onSubTabChange, enabledServi
     { id: 'pushover' as const, label: 'Pushover', icon: Send }, // i18n-exempt
     { id: 'slack' as const, label: 'Slack', icon: Hash }, // i18n-exempt
     { id: 'discord' as const, label: 'Discord', icon: MessageSquare }, // i18n-exempt
+    { id: 'matrix' as const, label: 'Matrix', icon: Network }, // i18n-exempt
     { id: 'telegram' as const, label: 'Telegram', icon: AtSign }, // i18n-exempt
     { id: 'email' as const, label: t('notificationSubTabs.email'), icon: Mail },
   ];

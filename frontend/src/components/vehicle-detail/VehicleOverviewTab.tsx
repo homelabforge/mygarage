@@ -5,6 +5,7 @@ import { Card, CardHeader, Mono } from '../ui'
 import CardEditOverlay, { EDITABLE_CARD_CLASS } from './CardEditOverlay'
 import type { VehicleCardKey } from './VehicleFieldsDrawer'
 import type { Vehicle } from '../../types/vehicle'
+import { NON_MOTORIZED_TYPES } from '../../schemas/vehicle'
 import type { LastLocation } from '../../types/trips'
 import { formatCurrency, formatStickerValue } from '../../utils/formatUtils'
 import { UnitFormatter } from '../../utils/units'
@@ -15,6 +16,7 @@ import { useDateLocale } from '../../hooks/useDateLocale'
 import { useTimeFormat } from '../../hooks/useTimeFormat'
 import { formatDateTime } from '../../utils/parseAPITimestamp'
 import TransferHistorySection from '../TransferHistorySection'
+import TrailerTowPanel from './TrailerTowPanel'
 
 // Lazy-load map component — keeps Leaflet's ~150KB out of the main bundle
 const LastLocationMap = lazy(() => import('../maps/LastLocationMap'))
@@ -48,7 +50,7 @@ export default function VehicleOverviewTab({
   // the VIN-decoded / powertrain / non-motorized-fuel-type gates.
   const isMotorized =
     vehicle.vehicle_type &&
-    !['Trailer', 'FifthWheel', 'TravelTrailer'].includes(vehicle.vehicle_type)
+    !(NON_MOTORIZED_TYPES as readonly string[]).includes(vehicle.vehicle_type)
 
   // "Has anything" flags for the three VIN-decode-populated cards. When false,
   // the card still renders (so it stays clickable via the edit overlay below)
@@ -228,6 +230,8 @@ export default function VehicleOverviewTab({
 
       {/* Transfer History (its own file is retokenized in Step 3) */}
       <TransferHistorySection vin={vin} />
+
+      <TrailerTowPanel vehicle={vehicle} />
 
       {/* Fuel Economy */}
       {(vehicle.fuel_economy_city_l_per_100km || vehicle.fuel_economy_highway_l_per_100km || vehicle.fuel_economy_combined_l_per_100km) && (

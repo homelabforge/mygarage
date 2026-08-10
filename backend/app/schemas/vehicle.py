@@ -49,6 +49,11 @@ VehicleType = Literal[
     "TravelTrailer",
     "Electric",
     "Hybrid",
+    "Boat",
+    "UTV",
+    "Snowmobile",
+    "Bicycle",
+    "EBike",
 ]
 
 
