@@ -306,6 +306,7 @@ from app.routes import (
     def_router,
     documents_router,
     export_router,
+    external_vehicles_router,
     fuel_router,
     hours_router,
     import_router,
@@ -360,6 +361,7 @@ app.include_router(hours_router)
 app.include_router(documents_router)
 app.include_router(notes_router)
 app.include_router(dashboard_router)
+app.include_router(external_vehicles_router)
 app.include_router(export_router)
 app.include_router(import_router)
 app.include_router(analytics_router)

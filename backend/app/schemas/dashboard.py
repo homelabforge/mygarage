@@ -60,6 +60,8 @@ class VehicleStatistics(BaseModel):
     is_shared_with_me: bool = False
     shared_by_username: str | None = None
     share_permission: str | None = None  # 'read' or 'write'
+    owner_relationship: str | None = None
+    owner_relationship_custom: str | None = None
 
     class Config:
         from_attributes = True
@@ -92,6 +94,7 @@ class DashboardResponse(BaseModel):
 
     total_vehicles: int
     vehicles: list[VehicleStatistics]
+    multi_user_enabled: bool = False
 
     # Garage-wide totals
     total_service_records: int
