@@ -420,13 +420,25 @@ If you're upgrading from a version without the archive system:
 
 Potential improvements for future versions:
 
-- [ ] Bulk archive operations (archive multiple vehicles at once)
+- [x] Bulk archive operations (archive multiple vehicles at once)
 - [ ] Archive templates (pre-filled reasons for multi-vehicle owners)
-- [ ] Export archived vehicle data to PDF/JSON before deletion
+- [x] Export archived vehicle data to PDF/JSON before deletion
 - [ ] Archive history log (track who archived when)
-- [ ] Scheduled archiving (auto-archive vehicles after X days of inactivity)
+- [x] Scheduled archiving (auto-archive vehicles after X days of inactivity)
 - [ ] Archive analytics (view trends in vehicle turnover)
 - [ ] Restore with selective data (un-archive but don't restore certain records)
+
+### Bulk archive
+
+On the dashboard, use **Select** on My Vehicles, choose cards, then **Archive selected**. Shared metadata (reason, optional sale fields, notes, visibility) applies to every selected VIN via `POST /api/vehicles/archive/bulk`.
+
+### Export before delete
+
+In Settings → System → Archived Vehicles, download a sale-history or service-history PDF before permanent deletion.
+
+### Scheduled auto-archive
+
+Settings → System → Auto-archive inactive vehicles: set days of inactivity (`0` disables). When `SCHEDULER_ENABLED=true`, a daily job archives vehicles with no fuel/service/odometer/hours activity (and no recent create/update) older than that threshold.
 
 ## API Reference
 

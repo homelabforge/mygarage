@@ -583,6 +583,18 @@ DEFAULT_SETTINGS = {
         "description": "Use TLS/SSL for MQTT connection",
         "encrypted": False,
     },
+    "auto_archive_inactive_days": {
+        "value": "0",
+        "category": "general",
+        "description": "Auto-archive vehicles with no activity after N days (0 = disabled)",
+        "encrypted": False,
+    },
+    "imperial_gallon_standard": {
+        "value": "us",
+        "category": "general",
+        "description": "Imperial gallon standard: us (3.785 L) or uk (4.546 L)",
+        "encrypted": False,
+    },
 }
 
 

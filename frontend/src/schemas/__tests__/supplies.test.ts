@@ -77,6 +77,14 @@ describe('Supply Schema', () => {
     expect(result.success).toBe(false)
   })
 
+  it('rejects barcode over 64 characters', () => {
+    const result = supplySchema.safeParse({
+      ...validEntry,
+      barcode: 'A'.repeat(65),
+    })
+    expect(result.success).toBe(false)
+  })
+
   it('rejects category over 40 characters', () => {
     const result = supplySchema.safeParse({
       ...validEntry,

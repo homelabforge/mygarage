@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -18,7 +18,7 @@ import {
 } from '../constants/fuel'
 import { FormError } from './FormError'
 import api from '../services/api'
-import { useCreateFuelRecord, useUpdateFuelRecord } from '../hooks/queries/useFuelRecords'
+import { useCreateFuelRecord, useUpdateFuelRecord, useParseFuelReceipt, type FuelReceiptDraft } from '../hooks/queries/useFuelRecords'
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { useAuth } from '../contexts/AuthContext'
 import { UnitConverter, UnitFormatter } from '../utils/units'
@@ -68,6 +68,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
   const [error, setError] = useState<string | null>(null)
   const createMutation = useCreateFuelRecord(vin)
   const updateMutation = useUpdateFuelRecord(vin)
+  const parseReceiptMutation = useParseFuelReceipt(vin)
   const [vehicleFuelType, setVehicleFuelType] = useState<string>('')
   const [vehicleFuelTypeSecondary, setVehicleFuelTypeSecondary] = useState<string>('')
   // Task 13 — which usage dimension(s) this vehicle tracks, driving the
@@ -109,6 +110,11 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
   const [obcLoading, setObcLoading] = useState(false)
   const [obcMessage, setObcMessage] = useState<string | null>(null)
   const [hasLinkedTrailers, setHasLinkedTrailers] = useState(false)
+  const [llmReceiptEnabled, setLlmReceiptEnabled] = useState(false)
+  const [receiptDraft, setReceiptDraft] = useState<FuelReceiptDraft | null>(null)
+  const [receiptMessage, setReceiptMessage] = useState<string | null>(null)
+  const [receiptText, setReceiptText] = useState('')
+  const receiptFileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (record) return
@@ -127,6 +133,27 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
       cancelled = true
     }
   }, [vin, record])
+
+  useEffect(() => {
+    if (record) return
+    let cancelled = false
+    void api
+      .get('/settings')
+      .then((response) => {
+        const settings: { key: string; value: string | null }[] =
+          response.data?.settings ?? []
+        const enabled = settings.find((s) => s.key === 'llm_receipt_parse_enabled')
+        if (!cancelled) {
+          setLlmReceiptEnabled((enabled?.value || 'false').toLowerCase() === 'true')
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setLlmReceiptEnabled(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [record])
 
   // `labelKey` is translated at render time; the fraction labels are numerals
   // and stay as-is (they are not prose).
@@ -368,6 +395,77 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
     setObcSuggestion(null)
   }
 
+  const parseReceipt = async (file?: File | null) => {
+    setReceiptMessage(null)
+    setReceiptDraft(null)
+    if (!receiptText.trim() && !file) {
+      setReceiptMessage(t('fuel.receiptNeedInput'))
+      return
+    }
+    const formData = new FormData()
+    if (receiptText.trim()) formData.append('text', receiptText.trim())
+    if (file) formData.append('file', file)
+    try {
+      const result = await parseReceiptMutation.mutateAsync(formData)
+      setReceiptDraft(result.draft)
+    } catch (e: unknown) {
+      const err = e as { response?: { status?: number; data?: { detail?: string } } }
+      if (err?.response?.status === 403) {
+        setReceiptMessage(t('fuel.receiptDisabled'))
+      } else {
+        setReceiptMessage(err.response?.data?.detail || t('fuel.receiptParseError'))
+      }
+    } finally {
+      if (receiptFileRef.current) receiptFileRef.current.value = ''
+    }
+  }
+
+  const acceptReceiptDraft = () => {
+    if (!receiptDraft) return
+    if (receiptDraft.date) setValue('date', receiptDraft.date, { shouldValidate: true })
+    if (receiptDraft.odometer_km != null) {
+      const raw = Number(receiptDraft.odometer_km)
+      const display =
+        system === 'imperial' ? UnitConverter.kmToMiles(raw) : raw
+      if (display != null && !Number.isNaN(display)) {
+        setValue('odometer_km', Math.round(display * 10) / 10, { shouldValidate: true })
+      }
+    }
+    if (receiptDraft.liters != null) {
+      const raw = Number(receiptDraft.liters)
+      const display =
+        system === 'imperial' ? UnitConverter.litersToGallons(raw) : raw
+      if (display != null && !Number.isNaN(display)) {
+        setValue('liters', Math.round(display * 1000) / 1000, { shouldValidate: true })
+      }
+    }
+    if (receiptDraft.kwh != null) {
+      setValue('kwh', Number(receiptDraft.kwh), { shouldValidate: true })
+    }
+    if (receiptDraft.cost != null) {
+      setValue('cost', Number(receiptDraft.cost), { shouldValidate: true })
+    }
+    if (receiptDraft.price_per_unit != null) {
+      const display = priceToDisplay(Number(receiptDraft.price_per_unit), system, 'per_volume')
+      if (display != null) {
+        setValue('price_per_unit', display, { shouldValidate: true })
+      }
+    }
+    if (receiptDraft.fuel_type_used) {
+      setValue('fuel_type_used', receiptDraft.fuel_type_used, { shouldValidate: true })
+    }
+    if (receiptDraft.notes) {
+      setValue('notes', receiptDraft.notes, { shouldValidate: true })
+    }
+    if (receiptDraft.station_name) {
+      setStationText(receiptDraft.station_name)
+      setValue('station_name_freetext', receiptDraft.station_name, { shouldValidate: true })
+      setValue('station_address_book_id', undefined, { shouldValidate: true })
+    }
+    setReceiptDraft(null)
+    setReceiptText('')
+  }
+
   // Auto-calculate total cost when volume/energy and price per unit change
   // Skip auto-calc on mount when editing to preserve manually entered cost
   const [isInitialMount, setIsInitialMount] = useState(true)
@@ -548,6 +646,81 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
           {error && (
             <div className="bg-danger/10 border border-danger rounded-lg p-3">
               <p className="text-sm text-danger">{error}</p>
+            </div>
+          )}
+
+          {!isEdit && llmReceiptEnabled && (
+            <div className="rounded-lg border border-garage-border bg-garage-bg/40 p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-primary" />
+                <h4 className="text-sm font-semibold text-garage-text">{t('fuel.parseReceipt')}</h4>
+              </div>
+              <p className="text-xs text-garage-text-muted">{t('fuel.parseReceiptHint')}</p>
+              <Textarea
+                id="receipt_text"
+                value={receiptText}
+                onChange={(e) => setReceiptText(e.target.value)}
+                placeholder={t('fuel.receiptTextPlaceholder')}
+                rows={3}
+                disabled={isSubmitting || parseReceiptMutation.isPending}
+              />
+              <div className="flex flex-wrap gap-2">
+                <input
+                  ref={receiptFileRef}
+                  type="file"
+                  accept="image/*,.pdf,application/pdf"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    void parseReceipt(file)
+                  }}
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => receiptFileRef.current?.click()}
+                  loading={parseReceiptMutation.isPending}
+                  disabled={isSubmitting}
+                >
+                  {t('fuel.receiptUpload')}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="primary"
+                  icon={Sparkles}
+                  onClick={() => void parseReceipt()}
+                  loading={parseReceiptMutation.isPending}
+                  disabled={isSubmitting || !receiptText.trim()}
+                >
+                  {t('fuel.parseReceipt')}
+                </Button>
+              </div>
+              {receiptMessage && <p className="text-sm text-danger">{receiptMessage}</p>}
+              {receiptDraft && (
+                <div className="rounded-lg border border-primary/40 bg-primary/5 p-3 space-y-2">
+                  <p className="text-sm text-garage-text">
+                    {[
+                      receiptDraft.date,
+                      receiptDraft.station_name,
+                      receiptDraft.liters != null ? `${receiptDraft.liters} L` : null,
+                      receiptDraft.kwh != null ? `${receiptDraft.kwh} kWh` : null,
+                      receiptDraft.cost != null ? String(receiptDraft.cost) : null,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ') || t('fuel.receiptDraftEmpty')}
+                  </p>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="primary" onClick={acceptReceiptDraft}>
+                      {t('fuel.receiptDraftAccept')}
+                    </Button>
+                    <Button size="sm" variant="secondary" onClick={() => setReceiptDraft(null)}>
+                      {t('fuel.receiptDraftDismiss')}
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

@@ -29,6 +29,9 @@ interface BackupStats {
     size_mb: number
     last_modified: string
     exists: boolean
+    path?: string
+    is_sqlite?: boolean
+    database_engine?: string
   }
   settings_backups: {
     count: number
@@ -38,6 +41,17 @@ interface BackupStats {
     count: number
     total_size_mb: number
   }
+  is_sqlite?: boolean
+  database_engine?: string
+}
+
+function isPostgresBackupTarget(stats: BackupStats | null): boolean {
+  if (!stats) return false
+  if (typeof stats.is_sqlite === 'boolean') return !stats.is_sqlite
+  if (typeof stats.database?.is_sqlite === 'boolean') return !stats.database.is_sqlite
+  const engine = stats.database_engine || stats.database?.database_engine
+  if (engine) return /postgres/i.test(engine)
+  return stats.database?.path === 'PostgreSQL'
 }
 
 export default function SettingsBackupTab() {
@@ -123,6 +137,11 @@ export default function SettingsBackupTab() {
   }
 
   const handleRestore = async (filename: string, isFullBackup: boolean) => {
+    if (isFullBackup && isPostgresBackupTarget(stats)) {
+      setMessage({ type: 'warning', text: t('backupTab.postgresRestoreMessage') })
+      return
+    }
+
     const confirmMessage = isFullBackup
       ? t('backupTab.confirmRestoreFull')
       : t('backupTab.confirmRestoreSettings')
@@ -200,6 +219,8 @@ export default function SettingsBackupTab() {
     }
     return `${sizeMb.toFixed(2)} MB`
   }
+
+  const postgresRestoreDisabled = isPostgresBackupTarget(stats)
 
   if (loading) {
     return (
@@ -427,6 +448,18 @@ export default function SettingsBackupTab() {
           </div>
         </div>
 
+        {postgresRestoreDisabled && (
+          <div className="bg-info/10 border border-info/40 rounded-lg p-4 mb-6">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="w-5 h-5 text-info mt-0.5" />
+              <div>
+                <h3 className="text-sm font-medium text-info mb-1">{t('backupTab.postgresRestoreTitle')}</h3>
+                <p className="text-sm text-garage-text-muted">{t('backupTab.postgresRestoreMessage')}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Create Full Backup */}
         <div className="flex gap-3 mb-6">
           <button
@@ -489,8 +522,13 @@ export default function SettingsBackupTab() {
                         </button>
                         <button
                           onClick={() => handleRestore(backup.filename, true)}
-                          className="p-1 text-danger-500 hover:bg-danger-500/10 rounded"
-                          title={t('backup.restoreOverwrite')}
+                          disabled={postgresRestoreDisabled}
+                          className="p-1 text-danger-500 hover:bg-danger-500/10 rounded disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                          title={
+                            postgresRestoreDisabled
+                              ? t('backupTab.postgresRestoreMessage')
+                              : t('backup.restoreOverwrite')
+                          }
                         >
                           <RefreshCw size={16} />
                         </button>

@@ -54,6 +54,10 @@ export default function SettingsSystemTab() {
   const [unitPreference, setUnitPreference] = useState<'imperial' | 'metric'>('imperial')
   const [showBothUnits, setShowBothUnits] = useState(false)
   const [unitPreferenceSaving, setUnitPreferenceSaving] = useState(false)
+  const [gallonStandard, setGallonStandard] = useState<'us' | 'uk'>('us')
+  const [gallonStandardSaving, setGallonStandardSaving] = useState(false)
+  const [autoArchiveDays, setAutoArchiveDays] = useState('0')
+  const [autoArchiveSaving, setAutoArchiveSaving] = useState(false)
 
   // Time-format preference state (12h/24h)
   const [timeFormat, setTimeFormat] = useState<'12h' | '24h'>('12h')
@@ -167,6 +171,12 @@ export default function SettingsSystemTab() {
       }
       setFormData(newFormData)
       setLoadedFormData(newFormData)
+
+      const gallon = settingsMap.imperial_gallon_standard === 'uk' ? 'uk' : 'us'
+      setGallonStandard(gallon)
+      localStorage.setItem('imperial_gallon_standard', gallon)
+
+      setAutoArchiveDays(settingsMap.auto_archive_inactive_days || '0')
 
       // Check user count to determine if auth has ever been enabled
       try {
@@ -351,6 +361,45 @@ export default function SettingsSystemTab() {
       }
     } finally {
       setUnitPreferenceSaving(false)
+    }
+  }
+
+  const handleGallonStandardChange = async (standard: 'us' | 'uk') => {
+    setGallonStandardSaving(true)
+    setGallonStandard(standard)
+    try {
+      await api.post('/settings/batch', {
+        settings: { imperial_gallon_standard: standard },
+      })
+      localStorage.setItem('imperial_gallon_standard', standard)
+      toast.success(t('units.gallonSaved'))
+      window.dispatchEvent(new Event('storage'))
+    } catch {
+      toast.error(t('units.gallonError'))
+      const stored = localStorage.getItem('imperial_gallon_standard') === 'uk' ? 'uk' : 'us'
+      setGallonStandard(stored)
+    } finally {
+      setGallonStandardSaving(false)
+    }
+  }
+
+  const handleAutoArchiveDaysChange = (raw: string) => {
+    setAutoArchiveDays(raw.replace(/[^\d]/g, ''))
+  }
+
+  const saveAutoArchiveDays = async () => {
+    setAutoArchiveSaving(true)
+    try {
+      const value = String(Math.max(0, parseInt(autoArchiveDays || '0', 10) || 0))
+      setAutoArchiveDays(value)
+      await api.post('/settings/batch', {
+        settings: { auto_archive_inactive_days: value },
+      })
+      toast.success(t('archive.autoArchiveSaved'))
+    } catch {
+      toast.error(t('archive.autoArchiveError'))
+    } finally {
+      setAutoArchiveSaving(false)
     }
   }
 
@@ -625,6 +674,68 @@ export default function SettingsSystemTab() {
               {t('units.showBothDescription')}
             </p>
           </div>
+
+          {unitPreference === 'imperial' && (
+            <div className="mt-4">
+              <label className="block text-sm font-medium text-garage-text mb-2">
+                {t('units.gallonStandard')}
+              </label>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => handleGallonStandardChange('us')}
+                  disabled={gallonStandardSaving}
+                  className={`flex-1 px-4 py-3 rounded-lg border-2 transition-all ${
+                    gallonStandard === 'us'
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-garage-border bg-garage-bg text-garage-text hover:border-garage-border'
+                  }`}
+                >
+                  {t('units.gallonUs')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleGallonStandardChange('uk')}
+                  disabled={gallonStandardSaving}
+                  className={`flex-1 px-4 py-3 rounded-lg border-2 transition-all ${
+                    gallonStandard === 'uk'
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-garage-border bg-garage-bg text-garage-text hover:border-garage-border'
+                  }`}
+                >
+                  {t('units.gallonUk')}
+                </button>
+              </div>
+              <p className="mt-2 text-sm text-garage-text-muted">
+                {t('units.gallonStandardDescription')}
+              </p>
+            </div>
+          )}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-garage-text mb-2">
+            {t('archive.autoArchiveLabel')}
+          </label>
+          <div className="flex gap-3 items-end">
+            <div className="flex-1">
+              <label className="block text-xs text-garage-text-muted mb-1">
+                {t('archive.autoArchiveDays')}
+              </label>
+              <input
+                type="number"
+                min={0}
+                value={autoArchiveDays}
+                onChange={(e) => handleAutoArchiveDaysChange(e.target.value)}
+                onBlur={() => void saveAutoArchiveDays()}
+                disabled={autoArchiveSaving}
+                className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text"
+              />
+            </div>
+          </div>
+          <p className="mt-2 text-sm text-garage-text-muted">
+            {t('archive.autoArchiveDescription')}
+          </p>
         </div>
 
         {/* Time Format Setting */}

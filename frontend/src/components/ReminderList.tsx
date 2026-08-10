@@ -48,13 +48,30 @@ export default function ReminderList({ vin }: ReminderListProps) {
   const [packs, setPacks] = useState<{ id: string; name: string; description?: string }[]>([])
   const [selectedPack, setSelectedPack] = useState('')
   const [applyingPack, setApplyingPack] = useState(false)
+  const [vehicleType, setVehicleType] = useState<string | null>(null)
 
   useEffect(() => {
+    let cancelled = false
     void api
-      .get('/reminder-packs')
+      .get(`/vehicles/${vin}`)
+      .then((res) => {
+        if (!cancelled) setVehicleType(res.data?.vehicle_type ?? null)
+      })
+      .catch(() => {
+        if (!cancelled) setVehicleType(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [vin])
+
+  useEffect(() => {
+    const params = vehicleType ? { vehicle_type: vehicleType } : undefined
+    void api
+      .get('/reminder-packs', { params })
       .then((res) => setPacks(res.data || []))
       .catch(() => setPacks([]))
-  }, [])
+  }, [vehicleType])
 
   const applyPack = async () => {
     if (!selectedPack) return

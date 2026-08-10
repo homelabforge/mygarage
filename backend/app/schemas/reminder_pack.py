@@ -25,6 +25,10 @@ class ReminderPackSummary(BaseModel):
     name: str
     description: str
     reminder_count: int = Field(..., description="Number of reminders created when applied")
+    vehicle_types: list[str] = Field(
+        default_factory=list,
+        description="Applicable vehicle types; empty means all types",
+    )
 
 
 class ReminderPackDetail(BaseModel):
@@ -34,6 +38,10 @@ class ReminderPackDetail(BaseModel):
     name: str
     description: str
     reminders: list[ReminderPackItem]
+    vehicle_types: list[str] = Field(
+        default_factory=list,
+        description="Applicable vehicle types; empty means all types",
+    )
 
 
 class ApplyReminderPackRequest(BaseModel):

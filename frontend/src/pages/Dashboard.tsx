@@ -1,10 +1,11 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { Plus, Car as CarIcon, RefreshCw, ChevronDown, AlertCircle, Users } from 'lucide-react'
+import { Plus, Car as CarIcon, RefreshCw, ChevronDown, AlertCircle, Users, Archive, CheckSquare } from 'lucide-react'
 import VehicleStatisticsCard from '../components/VehicleStatisticsCard'
 import ExternalVehicleCard from '../components/ExternalVehicleCard'
 import ExternalVehicleModal from '../components/modals/ExternalVehicleModal'
+import BulkArchiveModal from '../components/modals/BulkArchiveModal'
 import VehicleWizard from '../components/VehicleWizard'
 import FleetHealthStrip from '../components/FleetHealthStrip'
 import { PageHeader, Dropdown, Button, EmptyState, Card } from '../components/ui'
@@ -48,6 +49,9 @@ export default function Dashboard() {
   const [sortBy, setSortBy] = useState<SortOption>('name')
   const [modalKind, setModalKind] = useState<ExternalVehicleKind | null>(null)
   const [editingExternal, setEditingExternal] = useState<ExternalVehicle | null>(null)
+  const [selectMode, setSelectMode] = useState(false)
+  const [selectedVins, setSelectedVins] = useState<Set<string>>(new Set())
+  const [showBulkArchive, setShowBulkArchive] = useState(false)
 
   const tRef = useRef(t)
   useEffect(() => {
@@ -131,6 +135,22 @@ export default function Dashboard() {
     setEditingExternal(null)
   }
 
+  const toggleSelectMode = () => {
+    setSelectMode((prev) => {
+      if (prev) setSelectedVins(new Set())
+      return !prev
+    })
+  }
+
+  const toggleVin = (vin: string) => {
+    setSelectedVins((prev) => {
+      const next = new Set(prev)
+      if (next.has(vin)) next.delete(vin)
+      else next.add(vin)
+      return next
+    })
+  }
+
   return (
     <>
       <div className="container mx-auto px-4 py-8">
@@ -150,6 +170,20 @@ export default function Dashboard() {
                     </>
                   }
                 />
+              )}
+              {ownedVehicles.length > 1 && (
+                <Button
+                  variant="secondary"
+                  icon={selectMode ? CheckSquare : Archive}
+                  onClick={toggleSelectMode}
+                >
+                  {selectMode ? t('dashboard.cancelSelect') : t('dashboard.selectVehicles')}
+                </Button>
+              )}
+              {selectMode && selectedVins.size > 0 && (
+                <Button variant="primary" icon={Archive} onClick={() => setShowBulkArchive(true)}>
+                  {t('dashboard.bulkArchive')} ({selectedVins.size})
+                </Button>
               )}
               <Button variant="primary" icon={Plus} onClick={() => setShowWizard(true)}>
                 {t('dashboard.addVehicle')}
@@ -188,7 +222,13 @@ export default function Dashboard() {
               {ownedVehicles.length > 0 ? (
                 <div className="grid grid-cols-[repeat(auto-fill,minmax(340px,1fr))] gap-[22px]">
                   {ownedVehicles.map((vehicleStats) => (
-                    <VehicleStatisticsCard key={vehicleStats.vin} stats={vehicleStats} />
+                    <VehicleStatisticsCard
+                      key={vehicleStats.vin}
+                      stats={vehicleStats}
+                      selectMode={selectMode}
+                      selected={selectedVins.has(vehicleStats.vin)}
+                      onToggleSelect={toggleVin}
+                    />
                   ))}
                 </div>
               ) : (
@@ -325,6 +365,17 @@ export default function Dashboard() {
           onSaved={loadDashboard}
         />
       )}
+
+      <BulkArchiveModal
+        isOpen={showBulkArchive}
+        vins={Array.from(selectedVins)}
+        onClose={() => setShowBulkArchive(false)}
+        onConfirm={() => {
+          setSelectMode(false)
+          setSelectedVins(new Set())
+          void loadDashboard()
+        }}
+      />
     </>
   )
 }

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { CheckCircle, AlertCircle, Plug, Shield, Check, X, Plus, Radio, Settings, ArrowUpCircle, HelpCircle } from 'lucide-react'
+import { CheckCircle, AlertCircle, Plug, Shield, Check, X, Plus, Radio, Settings, ArrowUpCircle, HelpCircle, Webhook, Sparkles, AtSign } from 'lucide-react'
 import { useSettings } from '@/contexts/SettingsContext'
 import { useAuth } from '@/contexts/AuthContext'
 import api from '@/services/api'
@@ -70,6 +70,12 @@ export default function SettingsIntegrationsTab() {
     carcomplaints_enabled: 'true',
     tomtom_api_key: '',
     tomtom_enabled: 'false',
+    webhook_ingest_token: '',
+    telegram_inbound_enabled: 'false',
+    llm_receipt_parse_enabled: 'false',
+    llm_base_url: 'http://127.0.0.1:11434/v1',
+    llm_model: 'llama3.2',
+    llm_api_key: '',
   })
   const [loadedFormData, setLoadedFormData] = useState<typeof formData | null>(null)
 
@@ -91,6 +97,12 @@ export default function SettingsIntegrationsTab() {
         carcomplaints_enabled: settingsMap['carcomplaints_enabled'] || 'true',
         tomtom_api_key: settingsMap['tomtom_api_key'] || '',
         tomtom_enabled: settingsMap['tomtom_enabled'] || 'false',
+        webhook_ingest_token: settingsMap['webhook_ingest_token'] || '',
+        telegram_inbound_enabled: settingsMap['telegram_inbound_enabled'] || 'false',
+        llm_receipt_parse_enabled: settingsMap['llm_receipt_parse_enabled'] || 'false',
+        llm_base_url: settingsMap['llm_base_url'] || 'http://127.0.0.1:11434/v1',
+        llm_model: settingsMap['llm_model'] || 'llama3.2',
+        llm_api_key: settingsMap['llm_api_key'] || '',
       }
       setFormData(newFormData)
       setLoadedFormData(newFormData)
@@ -175,6 +187,12 @@ export default function SettingsIntegrationsTab() {
         carcomplaints_enabled: formData.carcomplaints_enabled,
         tomtom_api_key: formData.tomtom_api_key,
         tomtom_enabled: formData.tomtom_enabled,
+        webhook_ingest_token: formData.webhook_ingest_token,
+        telegram_inbound_enabled: formData.telegram_inbound_enabled,
+        llm_receipt_parse_enabled: formData.llm_receipt_parse_enabled,
+        llm_base_url: formData.llm_base_url,
+        llm_model: formData.llm_model,
+        llm_api_key: formData.llm_api_key,
       },
     })
   }, [formData])
@@ -242,6 +260,136 @@ export default function SettingsIntegrationsTab() {
 
       {/* API Keys — user-scoped read keys for external integrations. Full width. */}
       <WidgetKeysPanel />
+
+      {/* Inbound webhooks + Telegram bot + LLM receipt parse */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        <div className="bg-garage-surface rounded-lg border border-garage-border p-6">
+          <div className="flex items-start gap-3 mb-6">
+            <Webhook className="w-6 h-6 text-primary mt-1" />
+            <div className="flex-1">
+              <h2 className="text-xl font-semibold text-garage-text mb-2">{t('integrations.webhooks')}</h2>
+              <p className="text-sm text-garage-text-muted">{t('integrations.webhooksDesc')}</p>
+            </div>
+          </div>
+          <div className="space-y-4">
+            <div>
+              <label htmlFor="webhook_ingest_token" className="block text-sm font-medium text-garage-text mb-2">
+                {t('integrations.webhookToken')}
+              </label>
+              <input
+                type="password"
+                id="webhook_ingest_token"
+                value={formData.webhook_ingest_token}
+                onChange={(e) => setFormData({ ...formData, webhook_ingest_token: e.target.value })}
+                className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary font-mono text-sm"
+                placeholder={t('integrations.webhookTokenPlaceholder')}
+                autoComplete="off"
+              />
+              <p className="mt-1 text-sm text-garage-text-muted">{t('integrations.webhookTokenDesc')}</p>
+            </div>
+            <div className="p-3 bg-garage-bg/50 border border-garage-border rounded-lg">
+              <p className="text-xs text-garage-text-muted font-mono break-all">
+                POST /api/v1/webhooks/fuel|odometer|reminders/complete
+              </p>
+              <p className="text-xs text-garage-text-muted mt-1">{t('integrations.webhookHeaderHint')}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-garage-surface rounded-lg border border-garage-border p-6">
+          <div className="flex items-start gap-3 mb-6">
+            <AtSign className="w-6 h-6 text-primary mt-1" />
+            <div className="flex-1">
+              <h2 className="text-xl font-semibold text-garage-text mb-2">{t('integrations.telegramInbound')}</h2>
+              <p className="text-sm text-garage-text-muted">{t('integrations.telegramInboundDesc')}</p>
+            </div>
+          </div>
+          <div className="space-y-4">
+            <div>
+              <Toggle
+                label={t('integrations.enableTelegramInbound')}
+                checked={formData.telegram_inbound_enabled === 'true'}
+                onChange={(next) =>
+                  setFormData({ ...formData, telegram_inbound_enabled: next ? 'true' : 'false' })
+                }
+              />
+              <p className="mt-1 text-sm text-garage-text-muted">
+                {t('integrations.enableTelegramInboundDesc')}
+              </p>
+            </div>
+            <div className="p-3 bg-garage-bg/50 border border-garage-border rounded-lg">
+              <p className="text-xs text-garage-text-muted">{t('integrations.telegramCommandHint')}</p>
+              <p className="text-xs text-garage-text-muted font-mono mt-1">
+                fuel &lt;vin|nickname&gt; &lt;odo&gt;[km|mi] &lt;vol&gt;[L|gal|kWh] [price] [cost]
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-garage-surface rounded-lg border border-garage-border p-6 lg:col-span-2">
+          <div className="flex items-start gap-3 mb-6">
+            <Sparkles className="w-6 h-6 text-primary mt-1" />
+            <div className="flex-1">
+              <h2 className="text-xl font-semibold text-garage-text mb-2">{t('integrations.llmReceipt')}</h2>
+              <p className="text-sm text-garage-text-muted">{t('integrations.llmReceiptDesc')}</p>
+            </div>
+          </div>
+          <div className="space-y-4">
+            <Toggle
+              label={t('integrations.enableLlmReceipt')}
+              checked={formData.llm_receipt_parse_enabled === 'true'}
+              onChange={(next) =>
+                setFormData({ ...formData, llm_receipt_parse_enabled: next ? 'true' : 'false' })
+              }
+            />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label htmlFor="llm_base_url" className="block text-sm font-medium text-garage-text mb-2">
+                  {t('integrations.llmBaseUrl')}
+                </label>
+                <input
+                  type="url"
+                  id="llm_base_url"
+                  value={formData.llm_base_url}
+                  disabled={formData.llm_receipt_parse_enabled === 'false'}
+                  onChange={(e) => setFormData({ ...formData, llm_base_url: e.target.value })}
+                  className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50 font-mono text-sm"
+                  placeholder="http://127.0.0.1:11434/v1"
+                />
+              </div>
+              <div>
+                <label htmlFor="llm_model" className="block text-sm font-medium text-garage-text mb-2">
+                  {t('integrations.llmModel')}
+                </label>
+                <input
+                  type="text"
+                  id="llm_model"
+                  value={formData.llm_model}
+                  disabled={formData.llm_receipt_parse_enabled === 'false'}
+                  onChange={(e) => setFormData({ ...formData, llm_model: e.target.value })}
+                  className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+                  placeholder="llama3.2"
+                />
+              </div>
+              <div>
+                <label htmlFor="llm_api_key" className="block text-sm font-medium text-garage-text mb-2">
+                  {t('integrations.llmApiKey')}
+                </label>
+                <input
+                  type="password"
+                  id="llm_api_key"
+                  value={formData.llm_api_key}
+                  disabled={formData.llm_receipt_parse_enabled === 'false'}
+                  onChange={(e) => setFormData({ ...formData, llm_api_key: e.target.value })}
+                  className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+                  autoComplete="off"
+                />
+              </div>
+            </div>
+            <p className="text-sm text-garage-text-muted">{t('integrations.llmReceiptHint')}</p>
+          </div>
+        </div>
+      </div>
 
       {/* NHTSA (tall) on the left; CarComplaints + LiveLink stacked on the right.
           items-start so the shorter right column doesn't stretch to NHTSA's height. */}

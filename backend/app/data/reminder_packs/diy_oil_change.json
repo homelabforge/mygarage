@@ -2,6 +2,7 @@
   "id": "diy_oil_change",
   "name": "DIY Oil Change",
   "description": "Standard DIY oil change interval — typically every 8,000 km or 6 months.",
+  "vehicle_types": ["Car", "Truck", "SUV", "Motorcycle", "Hybrid", "RV"],
   "reminders": [
     {
       "title": "Oil Change",

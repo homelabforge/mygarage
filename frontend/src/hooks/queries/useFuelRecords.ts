@@ -84,20 +84,60 @@ export function useUpdateFuelRecord(vin: string) {
 export function useImportFuelCSV(vin: string) {
   const queryClient = useQueryClient()
   return useMutation({
+    mutationFn: async ({
+      formData,
+      format = 'csv',
+    }: {
+      formData: FormData
+      format?: 'csv' | 'fuelio' | 'drivvo' | 'tesla' | 'external'
+    }) => {
+      const path =
+        format === 'csv'
+          ? `/import/vehicles/${vin}/fuel/csv`
+          : `/import/vehicles/${vin}/fuel/${format}`
+      const { data } = await api.post<ImportCSVResult>(path, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      })
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['fuelRecords', vin] })
+    },
+  })
+}
+
+export interface FuelReceiptDraft {
+  date?: string | null
+  odometer_km?: number | null
+  liters?: number | null
+  kwh?: number | null
+  cost?: number | null
+  price_per_unit?: number | null
+  fuel_type_used?: string | null
+  notes?: string | null
+  station_name?: string | null
+}
+
+export interface FuelReceiptParseResponse {
+  draft: FuelReceiptDraft
+  source: string
+}
+
+export function useParseFuelReceipt(vin: string) {
+  return useMutation({
     mutationFn: async (formData: FormData) => {
-      const { data } = await api.post<ImportCSVResult>(
-        `/import/vehicles/${vin}/fuel/csv`,
+      const { data } = await api.post<FuelReceiptParseResponse>(
+        `/vehicles/${vin}/fuel/parse-receipt`,
         formData,
         {
           headers: {
             'Content-Type': 'multipart/form-data',
           },
-        }
+        },
       )
       return data
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['fuelRecords', vin] })
     },
   })
 }

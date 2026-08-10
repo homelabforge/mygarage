@@ -19,9 +19,11 @@ from app.constants.fuel import has_def_capacity, is_diesel_vehicle
 from app.database import AsyncSessionLocal
 from app.models import (
     DEFRecord,
+    FuelRecord,
     InsurancePolicy,
     OdometerRecord,
     Recall,
+    ServiceVisit,
     Vehicle,
     WarrantyRecord,
 )
@@ -482,6 +484,73 @@ async def check_reminder_notifications() -> None:
         logger.error("Reminder notification check failed: %s", str(e))
 
 
+async def auto_archive_inactive_vehicles() -> None:
+    """Archive vehicles with no recent activity when auto_archive_inactive_days > 0."""
+    from datetime import date as date_cls
+    from datetime import datetime as datetime_cls
+
+    from sqlalchemy import func
+
+    from app.models.hours import HoursRecord
+    from app.models.settings import Setting
+
+    try:
+        async with AsyncSessionLocal() as db:
+            setting = (
+                await db.execute(
+                    select(Setting).where(Setting.key == "auto_archive_inactive_days")
+                )
+            ).scalar_one_or_none()
+            try:
+                days = int((setting.value if setting and setting.value else "0") or "0")
+            except ValueError:
+                days = 0
+            if days <= 0:
+                return
+
+            cutoff_date = (utc_now() - timedelta(days=days)).date()
+            vehicles = (
+                await db.execute(select(Vehicle).where(Vehicle.archived_at.is_(None)))
+            ).scalars().all()
+
+            archived = 0
+            for vehicle in vehicles:
+                latest_dates: list[date_cls] = []
+                for model, date_col in (
+                    (ServiceVisit, ServiceVisit.date),
+                    (FuelRecord, FuelRecord.date),
+                    (OdometerRecord, OdometerRecord.date),
+                    (HoursRecord, HoursRecord.date),
+                ):
+                    row = (
+                        await db.execute(
+                            select(func.max(date_col)).where(model.vin == vehicle.vin)
+                        )
+                    ).scalar()
+                    if row is not None:
+                        latest_dates.append(row if isinstance(row, date_cls) else row.date())
+
+                for ts in (vehicle.updated_at, vehicle.created_at):
+                    if ts is None:
+                        continue
+                    latest_dates.append(ts.date() if isinstance(ts, datetime_cls) else ts)
+
+                if not latest_dates or max(latest_dates) >= cutoff_date:
+                    continue
+
+                vehicle.archived_at = utc_now()
+                vehicle.archive_reason = "Other"
+                vehicle.archive_notes = f"Auto-archived after {days} days of inactivity"
+                vehicle.archived_visible = False
+                archived += 1
+
+            if archived:
+                await db.commit()
+                logger.info("Auto-archived %d inactive vehicle(s)", archived)
+    except Exception as e:
+        logger.error("Auto-archive inactive vehicles failed: %s", str(e))
+
+
 def start_scheduler() -> None:
     """Start the scheduled tasks.
 
@@ -501,6 +570,7 @@ def start_scheduler() -> None:
         - LiveLink: Daily summary generation at 1 AM UTC
         - LiveLink: Firmware check at 3 AM UTC
         - LiveLink: Telemetry pruning at 4 AM UTC
+        - Auto-archive inactive vehicles at 5 AM UTC
     """
     if os.environ.get("SCHEDULER_ENABLED", "").lower() != "true":
         logger.warning(
@@ -627,6 +697,16 @@ def start_scheduler() -> None:
         hour=4,
         minute=0,
         id="prune_old_telemetry",
+        replace_existing=True,
+    )
+
+    # Auto-archive inactive vehicles at 5 AM UTC (no-op when setting is 0)
+    scheduler.add_job(
+        auto_archive_inactive_vehicles,
+        "cron",
+        hour=5,
+        minute=0,
+        id="auto_archive_inactive_vehicles",
         replace_existing=True,
     )
 

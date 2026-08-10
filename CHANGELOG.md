@@ -20,6 +20,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Quick Entry / PWA deep links: `/quick-entry?action=add-fuel|add-service|odometer`.
 - Opt-in LLM fuel receipt parse (Ollama/OpenAI-compatible; draft only). See [docs/tier2-features.md](docs/tier2-features.md).
 - Garage sections: Family & Friends (shares + reference vehicles) and Customers (side-work) with lightweight `external_vehicles` (migration 088).
+- Settings → Integrations: inbound webhook token, Telegram fuel-bot enable, and LLM receipt-parse configuration.
+- Fuel form: opt-in LLM receipt draft (text or image/PDF) with accept-into-form flow.
+- Fuel list: Fuelio / Drivvo / Tesla-ABRP / auto-detect CSV import formats alongside MyGarage CSV.
+- Vehicle analytics: configurable Spending Anomalies time range (3m/6m/12m/YTD/all/custom) — #130.
+- Reminder packs: type-filtered catalog plus ATV/UTV and snowmobile packs; boats only see winterization.
+- Quick Entry: engine-hours action + PWA shortcut (`?action=hours`); hours-default vehicle types on create/edit.
+- Global search (vehicles + reminders) and in-app notification inbox (overdue/upcoming reminders).
+- Supply barcode/QR scan on purchases with `/api/supplies/lookup`.
+- LiveLink session insights: idle time, harsh accel/brake counts from telemetry.
+- Sanitized for-sale history PDF (`/api/vehicles/{vin}/reports/sale-history-pdf`) plus export-before-delete in Archived Vehicles.
+- DTC Phase 2 enrichment: common causes, symptoms, and fix guidance on LiveLink DTCs.
+- UK Imperial gallon standard (US 3.785 L vs UK 4.546 L) in Settings → System; volume and MPG conversions follow it.
+- Bulk archive from the dashboard (multi-select) and scheduled auto-archive after N days of inactivity.
+- HEIC/HEIF photo uploads convert to JPEG when pillow-heif is available; PostgreSQL full restore is blocked in the UI with restore instructions.
 
 
 ## [3.0.0-rc3] - 2026-08-06

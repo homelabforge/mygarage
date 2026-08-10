@@ -24,17 +24,22 @@ export default function ReportsPanel({ vin }: ReportsPanelProps) {
   const handleDownloadPDF = async (reportType: string) => {
     setIsGenerating(true)
     try {
-      const params = new URLSearchParams()
-      if (reportType === 'service-history') {
-        if (startDate) params.set('start_date', startDate)
-        if (endDate) params.set('end_date', endDate)
+      let url: string
+      if (reportType === 'sale-history') {
+        url = `/vehicles/${vin}/reports/sale-history-pdf`
       } else {
-        params.set('year', String(selectedYear))
+        const params = new URLSearchParams()
+        if (reportType === 'service-history') {
+          if (startDate) params.set('start_date', startDate)
+          if (endDate) params.set('end_date', endDate)
+        } else {
+          params.set('year', String(selectedYear))
+        }
+        params.set('currency_code', currencyCode)
+        params.set('locale', locale)
+        url = `/vehicles/${vin}/reports/${reportType}-pdf?${params.toString()}`
       }
-      params.set('currency_code', currencyCode)
-      params.set('locale', locale)
 
-      const url = `/vehicles/${vin}/reports/${reportType}-pdf?${params.toString()}`
       const response = await api.get(url, { responseType: 'blob' })
 
       const blob = response.data
@@ -168,6 +173,26 @@ export default function ReportsPanel({ vin }: ReportsPanelProps) {
               </div>
             </div>
             <Button variant="primary" icon={Download} onClick={() => handleDownloadPDF('tax-deduction')} disabled={isGenerating} aria-label={t('reports.downloadPdf')} className="ml-4">
+              <span className="hidden sm:inline">{t('reports.downloadPdf')}</span>
+            </Button>
+          </div>
+
+          {/* Sale History (sanitized) */}
+          <div className="flex items-center justify-between p-4 bg-surface-2 border border-border rounded-lg hover:border-(--accent-line) transition-colors">
+            <div className="flex-1">
+              <h4 className="font-medium text-text">{t('reports.saleHistoryTitle')}</h4>
+              <p className="text-sm text-text-mute mt-1">
+                {t('reports.saleHistoryDesc')}
+              </p>
+            </div>
+            <Button
+              variant="primary"
+              icon={Download}
+              onClick={() => handleDownloadPDF('sale-history')}
+              disabled={isGenerating}
+              aria-label={t('reports.saleHistoryTitle')}
+              className="ml-4"
+            >
               <span className="hidden sm:inline">{t('reports.downloadPdf')}</span>
             </Button>
           </div>

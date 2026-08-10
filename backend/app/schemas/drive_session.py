@@ -49,6 +49,11 @@ class DriveSessionResponse(DriveSessionBase):
     avg_fuel_level: float | None = Field(None, description="Average fuel level (%)")
     fuel_used_estimate: float | None = Field(None, description="Estimated fuel used (L)")
 
+    # Driving insights
+    idle_seconds: int | None = Field(None, description="Time spent near-stopped (s)")
+    harsh_accel_count: int | None = Field(None, description="Harsh acceleration events")
+    harsh_brake_count: int | None = Field(None, description="Harsh braking events")
+
     # Metadata
     created_at: datetime
 

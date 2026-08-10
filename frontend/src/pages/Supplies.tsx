@@ -19,6 +19,7 @@ import { makeSupplySchema, SUPPLY_UNIT_TYPES, type SupplyFormData } from '@/sche
 import { Select, Field, Input, Textarea, Checkbox, Button } from '@/components/ui'
 import FormModalWrapper from '@/components/FormModalWrapper'
 import SupplyHistoryModal from '@/components/SupplyHistoryModal'
+import BarcodeScanButton from '@/components/BarcodeScanButton'
 import type { Supply, SupplyCreate, SupplyUpdate } from '@/types/supplies'
 import { getActiveLocale } from '@/constants/i18n'
 
@@ -187,6 +188,12 @@ export default function Supplies() {
                       <div className="text-garage-text-muted">{supply.part_number}</div>
                     )}
 
+                    {supply.barcode && (
+                      <div className="text-garage-text-muted font-mono text-xs">
+                        {t('supplies.barcode')}: {supply.barcode}
+                      </div>
+                    )}
+
                     <div className="flex items-center justify-between">
                       <span className="text-garage-text-muted">{t('supplies.onHand')}</span>
                       <span className="font-medium text-garage-text">{formatOnHand(supply)}</span>
@@ -254,6 +261,7 @@ export function SupplyForm({ supply, onClose, onSuccess }: SupplyFormProps) {
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<SupplyFormData>({
     resolver: zodResolver(schema),
@@ -261,6 +269,7 @@ export function SupplyForm({ supply, onClose, onSuccess }: SupplyFormProps) {
       name: supply?.name || '',
       unit_type: supply?.unit_type || 'volume',
       part_number: supply?.part_number || '',
+      barcode: supply?.barcode || '',
       category: supply?.category || '',
       notes: supply?.notes || '',
       vin: supply?.vin || '',
@@ -275,6 +284,7 @@ export function SupplyForm({ supply, onClose, onSuccess }: SupplyFormProps) {
         const payload: SupplyUpdate = {
           name: data.name,
           part_number: data.part_number || null,
+          barcode: data.barcode || null,
           category: data.category || null,
           notes: data.notes || null,
           vin: data.vin || null,
@@ -286,6 +296,7 @@ export function SupplyForm({ supply, onClose, onSuccess }: SupplyFormProps) {
           name: data.name,
           unit_type: data.unit_type,
           part_number: data.part_number || undefined,
+          barcode: data.barcode || undefined,
           category: data.category || undefined,
           notes: data.notes || undefined,
           vin: data.vin || undefined,
@@ -384,6 +395,22 @@ export function SupplyForm({ supply, onClose, onSuccess }: SupplyFormProps) {
             />
           </Field>
         </div>
+
+        <Field id="barcode" label={t('supplies.barcode')} error={errors.barcode}>
+          <div className="flex gap-2 items-start">
+            <Input
+              id="barcode"
+              type="text"
+              {...register('barcode')}
+              invalid={!!errors.barcode}
+              disabled={isSubmitting}
+              className="flex-1"
+            />
+            <BarcodeScanButton
+              onScan={(code) => setValue('barcode', code, { shouldDirty: true, shouldValidate: true })}
+            />
+          </div>
+        </Field>
 
         <Field id="vin" label={t('supplies.vehicle')} error={errors.vin}>
           <Select

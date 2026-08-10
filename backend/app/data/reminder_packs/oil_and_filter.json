@@ -2,6 +2,7 @@
   "id": "oil_and_filter",
   "name": "Oil & Filter Service",
   "description": "Oil change plus oil filter replacement on a typical DIY schedule.",
+  "vehicle_types": ["Car", "Truck", "SUV", "Motorcycle", "Hybrid", "RV"],
   "reminders": [
     {
       "title": "Oil & Filter Change",

@@ -24,6 +24,7 @@
 import { getActiveLocale } from '@/constants/i18n';
 
 export type UnitSystem = 'imperial' | 'metric';
+export type GallonStandard = 'us' | 'uk';
 
 type Numeric = number | null | undefined;
 
@@ -36,13 +37,33 @@ type Numeric = number | null | undefined;
  */
 export class UnitConverter {
   // Conversion factors (imperial to metric)
-  private static readonly GALLONS_TO_LITERS = 3.78541;
+  private static readonly US_GALLONS_TO_LITERS = 3.78541;
+  private static readonly UK_GALLONS_TO_LITERS = 4.54609;
+  private static gallonsToLitersFactor = UnitConverter.US_GALLONS_TO_LITERS;
   private static readonly MILES_TO_KM = 1.60934;
   private static readonly FEET_TO_METERS = 0.3048;
   private static readonly PSI_TO_BAR = 0.0689476;
   private static readonly PSI_TO_KPA = 6.89476;
   private static readonly LBS_TO_KG = 0.453592;
   private static readonly LBFT_TO_NM = 1.35582;
+  private static readonly US_MPG_TO_L100KM = 235.214;
+  private static readonly UK_MPG_TO_L100KM = 282.481;
+  private static mpgToL100kmFactor = UnitConverter.US_MPG_TO_L100KM;
+
+  /** Select US or UK imperial gallon (also updates MPG conversion). */
+  static setGallonStandard(standard: GallonStandard): void {
+    if (standard === 'uk') {
+      this.gallonsToLitersFactor = this.UK_GALLONS_TO_LITERS;
+      this.mpgToL100kmFactor = this.UK_MPG_TO_L100KM;
+    } else {
+      this.gallonsToLitersFactor = this.US_GALLONS_TO_LITERS;
+      this.mpgToL100kmFactor = this.US_MPG_TO_L100KM;
+    }
+  }
+
+  static getGallonStandard(): GallonStandard {
+    return this.gallonsToLitersFactor === this.UK_GALLONS_TO_LITERS ? 'uk' : 'us';
+  }
 
   /**
    * Round result to specified decimal places.
@@ -57,23 +78,23 @@ export class UnitConverter {
   // ========== VOLUME CONVERSIONS ==========
 
   /**
-   * Convert gallons to liters.
+   * Convert gallons to liters (uses active US/UK gallon standard).
    */
   static gallonsToLiters(gallons: Numeric): number | null {
     if (gallons === null || gallons === undefined) {
       return null;
     }
-    return this.roundResult(gallons * this.GALLONS_TO_LITERS);
+    return this.roundResult(gallons * this.gallonsToLitersFactor);
   }
 
   /**
-   * Convert liters to gallons.
+   * Convert liters to gallons (uses active US/UK gallon standard).
    */
   static litersToGallons(liters: Numeric): number | null {
     if (liters === null || liters === undefined) {
       return null;
     }
-    return this.roundResult(liters / this.GALLONS_TO_LITERS);
+    return this.roundResult(liters / this.gallonsToLitersFactor);
   }
 
   // ========== DISTANCE CONVERSIONS ==========
@@ -101,30 +122,23 @@ export class UnitConverter {
   // ========== FUEL ECONOMY CONVERSIONS ==========
 
   /**
-   * Convert MPG to L/100km.
-   *
-   * Formula: L/100km = 235.214 / MPG
-   * (Uses exact conversion factor for gallon and mile)
+   * Convert MPG to L/100km (US 235.214 or UK 282.481 per active gallon standard).
    */
   static mpgToL100km(mpg: Numeric): number | null {
     if (mpg === null || mpg === undefined || mpg === 0) {
       return null;
     }
-    const conversionFactor = 235.214;
-    return this.roundResult(conversionFactor / mpg, 1);
+    return this.roundResult(this.mpgToL100kmFactor / mpg, 1);
   }
 
   /**
-   * Convert L/100km to MPG.
-   *
-   * Formula: MPG = 235.214 / (L/100km)
+   * Convert L/100km to MPG (US 235.214 or UK 282.481 per active gallon standard).
    */
   static l100kmToMpg(l100km: Numeric): number | null {
     if (l100km === null || l100km === undefined || l100km === 0) {
       return null;
     }
-    const conversionFactor = 235.214;
-    return this.roundResult(conversionFactor / l100km, 1);
+    return this.roundResult(this.mpgToL100kmFactor / l100km, 1);
   }
 
   /**
@@ -333,7 +347,7 @@ export class UnitConverter {
         result = num * UnitConverter.MILES_TO_KM;
         break;
       case 'gal':
-        result = num * UnitConverter.GALLONS_TO_LITERS;
+        result = num * UnitConverter.gallonsToLitersFactor;
         break;
       case 'lb':
         result = num * UnitConverter.LBS_TO_KG;
@@ -352,7 +366,7 @@ export class UnitConverter {
         break;
       case 'MPG':
         if (num === 0) return null;
-        result = 235.214 / num;
+        result = UnitConverter.mpgToL100kmFactor / num;
         break;
       default:
         return null;
@@ -476,8 +490,7 @@ export class UnitFormatter {
    *
    * Engine hours are dimensionless — only the volume side converts between
    * systems. Mirrors formatFuelEconomy's N/A-guard and showBoth shape; uses
-   * the exact US-gallon factor (1 gal = 3.785411784 L) rather than
-   * UnitConverter's rounded GALLONS_TO_LITERS, per spec.
+   * the active gallon standard (US 3.78541 or UK 4.54609).
    *
    * @param lPerHr - Value in L/hr (canonical metric)
    * @param system - Target unit system
@@ -491,7 +504,7 @@ export class UnitFormatter {
     const lNum = typeof lPerHr === 'string' ? parseFloat(lPerHr) : lPerHr;
     if (isNaN(lNum) || lNum === 0) return 'N/A';
 
-    const LITERS_PER_GALLON = 3.785411784;
+    const LITERS_PER_GALLON = UnitConverter.getGallonStandard() === 'uk' ? 4.54609 : 3.785411784;
 
     if (system === 'metric') {
       const primary = `${lNum.toFixed(2)} L/hr`;

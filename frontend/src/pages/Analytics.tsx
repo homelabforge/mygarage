@@ -105,6 +105,11 @@ export default function Analytics() {
   const [comparisonData, setComparisonData] = useState<PeriodComparison | null>(null)
   const [comparisonLoading, setComparisonLoading] = useState(false)
 
+  // Spending anomalies window (#130) — default 12 months
+  const [anomalyRange, setAnomalyRange] = useState<'3m' | '6m' | '12m' | 'ytd' | 'all' | 'custom'>('12m')
+  const [anomalyStart, setAnomalyStart] = useState('')
+  const [anomalyEnd, setAnomalyEnd] = useState('')
+
   // Help modal state
   const [showHelpModal, setShowHelpModal] = useState(false)
 
@@ -119,13 +124,18 @@ export default function Analytics() {
   const fetchAnalytics = useCallback(async () => {
     if (!vin) return
 
-    const cacheKey = `analytics-cache-${vin}`
+    const cacheKey = `analytics-cache-${vin}-${anomalyRange}-${anomalyStart}-${anomalyEnd}`
 
     try {
       setLoading(true)
       setError(null)
       setFromCache(false)
-      const response = await api.get(`/analytics/vehicles/${vin}`)
+      const params: Record<string, string> = { anomaly_range: anomalyRange }
+      if (anomalyRange === 'custom') {
+        if (anomalyStart) params.anomaly_start = anomalyStart
+        if (anomalyEnd) params.anomaly_end = anomalyEnd
+      }
+      const response = await api.get(`/analytics/vehicles/${vin}`, { params })
       const data: VehicleAnalytics = response.data
       setAnalytics(data)
       localStorage.setItem(cacheKey, JSON.stringify({ timestamp: Date.now(), data }))
@@ -146,7 +156,7 @@ export default function Analytics() {
     } finally {
       setLoading(false)
     }
-  }, [vin, t])
+  }, [vin, t, anomalyRange, anomalyStart, anomalyEnd])
 
   useEffect(() => {
     fetchAnalytics()
@@ -527,10 +537,60 @@ export default function Analytics() {
 
         {/* Spending Anomaly Alerts */}
         <div className="bg-garage-surface border border-garage-border rounded-lg p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-garage-text">{t('vehicle.spendingAnomalies')}</h3>
-            <AlertTriangle className="w-5 h-5 text-garage-text-muted" />
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <h3 className="text-lg font-semibold text-garage-text">{t('vehicle.spendingAnomalies')}</h3>
+              <AlertTriangle className="w-5 h-5 text-garage-text-muted" />
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <label htmlFor="anomaly-range" className="text-sm text-garage-text-muted">
+                {t('vehicle.anomalyRange')}
+              </label>
+              <select
+                id="anomaly-range"
+                value={anomalyRange}
+                onChange={(e) =>
+                  setAnomalyRange(e.target.value as typeof anomalyRange)
+                }
+                className="px-2 py-1.5 bg-garage-bg border border-garage-border rounded-lg text-sm text-garage-text"
+              >
+                <option value="3m">{t('vehicle.anomalyRange3m')}</option>
+                <option value="6m">{t('vehicle.anomalyRange6m')}</option>
+                <option value="12m">{t('vehicle.anomalyRange12m')}</option>
+                <option value="ytd">{t('vehicle.anomalyRangeYtd')}</option>
+                <option value="all">{t('vehicle.anomalyRangeAll')}</option>
+                <option value="custom">{t('vehicle.anomalyRangeCustom')}</option>
+              </select>
+            </div>
           </div>
+          {anomalyRange === 'custom' && (
+            <div className="flex flex-wrap gap-3 mb-4">
+              <div>
+                <label htmlFor="anomaly-start" className="block text-xs text-garage-text-muted mb-1">
+                  {t('vehicle.anomalyStart')}
+                </label>
+                <input
+                  id="anomaly-start"
+                  type="date"
+                  value={anomalyStart}
+                  onChange={(e) => setAnomalyStart(e.target.value)}
+                  className="px-2 py-1.5 bg-garage-bg border border-garage-border rounded-lg text-sm text-garage-text"
+                />
+              </div>
+              <div>
+                <label htmlFor="anomaly-end" className="block text-xs text-garage-text-muted mb-1">
+                  {t('vehicle.anomalyEnd')}
+                </label>
+                <input
+                  id="anomaly-end"
+                  type="date"
+                  value={anomalyEnd}
+                  onChange={(e) => setAnomalyEnd(e.target.value)}
+                  className="px-2 py-1.5 bg-garage-bg border border-garage-border rounded-lg text-sm text-garage-text"
+                />
+              </div>
+            </div>
+          )}
           {(!cost_analysis.anomalies || cost_analysis.anomalies.length === 0) && (
             <p className="text-sm text-garage-text-muted">{t('vehicle.noAnomalies')}</p>
           )}

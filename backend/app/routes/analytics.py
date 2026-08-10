@@ -111,6 +111,108 @@ def _load_service_visits_query(vin: str):
     )
 
 
+def build_anomalies_from_monthly_df(monthly_df: Any) -> list[AnomalyAlert]:
+    """Detect spending anomalies from a monthly aggregation DataFrame."""
+    import pandas as pd
+
+    anomalies: list[AnomalyAlert] = []
+    if monthly_df is None or getattr(monthly_df, "empty", True) or len(monthly_df) < 3:
+        return anomalies
+
+    monthly_costs = monthly_df["total_cost"]
+    anomaly_indices = analytics_service.detect_anomalies(monthly_costs, std_threshold=2.0)
+    if not anomaly_indices:
+        return anomalies
+
+    mean_cost = monthly_costs.mean()
+    for idx in anomaly_indices:
+        row = monthly_df.iloc[idx]
+        amount = Decimal(str(row["total_cost"]))
+        baseline = Decimal(str(mean_cost))
+        deviation_percent = (
+            ((amount - baseline) / baseline * 100) if baseline > 0 else Decimal("0.00")
+        )
+        severity = "critical" if abs(deviation_percent) >= 50 else "warning"
+        direction = "above" if amount > baseline else "below"
+        message = (
+            f"Spending in {row['month_name']} {int(row['year'])} was ${amount:.2f}, "
+            f"{abs(deviation_percent):.1f}% {direction} your average of ${baseline:.2f}."
+        )
+        anomalies.append(
+            AnomalyAlert(
+                month=f"{int(row['year'])}-{int(row['month']):02d}",
+                amount=amount,
+                baseline=baseline,
+                deviation_percent=deviation_percent,
+                severity=severity,
+                message=message,
+            )
+        )
+    # Keep pandas import used when callers pass non-DataFrame iterables
+    _ = pd
+    return anomalies
+
+
+def filter_monthly_breakdown_for_anomalies(
+    monthly_breakdown: list[MonthlyCostSummary],
+    anomaly_range: str,
+    anomaly_start: date_type | None,
+    anomaly_end: date_type | None,
+) -> Any:
+    """Return a monthly DataFrame filtered to the requested anomaly window."""
+    import pandas as pd
+
+    if not monthly_breakdown:
+        return pd.DataFrame()
+
+    rows = [
+        {
+            "year": m.year,
+            "month": m.month,
+            "month_name": m.month_name,
+            "total_cost": float(m.total_cost),
+        }
+        for m in monthly_breakdown
+    ]
+    df = pd.DataFrame(rows)
+    df["period_start"] = pd.to_datetime(
+        df["year"].astype(str) + "-" + df["month"].astype(str).str.zfill(2) + "-01"
+    )
+
+    today = date_type.today()
+    start: date_type | None = None
+    end: date_type | None = today
+
+    if anomaly_range == "all":
+        return df.drop(columns=["period_start"])
+    if anomaly_range == "3m":
+        start = today - timedelta(days=90)
+    elif anomaly_range == "6m":
+        start = today - timedelta(days=180)
+    elif anomaly_range == "12m":
+        start = today - timedelta(days=365)
+    elif anomaly_range == "ytd":
+        start = date_type(today.year, 1, 1)
+    elif anomaly_range == "custom":
+        start = anomaly_start
+        end = anomaly_end or today
+    else:
+        start = today - timedelta(days=365)
+
+    if start is not None:
+        df = df[df["period_start"] >= pd.Timestamp(start)]
+    if end is not None:
+        # Include the full end month
+        end_exclusive = date_type(end.year, end.month, 1)
+        if end.month == 12:
+            end_exclusive = date_type(end.year + 1, 1, 1)
+        else:
+            end_exclusive = date_type(end.year, end.month + 1, 1)
+        df = df[df["period_start"] < pd.Timestamp(end_exclusive)]
+
+    return df.drop(columns=["period_start"]).reset_index(drop=True)
+
+
 @cached(ttl_seconds=600)  # Cache for 10 minutes
 async def get_cost_analysis(db: AsyncSession, vin: str) -> CostAnalysis:
     """Calculate cost analysis for a vehicle."""
@@ -271,39 +373,9 @@ async def get_cost_analysis(db: AsyncSession, vin: str) -> CostAnalysis:
         if km_driven > 0:
             cost_per_km = total_cost / Decimal(str(km_driven))
 
-    # Detect cost anomalies
-    anomalies = []
-    if not monthly_df.empty and len(monthly_df) >= 3:
-        monthly_costs = monthly_df["total_cost"]
-        anomaly_indices = analytics_service.detect_anomalies(monthly_costs, std_threshold=2.0)
-
-        if anomaly_indices:
-            mean_cost = monthly_costs.mean()
-            for idx in anomaly_indices:
-                row = monthly_df.iloc[idx]
-                amount = Decimal(str(row["total_cost"]))
-                baseline = Decimal(str(mean_cost))
-                deviation_percent = (
-                    ((amount - baseline) / baseline * 100) if baseline > 0 else Decimal("0.00")
-                )
-
-                # Determine severity
-                severity = "critical" if abs(deviation_percent) >= 50 else "warning"
-
-                # Create message
-                direction = "above" if amount > baseline else "below"
-                message = f"Spending in {row['month_name']} {int(row['year'])} was ${amount:.2f}, {abs(deviation_percent):.1f}% {direction} your average of ${baseline:.2f}."
-
-                anomalies.append(
-                    AnomalyAlert(
-                        month=f"{int(row['year'])}-{int(row['month']):02d}",
-                        amount=amount,
-                        baseline=baseline,
-                        deviation_percent=deviation_percent,
-                        severity=severity,
-                        message=message,
-                    )
-                )
+    # Detect cost anomalies (all-time baseline; may be replaced by ranged
+    # anomalies in get_vehicle_analytics when the client requests a window).
+    anomalies = build_anomalies_from_monthly_df(monthly_df)
 
     return CostAnalysis(
         total_service_cost=total_service_cost,
@@ -732,6 +804,17 @@ async def get_maintenance_predictions(
 @router.get("/vehicles/{vin}", response_model=VehicleAnalytics)
 async def get_vehicle_analytics(
     vin: str,
+    anomaly_range: str = Query(
+        "12m",
+        pattern="^(3m|6m|12m|ytd|all|custom)$",
+        description="Window used for spending anomaly detection (issue #130).",
+    ),
+    anomaly_start: date_type | None = Query(
+        None, description="Custom anomaly window start (YYYY-MM-DD); used with anomaly_range=custom"
+    ),
+    anomaly_end: date_type | None = Query(
+        None, description="Custom anomaly window end (YYYY-MM-DD); used with anomaly_range=custom"
+    ),
     db: AsyncSession = Depends(get_db),
     current_user: User | None = Depends(require_auth),
 ):
@@ -746,6 +829,17 @@ async def get_vehicle_analytics(
 
     # Get cost analysis
     cost_analysis = await get_cost_analysis(db, vin)
+    # Recompute anomalies for the requested window without busting the
+    # all-time cost-analysis cache (#130).
+    ranged_df = filter_monthly_breakdown_for_anomalies(
+        cost_analysis.monthly_breakdown,
+        anomaly_range,
+        anomaly_start,
+        anomaly_end,
+    )
+    cost_analysis = cost_analysis.model_copy(
+        update={"anomalies": build_anomalies_from_monthly_df(ranged_df)}
+    )
     cost_projection = build_cost_projection(cost_analysis)
 
     # Get fuel economy trends (skip for fifth wheels - they don't track L/100km)
@@ -1459,7 +1553,9 @@ async def export_analytics_pdf(
         raise HTTPException(status_code=404, detail="Vehicle not found")
 
     # Fetch analytics data
-    analytics = await get_vehicle_analytics(vin, db, current_user)
+    analytics = await get_vehicle_analytics(
+        vin, db=db, current_user=current_user
+    )
 
     # Fetch vendor analytics
     try:

@@ -23,6 +23,7 @@ from app.schemas.vehicle import (
     TrailerDetailsResponse,
     TrailerDetailsUpdate,
     VehicleArchiveRequest,
+    VehicleBulkArchiveRequest,
     VehicleCreate,
     VehicleDetailStats,
     VehicleListResponse,
@@ -552,6 +553,44 @@ async def list_towed_trailers(
 
 
 # ========== ARCHIVE ENDPOINTS ==========
+
+
+@router.post("/archive/bulk", response_model=VehicleListResponse)
+async def bulk_archive_vehicles(
+    payload: VehicleBulkArchiveRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(require_auth),
+):
+    """Archive multiple vehicles with the same archive metadata."""
+    if not payload.vins:
+        raise HTTPException(status_code=400, detail="No VINs provided")
+
+    archived: list[Vehicle] = []
+    for vin in payload.vins:
+        vehicle = await get_vehicle_for_owner_or_403(vin, current_user, db)
+        if vehicle.archived_at:
+            continue
+        vehicle.archived_at = utc_now()
+        vehicle.archive_reason = payload.reason
+        vehicle.archive_sale_price = payload.sale_price
+        vehicle.archive_sale_date = payload.sale_date
+        vehicle.archive_notes = payload.notes
+        vehicle.archived_visible = payload.visible
+        archived.append(vehicle)
+
+    await db.commit()
+    for vehicle in archived:
+        await db.refresh(vehicle)
+
+    logger.info(
+        "Bulk archived %d vehicle(s) (reason: %s)",
+        len(archived),
+        sanitize_for_log(payload.reason),
+    )
+    return VehicleListResponse(
+        vehicles=[VehicleResponse.model_validate(v) for v in archived],
+        total=len(archived),
+    )
 
 
 @router.post("/{vin}/archive", response_model=VehicleResponse)

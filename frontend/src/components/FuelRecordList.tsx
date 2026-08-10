@@ -13,8 +13,10 @@ import { UnitFormatter } from '../utils/units'
 import { priceToDisplay } from '../utils/decimalSafe'
 import { getUsageTracking } from '../utils/usageTracking'
 import { useFuelRecords, useDeleteFuelRecord, useImportFuelCSV } from '../hooks/queries/useFuelRecords'
-import { Button, IconButton, Card, Mono, DataTable, Badge, SearchField, EmptyState, Checkbox } from './ui'
+import { Button, IconButton, Card, Mono, DataTable, Badge, SearchField, EmptyState, Checkbox, Select } from './ui'
 import type { DataTableColumn } from './ui'
+
+type ImportFormat = 'csv' | 'fuelio' | 'drivvo' | 'tesla' | 'external'
 
 interface FuelRecordListProps {
   vin: string
@@ -35,6 +37,7 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick }: FuelRec
   const [vehicleUsageUnit, setVehicleUsageUnit] = useState<string>('distance')
   const [vehicleSecondaryUsageEnabled, setVehicleSecondaryUsageEnabled] = useState<boolean>(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [importFormat, setImportFormat] = useState<ImportFormat>('csv')
   const { system, showBoth } = useUnitPreference()
   const { currencyCode, locale } = useCurrencyPreference()
 
@@ -149,26 +152,33 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick }: FuelRec
     formData.append('file', file)
     formData.append('skip_duplicates', 'true')
 
-    importMutation.mutate(formData, {
-      onSuccess: (result) => {
-        const message = `Import completed: ${result.success_count} records imported${result.skipped_count > 0 ? `, ${result.skipped_count} duplicates skipped` : ''}${result.error_count > 0 ? `, ${result.error_count} errors` : ''}`
+    importMutation.mutate(
+      { formData, format: importFormat },
+      {
+        onSuccess: (result) => {
+          const message = t('fuelList.importCompleted', {
+            success: result.success_count,
+            skipped: result.skipped_count,
+            errors: result.error_count,
+            defaultValue: `Import completed: ${result.success_count} records imported${result.skipped_count > 0 ? `, ${result.skipped_count} duplicates skipped` : ''}${result.error_count > 0 ? `, ${result.error_count} errors` : ''}`,
+          })
 
-        if (result.errors && result.errors.length > 0) {
-          toast.error(message + ' - Errors: ' + result.errors.join(', '))
-        } else {
-          toast.success(message)
-        }
+          if (result.errors && result.errors.length > 0) {
+            toast.error(message + ' - Errors: ' + result.errors.join(', '))
+          } else {
+            toast.success(message)
+          }
+        },
+        onError: (err) => {
+          toast.error(err instanceof Error ? err.message : t('fuelList.importError'))
+        },
+        onSettled: () => {
+          if (fileInputRef.current) {
+            fileInputRef.current.value = ''
+          }
+        },
       },
-      onError: (err) => {
-        toast.error(err instanceof Error ? err.message : t('fuelList.importError'))
-      },
-      onSettled: () => {
-        // Reset file input
-        if (fileInputRef.current) {
-          fileInputRef.current.value = ''
-        }
-      },
-    })
+    )
   }
 
   const handleDelete = (recordId: number) => {
@@ -285,7 +295,21 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick }: FuelRec
               className="flex-1 min-w-[10rem] sm:flex-none sm:w-56"
             />
           )}
-          <input ref={fileInputRef} type="file" accept=".csv" onChange={handleImportCSV} className="hidden" />
+          <input ref={fileInputRef} type="file" accept=".csv,text/csv" onChange={handleImportCSV} className="hidden" />
+          <Select
+            id="fuel-import-format"
+            aria-label={t('fuelList.importFormat')}
+            value={importFormat}
+            onChange={(e) => setImportFormat(e.target.value as ImportFormat)}
+            options={[
+              { value: 'csv', label: t('fuelList.importFormatCsv') },
+              { value: 'fuelio', label: t('fuelList.importFormatFuelio') },
+              { value: 'drivvo', label: t('fuelList.importFormatDrivvo') },
+              { value: 'tesla', label: t('fuelList.importFormatTesla') },
+              { value: 'external', label: t('fuelList.importFormatAuto') },
+            ]}
+            className="w-40"
+          />
           <Button variant="secondary" icon={Upload} onClick={handleImportClick} loading={importMutation.isPending} title={t('fuelList.importFromCSV')}>
             {importMutation.isPending ? t('fuelList.importing') : t('fuelList.importCSV')}
           </Button>

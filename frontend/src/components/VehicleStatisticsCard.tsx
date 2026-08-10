@@ -26,14 +26,21 @@ import { ListRow, Tile, Badge, Mono } from './ui'
 
 interface VehicleStatisticsCardProps {
   stats: VehicleStatistics
+  selectMode?: boolean
+  selected?: boolean
+  onToggleSelect?: (vin: string) => void
 }
 
-function VehicleStatisticsCard({ stats }: VehicleStatisticsCardProps) {
+function VehicleStatisticsCard({ stats, selectMode = false, selected = false, onToggleSelect }: VehicleStatisticsCardProps) {
   const { t } = useTranslation('vehicles')
   const navigate = useNavigate()
   const { system } = useUnitPreference()
 
   const handleClick = () => {
+    if (selectMode) {
+      onToggleSelect?.(stats.vin)
+      return
+    }
     navigate(`/vehicles/${stats.vin}`)
   }
 
@@ -76,7 +83,23 @@ function VehicleStatisticsCard({ stats }: VehicleStatisticsCardProps) {
     : null
 
   return (
-    <article className="group relative isolate overflow-hidden rounded-card border border-border bg-surface ui-motion hover:shadow-card-hover">
+    <article
+      className={`group relative isolate overflow-hidden rounded-card border bg-surface ui-motion hover:shadow-card-hover ${
+        selected ? 'border-primary ring-2 ring-primary/30' : 'border-border'
+      }`}
+    >
+      {selectMode && (
+        <div className="absolute left-3 top-3 z-20">
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={() => onToggleSelect?.(stats.vin)}
+            onClick={(e) => e.stopPropagation()}
+            aria-label={t('dashboard.selectVehicles')}
+            className="h-5 w-5 rounded border-border text-primary"
+          />
+        </div>
+      )}
       {/* Image header — real photo or diagonal-stripe placeholder */}
       <div className="relative h-[172px] overflow-hidden [background:repeating-linear-gradient(135deg,var(--color-photo-a)_0_13px,var(--color-photo-b)_13px_26px)]">
         {stats.main_photo_url ? (
