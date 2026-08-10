@@ -1,14 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '../../__tests__/test-utils'
 
-// Deterministic api mock — each test sets the resolved /dashboard payload.
 const mockGet = vi.fn()
 vi.mock('../../services/api', () => ({
   default: { get: (...args: unknown[]) => mockGet(...args) },
 }))
 
-// Isolate the Dashboard: stub the card to a stable node we can read the order
-// of, and neutralise the auth-context dependency of the (later) fleet strip.
+vi.mock('../../services/externalVehicleService', () => ({
+  listExternalVehicles: vi.fn().mockResolvedValue({ vehicles: [], total: 0 }),
+}))
+
 vi.mock('../../components/VehicleStatisticsCard', () => ({
   default: ({
     stats,
@@ -61,6 +62,7 @@ function payload(vehicles: Record<string, unknown>[]): { data: Record<string, un
     data: {
       total_vehicles: vehicles.length,
       vehicles,
+      multi_user_enabled: false,
       total_service_records: 0,
       total_fuel_records: 0,
       total_maintenance_items: 0,
@@ -81,10 +83,10 @@ function payload(vehicles: Record<string, unknown>[]): { data: Record<string, un
 const order = (): string[] =>
   screen.getAllByTestId('vehicle-card').map((el) => el.textContent ?? '')
 
-describe('Dashboard sort/filter behaviour', () => {
+describe('Dashboard sectioned layout', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('re-sorts the grid when a Sort option is chosen', async () => {
+  it('re-sorts vehicles when a Sort option is chosen', async () => {
     mockGet.mockResolvedValue(
       payload([
         vehicle({ vin: 'A', year: 2019, make: 'Aston', model: 'X' }),
@@ -93,22 +95,19 @@ describe('Dashboard sort/filter behaviour', () => {
       ]),
     )
     render(<Dashboard />)
-    // Default sort 'name' -> "2019 Aston" < "2020 Chevy" < "2022 BMW".
     await waitFor(() =>
       expect(order()).toEqual(['2019 Aston X', '2020 Chevy X', '2022 BMW X']),
     )
 
-    // Open the Sort dropdown (by its accessible label) and choose Newest First.
     fireEvent.click(screen.getByRole('button', { name: 'dashboard.sortVehicles' }))
     fireEvent.click(screen.getByRole('menuitemradio', { name: 'dashboard.newestFirst' }))
 
-    // year-new -> 2022, 2020, 2019. Order actually changed.
     await waitFor(() =>
       expect(order()).toEqual(['2022 BMW X', '2020 Chevy X', '2019 Aston X']),
     )
   })
 
-  it('filters to owned-only when Filter -> My Vehicles is chosen', async () => {
+  it('splits owned and shared vehicles into sections', async () => {
     mockGet.mockResolvedValue(
       payload([
         vehicle({ vin: 'OWN', year: 2021, make: 'Owned', model: 'Y' }),
@@ -116,13 +115,20 @@ describe('Dashboard sort/filter behaviour', () => {
       ]),
     )
     render(<Dashboard />)
-    // The filter dropdown exists only because a shared vehicle is present.
+
     await waitFor(() => expect(order()).toHaveLength(2))
+    expect(screen.getByText('dashboard.myVehiclesSection')).toBeInTheDocument()
+    expect(screen.getByText('dashboard.familyFriendsSection')).toBeInTheDocument()
+  })
 
-    fireEvent.click(screen.getByRole('button', { name: 'dashboard.filterVehicles' }))
-    fireEvent.click(screen.getByRole('menuitemradio', { name: 'dashboard.myVehicles' }))
+  it('shows family empty state when nothing is shared or referenced', async () => {
+    mockGet.mockResolvedValue(
+      payload([vehicle({ vin: 'OWN', year: 2021, make: 'Owned', model: 'Y' })]),
+    )
+    render(<Dashboard />)
 
-    // Shared vehicle filtered out — the subset actually changed.
-    await waitFor(() => expect(order()).toEqual(['2021 Owned Y']))
+    await waitFor(() =>
+      expect(screen.getByText('dashboard.familyEmptyTitle')).toBeInTheDocument(),
+    )
   })
 })

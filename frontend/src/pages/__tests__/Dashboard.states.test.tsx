@@ -5,6 +5,9 @@ const mockGet = vi.fn()
 vi.mock('../../services/api', () => ({
   default: { get: (...args: unknown[]) => mockGet(...args) },
 }))
+vi.mock('../../services/externalVehicleService', () => ({
+  listExternalVehicles: vi.fn().mockResolvedValue({ vehicles: [], total: 0 }),
+}))
 vi.mock('../../components/VehicleStatisticsCard', () => ({
   default: ({ stats }: { stats: { vin: string } }) => (
     <div data-testid="vehicle-card">{stats.vin}</div>

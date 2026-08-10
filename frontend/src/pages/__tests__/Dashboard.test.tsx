@@ -2,29 +2,30 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '../../__tests__/test-utils'
 import Dashboard from '../Dashboard'
 
-// Mock axios with create method
-vi.mock('axios', () => {
-  interface MockAxios {
-    get: ReturnType<typeof vi.fn>
-    post: ReturnType<typeof vi.fn>
-    interceptors: {
-      request: { use: ReturnType<typeof vi.fn>; eject: ReturnType<typeof vi.fn> }
-      response: { use: ReturnType<typeof vi.fn>; eject: ReturnType<typeof vi.fn> }
-    }
-    create: ReturnType<typeof vi.fn>
-  }
-  const mockAxios: MockAxios = {
-    get: vi.fn(() => Promise.resolve({ data: [] })),
-    post: vi.fn(() => Promise.resolve({ data: {} })),
-    interceptors: {
-      request: { use: vi.fn(), eject: vi.fn() },
-      response: { use: vi.fn(), eject: vi.fn() },
-    },
-    create: vi.fn(),
-  }
-  mockAxios.create = vi.fn(() => mockAxios)
-  return { default: mockAxios }
-})
+vi.mock('../../services/api', () => ({
+  default: {
+    get: vi.fn(() =>
+      Promise.resolve({
+        data: {
+          total_vehicles: 0,
+          vehicles: [],
+          multi_user_enabled: false,
+          total_service_records: 0,
+          total_fuel_records: 0,
+          total_maintenance_items: 0,
+          total_documents: 0,
+          total_notes: 0,
+          total_photos: 0,
+          fleet_health: null,
+        },
+      }),
+    ),
+  },
+}))
+
+vi.mock('../../services/externalVehicleService', () => ({
+  listExternalVehicles: vi.fn().mockResolvedValue({ vehicles: [], total: 0 }),
+}))
 
 describe('Dashboard Page', () => {
   it('renders dashboard header', () => {
