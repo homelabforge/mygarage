@@ -14,6 +14,7 @@ import AppToaster from './components/AppToaster'
 import { useLanguageSync } from './hooks/useLanguageSync'
 import { useAccentSync } from './hooks/useAccentSync'
 import { useThemeSync } from './hooks/useThemeSync'
+import { useGallonStandardSync } from './hooks/useGallonStandardSync'
 import { basePath } from './utils/basePath'
 
 // Eager load login/register for instant access
@@ -57,6 +58,7 @@ function PreferenceSyncProvider({ children }: { children: React.ReactNode }) {
   useLanguageSync()
   useAccentSync()
   useThemeSync()
+  useGallonStandardSync()
   return <>{children}</>
 }
 

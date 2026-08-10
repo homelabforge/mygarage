@@ -68,7 +68,13 @@ async def get_stats(
         full_backup_size = sum(b["size_bytes"] for b in full_backups)
 
         return {
-            "database": db_stats,
+            "database": {
+                **db_stats,
+                "is_sqlite": is_sqlite,
+                "database_engine": "sqlite" if is_sqlite else "postgresql",
+            },
+            "is_sqlite": is_sqlite,
+            "database_engine": "sqlite" if is_sqlite else "postgresql",
             "settings_backups": {
                 "count": len(settings_backups),
                 "total_size_mb": round(settings_backup_size / 1024 / 1024, 4),

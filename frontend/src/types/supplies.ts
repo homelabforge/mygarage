@@ -6,10 +6,15 @@
 
 import type { components } from './api.generated'
 
-export type Supply = components['schemas']['SupplyResponse']
-export type SupplyListResponse = components['schemas']['SupplyListResponse']
-export type SupplyCreate = components['schemas']['SupplyCreate']
-export type SupplyUpdate = components['schemas']['SupplyUpdate']
+/** Barcode not yet in generated OpenAPI types — extend until `bun run generate:api`. */
+type SupplyBarcodeFields = { barcode?: string | null }
+
+export type Supply = components['schemas']['SupplyResponse'] & SupplyBarcodeFields
+export type SupplyListResponse = Omit<components['schemas']['SupplyListResponse'], 'supplies'> & {
+  supplies: Supply[]
+}
+export type SupplyCreate = components['schemas']['SupplyCreate'] & SupplyBarcodeFields
+export type SupplyUpdate = components['schemas']['SupplyUpdate'] & SupplyBarcodeFields
 export type SupplyPurchase = components['schemas']['SupplyPurchaseResponse']
 export type SupplyPurchaseCreate = components['schemas']['SupplyPurchaseCreate']
 export type SupplyAdjustmentCreate = components['schemas']['SupplyAdjustmentCreate']

@@ -1,12 +1,9 @@
 """Pydantic schemas for DTC (Diagnostic Trouble Code) operations."""
 
 from datetime import datetime
+from typing import Any
 
-from pydantic import BaseModel, Field
-
-# =============================================================================
-# DTC Definition Schemas (lookup database)
-# =============================================================================
+from pydantic import BaseModel, Field, field_validator
 
 
 class DTCDefinitionResponse(BaseModel):
@@ -22,12 +19,29 @@ class DTCDefinitionResponse(BaseModel):
     )
     is_emissions_related: bool = Field(False, description="Whether emissions-related")
 
-    # Future enhancement fields (NULL in Phase 1)
     common_causes: list[str] | None = Field(None, description="Common causes")
     symptoms: list[str] | None = Field(None, description="Common symptoms")
     fix_guidance: str | None = Field(None, description="Fix guidance")
 
     model_config = {"from_attributes": True}
+
+    @field_validator("common_causes", "symptoms", mode="before")
+    @classmethod
+    def _parse_json_list(cls, value: Any) -> list[str] | None:
+        if value is None or value == "":
+            return None
+        if isinstance(value, list):
+            return [str(x) for x in value]
+        if isinstance(value, str):
+            import json
+
+            try:
+                parsed = json.loads(value)
+                if isinstance(parsed, list):
+                    return [str(x) for x in parsed]
+            except (json.JSONDecodeError, TypeError):
+                return None
+        return None
 
 
 class DTCSearchResponse(BaseModel):
@@ -77,6 +91,9 @@ class VehicleDTCResponse(VehicleDTCBase):
     subcategory: str | None = Field(None, description="Subcategory from lookup")
     is_emissions_related: bool | None = Field(None, description="Emissions-related from lookup")
     estimated_severity_level: int | None = Field(None, description="Severity level from lookup")
+    common_causes: list[str] | None = Field(None, description="Common causes from lookup")
+    symptoms: list[str] | None = Field(None, description="Common symptoms from lookup")
+    fix_guidance: str | None = Field(None, description="Fix guidance from lookup")
 
     model_config = {"from_attributes": True}
 

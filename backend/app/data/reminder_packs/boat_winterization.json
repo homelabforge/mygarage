@@ -2,6 +2,7 @@
   "id": "boat_winterization",
   "name": "Boat Winterization",
   "description": "Starter checklist for seasonal boat winterization and spring recommission.",
+  "vehicle_types": ["Boat"],
   "reminders": [
     {
       "title": "Winterize Engine & Fuel System",

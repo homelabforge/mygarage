@@ -209,6 +209,7 @@ class SessionService:
 
         # Calculate aggregates from telemetry
         await self._calculate_session_aggregates(session)
+        await self._calculate_driving_insights(session)
 
         # Clear device's current session
         device.current_session_id = None
@@ -356,6 +357,62 @@ class SessionService:
                     setattr(session, avg_attr, stats["avg"])
                 if max_attr:
                     setattr(session, max_attr, stats["max"])
+
+    async def _calculate_driving_insights(self, session: DriveSession) -> None:
+        """Derive idle time and harsh accel/brake counts from SPEED samples.
+
+        Idle: consecutive samples below 5 km/h contribute their Δt.
+        Harsh accel/brake: |Δv/Δt| above ~3.5 m/s² (≈12.6 km/h per second).
+        """
+        if not session.started_at or not session.ended_at:
+            return
+
+        speed_keys = ["SPEED", "0D-VehicleSpeed", "0D-VEHICLESPEED"]
+        upper_keys = [k.upper() for k in speed_keys]
+        result = await self.db.execute(
+            select(VehicleTelemetry.timestamp, VehicleTelemetry.value)
+            .where(VehicleTelemetry.vin == session.vin)
+            .where(func.upper(VehicleTelemetry.param_key).in_(upper_keys))
+            .where(VehicleTelemetry.timestamp >= session.started_at)
+            .where(VehicleTelemetry.timestamp <= session.ended_at)
+            .order_by(VehicleTelemetry.timestamp.asc())
+        )
+        rows = list(result.all())
+        if len(rows) < 2:
+            session.idle_seconds = 0
+            session.harsh_accel_count = 0
+            session.harsh_brake_count = 0
+            return
+
+        idle_seconds = 0.0
+        harsh_accel = 0
+        harsh_brake = 0
+        idle_threshold_kmh = 5.0
+        harsh_ms2 = 3.5  # m/s²
+        # Convert km/h/s to m/s²: 1 km/h/s = 1000/3600 m/s² ≈ 0.2778
+        harsh_kmh_per_s = harsh_ms2 / (1000.0 / 3600.0)
+
+        prev_ts, prev_speed = rows[0]
+        for ts, speed in rows[1:]:
+            if prev_ts is None or ts is None or speed is None or prev_speed is None:
+                prev_ts, prev_speed = ts, speed
+                continue
+            dt = (ts - prev_ts).total_seconds()
+            if dt <= 0 or dt > 120:
+                prev_ts, prev_speed = ts, speed
+                continue
+            if float(prev_speed) < idle_threshold_kmh and float(speed) < idle_threshold_kmh:
+                idle_seconds += dt
+            dv_dt = (float(speed) - float(prev_speed)) / dt
+            if dv_dt >= harsh_kmh_per_s:
+                harsh_accel += 1
+            elif dv_dt <= -harsh_kmh_per_s:
+                harsh_brake += 1
+            prev_ts, prev_speed = ts, speed
+
+        session.idle_seconds = int(round(idle_seconds))
+        session.harsh_accel_count = harsh_accel
+        session.harsh_brake_count = harsh_brake
 
     async def _get_param_stats_multi(
         self,

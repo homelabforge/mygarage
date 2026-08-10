@@ -124,7 +124,7 @@ class Settings(BaseSettings):
     max_document_size_mb: int = 25
 
     # Allowed file extensions
-    allowed_photo_extensions: set[str] = {".jpg", ".jpeg", ".png", ".webp", ".heic"}
+    allowed_photo_extensions: set[str] = {".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif"}
     allowed_attachment_extensions: set[str] = {".jpg", ".jpeg", ".png", ".gif", ".pdf"}
     allowed_document_extensions: set[str] = {
         ".pdf",

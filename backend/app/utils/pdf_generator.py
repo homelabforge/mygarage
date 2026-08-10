@@ -227,6 +227,71 @@ class PDFReportGenerator:
         buffer.seek(0)
         return buffer
 
+    def generate_sale_history_pdf(
+        self,
+        vehicle_info: dict[str, Any],
+        service_records: list[dict[str, Any]],
+    ) -> BytesIO:
+        """Buyer-facing sanitized service history (no costs, vendors, plate, or full VIN)."""
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(
+            buffer, pagesize=letter, topMargin=0.5 * inch, bottomMargin=0.5 * inch
+        )
+        story = []
+
+        story.append(Paragraph("Vehicle History Summary", self.styles["CustomTitle"]))
+        story.append(Spacer(1, 0.2 * inch))
+
+        vin = str(vehicle_info.get("vin") or "")
+        vin_tail = vin[-6:] if len(vin) >= 6 else vin
+        vehicle_text = f"""
+        <b>Vehicle:</b> {vehicle_info.get("year") or ""} {vehicle_info.get("make") or ""} {vehicle_info.get("model") or ""}<br/>
+        <b>VIN (last 6):</b> {vin_tail or "N/A"}<br/>
+        <b>Report Generated:</b> {datetime.now().strftime("%m/%d/%Y %I:%M %p")}<br/>
+        <i>Sanitized for prospective buyers — costs, vendors, plate, and full VIN omitted.</i>
+        """
+        story.append(Paragraph(vehicle_text, self.styles["InfoText"]))
+        story.append(Spacer(1, 0.3 * inch))
+
+        if service_records:
+            story.append(Paragraph("Service History", self.styles["CustomSubtitle"]))
+            story.append(Spacer(1, 0.1 * inch))
+            table_data = [["Date", "Odometer (km)", "Service"]]
+            for record in service_records:
+                odometer_km_value = record.get("odometer_km")
+                desc = record.get("service_type") or record.get("description") or "Service"
+                table_data.append(
+                    [
+                        self._format_date(record.get("date")),
+                        f"{odometer_km_value:,}" if odometer_km_value else "N/A",
+                        Paragraph(str(desc)[:80], self.styles["Normal"]),
+                    ]
+                )
+            table = Table(table_data, colWidths=[1.2 * inch, 1.4 * inch, 4.2 * inch])
+            table.setStyle(
+                TableStyle(
+                    [
+                        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#3b82f6")),
+                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+                        ("ALIGN", (0, 0), (-1, 0), "CENTER"),
+                        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                        ("FONTSIZE", (0, 0), (-1, 0), 10),
+                        ("BOTTOMPADDING", (0, 0), (-1, 0), 12),
+                        ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+                        ("FONTSIZE", (0, 1), (-1, -1), 9),
+                        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ]
+                )
+            )
+            story.append(table)
+        else:
+            story.append(Paragraph("No service records available.", self.styles["Normal"]))
+
+        doc.build(story)
+        buffer.seek(0)
+        return buffer
+
     def generate_cost_summary_pdf(
         self,
         vehicle_info: dict[str, Any],

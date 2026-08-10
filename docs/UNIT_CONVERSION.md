@@ -391,11 +391,20 @@ When testing unit conversion:
 
 Potential improvements for future versions:
 
-- [ ] Support for additional unit systems (e.g., UK Imperial with different gallons)
+- [x] Support for additional unit systems (e.g., UK Imperial with different gallons)
 - [ ] Per-record unit display for mixed garages (US and EU vehicles)
 - [ ] Unit preference for CSV exports
 - [ ] API parameter to request specific unit system in response
 - [ ] Bulk data migration tool (if user wants to store in metric)
+
+### UK Imperial gallons
+
+Settings → System Configuration → Imperial gallon standard (when unit system is Imperial):
+
+- **US gallon** (default): 3.78541 L — US MPG factor 235.214
+- **UK gallon**: 4.54609 L — UK MPG factor 282.481
+
+Storage remains SI metric; only display and form conversion use the selected gallon.
 
 ## Troubleshooting
 

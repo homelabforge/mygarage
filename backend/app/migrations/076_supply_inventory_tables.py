@@ -37,6 +37,7 @@ def upgrade(engine=None):
                     id {pk},
                     name VARCHAR(120) NOT NULL,
                     part_number VARCHAR(60),
+                    barcode VARCHAR(64),
                     category VARCHAR(40),
                     unit_type VARCHAR(10) NOT NULL,
                     vin VARCHAR(17) REFERENCES vehicles(vin) ON DELETE CASCADE,
@@ -85,6 +86,7 @@ def upgrade(engine=None):
         )
         for name, table, cols in (
             ("idx_supplies_vin", "supplies", "vin"),
+            ("idx_supplies_barcode", "supplies", "barcode"),
             ("idx_supply_purchases_supply_date", "supply_purchases", "supply_id, date"),
             ("idx_supply_usages_supply", "supply_usages", "supply_id"),
             ("idx_supply_usages_line_item", "supply_usages", "service_line_item_id"),
