@@ -16,8 +16,33 @@ from app.schemas.external_vehicle import (
     ExternalVehicleUpdate,
 )
 from app.services.auth import require_auth
+from app.services.settings_service import SettingsService
 
 router = APIRouter(prefix="/api/external-vehicles", tags=["external-vehicles"])
+
+_KIND_SETTING_KEY = {
+    "reference": "family_friends_enabled",
+    "customer": "customers_enabled",
+}
+
+
+async def _kind_enabled(db: AsyncSession, kind: str) -> bool:
+    """Return True when the garage section for this external kind is enabled."""
+    key = _KIND_SETTING_KEY.get(kind)
+    if key is None:
+        return False
+    setting = await SettingsService.get(db, key)
+    value = (setting.value if setting and setting.value is not None else "false").lower()
+    return value in ("true", "1", "yes")
+
+
+async def _require_kind_enabled(db: AsyncSession, kind: str) -> None:
+    if not await _kind_enabled(db, kind):
+        label = "Family & Friends" if kind == "reference" else "Customers"
+        raise HTTPException(
+            status_code=403,
+            detail=f"{label} vehicles are disabled in Settings",
+        )
 
 
 async def _resolve_owner(db: AsyncSession, current_user: User | None) -> User | None:
@@ -36,12 +61,25 @@ async def list_external_vehicles(
     current_user: User | None = Depends(require_auth),
 ) -> ExternalVehicleListResponse:
     """List external vehicles for the current user (or all when auth is off)."""
+    if kind is not None:
+        if not await _kind_enabled(db, kind):
+            return ExternalVehicleListResponse(vehicles=[], total=0)
+        allowed_kinds = {kind}
+    else:
+        allowed_kinds = {
+            k for k in ("customer", "reference") if await _kind_enabled(db, k)
+        }
+        if not allowed_kinds:
+            return ExternalVehicleListResponse(vehicles=[], total=0)
+
     owner = await _resolve_owner(db, current_user)
     stmt = select(ExternalVehicle)
     if owner is not None:
         stmt = stmt.where(ExternalVehicle.user_id == owner.id)
-    if kind:
-        stmt = stmt.where(ExternalVehicle.kind == kind)
+    if len(allowed_kinds) == 1:
+        stmt = stmt.where(ExternalVehicle.kind == next(iter(allowed_kinds)))
+    else:
+        stmt = stmt.where(ExternalVehicle.kind.in_(allowed_kinds))
     stmt = stmt.order_by(ExternalVehicle.nickname.asc())
     result = await db.execute(stmt)
     rows = result.scalars().all()
@@ -58,6 +96,7 @@ async def create_external_vehicle(
     current_user: User | None = Depends(require_auth),
 ) -> ExternalVehicleResponse:
     """Create a customer or family reference vehicle."""
+    await _require_kind_enabled(db, payload.kind)
     owner = await _resolve_owner(db, current_user)
     if owner is None:
         # auth_mode=none: attach to the first user if one exists, else invent a
@@ -89,6 +128,7 @@ async def get_external_vehicle(
 ) -> ExternalVehicleResponse:
     owner = await _resolve_owner(db, current_user)
     row = await _get_owned(db, vehicle_id, owner.id if owner else None)
+    await _require_kind_enabled(db, row.kind)
     return ExternalVehicleResponse.model_validate(row)
 
 
@@ -101,6 +141,7 @@ async def update_external_vehicle(
 ) -> ExternalVehicleResponse:
     owner = await _resolve_owner(db, current_user)
     row = await _get_owned(db, vehicle_id, owner.id if owner else None)
+    await _require_kind_enabled(db, row.kind)
     for key, value in payload.model_dump(exclude_unset=True).items():
         setattr(row, key, value)
     await db.commit()
@@ -116,6 +157,7 @@ async def delete_external_vehicle(
 ) -> None:
     owner = await _resolve_owner(db, current_user)
     row = await _get_owned(db, vehicle_id, owner.id if owner else None)
+    await _require_kind_enabled(db, row.kind)
     await db.delete(row)
     await db.commit()
 

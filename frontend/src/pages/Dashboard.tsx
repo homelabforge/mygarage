@@ -36,12 +36,22 @@ function sortVehicles(vehicles: VehicleStatistics[], sortBy: SortOption): Vehicl
   })
 }
 
+function settingEnabled(
+  settings: { key: string; value: string | null }[],
+  key: string,
+): boolean {
+  const row = settings.find((s) => s.key === key)
+  return (row?.value || 'false').toLowerCase() === 'true'
+}
+
 export default function Dashboard() {
   const { t } = useTranslation('vehicles')
   const location = useLocation()
   const navigate = useNavigate()
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null)
   const [externalVehicles, setExternalVehicles] = useState<ExternalVehicle[]>([])
+  const [familyFriendsEnabled, setFamilyFriendsEnabled] = useState(false)
+  const [customersEnabled, setCustomersEnabled] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showWizard, setShowWizard] = useState(false)
@@ -57,12 +67,30 @@ export default function Dashboard() {
   const loadDashboard = useCallback(async () => {
     setError(null)
     try {
-      const [dashRes, extRes] = await Promise.all([
+      const [dashRes, settingsRes] = await Promise.all([
         api.get('/dashboard'),
-        listExternalVehicles().catch(() => ({ vehicles: [], total: 0 })),
+        api.get('/settings/public').catch(() => ({ data: { settings: [] } })),
       ])
+      const settings: { key: string; value: string | null }[] =
+        settingsRes.data?.settings ?? []
+      const ffEnabled = settingEnabled(settings, 'family_friends_enabled')
+      const custEnabled = settingEnabled(settings, 'customers_enabled')
+      setFamilyFriendsEnabled(ffEnabled)
+      setCustomersEnabled(custEnabled)
+
+      let extVehicles: ExternalVehicle[] = []
+      if (ffEnabled || custEnabled) {
+        const kind =
+          ffEnabled && custEnabled ? undefined : ffEnabled ? 'reference' : 'customer'
+        const extRes = await listExternalVehicles(kind).catch(() => ({
+          vehicles: [] as ExternalVehicle[],
+          total: 0,
+        }))
+        extVehicles = extRes.vehicles
+      }
+
       setDashboard(dashRes.data)
-      setExternalVehicles(extRes.vehicles)
+      setExternalVehicles(extVehicles)
     } catch {
       setError(tRef.current('dashboard.loadError'))
     } finally {
@@ -87,31 +115,39 @@ export default function Dashboard() {
   }, [dashboard?.vehicles, sortBy])
 
   const sharedVehicles = useMemo(() => {
-    if (!dashboard?.vehicles) return []
+    if (!familyFriendsEnabled || !dashboard?.vehicles) return []
     return sortVehicles(
       dashboard.vehicles.filter((v) => v.is_shared_with_me),
       sortBy,
     )
-  }, [dashboard?.vehicles, sortBy])
+  }, [dashboard?.vehicles, sortBy, familyFriendsEnabled])
 
   const referenceVehicles = useMemo(
-    () => externalVehicles.filter((v) => v.kind === 'reference'),
-    [externalVehicles],
+    () =>
+      familyFriendsEnabled
+        ? externalVehicles.filter((v) => v.kind === 'reference')
+        : [],
+    [externalVehicles, familyFriendsEnabled],
   )
   const customerVehicles = useMemo(
-    () => externalVehicles.filter((v) => v.kind === 'customer'),
-    [externalVehicles],
+    () =>
+      customersEnabled ? externalVehicles.filter((v) => v.kind === 'customer') : [],
+    [externalVehicles, customersEnabled],
   )
 
-  const hasSharedVehicles = sharedVehicles.length > 0
   const familyItemCount = sharedVehicles.length + referenceVehicles.length
-  const showFamilyEmpty = familyItemCount === 0 && ownedVehicles.length > 0
-  const showFamilySection = familyItemCount > 0 || showFamilyEmpty
-  const showCustomersSection = customerVehicles.length > 0 || ownedVehicles.length > 0
+  const showFamilyEmpty =
+    familyFriendsEnabled && familyItemCount === 0 && ownedVehicles.length > 0
+  const showFamilySection =
+    familyFriendsEnabled && (familyItemCount > 0 || showFamilyEmpty)
+  const showCustomersSection =
+    customersEnabled && (customerVehicles.length > 0 || ownedVehicles.length > 0)
 
-  const vehicleCount = dashboard?.total_vehicles || 0
+  const ownedCount = ownedVehicles.length
   const hasAnyContent =
-    vehicleCount > 0 || externalVehicles.length > 0
+    ownedCount > 0 ||
+    (familyFriendsEnabled && sharedVehicles.length > 0) ||
+    externalVehicles.length > 0
 
   const sortItems: DropdownItem[] = [
     { id: 'name', label: t('dashboard.sortByName'), checked: sortBy === 'name', onSelect: () => setSortBy('name') },
@@ -131,6 +167,8 @@ export default function Dashboard() {
     setEditingExternal(null)
   }
 
+  const showSort = ownedCount > 0 || (familyFriendsEnabled && sharedVehicles.length > 0)
+
   return (
     <>
       <div className="container mx-auto px-4 py-8">
@@ -138,7 +176,7 @@ export default function Dashboard() {
           title={t('dashboard.title')}
           actions={
             <>
-              {vehicleCount > 0 && (
+              {showSort && (
                 <Dropdown
                   label={t('dashboard.sortVehicles')}
                   align="right"
@@ -177,7 +215,8 @@ export default function Dashboard() {
           </Card>
         ) : dashboard && hasAnyContent ? (
           <div className="space-y-10">
-            {dashboard.fleet_health && ownedVehicles.length + sharedVehicles.length > 0 ? (
+            {dashboard.fleet_health &&
+            ownedVehicles.length + sharedVehicles.length > 0 ? (
               <FleetHealthStrip fleet={dashboard.fleet_health} />
             ) : null}
 
@@ -253,7 +292,7 @@ export default function Dashboard() {
               </section>
             ) : null}
 
-            {showCustomersSection || ownedVehicles.length > 0 ? (
+            {showCustomersSection ? (
               <section>
                 <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                   <div>

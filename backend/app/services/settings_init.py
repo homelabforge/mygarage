@@ -583,6 +583,18 @@ DEFAULT_SETTINGS = {
         "description": "Use TLS/SSL for MQTT connection",
         "encrypted": False,
     },
+    "family_friends_enabled": {
+        "value": "false",
+        "category": "general",
+        "description": "Show Family & Friends garage section (shared + reference vehicles)",
+        "encrypted": False,
+    },
+    "customers_enabled": {
+        "value": "false",
+        "category": "general",
+        "description": "Show Customers garage section (side-work vehicles)",
+        "encrypted": False,
+    },
 }
 
 

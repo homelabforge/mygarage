@@ -68,6 +68,15 @@ const OK_PAYLOAD = {
   },
 }
 
+const SETTINGS_OFF = {
+  data: {
+    settings: [
+      { key: 'family_friends_enabled', value: 'false' },
+      { key: 'customers_enabled', value: 'false' },
+    ],
+  },
+}
+
 describe('Dashboard loading/error/retry states', () => {
   beforeEach(() => vi.clearAllMocks())
 
@@ -79,7 +88,12 @@ describe('Dashboard loading/error/retry states', () => {
   })
 
   it('shows the error state, then recovers when Retry succeeds', async () => {
-    mockGet.mockRejectedValueOnce(new Error('boom'))
+    mockGet.mockImplementation((url: string) => {
+      if (String(url).includes('settings')) {
+        return Promise.resolve(SETTINGS_OFF)
+      }
+      return Promise.reject(new Error('boom'))
+    })
     render(<Dashboard />)
 
     // Error EmptyState (title = loadError key under the i18n mock) + retry button.
@@ -87,7 +101,12 @@ describe('Dashboard loading/error/retry states', () => {
     const retry = screen.getByRole('button', { name: 'common:retry' })
 
     // Retry now succeeds -> the grid renders the (stubbed) card, error clears.
-    mockGet.mockResolvedValueOnce(OK_PAYLOAD)
+    mockGet.mockImplementation((url: string) => {
+      if (String(url).includes('settings')) {
+        return Promise.resolve(SETTINGS_OFF)
+      }
+      return Promise.resolve(OK_PAYLOAD)
+    })
     fireEvent.click(retry)
 
     expect(await screen.findByTestId('vehicle-card')).toBeInTheDocument()

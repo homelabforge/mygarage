@@ -26,6 +26,8 @@ export default function SettingsSystemTab() {
   const [formData, setFormData] = useState({
     timezone: 'UTC',
     debug: 'false',
+    family_friends_enabled: 'false',
+    customers_enabled: 'false',
     auth_mode: 'none', // local, none, oidc
     oidc_enabled: 'false',
     oidc_provider_name: '',
@@ -149,6 +151,8 @@ export default function SettingsSystemTab() {
       const newFormData = {
         timezone: settingsMap.timezone || 'UTC',
         debug: settingsMap.debug || 'false',
+        family_friends_enabled: settingsMap.family_friends_enabled || 'false',
+        customers_enabled: settingsMap.customers_enabled || 'false',
         auth_mode: settingsMap.auth_mode || 'none',
         oidc_enabled: oidcAdmin ? (oidcAdmin.enabled ? 'true' : 'false') : settingsMap.oidc_enabled || 'false',
         oidc_provider_name: oidcAdmin?.provider_name ?? (settingsMap.oidc_provider_name || ''),
@@ -573,6 +577,50 @@ export default function SettingsSystemTab() {
           <p className="mt-2 text-sm text-garage-text-muted">
             {t('debug.warning')}
           </p>
+        </div>
+
+        {/* Garage sections */}
+        <div>
+          <h3 className="text-sm font-medium text-garage-text mb-1">
+            {t('garageSections.title')}
+          </h3>
+          <p className="mb-3 text-sm text-garage-text-muted">
+            {t('garageSections.description')}
+          </p>
+          <div className="space-y-4">
+            <div>
+              <Toggle
+                id="family_friends_enabled"
+                label={t('garageSections.familyFriends')}
+                checked={formData.family_friends_enabled === 'true'}
+                onChange={(next) =>
+                  setFormData({
+                    ...formData,
+                    family_friends_enabled: next ? 'true' : 'false',
+                  })
+                }
+              />
+              <p className="mt-1 text-sm text-garage-text-muted">
+                {t('garageSections.familyFriendsDesc')}
+              </p>
+            </div>
+            <div>
+              <Toggle
+                id="customers_enabled"
+                label={t('garageSections.customers')}
+                checked={formData.customers_enabled === 'true'}
+                onChange={(next) =>
+                  setFormData({
+                    ...formData,
+                    customers_enabled: next ? 'true' : 'false',
+                  })
+                }
+              />
+              <p className="mt-1 text-sm text-garage-text-muted">
+                {t('garageSections.customersDesc')}
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Unit System Setting */}

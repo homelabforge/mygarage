@@ -74,12 +74,19 @@ async def get_public_settings(db: AsyncSession = Depends(get_db)):
     - auth_mode: Authentication mode (local/oidc)
     - app_name: Application name
     - theme: UI theme preference
+    - family_friends_enabled / customers_enabled: garage section feature flags
 
     Security: This endpoint is intentionally public to allow frontend
     initialization before login. All sensitive settings are excluded.
     """
     # Whitelist of public settings safe for unauthenticated access
-    public_keys = {"auth_mode", "app_name", "theme"}
+    public_keys = {
+        "auth_mode",
+        "app_name",
+        "theme",
+        "family_friends_enabled",
+        "customers_enabled",
+    }
 
     result = await db.execute(
         select(Setting).where(Setting.key.in_(public_keys)).order_by(Setting.key)

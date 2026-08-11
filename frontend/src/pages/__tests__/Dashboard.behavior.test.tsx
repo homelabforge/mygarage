@@ -57,7 +57,7 @@ function vehicle(v: {
   }
 }
 
-function payload(vehicles: Record<string, unknown>[]): { data: Record<string, unknown> } {
+function dashboardPayload(vehicles: Record<string, unknown>[]): { data: Record<string, unknown> } {
   return {
     data: {
       total_vehicles: vehicles.length,
@@ -80,6 +80,41 @@ function payload(vehicles: Record<string, unknown>[]): { data: Record<string, un
   }
 }
 
+function settingsPayload(flags: {
+  familyFriends?: boolean
+  customers?: boolean
+}): { data: { settings: { key: string; value: string }[] } } {
+  return {
+    data: {
+      settings: [
+        {
+          key: 'family_friends_enabled',
+          value: flags.familyFriends ? 'true' : 'false',
+        },
+        {
+          key: 'customers_enabled',
+          value: flags.customers ? 'true' : 'false',
+        },
+      ],
+    },
+  }
+}
+
+function mockDashboard(
+  vehicles: Record<string, unknown>[],
+  flags: { familyFriends?: boolean; customers?: boolean } = {
+    familyFriends: true,
+    customers: true,
+  },
+) {
+  mockGet.mockImplementation((url: string) => {
+    if (String(url).includes('settings')) {
+      return Promise.resolve(settingsPayload(flags))
+    }
+    return Promise.resolve(dashboardPayload(vehicles))
+  })
+}
+
 const order = (): string[] =>
   screen.getAllByTestId('vehicle-card').map((el) => el.textContent ?? '')
 
@@ -87,13 +122,11 @@ describe('Dashboard sectioned layout', () => {
   beforeEach(() => vi.clearAllMocks())
 
   it('re-sorts vehicles when a Sort option is chosen', async () => {
-    mockGet.mockResolvedValue(
-      payload([
-        vehicle({ vin: 'A', year: 2019, make: 'Aston', model: 'X' }),
-        vehicle({ vin: 'B', year: 2022, make: 'BMW', model: 'X' }),
-        vehicle({ vin: 'C', year: 2020, make: 'Chevy', model: 'X' }),
-      ]),
-    )
+    mockDashboard([
+      vehicle({ vin: 'A', year: 2019, make: 'Aston', model: 'X' }),
+      vehicle({ vin: 'B', year: 2022, make: 'BMW', model: 'X' }),
+      vehicle({ vin: 'C', year: 2020, make: 'Chevy', model: 'X' }),
+    ])
     render(<Dashboard />)
     await waitFor(() =>
       expect(order()).toEqual(['2019 Aston X', '2020 Chevy X', '2022 BMW X']),
@@ -107,13 +140,11 @@ describe('Dashboard sectioned layout', () => {
     )
   })
 
-  it('splits owned and shared vehicles into sections', async () => {
-    mockGet.mockResolvedValue(
-      payload([
-        vehicle({ vin: 'OWN', year: 2021, make: 'Owned', model: 'Y' }),
-        vehicle({ vin: 'SHR', year: 2021, make: 'Shared', model: 'Y', is_shared_with_me: true }),
-      ]),
-    )
+  it('splits owned and shared vehicles into sections when Family & Friends is enabled', async () => {
+    mockDashboard([
+      vehicle({ vin: 'OWN', year: 2021, make: 'Owned', model: 'Y' }),
+      vehicle({ vin: 'SHR', year: 2021, make: 'Shared', model: 'Y', is_shared_with_me: true }),
+    ])
     render(<Dashboard />)
 
     await waitFor(() => expect(order()).toHaveLength(2))
@@ -122,13 +153,40 @@ describe('Dashboard sectioned layout', () => {
   })
 
   it('shows family empty state when nothing is shared or referenced', async () => {
-    mockGet.mockResolvedValue(
-      payload([vehicle({ vin: 'OWN', year: 2021, make: 'Owned', model: 'Y' })]),
-    )
+    mockDashboard([vehicle({ vin: 'OWN', year: 2021, make: 'Owned', model: 'Y' })])
     render(<Dashboard />)
 
     await waitFor(() =>
       expect(screen.getByText('dashboard.familyEmptyTitle')).toBeInTheDocument(),
     )
+  })
+
+  it('hides Family & Friends and shared vehicles when the setting is off', async () => {
+    mockDashboard(
+      [
+        vehicle({ vin: 'OWN', year: 2021, make: 'Owned', model: 'Y' }),
+        vehicle({ vin: 'SHR', year: 2021, make: 'Shared', model: 'Y', is_shared_with_me: true }),
+      ],
+      { familyFriends: false, customers: false },
+    )
+    render(<Dashboard />)
+
+    await waitFor(() => expect(order()).toEqual(['2021 Owned Y']))
+    expect(screen.queryByText('dashboard.familyFriendsSection')).not.toBeInTheDocument()
+    expect(screen.queryByText('dashboard.customersSection')).not.toBeInTheDocument()
+    expect(screen.queryByText('2021 Shared Y')).not.toBeInTheDocument()
+  })
+
+  it('shows Customers empty state only when customers are enabled', async () => {
+    mockDashboard([vehicle({ vin: 'OWN', year: 2021, make: 'Owned', model: 'Y' })], {
+      familyFriends: false,
+      customers: true,
+    })
+    render(<Dashboard />)
+
+    await waitFor(() =>
+      expect(screen.getByText('dashboard.customersEmptyTitle')).toBeInTheDocument(),
+    )
+    expect(screen.queryByText('dashboard.familyFriendsSection')).not.toBeInTheDocument()
   })
 })
