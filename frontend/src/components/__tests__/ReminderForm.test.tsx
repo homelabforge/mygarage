@@ -1,8 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '../../__tests__/test-utils'
+import { render, screen, waitFor } from '../../__tests__/test-utils'
 import { fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { Reminder } from '../../types/reminder'
+import { toCanonicalKm } from '../../utils/decimalSafe'
+import { UnitConverter } from '../../utils/units'
 
 const createMock = vi.fn().mockResolvedValue({})
 const updateMock = vi.fn().mockResolvedValue({})
@@ -31,6 +33,10 @@ const reminder = {
   line_item_id: null, last_notified_at: null,
   created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
 } as unknown as Reminder
+
+/** Current odometer in canonical km corresponding to 149977 mi display. */
+const CURRENT_MI = 149977
+const CURRENT_KM = UnitConverter.milesToKm(CURRENT_MI)!
 
 beforeEach(() => vi.clearAllMocks())
 
@@ -166,5 +172,95 @@ describe('ReminderForm — server-side error wiring (Task 10 addendum)', () => {
 
     await vi.waitFor(() => expect(createMock).toHaveBeenCalledTimes(1))
     expect(await screen.findByText('Failed to {{action}}. Please check your input.')).toBeInTheDocument()
+  })
+})
+
+describe('ReminderForm — from last service mileage baseline', () => {
+  const typeMileage = () =>
+    fireEvent.click(screen.getByText('reminderForm.typeMileage').closest('button') as HTMLElement)
+
+  it('From now (default) still submits current + interval as absolute due_mileage_km', async () => {
+    const user = userEvent.setup()
+    render(
+      <ReminderForm
+        vin="V1"
+        currentMileage={CURRENT_KM}
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    )
+    await waitFor(() => expect(mockedApiGet).toHaveBeenCalled())
+
+    await user.type(screen.getByLabelText('common:title *'), 'Oil change')
+    typeMileage()
+    expect(screen.getByRole('button', { name: 'reminderForm.modeFromNow' })).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('reminder.milesUntilDue * (mi)'), { target: { value: '5000' } })
+    fireEvent.click(screen.getByRole('button', { name: 'common:create' }))
+
+    await waitFor(() => expect(createMock).toHaveBeenCalledTimes(1))
+    expect(createMock.mock.calls[0][0]).toStrictEqual({
+      title: 'Oil change',
+      reminder_type: 'mileage',
+      due_date: undefined,
+      due_mileage_km: CURRENT_KM + toCanonicalKm(5000, 'imperial')!,
+      due_hours: undefined,
+      notes: undefined,
+    })
+  })
+
+  it('From last service: last 142965 mi + 5000 → due_mileage_km of 147965 mi (may already be overdue)', async () => {
+    const user = userEvent.setup()
+    render(
+      <ReminderForm
+        vin="V1"
+        currentMileage={CURRENT_KM}
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    )
+    await waitFor(() => expect(mockedApiGet).toHaveBeenCalled())
+
+    await user.type(screen.getByLabelText('common:title *'), 'Oil change')
+    typeMileage()
+    fireEvent.click(screen.getByRole('button', { name: 'reminderForm.modeFromLast' }))
+    fireEvent.change(screen.getByLabelText('reminder.lastDoneMileage * (mi)'), { target: { value: '142965' } })
+    fireEvent.change(screen.getByLabelText('reminder.mileageInterval * (mi)'), { target: { value: '5000' } })
+    expect(screen.getByText(/reminderForm\.mileageLastOverdueNote/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'common:create' }))
+
+    await waitFor(() => expect(createMock).toHaveBeenCalledTimes(1))
+    const expectedDue =
+      toCanonicalKm(142965, 'imperial')! + toCanonicalKm(5000, 'imperial')!
+    expect(createMock.mock.calls[0][0]).toStrictEqual({
+      title: 'Oil change',
+      reminder_type: 'mileage',
+      due_date: undefined,
+      due_mileage_km: expectedDue,
+      due_hours: undefined,
+      notes: undefined,
+    })
+  })
+
+  it('rejects last done mileage greater than current odometer', async () => {
+    const user = userEvent.setup()
+    render(
+      <ReminderForm
+        vin="V1"
+        currentMileage={CURRENT_KM}
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    )
+    await waitFor(() => expect(mockedApiGet).toHaveBeenCalled())
+
+    await user.type(screen.getByLabelText('common:title *'), 'Oil change')
+    typeMileage()
+    fireEvent.click(screen.getByRole('button', { name: 'reminderForm.modeFromLast' }))
+    fireEvent.change(screen.getByLabelText('reminder.lastDoneMileage * (mi)'), { target: { value: '160000' } })
+    fireEvent.change(screen.getByLabelText('reminder.mileageInterval * (mi)'), { target: { value: '5000' } })
+    fireEvent.click(screen.getByRole('button', { name: 'common:create' }))
+
+    expect(screen.getByText('reminder.lastDoneExceedsCurrentMileage')).toBeInTheDocument()
+    expect(createMock).not.toHaveBeenCalled()
   })
 })

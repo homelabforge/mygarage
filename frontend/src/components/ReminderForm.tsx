@@ -1,17 +1,16 @@
 /**
  * Reminder create/edit form (standalone, for Tracking tab)
  *
- * Mileage input is always an interval ("miles until due"). When currentMileage
- * is available, the form converts interval → absolute on submit. On edit, it
- * reverse-computes the remaining interval for display.
+ * Mileage input is an interval by default ("miles until due"). When
+ * currentMileage is available, the form converts interval → absolute on
+ * submit. Users can switch to "From last service" to enter a past odometer
+ * reading + interval (due = lastDone + interval), which may already be overdue.
+ * On edit, "From now" reverse-computes the remaining interval for display.
  *
- * The engine-hours target (Task 15, revised) mirrors this exactly for parity:
- * it is also an interval ("engine-hours until due"), converted to an absolute
- * due_hours using the currentHours baseline (from useLatestHours) when one is
- * available, with the same edit-time reverse-computation. Hours stay
- * dimensionless throughout (no unit conversion, unlike mileage). `smart`
- * reminders target the vehicle's PRIMARY usage dimension (mileage or hours,
- * from getUsageTracking), never both at once.
+ * The engine-hours target mirrors this exactly for parity: interval from now,
+ * or last hours + interval. Hours stay dimensionless (no unit conversion).
+ * `smart` reminders target the vehicle's PRIMARY usage dimension (mileage or
+ * hours, from getUsageTracking), never both at once.
  */
 
 import { useTranslation } from 'react-i18next'
@@ -31,6 +30,8 @@ import api from '../services/api'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
 import { applyControlledFieldErrors } from '../hooks/useApiFormErrors'
 import { getActiveLocale } from '@/constants/i18n'
+
+type BaselineMode = 'from_now' | 'from_last'
 
 interface ReminderFormProps {
   vin: string
@@ -113,6 +114,10 @@ export default function ReminderForm({ vin, reminder, currentMileage, currentHou
     (reminder?.reminder_type as ReminderType) ?? 'date'
   )
   const [dueDate, setDueDate] = useState(reminder?.due_date ?? '')
+  const [mileageMode, setMileageMode] = useState<BaselineMode>('from_now')
+  const [hoursMode, setHoursMode] = useState<BaselineMode>('from_now')
+  const [lastDoneMileage, setLastDoneMileage] = useState<number | undefined>(undefined)
+  const [lastDoneHours, setLastDoneHours] = useState<number | undefined>(undefined)
 
   // For edits: reverse-compute interval (in user display unit) from absolute
   // canonical km target.
@@ -145,16 +150,45 @@ export default function ReminderForm({ vin, reminder, currentMileage, currentHou
 
   const [notes, setNotes] = useState(reminder?.notes ?? '')
 
+  const mileageFromLast = hasMileage && mileageMode === 'from_last'
+  const hoursFromLast = hasHours && hoursMode === 'from_last'
+
   // Compute target for display in user's units
-  const absoluteTarget = hasMileage && mileageInterval && currentDisplay != null
-    ? currentDisplay + mileageInterval
-    : mileageInterval
+  const absoluteTarget = (() => {
+    if (!mileageInterval) return undefined
+    if (mileageFromLast && lastDoneMileage != null) {
+      return lastDoneMileage + mileageInterval
+    }
+    if (hasMileage && currentDisplay != null && !mileageFromLast) {
+      return currentDisplay + mileageInterval
+    }
+    return mileageInterval
+  })()
 
   // Hours target for display — dimensionless, so no display-unit conversion
-  // (unlike absoluteTarget above), mirroring the same current+interval math.
-  const absoluteHoursTarget = hasHours && hoursInterval && currentHours != null
-    ? currentHours + hoursInterval
-    : hoursInterval
+  // (unlike absoluteTarget above), mirroring the same baseline+interval math.
+  const absoluteHoursTarget = (() => {
+    if (hoursInterval == null) return undefined
+    if (hoursFromLast && lastDoneHours != null) {
+      return lastDoneHours + hoursInterval
+    }
+    if (hasHours && currentHours != null && !hoursFromLast) {
+      return currentHours + hoursInterval
+    }
+    return hoursInterval
+  })()
+
+  const mileageTargetOverdue =
+    mileageFromLast &&
+    absoluteTarget != null &&
+    currentDisplay != null &&
+    absoluteTarget <= currentDisplay
+
+  const hoursTargetOverdue =
+    hoursFromLast &&
+    absoluteHoursTarget != null &&
+    currentHours != null &&
+    absoluteHoursTarget <= currentHours
 
   // Task 15 — smart reminders target the vehicle's PRIMARY dimension (keeps
   // the backend's exactly-one-of{mileage,hours} rule trivially satisfied: we
@@ -164,6 +198,13 @@ export default function ReminderForm({ vin, reminder, currentMileage, currentHou
   const needsMileageField = reminderType === 'mileage' || reminderType === 'both' ||
     (reminderType === 'smart' && !smartUsesHours)
   const needsHoursField = reminderType === 'hours' || smartUsesHours
+
+  const modeButtonClass = (active: boolean) =>
+    `flex-1 text-center px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+      active
+        ? 'border-(--accent-line) bg-(--accent-soft) text-(--accent-fg)'
+        : 'border-border bg-surface-2 text-text hover:border-(--accent-line)'
+    }`
 
   const handleSubmit = async (e: SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -185,26 +226,60 @@ export default function ReminderForm({ vin, reminder, currentMileage, currentHou
       return
     }
 
+    if (needsMileageField && mileageFromLast) {
+      if (lastDoneMileage == null || lastDoneMileage <= 0) {
+        setError(t('reminder.lastDoneMileageRequired'))
+        return
+      }
+      if (currentDisplay != null && lastDoneMileage > currentDisplay) {
+        setError(t('reminder.lastDoneExceedsCurrentMileage'))
+        return
+      }
+    }
+
     if (needsHoursField && !hoursInterval) {
       setError(t('reminder.hoursRequired'))
       return
     }
 
-    // Convert user-entered interval (display unit) to canonical km, then add
-    // baseline canonical km for absolute target. Never sent for an hours-only
-    // or smart-hours reminder — the backend rejects both metrics at once.
+    if (needsHoursField && hoursFromLast) {
+      if (lastDoneHours == null || lastDoneHours <= 0) {
+        setError(t('reminder.lastDoneHoursRequired'))
+        return
+      }
+      if (currentHours != null && lastDoneHours > currentHours) {
+        setError(t('reminder.lastDoneExceedsCurrentHours'))
+        return
+      }
+    }
+
+    // Convert user-entered values (display unit) to canonical km, then add
+    // baseline for absolute target. Never sent for an hours-only or
+    // smart-hours reminder — the backend rejects both metrics at once.
     const intervalKm = toCanonicalKm(mileageInterval ?? null, system)
-    const due_mileage_km = needsMileageField
-      ? (hasMileage && intervalKm != null ? currentMileage + intervalKm : intervalKm ?? undefined)
-      : undefined
-    // due_hours mirrors due_mileage_km's interval → absolute conversion:
-    // currentHours baseline + entered interval when available, else the
-    // entered value is the absolute target itself. Dimensionless — no
-    // canonical unit conversion — and only sent for the type/metric combos
-    // that target it.
-    const due_hours = needsHoursField
-      ? (hasHours && hoursInterval != null ? currentHours + hoursInterval : hoursInterval ?? undefined)
-      : undefined
+    let due_mileage_km: number | undefined
+    if (needsMileageField) {
+      if (mileageFromLast && lastDoneMileage != null && intervalKm != null) {
+        const lastKm = toCanonicalKm(lastDoneMileage, system)
+        due_mileage_km = lastKm != null ? lastKm + intervalKm : undefined
+      } else if (hasMileage && intervalKm != null && !mileageFromLast) {
+        due_mileage_km = currentMileage! + intervalKm
+      } else {
+        due_mileage_km = intervalKm ?? undefined
+      }
+    }
+
+    // due_hours mirrors due_mileage_km's baseline + interval conversion.
+    let due_hours: number | undefined
+    if (needsHoursField) {
+      if (hoursFromLast && lastDoneHours != null && hoursInterval != null) {
+        due_hours = lastDoneHours + hoursInterval
+      } else if (hasHours && hoursInterval != null && !hoursFromLast) {
+        due_hours = currentHours! + hoursInterval
+      } else {
+        due_hours = hoursInterval ?? undefined
+      }
+    }
 
     setSubmitting(true)
     try {
@@ -326,10 +401,65 @@ export default function ReminderForm({ vin, reminder, currentMileage, currentHou
         )}
 
         {needsMileageField && (
-          <div>
+          <div className="space-y-3">
+            {hasMileage && (
+              <div>
+                <label className="block text-sm font-medium text-text mb-1">
+                  {t('reminder.mileageBaseline')}
+                </label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    disabled={submitting}
+                    className={modeButtonClass(mileageMode === 'from_now')}
+                    onClick={() => setMileageMode('from_now')}
+                  >
+                    {t('reminderForm.modeFromNow')}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={submitting}
+                    className={modeButtonClass(mileageMode === 'from_last')}
+                    onClick={() => setMileageMode('from_last')}
+                  >
+                    {t('reminderForm.modeFromLast')}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {mileageFromLast && (
+              <Field
+                id="reminder-last-done-mileage"
+                label={t('reminder.lastDoneMileage')}
+                unit={UnitFormatter.getDistanceUnit(system)}
+                required
+              >
+                <Input
+                  id="reminder-last-done-mileage"
+                  type="number"
+                  value={lastDoneMileage ?? ''}
+                  onChange={(e) => setLastDoneMileage(e.target.value ? parseInt(e.target.value) : undefined)}
+                  min="1"
+                  placeholder={
+                    system === 'imperial'
+                      ? t('reminderForm.lastDoneMileagePlaceholderImperial')
+                      : t('reminderForm.lastDoneMileagePlaceholderMetric')
+                  }
+                  disabled={submitting}
+                />
+              </Field>
+            )}
+
             <Field
               id="reminder-mileage"
-              label={hasMileage ? t('reminder.milesUntilDue') : t('reminder.dueMileage')}
+              label={
+                !hasMileage
+                  ? t('reminder.dueMileage')
+                  : mileageFromLast
+                    ? t('reminder.mileageInterval')
+                    : t('reminder.milesUntilDue')
+              }
               unit={UnitFormatter.getDistanceUnit(system)}
               required
               error={fieldErrors.due_mileage_km}
@@ -350,8 +480,27 @@ export default function ReminderForm({ vin, reminder, currentMileage, currentHou
                 disabled={submitting}
               />
             </Field>
-            {hasMileage && mileageInterval && currentDisplay != null ? (
-              <p className="text-xs text-text-mute mt-1">
+            {mileageFromLast && mileageInterval && lastDoneMileage != null ? (
+              <>
+                <p className="text-xs text-text-mute">
+                  {t('reminderForm.mileageLastTargetHint', {
+                    last: Math.round(lastDoneMileage).toLocaleString(getActiveLocale()),
+                    interval: mileageInterval.toLocaleString(getActiveLocale()),
+                    target: Math.round(absoluteTarget ?? 0).toLocaleString(getActiveLocale()),
+                    unit: UnitFormatter.getDistanceUnit(system),
+                  })}
+                </p>
+                {mileageTargetOverdue && currentDisplay != null && (
+                  <p className="text-xs text-danger">
+                    {t('reminderForm.mileageLastOverdueNote', {
+                      current: Math.round(currentDisplay).toLocaleString(getActiveLocale()),
+                      unit: UnitFormatter.getDistanceUnit(system),
+                    })}
+                  </p>
+                )}
+              </>
+            ) : hasMileage && !mileageFromLast && mileageInterval && currentDisplay != null ? (
+              <p className="text-xs text-text-mute">
                 {t('reminderForm.mileageTargetHint', {
                   current: Math.round(currentDisplay).toLocaleString(getActiveLocale()),
                   interval: mileageInterval.toLocaleString(getActiveLocale()),
@@ -360,10 +509,10 @@ export default function ReminderForm({ vin, reminder, currentMileage, currentHou
                 })}
               </p>
             ) : !hasMileage ? (
-              <p className="text-xs text-warning mt-1">{t('reminder.noOdometerData')}</p>
+              <p className="text-xs text-warning">{t('reminder.noOdometerData')}</p>
             ) : null}
-            {isEdit && hasMileage && initialInterval !== undefined && initialInterval <= 0 && (
-              <p className="text-xs text-danger mt-1">
+            {isEdit && hasMileage && !mileageFromLast && initialInterval !== undefined && initialInterval <= 0 && (
+              <p className="text-xs text-danger">
                 {t('reminder.overdueHint')}
               </p>
             )}
@@ -372,13 +521,64 @@ export default function ReminderForm({ vin, reminder, currentMileage, currentHou
 
         {/* Task 15 (revised) — engine-hours target, interval-based to mirror
             the mileage field above exactly. Dimensionless: no unit conversion,
-            but the same current+interval baseline math and edit-time reverse
-            computation apply when a currentHours reading exists. */}
+            but the same current+interval / last+interval baseline math applies. */}
         {needsHoursField && (
-          <div>
+          <div className="space-y-3">
+            {hasHours && (
+              <div>
+                <label className="block text-sm font-medium text-text mb-1">
+                  {t('reminder.hoursBaseline')}
+                </label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    disabled={submitting}
+                    className={modeButtonClass(hoursMode === 'from_now')}
+                    onClick={() => setHoursMode('from_now')}
+                  >
+                    {t('reminderForm.modeFromNow')}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={submitting}
+                    className={modeButtonClass(hoursMode === 'from_last')}
+                    onClick={() => setHoursMode('from_last')}
+                  >
+                    {t('reminderForm.modeFromLast')}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {hoursFromLast && (
+              <Field
+                id="reminder-last-done-hours"
+                label={t('reminder.lastDoneHours')}
+                unit="hr"
+                required
+              >
+                <Input
+                  id="reminder-last-done-hours"
+                  type="number"
+                  value={lastDoneHours ?? ''}
+                  onChange={(e) => setLastDoneHours(e.target.value ? parseFloat(e.target.value) : undefined)}
+                  min="0"
+                  step="0.1"
+                  placeholder={t('reminderForm.lastDoneHoursPlaceholder')}
+                  disabled={submitting}
+                />
+              </Field>
+            )}
+
             <Field
               id="reminder-hours"
-              label={hasHours ? t('reminder.hoursUntilDue') : t('reminder.dueHours')}
+              label={
+                !hasHours
+                  ? t('reminder.dueHours')
+                  : hoursFromLast
+                    ? t('reminder.hoursInterval')
+                    : t('reminder.hoursUntilDue')
+              }
               unit="hr"
               required
               error={fieldErrors.due_hours}
@@ -398,8 +598,25 @@ export default function ReminderForm({ vin, reminder, currentMileage, currentHou
                 disabled={submitting}
               />
             </Field>
-            {hasHours && hoursInterval && currentHours != null ? (
-              <p className="text-xs text-text-mute mt-1">
+            {hoursFromLast && hoursInterval != null && lastDoneHours != null ? (
+              <>
+                <p className="text-xs text-text-mute">
+                  {t('reminderForm.hoursLastTargetHint', {
+                    last: lastDoneHours.toLocaleString(getActiveLocale()),
+                    interval: hoursInterval.toLocaleString(getActiveLocale()),
+                    target: (absoluteHoursTarget ?? 0).toLocaleString(getActiveLocale()),
+                  })}
+                </p>
+                {hoursTargetOverdue && currentHours != null && (
+                  <p className="text-xs text-danger">
+                    {t('reminderForm.hoursLastOverdueNote', {
+                      current: currentHours.toLocaleString(getActiveLocale()),
+                    })}
+                  </p>
+                )}
+              </>
+            ) : hasHours && !hoursFromLast && hoursInterval != null && currentHours != null ? (
+              <p className="text-xs text-text-mute">
                 {t('reminderForm.hoursTargetHint', {
                   current: currentHours.toLocaleString(getActiveLocale()),
                   interval: hoursInterval.toLocaleString(getActiveLocale()),
@@ -407,10 +624,10 @@ export default function ReminderForm({ vin, reminder, currentMileage, currentHou
                 })}
               </p>
             ) : !hasHours ? (
-              <p className="text-xs text-warning mt-1">{t('reminder.noHoursData')}</p>
+              <p className="text-xs text-warning">{t('reminder.noHoursData')}</p>
             ) : null}
-            {isEdit && hasHours && initialHoursInterval !== undefined && initialHoursInterval <= 0 && (
-              <p className="text-xs text-danger mt-1">
+            {isEdit && hasHours && !hoursFromLast && initialHoursInterval !== undefined && initialHoursInterval <= 0 && (
+              <p className="text-xs text-danger">
                 {t('reminder.overdueHoursHint')}
               </p>
             )}

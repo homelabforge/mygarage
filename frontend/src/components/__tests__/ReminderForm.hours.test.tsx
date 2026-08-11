@@ -245,3 +245,45 @@ describe('ReminderForm — smart reminders target the vehicle PRIMARY dimension 
     expect(screen.queryByLabelText('reminder.dueMileage * (km)')).not.toBeInTheDocument()
   })
 })
+
+describe('ReminderForm — from last service hours baseline', () => {
+  beforeEach(() => {
+    mockedApiGet.mockResolvedValue({ data: { usage_unit: 'hours', secondary_usage_enabled: false } })
+  })
+
+  it('From last service: last 800 hr + 50 → due_hours 850 (creates even when already overdue)', async () => {
+    const user = userEvent.setup()
+    render(<ReminderForm {...DEFAULT_PROPS} currentHours={900} />)
+    await waitFor(() => expect(screen.getByText('reminderForm.typeHours')).toBeInTheDocument())
+
+    await user.type(screen.getByLabelText('common:title *'), 'Hydraulic service')
+    fireEvent.click(typeButton('reminderForm.typeHours'))
+    fireEvent.click(screen.getByRole('button', { name: 'reminderForm.modeFromLast' }))
+    fireEvent.change(screen.getByLabelText('reminder.lastDoneHours * (hr)'), { target: { value: '800' } })
+    fireEvent.change(screen.getByLabelText('reminder.hoursInterval * (hr)'), { target: { value: '50' } })
+    expect(screen.getByText(/reminderForm\.hoursLastOverdueNote/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'common:create' }))
+
+    await waitFor(() => expect(createMock).toHaveBeenCalledTimes(1))
+    expect(createMock.mock.calls[0][0]).toStrictEqual({
+      title: 'Hydraulic service', reminder_type: 'hours', due_date: undefined,
+      due_mileage_km: undefined, due_hours: 850, notes: undefined,
+    })
+  })
+
+  it('rejects last done hours greater than current engine hours', async () => {
+    const user = userEvent.setup()
+    render(<ReminderForm {...DEFAULT_PROPS} currentHours={100} />)
+    await waitFor(() => expect(screen.getByText('reminderForm.typeHours')).toBeInTheDocument())
+
+    await user.type(screen.getByLabelText('common:title *'), 'Hydraulic service')
+    fireEvent.click(typeButton('reminderForm.typeHours'))
+    fireEvent.click(screen.getByRole('button', { name: 'reminderForm.modeFromLast' }))
+    fireEvent.change(screen.getByLabelText('reminder.lastDoneHours * (hr)'), { target: { value: '150' } })
+    fireEvent.change(screen.getByLabelText('reminder.hoursInterval * (hr)'), { target: { value: '50' } })
+    fireEvent.click(screen.getByRole('button', { name: 'common:create' }))
+
+    expect(screen.getByText('reminder.lastDoneExceedsCurrentHours')).toBeInTheDocument()
+    expect(createMock).not.toHaveBeenCalled()
+  })
+})
