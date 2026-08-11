@@ -126,7 +126,7 @@ class PDFReportGenerator:
         if service_records:
             story.append(Paragraph("Service Records", self.styles["CustomSubtitle"]))
             story.append(Spacer(1, 0.1 * inch))
-            # Table headers 
+            # Table headers
             headers = ["Date", "Odometer (km)", "Type", "Description", "Cost", "Vendor"]
             header_style = ParagraphStyle(
                 'TableHeader',
