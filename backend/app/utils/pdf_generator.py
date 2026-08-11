@@ -84,7 +84,6 @@ class PDFReportGenerator:
             return "N/A"
         if isinstance(date_obj, str):
             return date_obj
-        
         if "de" in self.locale:
             return date_obj.strftime("%d.%m.%Y")  # German Format: DD.MM.YYYY
         return date_obj.strftime("%m/%d/%Y")      # English Format: MM/DD/YYYY
@@ -127,7 +126,6 @@ class PDFReportGenerator:
         if service_records:
             story.append(Paragraph("Service Records", self.styles["CustomSubtitle"]))
             story.append(Spacer(1, 0.1 * inch))
-
             # Table headers 
             headers = ["Date", "Odometer (km)", "Type", "Description", "Cost", "Vendor"]
             header_style = ParagraphStyle(
@@ -149,7 +147,6 @@ class PDFReportGenerator:
                     total_cost += Decimal(str(cost))
 
                 odometer_km_value = record.get("odometer_km")
-                
                 if odometer_km_value:
                     odom_str = f"{int(odometer_km_value):,}"
                     if "de" in self.locale:
@@ -215,7 +212,7 @@ class PDFReportGenerator:
                         ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
                         ("FONTSIZE", (0, 1), (-1, -1), 9),
                         ("GRID", (0, 0), (-1, -2), 0.5, colors.grey),
-                        ("VALIGN", (0, 0), (-1, -1), "TOP"), 
+                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
                         # Total row
                         ("BACKGROUND", (0, -1), (-1, -1), colors.HexColor("#f3f4f6")),
                         ("LINEABOVE", (0, -1), (-1, -1), 2, colors.HexColor("#3b82f6")),
