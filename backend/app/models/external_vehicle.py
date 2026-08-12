@@ -18,7 +18,8 @@ if TYPE_CHECKING:
 class ExternalVehicle(Base):
     """Vehicle tracked for someone without a household account.
 
-    Distinct from ``vehicles`` — no VIN authz, fleet analytics, or reminder packs.
+    Distinct from ``vehicles`` — optional VIN for NHTSA lookup only (not authz PK);
+    no fleet analytics or reminder packs.
     ``kind`` is ``customer`` (side-work) or ``reference`` (family/friend without login).
     """
 
@@ -33,6 +34,7 @@ class ExternalVehicle(Base):
     )
     kind: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
     nickname: Mapped[str] = mapped_column(String(100), nullable=False)
+    vin: Mapped[str | None] = mapped_column(String(17), nullable=True)
     year: Mapped[int | None] = mapped_column(Integer, nullable=True)
     make: Mapped[str | None] = mapped_column(String(50), nullable=True)
     model: Mapped[str | None] = mapped_column(String(50), nullable=True)

@@ -4,6 +4,7 @@ export interface ExternalVehicle {
   id: number
   kind: ExternalVehicleKind
   nickname: string
+  vin: string | null
   year: number | null
   make: string | null
   model: string | null
@@ -24,6 +25,7 @@ export interface ExternalVehicleListResponse {
 export type ExternalVehicleInput = {
   kind: ExternalVehicleKind
   nickname: string
+  vin?: string | null
   year?: number | null
   make?: string | null
   model?: string | null

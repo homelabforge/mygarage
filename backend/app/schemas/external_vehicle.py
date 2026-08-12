@@ -1,17 +1,35 @@
 """Schemas for lightweight external vehicles (customer / reference)."""
 
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from app.utils.vin import validate_vin
 
 
 ExternalVehicleKind = Literal["customer", "reference"]
 
 
+def _normalize_optional_vin(v: Any) -> str | None:
+    """Empty/whitespace → None; otherwise uppercase + validate format."""
+    if v is None:
+        return None
+    if not isinstance(v, str):
+        raise ValueError("VIN must be a string")
+    cleaned = v.strip().upper()
+    if not cleaned:
+        return None
+    is_valid, error = validate_vin(cleaned)
+    if not is_valid:
+        raise ValueError(error or "Invalid VIN format")
+    return cleaned
+
+
 class ExternalVehicleCreate(BaseModel):
     kind: ExternalVehicleKind
     nickname: str = Field(..., min_length=1, max_length=100)
+    vin: str | None = Field(None, min_length=17, max_length=17)
     year: int | None = Field(None, ge=1900, le=2100)
     make: str | None = Field(None, max_length=50)
     model: str | None = Field(None, max_length=50)
@@ -20,11 +38,17 @@ class ExternalVehicleCreate(BaseModel):
     contact_phone: str | None = Field(None, max_length=40)
     notes: str | None = None
     last_service_note: str | None = Field(None, max_length=200)
+
+    @field_validator("vin", mode="before")
+    @classmethod
+    def validate_vin_format(cls, v: Any) -> str | None:
+        return _normalize_optional_vin(v)
 
 
 class ExternalVehicleUpdate(BaseModel):
     kind: ExternalVehicleKind | None = None
     nickname: str | None = Field(None, min_length=1, max_length=100)
+    vin: str | None = Field(None, min_length=17, max_length=17)
     year: int | None = Field(None, ge=1900, le=2100)
     make: str | None = Field(None, max_length=50)
     model: str | None = Field(None, max_length=50)
@@ -33,12 +57,18 @@ class ExternalVehicleUpdate(BaseModel):
     contact_phone: str | None = Field(None, max_length=40)
     notes: str | None = None
     last_service_note: str | None = Field(None, max_length=200)
+
+    @field_validator("vin", mode="before")
+    @classmethod
+    def validate_vin_format(cls, v: Any) -> str | None:
+        return _normalize_optional_vin(v)
 
 
 class ExternalVehicleResponse(BaseModel):
     id: int
     kind: ExternalVehicleKind
     nickname: str
+    vin: str | None = None
     year: int | None = None
     make: str | None = None
     model: str | None = None

@@ -3,7 +3,9 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Drawer, Button, Field, Input, Textarea, Select } from '@/components/ui'
 import type { SelectOption } from '@/components/ui'
+import VINInput from '@/components/VINInput'
 import type { ExternalVehicle, ExternalVehicleInput, ExternalVehicleKind } from '@/types/externalVehicle'
+import type { VINDecodeResponse } from '@/types/vin'
 import {
   createExternalVehicle,
   updateExternalVehicle,
@@ -21,6 +23,7 @@ interface ExternalVehicleModalProps {
 const emptyForm = (kind: ExternalVehicleKind): ExternalVehicleInput => ({
   kind,
   nickname: '',
+  vin: '',
   year: null,
   make: '',
   model: '',
@@ -49,6 +52,7 @@ export default function ExternalVehicleModal({
       setForm({
         kind: vehicle.kind,
         nickname: vehicle.nickname,
+        vin: vehicle.vin ?? '',
         year: vehicle.year,
         make: vehicle.make ?? '',
         model: vehicle.model ?? '',
@@ -78,6 +82,19 @@ export default function ExternalVehicleModal({
     setForm((prev) => ({ ...prev, [key]: value }))
   }
 
+  const handleVinDecode = (data: VINDecodeResponse) => {
+    setForm((prev) => {
+      const generatedNickname = `${data.year || ''} ${data.make || ''} ${data.model || ''}`.trim()
+      return {
+        ...prev,
+        year: data.year ?? prev.year ?? null,
+        make: data.make || prev.make || '',
+        model: data.model || prev.model || '',
+        nickname: prev.nickname?.trim() ? prev.nickname : generatedNickname,
+      }
+    })
+  }
+
   const handleSave = async () => {
     if (!form.nickname.trim()) {
       toast.error(t('externalVehicles.nicknameRequired'))
@@ -85,9 +102,11 @@ export default function ExternalVehicleModal({
     }
     setSaving(true)
     try {
+      const vinRaw = (form.vin ?? '').trim().toUpperCase()
       const payload: ExternalVehicleInput = {
         ...form,
         nickname: form.nickname.trim(),
+        vin: vinRaw || null,
         make: form.make?.trim() || null,
         model: form.model?.trim() || null,
         vehicle_type: form.vehicle_type?.trim() || null,
@@ -146,6 +165,14 @@ export default function ExternalVehicleModal({
             value={form.nickname}
             onChange={(e) => setField('nickname', e.target.value)}
             placeholder={t('externalVehicles.nicknamePlaceholder')}
+          />
+        </Field>
+        <Field id="ext-vin" label={t('externalVehicles.vin')}>
+          <VINInput
+            value={form.vin ?? ''}
+            onChange={(vin) => setField('vin', vin)}
+            onDecode={handleVinDecode}
+            checkDuplicate={false}
           />
         </Field>
         <div className="grid grid-cols-3 gap-3">

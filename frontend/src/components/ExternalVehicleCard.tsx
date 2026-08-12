@@ -46,6 +46,9 @@ export default function ExternalVehicleCard({ vehicle, onClick }: ExternalVehicl
         <div className="pointer-events-none absolute inset-x-4 bottom-3">
           <h3 className="text-[19px] font-bold tracking-[-.01em] text-text">{vehicle.nickname}</h3>
           {subtitle ? <p className="mt-1 text-sm text-text-mute">{subtitle}</p> : null}
+          {vehicle.vin ? (
+            <p className="mt-0.5 font-mono text-xs tracking-wide text-text-mute">{vehicle.vin}</p>
+          ) : null}
         </div>
       </div>
       <div className="space-y-2 p-4">

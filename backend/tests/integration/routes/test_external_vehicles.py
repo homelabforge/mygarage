@@ -83,6 +83,52 @@ class TestExternalVehicleRoutes:
         assert create.status_code == 201, create.text
         assert create.json()["kind"] == "reference"
 
+    async def test_optional_vin_create_and_update(
+        self, client: AsyncClient, auth_headers, db_session
+    ):
+        await _set_setting(db_session, "customers_enabled", "true")
+        vin = "1HGBH41JXMN109186"
+
+        create = await client.post(
+            "/api/external-vehicles",
+            headers=auth_headers,
+            json={
+                "kind": "customer",
+                "nickname": "Lookup Civic",
+                "vin": vin.lower(),
+                "year": 2021,
+                "make": "Honda",
+                "model": "Civic",
+            },
+        )
+        assert create.status_code == 201, create.text
+        body = create.json()
+        assert body["vin"] == vin
+        vehicle_id = body["id"]
+
+        cleared = await client.put(
+            f"/api/external-vehicles/{vehicle_id}",
+            headers=auth_headers,
+            json={"vin": ""},
+        )
+        assert cleared.status_code == 200, cleared.text
+        assert cleared.json()["vin"] is None
+
+        restored = await client.put(
+            f"/api/external-vehicles/{vehicle_id}",
+            headers=auth_headers,
+            json={"vin": vin},
+        )
+        assert restored.status_code == 200, restored.text
+        assert restored.json()["vin"] == vin
+
+        invalid = await client.post(
+            "/api/external-vehicles",
+            headers=auth_headers,
+            json={"kind": "customer", "nickname": "Bad VIN", "vin": "SHORT"},
+        )
+        assert invalid.status_code == 422
+
     async def test_create_forbidden_when_disabled(
         self, client: AsyncClient, auth_headers, db_session
     ):

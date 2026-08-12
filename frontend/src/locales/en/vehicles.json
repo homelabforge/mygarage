@@ -155,6 +155,7 @@
     "saveError": "Failed to save vehicle",
     "saving": "Saving…",
     "updated": "Vehicle updated",
+    "vin": "VIN",
     "year": "Year"
   },
   "defList": {
