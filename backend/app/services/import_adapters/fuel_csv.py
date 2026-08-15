@@ -29,7 +29,7 @@ def _dec(raw: str | None) -> Decimal | None:
         return None
     try:
         return Decimal(text)
-    except (InvalidOperation, ValueError):
+    except InvalidOperation, ValueError:
         return None
 
 
@@ -62,13 +62,13 @@ def _parse_date(raw: str | None) -> date | None:
 def _rows(csv_data: str) -> Iterator[dict[str, str]]:
     reader = csv.DictReader(io.StringIO(csv_data))
     for row in reader:
-        yield { (k or "").strip(): (v or "").strip() for k, v in row.items() }
+        yield {(k or "").strip(): (v or "").strip() for k, v in row.items()}
 
 
 def detect_format(csv_data: str) -> str | None:
     """Best-effort format sniff from header names."""
     reader = csv.DictReader(io.StringIO(csv_data))
-    headers = { (h or "").strip().lower() for h in (reader.fieldnames or []) }
+    headers = {(h or "").strip().lower() for h in (reader.fieldnames or [])}
     if {"fuel type", "volume(l)", "odometer"}.issubset(headers) or "fuelio" in " ".join(headers):
         return "fuelio"
     if "data" in headers and "odômetro" in headers or "odometro" in headers:
@@ -94,9 +94,7 @@ def parse_fuelio(csv_data: str) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     for row in _rows(csv_data):
         # Skip Fuelio header junk / vehicle info rows
-        date_val = _parse_date(
-            row.get("Date") or row.get("date") or row.get("Data")
-        )
+        date_val = _parse_date(row.get("Date") or row.get("date") or row.get("Data"))
         if not date_val:
             continue
 
@@ -152,11 +150,7 @@ def parse_drivvo(csv_data: str) -> list[dict[str, Any]]:
     """Parse Drivvo CSV export (EN or PT headers)."""
     records: list[dict[str, Any]] = []
     for row in _rows(csv_data):
-        date_val = _parse_date(
-            row.get("Date")
-            or row.get("Data")
-            or row.get("date")
-        )
+        date_val = _parse_date(row.get("Date") or row.get("Data") or row.get("date"))
         if not date_val:
             continue
 
@@ -185,10 +179,7 @@ def parse_drivvo(csv_data: str) -> list[dict[str, Any]]:
             or row.get("Price")
         )
         cost = _dec(
-            row.get("Total cost")
-            or row.get("Total")
-            or row.get("Custo total")
-            or row.get("Cost")
+            row.get("Total cost") or row.get("Total") or row.get("Custo total") or row.get("Cost")
         )
         full = (row.get("Full tank") or row.get("Tanque cheio") or "yes").lower() in {
             "1",
@@ -255,8 +246,7 @@ def parse_tesla(csv_data: str) -> list[dict[str, Any]]:
         )
         odo = _dec(row.get("Odometer") or row.get("Odometer (km)") or row.get("Mileage"))
         if odo is not None and (
-            "mi" in (row.get("Odometer Unit") or "").lower()
-            or row.get("Odometer (mi)")
+            "mi" in (row.get("Odometer Unit") or "").lower() or row.get("Odometer (mi)")
         ):
             odo = odo * MI_TO_KM
             if row.get("Odometer (mi)"):
@@ -272,10 +262,7 @@ def parse_tesla(csv_data: str) -> list[dict[str, Any]]:
             or row.get("soc_start")
         )
         soc_end = _dec(
-            row.get("Ending SOC")
-            or row.get("End SOC")
-            or row.get("SOC End")
-            or row.get("soc_end")
+            row.get("Ending SOC") or row.get("End SOC") or row.get("SOC End") or row.get("soc_end")
         )
         charge_type = (
             row.get("Charge Type") or row.get("Charger") or row.get("Level") or ""

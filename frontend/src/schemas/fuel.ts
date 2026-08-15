@@ -29,9 +29,15 @@ export const PRICE_BASIS_VALUES = ['per_volume', 'per_weight', 'per_kwh', 'per_t
 // Drop empty strings before validating an optional enum — HTML <select>
 // elements without a chosen value submit "" by default, and zod's enum
 // validator would reject that. Coerce empty -> undefined first.
+//
+// `.optional()` is required in addition to `z.undefined()` in the union:
+// Zod 4 rejects an ABSENT key on a non-optional union even when the union
+// accepts undefined. Charge fields are only registered when showKwh is true,
+// so gas/diesel submits omit them entirely.
 const optionalEnum = <T extends readonly [string, ...string[]]>(values: T) =>
   z
     .union([z.enum(values), z.literal(''), z.undefined()])
+    .optional()
     .transform((v) => (v === '' || v === undefined ? undefined : v))
 
 export const makeFuelRecordSchema = (t: TFunction) =>

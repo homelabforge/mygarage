@@ -59,7 +59,9 @@ async def require_webhook_token(
         )
     provided = (x_webhook_token or token or "").strip()
     if not provided or not secrets.compare_digest(provided, expected):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid webhook token")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid webhook token"
+        )
     return provided
 
 
@@ -102,9 +104,7 @@ async def _resolve_vehicle(db: AsyncSession, vin_or_nick: str) -> Vehicle:
     vehicle = result.scalar_one_or_none()
     if vehicle:
         return vehicle
-    result = await db.execute(
-        select(Vehicle).where(func.lower(Vehicle.nickname) == key.lower())
-    )
+    result = await db.execute(select(Vehicle).where(func.lower(Vehicle.nickname) == key.lower()))
     vehicle = result.scalar_one_or_none()
     if not vehicle:
         raise HTTPException(status_code=404, detail=f"Vehicle not found: {vin_or_nick}")
@@ -136,8 +136,7 @@ async def _create_fuel_record(db: AsyncSession, payload: WebhookFuelPayload) -> 
         charge_level=payload.charge_level,
         charge_location=payload.charge_location,
         battery_soh_pct=payload.battery_soh_pct,
-        fuel_type_used=payload.fuel_type_used
-        or ("electric" if payload.kwh is not None else None),
+        fuel_type_used=payload.fuel_type_used or ("electric" if payload.kwh is not None else None),
     )
     db.add(record)
     await db.commit()

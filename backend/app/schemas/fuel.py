@@ -224,9 +224,7 @@ class FuelRecordBase(BaseModel):
     @classmethod
     def _check_charge_location(cls, v: str | None) -> str | None:
         if v is not None and v not in CHARGE_LOCATION_VALUES:
-            raise ValueError(
-                f"charge_location must be one of {CHARGE_LOCATION_VALUES}, got {v!r}"
-            )
+            raise ValueError(f"charge_location must be one of {CHARGE_LOCATION_VALUES}, got {v!r}")
         return v
 
     @field_validator("price_basis")

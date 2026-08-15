@@ -112,7 +112,9 @@ class TestTireRoutes:
         assert data["projected_wear_date"] is not None
         assert len(data["readings"]) >= 2
 
-    async def test_low_tread_creates_reminder(self, client: AsyncClient, auth_headers, test_vehicle):
+    async def test_low_tread_creates_reminder(
+        self, client: AsyncClient, auth_headers, test_vehicle
+    ):
         vin = test_vehicle["vin"]
         created = await client.post(
             f"/api/vehicles/{vin}/tires",

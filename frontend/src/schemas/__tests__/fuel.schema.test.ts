@@ -18,10 +18,9 @@ const REQUIRED = {
   is_full_tank: true,
   missed_fillup: false,
   is_hauling: false,
-  // optionalEnum's z.union rejects an ABSENT key the same way makeNumericField's
-  // z.unknown() base once did (pre-existing, unrelated to Task 8/8b) — RHF
-  // always submits every registered field in practice, so this only matters
-  // for a direct safeParse in a test.
+  // Explicit undefined covers RHF-registered-but-empty selects. Absent keys
+  // are also accepted (optionalEnum is .optional()) — charge_* fields are
+  // unregistered when showKwh is false.
   fuel_type_used: undefined,
   payment_method: undefined,
   trip_type: undefined,

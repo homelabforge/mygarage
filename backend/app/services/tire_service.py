@@ -121,9 +121,7 @@ class TireService:
             )
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
-    async def upsert_tire(
-        self, vin: str, data: TireCreate, current_user: User
-    ) -> TireResponse:
+    async def upsert_tire(self, vin: str, data: TireCreate, current_user: User) -> TireResponse:
         from app.services.auth import get_vehicle_or_403
 
         vin = vin.upper().strip()
@@ -185,9 +183,7 @@ class TireService:
             raise
         except OperationalError as e:
             await self.db.rollback()
-            logger.error(
-                "DB error updating tire %s: %s", tire_id, sanitize_for_log(e)
-            )
+            logger.error("DB error updating tire %s: %s", tire_id, sanitize_for_log(e))
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
     async def delete_tire(self, vin: str, tire_id: int, current_user: User) -> None:
@@ -195,9 +191,7 @@ class TireService:
 
         vin = vin.upper().strip()
         await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
-        result = await self.db.execute(
-            select(Tire).where(Tire.id == tire_id, Tire.vin == vin)
-        )
+        result = await self.db.execute(select(Tire).where(Tire.id == tire_id, Tire.vin == vin))
         tire = result.scalar_one_or_none()
         if not tire:
             raise HTTPException(status_code=404, detail="Tire not found")
@@ -242,9 +236,7 @@ class TireService:
             await self.db.commit()
             await self.db.refresh(tire)
             result = await self.db.execute(
-                select(Tire)
-                .where(Tire.id == tire_id)
-                .options(selectinload(Tire.readings))
+                select(Tire).where(Tire.id == tire_id).options(selectinload(Tire.readings))
             )
             tire = result.scalar_one()
             await self._sync_low_tread_reminder(tire)
@@ -253,9 +245,7 @@ class TireService:
             raise
         except OperationalError as e:
             await self.db.rollback()
-            logger.error(
-                "DB error adding tire reading %s: %s", tire_id, sanitize_for_log(e)
-            )
+            logger.error("DB error adding tire reading %s: %s", tire_id, sanitize_for_log(e))
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
     async def _sync_low_tread_reminder(self, tire: Tire) -> None:

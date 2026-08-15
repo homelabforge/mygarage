@@ -279,6 +279,11 @@ async def export_fuel_records_csv(
         "OBC L/100km",
         "OBC Avg Speed (km/h)",
         "OBC Trip Duration (s)",
+        "SOC Start (%)",
+        "SOC End (%)",
+        "Charge Level",
+        "Charge Location",
+        "Battery SOH (%)",
         "Notes",
     ]
 
@@ -312,6 +317,11 @@ async def export_fuel_records_csv(
                 f"{record.obc_l_per_100km:.2f}" if record.obc_l_per_100km is not None else "",
                 f"{record.obc_avg_speed_kmh:.1f}" if record.obc_avg_speed_kmh is not None else "",
                 record.obc_trip_duration_s or "",
+                f"{record.soc_start_pct:.1f}" if record.soc_start_pct is not None else "",
+                f"{record.soc_end_pct:.1f}" if record.soc_end_pct is not None else "",
+                record.charge_level or "",
+                record.charge_location or "",
+                f"{record.battery_soh_pct:.1f}" if record.battery_soh_pct is not None else "",
                 record.notes or "",
             ]
         )

@@ -76,8 +76,7 @@ def test_detect_format_fuelio():
 
 def test_detect_format_drivvo():
     csv_data = (
-        "Date,Odometer (km),Quantity (liters),Price/liter,Total cost\n"
-        "01/01/2026,1000,40,1.5,60\n"
+        "Date,Odometer (km),Quantity (liters),Price/liter,Total cost\n01/01/2026,1000,40,1.5,60\n"
     )
     assert detect_format(csv_data) == "drivvo"
 

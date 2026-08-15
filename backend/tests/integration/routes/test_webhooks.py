@@ -275,7 +275,9 @@ class TestEvFuelAndThirdPartyImport:
         assert response.json()["success_count"] == 1
         assert response.json()["error_count"] == 0
 
-    async def test_import_tesla_csv(self, client: AsyncClient, auth_headers, test_vehicle, db_session):
+    async def test_import_tesla_csv(
+        self, client: AsyncClient, auth_headers, test_vehicle, db_session
+    ):
         csv_content = (
             "Charge End Date,Energy Added (kWh),Odometer,Cost,Starting SOC,Ending SOC,"
             "Charge Type,Location\n"
