@@ -153,38 +153,31 @@ def build_anomalies_from_monthly_df(monthly_df: Any) -> list[AnomalyAlert]:
     return anomalies
 
 
-def filter_monthly_breakdown_for_anomalies(
-    monthly_breakdown: list[MonthlyCostSummary],
+def _anomaly_month_start(month: str) -> date_type:
+    """Parse AnomalyAlert.month ('YYYY-MM') to the first day of that month."""
+    year_s, month_s = month.split("-", 1)
+    return date_type(int(year_s), int(month_s), 1)
+
+
+def filter_anomalies_to_window(
+    anomalies: list[AnomalyAlert],
     anomaly_range: str,
     anomaly_start: date_type | None,
     anomaly_end: date_type | None,
-) -> Any:
-    """Return a monthly DataFrame filtered to the requested anomaly window."""
-    import pandas as pd
+) -> list[AnomalyAlert]:
+    """Filter already-detected anomalies to the requested display window.
 
-    if not monthly_breakdown:
-        return pd.DataFrame()
-
-    rows = [
-        {
-            "year": m.year,
-            "month": m.month,
-            "month_name": m.month_name,
-            "total_cost": float(m.total_cost),
-        }
-        for m in monthly_breakdown
-    ]
-    df = pd.DataFrame(rows)
-    df["period_start"] = pd.to_datetime(
-        df["year"].astype(str) + "-" + df["month"].astype(str).str.zfill(2) + "-01"
-    )
+    Detection must run on full history first. Filtering the monthly DataFrame
+    before z-score detection shrinks mean/std so short ranges (3m/6m/ytd)
+    can never fire (#130 / PR #144 review).
+    """
+    if anomaly_range == "all":
+        return list(anomalies)
 
     today = date_type.today()
     start: date_type | None = None
     end: date_type | None = today
 
-    if anomaly_range == "all":
-        return df.drop(columns=["period_start"])
     if anomaly_range == "3m":
         start = today - timedelta(days=90)
     elif anomaly_range == "6m":
@@ -199,18 +192,23 @@ def filter_monthly_breakdown_for_anomalies(
     else:
         start = today - timedelta(days=365)
 
-    if start is not None:
-        df = df[df["period_start"] >= pd.Timestamp(start)]
+    end_exclusive: date_type | None = None
     if end is not None:
         # Include the full end month
-        end_exclusive = date_type(end.year, end.month, 1)
         if end.month == 12:
             end_exclusive = date_type(end.year + 1, 1, 1)
         else:
             end_exclusive = date_type(end.year, end.month + 1, 1)
-        df = df[df["period_start"] < pd.Timestamp(end_exclusive)]
 
-    return df.drop(columns=["period_start"]).reset_index(drop=True)
+    filtered: list[AnomalyAlert] = []
+    for alert in anomalies:
+        period = _anomaly_month_start(alert.month)
+        if start is not None and period < start:
+            continue
+        if end_exclusive is not None and period >= end_exclusive:
+            continue
+        filtered.append(alert)
+    return filtered
 
 
 @cached(ttl_seconds=600)  # Cache for 10 minutes
@@ -373,8 +371,8 @@ async def get_cost_analysis(db: AsyncSession, vin: str) -> CostAnalysis:
         if km_driven > 0:
             cost_per_km = total_cost / Decimal(str(km_driven))
 
-    # Detect cost anomalies (all-time baseline; may be replaced by ranged
-    # anomalies in get_vehicle_analytics when the client requests a window).
+    # Detect cost anomalies against the full monthly history. Display
+    # windows are applied in get_vehicle_analytics via filter_anomalies_to_window.
     anomalies = build_anomalies_from_monthly_df(monthly_df)
 
     return CostAnalysis(
@@ -829,16 +827,18 @@ async def get_vehicle_analytics(
 
     # Get cost analysis
     cost_analysis = await get_cost_analysis(db, vin)
-    # Recompute anomalies for the requested window without busting the
-    # all-time cost-analysis cache (#130).
-    ranged_df = filter_monthly_breakdown_for_anomalies(
-        cost_analysis.monthly_breakdown,
-        anomaly_range,
-        anomaly_start,
-        anomaly_end,
-    )
+    # Detect on full history (already done inside get_cost_analysis), then
+    # filter alerts to the display window so short ranges keep a stable
+    # baseline (#130 / PR #144 review).
     cost_analysis = cost_analysis.model_copy(
-        update={"anomalies": build_anomalies_from_monthly_df(ranged_df)}
+        update={
+            "anomalies": filter_anomalies_to_window(
+                cost_analysis.anomalies,
+                anomaly_range,
+                anomaly_start,
+                anomaly_end,
+            )
+        }
     )
     cost_projection = build_cost_projection(cost_analysis)
 
