@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Home Assistant: Supervisor add-on + HACS integration under `homeassistant/` — polls widget API v2 (`X-API-Key`); write services via inbound webhooks (`mygarage.log_fuel`, `set_odometer`, `complete_reminder`). See [docs/homeassistant/README.md](docs/homeassistant/README.md).
+
 ## [3.0.1] - 2026-08-15
 
 ### Fixed
