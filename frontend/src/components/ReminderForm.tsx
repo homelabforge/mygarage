@@ -17,7 +17,7 @@ import { useTranslation } from 'react-i18next'
 import { useEffect, useState, type SyntheticEvent } from 'react'
 import { Save, AlertTriangle } from 'lucide-react'
 import FormModalWrapper from './FormModalWrapper'
-import { Button, Field, Input, Textarea } from './ui'
+import { Button, Field, Input, NumberInput, Textarea } from './ui'
 import { toast } from 'sonner'
 import { useCreateReminder, useUpdateReminder } from '../hooks/useReminders'
 import type { Reminder, ReminderType } from '../types/reminder'
@@ -25,11 +25,18 @@ import type { Vehicle } from '../types/vehicle'
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { UnitConverter, UnitFormatter } from '../utils/units'
 import { toCanonicalKm } from '../utils/decimalSafe'
+import { parseDecimalInput } from '../utils/decimalInput'
 import { getUsageTracking } from '../utils/usageTracking'
 import api from '../services/api'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
 import { applyControlledFieldErrors } from '../hooks/useApiFormErrors'
 import { getActiveLocale } from '@/constants/i18n'
+
+/** Locale-aware parse for controlled (non-RHF) numeric fields — empty vs invalid stay distinct from a real value. */
+function parseOptionalDecimal(raw: string): number | undefined {
+  const result = parseDecimalInput(raw, getActiveLocale())
+  return result.kind === 'value' ? result.value : undefined
+}
 
 type BaselineMode = 'from_now' | 'from_last'
 
@@ -116,8 +123,8 @@ export default function ReminderForm({ vin, reminder, currentMileage, currentHou
   const [dueDate, setDueDate] = useState(reminder?.due_date ?? '')
   const [mileageMode, setMileageMode] = useState<BaselineMode>('from_now')
   const [hoursMode, setHoursMode] = useState<BaselineMode>('from_now')
-  const [lastDoneMileage, setLastDoneMileage] = useState<number | undefined>(undefined)
-  const [lastDoneHours, setLastDoneHours] = useState<number | undefined>(undefined)
+  const [lastDoneMileageText, setLastDoneMileageText] = useState('')
+  const [lastDoneHoursText, setLastDoneHoursText] = useState('')
 
   // For edits: reverse-compute interval (in user display unit) from absolute
   // canonical km target.
@@ -132,7 +139,9 @@ export default function ReminderForm({ vin, reminder, currentMileage, currentHou
     }
     return Math.round(remainingKm)
   })()
-  const [mileageInterval, setMileageInterval] = useState<number | undefined>(initialInterval)
+  const [mileageIntervalText, setMileageIntervalText] = useState(
+    initialInterval != null ? String(initialInterval) : '',
+  )
 
   // Task 15 (revised) — hours input is always an interval ("engine-hours
   // until due"), mirroring the mileage field above exactly. On edit, reverse-
@@ -146,7 +155,20 @@ export default function ReminderForm({ vin, reminder, currentMileage, currentHou
     const remainingHours = currentHours != null ? Math.max(0, dhNum - currentHours) : dhNum
     return Math.round(remainingHours * 10) / 10
   })()
-  const [hoursInterval, setHoursInterval] = useState<number | undefined>(initialHoursInterval)
+  const [hoursIntervalText, setHoursIntervalText] = useState(
+    initialHoursInterval != null ? String(initialHoursInterval) : '',
+  )
+
+  const mileageInterval = (() => {
+    const n = parseOptionalDecimal(mileageIntervalText)
+    return n == null ? undefined : Math.round(n)
+  })()
+  const hoursInterval = parseOptionalDecimal(hoursIntervalText)
+  const lastDoneMileage = (() => {
+    const n = parseOptionalDecimal(lastDoneMileageText)
+    return n == null ? undefined : Math.round(n)
+  })()
+  const lastDoneHours = parseOptionalDecimal(lastDoneHoursText)
 
   const [notes, setNotes] = useState(reminder?.notes ?? '')
 
@@ -435,12 +457,10 @@ export default function ReminderForm({ vin, reminder, currentMileage, currentHou
                 unit={UnitFormatter.getDistanceUnit(system)}
                 required
               >
-                <Input
+                <NumberInput
                   id="reminder-last-done-mileage"
-                  type="number"
-                  value={lastDoneMileage ?? ''}
-                  onChange={(e) => setLastDoneMileage(e.target.value ? parseInt(e.target.value) : undefined)}
-                  min="1"
+                  value={lastDoneMileageText}
+                  onChange={(e) => setLastDoneMileageText(e.target.value)}
                   placeholder={
                     system === 'imperial'
                       ? t('reminderForm.lastDoneMileagePlaceholderImperial')
@@ -464,12 +484,10 @@ export default function ReminderForm({ vin, reminder, currentMileage, currentHou
               required
               error={fieldErrors.due_mileage_km}
             >
-              <Input
+              <NumberInput
                 id="reminder-mileage"
-                type="number"
-                value={mileageInterval ?? ''}
-                onChange={(e) => setMileageInterval(e.target.value ? parseInt(e.target.value) : undefined)}
-                min="1"
+                value={mileageIntervalText}
+                onChange={(e) => setMileageIntervalText(e.target.value)}
                 placeholder={
                   hasMileage
                     ? t('reminderForm.mileageIntervalPlaceholder')
@@ -557,13 +575,10 @@ export default function ReminderForm({ vin, reminder, currentMileage, currentHou
                 unit="hr"
                 required
               >
-                <Input
+                <NumberInput
                   id="reminder-last-done-hours"
-                  type="number"
-                  value={lastDoneHours ?? ''}
-                  onChange={(e) => setLastDoneHours(e.target.value ? parseFloat(e.target.value) : undefined)}
-                  min="0"
-                  step="0.1"
+                  value={lastDoneHoursText}
+                  onChange={(e) => setLastDoneHoursText(e.target.value)}
                   placeholder={t('reminderForm.lastDoneHoursPlaceholder')}
                   disabled={submitting}
                 />
@@ -583,13 +598,10 @@ export default function ReminderForm({ vin, reminder, currentMileage, currentHou
               required
               error={fieldErrors.due_hours}
             >
-              <Input
+              <NumberInput
                 id="reminder-hours"
-                type="number"
-                value={hoursInterval ?? ''}
-                onChange={(e) => setHoursInterval(e.target.value ? parseFloat(e.target.value) : undefined)}
-                min="0"
-                step="0.1"
+                value={hoursIntervalText}
+                onChange={(e) => setHoursIntervalText(e.target.value)}
                 placeholder={
                   hasHours
                     ? t('reminderForm.hoursIntervalPlaceholder')

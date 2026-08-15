@@ -3,10 +3,12 @@ import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { Link2, Save } from 'lucide-react'
 import { toast } from 'sonner'
-import { Card, CardHeader, Button, Field, Select, Input } from '../ui'
+import { Card, CardHeader, Button, Field, Select, NumberInput } from '../ui'
 import vehicleService from '../../services/vehicleService'
 import { NON_MOTORIZED_TYPES } from '../../schemas/vehicle'
 import type { TrailerDetails, Vehicle } from '../../types/vehicle'
+import { parseDecimalInput } from '../../utils/decimalInput'
+import { getActiveLocale } from '@/constants/i18n'
 
 interface TrailerTowPanelProps {
   vehicle: Vehicle
@@ -79,10 +81,20 @@ export default function TrailerTowPanel({ vehicle }: TrailerTowPanelProps) {
   const save = async () => {
     setSaving(true)
     try {
+      let axle_count: number | null = null
+      if (form.axle_count.trim()) {
+        const parsed = parseDecimalInput(form.axle_count, getActiveLocale())
+        if (parsed.kind !== 'value' || !Number.isInteger(parsed.value) || parsed.value < 1 || parsed.value > 10) {
+          toast.error(t('detail.tow.axlesInvalid', { defaultValue: 'Axle count must be a whole number from 1 to 10' }))
+          setSaving(false)
+          return
+        }
+        axle_count = parsed.value
+      }
       const payload = {
         hitch_type: form.hitch_type || null,
         brake_type: form.brake_type || null,
-        axle_count: form.axle_count ? Number(form.axle_count) : null,
+        axle_count,
         tow_vehicle_vin: form.tow_vehicle_vin || null,
       }
       if (details) {
@@ -175,13 +187,11 @@ export default function TrailerTowPanel({ vehicle }: TrailerTowPanelProps) {
           />
         </Field>
         <Field id="axle_count" label={t('detail.tow.axles', { defaultValue: 'Axles' })}>
-          <Input
+          <NumberInput
             id="axle_count"
-            type="number"
-            min={1}
-            max={10}
             value={form.axle_count}
             onChange={(e) => setForm((f) => ({ ...f, axle_count: e.target.value }))}
+            placeholder="2"
           />
         </Field>
         <Button variant="primary" icon={Save} loading={saving} onClick={() => void save()}>
