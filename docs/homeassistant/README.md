@@ -2,6 +2,33 @@
 
 MyGarage ships a **Supervisor add-on** (`homeassistant/addon`) and a **HACS custom integration** (`custom_components/mygarage`).
 
+## Screenshots
+
+| Integrations | Integration detail |
+|---|---|
+| [![Integrations](../screenshots/pr/ha-packaging/integrations.png)](../screenshots/pr/ha-packaging/integrations.png) | [![Detail](../screenshots/pr/ha-packaging/integration-detail.png)](../screenshots/pr/ha-packaging/integration-detail.png) |
+
+| Connect / config flow | Options |
+|---|---|
+| [![Config flow](../screenshots/pr/ha-packaging/config-flow.png)](../screenshots/pr/ha-packaging/config-flow.png) | [![Options](../screenshots/pr/ha-packaging/options-menu.png)](../screenshots/pr/ha-packaging/options-menu.png) |
+
+| Vehicle device (ICE) | Vehicle device (EV) |
+|---|---|
+| [![Daily Driver](../screenshots/pr/ha-packaging/vehicle-device.png)](../screenshots/pr/ha-packaging/vehicle-device.png) | [![EV Commuter](../screenshots/pr/ha-packaging/vehicle-ev.png)](../screenshots/pr/ha-packaging/vehicle-ev.png) |
+
+### Refreshing screenshots
+
+```bash
+docker compose -f docker-compose.ha.yml up -d
+python3 scripts/setup_ha_screenshots.py
+export HA_REFRESH_TOKEN="$(cat docker_data/ha_refresh_token.txt)"
+python3 scripts/capture_ha_screenshots.py
+```
+
+Requires Playwright and the `ha-integration-screenshots` skill script at
+`~/.cursor/skills/ha-integration-screenshots/scripts/capture_ha_screenshots.py`.
+Never commit `docker_data/` or tokens.
+
 ## Architecture
 
 | Piece | Role |

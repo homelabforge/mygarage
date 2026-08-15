@@ -1,0 +1,46 @@
+# Home Assistant + mock MyGarage widget API for HACS integration screenshots.
+# Usage: docker compose -f docker-compose.ha.yml up -d
+# UI: http://localhost:8123
+#
+# Does NOT exercise the Supervisor add-on (plain container HA only).
+
+services:
+  mygarage-mock:
+    image: python:3.14-slim
+    container_name: mygarage-widget-mock
+    command: ["python", "/app/mock_widget_api.py"]
+    volumes:
+      - ./homeassistant/dev/mock_widget_api.py:/app/mock_widget_api.py:ro
+    networks:
+      - ha-mygarage
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8686/health')",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:stable
+    container_name: ha-mygarage
+    # Do not use init: true — Home Assistant's s6-overlay must run as PID 1.
+    ports:
+      - "8123:8123"
+    volumes:
+      - ./docker_data/ha-config:/config
+      - ./custom_components/mygarage:/config/custom_components/mygarage:ro
+    environment:
+      TZ: America/New_York
+    networks:
+      - ha-mygarage
+    depends_on:
+      mygarage-mock:
+        condition: service_healthy
+
+networks:
+  ha-mygarage:

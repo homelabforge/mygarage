@@ -118,6 +118,9 @@ docker-compose.override.yml
 compose.yaml
 compose.dev.yaml
 
+# Local HA screenshot stack (tokens + config; never commit)
+docker_data/
+
 # Alembic (migrations)
 alembic.ini
 
