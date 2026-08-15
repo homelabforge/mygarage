@@ -1132,6 +1132,7 @@
     "odometerKm": "Odometer (km)",
     "position": "Position",
     "pressure": "Pressure",
+    "pressureKpa": "Pressure (kPa)",
     "projection": "Wear estimate",
     "readingSaved": "Reading saved",
     "saveAction": "save the tire",

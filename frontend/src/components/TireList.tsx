@@ -196,6 +196,7 @@ export default function TireList({ vin }: TireListProps) {
                 setReadingForm((f) => ({
                   ...f,
                   tread_depth_mm: tire.tread_depth_mm != null ? String(tire.tread_depth_mm) : '',
+                  pressure_kpa: tire.pressure_kpa != null ? String(tire.pressure_kpa) : '',
                 }))
               }}
             >
@@ -218,6 +219,16 @@ export default function TireList({ vin }: TireListProps) {
                     value={readingForm.tread_depth_mm}
                     onChange={(e) =>
                       setReadingForm({ ...readingForm, tread_depth_mm: e.target.value })
+                    }
+                  />
+                </Field>
+                <Field id={`reading-pressure-${tire.id}`} label={t('tireList.pressureKpa')}>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    value={readingForm.pressure_kpa}
+                    onChange={(e) =>
+                      setReadingForm({ ...readingForm, pressure_kpa: e.target.value })
                     }
                   />
                 </Field>
@@ -282,6 +293,14 @@ export default function TireList({ vin }: TireListProps) {
                 step="0.1"
                 value={form.tread_depth_mm}
                 onChange={(e) => setForm({ ...form, tread_depth_mm: e.target.value })}
+              />
+            </Field>
+            <Field id="tire-pressure" label={t('tireList.pressureKpa')}>
+              <Input
+                type="number"
+                step="0.1"
+                value={form.pressure_kpa}
+                onChange={(e) => setForm({ ...form, pressure_kpa: e.target.value })}
               />
             </Field>
             <Field id="tire-min" label={t('tireList.minTreadMm')}>
