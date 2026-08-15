@@ -43,29 +43,30 @@ export const makeFuelRecordSchema = (t: TFunction) =>
     liters: makeOptionalVolumeSchema(t),
     propane_liters: makeOptionalVolumeSchema(t),
     kwh: makeOptionalKwhSchema(t),
-    soc_start_pct: z
-      .number()
-      .min(0)
-      .max(100)
-      .or(z.nan())
-      .transform((val) => (isNaN(val) ? undefined : val))
-      .optional(),
-    soc_end_pct: z
-      .number()
-      .min(0)
-      .max(100)
-      .or(z.nan())
-      .transform((val) => (isNaN(val) ? undefined : val))
-      .optional(),
+    // Same 0–100% pattern as def_fill_level (NumberInput / registerDecimal).
+    soc_start_pct: makeNumericField(t, {
+      min: 0,
+      max: 100,
+      negativeKey: 'common:validation.def.fillLevelNegative',
+      tooLargeKey: 'common:validation.def.fillLevelTooLarge',
+      invalidKey: 'common:validation.def.fillLevelInvalid',
+    }),
+    soc_end_pct: makeNumericField(t, {
+      min: 0,
+      max: 100,
+      negativeKey: 'common:validation.def.fillLevelNegative',
+      tooLargeKey: 'common:validation.def.fillLevelTooLarge',
+      invalidKey: 'common:validation.def.fillLevelInvalid',
+    }),
     charge_level: optionalEnum(['L1', 'L2', 'DCFC'] as const),
     charge_location: optionalEnum(['home', 'public'] as const),
-    battery_soh_pct: z
-      .number()
-      .min(0)
-      .max(100)
-      .or(z.nan())
-      .transform((val) => (isNaN(val) ? undefined : val))
-      .optional(),
+    battery_soh_pct: makeNumericField(t, {
+      min: 0,
+      max: 100,
+      negativeKey: 'common:validation.def.fillLevelNegative',
+      tooLargeKey: 'common:validation.def.fillLevelTooLarge',
+      invalidKey: 'common:validation.def.fillLevelInvalid',
+    }),
     cost: makeOptionalCurrencySchema(t),
     rebate: makeOptionalCurrencySchema(t),
     price_per_unit: makeOptionalPricePerUnitSchema(t),

@@ -632,13 +632,13 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
           {showKwh && (
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
               <Field id="soc_start_pct" label={t('fuel.socStart', { defaultValue: 'SOC start' })} unit="%">
-                <Input type="number" id="soc_start_pct" mono {...register('soc_start_pct', { valueAsNumber: true })} min="0" max="100" step="0.1" disabled={isSubmitting} />
+                <NumberInput id="soc_start_pct" {...registerDecimal(register, 'soc_start_pct')} invalid={!!errors.soc_start_pct} disabled={isSubmitting} />
               </Field>
               <Field id="soc_end_pct" label={t('fuel.socEnd', { defaultValue: 'SOC end' })} unit="%">
-                <Input type="number" id="soc_end_pct" mono {...register('soc_end_pct', { valueAsNumber: true })} min="0" max="100" step="0.1" disabled={isSubmitting} />
+                <NumberInput id="soc_end_pct" {...registerDecimal(register, 'soc_end_pct')} invalid={!!errors.soc_end_pct} disabled={isSubmitting} />
               </Field>
               <Field id="battery_soh_pct" label={t('fuel.batterySoh', { defaultValue: 'Battery SOH' })} unit="%">
-                <Input type="number" id="battery_soh_pct" mono {...register('battery_soh_pct', { valueAsNumber: true })} min="0" max="100" step="0.1" disabled={isSubmitting} />
+                <NumberInput id="battery_soh_pct" {...registerDecimal(register, 'battery_soh_pct')} invalid={!!errors.battery_soh_pct} disabled={isSubmitting} />
               </Field>
               <Field id="charge_level" label={t('fuel.chargeLevel', { defaultValue: 'Charge level' })}>
                 <Select
