@@ -4,6 +4,18 @@ MyGarage ships a **Supervisor add-on** (`homeassistant/addon`) and a **HACS cust
 
 ## Screenshots
 
+### MyGarage app (add-on / Ingress UI)
+
+| Dashboard | Vehicle |
+|---|---|
+| [![Dashboard](../screenshots/pr/ha-packaging/app-dashboard.png)](../screenshots/pr/ha-packaging/app-dashboard.png) | [![Vehicle](../screenshots/pr/ha-packaging/app-vehicle.png)](../screenshots/pr/ha-packaging/app-vehicle.png) |
+
+| Settings → Integrations |
+|---|
+| [![Integrations](../screenshots/pr/ha-packaging/app-integrations.png)](../screenshots/pr/ha-packaging/app-integrations.png) |
+
+### HACS integration (Home Assistant)
+
 | Integrations | Integration detail |
 |---|---|
 | [![Integrations](../screenshots/pr/ha-packaging/integrations.png)](../screenshots/pr/ha-packaging/integrations.png) | [![Detail](../screenshots/pr/ha-packaging/integration-detail.png)](../screenshots/pr/ha-packaging/integration-detail.png) |
@@ -18,11 +30,19 @@ MyGarage ships a **Supervisor add-on** (`homeassistant/addon`) and a **HACS cust
 
 ### Refreshing screenshots
 
+**HACS integration (HA UI):**
+
 ```bash
 docker compose -f docker-compose.ha.yml up -d
 python3 scripts/setup_ha_screenshots.py
 export HA_REFRESH_TOKEN="$(cat docker_data/ha_refresh_token.txt)"
 python3 scripts/capture_ha_screenshots.py
+```
+
+**MyGarage app UI** (backend on `:8686`, frontend on `:3000`):
+
+```bash
+python3 scripts/capture_ha_app_screenshots.py
 ```
 
 Requires Playwright and the `ha-integration-screenshots` skill script at
