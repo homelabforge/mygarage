@@ -211,7 +211,7 @@ export default function ExternalVehicleModal({
           )}
           <div className="flex gap-2">
             <Button variant="secondary" onClick={onClose}>
-              {t('common:cancel', { defaultValue: 'Cancel' })}
+              {t('common:cancel')}
             </Button>
             <Button variant="primary" onClick={handleSave} disabled={saving}>
               {saving ? t('externalVehicles.saving') : t('externalVehicles.save')}

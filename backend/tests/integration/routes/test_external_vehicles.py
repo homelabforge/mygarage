@@ -123,9 +123,7 @@ class TestExternalVehicleRoutes:
         )
         assert response.status_code == 403
 
-    async def test_list_empty_when_disabled(
-        self, client: AsyncClient, auth_headers, db_session
-    ):
+    async def test_list_empty_when_disabled(self, client: AsyncClient, auth_headers, db_session):
         await _set_setting(db_session, "family_friends_enabled", "true")
         create = await client.post(
             "/api/external-vehicles",

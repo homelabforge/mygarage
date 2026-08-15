@@ -82,7 +82,9 @@ def upgrade(engine=None):
                 )
             )
 
-        conn.execute(text("CREATE INDEX ix_external_vehicles_user_id ON external_vehicles (user_id)"))
+        conn.execute(
+            text("CREATE INDEX ix_external_vehicles_user_id ON external_vehicles (user_id)")
+        )
         print("  ✓ Created external_vehicles table")
         print("\n✓ External vehicles migration completed successfully")
 

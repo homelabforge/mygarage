@@ -140,9 +140,7 @@ async def delete_external_vehicle(
     await db.commit()
 
 
-async def _get_owned(
-    db: AsyncSession, vehicle_id: int, user_id: int | None
-) -> ExternalVehicle:
+async def _get_owned(db: AsyncSession, vehicle_id: int, user_id: int | None) -> ExternalVehicle:
     stmt = select(ExternalVehicle).where(ExternalVehicle.id == vehicle_id)
     if user_id is not None:
         stmt = stmt.where(ExternalVehicle.user_id == user_id)

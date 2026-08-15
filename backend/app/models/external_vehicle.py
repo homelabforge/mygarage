@@ -40,7 +40,9 @@ class ExternalVehicle(Base):
     contact_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     contact_phone: Mapped[str | None] = mapped_column(String(40), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
     updated_at: Mapped[datetime | None] = mapped_column(DateTime, onupdate=func.now())
 
     user: Mapped[User] = relationship("User", foreign_keys="[ExternalVehicle.user_id]")
