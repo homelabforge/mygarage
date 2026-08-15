@@ -72,7 +72,6 @@ const SETTINGS_OFF = {
   data: {
     settings: [
       { key: 'family_friends_enabled', value: 'false' },
-      { key: 'customers_enabled', value: 'false' },
     ],
   },
 }

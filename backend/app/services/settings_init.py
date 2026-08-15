@@ -589,12 +589,6 @@ DEFAULT_SETTINGS = {
         "description": "Show Family & Friends garage section (shared + reference vehicles)",
         "encrypted": False,
     },
-    "customers_enabled": {
-        "value": "false",
-        "category": "general",
-        "description": "Show Customers garage section (side-work vehicles)",
-        "encrypted": False,
-    },
 }
 
 

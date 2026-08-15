@@ -25,11 +25,9 @@
   },
   "garageSections": {
     "title": "Garage sections",
-    "description": "Opt in to extra dashboard lanes. Both are off by default.",
+    "description": "Opt in to the Family & Friends dashboard lane. Off by default.",
     "familyFriends": "Show Family & Friends",
-    "familyFriendsDesc": "Shared household vehicles and lightweight family/friend reference vehicles. When off, shared vehicles are hidden from the garage.",
-    "customers": "Show Customers",
-    "customersDesc": "Side-work customer vehicles with contact details and service notes."
+    "familyFriendsDesc": "Shared household vehicles and lightweight family/friend reference vehicles. When off, shared vehicles are hidden from the garage."
   },
   "units": {
     "label": "Unit System",

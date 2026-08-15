@@ -10,7 +10,7 @@ import FleetHealthStrip from '../components/FleetHealthStrip'
 import { PageHeader, Dropdown, Button, EmptyState, Card } from '../components/ui'
 import type { DropdownItem } from '../components/ui'
 import type { DashboardResponse, VehicleStatistics } from '../types/dashboard'
-import type { ExternalVehicle, ExternalVehicleKind } from '../types/externalVehicle'
+import type { ExternalVehicle } from '../types/externalVehicle'
 import { listExternalVehicles } from '../services/externalVehicleService'
 import api from '../services/api'
 
@@ -51,12 +51,11 @@ export default function Dashboard() {
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null)
   const [externalVehicles, setExternalVehicles] = useState<ExternalVehicle[]>([])
   const [familyFriendsEnabled, setFamilyFriendsEnabled] = useState(false)
-  const [customersEnabled, setCustomersEnabled] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showWizard, setShowWizard] = useState(false)
   const [sortBy, setSortBy] = useState<SortOption>('name')
-  const [modalKind, setModalKind] = useState<ExternalVehicleKind | null>(null)
+  const [showExternalModal, setShowExternalModal] = useState(false)
   const [editingExternal, setEditingExternal] = useState<ExternalVehicle | null>(null)
 
   const tRef = useRef(t)
@@ -74,15 +73,11 @@ export default function Dashboard() {
       const settings: { key: string; value: string | null }[] =
         settingsRes.data?.settings ?? []
       const ffEnabled = settingEnabled(settings, 'family_friends_enabled')
-      const custEnabled = settingEnabled(settings, 'customers_enabled')
       setFamilyFriendsEnabled(ffEnabled)
-      setCustomersEnabled(custEnabled)
 
       let extVehicles: ExternalVehicle[] = []
-      if (ffEnabled || custEnabled) {
-        const kind =
-          ffEnabled && custEnabled ? undefined : ffEnabled ? 'reference' : 'customer'
-        const extRes = await listExternalVehicles(kind).catch(() => ({
+      if (ffEnabled) {
+        const extRes = await listExternalVehicles().catch(() => ({
           vehicles: [] as ExternalVehicle[],
           total: 0,
         }))
@@ -123,16 +118,8 @@ export default function Dashboard() {
   }, [dashboard?.vehicles, sortBy, familyFriendsEnabled])
 
   const referenceVehicles = useMemo(
-    () =>
-      familyFriendsEnabled
-        ? externalVehicles.filter((v) => v.kind === 'reference')
-        : [],
+    () => (familyFriendsEnabled ? externalVehicles : []),
     [externalVehicles, familyFriendsEnabled],
-  )
-  const customerVehicles = useMemo(
-    () =>
-      customersEnabled ? externalVehicles.filter((v) => v.kind === 'customer') : [],
-    [externalVehicles, customersEnabled],
   )
 
   const familyItemCount = sharedVehicles.length + referenceVehicles.length
@@ -140,8 +127,6 @@ export default function Dashboard() {
     familyFriendsEnabled && familyItemCount === 0 && ownedVehicles.length > 0
   const showFamilySection =
     familyFriendsEnabled && (familyItemCount > 0 || showFamilyEmpty)
-  const showCustomersSection =
-    customersEnabled && (customerVehicles.length > 0 || ownedVehicles.length > 0)
 
   const ownedCount = ownedVehicles.length
   const hasAnyContent =
@@ -157,13 +142,13 @@ export default function Dashboard() {
   ]
   const sortLabel = sortItems.find((i) => i.checked)?.label ?? ''
 
-  const openExternalModal = (kind: ExternalVehicleKind, vehicle?: ExternalVehicle) => {
-    setModalKind(kind)
+  const openExternalModal = (vehicle?: ExternalVehicle) => {
     setEditingExternal(vehicle ?? null)
+    setShowExternalModal(true)
   }
 
   const closeExternalModal = () => {
-    setModalKind(null)
+    setShowExternalModal(false)
     setEditingExternal(null)
   }
 
@@ -257,7 +242,7 @@ export default function Dashboard() {
                     </h2>
                     <p className="mt-1 text-sm text-text-mute">{t('dashboard.familyFriendsSubtitle')}</p>
                   </div>
-                  <Button variant="secondary" icon={Plus} onClick={() => openExternalModal('reference')}>
+                  <Button variant="secondary" icon={Plus} onClick={() => openExternalModal()}>
                     {t('dashboard.addReferenceVehicle')}
                   </Button>
                 </div>
@@ -284,50 +269,10 @@ export default function Dashboard() {
                       <ExternalVehicleCard
                         key={`ref-${vehicle.id}`}
                         vehicle={vehicle}
-                        onClick={() => openExternalModal('reference', vehicle)}
+                        onClick={() => openExternalModal(vehicle)}
                       />
                     ))}
                   </div>
-                )}
-              </section>
-            ) : null}
-
-            {showCustomersSection ? (
-              <section>
-                <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <h2 className="text-lg font-semibold tracking-[-0.01em] text-text">
-                      {t('dashboard.customersSection', { count: customerVehicles.length })}
-                    </h2>
-                    <p className="mt-1 text-sm text-text-mute">{t('dashboard.customersSubtitle')}</p>
-                  </div>
-                  <Button variant="secondary" icon={Plus} onClick={() => openExternalModal('customer')}>
-                    {t('dashboard.addCustomerVehicle')}
-                  </Button>
-                </div>
-                {customerVehicles.length > 0 ? (
-                  <div className="grid grid-cols-[repeat(auto-fill,minmax(340px,1fr))] gap-[22px]">
-                    {customerVehicles.map((vehicle) => (
-                      <ExternalVehicleCard
-                        key={`cust-${vehicle.id}`}
-                        vehicle={vehicle}
-                        onClick={() => openExternalModal('customer', vehicle)}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <Card padding="none">
-                    <EmptyState
-                      icon={Users}
-                      title={t('dashboard.customersEmptyTitle')}
-                      description={t('dashboard.customersEmptyDesc')}
-                      action={
-                        <Button variant="secondary" icon={Plus} onClick={() => openExternalModal('customer')}>
-                          {t('dashboard.addCustomerVehicle')}
-                        </Button>
-                      }
-                    />
-                  </Card>
                 )}
               </section>
             ) : null}
@@ -355,11 +300,10 @@ export default function Dashboard() {
         />
       )}
 
-      {modalKind && (
+      {showExternalModal && (
         <ExternalVehicleModal
           isOpen
           onClose={closeExternalModal}
-          kind={modalKind}
           vehicle={editingExternal}
           onSaved={loadDashboard}
         />

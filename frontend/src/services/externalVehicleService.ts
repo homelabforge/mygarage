@@ -2,14 +2,11 @@ import api from './api'
 import type {
   ExternalVehicle,
   ExternalVehicleInput,
-  ExternalVehicleKind,
   ExternalVehicleListResponse,
 } from '../types/externalVehicle'
 
-export async function listExternalVehicles(kind?: ExternalVehicleKind): Promise<ExternalVehicleListResponse> {
-  const response = await api.get<ExternalVehicleListResponse>('/external-vehicles', {
-    params: kind ? { kind } : undefined,
-  })
+export async function listExternalVehicles(): Promise<ExternalVehicleListResponse> {
+  const response = await api.get<ExternalVehicleListResponse>('/external-vehicles')
   return response.data
 }
 

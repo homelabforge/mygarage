@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Dashboard garage lanes for **Family & Friends** (household shares + lightweight reference vehicles) and **Customers** (side-work vehicles), backed by an `external_vehicles` API. Both sections are opt-in via Settings → System (`family_friends_enabled` / `customers_enabled`, default off). When Family & Friends is off, shared vehicles stay hidden from the garage. Optional VIN with NHTSA decode on add/edit autofills year/make/model.
+- Dashboard **Family & Friends** garage lane (household shares + lightweight reference vehicles), backed by an `external_vehicles` API. Opt-in via Settings → System (`family_friends_enabled`, default off). When off, shared vehicles stay hidden from the garage. Optional VIN with NHTSA decode on add/edit autofills year/make/model. Contact name and phone are supported for reference vehicles.
 
 ### Changed
 - Tire add, edit and reading forms open in a side drawer, matching the rest of the app.

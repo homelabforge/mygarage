@@ -1,14 +1,11 @@
-"""Schemas for lightweight external vehicles (customer / reference)."""
+"""Schemas for lightweight external vehicles (family/friend reference)."""
 
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
 from app.utils.vin import validate_vin
-
-
-ExternalVehicleKind = Literal["customer", "reference"]
 
 
 def _normalize_optional_vin(v: Any) -> str | None:
@@ -27,7 +24,6 @@ def _normalize_optional_vin(v: Any) -> str | None:
 
 
 class ExternalVehicleCreate(BaseModel):
-    kind: ExternalVehicleKind
     nickname: str = Field(..., min_length=1, max_length=100)
     vin: str | None = Field(None, min_length=17, max_length=17)
     year: int | None = Field(None, ge=1900, le=2100)
@@ -37,7 +33,6 @@ class ExternalVehicleCreate(BaseModel):
     contact_name: str | None = Field(None, max_length=100)
     contact_phone: str | None = Field(None, max_length=40)
     notes: str | None = None
-    last_service_note: str | None = Field(None, max_length=200)
 
     @field_validator("vin", mode="before")
     @classmethod
@@ -46,7 +41,6 @@ class ExternalVehicleCreate(BaseModel):
 
 
 class ExternalVehicleUpdate(BaseModel):
-    kind: ExternalVehicleKind | None = None
     nickname: str | None = Field(None, min_length=1, max_length=100)
     vin: str | None = Field(None, min_length=17, max_length=17)
     year: int | None = Field(None, ge=1900, le=2100)
@@ -56,7 +50,6 @@ class ExternalVehicleUpdate(BaseModel):
     contact_name: str | None = Field(None, max_length=100)
     contact_phone: str | None = Field(None, max_length=40)
     notes: str | None = None
-    last_service_note: str | None = Field(None, max_length=200)
 
     @field_validator("vin", mode="before")
     @classmethod
@@ -66,7 +59,6 @@ class ExternalVehicleUpdate(BaseModel):
 
 class ExternalVehicleResponse(BaseModel):
     id: int
-    kind: ExternalVehicleKind
     nickname: str
     vin: str | None = None
     year: int | None = None
@@ -76,7 +68,6 @@ class ExternalVehicleResponse(BaseModel):
     contact_name: str | None = None
     contact_phone: str | None = None
     notes: str | None = None
-    last_service_note: str | None = None
     created_at: datetime
     updated_at: datetime | None = None
 

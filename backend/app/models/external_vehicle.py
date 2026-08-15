@@ -1,4 +1,4 @@
-"""Lightweight external vehicle records (customer / family reference)."""
+"""Lightweight external vehicle records (family/friend reference)."""
 
 from __future__ import annotations
 
@@ -20,7 +20,6 @@ class ExternalVehicle(Base):
 
     Distinct from ``vehicles`` — optional VIN for NHTSA lookup only (not authz PK);
     no fleet analytics or reminder packs.
-    ``kind`` is ``customer`` (side-work) or ``reference`` (family/friend without login).
     """
 
     __tablename__ = "external_vehicles"
@@ -32,7 +31,6 @@ class ExternalVehicle(Base):
         nullable=False,
         index=True,
     )
-    kind: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
     nickname: Mapped[str] = mapped_column(String(100), nullable=False)
     vin: Mapped[str | None] = mapped_column(String(17), nullable=True)
     year: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -42,11 +40,10 @@ class ExternalVehicle(Base):
     contact_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     contact_phone: Mapped[str | None] = mapped_column(String(40), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    last_service_note: Mapped[str | None] = mapped_column(String(200), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime | None] = mapped_column(DateTime, onupdate=func.now())
 
     user: Mapped[User] = relationship("User", foreign_keys="[ExternalVehicle.user_id]")
 
     def __repr__(self) -> str:
-        return f"<ExternalVehicle(id={self.id}, kind={self.kind}, nickname={self.nickname!r})>"
+        return f"<ExternalVehicle(id={self.id}, nickname={self.nickname!r})>"

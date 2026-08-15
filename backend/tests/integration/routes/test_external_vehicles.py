@@ -22,33 +22,31 @@ async def _set_setting(db_session, key: str, value: str) -> None:
 @pytest.mark.integration
 @pytest.mark.asyncio
 class TestExternalVehicleRoutes:
-    async def test_customer_crud(self, client: AsyncClient, auth_headers, db_session):
-        await _set_setting(db_session, "customers_enabled", "true")
+    async def test_reference_crud(self, client: AsyncClient, auth_headers, db_session):
+        await _set_setting(db_session, "family_friends_enabled", "true")
 
         create = await client.post(
             "/api/external-vehicles",
             headers=auth_headers,
             json={
-                "kind": "customer",
-                "nickname": "Smith's Civic",
-                "year": 2016,
-                "make": "Honda",
-                "model": "Civic",
-                "contact_name": "Jane Smith",
+                "nickname": "Dad's RAV4",
+                "year": 2018,
+                "make": "Toyota",
+                "model": "RAV4",
+                "contact_name": "Dad",
                 "contact_phone": "555-0142",
-                "last_service_note": "Oil change",
+                "notes": "Oil change due soon",
             },
         )
         assert create.status_code == 201, create.text
         body = create.json()
-        assert body["kind"] == "customer"
-        assert body["nickname"] == "Smith's Civic"
+        assert body["nickname"] == "Dad's RAV4"
+        assert body["contact_name"] == "Dad"
         vehicle_id = body["id"]
 
         listed = await client.get(
             "/api/external-vehicles",
             headers=auth_headers,
-            params={"kind": "customer"},
         )
         assert listed.status_code == 200
         assert listed.json()["total"] >= 1
@@ -57,10 +55,10 @@ class TestExternalVehicleRoutes:
         updated = await client.put(
             f"/api/external-vehicles/{vehicle_id}",
             headers=auth_headers,
-            json={"last_service_note": "Brakes"},
+            json={"notes": "Brakes done"},
         )
         assert updated.status_code == 200
-        assert updated.json()["last_service_note"] == "Brakes"
+        assert updated.json()["notes"] == "Brakes done"
 
         deleted = await client.delete(
             f"/api/external-vehicles/{vehicle_id}",
@@ -68,32 +66,16 @@ class TestExternalVehicleRoutes:
         )
         assert deleted.status_code == 204
 
-    async def test_reference_kind(self, client: AsyncClient, auth_headers, db_session):
-        await _set_setting(db_session, "family_friends_enabled", "true")
-
-        create = await client.post(
-            "/api/external-vehicles",
-            headers=auth_headers,
-            json={
-                "kind": "reference",
-                "nickname": "Dad's RAV4",
-                "contact_name": "Dad",
-            },
-        )
-        assert create.status_code == 201, create.text
-        assert create.json()["kind"] == "reference"
-
     async def test_optional_vin_create_and_update(
         self, client: AsyncClient, auth_headers, db_session
     ):
-        await _set_setting(db_session, "customers_enabled", "true")
+        await _set_setting(db_session, "family_friends_enabled", "true")
         vin = "1HGBH41JXMN109186"
 
         create = await client.post(
             "/api/external-vehicles",
             headers=auth_headers,
             json={
-                "kind": "customer",
                 "nickname": "Lookup Civic",
                 "vin": vin.lower(),
                 "year": 2021,
@@ -125,46 +107,37 @@ class TestExternalVehicleRoutes:
         invalid = await client.post(
             "/api/external-vehicles",
             headers=auth_headers,
-            json={"kind": "customer", "nickname": "Bad VIN", "vin": "SHORT"},
+            json={"nickname": "Bad VIN", "vin": "SHORT"},
         )
         assert invalid.status_code == 422
 
     async def test_create_forbidden_when_disabled(
         self, client: AsyncClient, auth_headers, db_session
     ):
-        await _set_setting(db_session, "customers_enabled", "false")
         await _set_setting(db_session, "family_friends_enabled", "false")
 
-        customer = await client.post(
+        response = await client.post(
             "/api/external-vehicles",
             headers=auth_headers,
-            json={"kind": "customer", "nickname": "Hidden Customer"},
+            json={"nickname": "Hidden Reference"},
         )
-        assert customer.status_code == 403
-
-        reference = await client.post(
-            "/api/external-vehicles",
-            headers=auth_headers,
-            json={"kind": "reference", "nickname": "Hidden Reference"},
-        )
-        assert reference.status_code == 403
+        assert response.status_code == 403
 
     async def test_list_empty_when_disabled(
         self, client: AsyncClient, auth_headers, db_session
     ):
-        await _set_setting(db_session, "customers_enabled", "true")
+        await _set_setting(db_session, "family_friends_enabled", "true")
         create = await client.post(
             "/api/external-vehicles",
             headers=auth_headers,
-            json={"kind": "customer", "nickname": "Temp Customer"},
+            json={"nickname": "Temp Reference"},
         )
         assert create.status_code == 201, create.text
 
-        await _set_setting(db_session, "customers_enabled", "false")
+        await _set_setting(db_session, "family_friends_enabled", "false")
         listed = await client.get(
             "/api/external-vehicles",
             headers=auth_headers,
-            params={"kind": "customer"},
         )
         assert listed.status_code == 200
         assert listed.json()["total"] == 0

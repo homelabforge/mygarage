@@ -1,4 +1,4 @@
-"""Add external_vehicles table for customer / family reference records.
+"""Add external_vehicles table for family/friend reference records.
 
 FATAL: the ExternalVehicle model is imported into Base.metadata; without this
 table, create_all on fresh DBs is fine, but existing deployments need the
@@ -44,7 +44,6 @@ def upgrade(engine=None):
                     CREATE TABLE external_vehicles (
                         id SERIAL PRIMARY KEY,
                         user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                        kind VARCHAR(20) NOT NULL,
                         nickname VARCHAR(100) NOT NULL,
                         vin VARCHAR(17),
                         year INTEGER,
@@ -54,7 +53,6 @@ def upgrade(engine=None):
                         contact_name VARCHAR(100),
                         contact_phone VARCHAR(40),
                         notes TEXT,
-                        last_service_note VARCHAR(200),
                         created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW() NOT NULL,
                         updated_at TIMESTAMP WITHOUT TIME ZONE
                     )
@@ -68,7 +66,6 @@ def upgrade(engine=None):
                     CREATE TABLE external_vehicles (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                        kind VARCHAR(20) NOT NULL,
                         nickname VARCHAR(100) NOT NULL,
                         vin VARCHAR(17),
                         year INTEGER,
@@ -78,7 +75,6 @@ def upgrade(engine=None):
                         contact_name VARCHAR(100),
                         contact_phone VARCHAR(40),
                         notes TEXT,
-                        last_service_note VARCHAR(200),
                         created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
                         updated_at DATETIME
                     )
@@ -87,7 +83,6 @@ def upgrade(engine=None):
             )
 
         conn.execute(text("CREATE INDEX ix_external_vehicles_user_id ON external_vehicles (user_id)"))
-        conn.execute(text("CREATE INDEX ix_external_vehicles_kind ON external_vehicles (kind)"))
         print("  ✓ Created external_vehicles table")
         print("\n✓ External vehicles migration completed successfully")
 

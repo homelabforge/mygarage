@@ -82,7 +82,6 @@ function dashboardPayload(vehicles: Record<string, unknown>[]): { data: Record<s
 
 function settingsPayload(flags: {
   familyFriends?: boolean
-  customers?: boolean
 }): { data: { settings: { key: string; value: string }[] } } {
   return {
     data: {
@@ -91,10 +90,6 @@ function settingsPayload(flags: {
           key: 'family_friends_enabled',
           value: flags.familyFriends ? 'true' : 'false',
         },
-        {
-          key: 'customers_enabled',
-          value: flags.customers ? 'true' : 'false',
-        },
       ],
     },
   }
@@ -102,9 +97,8 @@ function settingsPayload(flags: {
 
 function mockDashboard(
   vehicles: Record<string, unknown>[],
-  flags: { familyFriends?: boolean; customers?: boolean } = {
+  flags: { familyFriends?: boolean } = {
     familyFriends: true,
-    customers: true,
   },
 ) {
   mockGet.mockImplementation((url: string) => {
@@ -167,26 +161,12 @@ describe('Dashboard sectioned layout', () => {
         vehicle({ vin: 'OWN', year: 2021, make: 'Owned', model: 'Y' }),
         vehicle({ vin: 'SHR', year: 2021, make: 'Shared', model: 'Y', is_shared_with_me: true }),
       ],
-      { familyFriends: false, customers: false },
+      { familyFriends: false },
     )
     render(<Dashboard />)
 
     await waitFor(() => expect(order()).toEqual(['2021 Owned Y']))
     expect(screen.queryByText('dashboard.familyFriendsSection')).not.toBeInTheDocument()
-    expect(screen.queryByText('dashboard.customersSection')).not.toBeInTheDocument()
     expect(screen.queryByText('2021 Shared Y')).not.toBeInTheDocument()
-  })
-
-  it('shows Customers empty state only when customers are enabled', async () => {
-    mockDashboard([vehicle({ vin: 'OWN', year: 2021, make: 'Owned', model: 'Y' })], {
-      familyFriends: false,
-      customers: true,
-    })
-    render(<Dashboard />)
-
-    await waitFor(() =>
-      expect(screen.getByText('dashboard.customersEmptyTitle')).toBeInTheDocument(),
-    )
-    expect(screen.queryByText('dashboard.familyFriendsSection')).not.toBeInTheDocument()
   })
 })

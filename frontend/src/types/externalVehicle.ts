@@ -1,8 +1,5 @@
-export type ExternalVehicleKind = 'customer' | 'reference'
-
 export interface ExternalVehicle {
   id: number
-  kind: ExternalVehicleKind
   nickname: string
   vin: string | null
   year: number | null
@@ -12,7 +9,6 @@ export interface ExternalVehicle {
   contact_name: string | null
   contact_phone: string | null
   notes: string | null
-  last_service_note: string | null
   created_at: string
   updated_at: string | null
 }
@@ -23,7 +19,6 @@ export interface ExternalVehicleListResponse {
 }
 
 export type ExternalVehicleInput = {
-  kind: ExternalVehicleKind
   nickname: string
   vin?: string | null
   year?: number | null
@@ -33,5 +28,4 @@ export type ExternalVehicleInput = {
   contact_name?: string | null
   contact_phone?: string | null
   notes?: string | null
-  last_service_note?: string | null
 }

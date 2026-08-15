@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Drawer, Button, Field, Input, Textarea, Select } from '@/components/ui'
-import type { SelectOption } from '@/components/ui'
+import { Drawer, Button, Field, Input, Textarea } from '@/components/ui'
 import VINInput from '@/components/VINInput'
-import type { ExternalVehicle, ExternalVehicleInput, ExternalVehicleKind } from '@/types/externalVehicle'
+import type { ExternalVehicle, ExternalVehicleInput } from '@/types/externalVehicle'
 import type { VINDecodeResponse } from '@/types/vin'
 import {
   createExternalVehicle,
@@ -15,13 +14,11 @@ import {
 interface ExternalVehicleModalProps {
   isOpen: boolean
   onClose: () => void
-  kind: ExternalVehicleKind
   vehicle?: ExternalVehicle | null
   onSaved: () => void
 }
 
-const emptyForm = (kind: ExternalVehicleKind): ExternalVehicleInput => ({
-  kind,
+const emptyForm = (): ExternalVehicleInput => ({
   nickname: '',
   vin: '',
   year: null,
@@ -31,18 +28,16 @@ const emptyForm = (kind: ExternalVehicleKind): ExternalVehicleInput => ({
   contact_name: '',
   contact_phone: '',
   notes: '',
-  last_service_note: '',
 })
 
 export default function ExternalVehicleModal({
   isOpen,
   onClose,
-  kind,
   vehicle,
   onSaved,
 }: ExternalVehicleModalProps) {
   const { t } = useTranslation('vehicles')
-  const [form, setForm] = useState<ExternalVehicleInput>(emptyForm(kind))
+  const [form, setForm] = useState<ExternalVehicleInput>(emptyForm())
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
@@ -50,7 +45,6 @@ export default function ExternalVehicleModal({
     if (!isOpen) return
     if (vehicle) {
       setForm({
-        kind: vehicle.kind,
         nickname: vehicle.nickname,
         vin: vehicle.vin ?? '',
         year: vehicle.year,
@@ -60,23 +54,15 @@ export default function ExternalVehicleModal({
         contact_name: vehicle.contact_name ?? '',
         contact_phone: vehicle.contact_phone ?? '',
         notes: vehicle.notes ?? '',
-        last_service_note: vehicle.last_service_note ?? '',
       })
     } else {
-      setForm(emptyForm(kind))
+      setForm(emptyForm())
     }
-  }, [isOpen, vehicle, kind])
-
-  const kindOptions: SelectOption[] = [
-    { value: 'customer', label: t('externalVehicles.kindCustomer') },
-    { value: 'reference', label: t('externalVehicles.kindReference') },
-  ]
+  }, [isOpen, vehicle])
 
   const title = vehicle
     ? t('externalVehicles.editTitle')
-    : kind === 'customer'
-      ? t('externalVehicles.addCustomerTitle')
-      : t('externalVehicles.addReferenceTitle')
+    : t('externalVehicles.addReferenceTitle')
 
   const setField = <K extends keyof ExternalVehicleInput>(key: K, value: ExternalVehicleInput[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -113,7 +99,6 @@ export default function ExternalVehicleModal({
         contact_name: form.contact_name?.trim() || null,
         contact_phone: form.contact_phone?.trim() || null,
         notes: form.notes?.trim() || null,
-        last_service_note: form.last_service_note?.trim() || null,
         year: form.year || null,
       }
       if (vehicle) {
@@ -151,14 +136,6 @@ export default function ExternalVehicleModal({
   return (
     <Drawer open={isOpen} onClose={onClose} title={title} width="md">
       <div className="space-y-4 p-4">
-        <Field id="ext-kind" label={t('externalVehicles.kind')}>
-          <Select
-            id="ext-kind"
-            value={form.kind}
-            onChange={(e) => setField('kind', e.target.value as ExternalVehicleKind)}
-            options={kindOptions}
-          />
-        </Field>
         <Field id="ext-nickname" label={t('externalVehicles.nickname')} required>
           <Input
             id="ext-nickname"
@@ -213,14 +190,6 @@ export default function ExternalVehicleModal({
             id="ext-contact-phone"
             value={form.contact_phone ?? ''}
             onChange={(e) => setField('contact_phone', e.target.value)}
-          />
-        </Field>
-        <Field id="ext-last-service" label={t('externalVehicles.lastServiceNote')}>
-          <Input
-            id="ext-last-service"
-            value={form.last_service_note ?? ''}
-            onChange={(e) => setField('last_service_note', e.target.value)}
-            placeholder={t('externalVehicles.lastServicePlaceholder')}
           />
         </Field>
         <Field id="ext-notes" label={t('externalVehicles.notes')}>
