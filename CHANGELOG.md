@@ -8,7 +8,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Home Assistant: Supervisor add-on + HACS integration under `homeassistant/` — polls widget API v2 (`X-API-Key`); write services via inbound webhooks (`mygarage.log_fuel`, `set_odometer`, `complete_reminder`). See [docs/homeassistant/README.md](docs/homeassistant/README.md).
 - Tires: per-position tread / DOT / pressure tracking with wear projection and automatic low-tread reminders (migration 085).
 - EV / PHEV charge sessions: SOC start/end, charge level (L1/L2/DCFC), home/public location, and battery SOH on fuel records (migration 086).
 - Importers: Fuelio, Drivvo, and Tesla/ABRP charge CSV adapters (`/api/import/vehicles/{vin}/fuel/{fuelio,drivvo,tesla,external}`).

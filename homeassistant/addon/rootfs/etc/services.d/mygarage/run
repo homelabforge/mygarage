@@ -1,4 +1,0 @@
-#!/usr/bin/with-contenv bashio
-# Legacy s6 service entry (unused when init:false + ENTRYPOINT=/run.sh).
-# Kept so Supervised installs that enable s6 still start MyGarage.
-exec /run.sh
