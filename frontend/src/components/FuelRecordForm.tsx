@@ -631,16 +631,16 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
 
           {showKwh && (
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-              <Field id="soc_start_pct" label={t('fuel.socStart', { defaultValue: 'SOC start' })} unit="%">
+              <Field id="soc_start_pct" label={t('fuel.socStart')} unit="%">
                 <NumberInput id="soc_start_pct" {...registerDecimal(register, 'soc_start_pct')} invalid={!!errors.soc_start_pct} disabled={isSubmitting} />
               </Field>
-              <Field id="soc_end_pct" label={t('fuel.socEnd', { defaultValue: 'SOC end' })} unit="%">
+              <Field id="soc_end_pct" label={t('fuel.socEnd')} unit="%">
                 <NumberInput id="soc_end_pct" {...registerDecimal(register, 'soc_end_pct')} invalid={!!errors.soc_end_pct} disabled={isSubmitting} />
               </Field>
-              <Field id="battery_soh_pct" label={t('fuel.batterySoh', { defaultValue: 'Battery SOH' })} unit="%">
+              <Field id="battery_soh_pct" label={t('fuel.batterySoh')} unit="%">
                 <NumberInput id="battery_soh_pct" {...registerDecimal(register, 'battery_soh_pct')} invalid={!!errors.battery_soh_pct} disabled={isSubmitting} />
               </Field>
-              <Field id="charge_level" label={t('fuel.chargeLevel', { defaultValue: 'Charge level' })}>
+              <Field id="charge_level" label={t('fuel.chargeLevel')}>
                 <Select
                   id="charge_level"
                   {...register('charge_level')}
@@ -653,15 +653,15 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
                   ]}
                 />
               </Field>
-              <Field id="charge_location" label={t('fuel.chargeLocation', { defaultValue: 'Location' })}>
+              <Field id="charge_location" label={t('fuel.chargeLocation')}>
                 <Select
                   id="charge_location"
                   {...register('charge_location')}
                   disabled={isSubmitting}
                   placeholder=""
                   options={[
-                    { value: 'home', label: t('fuel.chargeHome', { defaultValue: 'Home' }) },
-                    { value: 'public', label: t('fuel.chargePublic', { defaultValue: 'Public' }) },
+                    { value: 'home', label: t('fuel.chargeHome') },
+                    { value: 'public', label: t('fuel.chargePublic') },
                   ]}
                 />
               </Field>

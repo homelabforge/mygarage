@@ -555,7 +555,7 @@ export default function VehicleDetail() {
       { id: 'service' as const, label: t('vehicleStats.service'), icon: Wrench },
       { id: 'odometer' as const, label: t('detail.misc.odometer'), icon: Gauge, visible: isMotorized && tracksDistance },
       { id: 'hours' as const, label: t('common:engineHours'), icon: Clock, visible: tracksHours },
-      { id: 'tires' as const, label: t('detail.misc.tires', { defaultValue: 'Tires' }), icon: CircleDot, visible: isMotorized },
+      { id: 'tires' as const, label: t('detail.misc.tires'), icon: CircleDot, visible: isMotorized },
       { id: 'recalls' as const, label: t('detail.misc.recalls'), icon: AlertTriangle },
     ],
     fuel: [

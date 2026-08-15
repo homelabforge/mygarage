@@ -10,6 +10,7 @@ import {
   useAddTireReading,
   useDeleteTire,
 } from '../hooks/queries/useTires'
+import { getActionErrorMessage } from '../utils/httpErrorHandler'
 import { Button, IconButton, Card, EmptyState, Input, Field, Select } from './ui'
 
 const POSITIONS: TirePosition[] = ['FL', 'FR', 'RL', 'RR', 'SPARE']
@@ -64,11 +65,11 @@ export default function TireList({ vin }: TireListProps) {
       },
       {
         onSuccess: () => {
-          toast.success(t('tireList.saved', { defaultValue: 'Tire saved' }))
+          toast.success(t('tireList.saved'))
           setShowForm(false)
         },
         onError: (err) => {
-          toast.error(err instanceof Error ? err.message : 'Failed to save tire')
+          toast.error(getActionErrorMessage(err, t('tireList.saveAction')))
         },
       }
     )
@@ -76,7 +77,7 @@ export default function TireList({ vin }: TireListProps) {
 
   const handleReading = (tireId: number) => {
     if (!readingForm.tread_depth_mm) {
-      toast.error(t('tireList.treadRequired', { defaultValue: 'Tread depth is required' }))
+      toast.error(t('tireList.treadRequired'))
       return
     }
     addReading.mutate(
@@ -90,23 +91,23 @@ export default function TireList({ vin }: TireListProps) {
       },
       {
         onSuccess: () => {
-          toast.success(t('tireList.readingSaved', { defaultValue: 'Reading saved' }))
+          toast.success(t('tireList.readingSaved'))
           setReadingTireId(null)
         },
         onError: (err) => {
-          toast.error(err instanceof Error ? err.message : 'Failed to save reading')
+          toast.error(getActionErrorMessage(err, t('tireList.saveReadingAction')))
         },
       }
     )
   }
 
   if (isLoading) {
-    return <div className="text-text-mute">{t('common:loading', { defaultValue: 'Loading…' })}</div>
+    return <div className="text-text-mute">{t('common:loading')}</div>
   }
   if (error) {
     return (
       <div className="rounded-panel border border-danger bg-danger/10 p-4 text-danger">
-        {error instanceof Error ? error.message : 'Failed to load tires'}
+        {getActionErrorMessage(error, t('tireList.loadAction'))}
       </div>
     )
   }
@@ -116,7 +117,7 @@ export default function TireList({ vin }: TireListProps) {
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-lg font-semibold flex items-center gap-2">
           <Gauge className="h-5 w-5" />
-          {t('tireList.title', { defaultValue: 'Tires' })}
+          {t('tireList.title')}
         </h2>
         <Button
           variant="primary"
@@ -124,17 +125,15 @@ export default function TireList({ vin }: TireListProps) {
           onClick={() => setShowForm(true)}
           icon={Plus}
         >
-          {t('tireList.add', { defaultValue: 'Add / update tire' })}
+          {t('tireList.add')}
         </Button>
       </div>
 
       {tires.length === 0 && !showForm && (
         <EmptyState
           icon={Gauge}
-          title={t('tireList.empty', { defaultValue: 'No tires tracked yet' })}
-          description={t('tireList.emptyHint', {
-            defaultValue: 'Add FL/FR/RL/RR (and spare) with tread depth and DOT code.',
-          })}
+          title={t('tireList.empty')}
+          description={t('tireList.emptyHint')}
         />
       )}
 
@@ -148,7 +147,7 @@ export default function TireList({ vin }: TireListProps) {
                   {tire.below_threshold && (
                     <span className="inline-flex items-center gap-1 text-xs text-danger">
                       <AlertTriangle className="h-3.5 w-3.5" />
-                      {t('tireList.lowTread', { defaultValue: 'Low tread' })}
+                      {t('tireList.lowTread')}
                     </span>
                   )}
                 </div>
@@ -162,24 +161,24 @@ export default function TireList({ vin }: TireListProps) {
                 variant="ghost"
                 size="sm"
                 onClick={() => {
-                  if (confirm(t('tireList.confirmDelete', { defaultValue: 'Delete this tire?' }))) {
+                  if (confirm(t('tireList.confirmDelete'))) {
                     remove.mutate(tire.id)
                   }
                 }}
               />
             </div>
             <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
-              <dt className="text-text-mute">DOT</dt>
+              <dt className="text-text-mute">{t('tireList.dot')}</dt>
               <dd className="font-mono">{tire.dot_code || '—'}</dd>
-              <dt className="text-text-mute">{t('tireList.tread', { defaultValue: 'Tread' })}</dt>
+              <dt className="text-text-mute">{t('tireList.tread')}</dt>
               <dd className="font-mono">
                 {tire.tread_depth_mm != null ? `${tire.tread_depth_mm} mm` : '—'}
               </dd>
-              <dt className="text-text-mute">{t('tireList.pressure', { defaultValue: 'Pressure' })}</dt>
+              <dt className="text-text-mute">{t('tireList.pressure')}</dt>
               <dd className="font-mono">
                 {tire.pressure_kpa != null ? `${tire.pressure_kpa} kPa` : '—'}
               </dd>
-              <dt className="text-text-mute">{t('tireList.projection', { defaultValue: 'Wear estimate' })}</dt>
+              <dt className="text-text-mute">{t('tireList.projection')}</dt>
               <dd className="font-mono text-xs">
                 {tire.projected_km_remaining != null
                   ? `~${tire.projected_km_remaining} km`
@@ -200,19 +199,19 @@ export default function TireList({ vin }: TireListProps) {
                 }))
               }}
             >
-              {t('tireList.addReading', { defaultValue: 'Log reading' })}
+              {t('tireList.addReading')}
             </Button>
 
             {readingTireId === tire.id && (
               <div className="mt-2 space-y-2 rounded-control border border-border p-3">
-                <Field id={`reading-date-${tire.id}`} label={t('common:date', { defaultValue: 'Date' })}>
+                <Field id={`reading-date-${tire.id}`} label={t('common:date')}>
                   <Input
                     type="date"
                     value={readingForm.recorded_at}
                     onChange={(e) => setReadingForm({ ...readingForm, recorded_at: e.target.value })}
                   />
                 </Field>
-                <Field id={`reading-tread-${tire.id}`} label="Tread (mm)">
+                <Field id={`reading-tread-${tire.id}`} label={t('tireList.treadMm')}>
                   <Input
                     type="number"
                     step="0.1"
@@ -222,7 +221,7 @@ export default function TireList({ vin }: TireListProps) {
                     }
                   />
                 </Field>
-                <Field id={`reading-odo-${tire.id}`} label="Odometer (km)">
+                <Field id={`reading-odo-${tire.id}`} label={t('tireList.odometerKm')}>
                   <Input
                     type="number"
                     step="0.1"
@@ -234,10 +233,10 @@ export default function TireList({ vin }: TireListProps) {
                 </Field>
                 <div className="flex gap-2">
                   <Button size="sm" variant="primary" onClick={() => handleReading(tire.id)}>
-                    {t('common:save', { defaultValue: 'Save' })}
+                    {t('common:save')}
                   </Button>
                   <Button size="sm" variant="ghost" onClick={() => setReadingTireId(null)}>
-                    {t('common:cancel', { defaultValue: 'Cancel' })}
+                    {t('common:cancel')}
                   </Button>
                 </div>
               </div>
@@ -248,8 +247,8 @@ export default function TireList({ vin }: TireListProps) {
 
       {showForm && (
         <Card padding="sm" className="space-y-3">
-          <h3 className="font-semibold">{t('tireList.formTitle', { defaultValue: 'Tire details' })}</h3>
-          <Field id="tire-position" label="Position">
+          <h3 className="font-semibold">{t('tireList.formTitle')}</h3>
+          <Field id="tire-position" label={t('tireList.position')}>
             <Select
               value={form.position}
               onChange={(e) =>
@@ -259,25 +258,25 @@ export default function TireList({ vin }: TireListProps) {
             />
           </Field>
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field id="tire-brand" label="Brand">
+            <Field id="tire-brand" label={t('tireList.brand')}>
               <Input value={form.brand} onChange={(e) => setForm({ ...form, brand: e.target.value })} />
             </Field>
-            <Field id="tire-model" label="Model">
+            <Field id="tire-model" label={t('tireList.model')}>
               <Input
                 value={form.model_name}
                 onChange={(e) => setForm({ ...form, model_name: e.target.value })}
               />
             </Field>
-            <Field id="tire-size" label="Size">
+            <Field id="tire-size" label={t('tireList.size')}>
               <Input value={form.size} onChange={(e) => setForm({ ...form, size: e.target.value })} />
             </Field>
-            <Field id="tire-dot" label="DOT">
+            <Field id="tire-dot" label={t('tireList.dot')}>
               <Input
                 value={form.dot_code}
                 onChange={(e) => setForm({ ...form, dot_code: e.target.value })}
               />
             </Field>
-            <Field id="tire-tread" label="Tread (mm)">
+            <Field id="tire-tread" label={t('tireList.treadMm')}>
               <Input
                 type="number"
                 step="0.1"
@@ -285,7 +284,7 @@ export default function TireList({ vin }: TireListProps) {
                 onChange={(e) => setForm({ ...form, tread_depth_mm: e.target.value })}
               />
             </Field>
-            <Field id="tire-min" label="Min tread (mm)">
+            <Field id="tire-min" label={t('tireList.minTreadMm')}>
               <Input
                 type="number"
                 step="0.1"
@@ -296,10 +295,10 @@ export default function TireList({ vin }: TireListProps) {
           </div>
           <div className="flex gap-2">
             <Button variant="primary" onClick={handleSave} disabled={upsert.isPending}>
-              {t('common:save', { defaultValue: 'Save' })}
+              {t('common:save')}
             </Button>
             <Button variant="ghost" onClick={() => setShowForm(false)}>
-              {t('common:cancel', { defaultValue: 'Cancel' })}
+              {t('common:cancel')}
             </Button>
           </div>
         </Card>

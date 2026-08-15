@@ -344,10 +344,10 @@ from app.routes.poi import router as poi_router
 from app.routes.quick_entry import router as quick_entry_router
 from app.routes.torque import TorqueTokenRedactionFilter
 from app.routes.torque import router as torque_router
+from app.routes.webhooks import router as webhooks_router
 from app.routes.widget import router as widget_router
 from app.routes.widget_keys import router as widget_keys_router
 from app.routes.widget_v2 import router as widget_v2_router
-from app.routes.webhooks import router as webhooks_router
 
 app.include_router(auth_router)
 app.include_router(family_router)

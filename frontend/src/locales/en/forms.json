@@ -107,7 +107,14 @@
     "priceBasisPerWeight": "Per weight ({{unit}})",
     "priceBasisPerKwh": "Per kWh",
     "priceBasisPerTank": "Per tank",
-    "filledAtTimeOnlyHint": "Optional. Uses the date above; needed for auto-fill from your last drive."
+    "filledAtTimeOnlyHint": "Optional. Uses the date above; needed for auto-fill from your last drive.",
+    "socStart": "SOC start",
+    "socEnd": "SOC end",
+    "batterySoh": "Battery SOH",
+    "chargeLevel": "Charge level",
+    "chargeLocation": "Location",
+    "chargeHome": "Home",
+    "chargePublic": "Public"
   },
   "hours": {
     "createTitle": "Add Engine Hours Reading",
