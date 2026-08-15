@@ -1,7 +1,7 @@
 {
   "id": "oil_and_filter",
   "name": "Oil & Filter Service",
-  "description": "Oil change plus oil filter replacement on a typical DIY schedule.",
+  "description": "DIY engine oil and oil filter change — typically every 8,000 km or 6 months.",
   "reminders": [
     {
       "title": "Oil & Filter Change",
