@@ -43,7 +43,12 @@ class TestSettingsRoutes:
         assert "total" in data
         # Public settings should only include specific keys
         for setting in data["settings"]:
-            assert setting["key"] in {"auth_mode", "app_name", "theme"}
+            assert setting["key"] in {
+                "auth_mode",
+                "app_name",
+                "theme",
+                "family_friends_enabled",
+            }
 
     async def test_list_settings_unauthorized(self, client: AsyncClient, auth_headers):
         """Test that non-admin users cannot list all settings."""
