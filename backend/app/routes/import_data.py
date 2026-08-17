@@ -1327,11 +1327,25 @@ async def import_fuelio_csv(
     vin: str,
     file: UploadFile = File(...),
     skip_duplicates: bool = Form(True),
+    odometer_unit: str = Form("km"),
+    decimal_separator: str = Form("dot"),
     db: AsyncSession = Depends(get_db),
     current_user: User | None = Depends(require_auth),
 ):
-    """Import fuel records from a Fuelio CSV export."""
-    return await _import_third_party_fuel(vin, file, skip_duplicates, db, current_user, "fuelio")
+    """Import fuel records from a Fuelio CSV export.
+
+    ``odometer_unit`` and ``decimal_separator`` declare how to read columns the
+    export does not label. Defaults are metric and dot, matching storage.
+    """
+    return await _import_third_party_fuel(
+        vin,
+        file,
+        skip_duplicates,
+        db,
+        current_user,
+        "fuelio",
+        _parse_options(odometer_unit, decimal_separator),
+    )
 
 
 @router.post("/vehicles/{vin}/fuel/drivvo")
@@ -1341,11 +1355,25 @@ async def import_drivvo_csv(
     vin: str,
     file: UploadFile = File(...),
     skip_duplicates: bool = Form(True),
+    odometer_unit: str = Form("km"),
+    decimal_separator: str = Form("dot"),
     db: AsyncSession = Depends(get_db),
     current_user: User | None = Depends(require_auth),
 ):
-    """Import fuel records from a Drivvo CSV export."""
-    return await _import_third_party_fuel(vin, file, skip_duplicates, db, current_user, "drivvo")
+    """Import fuel records from a Drivvo CSV export.
+
+    ``odometer_unit`` and ``decimal_separator`` declare how to read columns the
+    export does not label. Defaults are metric and dot, matching storage.
+    """
+    return await _import_third_party_fuel(
+        vin,
+        file,
+        skip_duplicates,
+        db,
+        current_user,
+        "drivvo",
+        _parse_options(odometer_unit, decimal_separator),
+    )
 
 
 @router.post("/vehicles/{vin}/fuel/tesla")
@@ -1355,11 +1383,25 @@ async def import_tesla_csv(
     vin: str,
     file: UploadFile = File(...),
     skip_duplicates: bool = Form(True),
+    odometer_unit: str = Form("km"),
+    decimal_separator: str = Form("dot"),
     db: AsyncSession = Depends(get_db),
     current_user: User | None = Depends(require_auth),
 ):
-    """Import charge sessions from a Tesla / ABRP-style charge history CSV."""
-    return await _import_third_party_fuel(vin, file, skip_duplicates, db, current_user, "tesla")
+    """Import charge sessions from a Tesla / ABRP-style charge history CSV.
+
+    ``odometer_unit`` and ``decimal_separator`` declare how to read columns the
+    export does not label. Defaults are metric and dot, matching storage.
+    """
+    return await _import_third_party_fuel(
+        vin,
+        file,
+        skip_duplicates,
+        db,
+        current_user,
+        "tesla",
+        _parse_options(odometer_unit, decimal_separator),
+    )
 
 
 @router.post("/vehicles/{vin}/fuel/external")
@@ -1370,6 +1412,8 @@ async def import_external_fuel_csv(
     file: UploadFile = File(...),
     skip_duplicates: bool = Form(True),
     format: str | None = Form(None),
+    odometer_unit: str = Form("km"),
+    decimal_separator: str = Form("dot"),
     db: AsyncSession = Depends(get_db),
     current_user: User | None = Depends(require_auth),
 ):
@@ -1385,8 +1429,41 @@ async def import_external_fuel_csv(
         )
     # Re-wrap for the shared helper (it re-reads the upload); parse inline instead.
     await get_vehicle_or_403(vin, current_user, db, require_write=True)
-    parsed = PARSERS[fmt](csv_data)
+    parsed = PARSERS[fmt](csv_data, _parse_options(odometer_unit, decimal_separator))
     return await _persist_parsed_fuel(vin, parsed, skip_duplicates, db)
+
+
+# Every column the third-party importer writes. A duplicate is a row that
+# matches on all of them. Matching on date and odometer alone collapsed two
+# same-day charge sessions into one, which EV users hit routinely. Keep this
+# list in step with the FuelRecord(...) construction in _persist_parsed_fuel:
+# one source of truth means the predicate cannot drift from what is persisted.
+_IMPORT_DUPLICATE_FIELDS = (
+    "odometer_km",
+    "liters",
+    "kwh",
+    "cost",
+    "price_per_unit",
+    "price_basis",
+    "notes",
+    "fuel_type_used",
+    "soc_start_pct",
+    "soc_end_pct",
+    "charge_level",
+    "charge_location",
+    "battery_soh_pct",
+)
+
+
+def _parse_options(odometer_unit: str, decimal_separator: str):
+    """Build ParseOptions from form input, rejecting anything off-vocabulary."""
+    from app.services.import_adapters import ParseOptions
+
+    if odometer_unit not in ("km", "mi"):
+        raise HTTPException(status_code=400, detail="odometer_unit must be km or mi")
+    if decimal_separator not in ("dot", "comma"):
+        raise HTTPException(status_code=400, detail="decimal_separator must be dot or comma")
+    return ParseOptions(odometer_unit=odometer_unit, decimal_separator=decimal_separator)
 
 
 async def _import_third_party_fuel(
@@ -1396,12 +1473,13 @@ async def _import_third_party_fuel(
     db: AsyncSession,
     current_user: User | None,
     format_name: str,
+    opts=None,
 ):
     from app.services.import_adapters import PARSERS
 
     await get_vehicle_or_403(vin, current_user, db, require_write=True)
     csv_data = await validate_csv_upload(file)
-    parsed = PARSERS[format_name](csv_data)
+    parsed = PARSERS[format_name](csv_data, opts)
     return await _persist_parsed_fuel(vin, parsed, skip_duplicates, db)
 
 
@@ -1425,14 +1503,16 @@ async def _persist_parsed_fuel(
                 continue
             odometer_km = row.get("odometer_km")
             if skip_duplicates:
-                existing = await db.execute(
-                    select(FuelRecord).where(
-                        FuelRecord.vin == vin,
-                        FuelRecord.date == date,
-                        FuelRecord.odometer_km == odometer_km,
-                    )
-                )
-                if existing.scalar_one_or_none():
+                # `== None` renders as IS NULL in SQLAlchemy, so nullable
+                # columns match correctly without a special case.
+                predicates = [FuelRecord.vin == vin, FuelRecord.date == date]
+                for field in _IMPORT_DUPLICATE_FIELDS:
+                    predicates.append(getattr(FuelRecord, field) == row.get(field))
+                predicates.append(FuelRecord.is_full_tank == bool(row.get("is_full_tank", True)))
+                existing = await db.execute(select(FuelRecord).where(*predicates))
+                # .first(), not scalar_one_or_none(): pre-existing duplicates in
+                # the table would otherwise raise MultipleResultsFound.
+                if existing.scalars().first():
                     import_result.add_skip()
                     continue
             record = FuelRecord(

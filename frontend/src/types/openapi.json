@@ -1259,9 +1259,19 @@
       },
       "Body_import_drivvo_csv_api_import_vehicles__vin__fuel_drivvo_post": {
         "properties": {
+          "decimal_separator": {
+            "default": "dot",
+            "title": "Decimal Separator",
+            "type": "string"
+          },
           "file": {
             "contentMediaType": "application/octet-stream",
             "title": "File",
+            "type": "string"
+          },
+          "odometer_unit": {
+            "default": "km",
+            "title": "Odometer Unit",
             "type": "string"
           },
           "skip_duplicates": {
@@ -1278,6 +1288,11 @@
       },
       "Body_import_external_fuel_csv_api_import_vehicles__vin__fuel_external_post": {
         "properties": {
+          "decimal_separator": {
+            "default": "dot",
+            "title": "Decimal Separator",
+            "type": "string"
+          },
           "file": {
             "contentMediaType": "application/octet-stream",
             "title": "File",
@@ -1293,6 +1308,11 @@
               }
             ],
             "title": "Format"
+          },
+          "odometer_unit": {
+            "default": "km",
+            "title": "Odometer Unit",
+            "type": "string"
           },
           "skip_duplicates": {
             "default": true,
@@ -1327,9 +1347,19 @@
       },
       "Body_import_fuelio_csv_api_import_vehicles__vin__fuel_fuelio_post": {
         "properties": {
+          "decimal_separator": {
+            "default": "dot",
+            "title": "Decimal Separator",
+            "type": "string"
+          },
           "file": {
             "contentMediaType": "application/octet-stream",
             "title": "File",
+            "type": "string"
+          },
+          "odometer_unit": {
+            "default": "km",
+            "title": "Odometer Unit",
             "type": "string"
           },
           "skip_duplicates": {
@@ -1460,9 +1490,19 @@
       },
       "Body_import_tesla_csv_api_import_vehicles__vin__fuel_tesla_post": {
         "properties": {
+          "decimal_separator": {
+            "default": "dot",
+            "title": "Decimal Separator",
+            "type": "string"
+          },
           "file": {
             "contentMediaType": "application/octet-stream",
             "title": "File",
+            "type": "string"
+          },
+          "odometer_unit": {
+            "default": "km",
+            "title": "Odometer Unit",
             "type": "string"
           },
           "skip_duplicates": {
@@ -21638,10 +21678,13 @@
         "type": "object"
       },
       "WebhookFuelPayload": {
+        "description": "Inbound fuel/charge payload.\n\nNumeric bounds mirror FuelRecordBase. Without them SQLite stores an absurd\nvalue silently, and on PostgreSQL the driver raises a DataError that\nsurfaces as a 500 rather than a 4xx.\n\nUnlike FuelRecordCreate, odometer and amount are both optional: a charge\nsession legitimately arrives with neither.",
         "properties": {
           "battery_soh_pct": {
             "anyOf": [
               {
+                "maximum": 100.0,
+                "minimum": 0.0,
                 "type": "number"
               },
               {
@@ -21657,6 +21700,7 @@
           "charge_level": {
             "anyOf": [
               {
+                "maxLength": 10,
                 "type": "string"
               },
               {
@@ -21668,6 +21712,7 @@
           "charge_location": {
             "anyOf": [
               {
+                "maxLength": 20,
                 "type": "string"
               },
               {
@@ -21679,6 +21724,8 @@
           "cost": {
             "anyOf": [
               {
+                "maximum": 99999.99,
+                "minimum": 0.0,
                 "type": "number"
               },
               {
@@ -21722,6 +21769,8 @@
           "kwh": {
             "anyOf": [
               {
+                "maximum": 99999.999,
+                "minimum": 0.0,
                 "type": "number"
               },
               {
@@ -21737,6 +21786,8 @@
           "liters": {
             "anyOf": [
               {
+                "maximum": 9999.999,
+                "minimum": 0.0,
                 "type": "number"
               },
               {
@@ -21763,6 +21814,8 @@
           "odometer_km": {
             "anyOf": [
               {
+                "maximum": 99999999.99,
+                "minimum": 0.0,
                 "type": "number"
               },
               {
@@ -21789,6 +21842,8 @@
           "price_per_unit": {
             "anyOf": [
               {
+                "maximum": 999.999,
+                "minimum": 0.0,
                 "type": "number"
               },
               {
@@ -21804,6 +21859,8 @@
           "soc_end_pct": {
             "anyOf": [
               {
+                "maximum": 100.0,
+                "minimum": 0.0,
                 "type": "number"
               },
               {
@@ -21819,6 +21876,8 @@
           "soc_start_pct": {
             "anyOf": [
               {
+                "maximum": 100.0,
+                "minimum": 0.0,
                 "type": "number"
               },
               {
@@ -26932,7 +26991,7 @@
     },
     "/api/import/vehicles/{vin}/fuel/drivvo": {
       "post": {
-        "description": "Import fuel records from a Drivvo CSV export.",
+        "description": "Import fuel records from a Drivvo CSV export.\n\n``odometer_unit`` and ``decimal_separator`` declare how to read columns the\nexport does not label. Defaults are metric and dot, matching storage.",
         "operationId": "import_drivvo_csv_api_import_vehicles__vin__fuel_drivvo_post",
         "parameters": [
           {
@@ -27044,7 +27103,7 @@
     },
     "/api/import/vehicles/{vin}/fuel/fuelio": {
       "post": {
-        "description": "Import fuel records from a Fuelio CSV export.",
+        "description": "Import fuel records from a Fuelio CSV export.\n\n``odometer_unit`` and ``decimal_separator`` declare how to read columns the\nexport does not label. Defaults are metric and dot, matching storage.",
         "operationId": "import_fuelio_csv_api_import_vehicles__vin__fuel_fuelio_post",
         "parameters": [
           {
@@ -27100,7 +27159,7 @@
     },
     "/api/import/vehicles/{vin}/fuel/tesla": {
       "post": {
-        "description": "Import charge sessions from a Tesla / ABRP-style charge history CSV.",
+        "description": "Import charge sessions from a Tesla / ABRP-style charge history CSV.\n\n``odometer_unit`` and ``decimal_separator`` declare how to read columns the\nexport does not label. Defaults are metric and dot, matching storage.",
         "operationId": "import_tesla_csv_api_import_vehicles__vin__fuel_tesla_post",
         "parameters": [
           {
@@ -30871,40 +30930,6 @@
       "post": {
         "description": "Create a fuel / charge record (metric canonical).",
         "operationId": "webhook_fuel_api_v1_webhooks_fuel_post",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Webhook-Token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Webhook-Token"
-            }
-          }
-        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -30948,40 +30973,6 @@
     "/api/v1/webhooks/odometer": {
       "post": {
         "operationId": "webhook_odometer_api_v1_webhooks_odometer_post",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Webhook-Token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Webhook-Token"
-            }
-          }
-        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -31025,40 +31016,6 @@
     "/api/v1/webhooks/reminders/complete": {
       "post": {
         "operationId": "webhook_complete_reminder_api_v1_webhooks_reminders_complete_post",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Webhook-Token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Webhook-Token"
-            }
-          }
-        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -31101,42 +31058,8 @@
     },
     "/api/v1/webhooks/telegram": {
       "post": {
-        "description": "Telegram bot webhook \u2014 structured text fuel commands only (no OCR).\n\nEnable with ``telegram_inbound_enabled=true``. Auth: same webhook ingest\ntoken via ``X-Webhook-Token`` header or ``token`` query param.",
+        "description": "Telegram bot webhook \u2014 structured text fuel commands only (no OCR).\n\nEnable with ``telegram_inbound_enabled=true``. Auth: same webhook ingest\ntoken via the ``X-Webhook-Token`` header.",
         "operationId": "webhook_telegram_api_v1_webhooks_telegram_post",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Token"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Webhook-Token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Webhook-Token"
-            }
-          }
-        ],
         "requestBody": {
           "content": {
             "application/json": {

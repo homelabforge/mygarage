@@ -1626,6 +1626,9 @@ export interface paths {
         /**
          * Import Drivvo Csv
          * @description Import fuel records from a Drivvo CSV export.
+         *
+         *     ``odometer_unit`` and ``decimal_separator`` declare how to read columns the
+         *     export does not label. Defaults are metric and dot, matching storage.
          */
         post: operations["import_drivvo_csv_api_import_vehicles__vin__fuel_drivvo_post"];
         delete?: never;
@@ -1666,6 +1669,9 @@ export interface paths {
         /**
          * Import Fuelio Csv
          * @description Import fuel records from a Fuelio CSV export.
+         *
+         *     ``odometer_unit`` and ``decimal_separator`` declare how to read columns the
+         *     export does not label. Defaults are metric and dot, matching storage.
          */
         post: operations["import_fuelio_csv_api_import_vehicles__vin__fuel_fuelio_post"];
         delete?: never;
@@ -1686,6 +1692,9 @@ export interface paths {
         /**
          * Import Tesla Csv
          * @description Import charge sessions from a Tesla / ABRP-style charge history CSV.
+         *
+         *     ``odometer_unit`` and ``decimal_separator`` declare how to read columns the
+         *     export does not label. Defaults are metric and dot, matching storage.
          */
         post: operations["import_tesla_csv_api_import_vehicles__vin__fuel_tesla_post"];
         delete?: never;
@@ -3444,7 +3453,7 @@ export interface paths {
          * @description Telegram bot webhook — structured text fuel commands only (no OCR).
          *
          *     Enable with ``telegram_inbound_enabled=true``. Auth: same webhook ingest
-         *     token via ``X-Webhook-Token`` header or ``token`` query param.
+         *     token via the ``X-Webhook-Token`` header.
          */
         post: operations["webhook_telegram_api_v1_webhooks_telegram_post"];
         delete?: never;
@@ -6745,8 +6754,18 @@ export interface components {
         };
         /** Body_import_drivvo_csv_api_import_vehicles__vin__fuel_drivvo_post */
         Body_import_drivvo_csv_api_import_vehicles__vin__fuel_drivvo_post: {
+            /**
+             * Decimal Separator
+             * @default dot
+             */
+            decimal_separator: string;
             /** File */
             file: string;
+            /**
+             * Odometer Unit
+             * @default km
+             */
+            odometer_unit: string;
             /**
              * Skip Duplicates
              * @default true
@@ -6755,10 +6774,20 @@ export interface components {
         };
         /** Body_import_external_fuel_csv_api_import_vehicles__vin__fuel_external_post */
         Body_import_external_fuel_csv_api_import_vehicles__vin__fuel_external_post: {
+            /**
+             * Decimal Separator
+             * @default dot
+             */
+            decimal_separator: string;
             /** File */
             file: string;
             /** Format */
             format?: string | null;
+            /**
+             * Odometer Unit
+             * @default km
+             */
+            odometer_unit: string;
             /**
              * Skip Duplicates
              * @default true
@@ -6777,8 +6806,18 @@ export interface components {
         };
         /** Body_import_fuelio_csv_api_import_vehicles__vin__fuel_fuelio_post */
         Body_import_fuelio_csv_api_import_vehicles__vin__fuel_fuelio_post: {
+            /**
+             * Decimal Separator
+             * @default dot
+             */
+            decimal_separator: string;
             /** File */
             file: string;
+            /**
+             * Odometer Unit
+             * @default km
+             */
+            odometer_unit: string;
             /**
              * Skip Duplicates
              * @default true
@@ -6847,8 +6886,18 @@ export interface components {
         };
         /** Body_import_tesla_csv_api_import_vehicles__vin__fuel_tesla_post */
         Body_import_tesla_csv_api_import_vehicles__vin__fuel_tesla_post: {
+            /**
+             * Decimal Separator
+             * @default dot
+             */
+            decimal_separator: string;
             /** File */
             file: string;
+            /**
+             * Odometer Unit
+             * @default km
+             */
+            odometer_unit: string;
             /**
              * Skip Duplicates
              * @default true
@@ -15372,7 +15421,17 @@ export interface components {
             /** Vin */
             vin: string;
         };
-        /** WebhookFuelPayload */
+        /**
+         * WebhookFuelPayload
+         * @description Inbound fuel/charge payload.
+         *
+         *     Numeric bounds mirror FuelRecordBase. Without them SQLite stores an absurd
+         *     value silently, and on PostgreSQL the driver raises a DataError that
+         *     surfaces as a 500 rather than a 4xx.
+         *
+         *     Unlike FuelRecordCreate, odometer and amount are both optional: a charge
+         *     session legitimately arrives with neither.
+         */
         WebhookFuelPayload: {
             /** Battery Soh Pct */
             battery_soh_pct?: number | string | null;
@@ -20734,12 +20793,8 @@ export interface operations {
     };
     webhook_fuel_api_v1_webhooks_fuel_post: {
         parameters: {
-            query?: {
-                token?: string | null;
-            };
-            header?: {
-                "X-Webhook-Token"?: string | null;
-            };
+            query?: never;
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -20773,12 +20828,8 @@ export interface operations {
     };
     webhook_odometer_api_v1_webhooks_odometer_post: {
         parameters: {
-            query?: {
-                token?: string | null;
-            };
-            header?: {
-                "X-Webhook-Token"?: string | null;
-            };
+            query?: never;
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -20812,12 +20863,8 @@ export interface operations {
     };
     webhook_complete_reminder_api_v1_webhooks_reminders_complete_post: {
         parameters: {
-            query?: {
-                token?: string | null;
-            };
-            header?: {
-                "X-Webhook-Token"?: string | null;
-            };
+            query?: never;
+            header?: never;
             path?: never;
             cookie?: never;
         };
@@ -20851,12 +20898,8 @@ export interface operations {
     };
     webhook_telegram_api_v1_webhooks_telegram_post: {
         parameters: {
-            query?: {
-                token?: string | null;
-            };
-            header?: {
-                "X-Webhook-Token"?: string | null;
-            };
+            query?: never;
+            header?: never;
             path?: never;
             cookie?: never;
         };
