@@ -1257,6 +1257,55 @@
         "title": "Body_import_def_csv_api_import_vehicles__vin__def_csv_post",
         "type": "object"
       },
+      "Body_import_drivvo_csv_api_import_vehicles__vin__fuel_drivvo_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          },
+          "skip_duplicates": {
+            "default": true,
+            "title": "Skip Duplicates",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_import_drivvo_csv_api_import_vehicles__vin__fuel_drivvo_post",
+        "type": "object"
+      },
+      "Body_import_external_fuel_csv_api_import_vehicles__vin__fuel_external_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          },
+          "format": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Format"
+          },
+          "skip_duplicates": {
+            "default": true,
+            "title": "Skip Duplicates",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_import_external_fuel_csv_api_import_vehicles__vin__fuel_external_post",
+        "type": "object"
+      },
       "Body_import_fuel_csv_api_import_vehicles__vin__fuel_csv_post": {
         "properties": {
           "file": {
@@ -1274,6 +1323,25 @@
           "file"
         ],
         "title": "Body_import_fuel_csv_api_import_vehicles__vin__fuel_csv_post",
+        "type": "object"
+      },
+      "Body_import_fuelio_csv_api_import_vehicles__vin__fuel_fuelio_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          },
+          "skip_duplicates": {
+            "default": true,
+            "title": "Skip Duplicates",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_import_fuelio_csv_api_import_vehicles__vin__fuel_fuelio_post",
         "type": "object"
       },
       "Body_import_hours_csv_api_import_vehicles__vin__hours_csv_post": {
@@ -1388,6 +1456,25 @@
           "file"
         ],
         "title": "Body_import_tax_csv_api_import_vehicles__vin__tax_csv_post",
+        "type": "object"
+      },
+      "Body_import_tesla_csv_api_import_vehicles__vin__fuel_tesla_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          },
+          "skip_duplicates": {
+            "default": true,
+            "title": "Skip Duplicates",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_import_tesla_csv_api_import_vehicles__vin__fuel_tesla_post",
         "type": "object"
       },
       "Body_import_vehicle_json_api_import_vehicles__vin__json_post": {
@@ -4505,6 +4592,50 @@
           }
         ],
         "properties": {
+          "battery_soh_pct": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional battery state-of-health (%)",
+            "title": "Battery Soh Pct"
+          },
+          "charge_level": {
+            "anyOf": [
+              {
+                "maxLength": 10,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Charger level: L1 / L2 / DCFC",
+            "title": "Charge Level"
+          },
+          "charge_location": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Charge location: home / public",
+            "title": "Charge Location"
+          },
           "cost": {
             "anyOf": [
               {
@@ -4867,6 +4998,42 @@
             "description": "Rebate/discount/points redeemed; already deducted from cost",
             "title": "Rebate"
           },
+          "soc_end_pct": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Battery SOC at session end (%)",
+            "title": "Soc End Pct"
+          },
+          "soc_start_pct": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Battery SOC at session start (%)",
+            "title": "Soc Start Pct"
+          },
           "station_address_book_id": {
             "anyOf": [
               {
@@ -5052,6 +5219,45 @@
           }
         ],
         "properties": {
+          "battery_soh_pct": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional battery state-of-health (%)",
+            "title": "Battery Soh Pct"
+          },
+          "charge_level": {
+            "anyOf": [
+              {
+                "maxLength": 10,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Charger level: L1 / L2 / DCFC",
+            "title": "Charge Level"
+          },
+          "charge_location": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Charge location: home / public",
+            "title": "Charge Location"
+          },
           "cost": {
             "anyOf": [
               {
@@ -5370,6 +5576,32 @@
             "description": "Rebate/discount/points redeemed; already deducted from cost",
             "title": "Rebate"
           },
+          "soc_end_pct": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Battery SOC at session end (%)",
+            "title": "Soc End Pct"
+          },
+          "soc_start_pct": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Battery SOC at session start (%)",
+            "title": "Soc Start Pct"
+          },
           "station_address_book_id": {
             "anyOf": [
               {
@@ -5470,6 +5702,47 @@
           }
         ],
         "properties": {
+          "battery_soh_pct": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Battery Soh Pct"
+          },
+          "charge_level": {
+            "anyOf": [
+              {
+                "maxLength": 10,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charge Level"
+          },
+          "charge_location": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charge Location"
+          },
           "cost": {
             "anyOf": [
               {
@@ -5854,6 +6127,40 @@
             ],
             "description": "Rebate/discount/points redeemed; already deducted from cost",
             "title": "Rebate"
+          },
+          "soc_end_pct": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Soc End Pct"
+          },
+          "soc_start_pct": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Soc Start Pct"
           },
           "station_address_book_id": {
             "anyOf": [
@@ -14521,6 +14828,36 @@
         "title": "TaxRecordUpdate",
         "type": "object"
       },
+      "TelegramUpdate": {
+        "description": "Minimal Telegram Bot API Update subset.",
+        "properties": {
+          "message": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "update_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Update Id"
+          }
+        },
+        "title": "TelegramUpdate",
+        "type": "object"
+      },
       "TelemetryDataPoint": {
         "description": "Schema for a single telemetry data point.",
         "properties": {
@@ -14743,6 +15080,661 @@
           "data"
         ],
         "title": "TelemetrySeriesResponse",
+        "type": "object"
+      },
+      "TireCreate": {
+        "description": "Create / upsert a tire at a position.",
+        "properties": {
+          "brand": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Brand"
+          },
+          "dot_code": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dot Code"
+          },
+          "installed_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Installed Date"
+          },
+          "min_tread_mm": {
+            "anyOf": [
+              {
+                "maximum": 10.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "2.0",
+            "description": "Wear-out threshold in mm; drives reminder hooks",
+            "title": "Min Tread Mm"
+          },
+          "model_name": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Name"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "position": {
+            "enum": [
+              "FL",
+              "FR",
+              "RL",
+              "RR",
+              "SPARE"
+            ],
+            "title": "Position",
+            "type": "string"
+          },
+          "pressure_kpa": {
+            "anyOf": [
+              {
+                "maximum": 1000.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pressure Kpa"
+          },
+          "size": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size"
+          },
+          "tread_depth_mm": {
+            "anyOf": [
+              {
+                "maximum": 30.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tread Depth Mm"
+          },
+          "vin": {
+            "maxLength": 17,
+            "title": "Vin",
+            "type": "string"
+          }
+        },
+        "required": [
+          "position",
+          "vin"
+        ],
+        "title": "TireCreate",
+        "type": "object"
+      },
+      "TireListResponse": {
+        "description": "All tires for a vehicle.",
+        "properties": {
+          "tires": {
+            "items": {
+              "$ref": "#/components/schemas/TireResponse"
+            },
+            "title": "Tires",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "tires",
+          "total"
+        ],
+        "title": "TireListResponse",
+        "type": "object"
+      },
+      "TireReadingCreate": {
+        "description": "Record a tread/pressure reading (updates the parent tire's latest depth).",
+        "properties": {
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "odometer_km": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Odometer Km"
+          },
+          "pressure_kpa": {
+            "anyOf": [
+              {
+                "maximum": 1000.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pressure Kpa"
+          },
+          "recorded_at": {
+            "format": "date",
+            "title": "Recorded At",
+            "type": "string"
+          },
+          "tread_depth_mm": {
+            "anyOf": [
+              {
+                "maximum": 30.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Tread Depth Mm"
+          }
+        },
+        "required": [
+          "recorded_at",
+          "tread_depth_mm"
+        ],
+        "title": "TireReadingCreate",
+        "type": "object"
+      },
+      "TireReadingResponse": {
+        "description": "Tire reading response.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "odometer_km": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Odometer Km"
+          },
+          "position": {
+            "title": "Position",
+            "type": "string"
+          },
+          "pressure_kpa": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pressure Kpa"
+          },
+          "recorded_at": {
+            "format": "date",
+            "title": "Recorded At",
+            "type": "string"
+          },
+          "tire_id": {
+            "title": "Tire Id",
+            "type": "integer"
+          },
+          "tread_depth_mm": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Tread Depth Mm",
+            "type": "string"
+          },
+          "vin": {
+            "title": "Vin",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "tire_id",
+          "vin",
+          "position",
+          "recorded_at",
+          "odometer_km",
+          "tread_depth_mm",
+          "pressure_kpa",
+          "notes",
+          "created_at"
+        ],
+        "title": "TireReadingResponse",
+        "type": "object"
+      },
+      "TireResponse": {
+        "description": "Tire with optional wear projection.",
+        "properties": {
+          "below_threshold": {
+            "default": false,
+            "title": "Below Threshold",
+            "type": "boolean"
+          },
+          "brand": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Brand"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "dot_code": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dot Code"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "installed_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Installed Date"
+          },
+          "min_tread_mm": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "2.0",
+            "description": "Wear-out threshold in mm; drives reminder hooks",
+            "title": "Min Tread Mm"
+          },
+          "model_name": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Name"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "position": {
+            "enum": [
+              "FL",
+              "FR",
+              "RL",
+              "RR",
+              "SPARE"
+            ],
+            "title": "Position",
+            "type": "string"
+          },
+          "pressure_kpa": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pressure Kpa"
+          },
+          "projected_km_remaining": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Projected Km Remaining"
+          },
+          "projected_wear_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Projected Wear Date"
+          },
+          "readings": {
+            "items": {
+              "$ref": "#/components/schemas/TireReadingResponse"
+            },
+            "title": "Readings",
+            "type": "array"
+          },
+          "size": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size"
+          },
+          "tread_depth_mm": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tread Depth Mm"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "vin": {
+            "title": "Vin",
+            "type": "string"
+          }
+        },
+        "required": [
+          "position",
+          "id",
+          "vin",
+          "created_at"
+        ],
+        "title": "TireResponse",
+        "type": "object"
+      },
+      "TireUpdate": {
+        "description": "Partial tire update.",
+        "properties": {
+          "brand": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Brand"
+          },
+          "dot_code": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dot Code"
+          },
+          "installed_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Installed Date"
+          },
+          "min_tread_mm": {
+            "anyOf": [
+              {
+                "maximum": 10.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Tread Mm"
+          },
+          "model_name": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Name"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "pressure_kpa": {
+            "anyOf": [
+              {
+                "maximum": 1000.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pressure Kpa"
+          },
+          "size": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size"
+          },
+          "tread_depth_mm": {
+            "anyOf": [
+              {
+                "maximum": 30.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tread Depth Mm"
+          }
+        },
+        "title": "TireUpdate",
         "type": "object"
       },
       "Token": {
@@ -20626,6 +21618,281 @@
         "title": "WarrantyRecordUpdate",
         "type": "object"
       },
+      "WebhookCompleteReminderPayload": {
+        "properties": {
+          "reminder_id": {
+            "title": "Reminder Id",
+            "type": "integer"
+          },
+          "vin": {
+            "maxLength": 17,
+            "title": "Vin",
+            "type": "string"
+          }
+        },
+        "required": [
+          "vin",
+          "reminder_id"
+        ],
+        "title": "WebhookCompleteReminderPayload",
+        "type": "object"
+      },
+      "WebhookFuelPayload": {
+        "properties": {
+          "battery_soh_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Battery Soh Pct"
+          },
+          "charge_level": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charge Level"
+          },
+          "charge_location": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charge Location"
+          },
+          "cost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost"
+          },
+          "date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
+          },
+          "fuel_type_used": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fuel Type Used"
+          },
+          "is_full_tank": {
+            "default": true,
+            "title": "Is Full Tank",
+            "type": "boolean"
+          },
+          "kwh": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kwh"
+          },
+          "liters": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Liters"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "odometer_km": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Odometer Km"
+          },
+          "price_basis": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price Basis"
+          },
+          "price_per_unit": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price Per Unit"
+          },
+          "soc_end_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Soc End Pct"
+          },
+          "soc_start_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Soc Start Pct"
+          },
+          "vin": {
+            "maxLength": 17,
+            "title": "Vin",
+            "type": "string"
+          }
+        },
+        "required": [
+          "vin"
+        ],
+        "title": "WebhookFuelPayload",
+        "type": "object"
+      },
+      "WebhookOdometerPayload": {
+        "properties": {
+          "date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "odometer_km": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Odometer Km"
+          },
+          "vin": {
+            "maxLength": 17,
+            "title": "Vin",
+            "type": "string"
+          }
+        },
+        "required": [
+          "vin",
+          "odometer_km"
+        ],
+        "title": "WebhookOdometerPayload",
+        "type": "object"
+      },
       "WiCANConfigEntry": {
         "description": "Schema for a single parameter config entry from WiCAN.\n\nExample:\n    {\"class\": \"temperature\", \"unit\": \"\u00b0C\"}",
         "properties": {
@@ -25663,6 +26930,230 @@
         ]
       }
     },
+    "/api/import/vehicles/{vin}/fuel/drivvo": {
+      "post": {
+        "description": "Import fuel records from a Drivvo CSV export.",
+        "operationId": "import_drivvo_csv_api_import_vehicles__vin__fuel_drivvo_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vin",
+            "required": true,
+            "schema": {
+              "title": "Vin",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_import_drivvo_csv_api_import_vehicles__vin__fuel_drivvo_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Import Drivvo Csv",
+        "tags": [
+          "import"
+        ]
+      }
+    },
+    "/api/import/vehicles/{vin}/fuel/external": {
+      "post": {
+        "description": "Auto-detect Fuelio / Drivvo / Tesla CSV format (or pass format= explicitly).",
+        "operationId": "import_external_fuel_csv_api_import_vehicles__vin__fuel_external_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vin",
+            "required": true,
+            "schema": {
+              "title": "Vin",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_import_external_fuel_csv_api_import_vehicles__vin__fuel_external_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Import External Fuel Csv",
+        "tags": [
+          "import"
+        ]
+      }
+    },
+    "/api/import/vehicles/{vin}/fuel/fuelio": {
+      "post": {
+        "description": "Import fuel records from a Fuelio CSV export.",
+        "operationId": "import_fuelio_csv_api_import_vehicles__vin__fuel_fuelio_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vin",
+            "required": true,
+            "schema": {
+              "title": "Vin",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_import_fuelio_csv_api_import_vehicles__vin__fuel_fuelio_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Import Fuelio Csv",
+        "tags": [
+          "import"
+        ]
+      }
+    },
+    "/api/import/vehicles/{vin}/fuel/tesla": {
+      "post": {
+        "description": "Import charge sessions from a Tesla / ABRP-style charge history CSV.",
+        "operationId": "import_tesla_csv_api_import_vehicles__vin__fuel_tesla_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vin",
+            "required": true,
+            "schema": {
+              "title": "Vin",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_import_tesla_csv_api_import_vehicles__vin__fuel_tesla_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Import Tesla Csv",
+        "tags": [
+          "import"
+        ]
+      }
+    },
     "/api/import/vehicles/{vin}/hours/csv": {
       "post": {
         "description": "Import engine-hours records from CSV file.\n\nMirrors :func:`import_odometer_csv` \u2014 the hours track's standalone\nhistory CSV for hour-metered vehicles. Registered under this router\n(``/api/import``), not the hours CRUD router (``/api/vehicles/{vin}/hours``),\nto avoid shadowing that router's ``GET/PUT/DELETE /{record_id}`` routes.\n\nEvery imported row becomes a manual reading (``source='manual'``, both\n``fuel_record_id``/``service_visit_id`` left null) regardless of what the\nexported \"Source\" column says \u2014 a CSV cannot carry a live foreign key to\na fuel/service row in the *target* vehicle's tables, so re-establishing\nsync provenance on import would be fabricated.",
@@ -29373,6 +30864,316 @@
         "summary": "Torque Ingest Post",
         "tags": [
           "torque"
+        ]
+      }
+    },
+    "/api/v1/webhooks/fuel": {
+      "post": {
+        "description": "Create a fuel / charge record (metric canonical).",
+        "operationId": "webhook_fuel_api_v1_webhooks_fuel_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Token"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Webhook-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Webhook-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebhookFuelPayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Webhook Fuel Api V1 Webhooks Fuel Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Webhook Fuel",
+        "tags": [
+          "webhooks"
+        ]
+      }
+    },
+    "/api/v1/webhooks/odometer": {
+      "post": {
+        "operationId": "webhook_odometer_api_v1_webhooks_odometer_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Token"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Webhook-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Webhook-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebhookOdometerPayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Webhook Odometer Api V1 Webhooks Odometer Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Webhook Odometer",
+        "tags": [
+          "webhooks"
+        ]
+      }
+    },
+    "/api/v1/webhooks/reminders/complete": {
+      "post": {
+        "operationId": "webhook_complete_reminder_api_v1_webhooks_reminders_complete_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Token"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Webhook-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Webhook-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebhookCompleteReminderPayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Webhook Complete Reminder Api V1 Webhooks Reminders Complete Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Webhook Complete Reminder",
+        "tags": [
+          "webhooks"
+        ]
+      }
+    },
+    "/api/v1/webhooks/telegram": {
+      "post": {
+        "description": "Telegram bot webhook \u2014 structured text fuel commands only (no OCR).\n\nEnable with ``telegram_inbound_enabled=true``. Auth: same webhook ingest\ntoken via ``X-Webhook-Token`` header or ``token`` query param.",
+        "operationId": "webhook_telegram_api_v1_webhooks_telegram_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Token"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Webhook-Token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Webhook-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TelegramUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Webhook Telegram Api V1 Webhooks Telegram Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Webhook Telegram",
+        "tags": [
+          "webhooks"
         ]
       }
     },
@@ -36272,6 +38073,292 @@
         "summary": "Update Tax Record",
         "tags": [
           "tax-records"
+        ]
+      }
+    },
+    "/api/vehicles/{vin}/tires": {
+      "get": {
+        "description": "List tires (all positions) for a vehicle with wear projections.",
+        "operationId": "list_tires_api_vehicles__vin__tires_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vin",
+            "required": true,
+            "schema": {
+              "title": "Vin",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TireListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Tires",
+        "tags": [
+          "tires"
+        ]
+      },
+      "post": {
+        "description": "Create or replace the tire at a given position.",
+        "operationId": "upsert_tire_api_vehicles__vin__tires_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vin",
+            "required": true,
+            "schema": {
+              "title": "Vin",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TireCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TireResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Upsert Tire",
+        "tags": [
+          "tires"
+        ]
+      }
+    },
+    "/api/vehicles/{vin}/tires/{tire_id}": {
+      "delete": {
+        "description": "Remove a tire position record and its readings.",
+        "operationId": "delete_tire_api_vehicles__vin__tires__tire_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vin",
+            "required": true,
+            "schema": {
+              "title": "Vin",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "tire_id",
+            "required": true,
+            "schema": {
+              "title": "Tire Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Tire",
+        "tags": [
+          "tires"
+        ]
+      },
+      "put": {
+        "description": "Update tire metadata / latest tread without adding a history reading.",
+        "operationId": "update_tire_api_vehicles__vin__tires__tire_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vin",
+            "required": true,
+            "schema": {
+              "title": "Vin",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "tire_id",
+            "required": true,
+            "schema": {
+              "title": "Tire Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TireUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TireResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Tire",
+        "tags": [
+          "tires"
+        ]
+      }
+    },
+    "/api/vehicles/{vin}/tires/{tire_id}/readings": {
+      "post": {
+        "description": "Append a tread/pressure reading and refresh wear projection + reminders.",
+        "operationId": "add_tire_reading_api_vehicles__vin__tires__tire_id__readings_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vin",
+            "required": true,
+            "schema": {
+              "title": "Vin",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "tire_id",
+            "required": true,
+            "schema": {
+              "title": "Tire Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TireReadingCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TireResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Add Tire Reading",
+        "tags": [
+          "tires"
         ]
       }
     },
