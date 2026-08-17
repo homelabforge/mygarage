@@ -104,11 +104,18 @@ async def _resolve_vehicle(db: AsyncSession, vin_or_nick: str) -> Vehicle:
     vehicle = result.scalar_one_or_none()
     if vehicle:
         return vehicle
-    result = await db.execute(select(Vehicle).where(func.lower(Vehicle.nickname) == key.lower()))
-    vehicle = result.scalar_one_or_none()
-    if not vehicle:
+    result = await db.execute(
+        select(Vehicle).where(func.lower(Vehicle.nickname) == key.lower()).limit(2)
+    )
+    matches = result.scalars().all()
+    if len(matches) > 1:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Ambiguous nickname '{vin_or_nick}' matches multiple vehicles; use VIN instead",
+        )
+    if not matches:
         raise HTTPException(status_code=404, detail=f"Vehicle not found: {vin_or_nick}")
-    return vehicle
+    return matches[0]
 
 
 async def _create_fuel_record(db: AsyncSession, payload: WebhookFuelPayload) -> dict[str, Any]:

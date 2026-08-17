@@ -8,7 +8,9 @@ fixture (PG runs skip when ``TEST_DATABASE_URL`` is unset).
 import importlib.util
 from pathlib import Path
 
+import pytest
 from sqlalchemy import inspect, text
+from sqlalchemy.exc import IntegrityError
 
 import app.migrations as _m
 
@@ -52,7 +54,9 @@ def test_085_creates_tires_and_tire_readings_tables(engine_for_migration):
     assert {"installed_date", "tread_depth_mm", "pressure_kpa", "min_tread_mm"}.issubset(tire_cols)
 
     reading_cols = {col["name"] for col in inspector.get_columns("tire_readings")}
-    assert {"id", "tire_id", "vin", "position", "recorded_at", "tread_depth_mm"}.issubset(reading_cols)
+    assert {"id", "tire_id", "vin", "position", "recorded_at", "tread_depth_mm"}.issubset(
+        reading_cols
+    )
 
 
 def test_085_creates_indexes(engine_for_migration):
@@ -72,8 +76,7 @@ def test_085_creates_indexes(engine_for_migration):
         else:
             result = conn.execute(
                 text(
-                    "SELECT indexname FROM pg_indexes "
-                    "WHERE tablename IN ('tires', 'tire_readings')"
+                    "SELECT indexname FROM pg_indexes WHERE tablename IN ('tires', 'tire_readings')"
                 )
             ).fetchall()
             index_names = {r[0] for r in result}
@@ -124,9 +127,6 @@ def test_085_unique_constraint_on_vin_position(engine_for_migration):
                 """
             )
         )
-
-    import pytest
-    from sqlalchemy.exc import IntegrityError
 
     with pytest.raises(IntegrityError):
         with engine.begin() as conn:

@@ -213,6 +213,30 @@ class TestWebhookIngest:
         assert response.status_code == 200
         assert "fuel <vin|nickname>" in response.json()["reply"]
 
+    async def test_ambiguous_nickname_returns_409(
+        self, client: AsyncClient, test_vehicle, db_session
+    ):
+        """Multiple vehicles with same nickname should return 409 Conflict."""
+        await _set_setting(db_session, "webhook_ingest_token", "secret-webhook")
+
+        vehicle1 = await db_session.get(Vehicle, test_vehicle["vin"])
+        vehicle1.nickname = "SharedName"
+        db_session.add(Vehicle(vin="5YJ3E1EAXKF000002", nickname="SharedName", vehicle_type="Car"))
+        await db_session.commit()
+
+        response = await client.post(
+            "/api/v1/webhooks/fuel",
+            json={
+                "vin": "SharedName",
+                "odometer_km": "10000",
+                "liters": "40",
+            },
+            headers={"X-Webhook-Token": "secret-webhook"},
+        )
+        assert response.status_code == 409
+        assert "Ambiguous nickname" in response.json()["detail"]
+        assert "use VIN instead" in response.json()["detail"]
+
 
 @pytest.mark.integration
 @pytest.mark.asyncio
