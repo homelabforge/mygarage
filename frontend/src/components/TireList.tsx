@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Plus, Trash2, Gauge, AlertTriangle } from 'lucide-react'
+import { Plus, Trash2, Gauge, AlertTriangle, Pencil } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateForDisplay } from '../utils/dateUtils'
 import type { Tire, TirePosition } from '../types/tire'
@@ -10,10 +10,36 @@ import {
   useAddTireReading,
   useDeleteTire,
 } from '../hooks/queries/useTires'
+import { useUnitPreference } from '../hooks/useUnitPreference'
+import { UnitConverter, UnitFormatter } from '../utils/units'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
 import { Button, IconButton, Card, EmptyState, Input, Field, Select } from './ui'
 
 const POSITIONS: TirePosition[] = ['FL', 'FR', 'RL', 'RR', 'SPARE']
+
+interface TireFormState {
+  position: TirePosition
+  brand: string
+  model_name: string
+  size: string
+  dot_code: string
+  tread_depth_mm: string
+  pressure_kpa: string
+  min_tread_mm: string
+  notes: string
+}
+
+const EMPTY_TIRE_FORM: TireFormState = {
+  position: 'FL',
+  brand: '',
+  model_name: '',
+  size: '',
+  dot_code: '',
+  tread_depth_mm: '',
+  pressure_kpa: '',
+  min_tread_mm: '2.0',
+  notes: '',
+}
 
 interface TireListProps {
   vin: string
@@ -25,20 +51,13 @@ export default function TireList({ vin }: TireListProps) {
   const upsert = useUpsertTire(vin)
   const addReading = useAddTireReading(vin)
   const remove = useDeleteTire(vin)
+  const { system, showBoth } = useUnitPreference()
+  const isImperial = system === 'imperial'
 
   const [showForm, setShowForm] = useState(false)
+  const [editingTireId, setEditingTireId] = useState<number | null>(null)
   const [readingTireId, setReadingTireId] = useState<number | null>(null)
-  const [form, setForm] = useState({
-    position: 'FL' as TirePosition,
-    brand: '',
-    model_name: '',
-    size: '',
-    dot_code: '',
-    tread_depth_mm: '',
-    pressure_kpa: '',
-    min_tread_mm: '2.0',
-    notes: '',
-  })
+  const [form, setForm] = useState<TireFormState>(EMPTY_TIRE_FORM)
   const [readingForm, setReadingForm] = useState({
     recorded_at: new Date().toISOString().slice(0, 10),
     odometer_km: '',
@@ -48,6 +67,64 @@ export default function TireList({ vin }: TireListProps) {
   })
 
   const tires = data?.tires ?? []
+  const takenPositions = new Set(tires.map((tire: Tire) => tire.position))
+  const freePositions = POSITIONS.filter((p) => !takenPositions.has(p))
+
+  /** Tire API fields are `number | string | null`; the unit utils take `number | null`. */
+  const num = (v: number | string | null | undefined): number | null =>
+    v === null || v === undefined || v === '' ? null : Number(v)
+
+  /* Storage is metric-canonical kPa. Imperial users type PSI; metric users type
+   * kPa directly. Note we do NOT use UnitFormatter.getPressureUnit here: it
+   * returns 'bar' for metric, and passing a bar value into a kPa column would be
+   * a 100x error. */
+  const displayPressure = (kpa: number | string | null | undefined): number | null =>
+    isImperial ? UnitConverter.kPaToPsi(num(kpa)) : num(kpa)
+
+  /** Blank clears the field, so return null: `undefined` is dropped from the
+   *  JSON body and the partial update would then preserve the old value. */
+  const canonicalPressure = (typed: string): number | null => {
+    if (!typed) return null
+    return isImperial ? UnitConverter.psiToKPa(Number(typed)) : Number(typed)
+  }
+
+  const canonicalOdometer = (typed: string): number | null => {
+    if (!typed) return null
+    return isImperial ? UnitConverter.milesToKm(Number(typed)) : Number(typed)
+  }
+
+  const pressureLabel = t('tireList.pressureWithUnit', {
+    unit: isImperial ? 'PSI' : 'kPa',
+  })
+  const odometerLabel = isImperial ? t('tireList.odometerMi') : t('tireList.odometerKm')
+
+  const formFromTire = (tire: Tire): TireFormState => ({
+    position: tire.position,
+    brand: tire.brand ?? '',
+    model_name: tire.model_name ?? '',
+    size: tire.size ?? '',
+    dot_code: tire.dot_code ?? '',
+    tread_depth_mm: tire.tread_depth_mm != null ? String(tire.tread_depth_mm) : '',
+    pressure_kpa: tire.pressure_kpa != null ? String(displayPressure(tire.pressure_kpa)) : '',
+    min_tread_mm: tire.min_tread_mm != null ? String(tire.min_tread_mm) : '2.0',
+    notes: tire.notes ?? '',
+  })
+
+  /* Add and Edit are deliberately separate intents. The form is one mutable
+   * object holding every in-progress field, so reloading it when the position
+   * dropdown changes would silently discard whatever the user had typed.
+   * Instead, Add only offers unoccupied positions and Edit locks the position. */
+  const openAddForm = () => {
+    setEditingTireId(null)
+    setForm({ ...EMPTY_TIRE_FORM, position: freePositions[0] ?? 'FL' })
+    setShowForm(true)
+  }
+
+  const openEditForm = (tire: Tire) => {
+    setEditingTireId(tire.id)
+    setForm(formFromTire(tire))
+    setShowForm(true)
+  }
 
   const handleSave = () => {
     upsert.mutate(
@@ -59,7 +136,7 @@ export default function TireList({ vin }: TireListProps) {
         size: form.size || null,
         dot_code: form.dot_code || null,
         tread_depth_mm: form.tread_depth_mm ? Number(form.tread_depth_mm) : null,
-        pressure_kpa: form.pressure_kpa ? Number(form.pressure_kpa) : null,
+        pressure_kpa: canonicalPressure(form.pressure_kpa),
         min_tread_mm: form.min_tread_mm ? Number(form.min_tread_mm) : 2.0,
         notes: form.notes || null,
       },
@@ -67,6 +144,7 @@ export default function TireList({ vin }: TireListProps) {
         onSuccess: () => {
           toast.success(t('tireList.saved'))
           setShowForm(false)
+          setEditingTireId(null)
         },
         onError: (err) => {
           toast.error(getActionErrorMessage(err, t('tireList.saveAction')))
@@ -84,9 +162,9 @@ export default function TireList({ vin }: TireListProps) {
       {
         tireId,
         recorded_at: readingForm.recorded_at,
-        odometer_km: readingForm.odometer_km ? Number(readingForm.odometer_km) : null,
+        odometer_km: canonicalOdometer(readingForm.odometer_km),
         tread_depth_mm: Number(readingForm.tread_depth_mm),
-        pressure_kpa: readingForm.pressure_kpa ? Number(readingForm.pressure_kpa) : null,
+        pressure_kpa: canonicalPressure(readingForm.pressure_kpa),
         notes: readingForm.notes || null,
       },
       {
@@ -122,7 +200,8 @@ export default function TireList({ vin }: TireListProps) {
         <Button
           variant="primary"
           size="sm"
-          onClick={() => setShowForm(true)}
+          onClick={openAddForm}
+          disabled={freePositions.length === 0}
           icon={Plus}
         >
           {t('tireList.add')}
@@ -155,17 +234,26 @@ export default function TireList({ vin }: TireListProps) {
                   {[tire.brand, tire.model_name, tire.size].filter(Boolean).join(' · ') || '—'}
                 </div>
               </div>
-              <IconButton
-                icon={Trash2}
-                label={t('common:delete')}
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  if (confirm(t('tireList.confirmDelete'))) {
-                    remove.mutate(tire.id)
-                  }
-                }}
-              />
+              <div className="flex items-center gap-1">
+                <IconButton
+                  icon={Pencil}
+                  label={t('tireList.edit')}
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => openEditForm(tire)}
+                />
+                <IconButton
+                  icon={Trash2}
+                  label={t('common:delete')}
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    if (confirm(t('tireList.confirmDelete'))) {
+                      remove.mutate(tire.id)
+                    }
+                  }}
+                />
+              </div>
             </div>
             <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
               <dt className="text-text-mute">{t('tireList.dot')}</dt>
@@ -176,12 +264,14 @@ export default function TireList({ vin }: TireListProps) {
               </dd>
               <dt className="text-text-mute">{t('tireList.pressure')}</dt>
               <dd className="font-mono">
-                {tire.pressure_kpa != null ? `${tire.pressure_kpa} kPa` : '—'}
+                {tire.pressure_kpa != null
+                  ? UnitFormatter.formatPressure(num(tire.pressure_kpa), system, showBoth)
+                  : '—'}
               </dd>
               <dt className="text-text-mute">{t('tireList.projection')}</dt>
               <dd className="font-mono text-xs">
                 {tire.projected_km_remaining != null
-                  ? `~${tire.projected_km_remaining} km`
+                  ? `~${UnitFormatter.formatDistance(num(tire.projected_km_remaining), system, showBoth)}`
                   : '—'}
                 {tire.projected_wear_date
                   ? ` · ${formatDateForDisplay(tire.projected_wear_date)}`
@@ -196,7 +286,8 @@ export default function TireList({ vin }: TireListProps) {
                 setReadingForm((f) => ({
                   ...f,
                   tread_depth_mm: tire.tread_depth_mm != null ? String(tire.tread_depth_mm) : '',
-                  pressure_kpa: tire.pressure_kpa != null ? String(tire.pressure_kpa) : '',
+                  pressure_kpa:
+                    tire.pressure_kpa != null ? String(displayPressure(tire.pressure_kpa)) : '',
                 }))
               }}
             >
@@ -207,6 +298,7 @@ export default function TireList({ vin }: TireListProps) {
               <div className="mt-2 space-y-2 rounded-control border border-border p-3">
                 <Field id={`reading-date-${tire.id}`} label={t('common:date')}>
                   <Input
+                    id={`reading-date-${tire.id}`}
                     type="date"
                     value={readingForm.recorded_at}
                     onChange={(e) => setReadingForm({ ...readingForm, recorded_at: e.target.value })}
@@ -214,6 +306,7 @@ export default function TireList({ vin }: TireListProps) {
                 </Field>
                 <Field id={`reading-tread-${tire.id}`} label={t('tireList.treadMm')}>
                   <Input
+                    id={`reading-tread-${tire.id}`}
                     type="number"
                     step="0.1"
                     value={readingForm.tread_depth_mm}
@@ -222,8 +315,9 @@ export default function TireList({ vin }: TireListProps) {
                     }
                   />
                 </Field>
-                <Field id={`reading-pressure-${tire.id}`} label={t('tireList.pressureKpa')}>
+                <Field id={`reading-pressure-${tire.id}`} label={pressureLabel}>
                   <Input
+                    id={`reading-pressure-${tire.id}`}
                     type="number"
                     step="0.1"
                     value={readingForm.pressure_kpa}
@@ -232,8 +326,9 @@ export default function TireList({ vin }: TireListProps) {
                     }
                   />
                 </Field>
-                <Field id={`reading-odo-${tire.id}`} label={t('tireList.odometerKm')}>
+                <Field id={`reading-odo-${tire.id}`} label={odometerLabel}>
                   <Input
+                    id={`reading-odo-${tire.id}`}
                     type="number"
                     step="0.1"
                     value={readingForm.odometer_km}
@@ -261,42 +356,57 @@ export default function TireList({ vin }: TireListProps) {
           <h3 className="font-semibold">{t('tireList.formTitle')}</h3>
           <Field id="tire-position" label={t('tireList.position')}>
             <Select
+              id="tire-position"
               value={form.position}
-              onChange={(e) =>
-                setForm({ ...form, position: e.target.value as TirePosition })
-              }
-              options={POSITIONS.map((p) => ({ value: p, label: p }))}
+              disabled={editingTireId !== null}
+              onChange={(e) => setForm({ ...form, position: e.target.value as TirePosition })}
+              options={(editingTireId !== null ? POSITIONS : freePositions).map((p) => ({
+                value: p,
+                label: p,
+              }))}
             />
           </Field>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field id="tire-brand" label={t('tireList.brand')}>
-              <Input value={form.brand} onChange={(e) => setForm({ ...form, brand: e.target.value })} />
+              <Input
+                id="tire-brand"
+                value={form.brand}
+                onChange={(e) => setForm({ ...form, brand: e.target.value })}
+              />
             </Field>
             <Field id="tire-model" label={t('tireList.model')}>
               <Input
+                id="tire-model"
                 value={form.model_name}
                 onChange={(e) => setForm({ ...form, model_name: e.target.value })}
               />
             </Field>
             <Field id="tire-size" label={t('tireList.size')}>
-              <Input value={form.size} onChange={(e) => setForm({ ...form, size: e.target.value })} />
+              <Input
+                id="tire-size"
+                value={form.size}
+                onChange={(e) => setForm({ ...form, size: e.target.value })}
+              />
             </Field>
             <Field id="tire-dot" label={t('tireList.dot')}>
               <Input
+                id="tire-dot"
                 value={form.dot_code}
                 onChange={(e) => setForm({ ...form, dot_code: e.target.value })}
               />
             </Field>
             <Field id="tire-tread" label={t('tireList.treadMm')}>
               <Input
+                id="tire-tread"
                 type="number"
                 step="0.1"
                 value={form.tread_depth_mm}
                 onChange={(e) => setForm({ ...form, tread_depth_mm: e.target.value })}
               />
             </Field>
-            <Field id="tire-pressure" label={t('tireList.pressureKpa')}>
+            <Field id="tire-pressure" label={pressureLabel}>
               <Input
+                id="tire-pressure"
                 type="number"
                 step="0.1"
                 value={form.pressure_kpa}
@@ -305,6 +415,7 @@ export default function TireList({ vin }: TireListProps) {
             </Field>
             <Field id="tire-min" label={t('tireList.minTreadMm')}>
               <Input
+                id="tire-min"
                 type="number"
                 step="0.1"
                 value={form.min_tread_mm}
@@ -316,7 +427,13 @@ export default function TireList({ vin }: TireListProps) {
             <Button variant="primary" onClick={handleSave} disabled={upsert.isPending}>
               {t('common:save')}
             </Button>
-            <Button variant="ghost" onClick={() => setShowForm(false)}>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setShowForm(false)
+                setEditingTireId(null)
+              }}
+            >
               {t('common:cancel')}
             </Button>
           </div>

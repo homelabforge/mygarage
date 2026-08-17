@@ -1,5 +1,7 @@
 """Integration tests for tire tracking routes."""
 
+from decimal import Decimal
+
 import pytest
 from httpx import AsyncClient
 
@@ -188,3 +190,72 @@ class TestTireRoutes:
             select(Reminder).where(Reminder.vin == vin, Reminder.title == "Tire tread low (RL)")
         )
         assert result.scalar_one().status == "done"
+
+    async def test_upsert_does_not_wipe_unspecified_fields(
+        self, client: AsyncClient, auth_headers, test_vehicle
+    ):
+        """Re-saving a position must not erase the tire's identity.
+
+        The UI opened a blank form, so a follow-up save sent brand/model/size/DOT
+        as null and min_tread_mm as the schema default, and the service wrote
+        every one of them.
+        """
+        vin = test_vehicle["vin"]
+        created = await client.post(
+            f"/api/vehicles/{vin}/tires",
+            headers=auth_headers,
+            json={
+                "vin": vin,
+                "position": "FR",
+                "brand": "Michelin",
+                "model_name": "Pilot Sport 4",
+                "size": "225/45R17",
+                "dot_code": "2324",
+                "tread_depth_mm": "7.5",
+                "min_tread_mm": "3.0",
+            },
+        )
+        assert created.status_code in (200, 201)
+
+        # A later save that only carries a new tread reading.
+        updated = await client.post(
+            f"/api/vehicles/{vin}/tires",
+            headers=auth_headers,
+            json={"vin": vin, "position": "FR", "tread_depth_mm": "6.0"},
+        )
+        assert updated.status_code in (200, 201)
+        body = updated.json()
+        assert body["brand"] == "Michelin"
+        assert body["model_name"] == "Pilot Sport 4"
+        assert body["size"] == "225/45R17"
+        assert body["dot_code"] == "2324"
+        # Numeric(5, 2) round-trips as "3.00": compare values, not formatting.
+        assert Decimal(str(body["min_tread_mm"])) == Decimal("3.0")
+        assert Decimal(str(body["tread_depth_mm"])) == Decimal("6.0")
+
+    async def test_backdated_reading_does_not_change_current_tread(
+        self, client: AsyncClient, auth_headers, test_vehicle
+    ):
+        """Backfilling history must not report a worn tire as healthy."""
+        vin = test_vehicle["vin"]
+        created = await client.post(
+            f"/api/vehicles/{vin}/tires",
+            headers=auth_headers,
+            json={"vin": vin, "position": "RR", "tread_depth_mm": "4.0", "min_tread_mm": "3.0"},
+        )
+        tire_id = created.json()["id"]
+
+        await client.post(
+            f"/api/vehicles/{vin}/tires/{tire_id}/readings",
+            headers=auth_headers,
+            json={"recorded_at": "2027-06-01", "tread_depth_mm": "4.0", "odometer_km": "80000"},
+        )
+        # An older reading arriving later.
+        response = await client.post(
+            f"/api/vehicles/{vin}/tires/{tire_id}/readings",
+            headers=auth_headers,
+            json={"recorded_at": "2027-01-01", "tread_depth_mm": "6.5", "odometer_km": "60000"},
+        )
+        assert response.status_code in (200, 201)
+        # Numeric(5, 2) round-trips as "4.00": compare values, not formatting.
+        assert Decimal(str(response.json()["tread_depth_mm"])) == Decimal("4.0")

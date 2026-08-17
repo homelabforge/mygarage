@@ -135,12 +135,18 @@ class TireService:
                 .options(selectinload(Tire.readings))
             )
             tire = result.scalar_one_or_none()
-            payload = data.model_dump(exclude={"vin"})
             if tire is None:
-                tire = Tire(vin=vin, **payload)
+                # Create: schema defaults are meaningful, so take the full model.
+                tire = Tire(vin=vin, **data.model_dump(exclude={"vin"}))
                 self.db.add(tire)
             else:
-                for key, value in payload.items():
+                # Update: only touch what the caller actually sent. A full
+                # model_dump wrote every field including unset defaults, so
+                # re-saving a position erased brand, model, size and DOT code
+                # and reset the custom wear threshold.
+                for key, value in data.model_dump(
+                    exclude={"vin", "position"}, exclude_unset=True
+                ).items():
                     setattr(tire, key, value)
             await self.db.commit()
             # Re-query rather than refresh(attribute_names=["readings"]).
@@ -238,9 +244,22 @@ class TireService:
                 notes=data.notes,
             )
             self.db.add(reading)
-            tire.tread_depth_mm = data.tread_depth_mm
-            if data.pressure_kpa is not None:
-                tire.pressure_kpa = data.pressure_kpa
+            # Only the newest observation defines current state. A backdated
+            # backfill previously overwrote a worn tire's tread with an old
+            # healthy value, recomputed below_threshold from it, and completed a
+            # genuinely needed low-tread reminder.
+            #
+            # Deliberately NOT falling back to tire.updated_at when history is
+            # empty: that column is onupdate=func.now(), so an unrelated edit
+            # would bump it to today and silently refuse a reading dated
+            # yesterday. The upsert-supplied tread carries no measurement date,
+            # so the first dated reading wins. Closing that gap needs a
+            # tread_measured_at column, which needs a migration.
+            recorded_dates = [r.recorded_at for r in (tire.readings or [])]
+            if not recorded_dates or data.recorded_at >= max(recorded_dates):
+                tire.tread_depth_mm = data.tread_depth_mm
+                if data.pressure_kpa is not None:
+                    tire.pressure_kpa = data.pressure_kpa
             await self.db.commit()
             await self.db.refresh(tire)
             result = await self.db.execute(
