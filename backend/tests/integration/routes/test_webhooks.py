@@ -343,3 +343,23 @@ class TestEvFuelAndThirdPartyImport:
         )
         assert response.status_code == 200, response.text
         assert response.json()["success_count"] == 1
+
+
+@pytest.mark.integration
+class TestWebhookCsrfExemption:
+    """Webhook routes are token-authenticated and carry no browser session.
+
+    CSRF middleware is disabled under MYGARAGE_TEST_MODE, so no request-level
+    test can observe this. On a deployment with auth_mode local or oidc, a
+    non-exempt POST is rejected before the handler runs, so every inbound
+    webhook would 403.
+    """
+
+    def test_webhook_routes_match_an_exempt_prefix(self):
+        from app.middleware import CSRFProtectionMiddleware
+        from app.routes.webhooks import router
+
+        for route in router.routes:
+            assert any(route.path.startswith(p) for p in CSRFProtectionMiddleware.EXEMPT_PATHS), (
+                f"{route.path} is not covered by any CSRF exempt prefix"
+            )
