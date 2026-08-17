@@ -18,9 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Webhook ingest token is accepted only via the `X-Webhook-Token` header, never in the query string, and is rate limited.
 - Webhook and CSV-import fill-ups now sync the odometer log and invalidate cached dashboards.
 - Reminders completed via webhook or a tire threshold use the `done` status, so they stay visible and can be reopened.
-- Telegram replies now reach the user, and a bad command no longer triggers a redelivery loop.
+- Telegram inbound bot: replies now reach the user, and a bad command no longer triggers a redelivery loop. (Inbound commands are Telegram-only; the seven outbound notification backends are unaffected.)
 - CSV import takes an explicit odometer unit and decimal separator instead of guessing, so imperial and European exports no longer import corrupted values.
-- CSV import no longer collapses two same-day charge sessions into one.
+- CSV import preserves the charge/fill timestamp, so two same-day sessions are no longer collapsed into one, and re-importing a file you corrected in the source app no longer creates duplicates.
 - Saving a tire no longer erases its brand, model, size and DOT code; the tire tab now has separate Add and Edit actions.
 - Backdated tire readings no longer overwrite the current tread depth.
 - Tire tab now respects the imperial and metric unit preference, and its inputs are properly labelled.

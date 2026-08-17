@@ -111,6 +111,34 @@ def _parse_date(raw: str | None) -> date | None:
         return None
 
 
+def _parse_datetime(raw: str | None) -> datetime | None:
+    """Full timestamp when the cell carries a time, else None.
+
+    Charge exports routinely record several sessions on one day, and the time is
+    the only thing that distinguishes them. _parse_date truncates it away, which
+    made two same-day sessions look identical and forced duplicate detection to
+    compare mutable metadata (cost, notes) instead of the event itself.
+    """
+    if not raw:
+        return None
+    text = str(raw).strip()
+    for fmt in (
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%dT%H:%M:%S",
+        "%Y-%m-%d %H:%M",
+        "%Y-%m-%dT%H:%M",
+        "%m/%d/%Y %H:%M:%S",
+        "%d/%m/%Y %H:%M:%S",
+        "%m/%d/%Y %H:%M",
+        "%d/%m/%Y %H:%M",
+    ):
+        try:
+            return datetime.strptime(text[: len(fmt) + 8], fmt)
+        except ValueError:
+            continue
+    return None
+
+
 def _rows(csv_data: str) -> Iterator[dict[str, str]]:
     reader = csv.DictReader(io.StringIO(csv_data))
     for row in reader:
@@ -148,9 +176,11 @@ def parse_fuelio(csv_data: str, opts: ParseOptions | None = None) -> list[dict[s
     records: list[dict[str, Any]] = []
     for row in _rows(csv_data):
         # Skip Fuelio header junk / vehicle info rows
-        date_val = _parse_date(row.get("Date") or row.get("date") or row.get("Data"))
+        raw_when = row.get("Date") or row.get("date") or row.get("Data")
+        date_val = _parse_date(raw_when)
         if not date_val:
             continue
+        filled_at = _parse_datetime(raw_when)
 
         odometer_km = _odometer_km(
             row,
@@ -187,6 +217,7 @@ def parse_fuelio(csv_data: str, opts: ParseOptions | None = None) -> list[dict[s
         records.append(
             {
                 "date": date_val,
+                "filled_at": filled_at,
                 "odometer_km": odometer_km,
                 "liters": liters,
                 "kwh": kwh,
@@ -207,9 +238,11 @@ def parse_drivvo(csv_data: str, opts: ParseOptions | None = None) -> list[dict[s
     sep = opts.decimal_separator
     records: list[dict[str, Any]] = []
     for row in _rows(csv_data):
-        date_val = _parse_date(row.get("Date") or row.get("Data") or row.get("date"))
+        raw_when = row.get("Date") or row.get("Data") or row.get("date")
+        date_val = _parse_date(raw_when)
         if not date_val:
             continue
+        filled_at = _parse_datetime(raw_when)
 
         odo = _odometer_km(
             row,
@@ -264,6 +297,7 @@ def parse_drivvo(csv_data: str, opts: ParseOptions | None = None) -> list[dict[s
         records.append(
             {
                 "date": date_val,
+                "filled_at": filled_at,
                 "odometer_km": odo,
                 "liters": liters,
                 "kwh": kwh,
@@ -288,14 +322,18 @@ def parse_tesla(csv_data: str, opts: ParseOptions | None = None) -> list[dict[st
     sep = opts.decimal_separator
     records: list[dict[str, Any]] = []
     for row in _rows(csv_data):
-        date_val = _parse_date(
+        raw_when = (
             row.get("Charge End Date")
             or row.get("Charge Start Date")
             or row.get("Date")
             or row.get("End Date")
         )
+        date_val = _parse_date(raw_when)
         if not date_val:
             continue
+        # Charge exports routinely hold several sessions per day; the time is
+        # what tells them apart.
+        filled_at = _parse_datetime(raw_when)
 
         kwh = _dec(
             row.get("Energy Added (kWh)")
@@ -358,6 +396,7 @@ def parse_tesla(csv_data: str, opts: ParseOptions | None = None) -> list[dict[st
         records.append(
             {
                 "date": date_val,
+                "filled_at": filled_at,
                 "odometer_km": odo,
                 "liters": None,
                 "kwh": kwh,

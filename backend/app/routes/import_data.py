@@ -1433,25 +1433,24 @@ async def import_external_fuel_csv(
     return await _persist_parsed_fuel(vin, parsed, skip_duplicates, db)
 
 
-# Every column the third-party importer writes. A duplicate is a row that
-# matches on all of them. Matching on date and odometer alone collapsed two
-# same-day charge sessions into one, which EV users hit routinely. Keep this
-# list in step with the FuelRecord(...) construction in _persist_parsed_fuel:
-# one source of truth means the predicate cannot drift from what is persisted.
+# The natural key of a physical fill-up or charge session: when it happened,
+# where the odometer stood, and how much went in.
+#
+# Deliberately NOT every persisted column. Cost, notes, location and SOC are
+# metadata a user may correct in the source app between exports, so including
+# them would make a re-import of a corrected file insert duplicates instead of
+# skipping them. Two same-day sessions are told apart by filled_at, which the
+# adapters now preserve; before that the time was truncated away and the only
+# way to separate them was to compare mutable fields.
+#
+# When an export carries no time at all, filled_at is NULL on both rows and two
+# sessions with the same odometer and the same amount are genuinely
+# indistinguishable in the data, so collapsing them is correct.
 _IMPORT_DUPLICATE_FIELDS = (
+    "filled_at",
     "odometer_km",
     "liters",
     "kwh",
-    "cost",
-    "price_per_unit",
-    "price_basis",
-    "notes",
-    "fuel_type_used",
-    "soc_start_pct",
-    "soc_end_pct",
-    "charge_level",
-    "charge_location",
-    "battery_soh_pct",
 )
 
 
@@ -1508,7 +1507,6 @@ async def _persist_parsed_fuel(
                 predicates = [FuelRecord.vin == vin, FuelRecord.date == date]
                 for field in _IMPORT_DUPLICATE_FIELDS:
                     predicates.append(getattr(FuelRecord, field) == row.get(field))
-                predicates.append(FuelRecord.is_full_tank == bool(row.get("is_full_tank", True)))
                 existing = await db.execute(select(FuelRecord).where(*predicates))
                 # .first(), not scalar_one_or_none(): pre-existing duplicates in
                 # the table would otherwise raise MultipleResultsFound.
@@ -1518,6 +1516,7 @@ async def _persist_parsed_fuel(
             record = FuelRecord(
                 vin=vin,
                 date=date,
+                filled_at=row.get("filled_at"),
                 odometer_km=odometer_km,
                 liters=row.get("liters"),
                 kwh=row.get("kwh"),

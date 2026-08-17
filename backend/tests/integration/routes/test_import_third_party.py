@@ -1,6 +1,6 @@
 """Integration tests for third-party fuel CSV import (Fuelio / Drivvo / Tesla)."""
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 
 import pytest
@@ -157,8 +157,13 @@ class TestThirdPartyFuelImport:
         assert result["success_count"] == 2
         assert result["skipped_count"] == 0
 
-    async def test_same_energy_different_cost_both_import(self, test_vehicle, db_session):
-        """Identity must span every field the importer persists, not just amounts."""
+    async def test_same_day_sessions_are_told_apart_by_time(self, test_vehicle, db_session):
+        """Two charge sessions on one day differ by time, not by metadata.
+
+        The adapters used to truncate the timestamp to a date, which left cost
+        and location as the only distinguishing fields. Those are editable in the
+        source app, so identity must not depend on them.
+        """
         from app.routes.import_data import _persist_parsed_fuel
 
         base = {
@@ -168,12 +173,63 @@ class TestThirdPartyFuelImport:
             "price_basis": "per_kwh",
         }
         parsed = [
-            {**base, "cost": Decimal("9.00"), "charge_location": "home"},
-            {**base, "cost": Decimal("18.00"), "charge_location": "public"},
+            {**base, "filled_at": datetime(2027, 3, 3, 8, 15), "cost": Decimal("9.00")},
+            {**base, "filled_at": datetime(2027, 3, 3, 19, 40), "cost": Decimal("18.00")},
         ]
         result = await _persist_parsed_fuel(test_vehicle["vin"], parsed, True, db_session)
         assert result["success_count"] == 2
         assert result["skipped_count"] == 0
+
+    async def test_reimport_of_a_corrected_file_still_dedupes(self, test_vehicle, db_session):
+        """Editing cost or notes in the source app must not create duplicates.
+
+        This is why identity is the natural key of the event rather than every
+        persisted column.
+        """
+        from app.routes.import_data import _persist_parsed_fuel
+
+        base = {
+            "date": date(2027, 3, 5),
+            "filled_at": datetime(2027, 3, 5, 11, 0),
+            "odometer_km": Decimal("53000"),
+            "kwh": Decimal("30.0"),
+            "price_basis": "per_kwh",
+        }
+        first = await _persist_parsed_fuel(
+            test_vehicle["vin"], [{**base, "cost": Decimal("9.00")}], True, db_session
+        )
+        assert first["success_count"] == 1
+
+        corrected = await _persist_parsed_fuel(
+            test_vehicle["vin"],
+            [{**base, "cost": Decimal("9.55"), "notes": "corrected in Tesla app"}],
+            True,
+            db_session,
+        )
+        assert corrected["success_count"] == 0
+        assert corrected["skipped_count"] == 1
+
+    async def test_tesla_export_preserves_the_charge_time(self):
+        """The time is the field that separates same-day sessions."""
+        from app.services.import_adapters.fuel_csv import parse_tesla
+
+        csv_data = (
+            "Charge Start Date,Charge End Date,Energy Added (kWh),Cost\n"
+            "2027-03-03 08:00:00,2027-03-03 08:45:00,30.0,9.00\n"
+            "2027-03-03 19:10:00,2027-03-03 19:55:00,30.0,18.00\n"
+        )
+        rows = parse_tesla(csv_data)
+        assert len(rows) == 2
+        assert rows[0]["filled_at"] == datetime(2027, 3, 3, 8, 45)
+        assert rows[1]["filled_at"] == datetime(2027, 3, 3, 19, 55)
+        assert rows[0]["date"] == date(2027, 3, 3)
+
+    async def test_date_only_export_has_no_timestamp(self):
+        """A date-only export leaves filled_at NULL rather than inventing a time."""
+        from app.services.import_adapters.fuel_csv import parse_fuelio
+
+        rows = parse_fuelio("Date,Odometer,Liters\n2027-03-03,45000,40\n")
+        assert rows[0]["filled_at"] is None
 
     async def test_truly_identical_rows_still_dedupe(self, test_engine, test_vehicle):
         """Regression guard, expected to pass before and after this task.
