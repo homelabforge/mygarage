@@ -23,7 +23,6 @@ def _load(name):
 
 def _make_vehicles_table(engine):
     """Minimal vehicles table for FK reference."""
-    is_pg = engine.dialect.name == "postgresql"
     with engine.begin() as conn:
         conn.execute(
             text(

@@ -9,7 +9,7 @@ fixture (PG runs skip when ``TEST_DATABASE_URL`` is unset).
 import importlib.util
 from pathlib import Path
 
-from sqlalchemy import inspect, text
+from sqlalchemy import text
 
 import app.migrations as _m
 
