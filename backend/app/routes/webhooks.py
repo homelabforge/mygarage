@@ -19,7 +19,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, ValidationError, field_validator
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy import select
@@ -265,7 +265,15 @@ class TelegramUpdate(BaseModel):
     message: dict[str, Any] | None = None
 
 
-def _parse_fuel_command(text: str) -> WebhookFuelPayload:
+def _parse_fuel_command(text: str) -> tuple[str, WebhookFuelPayload]:
+    """Parse a structured fuel command into (vehicle_key, payload).
+
+    The vehicle key is returned separately because it may be a nickname, which
+    is String(100), while the payload's vin field is capped at 17. Building the
+    payload straight from the raw key raised a bare pydantic ValidationError
+    inside the handler, which FastAPI renders as a 500. Resolving the key to a
+    real VIN is the caller's job.
+    """
     match = _FUEL_CMD.match(text.strip())
     if not match:
         raise HTTPException(
@@ -308,8 +316,8 @@ def _parse_fuel_command(text: str) -> WebhookFuelPayload:
     if match.group("cost"):
         cost = Decimal(match.group("cost"))
 
-    return WebhookFuelPayload(
-        vin=match.group("vehicle"),
+    return match.group("vehicle"), WebhookFuelPayload(
+        vin="0" * 17,  # placeholder; the caller overwrites with the resolved VIN
         odometer_km=odometer_km,
         liters=liters,
         kwh=kwh,
@@ -351,21 +359,36 @@ async def webhook_telegram(
     if configured_chat and str(chat_id) != configured_chat:
         raise HTTPException(status_code=403, detail="Chat not authorized")
 
+    def _reply(message_text: str) -> dict[str, Any]:
+        """Telegram acts on a response body only when it names a method.
+
+        An unknown key like "reply" is discarded, so the user saw nothing.
+        """
+        return {"method": "sendMessage", "chat_id": chat_id, "text": message_text}
+
     if not text:
         return {"ok": True, "ignored": True}
 
     if text.lower() in ("help", "/help", "start", "/start"):
-        return {
-            "ok": True,
-            "reply": (
-                "MyGarage fuel bot\n"
-                "fuel <vin|nickname> <odometer>[km|mi] <volume>[L|gal|kWh] [price] [cost]"
-            ),
-        }
+        return _reply(
+            "MyGarage fuel bot\n"
+            "fuel <vin|nickname> <odometer>[km|mi] <volume>[L|gal|kWh] [price] [cost]"
+        )
 
-    payload = _parse_fuel_command(text)
-    # Resolve nickname → VIN before create
-    vehicle = await _resolve_vehicle(db, payload.vin)
-    payload.vin = vehicle.vin
-    result = await _create_fuel_record(db, payload)
-    return {"ok": True, "created": result}
+    # Answer bad input with 200 plus an explanation. A 4xx reads as a delivery
+    # failure to Telegram, which redelivers the same update with backoff, so one
+    # typo became a repeating loop. ValidationError is caught alongside
+    # HTTPException because the payload bounds are enforced by pydantic, not by
+    # the router, and a bare ValidationError here surfaces as a 500.
+    try:
+        vehicle_key, payload = _parse_fuel_command(text)
+        vehicle = await _resolve_vehicle(db, vehicle_key)
+        payload.vin = vehicle.vin
+        result = await _create_fuel_record(db, payload)
+    except HTTPException as exc:
+        return _reply(f"Could not log that: {exc.detail}")
+    except ValidationError as exc:
+        logger.info("Telegram command rejected by validation (%d errors)", exc.error_count())
+        return _reply("Could not log that: one of those values is out of range.")
+
+    return _reply(f"Logged fill-up for {result['vin']} on {result['date']}.")

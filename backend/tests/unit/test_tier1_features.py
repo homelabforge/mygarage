@@ -109,8 +109,8 @@ def test_project_wear_already_below_threshold():
 
 
 def test_parse_fuel_command_metric():
-    payload = _parse_fuel_command("fuel 1HGCM82633A004352 45000 40.5 1.55 62.78")
-    assert payload.vin == "1HGCM82633A004352"
+    vehicle_key, payload = _parse_fuel_command("fuel 1HGCM82633A004352 45000 40.5 1.55 62.78")
+    assert vehicle_key == "1HGCM82633A004352"
     assert payload.odometer_km == Decimal("45000")
     assert payload.liters == Decimal("40.5")
     assert payload.kwh is None
@@ -120,8 +120,8 @@ def test_parse_fuel_command_metric():
 
 
 def test_parse_fuel_command_imperial_and_kwh():
-    payload = _parse_fuel_command("fuel Model3 15000mi 42.5kWh 0.20 8.50")
-    assert payload.vin == "Model3"
+    vehicle_key, payload = _parse_fuel_command("fuel Model3 15000mi 42.5kWh 0.20 8.50")
+    assert vehicle_key == "Model3"
     assert payload.odometer_km == Decimal("15000") * Decimal("1.609344")
     assert payload.kwh == Decimal("42.5")
     assert payload.liters is None
@@ -131,7 +131,7 @@ def test_parse_fuel_command_imperial_and_kwh():
 
 
 def test_parse_fuel_command_gal_converts_price_to_per_liter():
-    payload = _parse_fuel_command("fuel Civic 10000mi 12gal 3.50")
+    _key, payload = _parse_fuel_command("fuel Civic 10000mi 12gal 3.50")
     assert payload.liters == Decimal("12") * Decimal("3.785411784")
     assert payload.price_per_unit == Decimal("3.50") / Decimal("3.785411784")
     assert payload.price_basis == "per_volume"
@@ -224,3 +224,15 @@ class TestChargeFieldValidation:
 
         payload = WebhookFuelPayload(vin="1HGCM82633A004352", kwh=45)
         assert payload.odometer_km is None
+
+
+def test_parse_fuel_command_accepts_long_nickname():
+    """Vehicle.nickname is String(100); the payload's vin is capped at 17.
+
+    Building the payload straight from the raw key raised a bare pydantic
+    ValidationError inside the handler, surfacing as a 500 rather than a 400,
+    and Telegram then retried the same update forever.
+    """
+    vehicle_key, payload = _parse_fuel_command("fuel MyOtherDailyDriver 45000 40")
+    assert vehicle_key == "MyOtherDailyDriver"
+    assert payload.odometer_km == Decimal("45000")

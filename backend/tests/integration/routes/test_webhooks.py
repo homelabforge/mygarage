@@ -4,8 +4,9 @@ from datetime import date
 from io import BytesIO
 
 import pytest
+import pytest_asyncio
 from httpx import AsyncClient
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.models.fuel import FuelRecord
 from app.models.settings import Setting
@@ -25,6 +26,28 @@ async def _set_setting(db_session, key: str, value: str) -> None:
     else:
         db_session.add(Setting(key=key, value=value))
     await db_session.commit()
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def _reset_webhook_settings(db_session):
+    """Clear the global webhook settings this module writes.
+
+    The suite shares one database with no per-test rollback, so leaving these
+    set changes the behaviour of every test that runs afterwards. Cleared before
+    as well as after, so a prior failure cannot leak into the next test either.
+    """
+
+    async def _clear():
+        for key in ("webhook_ingest_token", "telegram_inbound_enabled", "telegram_chat_id"):
+            result = await db_session.execute(select(Setting).where(Setting.key == key))
+            setting = result.scalar_one_or_none()
+            if setting is not None:
+                setting.value = ""
+        await db_session.commit()
+
+    await _clear()
+    yield
+    await _clear()
 
 
 @pytest.mark.integration
@@ -225,6 +248,63 @@ class TestWebhookIngest:
         )
         assert response.status_code == 200, response.text
 
+    async def test_telegram_reply_uses_send_message_method(self, client: AsyncClient, db_session):
+        """Telegram only acts on a body containing a 'method' key."""
+        await _set_setting(db_session, "webhook_ingest_token", "secret-webhook")
+        await _set_setting(db_session, "telegram_inbound_enabled", "true")
+        response = await client.post(
+            "/api/v1/webhooks/telegram",
+            json={"update_id": 1, "message": {"text": "help", "chat": {"id": 42}}},
+            headers={"X-Webhook-Token": "secret-webhook"},
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert body["method"] == "sendMessage"
+        assert body["chat_id"] == 42
+        assert "MyGarage" in body["text"]
+
+    async def test_telegram_bad_syntax_returns_200(self, client: AsyncClient, db_session):
+        """A 4xx makes Telegram redeliver the same update with backoff forever."""
+        await _set_setting(db_session, "webhook_ingest_token", "secret-webhook")
+        await _set_setting(db_session, "telegram_inbound_enabled", "true")
+        response = await client.post(
+            "/api/v1/webhooks/telegram",
+            json={"update_id": 2, "message": {"text": "fuel wat", "chat": {"id": 42}}},
+            headers={"X-Webhook-Token": "secret-webhook"},
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert body["method"] == "sendMessage"
+        assert "Could not log that" in body["text"]
+
+    async def test_telegram_out_of_range_value_returns_200(
+        self, client: AsyncClient, test_vehicle, db_session
+    ):
+        """Pydantic ValidationError is not HTTPException; it must also be caught."""
+        await _set_setting(db_session, "webhook_ingest_token", "secret-webhook")
+        await _set_setting(db_session, "telegram_inbound_enabled", "true")
+        vin = test_vehicle["vin"]
+        before = await db_session.scalar(
+            select(func.count()).select_from(FuelRecord).where(FuelRecord.vin == vin)
+        )
+        response = await client.post(
+            "/api/v1/webhooks/telegram",
+            json={
+                "update_id": 3,
+                "message": {"text": f"fuel {vin} 999999999999 40", "chat": {"id": 42}},
+            },
+            headers={"X-Webhook-Token": "secret-webhook"},
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert body["method"] == "sendMessage"
+        assert "Could not log that" in body["text"]
+
+        after = await db_session.scalar(
+            select(func.count()).select_from(FuelRecord).where(FuelRecord.vin == vin)
+        )
+        assert after == before, "a rejected command must not create a fuel record"
+
     async def test_query_param_token_is_rejected(
         self, client: AsyncClient, test_vehicle, db_session
     ):
@@ -309,8 +389,9 @@ class TestWebhookIngest:
         )
         assert response.status_code == 200
         body = response.json()
-        assert body["ok"] is True
-        assert body["created"]["vin"] == test_vehicle["vin"]
+        assert body["method"] == "sendMessage"
+        assert "Logged fill-up" in body["text"]
+        assert test_vehicle["vin"] in body["text"]
 
         result = await db_session.execute(
             select(FuelRecord).where(
@@ -332,7 +413,9 @@ class TestWebhookIngest:
             headers={"X-Webhook-Token": "secret-webhook"},
         )
         assert response.status_code == 200
-        assert "fuel <vin|nickname>" in response.json()["reply"]
+        body = response.json()
+        assert body["method"] == "sendMessage"
+        assert "fuel <vin|nickname>" in body["text"]
 
     async def test_ambiguous_nickname_returns_409(
         self, client: AsyncClient, test_vehicle, db_session
