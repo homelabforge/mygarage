@@ -1,8 +1,12 @@
 """Inbound webhook endpoints for fuel, odometer, reminders, and Telegram.
 
 Authenticated with the shared ``webhook_ingest_token`` setting via the
-``X-Webhook-Token`` header (or ``token`` query param). Used by the Home
-Assistant integration, n8n, and the structured Telegram bot.
+``X-Webhook-Token`` header. Used by the Home Assistant integration, n8n, and
+the structured Telegram bot.
+
+The token is deliberately NOT accepted as a query parameter: it would be
+written verbatim into granian, Traefik, and Cloudflare access logs, none of
+which this application controls.
 """
 
 from __future__ import annotations
@@ -14,11 +18,14 @@ from datetime import date as date_type
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.database import get_db
 from app.models.fuel import FuelRecord
 from app.models.odometer import OdometerRecord
@@ -29,6 +36,10 @@ from app.services.settings_service import SettingsService
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/webhooks", tags=["webhooks"])
+
+# Shared-secret auth with no account lockout, so cap guess rate per source IP.
+# Local Limiter instance matching the established pattern in routes/auth.py.
+limiter = Limiter(key_func=get_remote_address)
 
 # fuel <vin|nickname> <odometer> <volume> [price_per_unit] [cost]
 # volume may end with L, gal, or kWh; odometer may end with km/mi
@@ -44,12 +55,13 @@ _FUEL_CMD = re.compile(
 )
 
 
-async def require_webhook_token(
-    db: AsyncSession = Depends(get_db),
-    x_webhook_token: str | None = Header(None, alias="X-Webhook-Token"),
-    token: str | None = Query(None),
-) -> str:
-    """Validate the ingest token. Empty/unset token → 503 (not configured)."""
+async def require_webhook_token(db: AsyncSession, provided_token: str | None) -> str:
+    """Validate the ingest token. Empty/unset configured token -> 503.
+
+    Deliberately NOT a FastAPI dependency: dependencies resolve before slowapi's
+    endpoint wrapper runs, so a 401 raised from here would bypass the rate limit
+    and leave the shared secret brute-forceable at full request rate.
+    """
     setting = await SettingsService.get(db, "webhook_ingest_token")
     expected = (setting.value or "").strip() if setting else ""
     if not expected:
@@ -57,7 +69,7 @@ async def require_webhook_token(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Webhook ingest token is not configured",
         )
-    provided = (x_webhook_token or token or "").strip()
+    provided = (provided_token or "").strip()
     if not provided or not secrets.compare_digest(provided, expected):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid webhook token"
@@ -152,21 +164,27 @@ async def _create_fuel_record(db: AsyncSession, payload: WebhookFuelPayload) -> 
 
 
 @router.post("/fuel")
+@limiter.limit(settings.rate_limit_webhooks)
 async def webhook_fuel(
+    request: Request,
     payload: WebhookFuelPayload,
     db: AsyncSession = Depends(get_db),
-    _: str = Depends(require_webhook_token),
 ) -> dict[str, Any]:
     """Create a fuel / charge record (metric canonical)."""
+    # In-body, not Depends: see require_webhook_token's docstring.
+    await require_webhook_token(db, request.headers.get("X-Webhook-Token"))
     return await _create_fuel_record(db, payload)
 
 
 @router.post("/odometer")
+@limiter.limit(settings.rate_limit_webhooks)
 async def webhook_odometer(
+    request: Request,
     payload: WebhookOdometerPayload,
     db: AsyncSession = Depends(get_db),
-    _: str = Depends(require_webhook_token),
 ) -> dict[str, Any]:
+    # In-body, not Depends: see require_webhook_token's docstring.
+    await require_webhook_token(db, request.headers.get("X-Webhook-Token"))
     vehicle = await _resolve_vehicle(db, payload.vin)
     reading = OdometerRecord(
         vin=vehicle.vin,
@@ -182,11 +200,14 @@ async def webhook_odometer(
 
 
 @router.post("/reminders/complete")
+@limiter.limit(settings.rate_limit_webhooks)
 async def webhook_complete_reminder(
+    request: Request,
     payload: WebhookCompleteReminderPayload,
     db: AsyncSession = Depends(get_db),
-    _: str = Depends(require_webhook_token),
 ) -> dict[str, Any]:
+    # In-body, not Depends: see require_webhook_token's docstring.
+    await require_webhook_token(db, request.headers.get("X-Webhook-Token"))
     vehicle = await _resolve_vehicle(db, payload.vin)
     result = await db.execute(
         select(Reminder).where(
@@ -268,22 +289,24 @@ def _parse_fuel_command(text: str) -> WebhookFuelPayload:
 
 
 @router.post("/telegram")
+@limiter.limit(settings.rate_limit_webhooks)
 async def webhook_telegram(
+    request: Request,
     update: TelegramUpdate,
     db: AsyncSession = Depends(get_db),
-    x_webhook_token: str | None = Header(None, alias="X-Webhook-Token"),
-    token: str | None = Query(None),
 ) -> dict[str, Any]:
     """Telegram bot webhook — structured text fuel commands only (no OCR).
 
     Enable with ``telegram_inbound_enabled=true``. Auth: same webhook ingest
-    token via ``X-Webhook-Token`` header or ``token`` query param.
+    token via the ``X-Webhook-Token`` header.
     """
+    # Authenticate BEFORE reporting whether Telegram ingest is enabled, so an
+    # unauthenticated caller cannot probe the instance's configuration.
+    await require_webhook_token(db, request.headers.get("X-Webhook-Token"))
+
     inbound = await SettingsService.get(db, "telegram_inbound_enabled")
     if not inbound or (inbound.value or "").lower() != "true":
         raise HTTPException(status_code=403, detail="Telegram inbound is disabled")
-
-    await require_webhook_token(db, x_webhook_token, token)
 
     message = update.message or {}
     text = (message.get("text") or "").strip()

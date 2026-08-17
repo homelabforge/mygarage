@@ -210,6 +210,7 @@ class Settings(BaseSettings):
     rate_limit_uploads: str = "20/minute"
     rate_limit_auth: str = "5/minute"  # Strict limit for auth endpoints to prevent brute force
     rate_limit_exports: str = "5/minute"  # Strict limit for expensive export operations (PDF/CSV)
+    rate_limit_webhooks: str = "60/minute"  # Shared-secret ingest, brute-force ceiling
 
     # CSV Import Settings
     max_csv_size_mb: int = 10

@@ -153,6 +153,49 @@ class TestWebhookIngest:
         assert response.json()["status"] in VALID_REMINDER_STATUSES
         assert response.json()["status"] == "done"
 
+    async def test_query_param_token_is_rejected(
+        self, client: AsyncClient, test_vehicle, db_session
+    ):
+        """?token= leaks the shared secret into granian, Traefik and CF logs."""
+        await _set_setting(db_session, "webhook_ingest_token", "secret-webhook")
+        response = await client.post(
+            "/api/v1/webhooks/odometer?token=secret-webhook",
+            json={"vin": test_vehicle["vin"], "odometer_km": "45000"},
+        )
+        assert response.status_code == 401
+
+    async def test_header_token_still_works(self, client: AsyncClient, test_vehicle, db_session):
+        await _set_setting(db_session, "webhook_ingest_token", "secret-webhook")
+        response = await client.post(
+            "/api/v1/webhooks/odometer",
+            json={"vin": test_vehicle["vin"], "odometer_km": "45123"},
+            headers={"X-Webhook-Token": "secret-webhook"},
+        )
+        assert response.status_code == 200
+
+    async def test_webhook_is_rate_limited(self, client: AsyncClient, test_vehicle, db_session):
+        """A shared secret with no lockout must not be guessable at full rate.
+
+        The token check runs in the endpoint body rather than as a dependency
+        precisely so slowapi's wrapper sees the request first.
+        """
+        from app.routes.webhooks import limiter
+
+        limiter.reset()
+        await _set_setting(db_session, "webhook_ingest_token", "secret-webhook")
+        saw_429 = False
+        for _ in range(70):
+            response = await client.post(
+                "/api/v1/webhooks/odometer",
+                json={"vin": test_vehicle["vin"], "odometer_km": "45000"},
+                headers={"X-Webhook-Token": "wrong-token"},
+            )
+            if response.status_code == 429:
+                saw_429 = True
+                break
+        limiter.reset()
+        assert saw_429, "webhook routes accepted 70 token guesses without rate limiting"
+
     async def test_telegram_disabled_by_default(
         self, client: AsyncClient, test_vehicle, db_session
     ):
