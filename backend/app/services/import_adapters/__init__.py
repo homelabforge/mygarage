@@ -2,6 +2,7 @@
 
 from app.services.import_adapters.fuel_csv import (
     PARSERS,
+    ParseOptions,
     detect_format,
     parse_drivvo,
     parse_fuelio,
@@ -10,6 +11,7 @@ from app.services.import_adapters.fuel_csv import (
 
 __all__ = [
     "PARSERS",
+    "ParseOptions",
     "detect_format",
     "parse_drivvo",
     "parse_fuelio",

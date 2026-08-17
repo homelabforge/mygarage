@@ -236,3 +236,76 @@ def test_parse_fuel_command_accepts_long_nickname():
     vehicle_key, payload = _parse_fuel_command("fuel MyOtherDailyDriver 45000 40")
     assert vehicle_key == "MyOtherDailyDriver"
     assert payload.odometer_km == Decimal("45000")
+
+
+class TestParseOptions:
+    """Odometer unit and decimal separator are declared, never guessed."""
+
+    def test_comma_decimal_is_not_multiplied(self):
+        from app.services.import_adapters.fuel_csv import ParseOptions
+
+        csv_data = (
+            "Data,Odômetro,Quantidade (litros),Preço/litro,Total\n"
+            '2026-01-15,45000,"35,2","1,55","54,56"\n'
+        )
+        rows = parse_drivvo(csv_data, ParseOptions(decimal_separator="comma"))
+        assert rows[0]["liters"] == Decimal("35.2")
+        assert rows[0]["price_per_unit"] == Decimal("1.55")
+
+    def test_dot_separator_strips_thousands_commas(self):
+        from app.services.import_adapters.fuel_csv import _dec
+
+        assert _dec("1,234.5") == Decimal("1234.5")
+
+    def test_comma_separator_converts_to_dot(self):
+        from app.services.import_adapters.fuel_csv import _dec
+
+        assert _dec("35,2", sep="comma") == Decimal("35.2")
+        assert _dec("1.234,5", sep="comma") == Decimal("1234.5")
+
+    def test_miles_odometer_is_converted(self):
+        from app.services.import_adapters.fuel_csv import ParseOptions
+
+        csv_data = "Date,Odometer,Gallons,Price,Total cost\n2026-01-15,12345,10,3.50,35.00\n"
+        rows = parse_fuelio(csv_data, ParseOptions(odometer_unit="mi"))
+        assert rows[0]["odometer_km"] == Decimal("12345") * Decimal("1.609344")
+
+    def test_unambiguous_header_overrides_the_option(self):
+        from app.services.import_adapters.fuel_csv import ParseOptions
+
+        csv_data = "Date,Odometer (mi),Liters\n2026-01-15,12345,40\n"
+        rows = parse_drivvo(csv_data, ParseOptions(odometer_unit="km"))
+        assert rows[0]["odometer_km"] == Decimal("12345") * Decimal("1.609344")
+
+    def test_km_header_ignores_a_miles_declaration(self):
+        from app.services.import_adapters.fuel_csv import ParseOptions
+
+        csv_data = "Date,Odometer (km),Liters\n2026-01-15,12345,40\n"
+        rows = parse_drivvo(csv_data, ParseOptions(odometer_unit="mi"))
+        assert rows[0]["odometer_km"] == Decimal("12345")
+
+    def test_defaults_are_metric_and_dot(self):
+        from app.services.import_adapters.fuel_csv import ParseOptions
+
+        assert ParseOptions().odometer_unit == "km"
+        assert ParseOptions().decimal_separator == "dot"
+
+    def test_parsers_still_work_without_options(self):
+        csv_data = "Date,Odometer,Liters,Price,Total cost\n2026-01-15,45000,40,1.50,60.00\n"
+        rows = parse_fuelio(csv_data)
+        assert rows[0]["odometer_km"] == Decimal("45000")
+
+
+def test_odometro_alone_is_not_classified_drivvo():
+    """`a and b or c` binds as `(a and b) or c`.
+
+    Any header set containing 'odometro' was classified Drivvo regardless of the
+    intended 'data' guard, so the file went to a parser that finds none of its
+    columns and silently imported zero rows. After the fix it is unrecognized,
+    which the endpoint reports as an explicit 400 instead.
+    """
+    assert detect_format("Fecha,odometro,Gallons,Price\n2026-01-15,45000,10,3.50\n") is None
+
+
+def test_drivvo_pt_still_detected():
+    assert detect_format("Data,Odômetro,Quantidade (litros)\n2026-01-15,45000,35.2\n") == "drivvo"
