@@ -19,7 +19,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy import select
@@ -31,6 +31,7 @@ from app.models.fuel import FuelRecord
 from app.models.odometer import OdometerRecord
 from app.models.reminder import Reminder
 from app.models.vehicle import Vehicle
+from app.schemas.fuel import CHARGE_LEVEL_VALUES, CHARGE_LOCATION_VALUES
 from app.services.fuel_side_effects import (
     apply_fuel_record_side_effects,
     invalidate_cache_for_vehicle,
@@ -82,22 +83,46 @@ async def require_webhook_token(db: AsyncSession, provided_token: str | None) ->
 
 
 class WebhookFuelPayload(BaseModel):
+    """Inbound fuel/charge payload.
+
+    Numeric bounds mirror FuelRecordBase. Without them SQLite stores an absurd
+    value silently, and on PostgreSQL the driver raises a DataError that
+    surfaces as a 500 rather than a 4xx.
+
+    Unlike FuelRecordCreate, odometer and amount are both optional: a charge
+    session legitimately arrives with neither.
+    """
+
     vin: str = Field(..., max_length=17)
     date: date_type | None = None
-    odometer_km: Decimal | None = None
-    liters: Decimal | None = None
-    kwh: Decimal | None = None
-    cost: Decimal | None = None
-    price_per_unit: Decimal | None = None
+    odometer_km: Decimal | None = Field(None, ge=0, le=99999999.99)
+    liters: Decimal | None = Field(None, ge=0, le=9999.999)
+    kwh: Decimal | None = Field(None, ge=0, le=99999.999)
+    cost: Decimal | None = Field(None, ge=0, le=99999.99)
+    price_per_unit: Decimal | None = Field(None, ge=0, le=999.999)
     price_basis: str | None = None
     is_full_tank: bool = True
     notes: str | None = None
-    soc_start_pct: Decimal | None = None
-    soc_end_pct: Decimal | None = None
-    charge_level: str | None = None
-    charge_location: str | None = None
-    battery_soh_pct: Decimal | None = None
+    soc_start_pct: Decimal | None = Field(None, ge=0, le=100)
+    soc_end_pct: Decimal | None = Field(None, ge=0, le=100)
+    charge_level: str | None = Field(None, max_length=10)
+    charge_location: str | None = Field(None, max_length=20)
+    battery_soh_pct: Decimal | None = Field(None, ge=0, le=100)
     fuel_type_used: str | None = None
+
+    @field_validator("charge_level")
+    @classmethod
+    def _check_charge_level(cls, v: str | None) -> str | None:
+        if v is not None and v not in CHARGE_LEVEL_VALUES:
+            raise ValueError(f"charge_level must be one of {CHARGE_LEVEL_VALUES}, got {v!r}")
+        return v
+
+    @field_validator("charge_location")
+    @classmethod
+    def _check_charge_location(cls, v: str | None) -> str | None:
+        if v is not None and v not in CHARGE_LOCATION_VALUES:
+            raise ValueError(f"charge_location must be one of {CHARGE_LOCATION_VALUES}, got {v!r}")
+        return v
 
 
 class WebhookOdometerPayload(BaseModel):

@@ -5,6 +5,7 @@ from decimal import Decimal
 
 import pytest
 from fastapi import HTTPException
+from pydantic import ValidationError
 
 from app.routes.webhooks import _parse_fuel_command
 from app.schemas.fuel import FuelRecordCreate
@@ -172,3 +173,54 @@ def test_fuel_record_create_rejects_bad_charge_level():
             kwh=Decimal("10"),
             charge_level="L3",
         )
+
+
+class TestChargeFieldValidation:
+    """Create was validated; update and the webhook payload were not."""
+
+    def test_update_rejects_bad_charge_level(self):
+        from app.schemas.fuel import FuelRecordUpdate
+
+        with pytest.raises(ValidationError):
+            FuelRecordUpdate(charge_level="L3")
+
+    def test_update_rejects_bad_charge_location(self):
+        from app.schemas.fuel import FuelRecordUpdate
+
+        with pytest.raises(ValidationError):
+            FuelRecordUpdate(charge_location="work")
+
+    def test_update_accepts_valid_values(self):
+        from app.schemas.fuel import FuelRecordUpdate
+
+        assert FuelRecordUpdate(charge_level="DCFC").charge_level == "DCFC"
+        assert FuelRecordUpdate(charge_location="home").charge_location == "home"
+
+    def test_webhook_payload_rejects_bad_charge_level(self):
+        from app.routes.webhooks import WebhookFuelPayload
+
+        with pytest.raises(ValidationError):
+            WebhookFuelPayload(vin="1HGCM82633A004352", charge_level="L4")
+
+    @pytest.mark.parametrize(
+        "field,value",
+        [
+            ("soc_start_pct", 101),
+            ("soc_end_pct", -1),
+            ("battery_soh_pct", 150),
+            ("liters", -5),
+            ("odometer_km", -1),
+        ],
+    )
+    def test_webhook_payload_rejects_out_of_range(self, field, value):
+        from app.routes.webhooks import WebhookFuelPayload
+
+        with pytest.raises(ValidationError):
+            WebhookFuelPayload(vin="1HGCM82633A004352", **{field: value})
+
+    def test_webhook_payload_allows_charge_session_without_odometer_or_amount(self):
+        """The webhook contract is deliberately looser than FuelRecordCreate."""
+        from app.routes.webhooks import WebhookFuelPayload
+
+        payload = WebhookFuelPayload(vin="1HGCM82633A004352", kwh=45)
+        assert payload.odometer_km is None

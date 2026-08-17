@@ -481,6 +481,20 @@ class FuelRecordUpdate(BaseModel):
     obc_avg_speed_kmh: Decimal | None = Field(None, ge=0, le=9999.9)
     obc_trip_duration_s: int | None = Field(None, ge=0)
 
+    @field_validator("charge_level")
+    @classmethod
+    def _check_charge_level_update(cls, v: str | None) -> str | None:
+        if v is not None and v not in CHARGE_LEVEL_VALUES:
+            raise ValueError(f"charge_level must be one of {CHARGE_LEVEL_VALUES}, got {v!r}")
+        return v
+
+    @field_validator("charge_location")
+    @classmethod
+    def _check_charge_location_update(cls, v: str | None) -> str | None:
+        if v is not None and v not in CHARGE_LOCATION_VALUES:
+            raise ValueError(f"charge_location must be one of {CHARGE_LOCATION_VALUES}, got {v!r}")
+        return v
+
     @field_validator("price_basis")
     @classmethod
     def _check_price_basis(cls, v: str | None) -> str | None:
