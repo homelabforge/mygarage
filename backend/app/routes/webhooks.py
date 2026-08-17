@@ -197,7 +197,10 @@ async def webhook_complete_reminder(
     reminder = result.scalar_one_or_none()
     if not reminder:
         raise HTTPException(status_code=404, detail="Reminder not found")
-    reminder.status = "completed"
+    # "done" is the app's completion status. reminders.py filters on
+    # pending|done|dismissed and the UI renders exactly those three tabs, so any
+    # other value makes the reminder invisible and unrecoverable.
+    reminder.status = "done"
     await db.commit()
     return {"id": reminder.id, "status": reminder.status}
 

@@ -160,3 +160,31 @@ class TestTireRoutes:
         assert updated.status_code == 200
         assert updated.json()["brand"] == "Pirelli"
         assert updated.json()["notes"] == "rotated"
+
+    async def test_low_tread_reminder_cleared_with_done_status(
+        self, client: AsyncClient, auth_headers, test_vehicle, db_session
+    ):
+        """A cleared low-tread reminder must stay findable in the UI.
+
+        'completed' is not in the app vocabulary, so a reminder set to it drops
+        out of every list filter and can never be reopened or deleted.
+        """
+        from sqlalchemy import select
+
+        from app.models.reminder import Reminder
+
+        vin = test_vehicle["vin"]
+        await client.post(
+            f"/api/vehicles/{vin}/tires",
+            headers=auth_headers,
+            json={"vin": vin, "position": "RL", "tread_depth_mm": "2.0", "min_tread_mm": "3.0"},
+        )
+        await client.post(
+            f"/api/vehicles/{vin}/tires",
+            headers=auth_headers,
+            json={"vin": vin, "position": "RL", "tread_depth_mm": "8.0", "min_tread_mm": "3.0"},
+        )
+        result = await db_session.execute(
+            select(Reminder).where(Reminder.vin == vin, Reminder.title == "Tire tread low (RL)")
+        )
+        assert result.scalar_one().status == "done"

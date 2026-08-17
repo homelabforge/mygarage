@@ -143,7 +143,15 @@ class TireService:
                 for key, value in payload.items():
                     setattr(tire, key, value)
             await self.db.commit()
-            await self.db.refresh(tire, attribute_names=["readings"])
+            # Re-query rather than refresh(attribute_names=["readings"]).
+            # updated_at is server-side onupdate=func.now(), so the flush leaves
+            # it expired even with expire_on_commit=False; a partial refresh left
+            # TireResponse to lazy-load it and the update path raised
+            # MissingGreenlet -> 500 after the write had already committed.
+            result = await self.db.execute(
+                select(Tire).where(Tire.id == tire.id).options(selectinload(Tire.readings))
+            )
+            tire = result.scalar_one()
             await self._sync_low_tread_reminder(tire)
             return self._to_response(tire)
         except HTTPException:
@@ -288,5 +296,5 @@ class TireService:
             self.db.add(reminder)
             await self.db.commit()
         elif not below and existing is not None:
-            existing.status = "completed"
+            existing.status = "done"
             await self.db.commit()

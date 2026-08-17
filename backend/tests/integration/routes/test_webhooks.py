@@ -11,6 +11,11 @@ from app.models.fuel import FuelRecord
 from app.models.settings import Setting
 from app.models.vehicle import Vehicle
 
+# The app's complete reminder vocabulary. routes/reminders.py filters on these
+# and the UI renders exactly these three tabs, so any other value makes a
+# reminder invisible and unrecoverable.
+VALID_REMINDER_STATUSES = {"pending", "done", "dismissed"}
+
 
 async def _set_setting(db_session, key: str, value: str) -> None:
     result = await db_session.execute(select(Setting).where(Setting.key == key))
@@ -145,7 +150,8 @@ class TestWebhookIngest:
             headers={"X-Webhook-Token": "secret-webhook"},
         )
         assert response.status_code == 200
-        assert response.json()["status"] == "completed"
+        assert response.json()["status"] in VALID_REMINDER_STATUSES
+        assert response.json()["status"] == "done"
 
     async def test_telegram_disabled_by_default(
         self, client: AsyncClient, test_vehicle, db_session
