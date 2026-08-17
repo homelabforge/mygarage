@@ -46,10 +46,18 @@ async def sync_odometer_from_record(
     if odometer_km is None:
         return None
 
+    # idx_odometer_vin_date is NOT unique, and multiple readings on one date are
+    # legitimate (a manual entry plus a device reading, start/end of a trip day).
+    # scalar_one_or_none() therefore raised MultipleResultsFound and surfaced as
+    # a 500 on any fuel/service record sharing that date. Take the newest row and
+    # order deterministically so repeated syncs pick the same target.
     result = await db.execute(
-        select(OdometerRecord).where(OdometerRecord.vin == vin).where(OdometerRecord.date == date)
+        select(OdometerRecord)
+        .where(OdometerRecord.vin == vin)
+        .where(OdometerRecord.date == date)
+        .order_by(OdometerRecord.id.desc())
     )
-    existing = result.scalar_one_or_none()
+    existing = result.scalars().first()
 
     auto_sync_marker = f"[AUTO-SYNC from {source_type} #{source_id}]"
 

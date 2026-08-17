@@ -45,6 +45,10 @@ from app.models import (
 from app.models.user import User
 from app.models.vendor import Vendor
 from app.services.auth import get_vehicle_or_403, require_auth
+from app.services.fuel_side_effects import (
+    apply_fuel_record_side_effects,
+    invalidate_cache_for_vehicle,
+)
 from app.utils.def_sync import ensure_def_capable
 from app.utils.file_validation import validate_csv_upload
 from app.utils.logging_utils import sanitize_for_log
@@ -1408,6 +1412,11 @@ async def _persist_parsed_fuel(
     db: AsyncSession,
 ):
     import_result = ImportResult()
+    # date -> (odometer_km, record). Odometer sync matches on (vin, date) and
+    # overwrites, so syncing every row would let CSV order decide the stored
+    # value and reassign the cascade FK. Sync once per date with the highest
+    # reading, which is the only choice that survives reordering the file.
+    best_per_date: dict[date_type, tuple[Decimal, FuelRecord]] = {}
     for row_num, row in enumerate(parsed, start=2):
         try:
             date = row.get("date")
@@ -1444,10 +1453,30 @@ async def _persist_parsed_fuel(
                 charge_location=row.get("charge_location"),
                 battery_soh_pct=row.get("battery_soh_pct"),
             )
-            db.add(record)
+            # Savepoint per row: the flush below populates record.id, and a bare
+            # flush failure would poison the session for every remaining row.
+            async with db.begin_nested():
+                db.add(record)
+                await db.flush()
+            if record.odometer_km is not None:
+                best = best_per_date.get(record.date)
+                if best is None or record.odometer_km > best[0]:
+                    best_per_date[record.date] = (record.odometer_km, record)
             import_result.add_success()
         except Exception as e:
             logger.error("External fuel import row %d failed: %s", row_num, e)
             import_result.add_error(row_num, "Invalid fuel record data")
+
+    for _odometer, record in best_per_date.values():
+        try:
+            async with db.begin_nested():
+                await apply_fuel_record_side_effects(db, record)
+        except Exception as e:
+            # Derived data only. Log and keep the fuel rows: letting this escape
+            # would reach get_db's handler, which rolls back the outer
+            # transaction and would discard the entire import.
+            logger.warning("Odometer sync failed for imported fuel record %s: %s", record.id, e)
+
     await db.commit()
+    await invalidate_cache_for_vehicle(vin)
     return import_result.to_dict()

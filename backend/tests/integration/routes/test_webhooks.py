@@ -153,6 +153,78 @@ class TestWebhookIngest:
         assert response.json()["status"] in VALID_REMINDER_STATUSES
         assert response.json()["status"] == "done"
 
+    async def test_webhook_fuel_syncs_odometer(self, client: AsyncClient, test_vehicle, db_session):
+        """A webhook fill-up must reach the odometer log like a UI fill-up does.
+
+        Without it the Odometer tab and every mileage-based reminder never see
+        the reading, so "due in X km" stays stale forever.
+        """
+        from app.models.odometer import OdometerRecord
+
+        await _set_setting(db_session, "webhook_ingest_token", "secret-webhook")
+        vin = test_vehicle["vin"]
+        # An explicit unused date: sync_odometer_from_record matches on
+        # (vin, date) and refuses to overwrite a manual record, so colliding
+        # with another test's date would fail this for the wrong reason.
+        response = await client.post(
+            "/api/v1/webhooks/fuel",
+            json={
+                "vin": vin,
+                "date": "2026-09-14",
+                "odometer_km": "77321",
+                "liters": "40",
+                "cost": "60",
+            },
+            headers={"X-Webhook-Token": "secret-webhook"},
+        )
+        assert response.status_code == 200
+        fuel_id = response.json()["id"]
+
+        # The model's columns are `source` and `fuel_record_id`; source_type and
+        # source_id are parameter names on sync_odometer_from_record, not columns.
+        result = await db_session.execute(
+            select(OdometerRecord).where(
+                OdometerRecord.vin == vin,
+                OdometerRecord.source == "fuel",
+                OdometerRecord.fuel_record_id == fuel_id,
+            )
+        )
+        assert result.scalar_one_or_none() is not None, "webhook fill-up did not sync odometer"
+
+    async def test_fuel_sync_survives_two_odometer_rows_on_one_date(
+        self, client: AsyncClient, test_vehicle, db_session
+    ):
+        """Two readings on one date are legitimate; syncing must not 500.
+
+        idx_odometer_vin_date is not unique, so a manual entry plus a device
+        reading (or two webhook posts) can share a date. sync_odometer_from_record
+        used scalar_one_or_none(), which raised MultipleResultsFound and surfaced
+        as a 500 on any fuel record for that date.
+        """
+        await _set_setting(db_session, "webhook_ingest_token", "secret-webhook")
+        vin = test_vehicle["vin"]
+        headers = {"X-Webhook-Token": "secret-webhook"}
+
+        for km in ("61000", "61050"):
+            resp = await client.post(
+                "/api/v1/webhooks/odometer",
+                json={"vin": vin, "date": "2026-10-02", "odometer_km": km},
+                headers=headers,
+            )
+            assert resp.status_code == 200
+
+        response = await client.post(
+            "/api/v1/webhooks/fuel",
+            json={
+                "vin": vin,
+                "date": "2026-10-02",
+                "odometer_km": "61100",
+                "liters": "35",
+            },
+            headers=headers,
+        )
+        assert response.status_code == 200, response.text
+
     async def test_query_param_token_is_rejected(
         self, client: AsyncClient, test_vehicle, db_session
     ):
