@@ -631,21 +631,24 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
 
           {showKwh && (
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-              <Field id="soc_start_pct" label={t('fuel.socStart')} unit="%">
+              <Field id="soc_start_pct" label={t('fuel.socStart')} unit="%" error={errors.soc_start_pct}>
                 <NumberInput id="soc_start_pct" {...registerDecimal(register, 'soc_start_pct')} invalid={!!errors.soc_start_pct} disabled={isSubmitting} />
               </Field>
-              <Field id="soc_end_pct" label={t('fuel.socEnd')} unit="%">
+              <Field id="soc_end_pct" label={t('fuel.socEnd')} unit="%" error={errors.soc_end_pct}>
                 <NumberInput id="soc_end_pct" {...registerDecimal(register, 'soc_end_pct')} invalid={!!errors.soc_end_pct} disabled={isSubmitting} />
               </Field>
-              <Field id="battery_soh_pct" label={t('fuel.batterySoh')} unit="%">
+              <Field id="battery_soh_pct" label={t('fuel.batterySoh')} unit="%" error={errors.battery_soh_pct}>
                 <NumberInput id="battery_soh_pct" {...registerDecimal(register, 'battery_soh_pct')} invalid={!!errors.battery_soh_pct} disabled={isSubmitting} />
               </Field>
-              <Field id="charge_level" label={t('fuel.chargeLevel')}>
+              {/* placeholder must be truthy: Select renders the empty option only
+                  when it is, so placeholder="" showed 'L1' while submitting
+                  undefined, and the field could never be cleared back to null. */}
+              <Field id="charge_level" label={t('fuel.chargeLevel')} error={errors.charge_level}>
                 <Select
                   id="charge_level"
                   {...register('charge_level')}
                   disabled={isSubmitting}
-                  placeholder=""
+                  placeholder={t('fuel.chargeLevelPlaceholder')}
                   options={[
                     { value: 'L1', label: 'L1' },
                     { value: 'L2', label: 'L2' },
@@ -653,12 +656,12 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
                   ]}
                 />
               </Field>
-              <Field id="charge_location" label={t('fuel.chargeLocation')}>
+              <Field id="charge_location" label={t('fuel.chargeLocation')} error={errors.charge_location}>
                 <Select
                   id="charge_location"
                   {...register('charge_location')}
                   disabled={isSubmitting}
-                  placeholder=""
+                  placeholder={t('fuel.chargeLocationPlaceholder')}
                   options={[
                     { value: 'home', label: t('fuel.chargeHome') },
                     { value: 'public', label: t('fuel.chargePublic') },

@@ -475,3 +475,46 @@ describe('FuelRecordForm — OBC fields stay canonical-labeled in imperial (B9)'
     expect(screen.getByLabelText('fuel.obcAvgSpeed (km/h)')).toHaveAttribute('id', 'obc_avg_speed_kmh')
   })
 })
+
+describe('FuelRecordForm — EV charge session fields', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockedApiGet.mockResolvedValue({ data: mockVehicle({ fuel_type: 'electric' }) })
+  })
+
+  it('renders a clearable empty option on both charge selects', async () => {
+    render(<FuelRecordForm {...DEFAULT_PROPS} />)
+
+    const level = (await screen.findByLabelText('fuel.chargeLevel')) as HTMLSelectElement
+    const location = screen.getByLabelText('fuel.chargeLocation') as HTMLSelectElement
+
+    // placeholder="" is falsy, so Select rendered no empty option: the control
+    // read "L1" while the submitted value was undefined, and once a value was
+    // picked the field could never be cleared back to null.
+    expect(Array.from(level.querySelectorAll('option')).map((o) => o.value)).toContain('')
+    expect(Array.from(location.querySelectorAll('option')).map((o) => o.value)).toContain('')
+  })
+
+  it('defaults the charge selects to the empty option, not to L1', async () => {
+    render(<FuelRecordForm {...DEFAULT_PROPS} />)
+
+    const level = (await screen.findByLabelText('fuel.chargeLevel')) as HTMLSelectElement
+    expect(level.value).toBe('')
+  })
+
+  it('renders the validation error for the battery SOH field', async () => {
+    render(<FuelRecordForm {...DEFAULT_PROPS} />)
+
+    const soh = await screen.findByLabelText('fuel.batterySoh (%)')
+    fireEvent.change(soh, { target: { value: '150' } })
+    fireEvent.submit(drawerForm())
+
+    // The five new EV fields omitted their error prop, so Field never rendered
+    // the message paragraph and zod's max:100 rule was invisible to the user.
+    await waitFor(() => {
+      const error = document.getElementById('battery_soh_pct-error')
+      expect(error).not.toBeNull()
+      expect(error?.textContent).toBe('common:validation.def.fillLevelTooLarge')
+    })
+  })
+})

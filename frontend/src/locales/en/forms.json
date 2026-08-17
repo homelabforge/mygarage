@@ -114,7 +114,9 @@
     "chargeLevel": "Charge level",
     "chargeLocation": "Location",
     "chargeHome": "Home",
-    "chargePublic": "Public"
+    "chargePublic": "Public",
+    "chargeLevelPlaceholder": "Not recorded",
+    "chargeLocationPlaceholder": "Not recorded"
   },
   "hours": {
     "createTitle": "Add Engine Hours Reading",
