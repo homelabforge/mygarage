@@ -39,7 +39,7 @@
     "pricePerKwh": "Price per kWh",
     "propane": "Propane",
     "towingHaulingLoad": "Towing/Hauling Load",
-    "towPairHint": "This vehicle has linked trailers — consider marking hauling if you were towing.",
+    "towPairHint": "This vehicle has linked trailers. Consider marking hauling if you were towing.",
     "volume": "Volume",
     "moreDetails": "More details",
     "moreDetailsHint": "Optional: station, driver, payment, trip type, on-board computer values",

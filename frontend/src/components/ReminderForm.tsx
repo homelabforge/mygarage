@@ -434,9 +434,9 @@ export default function ReminderForm({ vin, reminder, currentMileage, currentHou
           <div className="space-y-3">
             {hasMileage && (
               <div>
-                {/* A <span> with aria-labelledby, not a <label>: a label with no
-                    htmlFor associates with nothing, and the control here is a
-                    group of buttons rather than a single form element. */}
+                {/* Deliberately not a label element: one with no htmlFor
+                    associates with nothing, and the control here is a group of
+                    buttons rather than a single form element. */}
                 <span
                   id="reminder-mileage-baseline-label"
                   className="block text-sm font-medium text-text mb-1"
@@ -564,9 +564,9 @@ export default function ReminderForm({ vin, reminder, currentMileage, currentHou
           <div className="space-y-3">
             {hasHours && (
               <div>
-                {/* A <span> with aria-labelledby, not a <label>: a label with no
-                    htmlFor associates with nothing, and the control here is a
-                    group of buttons rather than a single form element. */}
+                {/* Deliberately not a label element: one with no htmlFor
+                    associates with nothing, and the control here is a group of
+                    buttons rather than a single form element. */}
                 <span
                   id="reminder-hours-baseline-label"
                   className="block text-sm font-medium text-text mb-1"
