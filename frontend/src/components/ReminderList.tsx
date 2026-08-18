@@ -61,11 +61,11 @@ export default function ReminderList({ vin }: ReminderListProps) {
     setApplyingPack(true)
     try {
       await api.post(`/vehicles/${vin}/reminders/apply-pack`, { pack_id: selectedPack })
-      toast.success(t('reminderList.packApplied', { defaultValue: 'Reminder pack applied' }))
+      toast.success(t('reminderList.packApplied'))
       await queryClient.invalidateQueries({ queryKey: ['reminders', vin] })
       setSelectedPack('')
     } catch {
-      toast.error(t('reminderList.packApplyError', { defaultValue: 'Failed to apply pack' }))
+      toast.error(t('reminderList.packApplyError'))
     } finally {
       setApplyingPack(false)
     }
@@ -143,11 +143,11 @@ export default function ReminderList({ vin }: ReminderListProps) {
           <div className="min-w-[220px] flex-1">
             <Select
               id="reminder-pack"
-              aria-label={t('reminderList.applyPack', { defaultValue: 'Apply reminder pack' })}
+              aria-label={t('reminderList.applyPackAria')}
               value={selectedPack}
               onChange={(e) => setSelectedPack(e.target.value)}
               options={[
-                { value: '', label: t('reminderList.choosePack', { defaultValue: 'Choose a pack…' }) },
+                { value: '', label: t('reminderList.choosePack') },
                 ...packs.map((p) => ({ value: p.id, label: p.name })),
               ]}
             />
@@ -160,7 +160,7 @@ export default function ReminderList({ vin }: ReminderListProps) {
             disabled={!selectedPack}
             onClick={() => void applyPack()}
           >
-            {t('reminderList.applyPack', { defaultValue: 'Apply pack' })}
+            {t('reminderList.applyPack')}
           </Button>
         </div>
       )}

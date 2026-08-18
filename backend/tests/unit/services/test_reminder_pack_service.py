@@ -22,3 +22,17 @@ class TestReminderPackService:
         assert pack.reminders[0].title == "Oil & Filter Change"
         assert pack.reminders[0].due_date_offset_days == 180
         assert any(r.title == "Inspect Drain Plug Washer" for r in pack.reminders)
+
+    def test_get_pack_rejects_path_traversal(self):
+        from fastapi import HTTPException
+
+        for pack_id in (
+            "../oil_and_filter",
+            "../../etc/passwd",
+            "/etc/passwd",
+            "oil_and_filter/../oil_and_filter",
+            "foo.json\x00",
+        ):
+            with pytest.raises(HTTPException) as exc:
+                get_pack(pack_id)
+            assert exc.value.status_code == 404

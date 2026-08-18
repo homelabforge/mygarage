@@ -2468,6 +2468,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/notifications/test/matrix": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test Matrix Connection
+         * @description Test Matrix homeserver connection.
+         */
+        post: operations["test_matrix_connection_api_notifications_test_matrix_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/notifications/test/ntfy": {
         parameters: {
             query?: never;
@@ -2731,6 +2751,26 @@ export interface paths {
          *     returned, matching ``VehicleService.list_vehicles``.
          */
         get: operations["list_quick_entry_vehicles_api_quick_entry_vehicles_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reminder-packs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Reminder Packs
+         * @description List built-in reminder packs available to apply to a vehicle.
+         */
+        get: operations["list_reminder_packs_api_reminder_packs_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4018,6 +4058,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/vehicles/{vin}/fuel/parse-receipt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Parse Fuel Receipt
+         * @description Parse a fuel receipt into a draft FuelRecord payload (does not persist).
+         *
+         *     Requires ``llm_receipt_parse_enabled``. Accepts multipart image/file and/or
+         *     a ``text`` form field. Returns draft fields only — never writes FuelRecord.
+         */
+        post: operations["parse_fuel_receipt_api_vehicles__vin__fuel_parse_receipt_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/vehicles/{vin}/fuel/{record_id}": {
         parameters: {
             query?: never;
@@ -5139,6 +5202,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/vehicles/{vin}/reminders/apply-pack": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply Reminder Pack
+         * @description Apply a built-in reminder pack to a vehicle (creates pending reminders).
+         */
+        post: operations["apply_reminder_pack_api_vehicles__vin__reminders_apply_pack_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/vehicles/{vin}/reminders/{reminder_id}": {
         parameters: {
             query?: never;
@@ -5858,6 +5941,26 @@ export interface paths {
          * @description Delete a toll transaction.
          */
         delete: operations["delete_toll_transaction_api_vehicles__vin__toll_transactions__transaction_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/vehicles/{vin}/towed-trailers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Towed Trailers
+         * @description List trailer vehicles paired to this tow vehicle via TrailerDetails.tow_vehicle_vin.
+         */
+        get: operations["list_towed_trailers_api_vehicles__vin__towed_trailers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -6640,6 +6743,14 @@ export interface components {
             severity: "warning" | "critical";
         };
         /**
+         * ApplyReminderPackRequest
+         * @description Request body for applying a reminder pack to a vehicle.
+         */
+        ApplyReminderPackRequest: {
+            /** Pack Id */
+            pack_id: string;
+        };
+        /**
          * AttachmentListResponse
          * @description Schema for list of attachments.
          * @example {
@@ -6923,6 +7034,13 @@ export interface components {
              * @default true
              */
             skip_duplicates: boolean;
+        };
+        /** Body_parse_fuel_receipt_api_vehicles__vin__fuel_parse_receipt_post */
+        Body_parse_fuel_receipt_api_vehicles__vin__fuel_parse_receipt_post: {
+            /** File */
+            file?: string | null;
+            /** Text */
+            text?: string | null;
         };
         /** Body_parse_insurance_pdf_api_vehicles__vin__insurance_parse_pdf_post */
         Body_parse_insurance_pdf_api_vehicles__vin__insurance_parse_pdf_post: {
@@ -8310,6 +8428,42 @@ export interface components {
             severity: "info" | "warning" | "critical";
             /** Title */
             title: string;
+        };
+        /**
+         * FuelReceiptDraft
+         * @description Draft fuel fields extracted from a receipt (never persisted automatically).
+         */
+        FuelReceiptDraft: {
+            /** Cost */
+            cost?: number | null;
+            /** Date */
+            date?: string | null;
+            /** Fuel Type Used */
+            fuel_type_used?: string | null;
+            /** Kwh */
+            kwh?: number | null;
+            /** Liters */
+            liters?: number | null;
+            /** Notes */
+            notes?: string | null;
+            /** Odometer Km */
+            odometer_km?: number | null;
+            /** Price Per Unit */
+            price_per_unit?: number | null;
+            /** Station Name */
+            station_name?: string | null;
+        };
+        /**
+         * FuelReceiptParseResponse
+         * @description Response for opt-in LLM receipt parse — draft only.
+         */
+        FuelReceiptParseResponse: {
+            draft: components["schemas"]["FuelReceiptDraft"];
+            /**
+             * Source
+             * @default llm
+             */
+            source: string;
         };
         /**
          * FuelRecordCreate
@@ -11045,6 +11199,23 @@ export interface components {
             reminder_type: "date" | "mileage" | "both" | "smart" | "hours";
             /** Title */
             title: string;
+        };
+        /**
+         * ReminderPackSummary
+         * @description Pack metadata returned by list endpoint.
+         */
+        ReminderPackSummary: {
+            /** Description */
+            description: string;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Reminder Count
+             * @description Number of reminders created when applied
+             */
+            reminder_count: number;
         };
         /**
          * ReminderResponse
@@ -19432,6 +19603,28 @@ export interface operations {
             };
         };
     };
+    test_matrix_connection_api_notifications_test_matrix_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
     test_ntfy_connection_api_notifications_test_ntfy_post: {
         parameters: {
             query?: never;
@@ -19696,6 +19889,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["QuickEntryVehicleList"];
+                };
+            };
+        };
+    };
+    list_reminder_packs_api_reminder_packs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReminderPackSummary"][];
                 };
             };
         };
@@ -21823,6 +22036,41 @@ export interface operations {
             };
         };
     };
+    parse_fuel_receipt_api_vehicles__vin__fuel_parse_receipt_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vin: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_parse_fuel_receipt_api_vehicles__vin__fuel_parse_receipt_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FuelReceiptParseResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_fuel_record_api_vehicles__vin__fuel__record_id__get: {
         parameters: {
             query?: never;
@@ -23744,6 +23992,41 @@ export interface operations {
             };
         };
     };
+    apply_reminder_pack_api_vehicles__vin__reminders_apply_pack_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vin: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApplyReminderPackRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReminderResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     update_reminder_api_vehicles__vin__reminders__reminder_id__put: {
         parameters: {
             query?: never;
@@ -25344,6 +25627,37 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_towed_trailers_api_vehicles__vin__towed_trailers_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vin: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VehicleResponse"][];
+                };
             };
             /** @description Validation Error */
             422: {

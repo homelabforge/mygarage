@@ -108,3 +108,31 @@ class TestReceiptParse:
             )
         )
         assert count.scalar_one() == 0
+
+    async def test_oversized_file_returns_413(
+        self, client: AsyncClient, auth_headers, test_vehicle, db_session
+    ):
+        await set_settings(db_session, {"llm_receipt_parse_enabled": "true"})
+        with patch("app.routes.fuel.MAX_RECEIPT_UPLOAD_BYTES", 16):
+            response = await client.post(
+                f"/api/vehicles/{test_vehicle['vin']}/fuel/parse-receipt",
+                files={"file": ("receipt.jpg", b"x" * 64, "image/jpeg")},
+                headers=auth_headers,
+            )
+        assert response.status_code == 413
+        assert (
+            "too large" in response.json()["detail"].lower()
+            or "exceeds" in response.json()["detail"].lower()
+        )
+
+    async def test_oversized_text_returns_413(
+        self, client: AsyncClient, auth_headers, test_vehicle, db_session
+    ):
+        await set_settings(db_session, {"llm_receipt_parse_enabled": "true"})
+        with patch("app.routes.fuel.MAX_RECEIPT_TEXT_CHARS", 8):
+            response = await client.post(
+                f"/api/vehicles/{test_vehicle['vin']}/fuel/parse-receipt",
+                data={"text": "this is longer than eight"},
+                headers=auth_headers,
+            )
+        assert response.status_code == 413

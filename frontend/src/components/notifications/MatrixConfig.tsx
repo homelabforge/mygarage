@@ -31,19 +31,17 @@ export function MatrixConfig({
         <Network className="w-6 h-6 text-primary" />
         <div>
           <h2 className="text-lg font-semibold text-garage-text">
-            {t('matrix.misc.title', { defaultValue: 'Matrix' })}
+            {t('matrix.misc.title')}
           </h2>
           <p className="text-sm text-garage-text-muted">
-            {t('matrix.misc.subtitle', {
-              defaultValue: 'Post MyGarage alerts to a Matrix room',
-            })}
+            {t('matrix.misc.subtitle')}
           </p>
         </div>
       </div>
 
       <div className="space-y-4">
         <Toggle
-          label={t('matrix.enable', { defaultValue: 'Enable Matrix notifications' })}
+          label={t('matrix.enable')}
           checked={isEnabled}
           onChange={(next) => onSettingChange('matrix_enabled', next)}
           disabled={saving}
@@ -51,7 +49,7 @@ export function MatrixConfig({
 
         <div>
           <label htmlFor="matrix_homeserver" className="block text-sm font-medium text-garage-text mb-1">
-            {t('matrix.homeserver', { defaultValue: 'Homeserver URL' })}
+            {t('matrix.homeserver')}
           </label>
           <input
             id="matrix_homeserver"
@@ -66,7 +64,7 @@ export function MatrixConfig({
 
         <div>
           <label htmlFor="matrix_access_token" className="block text-sm font-medium text-garage-text mb-1">
-            {t('matrix.accessToken', { defaultValue: 'Access token' })}
+            {t('matrix.accessToken')}
           </label>
           <input
             id="matrix_access_token"
@@ -80,7 +78,7 @@ export function MatrixConfig({
 
         <div>
           <label htmlFor="matrix_room_id" className="block text-sm font-medium text-garage-text mb-1">
-            {t('matrix.roomId', { defaultValue: 'Room ID' })}
+            {t('matrix.roomId')}
           </label>
           <input
             id="matrix_room_id"
@@ -101,8 +99,8 @@ export function MatrixConfig({
           >
             <Send size={16} />
             {testing
-              ? t('matrix.misc.sending', { defaultValue: 'Sending…' })
-              : t('matrix.misc.testConnection', { defaultValue: 'Test connection' })}
+              ? t('matrix.misc.sending')
+              : t('matrix.misc.testConnection')}
           </button>
         </div>
 
@@ -110,10 +108,7 @@ export function MatrixConfig({
           <div className="flex items-start gap-2">
             <Info className="w-4 h-4 text-garage-text-muted mt-0.5" />
             <p className="text-xs text-garage-text-muted">
-              {t('matrix.misc.setupHint', {
-                defaultValue:
-                  'Create a dedicated Matrix user, invite it to a room, and paste its access token here.',
-              })}
+              {t('matrix.misc.setupHint')}
             </p>
           </div>
         </div>

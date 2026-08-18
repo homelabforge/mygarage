@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -20,6 +21,18 @@ from app.services.reminder_service import get_current_hours, get_current_mileage
 logger = logging.getLogger(__name__)
 
 PACKS_DIR = Path(__file__).resolve().parent.parent / "data" / "reminder_packs"
+# Pack ids are filenames (minus .json). Reject anything that could traverse.
+_PACK_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
+
+
+def _path_within_packs(path: Path) -> Path | None:
+    """Return the resolved path if it stays inside PACKS_DIR, else None."""
+    try:
+        resolved = path.resolve()
+        resolved.relative_to(PACKS_DIR.resolve())
+    except ValueError, OSError:
+        return None
+    return resolved
 
 
 def _load_pack_file(path: Path) -> ReminderPackDetail:
@@ -36,8 +49,11 @@ def list_packs() -> list[ReminderPackSummary]:
         return packs
 
     for path in sorted(PACKS_DIR.glob("*.json")):
+        resolved = _path_within_packs(path)
+        if resolved is None or not resolved.is_file():
+            continue
         try:
-            detail = _load_pack_file(path)
+            detail = _load_pack_file(resolved)
         except (OSError, json.JSONDecodeError, ValueError) as exc:
             logger.error("Failed to load reminder pack %s: %s", path.name, exc)
             continue
@@ -54,28 +70,39 @@ def list_packs() -> list[ReminderPackSummary]:
 
 
 def get_pack(pack_id: str) -> ReminderPackDetail:
-    """Load a single pack by id, or raise 404."""
-    path = PACKS_DIR / f"{pack_id}.json"
-    if not path.is_file():
-        # Allow id mismatch with filename by scanning
+    """Load a single pack by id, or raise 404.
+
+    ``pack_id`` is never joined onto the filesystem unless it matches a
+    conservative identifier pattern, so ``../`` and absolute paths 404.
+    """
+    if not _PACK_ID_RE.fullmatch(pack_id):
+        raise HTTPException(status_code=404, detail=f"Reminder pack '{pack_id}' not found")
+
+    path = _path_within_packs(PACKS_DIR / f"{pack_id}.json")
+    if path is not None and path.is_file():
+        try:
+            detail = _load_pack_file(path)
+        except (OSError, json.JSONDecodeError, ValueError) as exc:
+            logger.error("Failed to load reminder pack %s: %s", pack_id, exc)
+            raise HTTPException(status_code=500, detail="Failed to load reminder pack") from exc
+        if detail.id != pack_id:
+            raise HTTPException(status_code=404, detail=f"Reminder pack '{pack_id}' not found")
+        return detail
+
+    # Filename may differ from id — scan only *.json directly in PACKS_DIR
+    if PACKS_DIR.is_dir():
         for candidate in PACKS_DIR.glob("*.json"):
+            resolved = _path_within_packs(candidate)
+            if resolved is None:
+                continue
             try:
-                detail = _load_pack_file(candidate)
-            except (OSError, json.JSONDecodeError, ValueError):
+                detail = _load_pack_file(resolved)
+            except OSError, json.JSONDecodeError, ValueError:
                 continue
             if detail.id == pack_id:
                 return detail
-        raise HTTPException(status_code=404, detail=f"Reminder pack '{pack_id}' not found")
 
-    try:
-        detail = _load_pack_file(path)
-    except (OSError, json.JSONDecodeError, ValueError) as exc:
-        logger.error("Failed to load reminder pack %s: %s", pack_id, exc)
-        raise HTTPException(status_code=500, detail="Failed to load reminder pack") from exc
-
-    if detail.id != pack_id:
-        raise HTTPException(status_code=404, detail=f"Reminder pack '{pack_id}' not found")
-    return detail
+    raise HTTPException(status_code=404, detail=f"Reminder pack '{pack_id}' not found")
 
 
 async def apply_pack(

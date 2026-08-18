@@ -19,6 +19,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Quick Entry / PWA deep links: `/quick-entry?action=add-fuel|add-service|odometer`.
 - Opt-in LLM fuel receipt parse (Ollama/OpenAI-compatible; draft only). See [docs/tier2-features.md](docs/tier2-features.md).
 
+### Fixed
+- Reminder pack loader rejects path-traversal `pack_id` values.
+- LLM receipt parse is rate-limited and rejects oversized uploads/text.
+- Matrix HTML payloads escape title/body and only link http(s) URLs.
+
 ### Changed
 - Tire add, edit and reading forms open in a side drawer, matching the rest of the app.
 - Tire position is chosen with toggle buttons rather than a dropdown, and positions already tracked stay visible.

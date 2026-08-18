@@ -14,8 +14,17 @@ interface TrailerTowPanelProps {
   vehicle: Vehicle
 }
 
-const HITCH_OPTIONS = ['Ball', 'Pintle', 'Fifth Wheel', 'Gooseneck']
-const BRAKE_OPTIONS = ['None', 'Electric', 'Hydraulic']
+const HITCH_OPTIONS = [
+  { value: 'Ball', labelKey: 'detail.tow.hitchBall' },
+  { value: 'Pintle', labelKey: 'detail.tow.hitchPintle' },
+  { value: 'Fifth Wheel', labelKey: 'detail.tow.hitchFifthWheel' },
+  { value: 'Gooseneck', labelKey: 'detail.tow.hitchGooseneck' },
+] as const
+const BRAKE_OPTIONS = [
+  { value: 'None', labelKey: 'detail.tow.brakeNone' },
+  { value: 'Electric', labelKey: 'detail.tow.brakeElectric' },
+  { value: 'Hydraulic', labelKey: 'detail.tow.brakeHydraulic' },
+] as const
 
 /**
  * Trailer details + tow-vehicle pairing for trailer-like vehicles,
@@ -85,7 +94,7 @@ export default function TrailerTowPanel({ vehicle }: TrailerTowPanelProps) {
       if (form.axle_count.trim()) {
         const parsed = parseDecimalInput(form.axle_count, getActiveLocale())
         if (parsed.kind !== 'value' || !Number.isInteger(parsed.value) || parsed.value < 1 || parsed.value > 10) {
-          toast.error(t('detail.tow.axlesInvalid', { defaultValue: 'Axle count must be a whole number from 1 to 10' }))
+          toast.error(t('detail.tow.axlesInvalid'))
           setSaving(false)
           return
         }
@@ -105,10 +114,10 @@ export default function TrailerTowPanel({ vehicle }: TrailerTowPanelProps) {
           ...payload,
         })
       }
-      toast.success(t('detail.tow.saved', { defaultValue: 'Trailer details saved' }))
+      toast.success(t('detail.tow.saved'))
       await load()
     } catch (err) {
-      toast.error(t('detail.tow.saveError', { defaultValue: 'Failed to save trailer details' }))
+      toast.error(t('detail.tow.saveError'))
       console.error(err)
     } finally {
       setSaving(false)
@@ -118,8 +127,8 @@ export default function TrailerTowPanel({ vehicle }: TrailerTowPanelProps) {
   if (loading) {
     return (
       <Card breakInside>
-        <CardHeader title={t('detail.tow.title', { defaultValue: 'Tow pairing' })} />
-        <p className="text-sm text-text-mute">{t('common:loading', { defaultValue: 'Loading…' })}</p>
+        <CardHeader title={t('detail.tow.loadingTitle')} />
+        <p className="text-sm text-text-mute">{t('common:loading')}</p>
       </Card>
     )
   }
@@ -129,7 +138,7 @@ export default function TrailerTowPanel({ vehicle }: TrailerTowPanelProps) {
     return (
       <Card breakInside>
         <CardHeader
-          title={t('detail.tow.linkedTrailers', { defaultValue: 'Linked trailers' })}
+          title={t('detail.tow.linkedTrailers')}
           icon={Link2}
         />
         <ul className="space-y-2">
@@ -148,15 +157,15 @@ export default function TrailerTowPanel({ vehicle }: TrailerTowPanelProps) {
 
   return (
     <Card breakInside>
-      <CardHeader title={t('detail.tow.title', { defaultValue: 'Trailer & tow vehicle' })} icon={Link2} />
+      <CardHeader title={t('detail.tow.title')} icon={Link2} />
       <div className="space-y-3">
-        <Field id="tow_vehicle_vin" label={t('detail.tow.towVehicle', { defaultValue: 'Tow vehicle' })}>
+        <Field id="tow_vehicle_vin" label={t('detail.tow.towVehicle')}>
           <Select
             id="tow_vehicle_vin"
             value={form.tow_vehicle_vin}
             onChange={(e) => setForm((f) => ({ ...f, tow_vehicle_vin: e.target.value }))}
             options={[
-              { value: '', label: t('detail.tow.none', { defaultValue: 'None' }) },
+              { value: '', label: t('detail.tow.none') },
               ...towCandidates.map((v) => ({
                 value: v.vin,
                 label: `${v.nickname} (${v.vin})`,
@@ -164,29 +173,29 @@ export default function TrailerTowPanel({ vehicle }: TrailerTowPanelProps) {
             ]}
           />
         </Field>
-        <Field id="hitch_type" label={t('detail.tow.hitch', { defaultValue: 'Hitch type' })}>
+        <Field id="hitch_type" label={t('detail.tow.hitch')}>
           <Select
             id="hitch_type"
             value={form.hitch_type}
             onChange={(e) => setForm((f) => ({ ...f, hitch_type: e.target.value }))}
             options={[
               { value: '', label: '—' },
-              ...HITCH_OPTIONS.map((h) => ({ value: h, label: h })),
+              ...HITCH_OPTIONS.map((h) => ({ value: h.value, label: t(h.labelKey) })),
             ]}
           />
         </Field>
-        <Field id="brake_type" label={t('detail.tow.brakes', { defaultValue: 'Brake type' })}>
+        <Field id="brake_type" label={t('detail.tow.brakes')}>
           <Select
             id="brake_type"
             value={form.brake_type}
             onChange={(e) => setForm((f) => ({ ...f, brake_type: e.target.value }))}
             options={[
               { value: '', label: '—' },
-              ...BRAKE_OPTIONS.map((h) => ({ value: h, label: h })),
+              ...BRAKE_OPTIONS.map((h) => ({ value: h.value, label: t(h.labelKey) })),
             ]}
           />
         </Field>
-        <Field id="axle_count" label={t('detail.tow.axles', { defaultValue: 'Axles' })}>
+        <Field id="axle_count" label={t('detail.tow.axles')}>
           <NumberInput
             id="axle_count"
             value={form.axle_count}
@@ -195,7 +204,7 @@ export default function TrailerTowPanel({ vehicle }: TrailerTowPanelProps) {
           />
         </Field>
         <Button variant="primary" icon={Save} loading={saving} onClick={() => void save()}>
-          {t('common:save', { defaultValue: 'Save' })}
+          {t('common:save')}
         </Button>
       </div>
     </Card>

@@ -8,6 +8,59 @@ from app.services.notifications.matrix import MatrixNotificationService
 
 
 @pytest.mark.asyncio
+async def test_matrix_escapes_html_in_formatted_body():
+    service = MatrixNotificationService(
+        homeserver="https://matrix.example.com",
+        access_token="syt_token",
+        room_id="!room:example.com",
+    )
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.raise_for_status = MagicMock()
+
+    with patch.object(service.client, "put", new=AsyncMock(return_value=mock_response)) as put:
+        ok = await service.send(
+            "<img src=x onerror=alert(1)>",
+            "Hello <script>alert(1)</script>",
+            url="javascript:alert(1)",
+        )
+        assert ok is True
+        payload = put.await_args.kwargs["json"]
+        html = payload["formatted_body"]
+        assert "<script>" not in html
+        assert "<img" not in html
+        assert "&lt;script&gt;" in html
+        assert "&lt;img" in html
+        assert "javascript:" not in html
+        assert "href=" not in html
+
+    await service.close()
+
+
+@pytest.mark.asyncio
+async def test_matrix_link_only_allows_http_urls():
+    service = MatrixNotificationService(
+        homeserver="https://matrix.example.com",
+        access_token="syt_token",
+        room_id="!room:example.com",
+    )
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.raise_for_status = MagicMock()
+
+    with patch.object(service.client, "put", new=AsyncMock(return_value=mock_response)) as put:
+        ok = await service.send("Title", "Body", url='https://example.com/x?q="><script>')
+        assert ok is True
+        html = put.await_args.kwargs["json"]["formatted_body"]
+        assert "<script>" not in html
+        assert "&quot;" in html
+        assert "&lt;script&gt;" in html
+        assert 'href="https://example.com/x?q=&quot;' in html
+
+    await service.close()
+
+
+@pytest.mark.asyncio
 async def test_matrix_send_success():
     service = MatrixNotificationService(
         homeserver="https://matrix.example.com",

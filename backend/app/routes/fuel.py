@@ -4,10 +4,23 @@ import logging
 from datetime import datetime, timedelta
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    Request,
+    UploadFile,
+    status,
+)
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.database import get_db
 from app.models.drive_session import DriveSession
 from app.models.user import User
@@ -26,6 +39,10 @@ from app.services.receipt_parse_service import parse_receipt_draft
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/vehicles/{vin}/fuel", tags=["Fuel Records"])
+limiter = Limiter(key_func=get_remote_address)
+# Receipt images go through OCR + an LLM call — cap like other uploads.
+MAX_RECEIPT_UPLOAD_BYTES = settings.max_upload_size_bytes
+MAX_RECEIPT_TEXT_CHARS = 16_000
 
 
 @router.get("", response_model=FuelRecordListResponse)
@@ -78,7 +95,9 @@ OBC_SUGGESTION_WINDOW = timedelta(hours=24)
 # IMPORTANT: must be declared BEFORE `/{record_id}` so FastAPI's declaration-
 # order routing doesn't try to parse path segments as an int record_id.
 @router.post("/parse-receipt", response_model=FuelReceiptParseResponse)
+@limiter.limit(settings.rate_limit_uploads)
 async def parse_fuel_receipt(
+    request: Request,
     vin: str,
     text: str | None = Form(None),
     file: UploadFile | None = File(None),
@@ -93,11 +112,24 @@ async def parse_fuel_receipt(
     vin = vin.upper().strip()
     await get_vehicle_or_403(vin, current_user, db, require_write=True)
 
+    if text is not None and len(text) > MAX_RECEIPT_TEXT_CHARS:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"Receipt text exceeds maximum of {MAX_RECEIPT_TEXT_CHARS} characters",
+        )
+
     file_bytes: bytes | None = None
     filename: str | None = None
     content_type: str | None = None
     if file is not None and file.filename:
         file_bytes = await file.read()
+        if len(file_bytes) > MAX_RECEIPT_UPLOAD_BYTES:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=(
+                    f"Receipt file exceeds maximum of {MAX_RECEIPT_UPLOAD_BYTES // (1024 * 1024)}MB"
+                ),
+            )
         filename = file.filename
         content_type = file.content_type
 

@@ -62,12 +62,20 @@ class TestReminderPacks:
         assert all(r["status"] == "pending" for r in created)
         assert all(r["due_date"] is not None for r in created)
 
-    async def test_apply_unknown_pack_404(
+    async def test_apply_unknown_pack_404(self, client: AsyncClient, auth_headers, test_vehicle):
+        response = await client.post(
+            f"/api/vehicles/{test_vehicle['vin']}/reminders/apply-pack",
+            json={"pack_id": "does_not_exist"},
+            headers=auth_headers,
+        )
+        assert response.status_code == 404
+
+    async def test_apply_path_traversal_pack_404(
         self, client: AsyncClient, auth_headers, test_vehicle
     ):
         response = await client.post(
             f"/api/vehicles/{test_vehicle['vin']}/reminders/apply-pack",
-            json={"pack_id": "does_not_exist"},
+            json={"pack_id": "../oil_and_filter"},
             headers=auth_headers,
         )
         assert response.status_code == 404

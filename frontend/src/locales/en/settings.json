@@ -261,6 +261,19 @@
       "docsLink": "Discord Webhooks Guide"
     }
   },
+  "matrix": {
+    "enable": "Enable Matrix notifications",
+    "homeserver": "Homeserver URL",
+    "accessToken": "Access token",
+    "roomId": "Room ID",
+    "misc": {
+      "title": "Matrix",
+      "subtitle": "Post MyGarage alerts to a Matrix room",
+      "sending": "Sending…",
+      "testConnection": "Test connection",
+      "setupHint": "Create a dedicated Matrix user, invite it to a room, and paste its access token here."
+    }
+  },
   "telegram": {
     "botToken": "Bot Token",
     "enable": "Enable Telegram notifications",

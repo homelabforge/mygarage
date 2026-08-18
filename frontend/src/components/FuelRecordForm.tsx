@@ -740,9 +740,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
               <Checkbox id="is_hauling" label={t('fuel.towingHaulingLoad')} {...register('is_hauling')} disabled={isSubmitting} />
               {hasLinkedTrailers && (
                 <p className="text-xs text-text-mute">
-                  {t('fuel.towPairHint', {
-                    defaultValue: 'This vehicle has linked trailers — consider marking hauling if you were towing.',
-                  })}
+                  {t('fuel.towPairHint')}
                 </p>
               )}
             </div>

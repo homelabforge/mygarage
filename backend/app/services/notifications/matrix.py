@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from html import escape
 from urllib.parse import quote
 
 import httpx
@@ -11,6 +12,26 @@ import httpx
 from app.services.notifications.base import NotificationService
 
 logger = logging.getLogger(__name__)
+
+
+def _http_url(url: str | None) -> str | None:
+    """Return ``url`` only when it is an http(s) link (safe for href)."""
+    if not url:
+        return None
+    stripped = url.strip()
+    lower = stripped.lower()
+    if lower.startswith("https://") or lower.startswith("http://"):
+        return stripped
+    return None
+
+
+def _formatted_body(title: str, message: str, url: str | None) -> str:
+    """HTML body with user-controlled fields escaped."""
+    html = f"<strong>{escape(title)}</strong><br/><br/>{escape(message)}"
+    safe_url = _http_url(url)
+    if safe_url:
+        html += f'<br/><br/><a href="{escape(safe_url, quote=True)}">View Details</a>'
+    return html
 
 
 class MatrixNotificationService(NotificationService):
@@ -38,10 +59,7 @@ class MatrixNotificationService(NotificationService):
     def _send_url(self, txn_id: str) -> str:
         room = quote(self.room_id, safe="")
         txn = quote(txn_id, safe="")
-        return (
-            f"{self.homeserver}/_matrix/client/v3/rooms/{room}"
-            f"/send/m.room.message/{txn}"
-        )
+        return f"{self.homeserver}/_matrix/client/v3/rooms/{room}/send/m.room.message/{txn}"
 
     async def close(self) -> None:
         """Close HTTP client."""
@@ -60,10 +78,7 @@ class MatrixNotificationService(NotificationService):
                 "msgtype": "m.text",
                 "body": f"{title}\n\n{message}" + (f"\n\n{url}" if url else ""),
                 "format": "org.matrix.custom.html",
-                "formatted_body": (
-                    f"<strong>{title}</strong><br/><br/>{message}"
-                    + (f'<br/><br/><a href="{url}">View Details</a>' if url else "")
-                ),
+                "formatted_body": _formatted_body(title, message, url),
             }
 
             txn_id = uuid.uuid4().hex

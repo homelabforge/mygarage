@@ -1079,6 +1079,22 @@
         "title": "AnomalyAlert",
         "type": "object"
       },
+      "ApplyReminderPackRequest": {
+        "description": "Request body for applying a reminder pack to a vehicle.",
+        "properties": {
+          "pack_id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Pack Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pack_id"
+        ],
+        "title": "ApplyReminderPackRequest",
+        "type": "object"
+      },
       "AttachmentListResponse": {
         "description": "Schema for list of attachments.",
         "examples": [
@@ -1553,6 +1569,35 @@
           "file"
         ],
         "title": "Body_import_warranties_csv_api_import_vehicles__vin__warranties_csv_post",
+        "type": "object"
+      },
+      "Body_parse_fuel_receipt_api_vehicles__vin__fuel_parse_receipt_post": {
+        "properties": {
+          "file": {
+            "anyOf": [
+              {
+                "contentMediaType": "application/octet-stream",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          }
+        },
+        "title": "Body_parse_fuel_receipt_api_vehicles__vin__fuel_parse_receipt_post",
         "type": "object"
       },
       "Body_parse_insurance_pdf_api_vehicles__vin__insurance_parse_pdf_post": {
@@ -4614,6 +4659,130 @@
           "message"
         ],
         "title": "FuelEfficiencyAlert",
+        "type": "object"
+      },
+      "FuelReceiptDraft": {
+        "description": "Draft fuel fields extracted from a receipt (never persisted automatically).",
+        "properties": {
+          "cost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost"
+          },
+          "date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
+          },
+          "fuel_type_used": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fuel Type Used"
+          },
+          "kwh": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kwh"
+          },
+          "liters": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Liters"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "odometer_km": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Odometer Km"
+          },
+          "price_per_unit": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price Per Unit"
+          },
+          "station_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Station Name"
+          }
+        },
+        "title": "FuelReceiptDraft",
+        "type": "object"
+      },
+      "FuelReceiptParseResponse": {
+        "description": "Response for opt-in LLM receipt parse \u2014 draft only.",
+        "properties": {
+          "draft": {
+            "$ref": "#/components/schemas/FuelReceiptDraft"
+          },
+          "source": {
+            "default": "llm",
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "draft"
+        ],
+        "title": "FuelReceiptParseResponse",
         "type": "object"
       },
       "FuelRecordCreate": {
@@ -10688,6 +10857,36 @@
           "reminder_type"
         ],
         "title": "ReminderCreate",
+        "type": "object"
+      },
+      "ReminderPackSummary": {
+        "description": "Pack metadata returned by list endpoint.",
+        "properties": {
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "reminder_count": {
+            "description": "Number of reminders created when applied",
+            "title": "Reminder Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "reminder_count"
+        ],
+        "title": "ReminderPackSummary",
         "type": "object"
       },
       "ReminderResponse": {
@@ -18409,7 +18608,12 @@
               "FifthWheel",
               "TravelTrailer",
               "Electric",
-              "Hybrid"
+              "Hybrid",
+              "Boat",
+              "UTV",
+              "Snowmobile",
+              "Bicycle",
+              "EBike"
             ],
             "title": "Vehicle Type",
             "type": "string"
@@ -19599,7 +19803,12 @@
               "FifthWheel",
               "TravelTrailer",
               "Electric",
-              "Hybrid"
+              "Hybrid",
+              "Boat",
+              "UTV",
+              "Snowmobile",
+              "Bicycle",
+              "EBike"
             ],
             "title": "Vehicle Type",
             "type": "string"
@@ -20791,7 +21000,12 @@
                   "FifthWheel",
                   "TravelTrailer",
                   "Electric",
-                  "Hybrid"
+                  "Hybrid",
+                  "Boat",
+                  "UTV",
+                  "Snowmobile",
+                  "Bicycle",
+                  "EBike"
                 ],
                 "type": "string"
               },
@@ -28866,6 +29080,35 @@
         ]
       }
     },
+    "/api/notifications/test/matrix": {
+      "post": {
+        "description": "Test Matrix homeserver connection.",
+        "operationId": "test_matrix_connection_api_notifications_test_matrix_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Test Matrix Connection Api Notifications Test Matrix Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Test Matrix Connection",
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
     "/api/notifications/test/ntfy": {
       "post": {
         "description": "Test ntfy server connection.",
@@ -29272,6 +29515,37 @@
         "summary": "List Quick Entry Vehicles",
         "tags": [
           "Quick Entry"
+        ]
+      }
+    },
+    "/api/reminder-packs": {
+      "get": {
+        "description": "List built-in reminder packs available to apply to a vehicle.",
+        "operationId": "list_reminder_packs_api_reminder_packs_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ReminderPackSummary"
+                  },
+                  "title": "Response List Reminder Packs Api Reminder Packs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Reminder Packs",
+        "tags": [
+          "Reminders"
         ]
       }
     },
@@ -32603,6 +32877,63 @@
           }
         ],
         "summary": "Obc Suggestion",
+        "tags": [
+          "Fuel Records"
+        ]
+      }
+    },
+    "/api/vehicles/{vin}/fuel/parse-receipt": {
+      "post": {
+        "description": "Parse a fuel receipt into a draft FuelRecord payload (does not persist).\n\nRequires ``llm_receipt_parse_enabled``. Accepts multipart image/file and/or\na ``text`` form field. Returns draft fields only \u2014 never writes FuelRecord.",
+        "operationId": "parse_fuel_receipt_api_vehicles__vin__fuel_parse_receipt_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vin",
+            "required": true,
+            "schema": {
+              "title": "Vin",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_parse_fuel_receipt_api_vehicles__vin__fuel_parse_receipt_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FuelReceiptParseResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Parse Fuel Receipt",
         "tags": [
           "Fuel Records"
         ]
@@ -36078,6 +36409,68 @@
         ]
       }
     },
+    "/api/vehicles/{vin}/reminders/apply-pack": {
+      "post": {
+        "description": "Apply a built-in reminder pack to a vehicle (creates pending reminders).",
+        "operationId": "apply_reminder_pack_api_vehicles__vin__reminders_apply_pack_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vin",
+            "required": true,
+            "schema": {
+              "title": "Vin",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplyReminderPackRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ReminderResponse"
+                  },
+                  "title": "Response Apply Reminder Pack Api Vehicles  Vin  Reminders Apply Pack Post",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Apply Reminder Pack",
+        "tags": [
+          "Reminders"
+        ]
+      }
+    },
     "/api/vehicles/{vin}/reminders/{reminder_id}": {
       "delete": {
         "description": "Delete a reminder.",
@@ -39008,6 +39401,58 @@
         "summary": "Update Toll Transaction",
         "tags": [
           "Toll Transactions"
+        ]
+      }
+    },
+    "/api/vehicles/{vin}/towed-trailers": {
+      "get": {
+        "description": "List trailer vehicles paired to this tow vehicle via TrailerDetails.tow_vehicle_vin.",
+        "operationId": "list_towed_trailers_api_vehicles__vin__towed_trailers_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vin",
+            "required": true,
+            "schema": {
+              "title": "Vin",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/VehicleResponse"
+                  },
+                  "title": "Response List Towed Trailers Api Vehicles  Vin  Towed Trailers Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Towed Trailers",
+        "tags": [
+          "Vehicles"
         ]
       }
     },
