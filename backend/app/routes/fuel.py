@@ -122,14 +122,22 @@ async def parse_fuel_receipt(
     filename: str | None = None
     content_type: str | None = None
     if file is not None and file.filename:
-        file_bytes = await file.read()
-        if len(file_bytes) > MAX_RECEIPT_UPLOAD_BYTES:
+        # Size comes from the spooled temp file BEFORE the read, matching
+        # file_upload_service.py and insurance.py. Checking len() after
+        # `await file.read()` still materialises the whole upload as a bytes
+        # object first, so the 413 was cosmetic on a single-worker process.
+        # This does not avoid the multipart spool itself, only the RAM copy.
+        file.file.seek(0, 2)
+        file_size = file.file.tell()
+        file.file.seek(0)
+        if file_size > MAX_RECEIPT_UPLOAD_BYTES:
             raise HTTPException(
                 status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
                 detail=(
                     f"Receipt file exceeds maximum of {MAX_RECEIPT_UPLOAD_BYTES // (1024 * 1024)}MB"
                 ),
             )
+        file_bytes = await file.read()
         filename = file.filename
         content_type = file.content_type
 

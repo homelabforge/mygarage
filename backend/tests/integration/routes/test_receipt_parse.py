@@ -125,6 +125,31 @@ class TestReceiptParse:
             or "exceeds" in response.json()["detail"].lower()
         )
 
+    async def test_oversize_upload_is_never_read_into_memory(
+        self, client: AsyncClient, auth_headers, test_vehicle, db_session
+    ):
+        await set_settings(db_session, {"llm_receipt_parse_enabled": "true"})
+        # Patch starlette's UploadFile, NOT fastapi's. fastapi.datastructures
+        # .UploadFile is a distinct subclass, but the multipart parser builds the
+        # starlette base class regardless of the annotation, so patching the
+        # subclass intercepts nothing (verified: await_count 1 vs 0).
+        with (
+            patch(
+                "starlette.datastructures.UploadFile.read",
+                new=AsyncMock(return_value=b""),
+            ) as read_mock,
+            patch("app.routes.fuel.MAX_RECEIPT_UPLOAD_BYTES", 16),
+        ):
+            response = await client.post(
+                f"/api/vehicles/{test_vehicle['vin']}/fuel/parse-receipt",
+                files={"file": ("receipt.jpg", b"x" * 64, "image/jpeg")},
+                headers=auth_headers,
+            )
+        assert response.status_code == 413
+        # The point of the fix: an oversize body is rejected on its spooled size,
+        # never materialised as a full-size bytes object in memory.
+        read_mock.assert_not_awaited()
+
     async def test_oversized_text_returns_413(
         self, client: AsyncClient, auth_headers, test_vehicle, db_session
     ):
