@@ -15,6 +15,8 @@ from app.services.settings_service import SettingsService
 
 logger = logging.getLogger(__name__)
 
+OCR_FAILED_DETAIL = "Could not read any text from the image. Paste the receipt text instead."
+
 _DRAFT_KEYS = (
     "date",
     "odometer_km",
@@ -87,23 +89,31 @@ async def parse_receipt_draft(
 
     receipt_text = (text or "").strip()
     if not receipt_text and file_bytes:
-        try:
-            from app.services.document_ocr import DocumentOCRService
+        from app.services.document_ocr import DocumentOCRService
 
-            ocr = DocumentOCRService()
-            name = (filename or "").lower()
-            is_pdf = name.endswith(".pdf") or (content_type or "").endswith("pdf")
+        ocr = DocumentOCRService()
+        name = (filename or "").lower()
+        is_pdf = name.endswith(".pdf") or (content_type or "").endswith("pdf")
+        try:
             receipt_text = (
-                await ocr._extract_text_from_bytes(file_bytes, is_pdf=is_pdf) or ""
+                await ocr.extract_text_from_bytes(file_bytes, is_pdf=is_pdf) or ""
             ).strip()
-        except Exception as exc:  # noqa: BLE001 — OCR optional
-            logger.info("Receipt OCR unavailable (%s)", exc)
-            receipt_text = f"(Image upload: {filename or 'receipt'}; OCR unavailable)"
+        except Exception as exc:  # noqa: BLE001 - OCR backends raise broadly
+            # Deliberately NOT falling through with a placeholder. That spent a
+            # 60s LLM call on text we never had, then returned an all-null draft
+            # indistinguishable from a genuinely blank receipt.
+            logger.info("Receipt OCR failed (%s)", exc)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=OCR_FAILED_DETAIL,
+            ) from exc
 
     if not receipt_text:
+        # document_ocr swallows a missing OCR dependency and returns "", so a
+        # user who did upload an image would otherwise be told to provide one.
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Provide text or an image file",
+            detail=OCR_FAILED_DETAIL if file_bytes else "Provide text or an image file",
         )
 
     base_url = (await _setting(db, "llm_base_url", "http://127.0.0.1:11434/v1")).rstrip("/")

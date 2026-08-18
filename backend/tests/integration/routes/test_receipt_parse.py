@@ -150,6 +150,53 @@ class TestReceiptParse:
         # never materialised as a full-size bytes object in memory.
         read_mock.assert_not_awaited()
 
+    async def test_unreadable_image_reports_error_instead_of_calling_llm(
+        self, client: AsyncClient, auth_headers, test_vehicle, db_session
+    ):
+        await set_settings(db_session, {"llm_receipt_parse_enabled": "true"})
+        with (
+            patch(
+                "app.services.document_ocr.DocumentOCRService.extract_text_from_bytes",
+                new=AsyncMock(side_effect=RuntimeError("tesseract exploded")),
+            ),
+            # Patch the constructor, not .post: the test client is itself an
+            # httpx.AsyncClient, and patching the method would break its own
+            # request. The service builds a fresh client inside the call, so a
+            # constructor that is never invoked proves no LLM request happened.
+            patch("httpx.AsyncClient") as llm_client,
+        ):
+            response = await client.post(
+                f"/api/vehicles/{test_vehicle['vin']}/fuel/parse-receipt",
+                files={"file": ("blurry.jpg", b"not-an-image", "image/jpeg")},
+                headers=auth_headers,
+            )
+        assert response.status_code == 400
+        assert "could not read" in response.json()["detail"].lower()
+        # A receipt we could not read must not spend a 60s LLM call that can
+        # only come back all-null, then report success to the user.
+        llm_client.assert_not_called()
+
+    async def test_ocr_yielding_nothing_says_so(
+        self, client: AsyncClient, auth_headers, test_vehicle, db_session
+    ):
+        await set_settings(db_session, {"llm_receipt_parse_enabled": "true"})
+        # document_ocr swallows a missing OCR dependency and returns "", so this
+        # is the shape a user hits when tesseract is absent, not a synthetic case.
+        with patch(
+            "app.services.document_ocr.DocumentOCRService.extract_text_from_bytes",
+            new=AsyncMock(return_value=""),
+        ):
+            response = await client.post(
+                f"/api/vehicles/{test_vehicle['vin']}/fuel/parse-receipt",
+                files={"file": ("blank.jpg", b"blank", "image/jpeg")},
+                headers=auth_headers,
+            )
+        assert response.status_code == 400
+        detail = response.json()["detail"].lower()
+        # Telling someone who just uploaded a photo to "provide an image" is wrong.
+        assert "could not read" in detail
+        assert "provide text or an image file" not in detail
+
     async def test_oversized_text_returns_413(
         self, client: AsyncClient, auth_headers, test_vehicle, db_session
     ):
