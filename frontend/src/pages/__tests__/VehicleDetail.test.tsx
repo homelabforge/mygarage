@@ -59,6 +59,12 @@ vi.mock('../../services/vehicleService', () => ({
   default: {
     get: vi.fn(),
     getDetailStats: vi.fn(),
+    // TrailerTowPanel loads on mount. Without these the effect threw
+    // "listTowedTrailers is not a function" as an unhandled rejection: every
+    // test still passed, but vitest failed the run on 25 unhandled errors.
+    list: vi.fn().mockResolvedValue({ vehicles: [] }),
+    getTrailerDetails: vi.fn().mockResolvedValue({}),
+    listTowedTrailers: vi.fn().mockResolvedValue([]),
   },
 }))
 vi.mock('../../services/livelinkService', () => ({

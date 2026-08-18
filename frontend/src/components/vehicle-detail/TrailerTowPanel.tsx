@@ -69,8 +69,15 @@ export default function TrailerTowPanel({ vehicle }: TrailerTowPanelProps) {
           setForm({ hitch_type: '', brake_type: '', axle_count: '', tow_vehicle_vin: '' })
         }
       } else {
-        const list = await vehicleService.listTowedTrailers(vehicle.vin)
-        setTowed(Array.isArray(list) ? list : [])
+        // Guarded like the two calls above. Without this the rejection escapes
+        // the effect entirely, so a failed lookup surfaces as an unhandled
+        // error rather than an empty list.
+        try {
+          const list = await vehicleService.listTowedTrailers(vehicle.vin)
+          setTowed(Array.isArray(list) ? list : [])
+        } catch {
+          setTowed([])
+        }
       }
     } finally {
       setLoading(false)
