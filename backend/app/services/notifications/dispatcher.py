@@ -189,9 +189,7 @@ class NotificationDispatcher:
             access_token = await self._get_setting("matrix_access_token")
             room_id = await self._get_setting("matrix_room_id")
             if homeserver and access_token and room_id:
-                services.append(
-                    MatrixNotificationService(homeserver, access_token, room_id)
-                )
+                services.append(MatrixNotificationService(homeserver, access_token, room_id))
 
         # Check telegram
         if await self._get_setting_bool("telegram_enabled", default=False):
