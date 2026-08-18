@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '../../__tests__/test-utils'
-import { fireEvent } from '@testing-library/react'
+import { fireEvent, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { Reminder } from '../../types/reminder'
 import { toCanonicalKm } from '../../utils/decimalSafe'
@@ -262,5 +262,42 @@ describe('ReminderForm — from last service mileage baseline', () => {
 
     expect(screen.getByText('reminder.lastDoneExceedsCurrentMileage')).toBeInTheDocument()
     expect(createMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('ReminderForm — baseline mode toggles expose state to assistive tech', () => {
+  it('marks the active reminder type with aria-pressed, not colour alone', () => {
+    render(<ReminderForm vin="V1" onClose={vi.fn()} onSuccess={vi.fn()} />)
+    const group = screen.getByRole('group', { name: 'reminder.reminderType' })
+    const pressed = within(group)
+      .getAllByRole('button')
+      .filter((b) => b.getAttribute('aria-pressed') === 'true')
+    // Exactly one type is selected at a time, and it says so.
+    expect(pressed).toHaveLength(1)
+  })
+
+  it('moves aria-pressed when the mileage baseline mode changes', async () => {
+    const user = userEvent.setup()
+    render(
+      <ReminderForm
+        vin="V1"
+        currentMileage={CURRENT_KM}
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+      />
+    )
+    // The baseline toggle only renders for mileage-bearing reminder types.
+    await user.click(screen.getByText('reminderForm.typeMileage'))
+
+    const group = await screen.findByRole('group', { name: 'reminder.mileageBaseline' })
+    const fromNow = within(group).getByText('reminderForm.modeFromNow')
+    const fromLast = within(group).getByText('reminderForm.modeFromLast')
+
+    expect(fromNow).toHaveAttribute('aria-pressed', 'true')
+    expect(fromLast).toHaveAttribute('aria-pressed', 'false')
+
+    await user.click(fromLast)
+    expect(fromLast).toHaveAttribute('aria-pressed', 'true')
+    expect(fromNow).toHaveAttribute('aria-pressed', 'false')
   })
 })

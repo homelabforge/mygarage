@@ -387,16 +387,24 @@ export default function ReminderForm({ vin, reminder, currentMileage, currentHou
         </Field>
 
         <div>
-          <label className="block text-sm font-medium text-text mb-1">
+          <span
+            id="reminder-type-label"
+            className="block text-sm font-medium text-text mb-1"
+          >
             {t('reminder.reminderType')}
-          </label>
-          <div className="grid grid-cols-2 gap-2">
+          </span>
+          <div
+            role="group"
+            aria-labelledby="reminder-type-label"
+            className="grid grid-cols-2 gap-2"
+          >
             {reminderTypeOptions.map((type) => (
               <button
                 key={type.value}
                 type="button"
                 onClick={() => setReminderType(type.value)}
                 disabled={submitting}
+                aria-pressed={reminderType === type.value}
                 className={`text-left p-3 rounded-lg border transition-colors ${
                   reminderType === type.value
                     ? 'border-(--accent-line) bg-(--accent-soft) text-(--accent-fg)'
@@ -426,13 +434,24 @@ export default function ReminderForm({ vin, reminder, currentMileage, currentHou
           <div className="space-y-3">
             {hasMileage && (
               <div>
-                <label className="block text-sm font-medium text-text mb-1">
+                {/* A <span> with aria-labelledby, not a <label>: a label with no
+                    htmlFor associates with nothing, and the control here is a
+                    group of buttons rather than a single form element. */}
+                <span
+                  id="reminder-mileage-baseline-label"
+                  className="block text-sm font-medium text-text mb-1"
+                >
                   {t('reminder.mileageBaseline')}
-                </label>
-                <div className="flex gap-2">
+                </span>
+                <div
+                  role="group"
+                  aria-labelledby="reminder-mileage-baseline-label"
+                  className="flex gap-2"
+                >
                   <button
                     type="button"
                     disabled={submitting}
+                    aria-pressed={mileageMode === 'from_now'}
                     className={modeButtonClass(mileageMode === 'from_now')}
                     onClick={() => setMileageMode('from_now')}
                   >
@@ -441,6 +460,7 @@ export default function ReminderForm({ vin, reminder, currentMileage, currentHou
                   <button
                     type="button"
                     disabled={submitting}
+                    aria-pressed={mileageMode === 'from_last'}
                     className={modeButtonClass(mileageMode === 'from_last')}
                     onClick={() => setMileageMode('from_last')}
                   >
@@ -544,13 +564,24 @@ export default function ReminderForm({ vin, reminder, currentMileage, currentHou
           <div className="space-y-3">
             {hasHours && (
               <div>
-                <label className="block text-sm font-medium text-text mb-1">
+                {/* A <span> with aria-labelledby, not a <label>: a label with no
+                    htmlFor associates with nothing, and the control here is a
+                    group of buttons rather than a single form element. */}
+                <span
+                  id="reminder-hours-baseline-label"
+                  className="block text-sm font-medium text-text mb-1"
+                >
                   {t('reminder.hoursBaseline')}
-                </label>
-                <div className="flex gap-2">
+                </span>
+                <div
+                  role="group"
+                  aria-labelledby="reminder-hours-baseline-label"
+                  className="flex gap-2"
+                >
                   <button
                     type="button"
                     disabled={submitting}
+                    aria-pressed={hoursMode === 'from_now'}
                     className={modeButtonClass(hoursMode === 'from_now')}
                     onClick={() => setHoursMode('from_now')}
                   >
@@ -559,6 +590,7 @@ export default function ReminderForm({ vin, reminder, currentMileage, currentHou
                   <button
                     type="button"
                     disabled={submitting}
+                    aria-pressed={hoursMode === 'from_last'}
                     className={modeButtonClass(hoursMode === 'from_last')}
                     onClick={() => setHoursMode('from_last')}
                   >
