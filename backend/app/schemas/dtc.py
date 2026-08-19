@@ -39,7 +39,7 @@ class DTCDefinitionResponse(BaseModel):
                 parsed = json.loads(value)
                 if isinstance(parsed, list):
                     return [str(x) for x in parsed]
-            except (json.JSONDecodeError, TypeError):
+            except json.JSONDecodeError, TypeError:
                 return None
         return None
 

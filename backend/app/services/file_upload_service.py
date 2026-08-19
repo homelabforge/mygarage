@@ -266,10 +266,9 @@ class FileUploadService:
             # image BEFORE writing so a disguised/corrupt image is rejected with
             # nothing persisted (G-4). HEIC is converted to JPEG when pillow-heif
             # is available so browsers always receive a portable format.
-            is_heic = (
-                (file.content_type or "").lower() in {"image/heic", "image/heif"}
-                or Path(file.filename or "").suffix.lower() in {".heic", ".heif"}
-            )
+            is_heic = (file.content_type or "").lower() in {"image/heic", "image/heif"} or Path(
+                file.filename or ""
+            ).suffix.lower() in {".heic", ".heif"}
             if is_heic and config.create_thumbnail:
                 if not _HEIF_AVAILABLE:
                     raise HTTPException(
@@ -366,7 +365,14 @@ class FileUploadService:
 PHOTO_UPLOAD_CONFIG = FileUploadConfig(
     base_dir=settings.photos_dir,
     allowed_extensions=settings.allowed_photo_extensions,
-    allowed_mimes={"image/jpeg", "image/png", "image/gif", "image/webp", "image/heic", "image/heif"},
+    allowed_mimes={
+        "image/jpeg",
+        "image/png",
+        "image/gif",
+        "image/webp",
+        "image/heic",
+        "image/heif",
+    },
     max_size_bytes=settings.max_upload_size_bytes,
     generate_unique_name=True,
     verify_magic_bytes=True,

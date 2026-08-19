@@ -52,18 +52,12 @@ class TestFilterAnomaliesToWindow:
             _alert("2026-07"),
             _alert("2026-08"),
         ]
-        months = [
-            a.month
-            for a in filter_anomalies_to_window(anomalies, "3m", None, None)
-        ]
+        months = [a.month for a in filter_anomalies_to_window(anomalies, "3m", None, None)]
         assert months == ["2026-06", "2026-07", "2026-08"]
 
     def test_ytd_from_january(self, fixed_today):
         anomalies = [_alert("2025-12"), _alert("2026-01"), _alert("2026-06")]
-        months = [
-            a.month
-            for a in filter_anomalies_to_window(anomalies, "ytd", None, None)
-        ]
+        months = [a.month for a in filter_anomalies_to_window(anomalies, "ytd", None, None)]
         assert months == ["2026-01", "2026-06"]
 
     def test_custom_range_inclusive_end_month(self, fixed_today):

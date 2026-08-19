@@ -497,9 +497,7 @@ async def auto_archive_inactive_vehicles() -> None:
     try:
         async with AsyncSessionLocal() as db:
             setting = (
-                await db.execute(
-                    select(Setting).where(Setting.key == "auto_archive_inactive_days")
-                )
+                await db.execute(select(Setting).where(Setting.key == "auto_archive_inactive_days"))
             ).scalar_one_or_none()
             try:
                 days = int((setting.value if setting and setting.value else "0") or "0")
@@ -510,8 +508,10 @@ async def auto_archive_inactive_vehicles() -> None:
 
             cutoff_date = (utc_now() - timedelta(days=days)).date()
             vehicles = (
-                await db.execute(select(Vehicle).where(Vehicle.archived_at.is_(None)))
-            ).scalars().all()
+                (await db.execute(select(Vehicle).where(Vehicle.archived_at.is_(None))))
+                .scalars()
+                .all()
+            )
 
             archived = 0
             for vehicle in vehicles:
@@ -523,9 +523,7 @@ async def auto_archive_inactive_vehicles() -> None:
                     (HoursRecord, HoursRecord.date),
                 ):
                     row = (
-                        await db.execute(
-                            select(func.max(date_col)).where(model.vin == vehicle.vin)
-                        )
+                        await db.execute(select(func.max(date_col)).where(model.vin == vehicle.vin))
                     ).scalar()
                     if row is not None:
                         latest_dates.append(row if isinstance(row, date_cls) else row.date())

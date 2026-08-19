@@ -160,7 +160,9 @@ async def lifespan(app: FastAPI):
         gallon_row = (
             await db.execute(select(Setting).where(Setting.key == "imperial_gallon_standard"))
         ).scalar_one_or_none()
-        UnitConverter.set_gallon_standard(gallon_row.value if gallon_row and gallon_row.value else "us")
+        UnitConverter.set_gallon_standard(
+            gallon_row.value if gallon_row and gallon_row.value else "us"
+        )
 
         # Check for insecure auth_mode='none' and log warning
         from app.services.auth import get_auth_mode

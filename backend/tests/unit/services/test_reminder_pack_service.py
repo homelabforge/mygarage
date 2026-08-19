@@ -43,8 +43,6 @@ class TestReminderPackService:
         assert "Car" in pack.vehicle_types
 
     def test_get_pack_rejects_path_traversal(self):
-        from fastapi import HTTPException
-
         for pack_id in (
             "../oil_and_filter",
             "../../etc/passwd",

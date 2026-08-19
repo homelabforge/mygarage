@@ -1553,9 +1553,7 @@ async def export_analytics_pdf(
         raise HTTPException(status_code=404, detail="Vehicle not found")
 
     # Fetch analytics data
-    analytics = await get_vehicle_analytics(
-        vin, db=db, current_user=current_user
-    )
+    analytics = await get_vehicle_analytics(vin, db=db, current_user=current_user)
 
     # Fetch vendor analytics
     try:

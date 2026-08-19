@@ -3525,9 +3525,45 @@
             "description": "Estimated fuel used (L)",
             "title": "Fuel Used Estimate"
           },
+          "harsh_accel_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Harsh acceleration events",
+            "title": "Harsh Accel Count"
+          },
+          "harsh_brake_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Harsh braking events",
+            "title": "Harsh Brake Count"
+          },
           "id": {
             "title": "Id",
             "type": "integer"
+          },
+          "idle_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Time spent near-stopped (s)",
+            "title": "Idle Seconds"
           },
           "max_coolant_temp": {
             "anyOf": [
@@ -3773,9 +3809,45 @@
             "description": "Estimated fuel used (L)",
             "title": "Fuel Used Estimate"
           },
+          "harsh_accel_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Harsh acceleration events",
+            "title": "Harsh Accel Count"
+          },
+          "harsh_brake_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Harsh braking events",
+            "title": "Harsh Brake Count"
+          },
           "id": {
             "title": "Id",
             "type": "integer"
+          },
+          "idle_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Time spent near-stopped (s)",
+            "title": "Idle Seconds"
           },
           "max_coolant_temp": {
             "anyOf": [
@@ -7546,6 +7618,89 @@
         "title": "HoursRecordUpdate",
         "type": "object"
       },
+      "InboxItem": {
+        "description": "In-app notification derived from overdue / upcoming reminders.",
+        "properties": {
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "href": {
+            "title": "Href",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "reminder_overdue",
+              "reminder_upcoming"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "severity": {
+            "default": "info",
+            "enum": [
+              "warning",
+              "critical",
+              "info"
+            ],
+            "title": "Severity",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "vehicle_nickname": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vehicle Nickname"
+          },
+          "vin": {
+            "title": "Vin",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "title",
+          "body",
+          "vin",
+          "href"
+        ],
+        "title": "InboxItem",
+        "type": "object"
+      },
+      "InboxResponse": {
+        "description": "Notification inbox payload.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/InboxItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "unread_count": {
+            "default": 0,
+            "title": "Unread Count",
+            "type": "integer"
+          }
+        },
+        "title": "InboxResponse",
+        "type": "object"
+      },
       "InsurancePolicy": {
         "description": "Schema for insurance policy response.",
         "properties": {
@@ -10722,6 +10877,11 @@
             "title": "Nickname",
             "type": "string"
           },
+          "secondary_usage_enabled": {
+            "default": false,
+            "title": "Secondary Usage Enabled",
+            "type": "boolean"
+          },
           "thumbnail_url": {
             "anyOf": [
               {
@@ -10732,6 +10892,11 @@
               }
             ],
             "title": "Thumbnail Url"
+          },
+          "usage_unit": {
+            "default": "distance",
+            "title": "Usage Unit",
+            "type": "string"
           },
           "vehicle_type": {
             "title": "Vehicle Type",
@@ -11256,6 +11421,14 @@
             "description": "Number of reminders created when applied",
             "title": "Reminder Count",
             "type": "integer"
+          },
+          "vehicle_types": {
+            "description": "Applicable vehicle types; empty means all types",
+            "items": {
+              "type": "string"
+            },
+            "title": "Vehicle Types",
+            "type": "array"
           }
         },
         "required": [
@@ -11531,6 +11704,82 @@
           }
         },
         "title": "SdConfigUpdate",
+        "type": "object"
+      },
+      "SearchHit": {
+        "description": "A single search result.",
+        "properties": {
+          "href": {
+            "title": "Href",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "subtitle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subtitle"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "vehicle",
+              "reminder"
+            ],
+            "title": "Type",
+            "type": "string"
+          },
+          "vin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vin"
+          }
+        },
+        "required": [
+          "type",
+          "id",
+          "title",
+          "href"
+        ],
+        "title": "SearchHit",
+        "type": "object"
+      },
+      "SearchResponse": {
+        "description": "Global search response.",
+        "properties": {
+          "query": {
+            "title": "Query",
+            "type": "string"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/SearchHit"
+            },
+            "title": "Results",
+            "type": "array"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "title": "SearchResponse",
         "type": "object"
       },
       "SeasonalAnalysis": {
@@ -14318,6 +14567,19 @@
       "SupplyCreate": {
         "description": "Create a catalog supply.",
         "properties": {
+          "barcode": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "UPC/EAN/QR product barcode",
+            "title": "Barcode"
+          },
           "category": {
             "anyOf": [
               {
@@ -14773,6 +15035,19 @@
             "description": "Lifetime weighted avg per canonical unit; null if no costed purchases",
             "title": "Avg Unit Cost"
           },
+          "barcode": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "UPC/EAN/QR product barcode",
+            "title": "Barcode"
+          },
           "category": {
             "anyOf": [
               {
@@ -14889,6 +15164,18 @@
       "SupplyUpdate": {
         "description": "Patch a catalog supply. unit_type is intentionally immutable (ledger interpretation).",
         "properties": {
+          "barcode": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Barcode"
+          },
           "category": {
             "anyOf": [
               {
@@ -18647,6 +18934,75 @@
         "title": "VehicleArchiveRequest",
         "type": "object"
       },
+      "VehicleBulkArchiveRequest": {
+        "description": "Archive multiple vehicles with the same metadata.",
+        "properties": {
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "reason": {
+            "maxLength": 50,
+            "title": "Reason",
+            "type": "string"
+          },
+          "sale_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sale Date"
+          },
+          "sale_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sale Price"
+          },
+          "vins": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Vins",
+            "type": "array"
+          },
+          "visible": {
+            "default": true,
+            "title": "Visible",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "vins",
+          "reason"
+        ],
+        "title": "VehicleBulkArchiveRequest",
+        "type": "object"
+      },
       "VehicleCreate": {
         "description": "Schema for creating a new vehicle.",
         "examples": [
@@ -19093,6 +19449,21 @@
             "title": "Code",
             "type": "string"
           },
+          "common_causes": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Common causes from lookup",
+            "title": "Common Causes"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -19131,6 +19502,18 @@
             "format": "date-time",
             "title": "First Seen",
             "type": "string"
+          },
+          "fix_guidance": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Fix guidance from lookup",
+            "title": "Fix Guidance"
           },
           "id": {
             "title": "Id",
@@ -19177,6 +19560,21 @@
             ],
             "description": "Subcategory from lookup",
             "title": "Subcategory"
+          },
+          "symptoms": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Common symptoms from lookup",
+            "title": "Symptoms"
           },
           "user_notes": {
             "anyOf": [
@@ -24463,6 +24861,57 @@
               "title": "Vin",
               "type": "string"
             }
+          },
+          {
+            "description": "Window used for spending anomaly detection (issue #130).",
+            "in": "query",
+            "name": "anomaly_range",
+            "required": false,
+            "schema": {
+              "default": "12m",
+              "description": "Window used for spending anomaly detection (issue #130).",
+              "pattern": "^(3m|6m|12m|ytd|all|custom)$",
+              "title": "Anomaly Range",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Custom anomaly window start (YYYY-MM-DD); used with anomaly_range=custom",
+            "in": "query",
+            "name": "anomaly_start",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Custom anomaly window start (YYYY-MM-DD); used with anomaly_range=custom",
+              "title": "Anomaly Start"
+            }
+          },
+          {
+            "description": "Custom anomaly window end (YYYY-MM-DD); used with anomaly_range=custom",
+            "in": "query",
+            "name": "anomaly_end",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Custom anomaly window end (YYYY-MM-DD); used with anomaly_range=custom",
+              "title": "Anomaly End"
+            }
           }
         ],
         "responses": {
@@ -29605,6 +30054,33 @@
         ]
       }
     },
+    "/api/notifications/inbox": {
+      "get": {
+        "description": "Return actionable in-app alerts (overdue and soon-due reminders).",
+        "operationId": "notification_inbox_api_notifications_inbox_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboxResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Notification Inbox",
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
     "/api/notifications/test/discord": {
       "post": {
         "description": "Test Discord webhook connection.",
@@ -30134,6 +30610,26 @@
       "get": {
         "description": "List built-in reminder packs available to apply to a vehicle.",
         "operationId": "list_reminder_packs_api_reminder_packs_get",
+        "parameters": [
+          {
+            "description": "Filter packs applicable to this vehicle type",
+            "in": "query",
+            "name": "vehicle_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter packs applicable to this vehicle type",
+              "title": "Vehicle Type"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -30148,6 +30644,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "security": [
@@ -30158,6 +30664,70 @@
         "summary": "List Reminder Packs",
         "tags": [
           "Reminders"
+        ]
+      }
+    },
+    "/api/search": {
+      "get": {
+        "description": "Search vehicles (nickname/VIN/plate/make/model) and pending reminders.",
+        "operationId": "global_search_api_search_get",
+        "parameters": [
+          {
+            "description": "Search query",
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "description": "Search query",
+              "maxLength": 100,
+              "minLength": 1,
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Global Search",
+        "tags": [
+          "Search"
         ]
       }
     },
@@ -31092,6 +31662,81 @@
           }
         ],
         "summary": "Create Supply",
+        "tags": [
+          "supplies"
+        ]
+      }
+    },
+    "/api/supplies/lookup": {
+      "get": {
+        "description": "Find supplies by barcode or part number (for scan-to-select).",
+        "operationId": "lookup_supplies_api_supplies_lookup_get",
+        "parameters": [
+          {
+            "description": "Exact UPC/EAN/QR match",
+            "in": "query",
+            "name": "barcode",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Exact UPC/EAN/QR match",
+              "title": "Barcode"
+            }
+          },
+          {
+            "description": "Exact or prefix part number match",
+            "in": "query",
+            "name": "part_number",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Exact or prefix part number match",
+              "title": "Part Number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupplyListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Lookup Supplies",
         "tags": [
           "supplies"
         ]
@@ -32247,6 +32892,53 @@
           }
         ],
         "summary": "Create Vehicle",
+        "tags": [
+          "Vehicles"
+        ]
+      }
+    },
+    "/api/vehicles/archive/bulk": {
+      "post": {
+        "description": "Archive multiple vehicles with the same archive metadata.",
+        "operationId": "bulk_archive_vehicles_api_vehicles_archive_bulk_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VehicleBulkArchiveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Bulk Archive Vehicles",
         "tags": [
           "Vehicles"
         ]
@@ -37452,6 +38144,52 @@
           }
         ],
         "summary": "Download Cost Summary Pdf",
+        "tags": [
+          "Reports"
+        ]
+      }
+    },
+    "/api/vehicles/{vin}/reports/sale-history-pdf": {
+      "get": {
+        "description": "Sanitized service history PDF for prospective buyers (no costs/vendors/plate).",
+        "operationId": "download_sale_history_pdf_api_vehicles__vin__reports_sale_history_pdf_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vin",
+            "required": true,
+            "schema": {
+              "title": "Vin",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Download Sale History Pdf",
         "tags": [
           "Reports"
         ]

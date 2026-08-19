@@ -501,15 +501,12 @@ async def notification_inbox(
             kind: Literal["reminder_overdue", "reminder_upcoming"] = (
                 "reminder_overdue" if overdue else "reminder_upcoming"
             )
-            severity: Literal["warning", "critical", "info"] = (
-                "critical" if overdue else "warning"
-            )
+            severity: Literal["warning", "critical", "info"] = "critical" if overdue else "warning"
             due_bits: list[str] = []
             if reminder.due_date is not None:
                 due_bits.append(f"due {reminder.due_date.isoformat()}")
-            body = (
-                f"{vehicle.nickname or vehicle.vin}"
-                + (f" — {', '.join(due_bits)}" if due_bits else "")
+            body = f"{vehicle.nickname or vehicle.vin}" + (
+                f" — {', '.join(due_bits)}" if due_bits else ""
             )
             items.append(
                 InboxItem(

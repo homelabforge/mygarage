@@ -31,7 +31,7 @@ def _path_within_packs(path: Path) -> Path | None:
     try:
         resolved = path.resolve()
         resolved.relative_to(PACKS_DIR.resolve())
-    except (ValueError, OSError):
+    except ValueError, OSError:
         return None
     return resolved
 
@@ -125,7 +125,7 @@ def get_pack(pack_id: str) -> ReminderPackDetail:
     for resolved in index.values():
         try:
             detail = _load_pack_file(resolved)
-        except (OSError, json.JSONDecodeError, ValueError):
+        except OSError, json.JSONDecodeError, ValueError:
             continue
         if detail.id == pack_id:
             return detail
