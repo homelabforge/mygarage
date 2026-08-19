@@ -12,6 +12,7 @@ import {
   PushoverConfig,
   SlackConfig,
   DiscordConfig,
+  MatrixConfig,
   TelegramConfig,
   EmailConfig,
 } from '@/components/notifications'
@@ -38,6 +39,7 @@ const NOTIFICATION_SETTINGS_KEYS = [
   'pushover_enabled', 'pushover_user_key', 'pushover_api_token',
   'slack_enabled', 'slack_webhook_url',
   'discord_enabled', 'discord_webhook_url',
+  'matrix_enabled', 'matrix_homeserver', 'matrix_access_token', 'matrix_room_id',
   'telegram_enabled', 'telegram_bot_token', 'telegram_chat_id',
   'email_enabled', 'email_smtp_host', 'email_smtp_port', 'email_smtp_user',
   'email_smtp_password', 'email_smtp_tls', 'email_from', 'email_to',
@@ -66,6 +68,10 @@ const DEFAULT_SETTINGS: Record<string, string> = {
   slack_webhook_url: '',
   discord_enabled: 'false',
   discord_webhook_url: '',
+  matrix_enabled: 'false',
+  matrix_homeserver: '',
+  matrix_access_token: '',
+  matrix_room_id: '',
   telegram_enabled: 'false',
   telegram_bot_token: '',
   telegram_chat_id: '',
@@ -197,6 +203,7 @@ export default function SettingsNotificationsTab() {
     pushover: formData.pushover_enabled === 'true',
     slack: formData.slack_enabled === 'true',
     discord: formData.discord_enabled === 'true',
+    matrix: formData.matrix_enabled === 'true',
     telegram: formData.telegram_enabled === 'true',
     email: formData.email_enabled === 'true',
   }
@@ -289,6 +296,16 @@ export default function SettingsNotificationsTab() {
               onTextChange={handleTextChange}
               onTest={() => handleTestService('discord')}
               testing={testingService === 'discord'}
+              saving={false}
+            />
+          )}
+          {activeSubTab === 'matrix' && (
+            <MatrixConfig
+              settings={formData}
+              onSettingChange={handleSettingChange}
+              onTextChange={handleTextChange}
+              onTest={() => handleTestService('matrix')}
+              testing={testingService === 'matrix'}
               saving={false}
             />
           )}

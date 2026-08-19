@@ -33,6 +33,8 @@ from app.constants.fuel import (
 )
 
 PRICE_BASIS_VALUES = ("per_volume", "per_weight", "per_tank", "per_kwh")
+CHARGE_LEVEL_VALUES = ("L1", "L2", "DCFC")
+CHARGE_LOCATION_VALUES = ("home", "public")
 
 
 def _validate_payment_method(v: str | None) -> str | None:
@@ -96,6 +98,21 @@ class FuelRecordBase(BaseModel):
         ge=0,
         le=99999.999,
         decimal_places=3,
+    )
+    soc_start_pct: Decimal | None = Field(
+        None, description="Battery SOC at session start (%)", ge=0, le=100
+    )
+    soc_end_pct: Decimal | None = Field(
+        None, description="Battery SOC at session end (%)", ge=0, le=100
+    )
+    charge_level: str | None = Field(
+        None, description="Charger level: L1 / L2 / DCFC", max_length=10
+    )
+    charge_location: str | None = Field(
+        None, description="Charge location: home / public", max_length=20
+    )
+    battery_soh_pct: Decimal | None = Field(
+        None, description="Optional battery state-of-health (%)", ge=0, le=100
     )
     cost: Decimal | None = Field(
         None, description="Total cost, net of any rebate", ge=0, le=99999.99
@@ -195,6 +212,20 @@ class FuelRecordBase(BaseModel):
         description="OBC reported trip duration in seconds",
         ge=0,
     )
+
+    @field_validator("charge_level")
+    @classmethod
+    def _check_charge_level(cls, v: str | None) -> str | None:
+        if v is not None and v not in CHARGE_LEVEL_VALUES:
+            raise ValueError(f"charge_level must be one of {CHARGE_LEVEL_VALUES}, got {v!r}")
+        return v
+
+    @field_validator("charge_location")
+    @classmethod
+    def _check_charge_location(cls, v: str | None) -> str | None:
+        if v is not None and v not in CHARGE_LOCATION_VALUES:
+            raise ValueError(f"charge_location must be one of {CHARGE_LOCATION_VALUES}, got {v!r}")
+        return v
 
     @field_validator("price_basis")
     @classmethod
@@ -390,6 +421,11 @@ class FuelRecordUpdate(BaseModel):
         le=99999.999,
         decimal_places=3,
     )
+    soc_start_pct: Decimal | None = Field(None, ge=0, le=100)
+    soc_end_pct: Decimal | None = Field(None, ge=0, le=100)
+    charge_level: str | None = Field(None, max_length=10)
+    charge_location: str | None = Field(None, max_length=20)
+    battery_soh_pct: Decimal | None = Field(None, ge=0, le=100)
     cost: Decimal | None = Field(
         None, description="Total cost, net of any rebate", ge=0, le=99999.99
     )
@@ -444,6 +480,20 @@ class FuelRecordUpdate(BaseModel):
     obc_l_per_100km: Decimal | None = Field(None, ge=0, le=999.99)
     obc_avg_speed_kmh: Decimal | None = Field(None, ge=0, le=9999.9)
     obc_trip_duration_s: int | None = Field(None, ge=0)
+
+    @field_validator("charge_level")
+    @classmethod
+    def _check_charge_level_update(cls, v: str | None) -> str | None:
+        if v is not None and v not in CHARGE_LEVEL_VALUES:
+            raise ValueError(f"charge_level must be one of {CHARGE_LEVEL_VALUES}, got {v!r}")
+        return v
+
+    @field_validator("charge_location")
+    @classmethod
+    def _check_charge_location_update(cls, v: str | None) -> str | None:
+        if v is not None and v not in CHARGE_LOCATION_VALUES:
+            raise ValueError(f"charge_location must be one of {CHARGE_LOCATION_VALUES}, got {v!r}")
+        return v
 
     @field_validator("price_basis")
     @classmethod
@@ -581,3 +631,24 @@ class ObcSuggestionResponse(BaseModel):
     obc_l_per_100km: Decimal | None = Field(None, description="Suggested consumption (L/100 km)")
     obc_avg_speed_kmh: Decimal | None = Field(None, description="Suggested average speed (km/h)")
     obc_trip_duration_s: int | None = Field(None, description="Suggested trip duration (seconds)")
+
+
+class FuelReceiptDraft(BaseModel):
+    """Draft fuel fields extracted from a receipt (never persisted automatically)."""
+
+    date: str | None = None
+    odometer_km: float | None = None
+    liters: float | None = None
+    kwh: float | None = None
+    cost: float | None = None
+    price_per_unit: float | None = None
+    fuel_type_used: str | None = None
+    notes: str | None = None
+    station_name: str | None = None
+
+
+class FuelReceiptParseResponse(BaseModel):
+    """Response for opt-in LLM receipt parse — draft only."""
+
+    draft: FuelReceiptDraft
+    source: str = "llm"

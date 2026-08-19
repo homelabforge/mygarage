@@ -110,6 +110,25 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
   const [obcSuggestion, setObcSuggestion] = useState<ObcSuggestion | null>(null)
   const [obcLoading, setObcLoading] = useState(false)
   const [obcMessage, setObcMessage] = useState<string | null>(null)
+  const [hasLinkedTrailers, setHasLinkedTrailers] = useState(false)
+
+  useEffect(() => {
+    if (record) return
+    let cancelled = false
+    void import('../services/vehicleService').then(({ default: vehicleService }) =>
+      vehicleService
+        .listTowedTrailers(vin)
+        .then((list) => {
+          if (!cancelled) setHasLinkedTrailers(list.length > 0)
+        })
+        .catch(() => {
+          if (!cancelled) setHasLinkedTrailers(false)
+        }),
+    )
+    return () => {
+      cancelled = true
+    }
+  }, [vin, record])
 
   // `labelKey` is translated at render time; the fraction labels are numerals
   // and stay as-is (they are not prose).
@@ -159,6 +178,11 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
         ? UnitConverter.litersToGallons(toNumber(record.propane_liters)!) ?? undefined
         : toNumber(record?.propane_liters),
       kwh: toNumber(record?.kwh),
+      soc_start_pct: toNumber((record as { soc_start_pct?: number | string | null })?.soc_start_pct),
+      soc_end_pct: toNumber((record as { soc_end_pct?: number | string | null })?.soc_end_pct),
+      charge_level: (record as { charge_level?: 'L1' | 'L2' | 'DCFC' | null })?.charge_level ?? undefined,
+      charge_location: (record as { charge_location?: 'home' | 'public' | null })?.charge_location ?? undefined,
+      battery_soh_pct: toNumber((record as { battery_soh_pct?: number | string | null })?.battery_soh_pct),
       price_per_unit: priceToDisplay(record?.price_per_unit, system, record?.price_basis) ?? undefined,
       price_basis: (record?.price_basis as 'per_volume' | 'per_weight' | 'per_kwh' | 'per_tank' | undefined) ?? undefined,
       cost: toNumber(record?.cost),
@@ -417,6 +441,11 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
         liters: toCanonicalLiters(data.liters, system) ?? undefined,
         propane_liters: toCanonicalLiters(data.propane_liters, system) ?? undefined,
         kwh: data.kwh,
+        soc_start_pct: data.soc_start_pct,
+        soc_end_pct: data.soc_end_pct,
+        charge_level: data.charge_level,
+        charge_location: data.charge_location,
+        battery_soh_pct: data.battery_soh_pct,
         price_per_unit: priceToCanonical(data.price_per_unit, system, data.price_basis) ?? undefined,
         price_basis: data.price_basis,
         cost: data.cost,
@@ -619,6 +648,48 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
             </Field>
           </div>
 
+          {showKwh && (
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+              <Field id="soc_start_pct" label={t('fuel.socStart')} unit="%" error={errors.soc_start_pct}>
+                <NumberInput id="soc_start_pct" {...registerDecimal(register, 'soc_start_pct')} invalid={!!errors.soc_start_pct} disabled={isSubmitting} />
+              </Field>
+              <Field id="soc_end_pct" label={t('fuel.socEnd')} unit="%" error={errors.soc_end_pct}>
+                <NumberInput id="soc_end_pct" {...registerDecimal(register, 'soc_end_pct')} invalid={!!errors.soc_end_pct} disabled={isSubmitting} />
+              </Field>
+              <Field id="battery_soh_pct" label={t('fuel.batterySoh')} unit="%" error={errors.battery_soh_pct}>
+                <NumberInput id="battery_soh_pct" {...registerDecimal(register, 'battery_soh_pct')} invalid={!!errors.battery_soh_pct} disabled={isSubmitting} />
+              </Field>
+              {/* placeholder must be truthy: Select renders the empty option only
+                  when it is, so placeholder="" showed 'L1' while submitting
+                  undefined, and the field could never be cleared back to null. */}
+              <Field id="charge_level" label={t('fuel.chargeLevel')} error={errors.charge_level}>
+                <Select
+                  id="charge_level"
+                  {...register('charge_level')}
+                  disabled={isSubmitting}
+                  placeholder={t('fuel.chargeLevelPlaceholder')}
+                  options={[
+                    { value: 'L1', label: 'L1' },
+                    { value: 'L2', label: 'L2' },
+                    { value: 'DCFC', label: 'DCFC' },
+                  ]}
+                />
+              </Field>
+              <Field id="charge_location" label={t('fuel.chargeLocation')} error={errors.charge_location}>
+                <Select
+                  id="charge_location"
+                  {...register('charge_location')}
+                  disabled={isSubmitting}
+                  placeholder={t('fuel.chargeLocationPlaceholder')}
+                  options={[
+                    { value: 'home', label: t('fuel.chargeHome') },
+                    { value: 'public', label: t('fuel.chargePublic') },
+                  ]}
+                />
+              </Field>
+            </div>
+          )}
+
           <Field id="price_basis" label={t('fuel.priceBasis')} error={errors.price_basis}>
             {/* Phase 3.6 — labels respect the user's unit preference.
                 Was hardcoded "L/gal" / "kg/lb" regardless of system,
@@ -665,7 +736,14 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
           </div>
 
           {showHaulingCheckbox && (
-            <Checkbox id="is_hauling" label={t('fuel.towingHaulingLoad')} {...register('is_hauling')} disabled={isSubmitting} />
+            <div className="space-y-1">
+              <Checkbox id="is_hauling" label={t('fuel.towingHaulingLoad')} {...register('is_hauling')} disabled={isSubmitting} />
+              {hasLinkedTrailers && (
+                <p className="text-xs text-text-mute">
+                  {t('fuel.towPairHint')}
+                </p>
+              )}
+            </div>
           )}
 
           {/* DEF Level - diesel vehicles only; the server rejects DEF data on non-diesel */}

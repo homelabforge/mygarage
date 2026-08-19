@@ -146,6 +146,10 @@ class CSRFProtectionMiddleware:
         "/api/backup/",
         "/api/settings/batch",
         "/api/v1/livelink/ingest",
+        # Inbound webhooks (Home Assistant, n8n, Telegram) authenticate with the
+        # shared webhook_ingest_token header. No browser session, no CSRF token,
+        # exactly like the livelink ingest path above.
+        "/api/v1/webhooks/",
     )
 
     def __init__(self, app: ASGIApp) -> None:

@@ -66,6 +66,7 @@
 - [ ] I have commented my code, particularly in hard-to-understand areas
 - [ ] I have made corresponding changes to the documentation
 - [ ] My changes generate no new warnings or errors
+- [ ] If I changed backend routes or schemas, I ran `bun run generate:api` and committed the regenerated `openapi.json` + `api.generated.ts`
 - [ ] I have added tests that prove my fix is effective or that my feature works
 - [ ] New and existing unit tests pass locally with my changes
 - [ ] Any dependent changes have been merged and published

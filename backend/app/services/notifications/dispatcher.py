@@ -10,6 +10,7 @@ from app.services.notifications.base import NotificationService
 from app.services.notifications.discord import DiscordNotificationService
 from app.services.notifications.email import EmailNotificationService
 from app.services.notifications.gotify import GotifyNotificationService
+from app.services.notifications.matrix import MatrixNotificationService
 from app.services.notifications.ntfy import NtfyNotificationService
 from app.services.notifications.pushover import PushoverNotificationService
 from app.services.notifications.slack import SlackNotificationService
@@ -83,6 +84,7 @@ class NotificationDispatcher:
         "discord": 1.5,
         "slack": 1.2,
         "telegram": 1.0,
+        "matrix": 1.2,
         "ntfy": 1.0,
         "gotify": 1.0,
         "pushover": 1.0,
@@ -134,6 +136,7 @@ class NotificationDispatcher:
             "pushover_enabled",
             "slack_enabled",
             "discord_enabled",
+            "matrix_enabled",
             "telegram_enabled",
             "email_enabled",
         ]
@@ -179,6 +182,14 @@ class NotificationDispatcher:
             webhook_url = await self._get_setting("discord_webhook_url")
             if webhook_url:
                 services.append(DiscordNotificationService(webhook_url))
+
+        # Check matrix
+        if await self._get_setting_bool("matrix_enabled", default=False):
+            homeserver = await self._get_setting("matrix_homeserver")
+            access_token = await self._get_setting("matrix_access_token")
+            room_id = await self._get_setting("matrix_room_id")
+            if homeserver and access_token and room_id:
+                services.append(MatrixNotificationService(homeserver, access_token, room_id))
 
         # Check telegram
         if await self._get_setting_bool("telegram_enabled", default=False):

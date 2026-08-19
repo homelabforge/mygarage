@@ -4,14 +4,28 @@ import logging
 from datetime import datetime, timedelta
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    Request,
+    UploadFile,
+    status,
+)
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.database import get_db
 from app.models.drive_session import DriveSession
 from app.models.user import User
 from app.schemas.fuel import (
+    FuelReceiptParseResponse,
     FuelRecordCreate,
     FuelRecordListResponse,
     FuelRecordResponse,
@@ -20,10 +34,15 @@ from app.schemas.fuel import (
 )
 from app.services.auth import get_vehicle_or_403, require_auth
 from app.services.fuel_service import FuelRecordService, build_fuel_response
+from app.services.receipt_parse_service import parse_receipt_draft
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/vehicles/{vin}/fuel", tags=["Fuel Records"])
+limiter = Limiter(key_func=get_remote_address)
+# Receipt images go through OCR + an LLM call — cap like other uploads.
+MAX_RECEIPT_UPLOAD_BYTES = settings.max_upload_size_bytes
+MAX_RECEIPT_TEXT_CHARS = 16_000
 
 
 @router.get("", response_model=FuelRecordListResponse)
@@ -74,7 +93,64 @@ OBC_SUGGESTION_WINDOW = timedelta(hours=24)
 
 
 # IMPORTANT: must be declared BEFORE `/{record_id}` so FastAPI's declaration-
-# order routing doesn't try to parse "obc-suggestion" as an int record_id.
+# order routing doesn't try to parse path segments as an int record_id.
+@router.post("/parse-receipt", response_model=FuelReceiptParseResponse)
+@limiter.limit(settings.rate_limit_uploads)
+async def parse_fuel_receipt(
+    request: Request,
+    vin: str,
+    text: str | None = Form(None),
+    file: UploadFile | None = File(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_auth),
+):
+    """Parse a fuel receipt into a draft FuelRecord payload (does not persist).
+
+    Requires ``llm_receipt_parse_enabled``. Accepts multipart image/file and/or
+    a ``text`` form field. Returns draft fields only — never writes FuelRecord.
+    """
+    vin = vin.upper().strip()
+    await get_vehicle_or_403(vin, current_user, db, require_write=True)
+
+    if text is not None and len(text) > MAX_RECEIPT_TEXT_CHARS:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"Receipt text exceeds maximum of {MAX_RECEIPT_TEXT_CHARS} characters",
+        )
+
+    file_bytes: bytes | None = None
+    filename: str | None = None
+    content_type: str | None = None
+    if file is not None and file.filename:
+        # Size comes from the spooled temp file BEFORE the read, matching
+        # file_upload_service.py and insurance.py. Checking len() after
+        # `await file.read()` still materialises the whole upload as a bytes
+        # object first, so the 413 was cosmetic on a single-worker process.
+        # This does not avoid the multipart spool itself, only the RAM copy.
+        file.file.seek(0, 2)
+        file_size = file.file.tell()
+        file.file.seek(0)
+        if file_size > MAX_RECEIPT_UPLOAD_BYTES:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=(
+                    f"Receipt file exceeds maximum of {MAX_RECEIPT_UPLOAD_BYTES // (1024 * 1024)}MB"
+                ),
+            )
+        file_bytes = await file.read()
+        filename = file.filename
+        content_type = file.content_type
+
+    result = await parse_receipt_draft(
+        db,
+        text=text,
+        file_bytes=file_bytes,
+        filename=filename,
+        content_type=content_type,
+    )
+    return FuelReceiptParseResponse.model_validate(result)
+
+
 @router.get("/obc-suggestion", response_model=ObcSuggestionResponse)
 async def obc_suggestion(
     vin: str,

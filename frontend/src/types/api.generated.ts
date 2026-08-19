@@ -1614,6 +1614,95 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/import/vehicles/{vin}/fuel/drivvo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import Drivvo Csv
+         * @description Import fuel records from a Drivvo CSV export.
+         *
+         *     ``odometer_unit`` and ``decimal_separator`` declare how to read columns the
+         *     export does not label. Defaults are metric and dot, matching storage.
+         */
+        post: operations["import_drivvo_csv_api_import_vehicles__vin__fuel_drivvo_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/import/vehicles/{vin}/fuel/external": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import External Fuel Csv
+         * @description Auto-detect Fuelio / Drivvo / Tesla CSV format (or pass format= explicitly).
+         */
+        post: operations["import_external_fuel_csv_api_import_vehicles__vin__fuel_external_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/import/vehicles/{vin}/fuel/fuelio": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import Fuelio Csv
+         * @description Import fuel records from a Fuelio CSV export.
+         *
+         *     ``odometer_unit`` and ``decimal_separator`` declare how to read columns the
+         *     export does not label. Defaults are metric and dot, matching storage.
+         */
+        post: operations["import_fuelio_csv_api_import_vehicles__vin__fuel_fuelio_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/import/vehicles/{vin}/fuel/tesla": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import Tesla Csv
+         * @description Import charge sessions from a Tesla / ABRP-style charge history CSV.
+         *
+         *     ``odometer_unit`` and ``decimal_separator`` declare how to read columns the
+         *     export does not label. Defaults are metric and dot, matching storage.
+         */
+        post: operations["import_tesla_csv_api_import_vehicles__vin__fuel_tesla_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/import/vehicles/{vin}/hours/csv": {
         parameters: {
             query?: never;
@@ -2379,6 +2468,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/notifications/test/matrix": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test Matrix Connection
+         * @description Test Matrix homeserver connection.
+         */
+        post: operations["test_matrix_connection_api_notifications_test_matrix_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/notifications/test/ntfy": {
         parameters: {
             query?: never;
@@ -2642,6 +2751,26 @@ export interface paths {
          *     returned, matching ``VehicleService.list_vehicles``.
          */
         get: operations["list_quick_entry_vehicles_api_quick_entry_vehicles_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reminder-packs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Reminder Packs
+         * @description List built-in reminder packs available to apply to a vehicle.
+         */
+        get: operations["list_reminder_packs_api_reminder_packs_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3296,6 +3425,83 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/webhooks/fuel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Webhook Fuel
+         * @description Create a fuel / charge record (metric canonical).
+         */
+        post: operations["webhook_fuel_api_v1_webhooks_fuel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/webhooks/odometer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Webhook Odometer */
+        post: operations["webhook_odometer_api_v1_webhooks_odometer_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/webhooks/reminders/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Webhook Complete Reminder */
+        post: operations["webhook_complete_reminder_api_v1_webhooks_reminders_complete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/webhooks/telegram": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Webhook Telegram
+         * @description Telegram bot webhook — structured text fuel commands only (no OCR).
+         *
+         *     Enable with ``telegram_inbound_enabled=true``. Auth: same webhook ingest
+         *     token via the ``X-Webhook-Token`` header.
+         */
+        post: operations["webhook_telegram_api_v1_webhooks_telegram_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/widget/summary": {
         parameters: {
             query?: never;
@@ -3846,6 +4052,29 @@ export interface paths {
         get: operations["obc_suggestion_api_vehicles__vin__fuel_obc_suggestion_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/vehicles/{vin}/fuel/parse-receipt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Parse Fuel Receipt
+         * @description Parse a fuel receipt into a draft FuelRecord payload (does not persist).
+         *
+         *     Requires ``llm_receipt_parse_enabled``. Accepts multipart image/file and/or
+         *     a ``text`` form field. Returns draft fields only — never writes FuelRecord.
+         */
+        post: operations["parse_fuel_receipt_api_vehicles__vin__fuel_parse_receipt_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4973,6 +5202,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/vehicles/{vin}/reminders/apply-pack": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply Reminder Pack
+         * @description Apply a built-in reminder pack to a vehicle (creates pending reminders).
+         */
+        post: operations["apply_reminder_pack_api_vehicles__vin__reminders_apply_pack_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/vehicles/{vin}/reminders/{reminder_id}": {
         parameters: {
             query?: never;
@@ -5485,6 +5734,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/vehicles/{vin}/tires": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Tires
+         * @description List tires (all positions) for a vehicle with wear projections.
+         */
+        get: operations["list_tires_api_vehicles__vin__tires_get"];
+        put?: never;
+        /**
+         * Upsert Tire
+         * @description Create or replace the tire at a given position.
+         */
+        post: operations["upsert_tire_api_vehicles__vin__tires_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/vehicles/{vin}/tires/{tire_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update Tire
+         * @description Update tire metadata / latest tread without adding a history reading.
+         */
+        put: operations["update_tire_api_vehicles__vin__tires__tire_id__put"];
+        post?: never;
+        /**
+         * Delete Tire
+         * @description Remove a tire position record and its readings.
+         */
+        delete: operations["delete_tire_api_vehicles__vin__tires__tire_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/vehicles/{vin}/tires/{tire_id}/readings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Tire Reading
+         * @description Append a tread/pressure reading and refresh wear projection + reminders.
+         */
+        post: operations["add_tire_reading_api_vehicles__vin__tires__tire_id__readings_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/vehicles/{vin}/toll-tags": {
         parameters: {
             query?: never;
@@ -5624,6 +5941,26 @@ export interface paths {
          * @description Delete a toll transaction.
          */
         delete: operations["delete_toll_transaction_api_vehicles__vin__toll_transactions__transaction_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/vehicles/{vin}/towed-trailers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Towed Trailers
+         * @description List trailer vehicles paired to this tow vehicle via TrailerDetails.tow_vehicle_vin.
+         */
+        get: operations["list_towed_trailers_api_vehicles__vin__towed_trailers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -6406,6 +6743,14 @@ export interface components {
             severity: "warning" | "critical";
         };
         /**
+         * ApplyReminderPackRequest
+         * @description Request body for applying a reminder pack to a vehicle.
+         */
+        ApplyReminderPackRequest: {
+            /** Pack Id */
+            pack_id: string;
+        };
+        /**
          * AttachmentListResponse
          * @description Schema for list of attachments.
          * @example {
@@ -6518,10 +6863,72 @@ export interface components {
              */
             skip_duplicates: boolean;
         };
+        /** Body_import_drivvo_csv_api_import_vehicles__vin__fuel_drivvo_post */
+        Body_import_drivvo_csv_api_import_vehicles__vin__fuel_drivvo_post: {
+            /**
+             * Decimal Separator
+             * @default dot
+             */
+            decimal_separator: string;
+            /** File */
+            file: string;
+            /**
+             * Odometer Unit
+             * @default km
+             */
+            odometer_unit: string;
+            /**
+             * Skip Duplicates
+             * @default true
+             */
+            skip_duplicates: boolean;
+        };
+        /** Body_import_external_fuel_csv_api_import_vehicles__vin__fuel_external_post */
+        Body_import_external_fuel_csv_api_import_vehicles__vin__fuel_external_post: {
+            /**
+             * Decimal Separator
+             * @default dot
+             */
+            decimal_separator: string;
+            /** File */
+            file: string;
+            /** Format */
+            format?: string | null;
+            /**
+             * Odometer Unit
+             * @default km
+             */
+            odometer_unit: string;
+            /**
+             * Skip Duplicates
+             * @default true
+             */
+            skip_duplicates: boolean;
+        };
         /** Body_import_fuel_csv_api_import_vehicles__vin__fuel_csv_post */
         Body_import_fuel_csv_api_import_vehicles__vin__fuel_csv_post: {
             /** File */
             file: string;
+            /**
+             * Skip Duplicates
+             * @default true
+             */
+            skip_duplicates: boolean;
+        };
+        /** Body_import_fuelio_csv_api_import_vehicles__vin__fuel_fuelio_post */
+        Body_import_fuelio_csv_api_import_vehicles__vin__fuel_fuelio_post: {
+            /**
+             * Decimal Separator
+             * @default dot
+             */
+            decimal_separator: string;
+            /** File */
+            file: string;
+            /**
+             * Odometer Unit
+             * @default km
+             */
+            odometer_unit: string;
             /**
              * Skip Duplicates
              * @default true
@@ -6588,6 +6995,26 @@ export interface components {
              */
             skip_duplicates: boolean;
         };
+        /** Body_import_tesla_csv_api_import_vehicles__vin__fuel_tesla_post */
+        Body_import_tesla_csv_api_import_vehicles__vin__fuel_tesla_post: {
+            /**
+             * Decimal Separator
+             * @default dot
+             */
+            decimal_separator: string;
+            /** File */
+            file: string;
+            /**
+             * Odometer Unit
+             * @default km
+             */
+            odometer_unit: string;
+            /**
+             * Skip Duplicates
+             * @default true
+             */
+            skip_duplicates: boolean;
+        };
         /** Body_import_vehicle_json_api_import_vehicles__vin__json_post */
         Body_import_vehicle_json_api_import_vehicles__vin__json_post: {
             /** File */
@@ -6607,6 +7034,13 @@ export interface components {
              * @default true
              */
             skip_duplicates: boolean;
+        };
+        /** Body_parse_fuel_receipt_api_vehicles__vin__fuel_parse_receipt_post */
+        Body_parse_fuel_receipt_api_vehicles__vin__fuel_parse_receipt_post: {
+            /** File */
+            file?: string | null;
+            /** Text */
+            text?: string | null;
         };
         /** Body_parse_insurance_pdf_api_vehicles__vin__insurance_parse_pdf_post */
         Body_parse_insurance_pdf_api_vehicles__vin__insurance_parse_pdf_post: {
@@ -7996,6 +8430,42 @@ export interface components {
             title: string;
         };
         /**
+         * FuelReceiptDraft
+         * @description Draft fuel fields extracted from a receipt (never persisted automatically).
+         */
+        FuelReceiptDraft: {
+            /** Cost */
+            cost?: number | null;
+            /** Date */
+            date?: string | null;
+            /** Fuel Type Used */
+            fuel_type_used?: string | null;
+            /** Kwh */
+            kwh?: number | null;
+            /** Liters */
+            liters?: number | null;
+            /** Notes */
+            notes?: string | null;
+            /** Odometer Km */
+            odometer_km?: number | null;
+            /** Price Per Unit */
+            price_per_unit?: number | null;
+            /** Station Name */
+            station_name?: string | null;
+        };
+        /**
+         * FuelReceiptParseResponse
+         * @description Response for opt-in LLM receipt parse — draft only.
+         */
+        FuelReceiptParseResponse: {
+            draft: components["schemas"]["FuelReceiptDraft"];
+            /**
+             * Source
+             * @default llm
+             */
+            source: string;
+        };
+        /**
          * FuelRecordCreate
          * @description Schema for creating a new fuel record.
          * @example {
@@ -8011,6 +8481,21 @@ export interface components {
          *     }
          */
         FuelRecordCreate: {
+            /**
+             * Battery Soh Pct
+             * @description Optional battery state-of-health (%)
+             */
+            battery_soh_pct?: number | string | null;
+            /**
+             * Charge Level
+             * @description Charger level: L1 / L2 / DCFC
+             */
+            charge_level?: string | null;
+            /**
+             * Charge Location
+             * @description Charge location: home / public
+             */
+            charge_location?: string | null;
             /**
              * Cost
              * @description Total cost, net of any rebate
@@ -8147,6 +8632,16 @@ export interface components {
              */
             rebate?: number | string | null;
             /**
+             * Soc End Pct
+             * @description Battery SOC at session end (%)
+             */
+            soc_end_pct?: number | string | null;
+            /**
+             * Soc Start Pct
+             * @description Battery SOC at session start (%)
+             */
+            soc_start_pct?: number | string | null;
+            /**
              * Station Address Book Id
              * @description FK to address_book entry with poi_category='gas_station'
              */
@@ -8239,6 +8734,21 @@ export interface components {
          *     }
          */
         FuelRecordResponse: {
+            /**
+             * Battery Soh Pct
+             * @description Optional battery state-of-health (%)
+             */
+            battery_soh_pct?: string | null;
+            /**
+             * Charge Level
+             * @description Charger level: L1 / L2 / DCFC
+             */
+            charge_level?: string | null;
+            /**
+             * Charge Location
+             * @description Charge location: home / public
+             */
+            charge_location?: string | null;
             /**
              * Cost
              * @description Total cost, net of any rebate
@@ -8381,6 +8891,16 @@ export interface components {
              */
             rebate?: string | null;
             /**
+             * Soc End Pct
+             * @description Battery SOC at session end (%)
+             */
+            soc_end_pct?: string | null;
+            /**
+             * Soc Start Pct
+             * @description Battery SOC at session start (%)
+             */
+            soc_start_pct?: string | null;
+            /**
              * Station Address Book Id
              * @description FK to address_book entry with poi_category='gas_station'
              */
@@ -8422,6 +8942,12 @@ export interface components {
          *     }
          */
         FuelRecordUpdate: {
+            /** Battery Soh Pct */
+            battery_soh_pct?: number | string | null;
+            /** Charge Level */
+            charge_level?: string | null;
+            /** Charge Location */
+            charge_location?: string | null;
             /**
              * Cost
              * @description Total cost, net of any rebate
@@ -8528,6 +9054,10 @@ export interface components {
              * @description Rebate/discount/points redeemed; already deducted from cost
              */
             rebate?: number | string | null;
+            /** Soc End Pct */
+            soc_end_pct?: number | string | null;
+            /** Soc Start Pct */
+            soc_start_pct?: number | string | null;
             /** Station Address Book Id */
             station_address_book_id?: number | null;
             /** Station Name Freetext */
@@ -10671,6 +11201,23 @@ export interface components {
             title: string;
         };
         /**
+         * ReminderPackSummary
+         * @description Pack metadata returned by list endpoint.
+         */
+        ReminderPackSummary: {
+            /** Description */
+            description: string;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Reminder Count
+             * @description Number of reminders created when applied
+             */
+            reminder_count: number;
+        };
+        /**
          * ReminderResponse
          * @description Schema for reminder response.
          */
@@ -12226,6 +12773,18 @@ export interface components {
             tax_type?: ("Registration" | "Inspection" | "Property Tax" | "Tolls") | null;
         };
         /**
+         * TelegramUpdate
+         * @description Minimal Telegram Bot API Update subset.
+         */
+        TelegramUpdate: {
+            /** Message */
+            message?: {
+                [key: string]: unknown;
+            } | null;
+            /** Update Id */
+            update_id?: number | null;
+        };
+        /**
          * TelemetryDataPoint
          * @description Schema for a single telemetry data point.
          */
@@ -12340,6 +12899,181 @@ export interface components {
             param_key: string;
             /** Unit */
             unit: string | null;
+        };
+        /**
+         * TireCreate
+         * @description Create / upsert a tire at a position.
+         */
+        TireCreate: {
+            /** Brand */
+            brand?: string | null;
+            /** Dot Code */
+            dot_code?: string | null;
+            /** Installed Date */
+            installed_date?: string | null;
+            /**
+             * Min Tread Mm
+             * @description Wear-out threshold in mm; drives reminder hooks
+             * @default 2.0
+             */
+            min_tread_mm: number | string | null;
+            /** Model Name */
+            model_name?: string | null;
+            /** Notes */
+            notes?: string | null;
+            /**
+             * Position
+             * @enum {string}
+             */
+            position: "FL" | "FR" | "RL" | "RR" | "SPARE";
+            /** Pressure Kpa */
+            pressure_kpa?: number | string | null;
+            /** Size */
+            size?: string | null;
+            /** Tread Depth Mm */
+            tread_depth_mm?: number | string | null;
+            /** Vin */
+            vin: string;
+        };
+        /**
+         * TireListResponse
+         * @description All tires for a vehicle.
+         */
+        TireListResponse: {
+            /** Tires */
+            tires: components["schemas"]["TireResponse"][];
+            /** Total */
+            total: number;
+        };
+        /**
+         * TireReadingCreate
+         * @description Record a tread/pressure reading (updates the parent tire's latest depth).
+         */
+        TireReadingCreate: {
+            /** Notes */
+            notes?: string | null;
+            /** Odometer Km */
+            odometer_km?: number | string | null;
+            /** Pressure Kpa */
+            pressure_kpa?: number | string | null;
+            /**
+             * Recorded At
+             * Format: date
+             */
+            recorded_at: string;
+            /** Tread Depth Mm */
+            tread_depth_mm: number | string;
+        };
+        /**
+         * TireReadingResponse
+         * @description Tire reading response.
+         */
+        TireReadingResponse: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Id */
+            id: number;
+            /** Notes */
+            notes: string | null;
+            /** Odometer Km */
+            odometer_km: string | null;
+            /** Position */
+            position: string;
+            /** Pressure Kpa */
+            pressure_kpa: string | null;
+            /**
+             * Recorded At
+             * Format: date
+             */
+            recorded_at: string;
+            /** Tire Id */
+            tire_id: number;
+            /** Tread Depth Mm */
+            tread_depth_mm: string;
+            /** Vin */
+            vin: string;
+        };
+        /**
+         * TireResponse
+         * @description Tire with optional wear projection.
+         */
+        TireResponse: {
+            /**
+             * Below Threshold
+             * @default false
+             */
+            below_threshold: boolean;
+            /** Brand */
+            brand?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Dot Code */
+            dot_code?: string | null;
+            /** Id */
+            id: number;
+            /** Installed Date */
+            installed_date?: string | null;
+            /**
+             * Min Tread Mm
+             * @description Wear-out threshold in mm; drives reminder hooks
+             * @default 2.0
+             */
+            min_tread_mm: string | null;
+            /** Model Name */
+            model_name?: string | null;
+            /** Notes */
+            notes?: string | null;
+            /**
+             * Position
+             * @enum {string}
+             */
+            position: "FL" | "FR" | "RL" | "RR" | "SPARE";
+            /** Pressure Kpa */
+            pressure_kpa?: string | null;
+            /** Projected Km Remaining */
+            projected_km_remaining?: string | null;
+            /** Projected Wear Date */
+            projected_wear_date?: string | null;
+            /** Readings */
+            readings?: components["schemas"]["TireReadingResponse"][];
+            /** Size */
+            size?: string | null;
+            /** Tread Depth Mm */
+            tread_depth_mm?: string | null;
+            /** Updated At */
+            updated_at?: string | null;
+            /** Vin */
+            vin: string;
+        };
+        /**
+         * TireUpdate
+         * @description Partial tire update.
+         */
+        TireUpdate: {
+            /** Brand */
+            brand?: string | null;
+            /** Dot Code */
+            dot_code?: string | null;
+            /** Installed Date */
+            installed_date?: string | null;
+            /** Min Tread Mm */
+            min_tread_mm?: number | string | null;
+            /** Model Name */
+            model_name?: string | null;
+            /** Notes */
+            notes?: string | null;
+            /** Pressure Kpa */
+            pressure_kpa?: number | string | null;
+            /** Size */
+            size?: string | null;
+            /** Tread Depth Mm */
+            tread_depth_mm?: number | string | null;
         };
         /**
          * Token
@@ -13570,7 +14304,7 @@ export interface components {
              * @description Type of vehicle
              * @enum {string}
              */
-            vehicle_type: "Car" | "Truck" | "SUV" | "Motorcycle" | "ATV" | "RV" | "Trailer" | "FifthWheel" | "TravelTrailer" | "Electric" | "Hybrid";
+            vehicle_type: "Car" | "Truck" | "SUV" | "Motorcycle" | "ATV" | "RV" | "Trailer" | "FifthWheel" | "TravelTrailer" | "Electric" | "Hybrid" | "Boat" | "UTV" | "Snowmobile" | "Bicycle" | "EBike";
             /**
              * Vin
              * @description 17-character Vehicle Identification Number
@@ -14043,7 +14777,7 @@ export interface components {
              * @description Type of vehicle
              * @enum {string}
              */
-            vehicle_type: "Car" | "Truck" | "SUV" | "Motorcycle" | "ATV" | "RV" | "Trailer" | "FifthWheel" | "TravelTrailer" | "Electric" | "Hybrid";
+            vehicle_type: "Car" | "Truck" | "SUV" | "Motorcycle" | "ATV" | "RV" | "Trailer" | "FifthWheel" | "TravelTrailer" | "Electric" | "Hybrid" | "Boat" | "UTV" | "Snowmobile" | "Bicycle" | "EBike";
             /** Vin */
             vin: string;
             /** Warranty Basic */
@@ -14474,7 +15208,7 @@ export interface components {
              * Vehicle Type
              * @description Type of vehicle
              */
-            vehicle_type?: ("Car" | "Truck" | "SUV" | "Motorcycle" | "ATV" | "RV" | "Trailer" | "FifthWheel" | "TravelTrailer" | "Electric" | "Hybrid") | null;
+            vehicle_type?: ("Car" | "Truck" | "SUV" | "Motorcycle" | "ATV" | "RV" | "Trailer" | "FifthWheel" | "TravelTrailer" | "Electric" | "Hybrid" | "Boat" | "UTV" | "Snowmobile" | "Bicycle" | "EBike") | null;
             /**
              * Warranty Basic
              * @description Basic warranty
@@ -14850,6 +15584,72 @@ export interface components {
             start_date?: string | null;
             /** Warranty Type */
             warranty_type?: string | null;
+        };
+        /** WebhookCompleteReminderPayload */
+        WebhookCompleteReminderPayload: {
+            /** Reminder Id */
+            reminder_id: number;
+            /** Vin */
+            vin: string;
+        };
+        /**
+         * WebhookFuelPayload
+         * @description Inbound fuel/charge payload.
+         *
+         *     Numeric bounds mirror FuelRecordBase. Without them SQLite stores an absurd
+         *     value silently, and on PostgreSQL the driver raises a DataError that
+         *     surfaces as a 500 rather than a 4xx.
+         *
+         *     Unlike FuelRecordCreate, odometer and amount are both optional: a charge
+         *     session legitimately arrives with neither.
+         */
+        WebhookFuelPayload: {
+            /** Battery Soh Pct */
+            battery_soh_pct?: number | string | null;
+            /** Charge Level */
+            charge_level?: string | null;
+            /** Charge Location */
+            charge_location?: string | null;
+            /** Cost */
+            cost?: number | string | null;
+            /** Date */
+            date?: string | null;
+            /** Fuel Type Used */
+            fuel_type_used?: string | null;
+            /**
+             * Is Full Tank
+             * @default true
+             */
+            is_full_tank: boolean;
+            /** Kwh */
+            kwh?: number | string | null;
+            /** Liters */
+            liters?: number | string | null;
+            /** Notes */
+            notes?: string | null;
+            /** Odometer Km */
+            odometer_km?: number | string | null;
+            /** Price Basis */
+            price_basis?: string | null;
+            /** Price Per Unit */
+            price_per_unit?: number | string | null;
+            /** Soc End Pct */
+            soc_end_pct?: number | string | null;
+            /** Soc Start Pct */
+            soc_start_pct?: number | string | null;
+            /** Vin */
+            vin: string;
+        };
+        /** WebhookOdometerPayload */
+        WebhookOdometerPayload: {
+            /** Date */
+            date?: string | null;
+            /** Notes */
+            notes?: string | null;
+            /** Odometer Km */
+            odometer_km: number | string;
+            /** Vin */
+            vin: string;
         };
         /**
          * WiCANConfigEntry
@@ -17569,6 +18369,146 @@ export interface operations {
             };
         };
     };
+    import_drivvo_csv_api_import_vehicles__vin__fuel_drivvo_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vin: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_import_drivvo_csv_api_import_vehicles__vin__fuel_drivvo_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    import_external_fuel_csv_api_import_vehicles__vin__fuel_external_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vin: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_import_external_fuel_csv_api_import_vehicles__vin__fuel_external_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    import_fuelio_csv_api_import_vehicles__vin__fuel_fuelio_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vin: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_import_fuelio_csv_api_import_vehicles__vin__fuel_fuelio_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    import_tesla_csv_api_import_vehicles__vin__fuel_tesla_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vin: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_import_tesla_csv_api_import_vehicles__vin__fuel_tesla_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     import_hours_csv_api_import_vehicles__vin__hours_csv_post: {
         parameters: {
             query?: never;
@@ -18663,6 +19603,28 @@ export interface operations {
             };
         };
     };
+    test_matrix_connection_api_notifications_test_matrix_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
     test_ntfy_connection_api_notifications_test_ntfy_post: {
         parameters: {
             query?: never;
@@ -18927,6 +19889,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["QuickEntryVehicleList"];
+                };
+            };
+        };
+    };
+    list_reminder_packs_api_reminder_packs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReminderPackSummary"][];
                 };
             };
         };
@@ -20022,6 +21004,146 @@ export interface operations {
             };
         };
     };
+    webhook_fuel_api_v1_webhooks_fuel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WebhookFuelPayload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    webhook_odometer_api_v1_webhooks_odometer_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WebhookOdometerPayload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    webhook_complete_reminder_api_v1_webhooks_reminders_complete_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WebhookCompleteReminderPayload"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    webhook_telegram_api_v1_webhooks_telegram_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TelegramUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_summary_api_v2_widget_summary_get: {
         parameters: {
             query?: never;
@@ -20901,6 +22023,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ObcSuggestionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    parse_fuel_receipt_api_vehicles__vin__fuel_parse_receipt_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vin: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_parse_fuel_receipt_api_vehicles__vin__fuel_parse_receipt_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FuelReceiptParseResponse"];
                 };
             };
             /** @description Validation Error */
@@ -22835,6 +23992,41 @@ export interface operations {
             };
         };
     };
+    apply_reminder_pack_api_vehicles__vin__reminders_apply_pack_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vin: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApplyReminderPackRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReminderResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     update_reminder_api_vehicles__vin__reminders__reminder_id__put: {
         parameters: {
             query?: never;
@@ -23882,6 +25074,174 @@ export interface operations {
             };
         };
     };
+    list_tires_api_vehicles__vin__tires_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vin: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TireListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upsert_tire_api_vehicles__vin__tires_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vin: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TireCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TireResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_tire_api_vehicles__vin__tires__tire_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vin: string;
+                tire_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TireUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TireResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_tire_api_vehicles__vin__tires__tire_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vin: string;
+                tire_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_tire_reading_api_vehicles__vin__tires__tire_id__readings_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vin: string;
+                tire_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TireReadingCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TireResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_toll_tags_api_vehicles__vin__toll_tags_get: {
         parameters: {
             query?: never;
@@ -24267,6 +25627,37 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_towed_trailers_api_vehicles__vin__towed_trailers_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vin: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VehicleResponse"][];
+                };
             };
             /** @description Validation Error */
             422: {

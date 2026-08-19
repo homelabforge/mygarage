@@ -9,7 +9,7 @@ import FormModalWrapper from '../FormModalWrapper'
 import { Button, Field, Input, NumberInput, Select, Toggle, registerDecimal } from '../ui'
 import vehicleService from '../../services/vehicleService'
 import type { Vehicle, VehicleUpdate } from '../../types/vehicle'
-import { makeVehicleEditSchema, type VehicleEditFormData, VEHICLE_TYPES } from '../../schemas/vehicle'
+import { makeVehicleEditSchema, type VehicleEditFormData, vehicleTypeOptions, NON_MOTORIZED_TYPES } from '../../schemas/vehicle'
 import { FUEL_TYPE_VALUES, FUEL_TYPE_LABELS, isDieselFuelType } from '../../constants/fuel'
 import { useUnitPreference } from '../../hooks/useUnitPreference'
 import { UnitConverter, UnitFormatter } from '../../utils/units'
@@ -19,7 +19,8 @@ import { applyServerErrors } from '../../hooks/useApiFormErrors'
 import { getActionErrorMessage } from '../../utils/httpErrorHandler'
 
 /** Vehicles with no engine, VIN-decoded drivetrain, or DEF system. */
-const NON_MOTORIZED_TYPES = ['Trailer', 'FifthWheel', 'TravelTrailer']
+const NON_MOTORIZED: readonly string[] = NON_MOTORIZED_TYPES
+
 
 /** Only these carry a Monroney label, so only these get the sticker section. */
 const WINDOW_STICKER_TYPES = ['Car', 'Truck', 'SUV']
@@ -94,7 +95,7 @@ export default function VehicleEditDrawer({
   const [seedSource, setSeedSource] = useState<Vehicle | null>(null)
   const { system } = useUnitPreference()
 
-  const isMotorized = seedSource ? !NON_MOTORIZED_TYPES.includes(seedSource.vehicle_type) : false
+  const isMotorized = seedSource ? !NON_MOTORIZED.includes(seedSource.vehicle_type) : false
   const hasWindowSticker = seedSource
     ? WINDOW_STICKER_TYPES.includes(seedSource.vehicle_type)
     : false
@@ -313,10 +314,7 @@ export default function VehicleEditDrawer({
                 {...register('vehicle_type')}
                 invalid={!!errors.vehicle_type}
                 disabled={isSubmitting}
-                options={VEHICLE_TYPES.map((type) => ({
-                  value: type,
-                  label: t(`vehicleTypeLabels.${type}`, { defaultValue: type }),
-                }))}
+                options={vehicleTypeOptions(t)}
               />
             </Field>
 

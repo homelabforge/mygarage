@@ -8,12 +8,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.user import User
 from app.schemas.reminder import ReminderCreate, ReminderResponse, ReminderUpdate
-from app.services import reminder_service
+from app.schemas.reminder_pack import ApplyReminderPackRequest, ReminderPackSummary
+from app.services import reminder_pack_service, reminder_service
 from app.services.auth import get_vehicle_or_403, require_auth
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/vehicles/{vin}/reminders", tags=["Reminders"])
+packs_router = APIRouter(prefix="/api/reminder-packs", tags=["Reminders"])
+
+
+@packs_router.get("", response_model=list[ReminderPackSummary])
+async def list_reminder_packs(
+    current_user: User = Depends(require_auth),
+):
+    """List built-in reminder packs available to apply to a vehicle."""
+    return reminder_pack_service.list_packs()
 
 
 @router.get("", response_model=list[ReminderResponse])
@@ -43,6 +53,21 @@ async def create_reminder(
     await db.commit()
     await db.refresh(reminder)
     return await reminder_service.enrich_with_estimate(reminder, db)
+
+
+@router.post("/apply-pack", response_model=list[ReminderResponse], status_code=201)
+async def apply_reminder_pack(
+    vin: str,
+    body: ApplyReminderPackRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_auth),
+):
+    """Apply a built-in reminder pack to a vehicle (creates pending reminders)."""
+    vin = vin.upper().strip()
+    await get_vehicle_or_403(vin, current_user, db, require_write=True)
+    created = await reminder_pack_service.apply_pack(vin, body.pack_id, db)
+    await db.commit()
+    return created
 
 
 @router.put("/{reminder_id}", response_model=ReminderResponse)

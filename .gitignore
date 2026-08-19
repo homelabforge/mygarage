@@ -46,6 +46,7 @@ coverage.json
 frontend/test-results/
 frontend/playwright-report/
 frontend/e2e/.auth/
+.pw-browsers/
 
 # Node / Frontend
 node_modules/
@@ -88,6 +89,9 @@ desktop.ini
 
 # MyGarage Specific
 data/
+# Keep packaged static data (reminder packs, etc.) under the app tree
+!backend/app/data/
+!backend/app/data/**
 *.db
 *.db-shm
 *.db-wal
@@ -157,6 +161,7 @@ frontend/package-lock.json
 # Agent instruction files (local-only, not for the public repo)
 CLAUDE.md
 .claude/
+.pw-browsers/
 
 # superpowers SDD scratch (ledger, briefs, review packages)
 .superpowers/

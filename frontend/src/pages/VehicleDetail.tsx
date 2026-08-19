@@ -27,6 +27,7 @@ import {
   Clock,
   Droplets,
   Package,
+  CircleDot,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import vehicleService from '../services/vehicleService'
@@ -50,6 +51,7 @@ import TollsTab from '../components/tabs/TollsTab'
 import SuppliesUsedTab from '../components/SuppliesUsedTab'
 import SafetyTab from '../components/tabs/SafetyTab'
 import TaxRecordList from '../components/TaxRecordList'
+import TireList from '../components/TireList'
 import SpotRentalsTab from '../components/tabs/SpotRentalsTab'
 import PropaneTab from '../components/tabs/PropaneTab'
 import DEFTab from '../components/tabs/DEFTab'
@@ -79,6 +81,7 @@ import TorqueSourceModal from '../components/modals/TorqueSourceModal'
 import { useOnlineStatus } from '../hooks/useOnlineStatus'
 import { useAuth } from '../contexts/AuthContext'
 import { getUsageTracking } from '../utils/usageTracking'
+import { NON_MOTORIZED_TYPES, NO_FUEL_TYPES } from '../schemas/vehicle'
 
 /** Per-record-type tallies returned by the JSON import endpoint. */
 type ImportSectionResult = {
@@ -89,7 +92,7 @@ type ImportSectionResult = {
 
 export type ModalType = 'remove' | 'transfer' | 'sharing' | 'windowSticker' | 'torqueSource' | null
 export type PrimaryTabType = 'overview' | 'media' | 'maintenance' | 'fuel' | 'tracking' | 'financial' | 'livelink'
-export type SubTabType = 'photos' | 'documents' | 'service' | 'fuel' | 'def' | 'propane' | 'odometer' | 'hours' | 'notes' | 'warranties' | 'insurance' | 'tax' | 'tolls' | 'spotrentals' | 'suppliesused' | 'recalls' | 'reports' | 'reminders' | 'live' | 'dtcs' | 'sessions' | 'charts' | 'trips'
+export type SubTabType = 'photos' | 'documents' | 'service' | 'fuel' | 'def' | 'propane' | 'odometer' | 'hours' | 'notes' | 'warranties' | 'insurance' | 'tax' | 'tolls' | 'spotrentals' | 'suppliesused' | 'recalls' | 'reports' | 'reminders' | 'live' | 'dtcs' | 'sessions' | 'charts' | 'trips' | 'tires'
 
 export default function VehicleDetail() {
   const { t } = useTranslation('vehicles')
@@ -247,6 +250,7 @@ export default function VehicleDetail() {
       'tolls': { primary: 'financial', sub: 'tolls' },
       'spotrentals': { primary: 'financial', sub: 'spotrentals' },
       'recalls': { primary: 'maintenance', sub: 'recalls' },
+      'tires': { primary: 'maintenance', sub: 'tires' },
       'reports': { primary: 'tracking', sub: 'reports' },
       'reminders': { primary: 'tracking', sub: 'reminders' },
       'live': { primary: 'livelink', sub: 'live' },
@@ -385,7 +389,7 @@ export default function VehicleDetail() {
         // Fuel group is fuel/def/propane; pick the first sub-tab visible for this
         // vehicle (propane-only trailers aren't motorized, so 'fuel' would be hidden).
         // Order matches the Add Fuel hero button (config order Fuel -> DEF -> Propane).
-        setActiveSubTab(isMotorized ? 'fuel' : hasDEF ? 'def' : hasPropane ? 'propane' : 'fuel')
+        setActiveSubTab(showFuelLog ? 'fuel' : hasDEF ? 'def' : hasPropane ? 'propane' : 'fuel')
         break
       case 'tracking':
         setActiveSubTab('notes')
@@ -448,8 +452,15 @@ export default function VehicleDetail() {
 
   // Check if vehicle is motorized (excludes non-motorized trailers, fifth wheels, and travel trailers)
   // RVs ARE motorized and keep fuel/odometer tabs
-  const isMotorized = vehicle?.vehicle_type &&
-    !['Trailer', 'FifthWheel', 'TravelTrailer'].includes(vehicle.vehicle_type)
+  const isMotorized = Boolean(
+    vehicle?.vehicle_type &&
+      !(NON_MOTORIZED_TYPES as readonly string[]).includes(vehicle.vehicle_type),
+  )
+  const showFuelLog = Boolean(
+    isMotorized &&
+      vehicle?.vehicle_type &&
+      !(NO_FUEL_TYPES as readonly string[]).includes(vehicle.vehicle_type),
+  )
 
   // Task 16a — which usage dimension(s) this vehicle tracks, gating the
   // Odometer vs. Hours maintenance sub-tab below. A pure-hours vehicle sees
@@ -515,7 +526,7 @@ export default function VehicleDetail() {
       hasSubTabs: true
     },
     // Fuel tab — groups fuel/DEF/propane fill-ups; shown when any is relevant
-    ...((isMotorized || hasDEF || hasPropane) ? [{
+    ...((showFuelLog || hasDEF || hasPropane) ? [{
       id: 'fuel' as const,
       label: t('detail.tabs.fuel'),
       icon: Fuel,
@@ -552,10 +563,11 @@ export default function VehicleDetail() {
       { id: 'service' as const, label: t('vehicleStats.service'), icon: Wrench },
       { id: 'odometer' as const, label: t('detail.misc.odometer'), icon: Gauge, visible: isMotorized && tracksDistance },
       { id: 'hours' as const, label: t('common:engineHours'), icon: Clock, visible: tracksHours },
+      { id: 'tires' as const, label: t('detail.misc.tires'), icon: CircleDot, visible: isMotorized },
       { id: 'recalls' as const, label: t('detail.misc.recalls'), icon: AlertTriangle },
     ],
     fuel: [
-      { id: 'fuel' as const, label: t('detail.tabs.fuel'), icon: Fuel, visible: isMotorized },
+      { id: 'fuel' as const, label: t('detail.tabs.fuel'), icon: Fuel, visible: showFuelLog },
       // i18n-exempt — DEF is an untranslated acronym (Diesel Exhaust Fluid)
       { id: 'def' as const, label: 'DEF', icon: Droplets, visible: hasDEF },
       { id: 'propane' as const, label: t('detail.misc.propane'), icon: Fuel, visible: hasPropane },
@@ -637,11 +649,11 @@ export default function VehicleDetail() {
           importing={importing}
           exporting={exporting}
           isOnline={isOnline}
-          showFuelAction={Boolean(isMotorized || hasDEF || hasPropane)}
+          showFuelAction={Boolean(showFuelLog || hasDEF || hasPropane)}
           hasStandardEquipment={hasStandardEquipment}
           hasOptionalEquipment={hasOptionalEquipment}
           onLogService={() => goToSection('maintenance', 'service')}
-          onAddFuel={() => goToSection('fuel', isMotorized ? 'fuel' : hasDEF ? 'def' : hasPropane ? 'propane' : 'fuel')}
+          onAddFuel={() => goToSection('fuel', showFuelLog ? 'fuel' : hasDEF ? 'def' : hasPropane ? 'propane' : 'fuel')}
           onReminder={() => goToSection('tracking', 'reminders')}
           onEditEquipment={handleEquipmentClick}
           onEdit={() => setEditDrawerOpen(true)}
@@ -700,6 +712,7 @@ export default function VehicleDetail() {
         {activePrimaryTab === 'fuel' && activeSubTab === 'propane' && vin && <PropaneTab vin={vin} />}
         {activePrimaryTab === 'maintenance' && activeSubTab === 'odometer' && vin && <OdometerTab vin={vin} />}
         {activePrimaryTab === 'maintenance' && activeSubTab === 'hours' && vin && <HoursTab vin={vin} />}
+        {activePrimaryTab === 'maintenance' && activeSubTab === 'tires' && vin && <TireList vin={vin} />}
         {activePrimaryTab === 'maintenance' && activeSubTab === 'recalls' && vin && <SafetyTab vin={vin} />}
 
         {/* Tracking Sub-tabs */}

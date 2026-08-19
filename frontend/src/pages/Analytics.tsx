@@ -8,6 +8,7 @@ import { useParams, Link } from 'react-router-dom'
 import api from '../services/api'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
 import { useUnitPreference } from '../hooks/useUnitPreference'
+import { NON_MOTORIZED_TYPES } from '../schemas/vehicle'
 import { UnitConverter, UnitFormatter } from '../utils/units'
 import { withBase } from '../utils/basePath'
 import {
@@ -110,7 +111,7 @@ export default function Analytics() {
 
   // Check if vehicle is motorized (not a trailer, fifth wheel, or travel trailer)
   const isMotorized = analytics?.vehicle_type &&
-    !['Trailer', 'FifthWheel', 'TravelTrailer'].includes(analytics.vehicle_type)
+    !(NON_MOTORIZED_TYPES as readonly string[]).includes(analytics.vehicle_type)
 
   // Check if vehicle is a fifth wheel, travel trailer, or RV (for propane and spot rental tracking)
   const hasPropane = analytics?.vehicle_type &&

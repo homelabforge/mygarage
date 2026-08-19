@@ -91,6 +91,11 @@ EXPORT_COVERAGE_SPECS: list[ExportCoverageSpec] = [
             "OBC Avg Speed (km/h)": "obc_avg_speed_kmh",
             "OBC Trip Duration (s)": "obc_trip_duration_s",
             "Engine Hours": "engine_hours",
+            "SOC Start (%)": "soc_start_pct",
+            "SOC End (%)": "soc_end_pct",
+            "Charge Level": "charge_level",
+            "Charge Location": "charge_location",
+            "Battery SOH (%)": "battery_soh_pct",
             "Notes": "notes",
         },
         exclude={

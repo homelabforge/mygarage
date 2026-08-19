@@ -20,7 +20,7 @@ import type { VehicleCreate } from '../types/vehicle'
 import { FUEL_TYPE_VALUES, FUEL_TYPE_LABELS, type FuelType } from '../constants/fuel'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
 import vehicleService from '../services/vehicleService'
-import { makeVehicleEditSchema, VEHICLE_TYPES, type VehicleEditFormData } from '../schemas/vehicle'
+import { makeVehicleEditSchema, vehicleTypeOptions, type VehicleEditFormData } from '../schemas/vehicle'
 import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
 
 interface VehicleWizardProps {
@@ -337,10 +337,7 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
                 <Select
                   {...register('vehicle_type')}
                   invalid={!!errors.vehicle_type}
-                  options={VEHICLE_TYPES.map((type) => ({
-                    value: type,
-                    label: t(`vehicleTypeLabels.${type}`, { defaultValue: type }),
-                  }))}
+                  options={vehicleTypeOptions(t)}
                 />
                 <FormError error={errors.vehicle_type} />
               </div>

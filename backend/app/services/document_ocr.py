@@ -53,7 +53,7 @@ class DocumentOCRService:
         if file_path:
             text = await self._extract_text_from_file(file_path)
         elif file_bytes:
-            text = await self._extract_text_from_bytes(file_bytes)
+            text = await self.extract_text_from_bytes(file_bytes)
         else:
             raise ValueError("Either file_path or file_bytes must be provided")
 
@@ -121,7 +121,7 @@ class DocumentOCRService:
             if file_path:
                 text = await self._extract_text_from_file(file_path)
             elif file_bytes:
-                text = await self._extract_text_from_bytes(file_bytes)
+                text = await self.extract_text_from_bytes(file_bytes)
             else:
                 raise ValueError("Either file_path or file_bytes must be provided")
 
@@ -168,8 +168,8 @@ class DocumentOCRService:
         else:
             return await self._extract_text_from_image(file_path)
 
-    async def _extract_text_from_bytes(self, file_bytes: bytes, is_pdf: bool = True) -> str:
-        """Extract text from raw bytes."""
+    async def extract_text_from_bytes(self, file_bytes: bytes, is_pdf: bool = True) -> str:
+        """Extract text from raw bytes. Public: the receipt parser needs it."""
         if is_pdf:
             return await self._extract_text_from_pdf_bytes(file_bytes)
         else:

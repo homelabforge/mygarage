@@ -9,6 +9,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Home Assistant: Supervisor add-on + HACS integration under `homeassistant/` — polls widget API v2 (`X-API-Key`); write services via inbound webhooks (`mygarage.log_fuel`, `set_odometer`, `complete_reminder`). See [docs/homeassistant/README.md](docs/homeassistant/README.md).
+- Tires: per-position tread / DOT / pressure tracking with wear projection and automatic low-tread reminders (migration 085).
+- EV / PHEV charge sessions: SOC start/end, charge level (L1/L2/DCFC), home/public location, and battery SOH on fuel records (migration 086).
+- Importers: Fuelio, Drivvo, and Tesla/ABRP charge CSV adapters (`/api/import/vehicles/{vin}/fuel/{fuelio,drivvo,tesla,external}`).
+- Inbound webhooks: `POST /api/v1/webhooks/fuel|odometer|reminders/complete|telegram` authenticated with `webhook_ingest_token` (migration 087). Structured Telegram fuel commands (no OCR): `fuel <vin|nickname> <odo>[km|mi] <vol>[L|gal|kWh] [price] [cost]`.
+- Vehicle types: Boat, UTV, Snowmobile, Bicycle, and E-Bike (Bicycle hides the fuel log; others remain motorized / hours-friendly where relevant).
+- Tow pairing UI for trailer details (`tow_vehicle_vin`) plus linked-trailers list on tow vehicles.
+- Built-in OEM/DIY reminder packs with apply-from-UI and `/api/reminder-packs` APIs.
+- Matrix notification channel (homeserver + access token + room).
+- Quick Entry / PWA deep links: `/quick-entry?action=add-fuel|add-service|odometer`.
+- Opt-in LLM fuel receipt parse (Ollama/OpenAI-compatible; draft only). See [docs/tier2-features.md](docs/tier2-features.md).
+
+### Changed
+- Tire add, edit and reading forms open in a side drawer, matching the rest of the app.
+- Tire position is chosen with toggle buttons rather than a dropdown, and positions already tracked stay visible.
+- Deleting a tire moved from the tire card to the edit drawer.
+- Tire positions display as full names (Front Left, Spare) and are translatable.
+- Vehicle type lists are ordered alphabetically by the label shown, in every language.
+- Notification service tabs are ordered alphabetically.
+- Trailer tow pairing is a summary card that opens a sidecar on click, matching the other Overview cards, instead of an inline form.
+
+### Fixed
+- Reminder pack loader rejects path-traversal `pack_id` values.
+- LLM receipt parse is rate-limited and rejects oversized uploads/text.
+- Matrix HTML payloads escape title/body and only link http(s) URLs.
+- Inbound webhooks no longer return 403 on instances with authentication enabled.
+- Webhook ingest token is accepted only via the `X-Webhook-Token` header, never in the query string, and is rate limited.
+- Webhook and CSV-import fill-ups now sync the odometer log and invalidate cached dashboards.
+- Reminders completed via webhook or a tire threshold use the `done` status, so they stay visible and can be reopened.
+- Telegram inbound bot: replies now reach the user, and a bad command no longer triggers a redelivery loop. (Inbound commands are Telegram-only; the seven outbound notification backends are unaffected.)
+- CSV import takes an explicit odometer unit and decimal separator instead of guessing, so imperial and European exports no longer import corrupted values.
+- CSV import preserves the charge/fill timestamp, so two same-day sessions are no longer collapsed into one, and re-importing a file you corrected in the source app no longer creates duplicates.
+- Saving a tire no longer erases its brand, model, size and DOT code; the tire tab now has separate Add and Edit actions.
+- Backdated tire readings no longer overwrite the current tread depth.
+- Tire tab now respects the imperial and metric unit preference, and its inputs are properly labelled.
+- EV charge level and location can be cleared, and their validation errors now render.
+- Adding a fuel record no longer fails when two odometer readings share a date.
+- A tire delete that fails now reports the error instead of failing silently.
 
 ## [3.0.1] - 2026-08-15
 

@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import type { TFunction } from 'i18next'
 import { FUEL_TYPE_VALUES } from '../constants/fuel'
+import { getActiveLocale } from '../constants/i18n'
 import { INVALID_NUMBER } from './shared'
 
 /**
@@ -23,7 +24,38 @@ export const VEHICLE_TYPES = [
   'TravelTrailer',
   'Electric',
   'Hybrid',
+  'Boat',
+  'UTV',
+  'Snowmobile',
+  'Bicycle',
+  'EBike',
 ] as const
+
+/**
+ * Vehicle-type options for a <Select>, ordered alphabetically by the label the
+ * user actually sees.
+ *
+ * Deliberately sorted here rather than by reordering VEHICLE_TYPES itself. The
+ * constant holds raw values ("FifthWheel", "EBike", "UTV") while the dropdown
+ * shows translated labels, so a constant sorted by value is wrong twice over:
+ * it is only alphabetical in English, and even there "SUV" would sort before
+ * "Snowmobile" because it compares S-U against S-n. localeCompare against the
+ * active locale gets both right in all six languages.
+ */
+export function vehicleTypeOptions(
+  translate: TFunction,
+): { value: (typeof VEHICLE_TYPES)[number]; label: string }[] {
+  return VEHICLE_TYPES.map((value) => ({
+    value,
+    label: translate(`vehicleTypeLabels.${value}`, { defaultValue: value }),
+  })).sort((a, b) => a.label.localeCompare(b.label, getActiveLocale()))
+}
+
+/** Trailer-like types: no fuel / odometer as a primary motorized vehicle. */
+export const NON_MOTORIZED_TYPES = ['Trailer', 'FifthWheel', 'TravelTrailer'] as const
+
+/** Distance-tracked but typically no liquid/charge fuel log (EBike uses Electric fuel). */
+export const NO_FUEL_TYPES = ['Bicycle'] as const
 
 // Collapse a blank/missing value to an explicit `null` rather than
 // `undefined`. The vehicle update endpoint uses Pydantic's

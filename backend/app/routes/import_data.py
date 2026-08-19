@@ -45,6 +45,10 @@ from app.models import (
 from app.models.user import User
 from app.models.vendor import Vendor
 from app.services.auth import get_vehicle_or_403, require_auth
+from app.services.fuel_side_effects import (
+    apply_fuel_record_side_effects,
+    invalidate_cache_for_vehicle,
+)
 from app.utils.def_sync import ensure_def_capable
 from app.utils.file_validation import validate_csv_upload
 from app.utils.logging_utils import sanitize_for_log
@@ -1314,3 +1318,244 @@ async def import_vehicle_json(
         bucket["skipped_count"] = bucket.get("skipped", 0)
 
     return results
+
+
+@router.post("/vehicles/{vin}/fuel/fuelio")
+@limiter.limit(settings.rate_limit_uploads)
+async def import_fuelio_csv(
+    request: Request,
+    vin: str,
+    file: UploadFile = File(...),
+    skip_duplicates: bool = Form(True),
+    odometer_unit: str = Form("km"),
+    decimal_separator: str = Form("dot"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(require_auth),
+):
+    """Import fuel records from a Fuelio CSV export.
+
+    ``odometer_unit`` and ``decimal_separator`` declare how to read columns the
+    export does not label. Defaults are metric and dot, matching storage.
+    """
+    return await _import_third_party_fuel(
+        vin,
+        file,
+        skip_duplicates,
+        db,
+        current_user,
+        "fuelio",
+        _parse_options(odometer_unit, decimal_separator),
+    )
+
+
+@router.post("/vehicles/{vin}/fuel/drivvo")
+@limiter.limit(settings.rate_limit_uploads)
+async def import_drivvo_csv(
+    request: Request,
+    vin: str,
+    file: UploadFile = File(...),
+    skip_duplicates: bool = Form(True),
+    odometer_unit: str = Form("km"),
+    decimal_separator: str = Form("dot"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(require_auth),
+):
+    """Import fuel records from a Drivvo CSV export.
+
+    ``odometer_unit`` and ``decimal_separator`` declare how to read columns the
+    export does not label. Defaults are metric and dot, matching storage.
+    """
+    return await _import_third_party_fuel(
+        vin,
+        file,
+        skip_duplicates,
+        db,
+        current_user,
+        "drivvo",
+        _parse_options(odometer_unit, decimal_separator),
+    )
+
+
+@router.post("/vehicles/{vin}/fuel/tesla")
+@limiter.limit(settings.rate_limit_uploads)
+async def import_tesla_csv(
+    request: Request,
+    vin: str,
+    file: UploadFile = File(...),
+    skip_duplicates: bool = Form(True),
+    odometer_unit: str = Form("km"),
+    decimal_separator: str = Form("dot"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(require_auth),
+):
+    """Import charge sessions from a Tesla / ABRP-style charge history CSV.
+
+    ``odometer_unit`` and ``decimal_separator`` declare how to read columns the
+    export does not label. Defaults are metric and dot, matching storage.
+    """
+    return await _import_third_party_fuel(
+        vin,
+        file,
+        skip_duplicates,
+        db,
+        current_user,
+        "tesla",
+        _parse_options(odometer_unit, decimal_separator),
+    )
+
+
+@router.post("/vehicles/{vin}/fuel/external")
+@limiter.limit(settings.rate_limit_uploads)
+async def import_external_fuel_csv(
+    request: Request,
+    vin: str,
+    file: UploadFile = File(...),
+    skip_duplicates: bool = Form(True),
+    format: str | None = Form(None),
+    odometer_unit: str = Form("km"),
+    decimal_separator: str = Form("dot"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(require_auth),
+):
+    """Auto-detect Fuelio / Drivvo / Tesla CSV format (or pass format= explicitly)."""
+    csv_data = await validate_csv_upload(file)
+    from app.services.import_adapters import PARSERS, detect_format
+
+    fmt = (format or detect_format(csv_data) or "").lower()
+    if fmt not in PARSERS:
+        raise HTTPException(
+            status_code=400,
+            detail="Unrecognized CSV format — pass format=fuelio|drivvo|tesla",
+        )
+    # Re-wrap for the shared helper (it re-reads the upload); parse inline instead.
+    await get_vehicle_or_403(vin, current_user, db, require_write=True)
+    parsed = PARSERS[fmt](csv_data, _parse_options(odometer_unit, decimal_separator))
+    return await _persist_parsed_fuel(vin, parsed, skip_duplicates, db)
+
+
+# The natural key of a physical fill-up or charge session: when it happened,
+# where the odometer stood, and how much went in.
+#
+# Deliberately NOT every persisted column. Cost, notes, location and SOC are
+# metadata a user may correct in the source app between exports, so including
+# them would make a re-import of a corrected file insert duplicates instead of
+# skipping them. Two same-day sessions are told apart by filled_at, which the
+# adapters now preserve; before that the time was truncated away and the only
+# way to separate them was to compare mutable fields.
+#
+# When an export carries no time at all, filled_at is NULL on both rows and two
+# sessions with the same odometer and the same amount are genuinely
+# indistinguishable in the data, so collapsing them is correct.
+_IMPORT_DUPLICATE_FIELDS = (
+    "filled_at",
+    "odometer_km",
+    "liters",
+    "kwh",
+)
+
+
+def _parse_options(odometer_unit: str, decimal_separator: str):
+    """Build ParseOptions from form input, rejecting anything off-vocabulary."""
+    from app.services.import_adapters import ParseOptions
+
+    if odometer_unit not in ("km", "mi"):
+        raise HTTPException(status_code=400, detail="odometer_unit must be km or mi")
+    if decimal_separator not in ("dot", "comma"):
+        raise HTTPException(status_code=400, detail="decimal_separator must be dot or comma")
+    return ParseOptions(odometer_unit=odometer_unit, decimal_separator=decimal_separator)
+
+
+async def _import_third_party_fuel(
+    vin: str,
+    file: UploadFile,
+    skip_duplicates: bool,
+    db: AsyncSession,
+    current_user: User | None,
+    format_name: str,
+    opts=None,
+):
+    from app.services.import_adapters import PARSERS
+
+    await get_vehicle_or_403(vin, current_user, db, require_write=True)
+    csv_data = await validate_csv_upload(file)
+    parsed = PARSERS[format_name](csv_data, opts)
+    return await _persist_parsed_fuel(vin, parsed, skip_duplicates, db)
+
+
+async def _persist_parsed_fuel(
+    vin: str,
+    parsed: list[dict],
+    skip_duplicates: bool,
+    db: AsyncSession,
+):
+    import_result = ImportResult()
+    # date -> (odometer_km, record). Odometer sync matches on (vin, date) and
+    # overwrites, so syncing every row would let CSV order decide the stored
+    # value and reassign the cascade FK. Sync once per date with the highest
+    # reading, which is the only choice that survives reordering the file.
+    best_per_date: dict[date_type, tuple[Decimal, FuelRecord]] = {}
+    for row_num, row in enumerate(parsed, start=2):
+        try:
+            date = row.get("date")
+            if not date:
+                import_result.add_error(row_num, "Date is required")
+                continue
+            odometer_km = row.get("odometer_km")
+            if skip_duplicates:
+                # `== None` renders as IS NULL in SQLAlchemy, so nullable
+                # columns match correctly without a special case.
+                predicates = [FuelRecord.vin == vin, FuelRecord.date == date]
+                for field in _IMPORT_DUPLICATE_FIELDS:
+                    predicates.append(getattr(FuelRecord, field) == row.get(field))
+                existing = await db.execute(select(FuelRecord).where(*predicates))
+                # .first(), not scalar_one_or_none(): pre-existing duplicates in
+                # the table would otherwise raise MultipleResultsFound.
+                if existing.scalars().first():
+                    import_result.add_skip()
+                    continue
+            record = FuelRecord(
+                vin=vin,
+                date=date,
+                filled_at=row.get("filled_at"),
+                odometer_km=odometer_km,
+                liters=row.get("liters"),
+                kwh=row.get("kwh"),
+                cost=row.get("cost"),
+                price_per_unit=row.get("price_per_unit"),
+                price_basis=row.get("price_basis"),
+                is_full_tank=bool(row.get("is_full_tank", True)),
+                notes=row.get("notes"),
+                fuel_type_used=row.get("fuel_type_used"),
+                soc_start_pct=row.get("soc_start_pct"),
+                soc_end_pct=row.get("soc_end_pct"),
+                charge_level=row.get("charge_level"),
+                charge_location=row.get("charge_location"),
+                battery_soh_pct=row.get("battery_soh_pct"),
+            )
+            # Savepoint per row: the flush below populates record.id, and a bare
+            # flush failure would poison the session for every remaining row.
+            async with db.begin_nested():
+                db.add(record)
+                await db.flush()
+            if record.odometer_km is not None:
+                best = best_per_date.get(record.date)
+                if best is None or record.odometer_km > best[0]:
+                    best_per_date[record.date] = (record.odometer_km, record)
+            import_result.add_success()
+        except Exception as e:
+            logger.error("External fuel import row %d failed: %s", row_num, e)
+            import_result.add_error(row_num, "Invalid fuel record data")
+
+    for _odometer, record in best_per_date.values():
+        try:
+            async with db.begin_nested():
+                await apply_fuel_record_side_effects(db, record)
+        except Exception as e:
+            # Derived data only. Log and keep the fuel rows: letting this escape
+            # would reach get_db's handler, which rolls back the outer
+            # transaction and would discard the entire import.
+            logger.warning("Odometer sync failed for imported fuel record %s: %s", record.id, e)
+
+    await db.commit()
+    await invalidate_cache_for_vehicle(vin)
+    return import_result.to_dict()
