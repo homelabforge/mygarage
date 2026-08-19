@@ -1286,6 +1286,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/external-vehicles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List External Vehicles
+         * @description List external vehicles for the current user (or all when auth is off).
+         */
+        get: operations["list_external_vehicles_api_external_vehicles_get"];
+        put?: never;
+        /**
+         * Create External Vehicle
+         * @description Create a family/friend reference vehicle.
+         */
+        post: operations["create_external_vehicle_api_external_vehicles_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/external-vehicles/{vehicle_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get External Vehicle */
+        get: operations["get_external_vehicle_api_external_vehicles__vehicle_id__get"];
+        /** Update External Vehicle */
+        put: operations["update_external_vehicle_api_external_vehicles__vehicle_id__put"];
+        post?: never;
+        /** Delete External Vehicle */
+        delete: operations["delete_external_vehicle_api_external_vehicles__vehicle_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/family/dashboard": {
         parameters: {
             query?: never;
@@ -2988,6 +3031,7 @@ export interface paths {
          *     - auth_mode: Authentication mode (local/oidc)
          *     - app_name: Application name
          *     - theme: UI theme preference
+         *     - family_friends_enabled: garage section feature flag
          *
          *     Security: This endpoint is intentionally public to allow frontend
          *     initialization before login. All sensitive settings are excluded.
@@ -7758,6 +7802,11 @@ export interface components {
          */
         DashboardResponse: {
             fleet_health: components["schemas"]["FleetHealth"];
+            /**
+             * Multi User Enabled
+             * @default false
+             */
+            multi_user_enabled: boolean;
             /** Total Documents */
             total_documents: number;
             /** Total Fuel Records */
@@ -8181,6 +8230,85 @@ export interface components {
              * @description Kilowatts
              */
             kw?: number | null;
+        };
+        /** ExternalVehicleCreate */
+        ExternalVehicleCreate: {
+            /** Contact Name */
+            contact_name?: string | null;
+            /** Contact Phone */
+            contact_phone?: string | null;
+            /** Make */
+            make?: string | null;
+            /** Model */
+            model?: string | null;
+            /** Nickname */
+            nickname: string;
+            /** Notes */
+            notes?: string | null;
+            /** Vehicle Type */
+            vehicle_type?: string | null;
+            /** Vin */
+            vin?: string | null;
+            /** Year */
+            year?: number | null;
+        };
+        /** ExternalVehicleListResponse */
+        ExternalVehicleListResponse: {
+            /** Total */
+            total: number;
+            /** Vehicles */
+            vehicles: components["schemas"]["ExternalVehicleResponse"][];
+        };
+        /** ExternalVehicleResponse */
+        ExternalVehicleResponse: {
+            /** Contact Name */
+            contact_name?: string | null;
+            /** Contact Phone */
+            contact_phone?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Id */
+            id: number;
+            /** Make */
+            make?: string | null;
+            /** Model */
+            model?: string | null;
+            /** Nickname */
+            nickname: string;
+            /** Notes */
+            notes?: string | null;
+            /** Updated At */
+            updated_at?: string | null;
+            /** Vehicle Type */
+            vehicle_type?: string | null;
+            /** Vin */
+            vin?: string | null;
+            /** Year */
+            year?: number | null;
+        };
+        /** ExternalVehicleUpdate */
+        ExternalVehicleUpdate: {
+            /** Contact Name */
+            contact_name?: string | null;
+            /** Contact Phone */
+            contact_phone?: string | null;
+            /** Make */
+            make?: string | null;
+            /** Model */
+            model?: string | null;
+            /** Nickname */
+            nickname?: string | null;
+            /** Notes */
+            notes?: string | null;
+            /** Vehicle Type */
+            vehicle_type?: string | null;
+            /** Vin */
+            vin?: string | null;
+            /** Year */
+            year?: number | null;
         };
         /**
          * FamilyDashboardResponse
@@ -14912,6 +15040,10 @@ export interface components {
             model?: string | null;
             /** Overdue Maintenance Count */
             overdue_maintenance_count: number;
+            /** Owner Relationship */
+            owner_relationship?: string | null;
+            /** Owner Relationship Custom */
+            owner_relationship_custom?: string | null;
             /** Recent L Per 100Km */
             recent_l_per_100km?: string | null;
             /**
@@ -17965,6 +18097,154 @@ export interface operations {
                 content: {
                     "application/json": unknown;
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_external_vehicles_api_external_vehicles_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExternalVehicleListResponse"];
+                };
+            };
+        };
+    };
+    create_external_vehicle_api_external_vehicles_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExternalVehicleCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExternalVehicleResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_external_vehicle_api_external_vehicles__vehicle_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vehicle_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExternalVehicleResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_external_vehicle_api_external_vehicles__vehicle_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vehicle_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExternalVehicleUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExternalVehicleResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_external_vehicle_api_external_vehicles__vehicle_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vehicle_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

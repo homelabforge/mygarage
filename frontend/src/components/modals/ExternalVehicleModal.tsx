@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Drawer, Button, Field, Input, Textarea } from '@/components/ui'
+import { Drawer, Button, Field, Input, NumberInput, Textarea } from '@/components/ui'
 import VINInput from '@/components/VINInput'
+import { getActiveLocale } from '@/constants/i18n'
 import type { ExternalVehicle, ExternalVehicleInput } from '@/types/externalVehicle'
 import type { VINDecodeResponse } from '@/types/vin'
+import { parseDecimalInput } from '@/utils/decimalInput'
 import {
   createExternalVehicle,
   updateExternalVehicle,
@@ -38,6 +40,7 @@ export default function ExternalVehicleModal({
 }: ExternalVehicleModalProps) {
   const { t } = useTranslation('vehicles')
   const [form, setForm] = useState<ExternalVehicleInput>(emptyForm())
+  const [yearText, setYearText] = useState('')
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
@@ -55,8 +58,10 @@ export default function ExternalVehicleModal({
         contact_phone: vehicle.contact_phone ?? '',
         notes: vehicle.notes ?? '',
       })
+      setYearText(vehicle.year != null ? String(vehicle.year) : '')
     } else {
       setForm(emptyForm())
+      setYearText('')
     }
   }, [isOpen, vehicle])
 
@@ -79,11 +84,26 @@ export default function ExternalVehicleModal({
         nickname: prev.nickname?.trim() ? prev.nickname : generatedNickname,
       }
     })
+    if (data.year != null) setYearText(String(data.year))
+  }
+
+  const parseYear = (): number | null | 'invalid' => {
+    const result = parseDecimalInput(yearText, getActiveLocale())
+    if (result.kind === 'empty') return null
+    if (result.kind === 'invalid') return 'invalid'
+    if (!Number.isInteger(result.value)) return 'invalid'
+    if (result.value < 1900 || result.value > 2100) return 'invalid'
+    return result.value
   }
 
   const handleSave = async () => {
     if (!form.nickname.trim()) {
       toast.error(t('externalVehicles.nicknameRequired'))
+      return
+    }
+    const year = parseYear()
+    if (year === 'invalid') {
+      toast.error(t('common:validation.vehicle.yearInvalid'))
       return
     }
     setSaving(true)
@@ -99,7 +119,7 @@ export default function ExternalVehicleModal({
         contact_name: form.contact_name?.trim() || null,
         contact_phone: form.contact_phone?.trim() || null,
         notes: form.notes?.trim() || null,
-        year: form.year || null,
+        year,
       }
       if (vehicle) {
         await updateExternalVehicle(vehicle.id, payload)
@@ -154,13 +174,10 @@ export default function ExternalVehicleModal({
         </Field>
         <div className="grid grid-cols-3 gap-3">
           <Field id="ext-year" label={t('externalVehicles.year')}>
-            <Input
+            <NumberInput
               id="ext-year"
-              type="number"
-              value={form.year ?? ''}
-              onChange={(e) =>
-                setField('year', e.target.value ? Number(e.target.value) : null)
-              }
+              value={yearText}
+              onChange={(e) => setYearText(e.target.value)}
             />
           </Field>
           <Field id="ext-make" label={t('externalVehicles.make')}>

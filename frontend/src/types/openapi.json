@@ -3069,6 +3069,11 @@
           "fleet_health": {
             "$ref": "#/components/schemas/FleetHealth"
           },
+          "multi_user_enabled": {
+            "default": false,
+            "title": "Multi User Enabled",
+            "type": "boolean"
+          },
           "total_documents": {
             "title": "Total Documents",
             "type": "integer"
@@ -4044,6 +4049,379 @@
           }
         },
         "title": "EngineInfo",
+        "type": "object"
+      },
+      "ExternalVehicleCreate": {
+        "properties": {
+          "contact_name": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Name"
+          },
+          "contact_phone": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Phone"
+          },
+          "make": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Make"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "nickname": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Nickname",
+            "type": "string"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "vehicle_type": {
+            "anyOf": [
+              {
+                "maxLength": 30,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vehicle Type"
+          },
+          "vin": {
+            "anyOf": [
+              {
+                "maxLength": 17,
+                "minLength": 17,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vin"
+          },
+          "year": {
+            "anyOf": [
+              {
+                "maximum": 2100.0,
+                "minimum": 1900.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year"
+          }
+        },
+        "required": [
+          "nickname"
+        ],
+        "title": "ExternalVehicleCreate",
+        "type": "object"
+      },
+      "ExternalVehicleListResponse": {
+        "properties": {
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "vehicles": {
+            "items": {
+              "$ref": "#/components/schemas/ExternalVehicleResponse"
+            },
+            "title": "Vehicles",
+            "type": "array"
+          }
+        },
+        "required": [
+          "vehicles",
+          "total"
+        ],
+        "title": "ExternalVehicleListResponse",
+        "type": "object"
+      },
+      "ExternalVehicleResponse": {
+        "properties": {
+          "contact_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Name"
+          },
+          "contact_phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Phone"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "make": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Make"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "nickname": {
+            "title": "Nickname",
+            "type": "string"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "vehicle_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vehicle Type"
+          },
+          "vin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vin"
+          },
+          "year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year"
+          }
+        },
+        "required": [
+          "id",
+          "nickname",
+          "created_at"
+        ],
+        "title": "ExternalVehicleResponse",
+        "type": "object"
+      },
+      "ExternalVehicleUpdate": {
+        "properties": {
+          "contact_name": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Name"
+          },
+          "contact_phone": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Phone"
+          },
+          "make": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Make"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "nickname": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nickname"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "vehicle_type": {
+            "anyOf": [
+              {
+                "maxLength": 30,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vehicle Type"
+          },
+          "vin": {
+            "anyOf": [
+              {
+                "maxLength": 17,
+                "minLength": 17,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vin"
+          },
+          "year": {
+            "anyOf": [
+              {
+                "maximum": 2100.0,
+                "minimum": 1900.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year"
+          }
+        },
+        "title": "ExternalVehicleUpdate",
         "type": "object"
       },
       "FamilyDashboardResponse": {
@@ -20229,6 +20607,28 @@
             "title": "Overdue Maintenance Count",
             "type": "integer"
           },
+          "owner_relationship": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Relationship"
+          },
+          "owner_relationship_custom": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Relationship Custom"
+          },
           "recent_l_per_100km": {
             "anyOf": [
               {
@@ -26599,6 +26999,218 @@
         ]
       }
     },
+    "/api/external-vehicles": {
+      "get": {
+        "description": "List external vehicles for the current user (or all when auth is off).",
+        "operationId": "list_external_vehicles_api_external_vehicles_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalVehicleListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List External Vehicles",
+        "tags": [
+          "external-vehicles"
+        ]
+      },
+      "post": {
+        "description": "Create a family/friend reference vehicle.",
+        "operationId": "create_external_vehicle_api_external_vehicles_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExternalVehicleCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalVehicleResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create External Vehicle",
+        "tags": [
+          "external-vehicles"
+        ]
+      }
+    },
+    "/api/external-vehicles/{vehicle_id}": {
+      "delete": {
+        "operationId": "delete_external_vehicle_api_external_vehicles__vehicle_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vehicle_id",
+            "required": true,
+            "schema": {
+              "title": "Vehicle Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete External Vehicle",
+        "tags": [
+          "external-vehicles"
+        ]
+      },
+      "get": {
+        "operationId": "get_external_vehicle_api_external_vehicles__vehicle_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vehicle_id",
+            "required": true,
+            "schema": {
+              "title": "Vehicle Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalVehicleResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get External Vehicle",
+        "tags": [
+          "external-vehicles"
+        ]
+      },
+      "put": {
+        "operationId": "update_external_vehicle_api_external_vehicles__vehicle_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vehicle_id",
+            "required": true,
+            "schema": {
+              "title": "Vehicle Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExternalVehicleUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalVehicleResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update External Vehicle",
+        "tags": [
+          "external-vehicles"
+        ]
+      }
+    },
     "/api/family/dashboard": {
       "get": {
         "description": "Get the family dashboard with all members and their vehicles.\n\nReturns aggregated data for all users marked for family dashboard,\nincluding vehicles, upcoming reminders, and overdue counts.\n\n**Response includes:**\n- List of family members with their vehicles\n- Total counts (members, vehicles, reminders)\n- Each vehicle shows last service and next reminder\n\n**Security:**\n- Admin only",
@@ -29999,7 +30611,7 @@
     },
     "/api/settings/public": {
       "get": {
-        "description": "Get public settings (no authentication required).\n\nReturns only non-sensitive settings required for frontend initialization:\n- auth_mode: Authentication mode (local/oidc)\n- app_name: Application name\n- theme: UI theme preference\n\nSecurity: This endpoint is intentionally public to allow frontend\ninitialization before login. All sensitive settings are excluded.",
+        "description": "Get public settings (no authentication required).\n\nReturns only non-sensitive settings required for frontend initialization:\n- auth_mode: Authentication mode (local/oidc)\n- app_name: Application name\n- theme: UI theme preference\n- family_friends_enabled: garage section feature flag\n\nSecurity: This endpoint is intentionally public to allow frontend\ninitialization before login. All sensitive settings are excluded.",
         "operationId": "get_public_settings_api_settings_public_get",
         "responses": {
           "200": {

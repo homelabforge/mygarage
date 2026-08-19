@@ -17,6 +17,7 @@ vi.mock('../../components/VehicleStatisticsCard', () => ({
     stats: { year: number | null; make: string | null; model: string | null }
   }) => <div data-testid="vehicle-card">{`${stats.year} ${stats.make} ${stats.model}`}</div>,
 }))
+vi.mock('../../components/VehicleWizard', () => ({ default: () => null }))
 vi.mock('../../contexts/AuthContext', () => ({
   useAuth: () => ({ user: null, isAuthenticated: false }),
 }))

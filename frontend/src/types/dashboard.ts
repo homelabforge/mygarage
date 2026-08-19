@@ -6,14 +6,8 @@
 
 import type { components } from './api.generated'
 
-export type VehicleStatistics = components['schemas']['VehicleStatistics'] & {
-  owner_relationship?: string | null
-  owner_relationship_custom?: string | null
-}
-export type DashboardResponse = Omit<components['schemas']['DashboardResponse'], 'vehicles'> & {
-  vehicles: VehicleStatistics[]
-  multi_user_enabled?: boolean
-}
+export type VehicleStatistics = components['schemas']['VehicleStatistics']
+export type DashboardResponse = components['schemas']['DashboardResponse']
 export type FleetHealth = components['schemas']['FleetHealth']
 export type FleetNextDue = components['schemas']['FleetNextDue']
 

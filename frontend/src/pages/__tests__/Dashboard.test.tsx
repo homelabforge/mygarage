@@ -27,6 +27,8 @@ vi.mock('../../services/externalVehicleService', () => ({
   listExternalVehicles: vi.fn().mockResolvedValue({ vehicles: [], total: 0 }),
 }))
 
+vi.mock('../../components/VehicleWizard', () => ({ default: () => null }))
+
 describe('Dashboard Page', () => {
   it('renders dashboard header', () => {
     render(<Dashboard />)

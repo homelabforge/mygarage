@@ -8,7 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Dashboard **Family & Friends** garage lane (household shares + lightweight reference vehicles), backed by an `external_vehicles` API. Opt-in via Settings → System (`family_friends_enabled`, default off). When off, shared vehicles stay hidden from the garage. Optional VIN with NHTSA decode on add/edit autofills year/make/model. Contact name and phone are supported for reference vehicles.
+- Tires: per-position tread / DOT / pressure tracking with wear projection and automatic low-tread reminders (migration 085).
+- EV / PHEV charge sessions: SOC start/end, charge level (L1/L2/DCFC), home/public location, and battery SOH on fuel records (migration 086).
+- Importers: Fuelio, Drivvo, and Tesla/ABRP charge CSV adapters (`/api/import/vehicles/{vin}/fuel/{fuelio,drivvo,tesla,external}`).
+- Inbound webhooks: `POST /api/v1/webhooks/fuel|odometer|reminders/complete|telegram` authenticated with `webhook_ingest_token` (migration 087). Structured Telegram fuel commands (no OCR): `fuel <vin|nickname> <odo>[km|mi] <vol>[L|gal|kWh] [price] [cost]`.
+- Vehicle types: Boat, UTV, Snowmobile, Bicycle, and E-Bike (Bicycle hides the fuel log; others remain motorized / hours-friendly where relevant).
+- Tow pairing UI for trailer details (`tow_vehicle_vin`) plus linked-trailers list on tow vehicles.
+- Built-in OEM/DIY reminder packs with apply-from-UI and `/api/reminder-packs` APIs.
+- Matrix notification channel (homeserver + access token + room).
+- Quick Entry / PWA deep links: `/quick-entry?action=add-fuel|add-service|odometer`.
+- Opt-in LLM fuel receipt parse (Ollama/OpenAI-compatible; draft only). See [docs/tier2-features.md](docs/tier2-features.md).
+- Dashboard **Family & Friends** garage lane (household shares + lightweight reference vehicles), backed by an `external_vehicles` API. Opt-in via Settings → System (`family_friends_enabled`, default off). When off, shared vehicles stay hidden from the garage. Optional VIN with NHTSA decode on add/edit autofills year/make/model. Contact name and phone are supported for reference vehicles. (migration 088).
 
 ### Changed
 - Tire add, edit and reading forms open in a side drawer, matching the rest of the app.
