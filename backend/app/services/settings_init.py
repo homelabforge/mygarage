@@ -586,7 +586,7 @@ DEFAULT_SETTINGS = {
     "family_friends_enabled": {
         "value": "false",
         "category": "general",
-        "description": "Show Family & Friends garage section (shared + reference vehicles)",
+        "description": "Show Family & Friends reference vehicles on the garage (shared vehicles always appear)",
         "encrypted": False,
     },
 }

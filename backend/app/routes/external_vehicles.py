@@ -22,7 +22,7 @@ router = APIRouter(prefix="/api/external-vehicles", tags=["external-vehicles"])
 
 
 async def _family_friends_enabled(db: AsyncSession) -> bool:
-    """Return True when the Family & Friends garage section is enabled."""
+    """Return True when Family & Friends reference vehicles are enabled."""
     setting = await SettingsService.get(db, "family_friends_enabled")
     value = (setting.value if setting and setting.value is not None else "false").lower()
     return value in ("true", "1", "yes")
@@ -36,13 +36,23 @@ async def _require_family_friends_enabled(db: AsyncSession) -> None:
         )
 
 
-async def _resolve_owner(db: AsyncSession, current_user: User | None) -> User | None:
-    """Return the acting user, or None when auth is disabled (auth_mode=none).
+async def _owner_for_create(db: AsyncSession, current_user: User | None) -> User:
+    """Resolve the owner for a new external vehicle.
 
-    With auth disabled there is no session user; list/mutate all external
-    vehicles (matching how the garage treats owned vehicles in none mode).
+    auth_mode=none has no session user. Attach to the first existing user if
+    one exists; do not invent an account (that row would block later
+    registration when switching to auth_mode=local).
     """
-    return current_user
+    if current_user is not None:
+        return current_user
+    result = await db.execute(select(User).order_by(User.id.asc()).limit(1))
+    owner = result.scalar_one_or_none()
+    if owner is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Create a user before adding Family & Friends vehicles",
+        )
+    return owner
 
 
 @router.get("", response_model=ExternalVehicleListResponse)
@@ -54,10 +64,9 @@ async def list_external_vehicles(
     if not await _family_friends_enabled(db):
         return ExternalVehicleListResponse(vehicles=[], total=0)
 
-    owner = await _resolve_owner(db, current_user)
     stmt = select(ExternalVehicle)
-    if owner is not None:
-        stmt = stmt.where(ExternalVehicle.user_id == owner.id)
+    if current_user is not None:
+        stmt = stmt.where(ExternalVehicle.user_id == current_user.id)
     stmt = stmt.order_by(ExternalVehicle.nickname.asc())
     result = await db.execute(stmt)
     rows = result.scalars().all()
@@ -75,22 +84,7 @@ async def create_external_vehicle(
 ) -> ExternalVehicleResponse:
     """Create a family/friend reference vehicle."""
     await _require_family_friends_enabled(db)
-    owner = await _resolve_owner(db, current_user)
-    if owner is None:
-        # auth_mode=none: attach to the first user if one exists, else invent a
-        # lightweight owner row so the NOT NULL FK is satisfied.
-        result = await db.execute(select(User).order_by(User.id.asc()).limit(1))
-        owner = result.scalar_one_or_none()
-        if owner is None:
-            owner = User(
-                username="local",
-                email="local@localhost",
-                hashed_password="!",
-                is_active=True,
-                is_admin=True,
-            )
-            db.add(owner)
-            await db.flush()
+    owner = await _owner_for_create(db, current_user)
     row = ExternalVehicle(user_id=owner.id, **payload.model_dump())
     db.add(row)
     await db.commit()
@@ -105,8 +99,7 @@ async def get_external_vehicle(
     current_user: User | None = Depends(require_auth),
 ) -> ExternalVehicleResponse:
     await _require_family_friends_enabled(db)
-    owner = await _resolve_owner(db, current_user)
-    row = await _get_owned(db, vehicle_id, owner.id if owner else None)
+    row = await _get_owned(db, vehicle_id, current_user.id if current_user else None)
     return ExternalVehicleResponse.model_validate(row)
 
 
@@ -118,8 +111,7 @@ async def update_external_vehicle(
     current_user: User | None = Depends(require_auth),
 ) -> ExternalVehicleResponse:
     await _require_family_friends_enabled(db)
-    owner = await _resolve_owner(db, current_user)
-    row = await _get_owned(db, vehicle_id, owner.id if owner else None)
+    row = await _get_owned(db, vehicle_id, current_user.id if current_user else None)
     for key, value in payload.model_dump(exclude_unset=True).items():
         setattr(row, key, value)
     await db.commit()
@@ -134,8 +126,7 @@ async def delete_external_vehicle(
     current_user: User | None = Depends(require_auth),
 ) -> None:
     await _require_family_friends_enabled(db)
-    owner = await _resolve_owner(db, current_user)
-    row = await _get_owned(db, vehicle_id, owner.id if owner else None)
+    row = await _get_owned(db, vehicle_id, current_user.id if current_user else None)
     await db.delete(row)
     await db.commit()
 

@@ -18,7 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Matrix notification channel (homeserver + access token + room).
 - Quick Entry / PWA deep links: `/quick-entry?action=add-fuel|add-service|odometer`.
 - Opt-in LLM fuel receipt parse (Ollama/OpenAI-compatible; draft only). See [docs/tier2-features.md](docs/tier2-features.md).
-- Dashboard **Family & Friends** garage lane (household shares + lightweight reference vehicles), backed by an `external_vehicles` API. Opt-in via Settings → System (`family_friends_enabled`, default off). When off, shared vehicles stay hidden from the garage. Optional VIN with NHTSA decode on add/edit autofills year/make/model. Contact name and phone are supported for reference vehicles. (migration 088).
+- Dashboard **Family & Friends** garage lane: shared household vehicles always get their own section; lightweight reference vehicles (`external_vehicles` API) are opt-in via Settings → System (`family_friends_enabled`, default off). Optional VIN with NHTSA decode on add/edit autofills year/make/model. Contact name and phone are supported for reference vehicles. (migration 088).
 
 ### Changed
 - Tire add, edit and reading forms open in a side drawer, matching the rest of the app.

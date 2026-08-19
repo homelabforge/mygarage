@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
+from fastapi import HTTPException
 from httpx import AsyncClient
 from sqlalchemy import select
 
 from app.models.settings import Setting
+from app.models.user import User
+from app.routes.external_vehicles import _owner_for_create
 
 
 async def _set_setting(db_session, key: str, value: str) -> None:
@@ -140,3 +145,53 @@ class TestExternalVehicleRoutes:
         assert listed.status_code == 200
         assert listed.json()["total"] == 0
         assert listed.json()["vehicles"] == []
+
+    async def test_put_null_nickname_returns_422(
+        self, client: AsyncClient, auth_headers, db_session
+    ):
+        await _set_setting(db_session, "family_friends_enabled", "true")
+        create = await client.post(
+            "/api/external-vehicles",
+            headers=auth_headers,
+            json={"nickname": "Keep Name"},
+        )
+        assert create.status_code == 201, create.text
+        vehicle_id = create.json()["id"]
+
+        response = await client.put(
+            f"/api/external-vehicles/{vehicle_id}",
+            headers=auth_headers,
+            json={"nickname": None},
+        )
+        assert response.status_code == 422
+
+    async def test_none_mode_create_does_not_invent_a_user(
+        self, client: AsyncClient, db_session, set_auth_mode, test_user
+    ):
+        await set_auth_mode("none")
+        await _set_setting(db_session, "family_friends_enabled", "true")
+        before = (await db_session.execute(select(User))).scalars().all()
+        assert before
+
+        response = await client.post(
+            "/api/external-vehicles",
+            json={"nickname": "None Mode Ref"},
+        )
+        assert response.status_code == 201, response.text
+
+        after = (await db_session.execute(select(User))).scalars().all()
+        assert len(after) == len(before)
+        assert not any(u.username == "local" and u.hashed_password == "!" for u in after)
+
+
+@pytest.mark.asyncio
+async def test_owner_for_create_returns_400_when_no_users_exist():
+    db = AsyncMock()
+    empty = MagicMock()
+    empty.scalar_one_or_none.return_value = None
+    db.execute = AsyncMock(return_value=empty)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await _owner_for_create(db, None)
+    assert exc_info.value.status_code == 400
+    assert "Create a user" in str(exc_info.value.detail)

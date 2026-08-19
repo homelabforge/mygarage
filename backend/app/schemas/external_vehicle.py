@@ -51,6 +51,14 @@ class ExternalVehicleUpdate(BaseModel):
     contact_phone: str | None = Field(None, max_length=40)
     notes: str | None = None
 
+    @field_validator("nickname", mode="before")
+    @classmethod
+    def reject_null_nickname(cls, v: Any) -> Any:
+        # Explicit null must 422 (NOT NULL column); omitted is a no-op.
+        if v is None:
+            raise ValueError("nickname cannot be null")
+        return v
+
     @field_validator("vin", mode="before")
     @classmethod
     def validate_vin_format(cls, v: Any) -> str | None:

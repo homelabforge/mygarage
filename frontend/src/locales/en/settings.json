@@ -25,9 +25,9 @@
   },
   "garageSections": {
     "title": "Garage sections",
-    "description": "Opt in to the Family & Friends dashboard lane. Off by default.",
+    "description": "Opt in to lightweight family/friend reference vehicles. Off by default. Shared vehicles always appear in their own section.",
     "familyFriends": "Show Family & Friends",
-    "familyFriendsDesc": "Shared household vehicles and lightweight family/friend reference vehicles. When off, shared vehicles are hidden from the garage."
+    "familyFriendsDesc": "Lightweight family/friend reference vehicles. Shared household vehicles always appear on the garage, even when this is off."
   },
   "units": {
     "label": "Unit System",

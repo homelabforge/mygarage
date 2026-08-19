@@ -135,28 +135,7 @@ describe('Dashboard sectioned layout', () => {
     )
   })
 
-  it('splits owned and shared vehicles into sections when Family & Friends is enabled', async () => {
-    mockDashboard([
-      vehicle({ vin: 'OWN', year: 2021, make: 'Owned', model: 'Y' }),
-      vehicle({ vin: 'SHR', year: 2021, make: 'Shared', model: 'Y', is_shared_with_me: true }),
-    ])
-    render(<Dashboard />)
-
-    await waitFor(() => expect(order()).toHaveLength(2))
-    expect(screen.getByText('dashboard.myVehiclesSection')).toBeInTheDocument()
-    expect(screen.getByText('dashboard.familyFriendsSection')).toBeInTheDocument()
-  })
-
-  it('shows family empty state when nothing is shared or referenced', async () => {
-    mockDashboard([vehicle({ vin: 'OWN', year: 2021, make: 'Owned', model: 'Y' })])
-    render(<Dashboard />)
-
-    await waitFor(() =>
-      expect(screen.getByText('dashboard.familyEmptyTitle')).toBeInTheDocument(),
-    )
-  })
-
-  it('hides Family & Friends and shared vehicles when the setting is off', async () => {
+  it('splits owned and shared vehicles into sections regardless of Family & Friends', async () => {
     mockDashboard(
       [
         vehicle({ vin: 'OWN', year: 2021, make: 'Owned', model: 'Y' }),
@@ -166,8 +145,35 @@ describe('Dashboard sectioned layout', () => {
     )
     render(<Dashboard />)
 
-    await waitFor(() => expect(order()).toEqual(['2021 Owned Y']))
+    await waitFor(() => expect(order()).toHaveLength(2))
+    expect(screen.getByText('dashboard.myVehiclesSection')).toBeInTheDocument()
+    expect(screen.getByText('dashboard.sharedWithMeSection')).toBeInTheDocument()
     expect(screen.queryByText('dashboard.familyFriendsSection')).not.toBeInTheDocument()
-    expect(screen.queryByText('2021 Shared Y')).not.toBeInTheDocument()
+  })
+
+  it('shows family empty state when the setting is on and nothing is referenced', async () => {
+    mockDashboard([vehicle({ vin: 'OWN', year: 2021, make: 'Owned', model: 'Y' })])
+    render(<Dashboard />)
+
+    await waitFor(() =>
+      expect(screen.getByText('dashboard.familyEmptyTitle')).toBeInTheDocument(),
+    )
+  })
+
+  it('hides reference vehicles when Family & Friends is off, but keeps shared vehicles', async () => {
+    mockDashboard(
+      [
+        vehicle({ vin: 'OWN', year: 2021, make: 'Owned', model: 'Y' }),
+        vehicle({ vin: 'SHR', year: 2021, make: 'Shared', model: 'Y', is_shared_with_me: true }),
+      ],
+      { familyFriends: false },
+    )
+    render(<Dashboard />)
+
+    await waitFor(() =>
+      expect(order()).toEqual(['2021 Owned Y', '2021 Shared Y']),
+    )
+    expect(screen.queryByText('dashboard.familyFriendsSection')).not.toBeInTheDocument()
+    expect(screen.getByText('2021 Shared Y')).toBeInTheDocument()
   })
 })

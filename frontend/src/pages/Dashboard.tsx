@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Plus, Car as CarIcon, RefreshCw, ChevronDown, AlertCircle, Users } from 'lucide-react'
 import VehicleStatisticsCard from '../components/VehicleStatisticsCard'
@@ -47,7 +47,6 @@ function settingEnabled(
 export default function Dashboard() {
   const { t } = useTranslation('vehicles')
   const location = useLocation()
-  const navigate = useNavigate()
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null)
   const [externalVehicles, setExternalVehicles] = useState<ExternalVehicle[]>([])
   const [familyFriendsEnabled, setFamilyFriendsEnabled] = useState(false)
@@ -110,29 +109,28 @@ export default function Dashboard() {
   }, [dashboard?.vehicles, sortBy])
 
   const sharedVehicles = useMemo(() => {
-    if (!familyFriendsEnabled || !dashboard?.vehicles) return []
+    if (!dashboard?.vehicles) return []
     return sortVehicles(
       dashboard.vehicles.filter((v) => v.is_shared_with_me),
       sortBy,
     )
-  }, [dashboard?.vehicles, sortBy, familyFriendsEnabled])
+  }, [dashboard?.vehicles, sortBy])
 
   const referenceVehicles = useMemo(
     () => (familyFriendsEnabled ? externalVehicles : []),
     [externalVehicles, familyFriendsEnabled],
   )
 
-  const familyItemCount = sharedVehicles.length + referenceVehicles.length
   const showFamilyEmpty =
-    familyFriendsEnabled && familyItemCount === 0 && ownedVehicles.length > 0
-  const showFamilySection =
-    familyFriendsEnabled && (familyItemCount > 0 || showFamilyEmpty)
+    familyFriendsEnabled &&
+    referenceVehicles.length === 0 &&
+    (ownedVehicles.length > 0 || sharedVehicles.length > 0)
+  const showFamilySection = familyFriendsEnabled && (referenceVehicles.length > 0 || showFamilyEmpty)
+  const showSharedSection = sharedVehicles.length > 0
 
   const ownedCount = ownedVehicles.length
   const hasAnyContent =
-    ownedCount > 0 ||
-    (familyFriendsEnabled && sharedVehicles.length > 0) ||
-    externalVehicles.length > 0
+    ownedCount > 0 || sharedVehicles.length > 0 || referenceVehicles.length > 0
 
   const sortItems: DropdownItem[] = [
     { id: 'name', label: t('dashboard.sortByName'), checked: sortBy === 'name', onSelect: () => setSortBy('name') },
@@ -152,7 +150,7 @@ export default function Dashboard() {
     setEditingExternal(null)
   }
 
-  const showSort = ownedCount > 0 || (familyFriendsEnabled && sharedVehicles.length > 0)
+  const showSort = ownedCount > 0 || sharedVehicles.length > 0
 
   return (
     <>
@@ -231,13 +229,26 @@ export default function Dashboard() {
               )}
             </section>
 
+            {showSharedSection ? (
+              <section>
+                <h2 className="mb-4 text-lg font-semibold tracking-[-0.01em] text-text">
+                  {t('dashboard.sharedWithMeSection', { count: sharedVehicles.length })}
+                </h2>
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(340px,1fr))] gap-[22px]">
+                  {sharedVehicles.map((vehicleStats) => (
+                    <VehicleStatisticsCard key={vehicleStats.vin} stats={vehicleStats} />
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
             {showFamilySection ? (
               <section>
                 <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <h2 className="text-lg font-semibold tracking-[-0.01em] text-text">
                       {t('dashboard.familyFriendsSection', {
-                        count: sharedVehicles.length + referenceVehicles.length,
+                        count: referenceVehicles.length,
                       })}
                     </h2>
                     <p className="mt-1 text-sm text-text-mute">{t('dashboard.familyFriendsSubtitle')}</p>
@@ -254,17 +265,14 @@ export default function Dashboard() {
                       title={t('dashboard.familyEmptyTitle')}
                       description={t('dashboard.familyEmptyDesc')}
                       action={
-                        <Button variant="secondary" onClick={() => navigate('/settings')}>
-                          {t('dashboard.openSettings')}
+                        <Button variant="secondary" icon={Plus} onClick={() => openExternalModal()}>
+                          {t('dashboard.addReferenceVehicle')}
                         </Button>
                       }
                     />
                   </Card>
                 ) : (
                   <div className="grid grid-cols-[repeat(auto-fill,minmax(340px,1fr))] gap-[22px]">
-                    {sharedVehicles.map((vehicleStats) => (
-                      <VehicleStatisticsCard key={vehicleStats.vin} stats={vehicleStats} />
-                    ))}
                     {referenceVehicles.map((vehicle) => (
                       <ExternalVehicleCard
                         key={`ref-${vehicle.id}`}

@@ -86,10 +86,7 @@
   "dashboard": {
     "addFirstVehicle": "Ajouter votre premier véhicule",
     "addVehicle": "Ajouter un véhicule",
-    "allVehicles": "Tous les véhicules",
     "byMaintenance": "Par maintenance",
-    "filterTrigger": "Filter: {{label}}",
-    "filterVehicles": "Filtrer les véhicules",
     "fleet": {
       "overdueCaption": "En retard · nécessite votre attention",
       "upcomingCaption": "À venir · 30 prochains jours",
@@ -100,11 +97,10 @@
     "getStarted": "Commencez par ajouter votre premier véhicule",
     "loadError": "Impossible de charger le tableau de bord. Veuillez réessayer.",
     "loading": "Chargement du tableau de bord...",
-    "myVehicles": "Mes véhicules",
     "newestFirst": "Les plus récents d'abord",
     "noVehiclesYet": "Aucun véhicule pour le moment",
     "oldestFirst": "Les plus anciens d'abord",
-    "sharedWithMe": "Partagés avec moi",
+    "sharedWithMeSection": "Partagés avec moi ({{count}})",
     "sortByName": "Trier par nom",
     "sortTrigger": "Sort: {{label}}",
     "sortVehicles": "Trier les véhicules",
