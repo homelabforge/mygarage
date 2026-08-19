@@ -15,6 +15,7 @@ import {
   PAYMENT_METHOD_VALUES,
   TRIP_TYPE_VALUES,
   isDieselFuelType,
+  isFuelType,
 } from '../constants/fuel'
 import { FormError } from './FormError'
 import api from '../services/api'
@@ -454,7 +455,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
         setValue('price_per_unit', display, { shouldValidate: true })
       }
     }
-    if (receiptDraft.fuel_type_used) {
+    if (isFuelType(receiptDraft.fuel_type_used)) {
       setValue('fuel_type_used', receiptDraft.fuel_type_used, { shouldValidate: true })
     }
     if (receiptDraft.notes) {

@@ -487,7 +487,6 @@ async def check_reminder_notifications() -> None:
 async def auto_archive_inactive_vehicles() -> None:
     """Archive vehicles with no recent activity when auto_archive_inactive_days > 0."""
     from datetime import date as date_cls
-    from datetime import datetime as datetime_cls
 
     from sqlalchemy import func
 
@@ -526,12 +525,12 @@ async def auto_archive_inactive_vehicles() -> None:
                         await db.execute(select(func.max(date_col)).where(model.vin == vehicle.vin))
                     ).scalar()
                     if row is not None:
-                        latest_dates.append(row if isinstance(row, date_cls) else row.date())
+                        latest_dates.append(row)
 
                 for ts in (vehicle.updated_at, vehicle.created_at):
                     if ts is None:
                         continue
-                    latest_dates.append(ts.date() if isinstance(ts, datetime_cls) else ts)
+                    latest_dates.append(ts.date())
 
                 if not latest_dates or max(latest_dates) >= cutoff_date:
                     continue
