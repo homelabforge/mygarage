@@ -25,7 +25,10 @@ export default function BulkArchiveModal({ isOpen, vins, onClose, onConfirm }: B
   const [salePrice, setSalePrice] = useState('')
   const [saleDate, setSaleDate] = useState('')
   const [notes, setNotes] = useState('')
-  const [visible, setVisible] = useState(false)
+  // Defaults to true to match VehicleRemoveModal and the backend's
+  // VehicleArchiveRequest.visible. Archiving from two entry points must not
+  // decide differently whether the vehicle stays on the dashboard.
+  const [visible, setVisible] = useState(true)
 
   const resetForm = () => {
     setArchiveReason('Sold')
@@ -71,7 +74,7 @@ export default function BulkArchiveModal({ isOpen, vins, onClose, onConfirm }: B
   const showFinancialFields = archiveReason === 'Sold' || archiveReason === 'Trade-in'
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-garage-surface border border-garage-border rounded-lg max-w-lg w-full max-h-[90vh] overflow-y-auto">
         <div className="p-6 space-y-4">
           <div className="flex items-center gap-3">
