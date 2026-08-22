@@ -45,7 +45,9 @@ def upgrade(engine=None):
             print("  → supplies.barcode already present or table missing, skipping")
 
         if "supplies" in inspector.get_table_names():
-            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_supplies_barcode ON supplies (barcode)"))
+            conn.execute(
+                text("CREATE INDEX IF NOT EXISTS idx_supplies_barcode ON supplies (barcode)")
+            )
 
         for col, typ in (
             ("idle_seconds", "INTEGER"),
