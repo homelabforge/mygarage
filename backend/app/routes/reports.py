@@ -154,7 +154,10 @@ async def download_sale_history_pdf(
                 {
                     "date": visit.date,
                     "odometer_km": visit.odometer_km,
-                    "service_type": visit.notes or visit.service_category or "Service",
+                    # NEVER visit.notes here: this PDF is handed to a buyer and its
+                    # header promises costs, vendors and plates are omitted. Notes are
+                    # free-form and routinely hold exactly those.
+                    "service_type": visit.service_category or "Service",
                 }
             )
 
