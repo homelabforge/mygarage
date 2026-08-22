@@ -41,14 +41,41 @@ class TestSettingsRoutes:
         data = response.json()
         assert "settings" in data
         assert "total" in data
-        # Public settings should only include specific keys
+        # Public settings should only include specific keys. This list is a
+        # fail-closed guard: widening it is a deliberate security decision, so a
+        # new key has to be added here too.
         for setting in data["settings"]:
             assert setting["key"] in {
                 "auth_mode",
                 "app_name",
                 "theme",
                 "family_friends_enabled",
+                "imperial_gallon_standard",
+                "llm_receipt_parse_enabled",
             }
+
+    async def test_public_settings_serve_the_frontend_init_keys(
+        self, client: AsyncClient, db_session
+    ):
+        """A non-admin must be able to read the two keys the app boots with.
+
+        GET /api/settings is admin-only. When the gallon standard and the
+        receipt-parse flag were only served from there, every non-admin silently
+        fell back to US gallons (a UK install showed every volume ~20% wrong) and
+        never saw the receipt panel at all.
+
+        The rows are seeded here because the endpoint returns only rows that
+        exist; settings_init creates them at startup in a real instance.
+        """
+        await _set_setting(db_session, "imperial_gallon_standard", "uk")
+        await _set_setting(db_session, "llm_receipt_parse_enabled", "true")
+
+        response = await client.get("/api/settings/public")
+
+        assert response.status_code == 200
+        values = {s["key"]: s["value"] for s in response.json()["settings"]}
+        assert values.get("imperial_gallon_standard") == "uk"
+        assert values.get("llm_receipt_parse_enabled") == "true"
 
     async def test_list_settings_unauthorized(self, client: AsyncClient, auth_headers):
         """Test that non-admin users cannot list all settings."""

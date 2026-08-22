@@ -85,6 +85,13 @@ async def get_public_settings(db: AsyncSession = Depends(get_db)):
         "app_name",
         "theme",
         "family_friends_enabled",
+        # Read during frontend init by every user, not just admins. GET /settings
+        # is admin-only, so serving these from there left non-admins on US gallons
+        # while the admin had configured UK (every volume ~20% wrong) and hid the
+        # receipt-parse panel from them entirely. Both are non-sensitive: a unit
+        # preference and a feature flag.
+        "imperial_gallon_standard",
+        "llm_receipt_parse_enabled",
     }
 
     result = await db.execute(

@@ -141,8 +141,11 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
   useEffect(() => {
     if (record) return
     let cancelled = false
+    // /settings is admin-only, so reading the flag from there hid the receipt
+    // panel from every non-admin (the 403 lands in the catch below and sets the
+    // flag false). The key is on the public whitelist instead.
     void api
-      .get('/settings')
+      .get('/settings/public')
       .then((response) => {
         const settings: { key: string; value: string | null }[] =
           response.data?.settings ?? []

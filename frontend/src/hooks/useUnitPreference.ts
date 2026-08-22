@@ -8,18 +8,19 @@
  * Falls back to localStorage for unauthenticated users, or 'imperial' as final fallback.
  */
 
+import { useSyncExternalStore } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { UnitConverter, type GallonStandard, type UnitSystem } from '../utils/units';
+import { type GallonStandard, type UnitSystem } from '../utils/units';
+import {
+  getGallonStandard,
+  getGallonStandardServerSnapshot,
+  subscribeToGallonStandard,
+} from '../utils/gallonStandardStore';
 
 interface UnitPreference {
   system: UnitSystem;
   showBoth: boolean;
   gallonStandard: GallonStandard;
-}
-
-function readGallonStandard(): GallonStandard {
-  const stored = localStorage.getItem('imperial_gallon_standard');
-  return stored === 'uk' ? 'uk' : 'us';
 }
 
 /**
@@ -33,8 +34,14 @@ function readGallonStandard(): GallonStandard {
  */
 export function useUnitPreference(): UnitPreference {
   const { user, isAuthenticated } = useAuth();
-  const gallonStandard = readGallonStandard();
-  UnitConverter.setGallonStandard(gallonStandard);
+  // Subscribed, not read-and-mutated during render: changing the standard has
+  // to re-render everything that displays a volume, and a hook body must not
+  // write global state (StrictMode runs it twice).
+  const gallonStandard = useSyncExternalStore(
+    subscribeToGallonStandard,
+    getGallonStandard,
+    getGallonStandardServerSnapshot,
+  );
 
   // If authenticated, use user's stored preference
   if (isAuthenticated && user) {

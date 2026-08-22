@@ -6,6 +6,10 @@ import { useSettings } from '@/contexts/SettingsContext'
 import type { DashboardResponse } from '@/types/dashboard'
 import api from '@/services/api'
 import { toast } from 'sonner'
+import {
+  getGallonStandard,
+  setGallonStandard as applyGallonStandard,
+} from '@/utils/gallonStandardStore'
 import { formatCurrency } from '@/utils/formatUtils'
 import { SUPPORTED_LANGUAGES, SUPPORTED_CURRENCIES, languageToLocale } from '@/constants/i18n'
 import OIDCModal from '@/components/modals/OIDCModal'
@@ -367,19 +371,22 @@ export default function SettingsSystemTab() {
   }
 
   const handleGallonStandardChange = async (standard: 'us' | 'uk') => {
+    // The store owns persistence, the UnitConverter write and the re-render.
+    // This used to setItem directly and fire a `storage` event that nothing
+    // listens for, so nothing already on screen updated.
+    const previous = getGallonStandard()
     setGallonStandardSaving(true)
     setGallonStandard(standard)
+    applyGallonStandard(standard)
     try {
       await api.post('/settings/batch', {
         settings: { imperial_gallon_standard: standard },
       })
-      localStorage.setItem('imperial_gallon_standard', standard)
       toast.success(t('units.gallonSaved'))
-      window.dispatchEvent(new Event('storage'))
     } catch {
       toast.error(t('units.gallonError'))
-      const stored = localStorage.getItem('imperial_gallon_standard') === 'uk' ? 'uk' : 'us'
-      setGallonStandard(stored)
+      setGallonStandard(previous)
+      applyGallonStandard(previous)
     } finally {
       setGallonStandardSaving(false)
     }
