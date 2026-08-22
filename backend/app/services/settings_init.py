@@ -592,7 +592,10 @@ DEFAULT_SETTINGS = {
     "auto_archive_inactive_days": {
         "value": "0",
         "category": "general",
-        "description": "Auto-archive vehicles with no activity after N days (0 = disabled)",
+        "description": (
+            "Auto-archive vehicles with no activity after N days (0 = disabled). "
+            "Applies to every vehicle on this instance, including other users'."
+        ),
         "encrypted": False,
     },
     "imperial_gallon_standard": {

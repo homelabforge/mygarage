@@ -24829,7 +24829,7 @@
             "name": "anomaly_range",
             "required": false,
             "schema": {
-              "default": "12m",
+              "default": "all",
               "description": "Window used for spending anomaly detection (issue #130).",
               "pattern": "^(3m|6m|12m|ytd|all|custom)$",
               "title": "Anomaly Range",
@@ -31623,81 +31623,6 @@
           }
         ],
         "summary": "Create Supply",
-        "tags": [
-          "supplies"
-        ]
-      }
-    },
-    "/api/supplies/lookup": {
-      "get": {
-        "description": "Find supplies by barcode or part number (for scan-to-select).",
-        "operationId": "lookup_supplies_api_supplies_lookup_get",
-        "parameters": [
-          {
-            "description": "Exact UPC/EAN/QR match",
-            "in": "query",
-            "name": "barcode",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Exact UPC/EAN/QR match",
-              "title": "Barcode"
-            }
-          },
-          {
-            "description": "Exact or prefix part number match",
-            "in": "query",
-            "name": "part_number",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Exact or prefix part number match",
-              "title": "Part Number"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SupplyListResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Lookup Supplies",
         "tags": [
           "supplies"
         ]

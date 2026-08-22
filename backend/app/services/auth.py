@@ -12,13 +12,14 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from joserfc import jwt
 from joserfc.errors import JoseError
 from joserfc.jwk import OctKey
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.database import get_db
 from app.models.user import User
 from app.models.vehicle import Vehicle
+from app.models.vehicle_share import VehicleShare
 from app.schemas.user import TokenData
 
 # HTTP Bearer token
@@ -363,6 +364,30 @@ async def require_auth(
     return await get_current_user(request, db, token)
 
 
+async def accessible_vehicles(db: AsyncSession, current_user: User | None) -> list[Vehicle]:
+    """Every non-archived vehicle this caller may see, in one query.
+
+    The access rule mirrors ``VehicleService.list_vehicles``: auth disabled or an
+    admin sees all, everyone else sees owned plus shared. Search and the
+    notification inbox each grew their own byte-identical copy of this, and both
+    copies omitted the admin branch, so an admin could open a vehicle's page but
+    could not find it in search or receive its reminder alerts.
+
+    Archived vehicles are excluded: both callers surface live alerts and live
+    search hits, and an archived vehicle is neither.
+    """
+    # tripwire: read-only
+    query = select(Vehicle).where(Vehicle.archived_at.is_(None))
+    if current_user is not None and not current_user.is_admin:
+        shared_vins = (
+            select(VehicleShare.vehicle_vin)
+            .where(VehicleShare.user_id == current_user.id)
+            .scalar_subquery()
+        )
+        query = query.where(or_(Vehicle.user_id == current_user.id, Vehicle.vin.in_(shared_vins)))
+    return list((await db.execute(query)).scalars().all())
+
+
 async def get_vehicle_or_403(
     vin: str,
     current_user: User | None,
@@ -384,9 +409,6 @@ async def get_vehicle_or_403(
         HTTPException 404: Vehicle not found
         HTTPException 403: User does not have access to this vehicle
     """
-    from app.models.vehicle import Vehicle
-    from app.models.vehicle_share import VehicleShare
-
     result = await db.execute(select(Vehicle).where(Vehicle.vin == vin))
     vehicle = result.scalar_one_or_none()
 

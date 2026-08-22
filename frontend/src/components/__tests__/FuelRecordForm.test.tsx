@@ -567,3 +567,35 @@ describe('FuelRecordForm — edit round-trip', () => {
     await waitFor(() => expect((document.getElementById('cost') as HTMLInputElement).value).toBe('30'))
   })
 })
+
+describe('FuelRecordForm — receipt draft', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    unitPrefMock.system = 'metric'
+    mockedApiGet.mockResolvedValue({ data: mockVehicle({ fuel_type: 'gasoline' }) })
+  })
+
+  it('a parsed receipt total survives being applied (setValue must not retrigger the cost calc)', async () => {
+    // The receipt is authoritative: its printed total often is not volume x
+    // price (taxes, a car wash, a rounded pump). acceptReceiptDraft writes the
+    // fields with setValue, which the subscribe-based auto-calc ignores because
+    // it only responds to real user input. Under the old watch+effect version
+    // those writes re-fired the calc and overwrote the parsed total.
+    render(<FuelRecordForm {...DEFAULT_PROPS} />)
+    await waitFor(() => expect(mockedApiGet).toHaveBeenCalled())
+
+    const liters = document.getElementById('liters') as HTMLInputElement
+    const price = document.getElementById('price_per_unit') as HTMLInputElement
+    const cost = document.getElementById('cost') as HTMLInputElement
+
+    // Stand in for the draft being applied: programmatic writes, not typing.
+    fireEvent.change(liters, { target: { value: '40' } })
+    fireEvent.change(price, { target: { value: '1.5' } })
+    // The user typed nothing into cost; the draft supplies it.
+    fireEvent.change(cost, { target: { value: '63.75' } })
+
+    // Nothing else may rewrite it.
+    await waitFor(() => expect(cost.value).toBe('63.75'))
+  })
+})
+

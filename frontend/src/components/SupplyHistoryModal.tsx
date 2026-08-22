@@ -20,7 +20,6 @@ import { canonicalToDisplay, displayToCanonical, supplyUnitLabel } from '@/utils
 import { formatDateForDisplay, formatDateForInput } from '@/utils/dateUtils'
 import { FormError } from '@/components/FormError'
 import FormModalWrapper from '@/components/FormModalWrapper'
-import BarcodeScanButton from '@/components/BarcodeScanButton'
 import CurrencyInputPrefix from '@/components/common/CurrencyInputPrefix'
 import { NumberInput, Select, registerDecimal } from '@/components/ui'
 import type { Supply } from '@/types/supplies'
@@ -440,7 +439,6 @@ function PurchaseForm({
     register,
     handleSubmit,
     reset,
-    setValue,
     formState: { errors, isSubmitting },
     setError: setFieldError,
   } = useForm<PurchaseFormValues>({
@@ -591,9 +589,6 @@ function PurchaseForm({
             {...register('part_number')}
             className="flex-1 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text border-garage-border"
             disabled={isSubmitting}
-          />
-          <BarcodeScanButton
-            onScan={(code) => setValue('part_number', code, { shouldDirty: true })}
           />
         </div>
       </div>

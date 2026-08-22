@@ -83,6 +83,11 @@ const CONFIDENCE_LEVEL_KEYS: Record<string, string> = {
 }
 const CONFIDENCE_FALLBACK_KEY = 'confidenceLevels.unknown'
 
+type AnomalyRange = '3m' | '6m' | '12m' | 'ytd' | 'all' | 'custom'
+
+/** The window the page opens on, and the only one written to the offline cache. */
+const DEFAULT_ANOMALY_RANGE: AnomalyRange = '12m'
+
 export default function Analytics() {
   const { t } = useTranslation('analytics')
   const { vin } = useParams<{ vin: string }>()
@@ -107,7 +112,7 @@ export default function Analytics() {
   const [comparisonLoading, setComparisonLoading] = useState(false)
 
   // Spending anomalies window (#130) — default 12 months
-  const [anomalyRange, setAnomalyRange] = useState<'3m' | '6m' | '12m' | 'ytd' | 'all' | 'custom'>('12m')
+  const [anomalyRange, setAnomalyRange] = useState<AnomalyRange>(DEFAULT_ANOMALY_RANGE)
   const [anomalyStart, setAnomalyStart] = useState('')
   const [anomalyEnd, setAnomalyEnd] = useState('')
 
@@ -125,7 +130,13 @@ export default function Analytics() {
   const fetchAnalytics = useCallback(async () => {
     if (!vin) return
 
-    const cacheKey = `analytics-cache-${vin}-${anomalyRange}-${anomalyStart}-${anomalyEnd}`
+    // One cache entry per vehicle, not per (vehicle, range, start, end). The
+    // per-window key wrote a fresh multi-KB blob on every keystroke in a date
+    // input, never evicted any of them, and orphaned the pre-existing
+    // `analytics-cache-${vin}` entries. This cache exists for the offline
+    // fallback below, so the default window is the only one worth keeping.
+    const cacheKey = `analytics-cache-${vin}`
+    const isDefaultWindow = anomalyRange === DEFAULT_ANOMALY_RANGE
 
     try {
       setLoading(true)
@@ -139,7 +150,14 @@ export default function Analytics() {
       const response = await api.get(`/analytics/vehicles/${vin}`, { params })
       const data: VehicleAnalytics = response.data
       setAnalytics(data)
-      localStorage.setItem(cacheKey, JSON.stringify({ timestamp: Date.now(), data }))
+      if (isDefaultWindow) {
+        try {
+          localStorage.setItem(cacheKey, JSON.stringify({ timestamp: Date.now(), data }))
+        } catch {
+          // Quota exceeded on a small device: the cache is a convenience, and
+          // failing to write it must not surface as a load error.
+        }
+      }
       setError(null)
     } catch (error) {
       if (!navigator.onLine) {

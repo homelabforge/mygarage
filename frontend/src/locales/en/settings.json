@@ -96,7 +96,7 @@
     "title": "Archived Vehicles",
     "description": "View and manage vehicles you've archived (sold, totaled, gifted, etc.). Archived vehicles remain in analytics but can be hidden from the main list.",
     "autoArchiveLabel": "Auto-archive inactive vehicles",
-    "autoArchiveDescription": "Archive vehicles with no fuel, service, odometer, or hours activity after N days. 0 disables. Runs daily when the scheduler is enabled.",
+    "autoArchiveDescription": "Archive vehicles with no fuel, service, odometer, or hours activity after N days. 0 disables. Runs daily when the scheduler is enabled, and applies to every vehicle on this instance, including other users'.",
     "autoArchiveDays": "Days of inactivity",
     "autoArchiveSaved": "Auto-archive setting saved",
     "autoArchiveError": "Failed to save auto-archive setting"

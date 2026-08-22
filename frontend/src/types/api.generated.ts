@@ -3288,26 +3288,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/supplies/lookup": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Lookup Supplies
-         * @description Find supplies by barcode or part number (for scan-to-select).
-         */
-        get: operations["lookup_supplies_api_supplies_lookup_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/supplies/{supply_id}": {
         parameters: {
             query?: never;
@@ -21141,40 +21121,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SupplyResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    lookup_supplies_api_supplies_lookup_get: {
-        parameters: {
-            query?: {
-                /** @description Exact UPC/EAN/QR match */
-                barcode?: string | null;
-                /** @description Exact or prefix part number match */
-                part_number?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SupplyListResponse"];
                 };
             };
             /** @description Validation Error */

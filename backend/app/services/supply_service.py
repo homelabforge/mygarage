@@ -160,28 +160,6 @@ class SupplyService:
         on_hand, avg = (await self._compute_balances([supply_id]))[supply_id]
         return self._to_supply_response(supply, on_hand, avg)
 
-    async def lookup_supplies(
-        self,
-        barcode: str | None = None,
-        part_number: str | None = None,
-    ) -> tuple[list[SupplyResponse], int]:
-        """Lookup active supplies by barcode (exact) or part_number (exact/prefix)."""
-        if not barcode and not part_number:
-            return [], 0
-        stmt = select(Supply).where(Supply.is_active.is_(True))
-        if barcode:
-            stmt = stmt.where(Supply.barcode == barcode.strip())
-        if part_number:
-            needle = part_number.strip()
-            stmt = stmt.where(
-                (Supply.part_number == needle) | (Supply.part_number.ilike(f"{needle}%"))
-            )
-        stmt = stmt.order_by(Supply.name).limit(25)
-        supplies = list((await self.db.execute(stmt)).scalars().all())
-        balances = await self._compute_balances([s.id for s in supplies])
-        responses = [self._to_supply_response(s, *balances[s.id]) for s in supplies]
-        return responses, len(responses)
-
     async def create_supply(self, data: SupplyCreate, current_user: User | None) -> SupplyResponse:
         supply = Supply(
             name=data.name,

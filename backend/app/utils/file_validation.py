@@ -196,7 +196,17 @@ async def validate_image_upload(
         max_size = settings.max_upload_size_bytes
 
     # Validate MIME type
-    allowed_types = ["image/jpeg", "image/png", "image/gif", "image/webp", "image/heic"]
+    allowed_types = [
+        "image/jpeg",
+        "image/png",
+        "image/gif",
+        "image/webp",
+        "image/heic",
+        # The upload path treats heif exactly like heic (same container, same
+        # pillow-heif decoder), so the validator has to accept both or a genuine
+        # .heif is rejected before conversion is ever attempted.
+        "image/heif",
+    ]
     if file.content_type not in allowed_types:
         raise HTTPException(
             status_code=400,
@@ -216,8 +226,9 @@ async def validate_image_upload(
     if not contents:
         raise HTTPException(status_code=400, detail="File is empty")
 
-    # Verify magic bytes (HEIC is excluded as it has complex signature)
-    if verify_magic and file.content_type != "image/heic":
+    # Verify magic bytes (HEIC/HEIF are excluded: brand-specific signatures that
+    # libmagic reports inconsistently between heic and heif)
+    if verify_magic and file.content_type not in ("image/heic", "image/heif"):
         is_valid, error_msg = validate_file_magic_bytes(
             contents,
             file.filename,

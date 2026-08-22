@@ -485,7 +485,12 @@ async def check_reminder_notifications() -> None:
 
 
 async def auto_archive_inactive_vehicles() -> None:
-    """Archive vehicles with no recent activity when auto_archive_inactive_days > 0."""
+    """Archive vehicles with no recent activity when auto_archive_inactive_days > 0.
+
+    Instance-wide by design: settings in MyGarage are global, not per-user, so the
+    single admin-set threshold applies to every owner's vehicles. The settings
+    description says so. Archiving is reversible from the archived list.
+    """
     from datetime import date as date_cls
 
     from sqlalchemy import func
@@ -512,20 +517,30 @@ async def auto_archive_inactive_vehicles() -> None:
                 .all()
             )
 
-            archived = 0
-            for vehicle in vehicles:
-                latest_dates: list[date_cls] = []
+            # One grouped query per activity table instead of four per vehicle.
+            # MAX(date) is the right aggregate here: this asks "when was anything
+            # last logged", not "which row is canonical".
+            vins = [v.vin for v in vehicles]
+            last_activity: dict[str, list[date_cls]] = {}
+            if vins:
                 for model, date_col in (
                     (ServiceVisit, ServiceVisit.date),
                     (FuelRecord, FuelRecord.date),
                     (OdometerRecord, OdometerRecord.date),
                     (HoursRecord, HoursRecord.date),
                 ):
-                    row = (
-                        await db.execute(select(func.max(date_col)).where(model.vin == vehicle.vin))
-                    ).scalar()
-                    if row is not None:
-                        latest_dates.append(row)
+                    rows = await db.execute(
+                        select(model.vin, func.max(date_col))
+                        .where(model.vin.in_(vins))
+                        .group_by(model.vin)
+                    )
+                    for vin, latest in rows:
+                        if latest is not None:
+                            last_activity.setdefault(vin, []).append(latest)
+
+            archived = 0
+            for vehicle in vehicles:
+                latest_dates: list[date_cls] = list(last_activity.get(vehicle.vin, []))
 
                 for ts in (vehicle.updated_at, vehicle.created_at):
                     if ts is None:
