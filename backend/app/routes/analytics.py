@@ -113,8 +113,6 @@ def _load_service_visits_query(vin: str):
 
 def build_anomalies_from_monthly_df(monthly_df: Any) -> list[AnomalyAlert]:
     """Detect spending anomalies from a monthly aggregation DataFrame."""
-    import pandas as pd
-
     anomalies: list[AnomalyAlert] = []
     if monthly_df is None or getattr(monthly_df, "empty", True) or len(monthly_df) < 3:
         return anomalies
@@ -148,8 +146,6 @@ def build_anomalies_from_monthly_df(monthly_df: Any) -> list[AnomalyAlert]:
                 message=message,
             )
         )
-    # Keep pandas import used when callers pass non-DataFrame iterables
-    _ = pd
     return anomalies
 
 
@@ -803,7 +799,7 @@ async def get_maintenance_predictions(
 async def get_vehicle_analytics(
     vin: str,
     anomaly_range: str = Query(
-        "12m",
+        "all",
         pattern="^(3m|6m|12m|ytd|all|custom)$",
         description="Window used for spending anomaly detection (issue #130).",
     ),
@@ -1553,7 +1549,14 @@ async def export_analytics_pdf(
         raise HTTPException(status_code=404, detail="Vehicle not found")
 
     # Fetch analytics data
-    analytics = await get_vehicle_analytics(vin, db=db, current_user=current_user)
+    # anomaly_range MUST be passed explicitly: this is a direct function call, not
+    # an HTTP request, so an omitted argument binds the fastapi Query object rather
+    # than its default string. Every `== "3m"` test then fails and
+    # filter_anomalies_to_window silently falls through to its 12-month else branch,
+    # dropping older anomalies from the report with no indication.
+    analytics = await get_vehicle_analytics(
+        vin, anomaly_range="all", db=db, current_user=current_user
+    )
 
     # Fetch vendor analytics
     try:
