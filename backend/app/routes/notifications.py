@@ -13,9 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.reminder import Reminder
 from app.models.user import User
-from app.models.vehicle import Vehicle
-from app.models.vehicle_share import VehicleShare
-from app.services.auth import get_current_admin_user, require_auth
+from app.services.auth import accessible_vehicles, get_current_admin_user, require_auth
 from app.services.hours_service import latest_engine_hours_and_date
 from app.services.odometer_service import latest_odometer_km_and_date
 from app.services.reminder_service import is_reminder_overdue
@@ -440,54 +438,46 @@ class InboxResponse(BaseModel):
     unread_count: int = 0
 
 
-async def _inbox_vehicles(db: AsyncSession, current_user: User | None) -> list[Vehicle]:
-    if current_user is None:
-        result = await db.execute(select(Vehicle).where(Vehicle.archived_at.is_(None)))
-        return list(result.scalars().all())
-
-    owned_result = await db.execute(
-        select(Vehicle).where(
-            Vehicle.user_id == current_user.id,
-            Vehicle.archived_at.is_(None),
-        )
-    )
-    owned = list(owned_result.scalars().all())
-    owned_vins = {v.vin for v in owned}
-    shared_query = (
-        select(Vehicle)
-        .join(VehicleShare, VehicleShare.vehicle_vin == Vehicle.vin)
-        .where(
-            VehicleShare.user_id == current_user.id,
-            Vehicle.archived_at.is_(None),
-        )
-    )
-    if owned_vins:
-        shared_query = shared_query.where(Vehicle.vin.not_in(owned_vins))
-    shared_result = await db.execute(shared_query)
-    return owned + list(shared_result.scalars().all())
-
-
 @router.get("/inbox", response_model=InboxResponse)
 async def notification_inbox(
     db: AsyncSession = Depends(get_db),
     current_user: User | None = Depends(require_auth),
 ) -> InboxResponse:
     """Return actionable in-app alerts (overdue and soon-due reminders)."""
-    vehicles = await _inbox_vehicles(db, current_user)
+    vehicles = await accessible_vehicles(db, current_user)
     today = date.today()
     soon = today + timedelta(days=14)
     items: list[InboxItem] = []
 
-    for vehicle in vehicles:
-        pending_result = await db.execute(
-            select(Reminder).where(Reminder.vin == vehicle.vin, Reminder.status == "pending")
+    # One reminder query for the whole garage. This used to be three queries per
+    # vehicle (reminders + odometer + hours), and the bell polls every 60s from
+    # every open tab, so a 10-vehicle garage was 31 round trips a minute.
+    vins = [v.vin for v in vehicles]
+    pending_by_vin: dict[str, list[Reminder]] = {}
+    if vins:
+        all_pending = await db.execute(
+            select(Reminder).where(Reminder.vin.in_(vins), Reminder.status == "pending")
         )
-        pending = list(pending_result.scalars().all())
+        for reminder in all_pending.scalars().all():
+            pending_by_vin.setdefault(reminder.vin, []).append(reminder)
+
+    for vehicle in vehicles:
+        pending = pending_by_vin.get(vehicle.vin, [])
         if not pending:
             continue
 
-        current_km, _ = await latest_odometer_km_and_date(db, vehicle.vin)
-        current_hours, _ = await latest_engine_hours_and_date(db, vehicle.vin)
+        # Readings are fetched through the canonical helpers, and only for a
+        # vehicle that actually has a reminder keyed on one. `is_reminder_overdue`
+        # consults current_km only when due_mileage_km is set (and hours likewise),
+        # so a date-only garage does no reading queries at all. Batching these into
+        # a grouped MAX() would be wrong: latest means last by (date, id), which is
+        # not the largest value.
+        needs_km = any(r.due_mileage_km for r in pending)
+        needs_hours = any(r.due_hours for r in pending)
+        current_km = (await latest_odometer_km_and_date(db, vehicle.vin))[0] if needs_km else None
+        current_hours = (
+            (await latest_engine_hours_and_date(db, vehicle.vin))[0] if needs_hours else None
+        )
 
         for reminder in pending:
             overdue = is_reminder_overdue(reminder, current_km, current_hours, today)
@@ -510,7 +500,7 @@ async def notification_inbox(
             )
             items.append(
                 InboxItem(
-                    id=f"reminder-{reminder.id}",
+                    id=f"reminder-{kind}-{reminder.id}",
                     kind=kind,
                     title=reminder.title,
                     body=body,

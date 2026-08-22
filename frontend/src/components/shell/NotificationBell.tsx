@@ -52,7 +52,18 @@ export default function NotificationBell() {
     setLoading(true)
     try {
       const res = await api.get('/notifications/inbox')
-      setItems(res.data?.items ?? [])
+      const next: InboxItem[] = res.data?.items ?? []
+      setItems(next)
+      // Prune dismissals to what the inbox still carries, so the set cannot grow
+      // without bound. An alert that leaves and later returns is a NEW alert and
+      // should be shown again. Pruning happens only on a successful response:
+      // doing it in the catch would let one failed poll resurrect everything.
+      setDismissed((prev) => {
+        const live = new Set(next.map((item) => item.id))
+        const pruned = new Set([...prev].filter((id) => live.has(id)))
+        if (pruned.size !== prev.size) saveDismissed(pruned)
+        return pruned.size === prev.size ? prev : pruned
+      })
     } catch {
       setItems([])
     } finally {
