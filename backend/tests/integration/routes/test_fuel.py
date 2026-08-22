@@ -90,6 +90,69 @@ class TestFuelRecordRoutes:
         # L/100km might be null for first record
         assert "l_per_100km" in data
 
+    async def test_create_propane_tank_refill_without_odometer(
+        self, client: AsyncClient, auth_headers, test_vehicle
+    ):
+        """The propane tab must be able to save a tank refill.
+
+        This is verbatim what PropaneRecordForm posts: no odometer_km (a
+        travel trailer has none, and a motorhome's reading says nothing
+        about a grill bottle), no liters, propane volume plus the tank
+        size/quantity pair. The schema-level "odometer_km is always
+        required" rule added for issue #69 rejected every one of these
+        with a 422, so the propane tab could not create a record at all.
+        The unit tests of that rule only ever built propane records that
+        also carried an odometer, which is a shape the UI never sends.
+        """
+        payload = {
+            "vin": test_vehicle["vin"],
+            "date": "2026-08-22",
+            "propane_liters": 8.5,
+            "tank_size_kg": 14.97,
+            "tank_quantity": 1,
+            "price_per_unit": 0.948,
+            "price_basis": "per_volume",
+            "cost": 8.06,
+            "fuel_type": "Propane",
+            "is_full_tank": False,
+            "missed_fillup": False,
+            "is_hauling": False,
+            "notes": "Vendor: Tractor Supply",
+        }
+
+        response = await client.post(
+            f"/api/vehicles/{test_vehicle['vin']}/fuel",
+            json=payload,
+            headers=auth_headers,
+        )
+
+        assert response.status_code == 201, response.text
+        data = response.json()
+        assert data["odometer_km"] is None
+        assert float(data["propane_liters"]) == pytest.approx(8.5, abs=0.001)
+        assert float(data["tank_size_kg"]) == pytest.approx(14.97, abs=0.01)
+        assert data["tank_quantity"] == 1
+        assert data["liters"] is None
+        assert data["l_per_100km"] is None
+
+    async def test_create_fuel_record_without_odometer_rejected(
+        self, client: AsyncClient, auth_headers, test_vehicle
+    ):
+        """The propane exemption must not open the gate for liquid fuel."""
+        response = await client.post(
+            f"/api/vehicles/{test_vehicle['vin']}/fuel",
+            json={
+                "vin": test_vehicle["vin"],
+                "date": "2026-08-22",
+                "liters": 40.0,
+                "cost": 45.00,
+                "is_full_tank": True,
+            },
+            headers=auth_headers,
+        )
+
+        assert response.status_code == 422
+
     async def test_update_fuel_record(
         self, client: AsyncClient, auth_headers, test_vehicle_with_records
     ):

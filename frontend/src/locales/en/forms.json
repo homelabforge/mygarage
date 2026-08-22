@@ -20,7 +20,6 @@
   "fuel": {
     "addStation": "Add station",
     "autoCalculatedHint": "Auto-calculated from price, volume, and rebate",
-    "autoPopulatedHint": "Auto-populated from vehicle information",
     "rebate": "Rebate",
     "rebateHint": "Points, discounts, or cash back — deducted from Total Cost",
     "createTitle": "Add Fuel Record",
@@ -30,7 +29,6 @@
     "saveAction": "save the fuel record",
     "electricTip": "Efficiency metrics (kWh/100mi) are calculated from charging records.",
     "energy": "Energy",
-    "fuelType": "Fuel Type",
     "fullTankFillup": "Full Tank Fill-up",
     "missedChargingSession": "Missed Charging Session",
     "missedFillup": "Missed Fill-up",
@@ -868,7 +866,6 @@
   },
   "fuelRecordForm": {
     "fillLevelFull": "Full",
-    "fuelTypePlaceholder": "Gasoline, Diesel, etc.",
     "obcDurationPlaceholder": "HH:MM or seconds"
   },
   "noteForm": {

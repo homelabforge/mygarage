@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -9,7 +9,8 @@ import { makePropaneRecordSchema, type PropaneRecordFormData } from '../schemas/
 import { useCreatePropaneRecord, useUpdatePropaneRecord } from '../hooks/queries/usePropaneRecords'
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { UnitConverter, UnitFormatter } from '../utils/units'
-import { toCanonicalKg, toCanonicalLiters, priceToDisplay, priceToCanonical } from '../utils/decimalSafe'
+import { toCanonicalKg, toCanonicalLiters, priceToDisplay, priceToCanonical, readNumber } from '../utils/decimalSafe'
+import { useOnUserEdit } from '../hooks/useOnUserEdit'
 import { formatDateForInput } from '../utils/dateUtils'
 import CurrencyInputPrefix from './common/CurrencyInputPrefix'
 import { Button, Field, Input, NumberInput, Select, Textarea, registerDecimal } from './ui'
@@ -68,6 +69,7 @@ export default function PropaneRecordForm({
     formState: { errors, isSubmitting },
     setValue,
     watch,
+    subscribe,
     setError: setFieldError,
   } = useForm<PropaneRecordFormData>({
     resolver: zodResolver(schema) as Resolver<PropaneRecordFormData>,
@@ -98,7 +100,7 @@ export default function PropaneRecordForm({
         return isNaN(cost) ? undefined : cost
       })(),
       vendor: extractVendor(record?.notes ?? undefined) || '',
-      notes: record?.notes?.replace(/^Vendor: .+?\n/, '') || '',
+      notes: record?.notes?.replace(/^Vendor: .+?(?:\n|$)/, '') || '',
       tank_size_kg: (() => {
         if (record?.tank_size_kg == null) return undefined
         const kg = typeof record.tank_size_kg === 'string'
@@ -111,50 +113,45 @@ export default function PropaneRecordForm({
     },
   })
 
-  // Watch volume and price for auto-calculation
-  const propaneVolume = watch('propane_liters')
-  const pricePerUnit = watch('price_per_unit')
+  // Watched for the read-only auto-calculated volume hint under the tank row.
   const tankSizeDisplay = watch('tank_size_kg')
   const tankQuantity = watch('tank_quantity')
 
-  const [isInitialMount, setIsInitialMount] = useState(true)
+  // Volume from the tank row, then cost from the volume. Both run on user
+  // edits only (see useOnUserEdit): a saved record's typed-over volume and
+  // its receipt total must survive being reopened, and a partial refill of a
+  // 33 lb bottle is exactly that. The chain still works on real input,
+  // because the handler recomputes the cost from the volume it just wrote
+  // rather than waiting to be re-entered through its own setValue.
+  const displayVolumeForTank = (tankSize: number, quantity: number): number | null => {
+    // tank_size_kg holds the user's displayed tank weight (kg or lb).
+    const kg = system === 'imperial' ? (UnitConverter.lbsToKg(tankSize) ?? tankSize) : tankSize
+    const totalLiters = kg * quantity * KG_TO_LITERS
+    const display = system === 'imperial' ? UnitConverter.litersToGallons(totalLiters) : totalLiters
+    return display ?? null
+  }
 
-  useEffect(() => {
-    if (isInitialMount) {
-      setIsInitialMount(false)
-      return
-    }
+  useOnUserEdit(
+    subscribe,
+    ['tank_size_kg', 'tank_quantity', 'propane_liters', 'price_per_unit'],
+    (values, name) => {
+      let volume = readNumber(values.propane_liters)
 
-    if (propaneVolume && pricePerUnit) {
-      const volNum = typeof propaneVolume === 'number' ? propaneVolume : parseFloat(String(propaneVolume))
-      const priceNum = typeof pricePerUnit === 'number' ? pricePerUnit : parseFloat(String(pricePerUnit))
-
-      if (!isNaN(volNum) && !isNaN(priceNum)) {
-        const total = volNum * priceNum
-        setValue('cost', parseFloat(total.toFixed(2)))
+      if (name === 'tank_size_kg' || name === 'tank_quantity') {
+        const tankSize = readNumber(values.tank_size_kg)
+        const quantity = readNumber(values.tank_quantity)
+        if (tankSize === undefined || quantity === undefined) return
+        const display = displayVolumeForTank(tankSize, quantity)
+        if (display === null) return
+        volume = parseFloat(display.toFixed(3))
+        setValue('propane_liters', volume)
       }
-    }
-  }, [propaneVolume, pricePerUnit, setValue, isInitialMount])
 
-  // Auto-calculate propane volume from tank data.
-  // tank_size_kg field actually holds the user's displayed tank weight (kg or lb).
-  useEffect(() => {
-    if (isInitialMount) return
-
-    if (tankSizeDisplay && tankQuantity) {
-      const tankNum = parseFloat(tankSizeDisplay.toString())
-      // Convert to canonical kg, then to liters via density, then back to user's
-      // displayed volume unit.
-      const kg = system === 'imperial' ? (UnitConverter.lbsToKg(tankNum) ?? tankNum) : tankNum
-      const totalLiters = kg * tankQuantity * KG_TO_LITERS
-      const displayVolume = system === 'imperial'
-        ? UnitConverter.litersToGallons(totalLiters)
-        : totalLiters
-      if (displayVolume !== null && displayVolume !== undefined) {
-        setValue('propane_liters', parseFloat(displayVolume.toFixed(3)))
-      }
-    }
-  }, [tankSizeDisplay, tankQuantity, system, setValue, isInitialMount])
+      const price = readNumber(values.price_per_unit)
+      if (volume === undefined || price === undefined) return
+      setValue('cost', parseFloat((volume * price).toFixed(2)))
+    },
+  )
 
   const onSubmit = async (data: PropaneRecordFormData) => {
     setError(null)
@@ -183,7 +180,7 @@ export default function PropaneRecordForm({
         price_per_unit: priceToCanonical(data.price_per_unit, system, 'per_volume') ?? undefined,
         price_basis: 'per_volume',
         cost: data.cost,
-        fuel_type: 'Propane',  // Always propane
+        fuel_type_used: 'propane_lpg',  // Always propane
         is_full_tank: false,  // Not relevant for propane
         missed_fillup: false,
         is_hauling: false,
@@ -276,10 +273,12 @@ export default function PropaneRecordForm({
             </div>
 
             {tankSizeDisplay && tankQuantity && (() => {
-              const tankNum = parseFloat(tankSizeDisplay.toString())
-              const kg = system === 'imperial' ? (UnitConverter.lbsToKg(tankNum) ?? tankNum) : tankNum
-              const totalLiters = kg * tankQuantity * KG_TO_LITERS
-              const display = system === 'imperial' ? UnitConverter.litersToGallons(totalLiters) : totalLiters
+              // Same maths the auto-calc writes into the volume field, so the
+              // hint can never quote a different number than the field gets.
+              const display = displayVolumeForTank(
+                readNumber(tankSizeDisplay) ?? 0,
+                readNumber(tankQuantity) ?? 0,
+              )
               return (
                 <p className="text-xs text-text-mute mt-2">
                   {t('propaneRecordForm.autoCalculatedVolume', { value: display?.toFixed(2) ?? '', unit: UnitFormatter.getVolumeUnit(system) })}

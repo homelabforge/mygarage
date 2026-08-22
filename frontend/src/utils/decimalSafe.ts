@@ -2,6 +2,26 @@ import { UnitConverter } from './units'
 import type { UnitSystem } from './units'
 
 /**
+ * Read a numeric value out of a form field, tolerating everything one can hold.
+ *
+ * A field registered with `registerDecimal` holds a number, `undefined`, or
+ * the `INVALID_NUMBER` sentinel for text that does not parse. That sentinel
+ * is a Symbol, and Symbols throw on every implicit coercion: both
+ * `parseFloat(sym)` and `isNaN(sym)` raise a TypeError. So the obvious
+ * `typeof v === 'number' ? v : parseFloat(v)` blows up the moment someone
+ * types "abc" into a field that feeds a calculation. Returns undefined for
+ * anything that is not a usable number, which callers read as "no value yet".
+ */
+export function readNumber(value: unknown): number | undefined {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : undefined
+  if (typeof value === 'string') {
+    const parsed = parseFloat(value)
+    return Number.isNaN(parsed) ? undefined : parsed
+  }
+  return undefined
+}
+
+/**
  * Convert a user-entered numeric value into its canonical metric form
  * suitable for submitting to the API. Returns the raw number for metric
  * users (no float drift), and converts once for imperial users.

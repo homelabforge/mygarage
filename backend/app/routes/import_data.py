@@ -144,6 +144,12 @@ def _derive_price_basis(
     return None
 
 
+def _normalized_fuel_type(raw: str | None) -> str | None:
+    """A legacy free-text fuel type as its canonical enum value, or None."""
+    normalized = normalize_fuel_type(raw)
+    return normalized.value if normalized is not None else None
+
+
 router = APIRouter(prefix="/api/import", tags=["import"])
 
 # Valid service categories matching the ServiceVisit check constraint
@@ -420,14 +426,19 @@ async def import_fuel_csv(
             notes = row.get("Notes", "").strip() or None
 
             # Fuel type — surfaced by issue #69. rc1's importer dropped this
-            # column entirely. Now: read it, route through the locale-aware
-            # normalizer (so Polish "Benzyna" → gasoline, etc.), and store
-            # both the legacy free-text column AND the canonical
-            # `fuel_type_used` enum so future cleanups can drop `fuel_type`
-            # without losing data. Unrecognized values fall through to
-            # FuelTypeEnum.OTHER (a warning is logged) — we never silently
+            # column entirely. Now: read it and route through the locale-aware
+            # normalizer (so Polish "Benzyna" → gasoline, etc.) into the
+            # canonical `fuel_type_used` enum. Unrecognized values fall through
+            # to FuelTypeEnum.OTHER (a warning is logged) — we never silently
             # drop the row over fuel-type alone.
-            raw_fuel_type = (row.get("Fuel Type", "") or "").strip() or None
+            #
+            # "Fuel Type Used" is the v5 column; "Fuel Type" is what v4-and-older
+            # exports (and every third-party sheet) call it, so both are read.
+            raw_fuel_type = (
+                (row.get("Fuel Type Used", "") or "").strip()
+                or (row.get("Fuel Type", "") or "").strip()
+                or None
+            )
             normalized_fuel_type: FuelTypeEnum | None = normalize_fuel_type(raw_fuel_type)
             if raw_fuel_type and normalized_fuel_type is None:
                 logger.warning(
@@ -464,9 +475,6 @@ async def import_fuel_csv(
                 is_full_tank=is_full_tank,
                 missed_fillup=missed_fillup,
                 notes=notes,
-                # Preserve user-supplied raw spelling in the legacy column;
-                # store the canonical enum on `fuel_type_used`.
-                fuel_type=raw_fuel_type,
                 fuel_type_used=(
                     normalized_fuel_type.value if normalized_fuel_type is not None else None
                 ),
@@ -1525,7 +1533,11 @@ async def _persist_parsed_fuel(
                 price_basis=row.get("price_basis"),
                 is_full_tank=bool(row.get("is_full_tank", True)),
                 notes=row.get("notes"),
-                fuel_type_used=row.get("fuel_type_used"),
+                # v4-and-older backups carry the retired free-text "fuel_type"
+                # instead, so fall back to it through the normalizer rather
+                # than restoring those records with no fuel type at all.
+                fuel_type_used=row.get("fuel_type_used")
+                or _normalized_fuel_type(row.get("fuel_type")),
                 soc_start_pct=row.get("soc_start_pct"),
                 soc_end_pct=row.get("soc_end_pct"),
                 charge_level=row.get("charge_level"),

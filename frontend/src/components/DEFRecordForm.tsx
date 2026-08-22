@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -10,7 +10,8 @@ import { FormError } from './FormError'
 import { useCreateDEFRecord, useUpdateDEFRecord } from '../hooks/queries/useDEFRecords'
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { UnitConverter, UnitFormatter } from '../utils/units'
-import { toCanonicalKm, toCanonicalLiters, priceToDisplay, priceToCanonical } from '../utils/decimalSafe'
+import { toCanonicalKm, toCanonicalLiters, priceToDisplay, priceToCanonical, readNumber } from '../utils/decimalSafe'
+import { useOnUserEdit } from '../hooks/useOnUserEdit'
 import { formatDateForInput } from '../utils/dateUtils'
 import CurrencyInputPrefix from './common/CurrencyInputPrefix'
 import { Button, Field, Input, NumberInput, Textarea, registerDecimal } from './ui'
@@ -62,12 +63,6 @@ export default function DEFRecordForm({
   const updateMutation = useUpdateDEFRecord(vin)
   const { system } = useUnitPreference()
 
-  const parseDecimal = (val?: number | string | null): number | undefined => {
-    if (val === undefined || val === null) return undefined
-    const num = typeof val === 'string' ? parseFloat(val) : val
-    return isNaN(num) ? undefined : num
-  }
-
   // Zod bakes its messages in at construction, so the schema is rebuilt when
   // the language changes. Only the resolver depends on it — no fetch, no
   // reset() — so a rebuild can't discard what the user typed.
@@ -79,25 +74,26 @@ export default function DEFRecordForm({
     formState: { errors, isSubmitting },
     setValue,
     watch,
+    subscribe,
     setError: setFieldError,
   } = useForm<DefRecordFormData>({
     resolver: zodResolver(schema) as Resolver<DefRecordFormData>,
     defaultValues: {
       date: formatDateForInput(record?.date),
       odometer_km: (() => {
-        const stored = parseDecimal(record?.odometer_km)
+        const stored = readNumber(record?.odometer_km)
         if (stored === undefined) return undefined
         return system === 'imperial' ? UnitConverter.kmToMiles(stored) ?? undefined : stored
       })(),
       liters: (() => {
-        const l = parseDecimal(record?.liters)
+        const l = readNumber(record?.liters)
         if (l === undefined) return undefined
         return system === 'imperial' ? (UnitConverter.litersToGallons(l) ?? l) : l
       })(),
       price_per_unit: priceToDisplay(record?.price_per_unit, system, 'per_volume') ?? undefined,
-      cost: parseDecimal(record?.cost),
+      cost: readNumber(record?.cost),
       fill_level: (() => {
-        const fl = parseDecimal(record?.fill_level)
+        const fl = readNumber(record?.fill_level)
         return fl !== undefined ? fl * 100 : undefined // Store as 0.00-1.00, display as 0-100
       })(),
       source: record?.source || '',
@@ -106,28 +102,15 @@ export default function DEFRecordForm({
     },
   })
 
-  // Watch volume and price for auto-calculation
-  const liters = watch('liters')
-  const pricePerUnit = watch('price_per_unit')
-
-  const [isInitialMount, setIsInitialMount] = useState(true)
-
-  useEffect(() => {
-    if (isInitialMount) {
-      setIsInitialMount(false)
-      return
-    }
-
-    if (liters && pricePerUnit) {
-      const litersNum = typeof liters === 'number' ? liters : parseFloat(String(liters))
-      const priceNum = typeof pricePerUnit === 'number' ? pricePerUnit : parseFloat(String(pricePerUnit))
-
-      if (!isNaN(litersNum) && !isNaN(priceNum)) {
-        const total = litersNum * priceNum
-        setValue('cost', parseFloat(total.toFixed(2)))
-      }
-    }
-  }, [liters, pricePerUnit, setValue, isInitialMount])
+  // Cost follows volume and price on user edits only (see useOnUserEdit), so
+  // reopening a record cannot overwrite a stored total that was not exactly
+  // volume by price.
+  useOnUserEdit(subscribe, ['liters', 'price_per_unit'], (values) => {
+    const litersNum = readNumber(values.liters)
+    const priceNum = readNumber(values.price_per_unit)
+    if (litersNum === undefined || priceNum === undefined) return
+    setValue('cost', parseFloat((litersNum * priceNum).toFixed(2)))
+  })
 
   const onSubmit = async (data: DefRecordFormData) => {
     setError(null)

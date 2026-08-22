@@ -15,9 +15,9 @@ Issue #69 extended fuel tracking adds (all optional):
 - obc_l_per_100km / obc_avg_speed_kmh / obc_trip_duration_s
 - fuel_type_used: actual fuel dispensed (multi-fuel vehicles only)
 
-Legacy `fuel_type` (free-text) is preserved as a compatibility alias for one
-release; new clients should use `fuel_type_used`. The service layer mirrors
-between them during the compatibility window — see services/fuel_service.py.
+The legacy free-text `fuel_type` alias was retired by migration 089;
+`fuel_type_used` is the only fuel-type field on a record, and it is
+validated against `FuelTypeEnum`.
 """
 
 from datetime import date as date_type
@@ -136,14 +136,6 @@ class FuelRecordBase(BaseModel):
         None,
         description="Price denominator: per_volume / per_weight / per_tank / per_kwh",
         max_length=12,
-    )
-    fuel_type: str | None = Field(
-        None,
-        description=(
-            "Legacy fuel type column. New clients should use fuel_type_used. "
-            "Kept for one release as a compatibility alias."
-        ),
-        max_length=50,
     )
     fuel_type_used: str | None = Field(
         None,
@@ -336,14 +328,35 @@ class FuelRecordCreate(FuelRecordBase):
         (curl, mobile app, importer) could write empty records.
 
         Rule:
-          - ``odometer_km`` is always required.
+          - ``odometer_km`` is required, EXCEPT on a propane tank refill
+            (see ``is_tank_refill`` below).
           - At least one of ``liters``, ``propane_liters``, ``kwh``, or
             the propane ``tank_size_kg`` + ``tank_quantity`` pair is
             required, EXCEPT when ``missed_fillup=True`` — that's the
             explicit "I noticed the odometer but I don't have the
             fuel amount" escape hatch.
+
+        The propane exemption: the propane tab writes bottled-tank refills
+        for RVs and trailers into this same table, and there is no odometer
+        reading to give for one. A travel trailer has no odometer at all,
+        and a motorhome's says nothing about the bottle that was filled, so
+        the form posts ``odometer_km`` unset by design and the blanket
+        requirement 422'd every record it could produce. Such a record
+        yields no distance figure either (economy math needs ``liters``).
+        Propane alongside ``liters`` or ``kwh`` is a propane-powered
+        vehicle's fill-up, not a tank refill, and still needs the reading.
         """
-        if self.odometer_km is None:
+        has_propane_amount = self.propane_liters is not None or (
+            self.tank_size_kg is not None and self.tank_quantity is not None
+        )
+        is_tank_refill = (
+            has_propane_amount
+            and self.liters is None
+            and self.kwh is None
+            and not self.missed_fillup
+        )
+
+        if self.odometer_km is None and not is_tank_refill:
             raise ValueError(
                 "odometer_km is required (set missed_fillup=True only if "
                 "you also can't supply a fuel amount)"
@@ -352,12 +365,7 @@ class FuelRecordCreate(FuelRecordBase):
         if self.missed_fillup:
             return self
 
-        has_amount = (
-            self.liters is not None
-            or self.propane_liters is not None
-            or self.kwh is not None
-            or (self.tank_size_kg is not None and self.tank_quantity is not None)
-        )
+        has_amount = self.liters is not None or self.kwh is not None or has_propane_amount
         if not has_amount:
             raise ValueError(
                 "fuel record must include at least one of: liters, "
@@ -439,11 +447,6 @@ class FuelRecordUpdate(BaseModel):
         None, description="Price per unit (see price_basis for denominator)", ge=0, le=999.999
     )
     price_basis: str | None = Field(None, max_length=12)
-    fuel_type: str | None = Field(
-        None,
-        description="Legacy fuel type (compatibility alias for fuel_type_used)",
-        max_length=50,
-    )
     fuel_type_used: str | None = Field(
         None,
         description="Actual fuel dispensed (canonical enum)",

@@ -44,11 +44,15 @@ limiter = Limiter(key_func=get_remote_address)
 #       Filled At, Fuel Type Used, Station, Driver, Payment Method,
 #       Trip Type, Outside Temp, OBC values. Purely additive — v3
 #       importers continue to work.
+# - v5: drops the fuel "Fuel Type" column, retired with the legacy
+#       `fuel_records.fuel_type` DB column (migration 089). "Fuel Type Used"
+#       carries the canonical enum. NOT additive, so the version moves; the
+#       importer still reads "Fuel Type" from v4-and-older files.
 # CSV exports prepend a `units_version` column with this value to every row;
 # JSON exports include a top-level `"export_version"` + `"units"` field.
 # The importer (`app/routes/import_data.py`) reads the marker and falls back
 # to v2 imperial conversion when it's missing (legacy v2 backups).
-EXPORT_SCHEMA_VERSION = "4"
+EXPORT_SCHEMA_VERSION = "5"
 EXPORT_UNITS = "metric"
 
 
@@ -252,9 +256,9 @@ async def export_fuel_records_csv(
 
     # Generate CSV.
     # NOTE: column set extended for v2.27.0-rc2 (#69 issue follow-up).
-    # The ``EXPORT_SCHEMA_VERSION`` bump from "3" to "4" signals importers
-    # that the new columns may be present. v3-format imports keep working
-    # because the extension is purely additive.
+    # The ``EXPORT_SCHEMA_VERSION`` bump from "3" to "4" signalled importers
+    # that the new columns may be present; "5" says the redundant legacy
+    # "Fuel Type" column is gone and "Fuel Type Used" is the fuel type.
     headers = [
         "Date",
         "Filled At",
@@ -267,7 +271,6 @@ async def export_fuel_records_csv(
         "Full Tank",
         "Missed Fill-up",
         "Is Hauling",
-        "Fuel Type",
         "Fuel Type Used",
         "Station ID",
         "Station",
@@ -305,7 +308,6 @@ async def export_fuel_records_csv(
                 "Yes" if record.is_full_tank else "No",
                 "Yes" if record.missed_fillup else "No",
                 "Yes" if record.is_hauling else "No",
-                record.fuel_type or "",
                 record.fuel_type_used or "",
                 record.station_address_book_id or "",
                 station_names.get(record.id) or "",
@@ -821,7 +823,7 @@ async def export_vehicle_json(
                 "is_full_tank": r.is_full_tank,
                 "missed_fillup": r.missed_fillup,
                 "is_hauling": r.is_hauling,
-                "fuel_type": r.fuel_type,
+                "fuel_type_used": r.fuel_type_used,
                 "notes": r.notes,
             }
             for r in fuel_records

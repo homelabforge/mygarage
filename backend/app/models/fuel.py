@@ -62,10 +62,6 @@ class FuelRecord(Base):
     price_per_unit: Mapped[Decimal | None] = mapped_column(Numeric(6, 3))
     # Per-row classifier added by migration 053. Drives unit-aware price math.
     price_basis: Mapped[str | None] = mapped_column(String(12))
-    # Legacy free-text fuel type. Migration 054 normalized values to the
-    # FuelTypeEnum vocabulary; new writes prefer `fuel_type_used`. Kept as a
-    # compatibility alias for one release (planned removal in v2.28.0).
-    fuel_type: Mapped[str | None] = mapped_column(String(50))
     # Per-fillup actual fuel dispensed. Surfaced in UI only when the vehicle
     # has a non-null `fuel_type_secondary` (PHEV / flex / dual-fuel).
     fuel_type_used: Mapped[str | None] = mapped_column(String(20), nullable=True)

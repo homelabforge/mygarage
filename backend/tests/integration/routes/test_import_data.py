@@ -101,9 +101,10 @@ class TestImportRoutes:
         The user's original report on issue #69 was a Polish-locale install
         whose pre-imported fuel records carried "Benzyna" — which silently
         backfilled to 'other' in the migration AND was ignored on import.
-        v2.27.0-rc2 reads the Fuel Type column, runs it through the
-        locale-aware normalizer, and stores both the original spelling
-        (legacy `fuel_type`) and the canonical enum (`fuel_type_used`).
+        v2.27.0-rc2 reads the Fuel Type column and runs it through the
+        locale-aware normalizer. Migration 089 retired the free-text
+        column, so only the canonical `fuel_type_used` enum is stored;
+        the raw spelling is what the importer reads, not what it keeps.
         """
         from sqlalchemy import select
 
@@ -150,13 +151,10 @@ class TestImportRoutes:
             rows_by_date[r.date] = r
 
         # Polish "Benzyna" → gasoline
-        assert rows_by_date[date_type(2024, 3, 1)].fuel_type == "Benzyna"
         assert rows_by_date[date_type(2024, 3, 1)].fuel_type_used == "gasoline"
         # Russian "Дизель" → diesel
-        assert rows_by_date[date_type(2024, 3, 15)].fuel_type == "Дизель"
         assert rows_by_date[date_type(2024, 3, 15)].fuel_type_used == "diesel"
         # Unrecognized values land on 'other' rather than dropping the row.
-        assert rows_by_date[date_type(2024, 3, 29)].fuel_type == "Plasma fuel"
         assert rows_by_date[date_type(2024, 3, 29)].fuel_type_used == "other"
 
     async def test_import_odometer_csv(self, client: AsyncClient, auth_headers, test_vehicle):

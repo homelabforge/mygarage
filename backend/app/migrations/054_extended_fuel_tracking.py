@@ -415,9 +415,21 @@ def upgrade(engine=None) -> None:
 
         # fuel_records.fuel_type — same backfill, no combined-string handling
         # (fuel records always represent a single fuel dispensed).
-        rows = conn.execute(
-            text("SELECT id, fuel_type FROM fuel_records WHERE fuel_type IS NOT NULL")
-        ).fetchall()
+        #
+        # Migration 089 retired that column. A database created from the
+        # current model, or one already upgraded past 089, therefore has
+        # nothing to backfill here, and replaying the whole chain over such a
+        # schema (which the parity tests do) must not fail on its absence.
+        has_legacy_fuel_type = "fuel_type" in {
+            c["name"] for c in inspect(engine).get_columns("fuel_records")
+        }
+        rows = (
+            conn.execute(
+                text("SELECT id, fuel_type FROM fuel_records WHERE fuel_type IS NOT NULL")
+            ).fetchall()
+            if has_legacy_fuel_type
+            else []
+        )
         f_normalized = 0
         f_other = 0
         for record_id, raw in rows:

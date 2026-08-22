@@ -104,3 +104,24 @@ describe('DEFRecordForm — submit wiring + canonical payload', () => {
     await waitFor(() => expect(screen.getByText('Failed to {{action}}. {{message}}')).toBeInTheDocument())
   })
 })
+
+describe('DEFRecordForm — edit round-trip', () => {
+  it('EDIT: a stored cost that is not volume x price survives opening the form (fails if the auto-calc effect fires on mount)', () => {
+    // 5.5 L at $8.00/L is $44.00, but the receipt was $46.25 (the pump
+    // rounded, or a fee rode along). Opening the record must not "correct" it.
+    render(<DEFRecordForm {...DEFAULT_PROPS} record={{
+      id: 7, vin: DEFAULT_PROPS.vin, date: '2026-02-10',
+      liters: 5.5, price_per_unit: 8.0, cost: 46.25,
+    } as never} />)
+    expect((document.getElementById('cost') as HTMLInputElement).value).toBe('46.25')
+  })
+
+  it('EDIT: changing the volume still recalculates the cost (fails if the mount guard also blocks real user edits)', async () => {
+    render(<DEFRecordForm {...DEFAULT_PROPS} record={{
+      id: 7, vin: DEFAULT_PROPS.vin, date: '2026-02-10',
+      liters: 5.5, price_per_unit: 8.0, cost: 46.25,
+    } as never} />)
+    fireEvent.change(document.getElementById('liters') as HTMLInputElement, { target: { value: '10' } })
+    await waitFor(() => expect((document.getElementById('cost') as HTMLInputElement).value).toBe('80'))
+  })
+})

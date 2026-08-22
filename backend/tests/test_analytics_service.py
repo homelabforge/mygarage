@@ -53,7 +53,7 @@ def _make_fuel_record(**kwargs):
         "kwh": None,
         "cost": Decimal("45.00"),
         "price_per_unit": None,
-        "fuel_type": "Gasoline",
+        "fuel_type_used": "gasoline",
         "is_full_tank": True,
         "missed_fillup": False,
         "is_hauling": False,

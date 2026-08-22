@@ -62,4 +62,4 @@ def upgrade(engine=None):
             else:
                 print(f"  → drive_sessions.{col} already present or table missing, skipping")
 
-        print("Migration 089 complete")
+        print("Migration 090 complete")

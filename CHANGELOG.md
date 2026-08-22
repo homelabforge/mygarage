@@ -42,6 +42,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Vehicle type lists are ordered alphabetically by the label shown, in every language.
 - Notification service tabs are ordered alphabetically.
 - Trailer tow pairing is a summary card that opens a sidecar on click, matching the other Overview cards, instead of an inline form.
+- Fuel records carry one canonical fuel type; the free-text field is gone and the value fills in from the vehicle (migration 089).
+- CSV export schema v5 drops the duplicate "Fuel Type" column. Imports still read it from older files.
 
 ### Fixed
 - Reminder pack loader rejects path-traversal `pack_id` values.
@@ -60,6 +62,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - EV charge level and location can be cleared, and their validation errors now render.
 - Adding a fuel record no longer fails when two odometer readings share a date.
 - A tire delete that fails now reports the error instead of failing silently.
+- Propane tank refills save again; a propane-only record no longer requires an odometer reading.
+- Opening a fuel, DEF or propane record no longer rewrites its stored cost, or its volume from the tank size.
+- Editing a propane record no longer duplicates the "Vendor:" line in its notes.
+- Backups include the fuel type again.
+- Unparseable text in a fuel volume field no longer breaks the cost calculation.
 
 ## [3.0.1] - 2026-08-15
 

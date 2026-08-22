@@ -72,7 +72,7 @@ async def test_vehicle_with_records(test_vehicle, db_session):
             liters=Decimal("45.425"),  # 12.0 gal
             cost=Decimal("42.00"),
             price_per_unit=Decimal("3.50"),
-            fuel_type="Regular",
+            fuel_type_used="gasoline",
             is_full_tank=True,
             missed_fillup=False,
         ),
@@ -83,7 +83,7 @@ async def test_vehicle_with_records(test_vehicle, db_session):
             liters=Decimal("43.532"),  # 11.5 gal
             cost=Decimal("40.25"),
             price_per_unit=Decimal("3.50"),
-            fuel_type="Regular",
+            fuel_type_used="gasoline",
             is_full_tank=True,
             missed_fillup=False,
         ),
@@ -94,7 +94,7 @@ async def test_vehicle_with_records(test_vehicle, db_session):
             liters=Decimal("47.318"),  # 12.5 gal
             cost=Decimal("45.50"),
             price_per_unit=Decimal("3.64"),
-            fuel_type="Regular",
+            fuel_type_used="gasoline",
             is_full_tank=True,
             missed_fillup=False,
         ),
@@ -172,7 +172,7 @@ def sample_fuel_payload():
         "liters": 47.318,  # 12.5 gal
         "cost": 45.50,
         "price_per_unit": 3.64,
-        "fuel_type": "Regular",
+        "fuel_type_used": "gasoline",
         "is_full_tank": True,
         "missed_fillup": False,
         "is_hauling": False,

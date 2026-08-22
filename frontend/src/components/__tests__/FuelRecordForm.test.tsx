@@ -518,3 +518,52 @@ describe('FuelRecordForm — EV charge session fields', () => {
     })
   })
 })
+
+describe('FuelRecordForm — edit round-trip', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    unitPrefMock.system = 'metric'
+    mockedApiGet.mockResolvedValue({ data: mockVehicle({ fuel_type: 'gasoline' }) })
+  })
+
+  // 40 L at $1.50/L is $60.00, but the receipt was $63.75 (a car wash rode
+  // along on the same swipe). The form comment says it skips the auto-calc on
+  // mount "to preserve manually entered cost" — this proves that it does.
+  const RECEIPT = {
+    id: 3, vin: DEFAULT_PROPS.vin, date: '2026-04-30',
+    liters: 40, price_per_unit: 1.5, cost: 63.75, is_full_tank: true,
+  }
+
+  it('EDIT: a stored cost that is not volume x price survives opening the form', async () => {
+    render(<FuelRecordForm {...DEFAULT_PROPS} record={RECEIPT as never} />)
+    await waitFor(() => expect(mockedApiGet).toHaveBeenCalled())
+    expect((document.getElementById('cost') as HTMLInputElement).value).toBe('63.75')
+  })
+
+  it('EDIT: submitting an untouched record sends the stored cost back unchanged', async () => {
+    render(<FuelRecordForm {...DEFAULT_PROPS} record={RECEIPT as never} />)
+    await waitFor(() => expect(mockedApiGet).toHaveBeenCalled())
+    fireEvent.submit(drawerForm())
+    await waitFor(() => expect(mockedApiPut).toHaveBeenCalled())
+    const body = mockedApiPut.mock.calls.at(-1)?.[1] as Record<string, unknown>
+    expect(body.cost).toBe(63.75)
+  })
+
+  it('unparseable text in the volume field does not throw out of the cost calc', async () => {
+    // registerDecimal stores the INVALID_NUMBER sentinel for text that does
+    // not parse, and it is a Symbol: parseFloat() and isNaN() BOTH raise a
+    // TypeError on one. Reading form values through readNumber is what keeps
+    // that out of the arithmetic.
+    render(<FuelRecordForm {...DEFAULT_PROPS} record={RECEIPT as never} />)
+    await waitFor(() => expect(mockedApiGet).toHaveBeenCalled())
+    fireEvent.change(document.getElementById('liters') as HTMLInputElement, { target: { value: 'abc' } })
+    expect((document.getElementById('liters') as HTMLInputElement).value).toBe('abc')
+  })
+
+  it('EDIT: changing the volume still recalculates the cost (fails if the mount guard also blocks real user edits)', async () => {
+    render(<FuelRecordForm {...DEFAULT_PROPS} record={RECEIPT as never} />)
+    await waitFor(() => expect(mockedApiGet).toHaveBeenCalled())
+    fireEvent.change(document.getElementById('liters') as HTMLInputElement, { target: { value: '20' } })
+    await waitFor(() => expect((document.getElementById('cost') as HTMLInputElement).value).toBe('30'))
+  })
+})

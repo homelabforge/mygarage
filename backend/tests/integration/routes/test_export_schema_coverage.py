@@ -78,7 +78,6 @@ EXPORT_COVERAGE_SPECS: list[ExportCoverageSpec] = [
             "Full Tank": "is_full_tank",
             "Missed Fill-up": "missed_fillup",
             "Is Hauling": "is_hauling",
-            "Fuel Type": "fuel_type",
             "Fuel Type Used": "fuel_type_used",
             "Station ID": "station_address_book_id",
             "Station": "station_name_freetext",

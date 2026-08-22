@@ -5394,19 +5394,6 @@
             "description": "Optional fill-up timestamp (naive local). Required for OBC auto-suggest from a matching DriveSession.",
             "title": "Filled At"
           },
-          "fuel_type": {
-            "anyOf": [
-              {
-                "maxLength": 50,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Legacy fuel type column. New clients should use fuel_type_used. Kept for one release as a compatibility alias.",
-            "title": "Fuel Type"
-          },
           "fuel_type_used": {
             "anyOf": [
               {
@@ -5993,19 +5980,6 @@
             "description": "Optional fill-up timestamp (naive local). Required for OBC auto-suggest from a matching DriveSession.",
             "title": "Filled At"
           },
-          "fuel_type": {
-            "anyOf": [
-              {
-                "maxLength": 50,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Legacy fuel type column. New clients should use fuel_type_used. Kept for one release as a compatibility alias.",
-            "title": "Fuel Type"
-          },
           "fuel_type_used": {
             "anyOf": [
               {
@@ -6505,19 +6479,6 @@
             ],
             "description": "Optional fill-up timestamp",
             "title": "Filled At"
-          },
-          "fuel_type": {
-            "anyOf": [
-              {
-                "maxLength": 50,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Legacy fuel type (compatibility alias for fuel_type_used)",
-            "title": "Fuel Type"
           },
           "fuel_type_used": {
             "anyOf": [

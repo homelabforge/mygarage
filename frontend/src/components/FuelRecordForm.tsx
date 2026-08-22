@@ -23,7 +23,8 @@ import { useCreateFuelRecord, useUpdateFuelRecord, useParseFuelReceipt, type Fue
 import { useUnitPreference } from '../hooks/useUnitPreference'
 import { useAuth } from '../contexts/AuthContext'
 import { UnitConverter, UnitFormatter } from '../utils/units'
-import { toCanonicalKm, toCanonicalLiters, priceToDisplay, priceToCanonical } from '../utils/decimalSafe'
+import { toCanonicalKm, toCanonicalLiters, priceToDisplay, priceToCanonical, readNumber } from '../utils/decimalSafe'
+import { useOnUserEdit } from '../hooks/useOnUserEdit'
 import { getUsageTracking } from '../utils/usageTracking'
 import CurrencyInputPrefix from './common/CurrencyInputPrefix'
 import { Button, Field, Input, NumberInput, Select, Textarea, Checkbox, registerDecimal } from './ui'
@@ -167,13 +168,6 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
     { label: '1/4', labelKey: null, value: 25 },
   ] as const
 
-  // Helper to convert string | number to number (handles null from PostgreSQL API responses)
-  const toNumber = (val: number | string | null | undefined): number | undefined => {
-    if (val == null) return undefined
-    const num = typeof val === 'string' ? parseFloat(val) : val
-    return isNaN(num) ? undefined : num
-  }
-
   // Zod bakes its messages in at construction, so the schema is rebuilt when
   // the language changes. Only the resolver depends on it — no fetch, no
   // reset() — so a rebuild can't discard what the user typed.
@@ -186,6 +180,7 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
     setValue,
     watch,
     getValues,
+    subscribe,
     setError: setFieldError,
   } = useForm<FuelRecordFormData>({
     resolver: zodResolver(schema) as Resolver<FuelRecordFormData>,
@@ -195,27 +190,26 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
       // filledTime seeds on mount — this is just the RHF key placeholder.
       filled_at: '',
       odometer_km: system === 'imperial' && record?.odometer_km != null
-        ? UnitConverter.kmToMiles(toNumber(record.odometer_km)!) ?? undefined
-        : toNumber(record?.odometer_km),
+        ? UnitConverter.kmToMiles(readNumber(record.odometer_km)!) ?? undefined
+        : readNumber(record?.odometer_km),
       // Engine hours are dimensionless — no unit conversion regardless of system.
-      engine_hours: toNumber(record?.engine_hours),
+      engine_hours: readNumber(record?.engine_hours),
       liters: system === 'imperial' && record?.liters != null
-        ? UnitConverter.litersToGallons(toNumber(record.liters)!) ?? undefined
-        : toNumber(record?.liters),
+        ? UnitConverter.litersToGallons(readNumber(record.liters)!) ?? undefined
+        : readNumber(record?.liters),
       propane_liters: system === 'imperial' && record?.propane_liters != null
-        ? UnitConverter.litersToGallons(toNumber(record.propane_liters)!) ?? undefined
-        : toNumber(record?.propane_liters),
-      kwh: toNumber(record?.kwh),
-      soc_start_pct: toNumber((record as { soc_start_pct?: number | string | null })?.soc_start_pct),
-      soc_end_pct: toNumber((record as { soc_end_pct?: number | string | null })?.soc_end_pct),
+        ? UnitConverter.litersToGallons(readNumber(record.propane_liters)!) ?? undefined
+        : readNumber(record?.propane_liters),
+      kwh: readNumber(record?.kwh),
+      soc_start_pct: readNumber((record as { soc_start_pct?: number | string | null })?.soc_start_pct),
+      soc_end_pct: readNumber((record as { soc_end_pct?: number | string | null })?.soc_end_pct),
       charge_level: (record as { charge_level?: 'L1' | 'L2' | 'DCFC' | null })?.charge_level ?? undefined,
       charge_location: (record as { charge_location?: 'home' | 'public' | null })?.charge_location ?? undefined,
-      battery_soh_pct: toNumber((record as { battery_soh_pct?: number | string | null })?.battery_soh_pct),
+      battery_soh_pct: readNumber((record as { battery_soh_pct?: number | string | null })?.battery_soh_pct),
       price_per_unit: priceToDisplay(record?.price_per_unit, system, record?.price_basis) ?? undefined,
       price_basis: (record?.price_basis as 'per_volume' | 'per_weight' | 'per_kwh' | 'per_tank' | undefined) ?? undefined,
-      cost: toNumber(record?.cost),
-      rebate: toNumber(record?.rebate),
-      fuel_type: record?.fuel_type || '',
+      cost: readNumber(record?.cost),
+      rebate: readNumber(record?.rebate),
       fuel_type_used: record?.fuel_type_used as FuelRecordFormData['fuel_type_used'] ?? undefined,
       is_full_tank: record?.is_full_tank ?? true,
       missed_fillup: record?.missed_fillup ?? false,
@@ -228,18 +222,18 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
       trip_type: record
         ? (record.trip_type as FuelRecordFormData['trip_type'] ?? undefined)
         : (user?.default_trip_type as FuelRecordFormData['trip_type'] ?? undefined),
-      station_address_book_id: toNumber(record?.station_address_book_id),
+      station_address_book_id: readNumber(record?.station_address_book_id),
       station_name_freetext: record?.station_name_freetext || '',
       // A station with freetext and no FK IS a one-time visit — the flag isn't
       // stored, it's implied by that shape. Seeding a flat `false` left the box
       // unchecked on such a record, so editing it promoted a stop the user had
       // deliberately kept out of the address book (issue #108).
       one_time_visit: !record?.station_address_book_id && !!record?.station_name_freetext,
-      driver_user_id: toNumber(record?.driver_user_id),
+      driver_user_id: readNumber(record?.driver_user_id),
       driver_name_freetext: record?.driver_name_freetext || '',
-      outside_temp_c: toNumber(record?.outside_temp_c),
-      obc_l_per_100km: toNumber(record?.obc_l_per_100km),
-      obc_avg_speed_kmh: toNumber(record?.obc_avg_speed_kmh),
+      outside_temp_c: readNumber(record?.outside_temp_c),
+      obc_l_per_100km: readNumber(record?.obc_l_per_100km),
+      obc_avg_speed_kmh: readNumber(record?.obc_avg_speed_kmh),
       // Phase 3.7 — field accepts HH:MM or HH:MM:SS strings as well as
       // raw seconds; default to the stored canonical seconds as a
       // string so users can either edit verbatim or paste a fresh
@@ -267,12 +261,6 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
     })
   }, [recordDate, filledTime, timeFormat, setValue])
 
-  // Watch for auto-calculation
-  const liters = watch('liters')
-  const kwh = watch('kwh')
-  const pricePerUnit = watch('price_per_unit')
-  const rebate = watch('rebate')
-
   // Fetch vehicle data to get fuel_type
   useEffect(() => {
     const fetchVehicle = async () => {
@@ -287,9 +275,16 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
         setVehicleUsageUnit(vehicleData.usage_unit || 'distance')
         setVehicleSecondaryUsageEnabled(!!vehicleData.secondary_usage_enabled)
 
-        // Auto-populate fuel_type from vehicle if not editing
+        // Auto-populate the fuel dispensed from the vehicle's primary fuel
+        // when creating. The select below is only rendered for multi-fuel
+        // vehicles, so for everyone else this is what puts a fuel type on the
+        // record at all. Guarded on the enum: a vehicle carrying a legacy
+        // off-vocabulary value would otherwise fail the form's own validation.
         if (!record && vehicleData.fuel_type) {
-          setValue('fuel_type', vehicleData.fuel_type || '')
+          const primary = vehicleData.fuel_type as FuelRecordFormData['fuel_type_used']
+          if (FUEL_TYPE_VALUES.includes(primary as (typeof FUEL_TYPE_VALUES)[number])) {
+            setValue('fuel_type_used', primary)
+          }
         }
       } catch {
         // Silent fail - non-critical auto-populate
@@ -470,33 +465,20 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
     setReceiptText('')
   }
 
-  // Auto-calculate total cost when volume/energy and price per unit change
-  // Skip auto-calc on mount when editing to preserve manually entered cost
-  const [isInitialMount, setIsInitialMount] = useState(true)
+  // Total cost follows volume/energy, price and rebate on user edits only
+  // (see useOnUserEdit). Reopening a record must leave its stored total
+  // alone: a receipt is often not exactly volume by price, because a car
+  // wash or a bag of ice rode along on the same swipe.
+  useOnUserEdit(subscribe, ['liters', 'kwh', 'price_per_unit', 'rebate'], (values) => {
+    const volumeNum = readNumber(values.liters) ?? readNumber(values.kwh)
+    const priceNum = readNumber(values.price_per_unit)
+    if (volumeNum === undefined || priceNum === undefined) return
 
-  useEffect(() => {
-    if (isInitialMount) {
-      setIsInitialMount(false)
-      return
-    }
-
-    // Auto-calculate based on liters or kwh
-    const volumeOrEnergy = liters || kwh
-
-    if (volumeOrEnergy && pricePerUnit) {
-      const volumeNum = typeof volumeOrEnergy === 'number' ? volumeOrEnergy : parseFloat(volumeOrEnergy)
-      const priceNum = typeof pricePerUnit === 'number' ? pricePerUnit : parseFloat(pricePerUnit)
-      const rebateNum = typeof rebate === 'number' ? rebate : parseFloat(rebate ?? '')
-
-      if (!isNaN(volumeNum) && !isNaN(priceNum)) {
-        // Total Cost is the NET the driver actually paid: gross minus any
-        // rebate/points. Clamp at 0 so an over-large rebate can't go negative.
-        const gross = volumeNum * priceNum
-        const net = gross - (isNaN(rebateNum) ? 0 : rebateNum)
-        setValue('cost', parseFloat(Math.max(0, net).toFixed(2)))
-      }
-    }
-  }, [liters, kwh, pricePerUnit, rebate, setValue, isInitialMount])
+    // Total Cost is the NET the driver actually paid: gross minus any
+    // rebate/points. Clamp at 0 so an over-large rebate can't go negative.
+    const net = volumeNum * priceNum - (readNumber(values.rebate) ?? 0)
+    setValue('cost', parseFloat(Math.max(0, net).toFixed(2)))
+  })
 
   const onSubmit = async (data: FuelRecordFormData) => {
     setError(null)
@@ -549,7 +531,6 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
         price_basis: data.price_basis,
         cost: data.cost,
         rebate: data.rebate,
-        fuel_type: data.fuel_type,
         fuel_type_used: data.fuel_type_used,
         is_full_tank: data.is_full_tank,
         missed_fillup: data.missed_fillup,
@@ -608,7 +589,6 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
         'price_basis',
         'rebate',
         'cost',
-        'fuel_type',
         'is_full_tank',
         'missed_fillup',
         'is_hauling',
@@ -897,10 +877,6 @@ export default function FuelRecordForm({ vin, record, onClose, onSuccess }: Fuel
               </div>
             </Field>
           </div>
-
-          <Field id="fuel_type" label={t('fuel.fuelType')} error={errors.fuel_type} hint={t('fuel.autoPopulatedHint')}>
-            <Input type="text" id="fuel_type" {...register('fuel_type')} placeholder={t('fuelRecordForm.fuelTypePlaceholder')} invalid={!!errors.fuel_type} disabled={isSubmitting} />
-          </Field>
 
           <div className="grid grid-cols-2 gap-4">
             {showFullTankCheckbox && (

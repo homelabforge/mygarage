@@ -77,7 +77,6 @@ export const makeFuelRecordSchema = (t: TFunction) =>
     rebate: makeOptionalCurrencySchema(t),
     price_per_unit: makeOptionalPricePerUnitSchema(t),
     price_basis: z.enum(PRICE_BASIS_VALUES).optional(),
-    fuel_type: z.string().max(50, t('common:validation.fuel.fuelTypeTooLong')).optional(),
     fuel_type_used: optionalEnum(FUEL_TYPE_VALUES),
     is_full_tank: z.boolean(),
     missed_fillup: z.boolean(),

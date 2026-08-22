@@ -51,6 +51,48 @@ def test_create_with_odometer_and_propane_tank_pair_succeeds():
     assert record.tank_size_kg == 18.0
 
 
+def test_propane_tank_refill_without_odometer_succeeds():
+    """A bottled/tank propane refill has no odometer to record.
+
+    The propane tab writes to fuel_records but tracks tank refills for
+    RVs and trailers (PropaneRecordForm posts ``odometer_km: undefined``
+    deliberately, because a travel trailer has no odometer at all and a
+    motorhome's reading is meaningless for a grill bottle). Requiring one
+    422'd every propane record the UI could produce.
+    """
+    record = FuelRecordCreate(**_base_kwargs(), propane_liters=8.5)
+    assert record.propane_liters == 8.5
+    assert record.odometer_km is None
+
+
+def test_propane_tank_pair_without_odometer_succeeds():
+    """The tank-size form of the same refill (service derives the liters)."""
+    record = FuelRecordCreate(**_base_kwargs(), tank_size_kg=14.97, tank_quantity=1)
+    assert record.tank_quantity == 1
+    assert record.odometer_km is None
+
+
+def test_propane_with_liters_still_requires_odometer():
+    """Propane alongside liquid fuel is a vehicle fill-up, not a tank refill."""
+    with pytest.raises(ValidationError) as excinfo:
+        FuelRecordCreate(**_base_kwargs(), propane_liters=8.5, liters=40.0)
+    assert "odometer_km is required" in str(excinfo.value)
+
+
+def test_propane_with_missed_fillup_still_requires_odometer():
+    """missed_fillup means "I have the odometer but not the amount"."""
+    with pytest.raises(ValidationError) as excinfo:
+        FuelRecordCreate(**_base_kwargs(), propane_liters=8.5, missed_fillup=True)
+    assert "odometer_km is required" in str(excinfo.value)
+
+
+def test_kwh_without_odometer_fails():
+    """The propane exemption must not leak to charge sessions."""
+    with pytest.raises(ValidationError) as excinfo:
+        FuelRecordCreate(**_base_kwargs(), kwh=55.5)
+    assert "odometer_km is required" in str(excinfo.value)
+
+
 def test_create_without_odometer_fails():
     with pytest.raises(ValidationError) as excinfo:
         FuelRecordCreate(**_base_kwargs(), liters=40.0)
