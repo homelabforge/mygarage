@@ -77,6 +77,20 @@ async def list_supplies(
     return SupplyListResponse(supplies=supplies, total=total)
 
 
+@router.get("/lookup", response_model=SupplyListResponse)
+async def lookup_supplies(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User | None, Depends(require_auth)],
+    barcode: str | None = Query(None, description="Exact UPC/EAN/QR match"),
+    part_number: str | None = Query(None, description="Exact or prefix part number match"),
+) -> SupplyListResponse:
+    """Find supplies by barcode or part number (for scan-to-select)."""
+    supplies, total = await SupplyService(db).lookup_supplies(
+        barcode=barcode, part_number=part_number
+    )
+    return SupplyListResponse(supplies=supplies, total=total)
+
+
 @router.post("", response_model=SupplyResponse, status_code=status.HTTP_201_CREATED)
 async def create_supply(
     data: SupplyCreate,

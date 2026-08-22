@@ -57,6 +57,18 @@ export const NON_MOTORIZED_TYPES = ['Trailer', 'FifthWheel', 'TravelTrailer'] as
 /** Distance-tracked but typically no liquid/charge fuel log (EBike uses Electric fuel). */
 export const NO_FUEL_TYPES = ['Bicycle'] as const
 
+/** Types that default to engine-hours usage tracking on create / type change. */
+export const HOURS_DEFAULT_TYPES = ['ATV', 'UTV', 'Boat', 'Snowmobile'] as const
+
+export function defaultUsageUnitForType(
+  vehicleType: string | null | undefined,
+): 'distance' | 'hours' {
+  if (vehicleType && (HOURS_DEFAULT_TYPES as readonly string[]).includes(vehicleType)) {
+    return 'hours'
+  }
+  return 'distance'
+}
+
 // Collapse a blank/missing value to an explicit `null` rather than
 // `undefined`. The vehicle update endpoint uses Pydantic's
 // `model_dump(exclude_unset=True)` — an omitted key means "leave

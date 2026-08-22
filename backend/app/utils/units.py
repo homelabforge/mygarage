@@ -30,14 +30,33 @@ class UnitConverter:
 
     # Conversion factors (imperial to metric).
     # NB: LBS_TO_KG matches migration 053's exact factor (was 0.453592, now 0.45359237).
-    GALLONS_TO_LITERS = Decimal("3.78541")
+    US_GALLONS_TO_LITERS = Decimal("3.78541")
+    UK_GALLONS_TO_LITERS = Decimal("4.54609")
+    GALLONS_TO_LITERS = US_GALLONS_TO_LITERS  # active; use set_gallon_standard()
     MILES_TO_KM = Decimal("1.60934")
     FEET_TO_METERS = Decimal("0.3048")
     PSI_TO_BAR = Decimal("0.0689476")
     LBS_TO_KG = Decimal("0.45359237")
     LBFT_TO_NM = Decimal("1.35582")
     # L/100km = MPG_TO_L100KM_NUMERATOR / MPG (reciprocal — division, not multiplication).
-    MPG_TO_L100KM_NUMERATOR = Decimal("235.214")
+    US_MPG_TO_L100KM_NUMERATOR = Decimal("235.214")
+    UK_MPG_TO_L100KM_NUMERATOR = Decimal("282.481")
+    MPG_TO_L100KM_NUMERATOR = US_MPG_TO_L100KM_NUMERATOR
+
+    @classmethod
+    def set_gallon_standard(cls, standard: str) -> None:
+        """Select US (3.785 L) or UK (4.546 L) imperial gallon for volume/MPG."""
+        if (standard or "us").lower() == "uk":
+            cls.GALLONS_TO_LITERS = cls.UK_GALLONS_TO_LITERS
+            cls.MPG_TO_L100KM_NUMERATOR = cls.UK_MPG_TO_L100KM_NUMERATOR
+        else:
+            cls.GALLONS_TO_LITERS = cls.US_GALLONS_TO_LITERS
+            cls.MPG_TO_L100KM_NUMERATOR = cls.US_MPG_TO_L100KM_NUMERATOR
+
+    @classmethod
+    def get_gallon_standard(cls) -> str:
+        """Return 'uk' or 'us' for the active gallon standard."""
+        return "uk" if cls.GALLONS_TO_LITERS == cls.UK_GALLONS_TO_LITERS else "us"
 
     @staticmethod
     def to_decimal(value: Numeric) -> Decimal | None:
@@ -162,26 +181,23 @@ class UnitConverter:
     def mpg_to_l100km(cls, mpg: Numeric) -> float | None:
         """Convert MPG to L/100km.
 
-        Formula: L/100km = 235.214 / MPG
-        (Uses exact conversion factor for gallon and mile)
+        Formula: L/100km = numerator / MPG (US 235.214 or UK 282.481).
         """
         val = cls.to_decimal(mpg)
         if val is None or val == 0:
             return None
-        conversion_factor = Decimal("235.214")
-        return cls.round_result(conversion_factor / val, 1)
+        return cls.round_result(cls.MPG_TO_L100KM_NUMERATOR / val, 1)
 
     @classmethod
     def l100km_to_mpg(cls, l100km: Numeric) -> float | None:
         """Convert L/100km to MPG.
 
-        Formula: MPG = 235.214 / (L/100km)
+        Formula: MPG = numerator / (L/100km) — US 235.214 or UK 282.481.
         """
         val = cls.to_decimal(l100km)
         if val is None or val == 0:
             return None
-        conversion_factor = Decimal("235.214")
-        return cls.round_result(conversion_factor / val, 1)
+        return cls.round_result(cls.MPG_TO_L100KM_NUMERATOR / val, 1)
 
     @classmethod
     def l100km_to_kmpl(cls, l100km: Numeric) -> float | None:

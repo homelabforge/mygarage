@@ -21,6 +21,7 @@ export const makeSupplySchema = (t: TFunction) =>
       message: t('common:validation.supply.unitTypeRequired'),
     }),
     part_number: z.string().max(60, t('common:validation.supply.partNumberTooLong')).optional(),
+    barcode: z.string().max(64, t('common:validation.supply.barcodeTooLong')).optional(),
     category: z.string().max(40, t('common:validation.supply.categoryTooLong')).optional(),
     notes: z.string().max(5000, t('common:validation.supply.notesTooLong')).optional(),
     vin: makeVinSchema(t).or(z.literal('')).optional(),

@@ -1,23 +1,41 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import NotificationBell from '../NotificationBell'
 
-describe('NotificationBell (shelled)', () => {
+vi.mock('../../../services/api', () => ({
+  default: {
+    get: vi.fn(() => Promise.resolve({ data: { items: [] } })),
+  },
+}))
+
+describe('NotificationBell', () => {
   it('opens a drawer with an empty-inbox state', async () => {
-    render(<NotificationBell />)
+    render(
+      <MemoryRouter>
+        <NotificationBell />
+      </MemoryRouter>,
+    )
     fireEvent.click(screen.getByRole('button', { name: 'notifications' }))
     expect(await screen.findByRole('dialog', { name: 'notifications' })).toBeInTheDocument()
-    expect(screen.getByText('notificationsEmptyTitle')).toBeInTheDocument()
+    expect(await screen.findByText('notificationsEmptyTitle')).toBeInTheDocument()
   })
 
   it('shows no unread badge while the inbox is empty', () => {
-    render(<NotificationBell />)
-    // shelled count is 0, so the badge is not rendered at all
+    render(
+      <MemoryRouter>
+        <NotificationBell />
+      </MemoryRouter>,
+    )
     expect(screen.queryByText('0')).toBeNull()
   })
 
   it('keeps the accessible name the label alone (no count in it)', () => {
-    render(<NotificationBell />)
+    render(
+      <MemoryRouter>
+        <NotificationBell />
+      </MemoryRouter>,
+    )
     expect(screen.getByRole('button', { name: 'notifications' })).toBeInTheDocument()
   })
 })

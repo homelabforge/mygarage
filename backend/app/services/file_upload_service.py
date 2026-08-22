@@ -19,6 +19,14 @@ from app.utils.path_validation import sanitize_filename, validate_path_within_ba
 
 logger = logging.getLogger(__name__)
 
+try:
+    from pillow_heif import register_heif_opener
+
+    register_heif_opener()
+    _HEIF_AVAILABLE = True
+except ImportError:
+    _HEIF_AVAILABLE = False
+
 
 class FileUploadConfig:
     """Configuration for file upload operations."""
@@ -187,6 +195,17 @@ class FileUploadService:
             )
 
     @staticmethod
+    def _convert_heic_to_jpeg_bytes(contents: bytes) -> tuple[bytes, str]:
+        """Convert HEIC/HEIF bytes to JPEG. Returns (jpeg_bytes, stem)."""
+        with Image.open(BytesIO(contents)) as img:
+            img = ImageOps.exif_transpose(img)
+            if img.mode not in ("RGB", "L"):
+                img = img.convert("RGB")
+            out = BytesIO()
+            img.save(out, format="JPEG", quality=90)
+            return out.getvalue(), f"photo_{uuid.uuid4().hex[:12]}"
+
+    @staticmethod
     def create_thumbnail(
         image_bytes: bytes, thumbnail_path: Path, size: tuple[Any, ...] = (300, 300)
     ) -> None:
@@ -245,14 +264,33 @@ class FileUploadService:
 
             # For photo uploads (which get thumbnailed via Pillow), decode the
             # image BEFORE writing so a disguised/corrupt image is rejected with
-            # nothing persisted (G-4). HEIC is skipped (Pillow needs pillow-heif).
-            if (
-                config.create_thumbnail
-                and file.content_type
-                and file.content_type.startswith("image/")
-                and file.content_type != "image/heic"
-            ):
-                FileUploadService._verify_image_decodable(contents)
+            # nothing persisted (G-4). HEIC is converted to JPEG when pillow-heif
+            # is available so browsers always receive a portable format.
+            is_heic = (file.content_type or "").lower() in {"image/heic", "image/heif"} or Path(
+                file.filename or ""
+            ).suffix.lower() in {".heic", ".heif"}
+            if is_heic and config.create_thumbnail:
+                if not _HEIF_AVAILABLE:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="HEIC uploads require pillow-heif on the server",
+                    )
+                contents, filename_stem = await asyncio.to_thread(
+                    FileUploadService._convert_heic_to_jpeg_bytes, contents
+                )
+                # Force JPEG destination name below
+                file_filename_override = f"{filename_stem}.jpg"
+                file_content_type_override = "image/jpeg"
+            else:
+                file_filename_override = None
+                file_content_type_override = None
+                if (
+                    config.create_thumbnail
+                    and file.content_type
+                    and file.content_type.startswith("image/")
+                    and not is_heic
+                ):
+                    FileUploadService._verify_image_decodable(contents)
 
             # Determine destination directory
             destination_dir = config.base_dir
@@ -262,7 +300,12 @@ class FileUploadService:
             destination_dir.mkdir(parents=True, exist_ok=True)
 
             # Generate filename
-            if config.generate_unique_name:
+            if file_filename_override:
+                if config.generate_unique_name:
+                    filename = FileUploadService.generate_unique_filename(file_filename_override)
+                else:
+                    filename = sanitize_filename(file_filename_override)
+            elif config.generate_unique_name:
                 filename = FileUploadService.generate_unique_filename(file.filename)
             else:
                 filename = sanitize_filename(file.filename)
@@ -278,9 +321,11 @@ class FileUploadService:
 
             logger.info("Saved file: %s", validated_path)
 
+            content_type = file_content_type_override or file.content_type
+
             # Create thumbnail if configured and it's an image
             thumbnail_path = None
-            if config.create_thumbnail and file.content_type.startswith("image/"):
+            if config.create_thumbnail and content_type and content_type.startswith("image/"):
                 thumbnail_dir = destination_dir / "thumbnails"
                 thumbnail_filename = f"{Path(filename).stem}_thumb.jpg"
                 thumbnail_path = thumbnail_dir / thumbnail_filename
@@ -301,7 +346,7 @@ class FileUploadService:
                 filename=filename,
                 file_path=validated_path,
                 file_size=len(contents),
-                content_type=file.content_type,
+                content_type=content_type,
                 thumbnail_path=thumbnail_path,
             )
 
@@ -320,7 +365,14 @@ class FileUploadService:
 PHOTO_UPLOAD_CONFIG = FileUploadConfig(
     base_dir=settings.photos_dir,
     allowed_extensions=settings.allowed_photo_extensions,
-    allowed_mimes={"image/jpeg", "image/png", "image/gif", "image/webp", "image/heic"},
+    allowed_mimes={
+        "image/jpeg",
+        "image/png",
+        "image/gif",
+        "image/webp",
+        "image/heic",
+        "image/heif",
+    },
     max_size_bytes=settings.max_upload_size_bytes,
     generate_unique_name=True,
     verify_magic_bytes=True,

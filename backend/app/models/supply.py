@@ -36,6 +36,7 @@ class Supply(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     part_number: Mapped[str | None] = mapped_column(String(60))
+    barcode: Mapped[str | None] = mapped_column(String(64))  # UPC/EAN/QR product code
     category: Mapped[str | None] = mapped_column(String(40))
     unit_type: Mapped[str] = mapped_column(String(10), nullable=False)  # 'volume' | 'count'
     vin: Mapped[str | None] = mapped_column(
@@ -62,6 +63,7 @@ class Supply(Base):
     __table_args__ = (
         CheckConstraint("unit_type IN ('volume', 'count')", name="check_supply_unit_type"),
         Index("idx_supplies_vin", "vin"),
+        Index("idx_supplies_barcode", "barcode"),
     )
 
 

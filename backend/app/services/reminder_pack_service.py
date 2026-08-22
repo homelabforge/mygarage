@@ -61,8 +61,13 @@ def _pack_paths() -> dict[str, Path]:
     return index
 
 
-def list_packs() -> list[ReminderPackSummary]:
-    """List all built-in reminder packs (sorted by name)."""
+def list_packs(vehicle_type: str | None = None) -> list[ReminderPackSummary]:
+    """List built-in reminder packs (sorted by name).
+
+    When ``vehicle_type`` is provided, packs that declare a non-empty
+    ``vehicle_types`` list are included only if that type is listed.
+    Packs with an empty ``vehicle_types`` list apply to every vehicle.
+    """
     packs: list[ReminderPackSummary] = []
     if not PACKS_DIR.is_dir():
         logger.warning("Reminder packs directory missing: %s", PACKS_DIR)
@@ -74,12 +79,15 @@ def list_packs() -> list[ReminderPackSummary]:
         except (OSError, json.JSONDecodeError, ValueError) as exc:
             logger.error("Failed to load reminder pack %s: %s", path.name, sanitize_for_log(exc))
             continue
+        if vehicle_type and detail.vehicle_types and vehicle_type not in detail.vehicle_types:
+            continue
         packs.append(
             ReminderPackSummary(
                 id=detail.id,
                 name=detail.name,
                 description=detail.description,
                 reminder_count=len(detail.reminders),
+                vehicle_types=list(detail.vehicle_types),
             )
         )
     packs.sort(key=lambda p: p.name.lower())

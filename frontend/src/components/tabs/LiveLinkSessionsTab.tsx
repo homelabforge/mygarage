@@ -223,6 +223,15 @@ function SessionCard({
             {session.start_odometer != null && (
               <Tile icon={Gauge} label={t('livelink.sessions.odometerStartEnd')} value={`${formatOdometer(session.start_odometer)} → ${formatOdometer(session.end_odometer)}`} />
             )}
+            {session.idle_seconds != null && (
+              <Tile icon={Clock} label={t('livelink.sessions.idleTime')} value={formatDuration(session.idle_seconds)} />
+            )}
+            {session.harsh_accel_count != null && (
+              <Tile icon={Activity} label={t('livelink.sessions.harshAccel')} value={String(session.harsh_accel_count)} />
+            )}
+            {session.harsh_brake_count != null && (
+              <Tile icon={Gauge} label={t('livelink.sessions.harshBrake')} value={String(session.harsh_brake_count)} />
+            )}
           </div>
         </div>
       )}

@@ -328,12 +328,28 @@ class DTCService:
         }
 
         if definition:
+            import json
+
+            def _parse_list(raw: str | None) -> list[str] | None:
+                if not raw:
+                    return None
+                try:
+                    parsed = json.loads(raw)
+                    if isinstance(parsed, list):
+                        return [str(x) for x in parsed]
+                except json.JSONDecodeError, TypeError:
+                    pass
+                return None
+
             result.update(
                 {
                     "category": definition.category,
                     "subcategory": definition.subcategory,
                     "is_emissions_related": definition.is_emissions_related,
                     "estimated_severity_level": definition.estimated_severity_level,
+                    "common_causes": _parse_list(definition.common_causes),
+                    "symptoms": _parse_list(definition.symptoms),
+                    "fix_guidance": definition.fix_guidance,
                 }
             )
 

@@ -17,6 +17,7 @@ class SupplyBase(BaseModel):
 
     name: str = Field(..., min_length=1, max_length=120)
     part_number: str | None = Field(None, max_length=60)
+    barcode: str | None = Field(None, max_length=64, description="UPC/EAN/QR product barcode")
     category: str | None = Field(None, max_length=40)
     unit_type: SupplyUnitType = Field(..., description="volume (stored L) or count")
     vin: str | None = Field(
@@ -34,6 +35,7 @@ class SupplyUpdate(BaseModel):
 
     name: str | None = Field(None, min_length=1, max_length=120)
     part_number: str | None = Field(None, max_length=60)
+    barcode: str | None = Field(None, max_length=64)
     category: str | None = Field(None, max_length=40)
     vin: str | None = Field(None, max_length=17)
     notes: str | None = Field(None, max_length=5000)

@@ -24,6 +24,7 @@ PWA shortcuts and Apple Shortcuts can open:
 - `/quick-entry?action=add-fuel`
 - `/quick-entry?action=add-service`
 - `/quick-entry?action=odometer`
+- `/quick-entry?action=hours`
 
 Optional `&vin=XXXXXXXXXXXXXXXXX`.
 

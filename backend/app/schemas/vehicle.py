@@ -430,6 +430,30 @@ class VehicleArchiveRequest(BaseModel):
     }
 
 
+class VehicleBulkArchiveRequest(BaseModel):
+    """Archive multiple vehicles with the same metadata."""
+
+    vins: list[str] = Field(..., min_length=1, max_length=50)
+    reason: str = Field(..., max_length=50)
+    sale_price: Decimal | None = None
+    sale_date: date | None = None
+    notes: str | None = Field(None, max_length=1000)
+    visible: bool = True
+
+    @field_validator("reason")
+    @classmethod
+    def validate_reason(cls, v: str) -> str:
+        valid_reasons = ["Sold", "Totaled", "Gifted", "Trade-in", "Other"]
+        if v not in valid_reasons:
+            raise ValueError(f"Archive reason must be one of: {', '.join(valid_reasons)}")
+        return v
+
+    @field_validator("vins")
+    @classmethod
+    def normalize_vins(cls, v: list[str]) -> list[str]:
+        return [vin.upper().strip() for vin in v if vin and vin.strip()]
+
+
 class VehicleDetailStats(BaseModel):
     """Read-aggregation for the Vehicle Detail hero + key-facts strip (P5).
 

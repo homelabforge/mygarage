@@ -60,6 +60,18 @@
           "sizes": "192x192"
         }
       ]
+    },
+    {
+      "name": "Log Engine Hours",
+      "short_name": "Hours",
+      "description": "Quickly log an engine-hours reading",
+      "url": "./quick-entry?action=hours",
+      "icons": [
+        {
+          "src": "./icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
     }
   ]
 }

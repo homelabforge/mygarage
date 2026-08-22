@@ -151,6 +151,19 @@ async def lifespan(app: FastAPI):
     async with get_db_context() as db:
         await initialize_default_settings(db)
 
+        # Apply imperial gallon standard (US vs UK) for backend conversions
+        from sqlalchemy import select
+
+        from app.models.settings import Setting
+        from app.utils.units import UnitConverter
+
+        gallon_row = (
+            await db.execute(select(Setting).where(Setting.key == "imperial_gallon_standard"))
+        ).scalar_one_or_none()
+        UnitConverter.set_gallon_standard(
+            gallon_row.value if gallon_row and gallon_row.value else "us"
+        )
+
         # Check for insecure auth_mode='none' and log warning
         from app.services.auth import get_auth_mode
 
@@ -344,6 +357,7 @@ from app.routes.livelink_vehicle import router as livelink_vehicle_router
 from app.routes.oidc import router as oidc_router
 from app.routes.poi import router as poi_router
 from app.routes.quick_entry import router as quick_entry_router
+from app.routes.search import router as search_router
 from app.routes.torque import TorqueTokenRedactionFilter
 from app.routes.torque import router as torque_router
 from app.routes.webhooks import router as webhooks_router
@@ -403,6 +417,7 @@ app.include_router(widget_router)
 app.include_router(widget_keys_router)
 app.include_router(widget_v2_router)
 app.include_router(webhooks_router)
+app.include_router(search_router)
 
 
 # Serve static files (frontend build) in production
