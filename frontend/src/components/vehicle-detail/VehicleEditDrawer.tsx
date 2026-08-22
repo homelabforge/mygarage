@@ -9,7 +9,7 @@ import FormModalWrapper from '../FormModalWrapper'
 import { Button, Field, Input, NumberInput, Select, Toggle, registerDecimal } from '../ui'
 import vehicleService from '../../services/vehicleService'
 import type { Vehicle, VehicleUpdate } from '../../types/vehicle'
-import { makeVehicleEditSchema, type VehicleEditFormData, vehicleTypeOptions, NON_MOTORIZED_TYPES, defaultUsageUnitForType } from '../../schemas/vehicle'
+import { makeVehicleEditSchema, type VehicleEditFormData, vehicleTypeOptions, NON_MOTORIZED_TYPES } from '../../schemas/vehicle'
 import { FUEL_TYPE_VALUES, FUEL_TYPE_LABELS, isDieselFuelType } from '../../constants/fuel'
 import { useUnitPreference } from '../../hooks/useUnitPreference'
 import { UnitConverter, UnitFormatter } from '../../utils/units'
@@ -309,13 +309,14 @@ export default function VehicleEditDrawer({
                 has none either) — a null submit would 409 server-side and roll
                 back the whole update. */}
             <Field id="vehicle_type" label={t('edit.vehicleType')} error={errors.vehicle_type}>
+              {/* Deliberately no onChange resetting usage_unit. The wizard does
+                  that because a new vehicle has no choice to destroy; here it is
+                  an existing setting with hours history hanging off it, and
+                  correcting a mis-typed vehicle_type would silently flip a Boat
+                  from hours to distance and hide its Hours tab. */}
               <Select
                 id="vehicle_type"
-                {...register('vehicle_type', {
-                  onChange: (e) => {
-                    setValue('usage_unit', defaultUsageUnitForType(e.target.value))
-                  },
-                })}
+                {...register('vehicle_type')}
                 invalid={!!errors.vehicle_type}
                 disabled={isSubmitting}
                 options={vehicleTypeOptions(t)}
