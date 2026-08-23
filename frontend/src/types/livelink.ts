@@ -48,36 +48,16 @@ export type TelemetrySeries = components['schemas']['TelemetrySeriesResponse']
 export type TelemetryQueryResponse = components['schemas']['TelemetryQueryResponse']
 
 // -- Drive Session Types --
-/** Insight fields exist on backend schemas; extend until OpenAPI regen. */
-export type DriveSession = components['schemas']['DriveSessionResponse'] & {
-  idle_seconds?: number | null
-  harsh_accel_count?: number | null
-  harsh_brake_count?: number | null
-}
-export type DriveSessionListResponse = Omit<
-  components['schemas']['DriveSessionListResponse'],
-  'sessions'
-> & { sessions: DriveSession[] }
-export type DriveSessionDetail = components['schemas']['DriveSessionDetailResponse'] & {
-  idle_seconds?: number | null
-  harsh_accel_count?: number | null
-  harsh_brake_count?: number | null
-}
+export type DriveSession = components['schemas']['DriveSessionResponse']
+export type DriveSessionListResponse = components['schemas']['DriveSessionListResponse']
+export type DriveSessionDetail = components['schemas']['DriveSessionDetailResponse']
 
 // -- DTC Types --
 export type DTCDefinition = components['schemas']['DTCDefinitionResponse']
 export type DTCSearchResponse = components['schemas']['DTCSearchResponse']
-/** Phase 2 enrichment fields — extend until OpenAPI regen. */
-export type VehicleDTC = components['schemas']['VehicleDTCResponse'] & {
-  common_causes?: string[] | null
-  symptoms?: string[] | null
-  fix_guidance?: string | null
-}
+export type VehicleDTC = components['schemas']['VehicleDTCResponse']
 export type VehicleDTCUpdate = components['schemas']['VehicleDTCUpdate']
-export type VehicleDTCListResponse = Omit<
-  components['schemas']['VehicleDTCListResponse'],
-  'dtcs'
-> & { dtcs: VehicleDTC[] }
+export type VehicleDTCListResponse = components['schemas']['VehicleDTCListResponse']
 export type DTCClearRequest = components['schemas']['DTCClearRequest']
 export type DTCClearResponse = components['schemas']['DTCClearResponse']
 

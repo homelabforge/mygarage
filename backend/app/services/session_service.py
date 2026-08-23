@@ -13,6 +13,9 @@ from app.utils.datetime_utils import utc_now
 
 logger = logging.getLogger(__name__)
 
+# Possible OBD2 parameter names for vehicle speed (different WiCAN firmware/configs)
+SPEED_PARAM_KEYS = ["SPEED", "0D-VehicleSpeed", "0D-VEHICLESPEED"]
+
 
 class SessionService:
     """Service for drive session detection and aggregation."""
@@ -332,7 +335,7 @@ class SessionService:
         # since different WiCAN firmware/configs use different naming conventions
         # (e.g. OBD2 PID-prefixed "0D-VehicleSpeed" vs generic "SPEED").
         aggregate_mappings = {
-            "speed": (["SPEED", "0D-VehicleSpeed", "0D-VEHICLESPEED"], "avg_speed", "max_speed"),
+            "speed": (SPEED_PARAM_KEYS, "avg_speed", "max_speed"),
             "rpm": (["ENGINE_RPM", "0C-EngineRPM", "0C-ENGINERPM"], "avg_rpm", "max_rpm"),
             "coolant": (
                 ["COOLANT_TMP", "05-EngineCoolantTemp", "05-ENGINECOOLANTTEMP"],
@@ -363,12 +366,15 @@ class SessionService:
 
         Idle: consecutive samples below 5 km/h contribute their Δt.
         Harsh accel/brake: |Δv/Δt| above ~3.5 m/s² (≈12.6 km/h per second).
+
+        NOTE: This currently loads all SPEED rows into Python. A future optimization
+        could use SQL window functions (LAG) to compute deltas in the database, but
+        that change requires test coverage to catch regressions.
         """
         if not session.started_at or not session.ended_at:
             return
 
-        speed_keys = ["SPEED", "0D-VehicleSpeed", "0D-VEHICLESPEED"]
-        upper_keys = [k.upper() for k in speed_keys]
+        upper_keys = [k.upper() for k in SPEED_PARAM_KEYS]
         result = await self.db.execute(
             select(VehicleTelemetry.timestamp, VehicleTelemetry.value)
             .where(VehicleTelemetry.vin == session.vin)
