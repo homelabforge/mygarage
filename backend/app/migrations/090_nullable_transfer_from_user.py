@@ -28,8 +28,7 @@ _INDEXES = (
     "ON vehicle_transfers (vehicle_vin)",
     "CREATE INDEX IF NOT EXISTS ix_vehicle_transfers_from_user_id "
     "ON vehicle_transfers (from_user_id)",
-    "CREATE INDEX IF NOT EXISTS ix_vehicle_transfers_to_user_id "
-    "ON vehicle_transfers (to_user_id)",
+    "CREATE INDEX IF NOT EXISTS ix_vehicle_transfers_to_user_id ON vehicle_transfers (to_user_id)",
     "CREATE INDEX IF NOT EXISTS ix_vehicle_transfers_transferred_at "
     "ON vehicle_transfers (transferred_at)",
 )
@@ -65,10 +64,7 @@ def upgrade(engine=None) -> None:
     if engine.dialect.name == "postgresql":
         with engine.begin() as conn:
             conn.execute(
-                text(
-                    "ALTER TABLE vehicle_transfers "
-                    "ALTER COLUMN from_user_id DROP NOT NULL"
-                )
+                text("ALTER TABLE vehicle_transfers ALTER COLUMN from_user_id DROP NOT NULL")
             )
             print("  ✓ Dropped NOT NULL on vehicle_transfers.from_user_id")
     else:
