@@ -33,10 +33,11 @@ class VehicleTransfer(Base):
         nullable=False,
         index=True,
     )
-    from_user_id: Mapped[int] = mapped_column(
+    # Nullable: initial assignment when the vehicle had no prior owner
+    from_user_id: Mapped[int | None] = mapped_column(
         Integer,
         ForeignKey("users.id"),
-        nullable=False,
+        nullable=True,
         index=True,
     )
     to_user_id: Mapped[int] = mapped_column(
@@ -66,7 +67,7 @@ class VehicleTransfer(Base):
         "Vehicle",
         foreign_keys="[VehicleTransfer.vehicle_vin]",
     )
-    from_user: Mapped[User] = relationship(
+    from_user: Mapped[User | None] = relationship(
         "User",
         foreign_keys="[VehicleTransfer.from_user_id]",
     )

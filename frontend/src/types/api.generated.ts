@@ -14417,7 +14417,7 @@ export interface components {
              * @description Type of vehicle
              * @enum {string}
              */
-            vehicle_type: "Car" | "Truck" | "SUV" | "Motorcycle" | "ATV" | "RV" | "Trailer" | "FifthWheel" | "TravelTrailer" | "Electric" | "Hybrid" | "Boat" | "UTV" | "Snowmobile" | "Bicycle" | "EBike";
+            vehicle_type: "Car" | "Truck" | "SUV" | "Motorcycle" | "ATV" | "RV" | "Trailer" | "FifthWheel" | "TravelTrailer" | "Electric" | "Hybrid";
             /**
              * Vin
              * @description 17-character Vehicle Identification Number
@@ -14890,7 +14890,7 @@ export interface components {
              * @description Type of vehicle
              * @enum {string}
              */
-            vehicle_type: "Car" | "Truck" | "SUV" | "Motorcycle" | "ATV" | "RV" | "Trailer" | "FifthWheel" | "TravelTrailer" | "Electric" | "Hybrid" | "Boat" | "UTV" | "Snowmobile" | "Bicycle" | "EBike";
+            vehicle_type: "Car" | "Truck" | "SUV" | "Motorcycle" | "ATV" | "RV" | "Trailer" | "FifthWheel" | "TravelTrailer" | "Electric" | "Hybrid";
             /** Vin */
             vin: string;
             /** Warranty Basic */
@@ -15107,7 +15107,7 @@ export interface components {
             data_included?: {
                 [key: string]: boolean;
             } | null;
-            from_user: components["schemas"]["UserMinimal"];
+            from_user?: components["schemas"]["UserMinimal"] | null;
             /** Id */
             id: number;
             to_user: components["schemas"]["UserMinimal"];
@@ -15325,7 +15325,7 @@ export interface components {
              * Vehicle Type
              * @description Type of vehicle
              */
-            vehicle_type?: ("Car" | "Truck" | "SUV" | "Motorcycle" | "ATV" | "RV" | "Trailer" | "FifthWheel" | "TravelTrailer" | "Electric" | "Hybrid" | "Boat" | "UTV" | "Snowmobile" | "Bicycle" | "EBike") | null;
+            vehicle_type?: ("Car" | "Truck" | "SUV" | "Motorcycle" | "ATV" | "RV" | "Trailer" | "FifthWheel" | "TravelTrailer" | "Electric" | "Hybrid") | null;
             /**
              * Warranty Basic
              * @description Basic warranty

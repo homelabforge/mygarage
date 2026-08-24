@@ -66,6 +66,7 @@ class TransferService:
                 status_code=403,
                 detail="Only admins can transfer vehicles",
             )
+        # Note: vehicles with user_id=None are allowed (initial ownership assignment).
 
         try:
             # Get the vehicle
@@ -75,17 +76,13 @@ class TransferService:
             if not vehicle:
                 raise HTTPException(status_code=404, detail="Vehicle not found")
 
-            # Get current owner
+            # Current owner may be None (ownerless / pre-multi-user vehicle).
+            # Admins may assign ownership in that case; audit stores from_user_id=NULL.
             from_user_id = vehicle.user_id
-            if from_user_id is None:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Vehicle has no current owner",
-                )
-
-            # Get the from_user for the audit record
-            result = await self.db.execute(select(User).where(User.id == from_user_id))
-            from_user = result.scalar_one_or_none()
+            from_user = None
+            if from_user_id is not None:
+                result = await self.db.execute(select(User).where(User.id == from_user_id))
+                from_user = result.scalar_one_or_none()
 
             # Get the recipient user
             result = await self.db.execute(
@@ -102,7 +99,7 @@ class TransferService:
                     detail="Cannot transfer to disabled user",
                 )
 
-            if to_user.id == from_user_id:
+            if from_user_id is not None and to_user.id == from_user_id:
                 raise HTTPException(
                     status_code=400,
                     detail="Recipient is already the owner",

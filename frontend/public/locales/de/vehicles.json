@@ -940,7 +940,8 @@
   },
   "transferHistory": {
     "title": "Übertragungshistorie",
-    "byUser": "von {{name}}"
+    "byUser": "von {{name}}",
+    "unassigned": "Nicht zugewiesen"
   },
   "vehicleCard": {
     "sold": "Verkauft"

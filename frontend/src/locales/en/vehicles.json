@@ -1099,7 +1099,8 @@
   },
   "transferHistory": {
     "title": "Transfer History",
-    "byUser": "by {{name}}"
+    "byUser": "by {{name}}",
+    "unassigned": "Unassigned"
   },
   "vehicleCard": {
     "sold": "Sold"

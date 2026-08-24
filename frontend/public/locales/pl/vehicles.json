@@ -657,7 +657,8 @@
     "title": "Tagi opłat drogowych"
   },
   "transferHistory": {
-    "title": "Historia przeniesień"
+    "title": "Historia przeniesień",
+    "unassigned": "Nieprzypisany"
   },
   "vehicleCard": {
     "sold": "Sprzedany"

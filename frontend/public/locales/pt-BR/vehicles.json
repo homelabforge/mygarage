@@ -657,7 +657,8 @@
     "title": "Tags de pedágio"
   },
   "transferHistory": {
-    "title": "Histórico de transferências"
+    "title": "Histórico de transferências",
+    "unassigned": "Não atribuído"
   },
   "vehicleCard": {
     "sold": "Vendido"

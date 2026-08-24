@@ -969,7 +969,8 @@
   },
   "transferHistory": {
     "title": "Historique des transferts",
-    "byUser": "par {{name}}"
+    "byUser": "par {{name}}",
+    "unassigned": "Non attribué"
   },
   "vehicleCard": {
     "sold": "Vendu"

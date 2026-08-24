@@ -71,7 +71,7 @@ class VehicleTransferResponse(BaseModel):
 
     id: int
     vehicle_vin: str
-    from_user: UserMinimal
+    from_user: UserMinimal | None = None
     to_user: UserMinimal
     transferred_at: datetime
     transferred_by: UserMinimal

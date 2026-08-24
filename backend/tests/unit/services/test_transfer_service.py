@@ -328,6 +328,42 @@ class TestTransferVehicle:
         assert latest.transferred_by == admin_user.id
         assert latest.transfer_notes == "Audit test"
 
+    async def test_transfer_ownerless_vehicle_assigns_owner(
+        self, db_session, admin_user, recipient_user, transfer_vehicle
+    ):
+        """Admin can assign ownership when vehicle.user_id is NULL."""
+        transfer_vehicle.user_id = None
+        await db_session.commit()
+
+        service = TransferService(db_session)
+        request = VehicleTransferRequest(
+            to_user_id=recipient_user.id,
+            transfer_notes="Initial assignment",
+        )
+
+        result = await service.transfer_vehicle(
+            vin=transfer_vehicle.vin,
+            transfer_request=request,
+            current_user=admin_user,
+        )
+
+        assert result.from_user is None
+        assert result.to_user.id == recipient_user.id
+
+        await db_session.refresh(transfer_vehicle)
+        assert transfer_vehicle.user_id == recipient_user.id
+
+        audit = await db_session.execute(
+            select(VehicleTransfer)
+            .where(VehicleTransfer.vehicle_vin == transfer_vehicle.vin)
+            .order_by(VehicleTransfer.id.desc())
+        )
+        latest = audit.scalars().first()
+        assert latest is not None
+        assert latest.from_user_id is None
+        assert latest.to_user_id == recipient_user.id
+        assert latest.transfer_notes == "Initial assignment"
+
 
 @pytest.mark.unit
 @pytest.mark.asyncio

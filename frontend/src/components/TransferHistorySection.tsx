@@ -78,7 +78,12 @@ export default function TransferHistorySection({ vin }: TransferHistorySectionPr
     )
   }
 
-  const getDisplayName = (user: { username: string; full_name?: string | null }): string => {
+  const getDisplayName = (
+    user: { username: string; full_name?: string | null } | null | undefined
+  ): string => {
+    if (!user) {
+      return t('transferHistory.unassigned')
+    }
     return user.full_name || user.username
   }
 
@@ -137,7 +142,7 @@ export default function TransferHistorySection({ vin }: TransferHistorySectionPr
                         <span className="font-medium text-text">
                           {getDisplayName(transfer.from_user)}
                         </span>
-                        {transfer.from_user.relationship && (
+                        {transfer.from_user?.relationship && (
                           <span className="text-xs text-text-mute px-1.5 py-0.5 bg-surface-2 rounded">
                             {formatRelationship(transfer.from_user.relationship, null, t)}
                           </span>
