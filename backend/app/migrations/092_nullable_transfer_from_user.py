@@ -12,6 +12,10 @@ Dialect-aware:
   - **PostgreSQL:** ``ALTER COLUMN ... DROP NOT NULL``.
   - **SQLite:** table rebuild (SQLite cannot drop NOT NULL in place).
     ``vehicle_transfers`` has no inbound FKs, so a simple rebuild is safe.
+
+The rebuilt SQLite table matches the ORM model, which means ``transferred_at``
+gains NOT NULL (037 created it without one). Existing NULLs are coerced to
+CURRENT_TIMESTAMP during the copy rather than failing a FATAL migration.
 """
 
 from __future__ import annotations
@@ -106,7 +110,11 @@ def _run_sqlite(engine) -> None:
                 )
                 SELECT
                     id, vehicle_vin, from_user_id, to_user_id,
-                    transferred_at, transferred_by, transfer_notes, data_included
+                    -- 037 created transferred_at without NOT NULL; the rebuilt table
+                    -- matches the model and declares it NOT NULL. Coerce the stragglers
+                    -- so a legacy NULL cannot fail a FATAL migration at startup.
+                    COALESCE(transferred_at, CURRENT_TIMESTAMP),
+                    transferred_by, transfer_notes, data_included
                 FROM vehicle_transfers
                 """
             )

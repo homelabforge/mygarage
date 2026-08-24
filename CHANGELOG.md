@@ -67,6 +67,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Editing a propane record no longer duplicates the "Vendor:" line in its notes.
 - Backups include the fuel type again.
 - Unparseable text in a fuel volume field no longer breaks the cost calculation.
+- Transferring a vehicle that has no current owner now assigns ownership instead of failing; the history shows the prior owner as Unassigned (migration 092); thanks [@sickkick](https://github.com/sickkick) (#150).
 
 ## [3.0.1] - 2026-08-15
 
