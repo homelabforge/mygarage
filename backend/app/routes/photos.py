@@ -69,11 +69,15 @@ async def upload_vehicle_photo(
             file, PHOTO_UPLOAD_CONFIG, subdirectory=vin
         )
 
-        # Create database record
-        relative_photo_path = str(upload_result.file_path.relative_to(settings.photos_dir))
+        # Create database record. Resolve both sides so macOS /var → /private/var
+        # does not fail Path.relative_to when the upload service returns a resolved path.
+        photos_root = settings.photos_dir.resolve()
+        relative_photo_path = str(upload_result.file_path.resolve().relative_to(photos_root))
         relative_thumb_path = None
         if upload_result.thumbnail_path:
-            relative_thumb_path = str(upload_result.thumbnail_path.relative_to(settings.photos_dir))
+            relative_thumb_path = str(
+                upload_result.thumbnail_path.resolve().relative_to(photos_root)
+            )
 
         photo_record = VehiclePhoto(
             vin=vin,

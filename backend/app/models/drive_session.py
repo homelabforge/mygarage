@@ -58,6 +58,11 @@ class DriveSession(Base):
     avg_fuel_level: Mapped[float | None] = mapped_column(Float)  # Percentage
     fuel_used_estimate: Mapped[float | None] = mapped_column(Float)  # Liters (estimated)
 
+    # Driving insights (computed on session end from SPEED samples)
+    idle_seconds: Mapped[int | None] = mapped_column(Integer)
+    harsh_accel_count: Mapped[int | None] = mapped_column(Integer)
+    harsh_brake_count: Mapped[int | None] = mapped_column(Integer)
+
     # Metadata
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 

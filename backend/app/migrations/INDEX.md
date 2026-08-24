@@ -100,4 +100,6 @@ migrations must swallow their own operational errors.
 | `087_add_webhook_ingest_settings` | Add webhook_ingest_token setting for inbound fuel/odometer/reminder webhooks. |
 | `088_add_external_vehicles` | **FATAL** — Add external_vehicles table for family/friend reference records. |
 | `089_drop_legacy_fuel_type` | **FATAL** — Retire the legacy `fuel_records.fuel_type` free-text column. |
-| `090_nullable_transfer_from_user` | **FATAL** — Allow NULL vehicle_transfers.from_user_id for ownerless assignments. |
+| `090_supply_barcode_session_insights` | **FATAL** — Add supply barcode + LiveLink drive-session insight columns. |
+| `091_dtc_phase2_enrichment` | Seed Phase 2 DTC causes/symptoms/fix_guidance for common codes. |
+| `092_nullable_transfer_from_user` | **FATAL** — Allow NULL vehicle_transfers.from_user_id for ownerless assignments. |

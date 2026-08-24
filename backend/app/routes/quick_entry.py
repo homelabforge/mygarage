@@ -28,6 +28,8 @@ class QuickEntryVehicle(BaseModel):
     make: str | None
     model: str | None
     vehicle_type: str
+    usage_unit: str = "distance"
+    secondary_usage_enabled: bool = False
     thumbnail_url: str | None
 
     class Config:
@@ -106,6 +108,8 @@ async def list_quick_entry_vehicles(
                 make=vehicle.make,
                 model=vehicle.model,
                 vehicle_type=vehicle.vehicle_type,
+                usage_unit=vehicle.usage_unit or "distance",
+                secondary_usage_enabled=bool(vehicle.secondary_usage_enabled),
                 thumbnail_url=thumbnail_url,
             )
         )

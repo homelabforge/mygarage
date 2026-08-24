@@ -85,6 +85,13 @@ async def get_public_settings(db: AsyncSession = Depends(get_db)):
         "app_name",
         "theme",
         "family_friends_enabled",
+        # Read during frontend init by every user, not just admins. GET /settings
+        # is admin-only, so serving these from there left non-admins on US gallons
+        # while the admin had configured UK (every volume ~20% wrong) and hid the
+        # receipt-parse panel from them entirely. Both are non-sensitive: a unit
+        # preference and a feature flag.
+        "imperial_gallon_standard",
+        "llm_receipt_parse_enabled",
     }
 
     result = await db.execute(
@@ -578,6 +585,11 @@ async def update_setting(
     await db.commit()
     await db.refresh(setting)
 
+    if key == "imperial_gallon_standard" and "value" in update_data:
+        from app.utils.units import UnitConverter
+
+        UnitConverter.set_gallon_standard(setting.value or "us")
+
     logger.info("Updated setting: %s", sanitize_for_log(key))
     return _to_response(setting)
 
@@ -622,6 +634,11 @@ async def batch_update_settings(
     # Refresh all settings
     for setting in updated_settings:
         await db.refresh(setting)
+
+    if "imperial_gallon_standard" in batch.settings:
+        from app.utils.units import UnitConverter
+
+        UnitConverter.set_gallon_standard(batch.settings["imperial_gallon_standard"] or "us")
 
     logger.info("Batch updated %s settings", len(updated_settings))
 

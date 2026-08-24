@@ -8,6 +8,8 @@ export interface QuickEntryVehicle {
   make: string | null
   model: string | null
   vehicle_type: string
+  usage_unit?: string | null
+  secondary_usage_enabled?: boolean | null
   thumbnail_url: string | null
 }
 

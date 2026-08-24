@@ -2451,6 +2451,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/notifications/inbox": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Notification Inbox
+         * @description Return actionable in-app alerts (overdue and soon-due reminders).
+         */
+        get: operations["notification_inbox_api_notifications_inbox_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/notifications/test/discord": {
         parameters: {
             query?: never;
@@ -2814,6 +2834,26 @@ export interface paths {
          * @description List built-in reminder packs available to apply to a vehicle.
          */
         get: operations["list_reminder_packs_api_reminder_packs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Global Search
+         * @description Search vehicles (nickname/VIN/plate/make/model) and pending reminders.
+         */
+        get: operations["global_search_api_search_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3649,6 +3689,26 @@ export interface paths {
          *     - Admin users can also create vehicles
          */
         post: operations["create_vehicle_api_vehicles_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/vehicles/archive/bulk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Bulk Archive Vehicles
+         * @description Archive multiple vehicles with the same archive metadata.
+         */
+        post: operations["bulk_archive_vehicles_api_vehicles_archive_bulk_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5362,6 +5422,26 @@ export interface paths {
          * @description Generate and download annual cost summary PDF.
          */
         get: operations["download_cost_summary_pdf_api_vehicles__vin__reports_cost_summary_pdf_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/vehicles/{vin}/reports/sale-history-pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download Sale History Pdf
+         * @description Sanitized service history PDF for prospective buyers (no costs/vendors/plate).
+         */
+        get: operations["download_sale_history_pdf_api_vehicles__vin__reports_sale_history_pdf_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -8001,8 +8081,23 @@ export interface components {
              * @description Estimated fuel used (L)
              */
             fuel_used_estimate?: number | null;
+            /**
+             * Harsh Accel Count
+             * @description Harsh acceleration events
+             */
+            harsh_accel_count?: number | null;
+            /**
+             * Harsh Brake Count
+             * @description Harsh braking events
+             */
+            harsh_brake_count?: number | null;
             /** Id */
             id: number;
+            /**
+             * Idle Seconds
+             * @description Time spent near-stopped (s)
+             */
+            idle_seconds?: number | null;
             /**
              * Max Coolant Temp
              * @description Maximum coolant temp (°C)
@@ -8114,8 +8209,23 @@ export interface components {
              * @description Estimated fuel used (L)
              */
             fuel_used_estimate?: number | null;
+            /**
+             * Harsh Accel Count
+             * @description Harsh acceleration events
+             */
+            harsh_accel_count?: number | null;
+            /**
+             * Harsh Brake Count
+             * @description Harsh braking events
+             */
+            harsh_brake_count?: number | null;
             /** Id */
             id: number;
+            /**
+             * Idle Seconds
+             * @description Time spent near-stopped (s)
+             */
+            idle_seconds?: number | null;
             /**
              * Max Coolant Temp
              * @description Maximum coolant temp (°C)
@@ -9618,6 +9728,48 @@ export interface components {
             notes?: string | null;
         };
         /**
+         * InboxItem
+         * @description In-app notification derived from overdue / upcoming reminders.
+         */
+        InboxItem: {
+            /** Body */
+            body: string;
+            /** Href */
+            href: string;
+            /** Id */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "reminder_overdue" | "reminder_upcoming";
+            /**
+             * Severity
+             * @default info
+             * @enum {string}
+             */
+            severity: "warning" | "critical" | "info";
+            /** Title */
+            title: string;
+            /** Vehicle Nickname */
+            vehicle_nickname?: string | null;
+            /** Vin */
+            vin: string;
+        };
+        /**
+         * InboxResponse
+         * @description Notification inbox payload.
+         */
+        InboxResponse: {
+            /** Items */
+            items?: components["schemas"]["InboxItem"][];
+            /**
+             * Unread Count
+             * @default 0
+             */
+            unread_count: number;
+        };
+        /**
          * InsurancePolicy
          * @description Schema for insurance policy response.
          */
@@ -11107,8 +11259,18 @@ export interface components {
             model: string | null;
             /** Nickname */
             nickname: string;
+            /**
+             * Secondary Usage Enabled
+             * @default false
+             */
+            secondary_usage_enabled: boolean;
             /** Thumbnail Url */
             thumbnail_url: string | null;
+            /**
+             * Usage Unit
+             * @default distance
+             */
+            usage_unit: string;
             /** Vehicle Type */
             vehicle_type: string;
             /** Vin */
@@ -11329,6 +11491,11 @@ export interface components {
              * @description Number of reminders created when applied
              */
             reminder_count: number;
+            /**
+             * Vehicle Types
+             * @description Applicable vehicle types; empty means all types
+             */
+            vehicle_types?: string[];
         };
         /**
          * ReminderResponse
@@ -11419,6 +11586,37 @@ export interface components {
              * @default false
              */
             sd_backfill_enabled: boolean;
+        };
+        /**
+         * SearchHit
+         * @description A single search result.
+         */
+        SearchHit: {
+            /** Href */
+            href: string;
+            /** Id */
+            id: string;
+            /** Subtitle */
+            subtitle?: string | null;
+            /** Title */
+            title: string;
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "vehicle" | "reminder";
+            /** Vin */
+            vin?: string | null;
+        };
+        /**
+         * SearchResponse
+         * @description Global search response.
+         */
+        SearchResponse: {
+            /** Query */
+            query: string;
+            /** Results */
+            results?: components["schemas"]["SearchHit"][];
         };
         /**
          * SeasonalAnalysis
@@ -12477,6 +12675,11 @@ export interface components {
          * @description Create a catalog supply.
          */
         SupplyCreate: {
+            /**
+             * Barcode
+             * @description UPC/EAN/QR product barcode
+             */
+            barcode?: string | null;
             /** Category */
             category?: string | null;
             /** Name */
@@ -12622,6 +12825,11 @@ export interface components {
              * @description Lifetime weighted avg per canonical unit; null if no costed purchases
              */
             avg_unit_cost?: string | null;
+            /**
+             * Barcode
+             * @description UPC/EAN/QR product barcode
+             */
+            barcode?: string | null;
             /** Category */
             category?: string | null;
             /**
@@ -12668,6 +12876,8 @@ export interface components {
          * @description Patch a catalog supply. unit_type is intentionally immutable (ledger interpretation).
          */
         SupplyUpdate: {
+            /** Barcode */
+            barcode?: string | null;
             /** Category */
             category?: string | null;
             /**
@@ -14273,6 +14483,27 @@ export interface components {
             visible: boolean;
         };
         /**
+         * VehicleBulkArchiveRequest
+         * @description Archive multiple vehicles with the same metadata.
+         */
+        VehicleBulkArchiveRequest: {
+            /** Notes */
+            notes?: string | null;
+            /** Reason */
+            reason: string;
+            /** Sale Date */
+            sale_date?: string | null;
+            /** Sale Price */
+            sale_price?: number | string | null;
+            /** Vins */
+            vins: string[];
+            /**
+             * Visible
+             * @default true
+             */
+            visible: boolean;
+        };
+        /**
          * VehicleCreate
          * @description Schema for creating a new vehicle.
          * @example {
@@ -14472,6 +14703,11 @@ export interface components {
              */
             code: string;
             /**
+             * Common Causes
+             * @description Common causes from lookup
+             */
+            common_causes?: string[] | null;
+            /**
              * Created At
              * Format: date-time
              */
@@ -14494,6 +14730,11 @@ export interface components {
              * @description When DTC first appeared
              */
             first_seen: string;
+            /**
+             * Fix Guidance
+             * @description Fix guidance from lookup
+             */
+            fix_guidance?: string | null;
             /** Id */
             id: number;
             /**
@@ -14524,6 +14765,11 @@ export interface components {
              * @description Subcategory from lookup
              */
             subcategory?: string | null;
+            /**
+             * Symptoms
+             * @description Common symptoms from lookup
+             */
+            symptoms?: string[] | null;
             /**
              * User Notes
              * @description User notes
@@ -16473,7 +16719,14 @@ export interface operations {
     };
     get_vehicle_analytics_api_analytics_vehicles__vin__get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Window used for spending anomaly detection (issue #130). */
+                anomaly_range?: string;
+                /** @description Custom anomaly window start (YYYY-MM-DD); used with anomaly_range=custom */
+                anomaly_start?: string | null;
+                /** @description Custom anomaly window end (YYYY-MM-DD); used with anomaly_range=custom */
+                anomaly_end?: string | null;
+            };
             header?: never;
             path: {
                 vin: string;
@@ -19802,6 +20055,26 @@ export interface operations {
             };
         };
     };
+    notification_inbox_api_notifications_inbox_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InboxResponse"];
+                };
+            };
+        };
+    };
     test_discord_connection_api_notifications_test_discord_post: {
         parameters: {
             query?: never;
@@ -20160,7 +20433,10 @@ export interface operations {
     };
     list_reminder_packs_api_reminder_packs_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Filter packs applicable to this vehicle type */
+                vehicle_type?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -20174,6 +20450,48 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReminderPackSummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    global_search_api_search_get: {
+        parameters: {
+            query: {
+                /** @description Search query */
+                q: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -21556,6 +21874,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VehicleResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    bulk_archive_vehicles_api_vehicles_archive_bulk_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VehicleBulkArchiveRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VehicleListResponse"];
                 };
             };
             /** @description Validation Error */
@@ -24466,6 +24817,37 @@ export interface operations {
                 /** @description BCP 47 locale; defaults to en-US. */
                 locale?: string;
             };
+            header?: never;
+            path: {
+                vin: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    download_sale_history_pdf_api_vehicles__vin__reports_sale_history_pdf_get: {
+        parameters: {
+            query?: never;
             header?: never;
             path: {
                 vin: string;

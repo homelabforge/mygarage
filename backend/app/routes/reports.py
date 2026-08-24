@@ -118,6 +118,59 @@ async def download_service_history_pdf(
     )
 
 
+@router.get("/{vin}/reports/sale-history-pdf")
+async def download_sale_history_pdf(
+    vin: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(require_auth),
+):
+    """Sanitized service history PDF for prospective buyers (no costs/vendors/plate)."""
+    vehicle = await get_vehicle_or_403(vin, current_user, db)
+
+    query = _service_visits_query(vin).order_by(ServiceVisit.date.desc())
+    result = await db.execute(query)
+    visits = result.scalars().all()
+
+    vehicle_info = {
+        "vin": vehicle.vin,
+        "year": vehicle.year,
+        "make": vehicle.make,
+        "model": vehicle.model,
+    }
+
+    records_data = []
+    for visit in visits:
+        if visit.line_items:
+            for item in visit.line_items:
+                records_data.append(
+                    {
+                        "date": visit.date,
+                        "odometer_km": visit.odometer_km,
+                        "service_type": item.description,
+                    }
+                )
+        else:
+            records_data.append(
+                {
+                    "date": visit.date,
+                    "odometer_km": visit.odometer_km,
+                    # NEVER visit.notes here: this PDF is handed to a buyer and its
+                    # header promises costs, vendors and plates are omitted. Notes are
+                    # free-form and routinely hold exactly those.
+                    "service_type": visit.service_category or "Service",
+                }
+            )
+
+    pdf_gen = PDFReportGenerator()
+    pdf_buffer = pdf_gen.generate_sale_history_pdf(vehicle_info, records_data)
+    filename = f"sale_history_{vin[-6:]}_{datetime.now().strftime('%Y%m%d')}.pdf"
+    return StreamingResponse(
+        pdf_buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
 @router.get("/{vin}/reports/cost-summary-pdf")
 async def download_cost_summary_pdf(
     vin: str,

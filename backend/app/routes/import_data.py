@@ -61,13 +61,34 @@ def _mi_to_km(value: Decimal | None) -> Decimal | None:
     return value * UnitConverter.MILES_TO_KM if value is not None else None
 
 
-def _gal_to_l(value: Decimal | None) -> Decimal | None:
-    return value * UnitConverter.GALLONS_TO_LITERS if value is not None else None
+def _gal_to_l(value: Decimal | None, gallons_to_liters: Decimal) -> Decimal | None:
+    return value * gallons_to_liters if value is not None else None
 
 
-def _per_gal_to_per_l(value: Decimal | None) -> Decimal | None:
-    """Price/volume: $/gal → $/L (divide by 3.78541)."""
-    return value / UnitConverter.GALLONS_TO_LITERS if value is not None else None
+def _per_gal_to_per_l(value: Decimal | None, gallons_to_liters: Decimal) -> Decimal | None:
+    """Price/volume: $/gal → $/L."""
+    return value / gallons_to_liters if value is not None else None
+
+
+def _row_gallons_to_liters(row: dict) -> Decimal:
+    """Which gallon this row's imperial values are measured in.
+
+    Only a file this app wrote while set to UK carries the `imperial_uk` marker.
+    Everything else is the US gallon: every v2-era export, every third-party
+    sheet, every file written before the UK option existed.
+
+    This deliberately does NOT read `UnitConverter.GALLONS_TO_LITERS`. That
+    attribute follows the instance's current display preference, so reading it
+    here meant importing an old US-gallon backup on a UK-configured instance
+    multiplied every volume by 4.54609 instead of 3.78541 and wrote the result
+    into canonical storage permanently.
+    """
+    marker = (row.get("unit_system") or "").strip().lower()
+    return (
+        UnitConverter.UK_GALLONS_TO_LITERS
+        if marker == "imperial_uk"
+        else UnitConverter.US_GALLONS_TO_LITERS
+    )
 
 
 def _row_is_legacy_v2(row: dict) -> bool:
@@ -91,7 +112,9 @@ def _row_is_legacy_v2(row: dict) -> bool:
     never noticed.
     """
     unit_system = (row.get("unit_system") or "").strip().lower()
-    if unit_system == "imperial":
+    # "imperial" (US) and "imperial_uk" both need converting; the flavour is
+    # resolved separately by _row_gallons_to_liters.
+    if unit_system.startswith("imperial"):
         return True
     if unit_system == "metric":
         return False
@@ -406,9 +429,10 @@ async def import_fuel_csv(
             )
 
             if legacy_v2:
+                gal_to_l = _row_gallons_to_liters(row)
                 odometer_km = _mi_to_km(odometer_raw)
-                liters = _gal_to_l(volume_raw)
-                price_per_unit = _per_gal_to_per_l(price_raw)
+                liters = _gal_to_l(volume_raw, gal_to_l)
+                price_per_unit = _per_gal_to_per_l(price_raw, gal_to_l)
             else:
                 odometer_km = odometer_raw
                 liters = volume_raw
@@ -526,9 +550,10 @@ async def import_def_csv(
             volume_raw = parse_decimal(row.get("Liters", "") or row.get("Gallons", ""))
             price_raw = parse_decimal(row.get("Price Per Unit", ""))
             if legacy_v2:
+                gal_to_l = _row_gallons_to_liters(row)
                 odometer_km = _mi_to_km(odometer_raw)
-                liters = _gal_to_l(volume_raw)
-                price_per_unit = _per_gal_to_per_l(price_raw)
+                liters = _gal_to_l(volume_raw, gal_to_l)
+                price_per_unit = _per_gal_to_per_l(price_raw, gal_to_l)
             else:
                 odometer_km = odometer_raw
                 liters = volume_raw
@@ -1027,13 +1052,13 @@ async def import_vehicle_json(
         if val is None or val == "":
             return None
         d = Decimal(str(val))
-        return d * UnitConverter.GALLONS_TO_LITERS if is_legacy_v2 else d
+        return d * UnitConverter.US_GALLONS_TO_LITERS if is_legacy_v2 else d
 
     def _maybe_per_gal_to_per_l(val: Any) -> Decimal | None:
         if val is None or val == "":
             return None
         d = Decimal(str(val))
-        return d / UnitConverter.GALLONS_TO_LITERS if is_legacy_v2 else d
+        return d / UnitConverter.US_GALLONS_TO_LITERS if is_legacy_v2 else d
 
     results = {
         "service_records": {"success": 0, "errors": 0, "skipped": 0},

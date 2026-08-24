@@ -414,6 +414,7 @@ interface PurchaseFormValues {
   quantity: number
   total_cost?: number
   supplier_id: string
+  part_number: string
 }
 
 function PurchaseForm({
@@ -446,6 +447,7 @@ function PurchaseForm({
       quantity: undefined,
       total_cost: undefined,
       supplier_id: '',
+      part_number: '',
     },
   })
 
@@ -463,6 +465,7 @@ function PurchaseForm({
         quantity,
         total_cost: totalCost,
         supplier_id: values.supplier_id ? Number(values.supplier_id) : undefined,
+        part_number: values.part_number?.trim() || undefined,
       })
 
       if (file) {
@@ -472,7 +475,13 @@ function PurchaseForm({
       }
 
       toast.success(t('supplies.history.purchaseLogged'))
-      reset({ date: formatDateForInput(), quantity: undefined, total_cost: undefined, supplier_id: '' })
+      reset({
+        date: formatDateForInput(),
+        quantity: undefined,
+        total_cost: undefined,
+        supplier_id: '',
+        part_number: '',
+      })
       setFile(null)
       if (fileInputRef.current) fileInputRef.current.value = ''
       onDone()
@@ -565,6 +574,21 @@ function PurchaseForm({
               value: String(entry.id),
               label: supplierLabel(entry),
             }))}
+          />
+        </div>
+      </div>
+
+      <div>
+        <label htmlFor="purchase-part-number" className="block text-xs font-medium text-garage-text mb-1">
+          {t('supplies.partNumber')}
+        </label>
+        <div className="flex gap-2 items-start">
+          <input
+            type="text"
+            id="purchase-part-number"
+            {...register('part_number')}
+            className="flex-1 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text border-garage-border"
+            disabled={isSubmitting}
           />
         </div>
       </div>

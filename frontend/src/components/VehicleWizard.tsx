@@ -20,7 +20,7 @@ import type { VehicleCreate } from '../types/vehicle'
 import { FUEL_TYPE_VALUES, FUEL_TYPE_LABELS, type FuelType } from '../constants/fuel'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
 import vehicleService from '../services/vehicleService'
-import { makeVehicleEditSchema, vehicleTypeOptions, type VehicleEditFormData } from '../schemas/vehicle'
+import { makeVehicleEditSchema, vehicleTypeOptions, defaultUsageUnitForType, type VehicleEditFormData } from '../schemas/vehicle'
 import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
 
 interface VehicleWizardProps {
@@ -55,6 +55,7 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
     defaultValues: {
       nickname: '',
       vehicle_type: 'Car',
+      usage_unit: 'distance',
     },
   })
 
@@ -335,7 +336,11 @@ export default function VehicleWizard({ onClose, onSuccess }: VehicleWizardProps
                   {t('edit.vehicleType')} <span className="text-danger">*</span>
                 </label>
                 <Select
-                  {...register('vehicle_type')}
+                  {...register('vehicle_type', {
+                    onChange: (e) => {
+                      setValue('usage_unit', defaultUsageUnitForType(e.target.value))
+                    },
+                  })}
                   invalid={!!errors.vehicle_type}
                   options={vehicleTypeOptions(t)}
                 />

@@ -189,6 +189,42 @@ export default function LiveLinkDTCsTab({ vin }: LiveLinkDTCsTabProps) {
                       )}
                       {dtc.category && <span>{t('livelink.dtcs.category')}: {dtc.category}</span>}
                     </div>
+                    {(dtc.common_causes?.length || dtc.symptoms?.length || dtc.fix_guidance) && (
+                      <div className="mt-3 space-y-2 text-sm">
+                        {dtc.common_causes && dtc.common_causes.length > 0 && (
+                          <div>
+                            <p className="text-xs font-medium text-text-mute uppercase tracking-wide">
+                              {t('livelink.dtcs.commonCauses')}
+                            </p>
+                            <ul className="mt-1 list-disc list-inside text-text-mid space-y-0.5">
+                              {dtc.common_causes.map((cause) => (
+                                <li key={cause}>{cause}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {dtc.symptoms && dtc.symptoms.length > 0 && (
+                          <div>
+                            <p className="text-xs font-medium text-text-mute uppercase tracking-wide">
+                              {t('livelink.dtcs.symptoms')}
+                            </p>
+                            <ul className="mt-1 list-disc list-inside text-text-mid space-y-0.5">
+                              {dtc.symptoms.map((symptom) => (
+                                <li key={symptom}>{symptom}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {dtc.fix_guidance && (
+                          <div>
+                            <p className="text-xs font-medium text-text-mute uppercase tracking-wide">
+                              {t('livelink.dtcs.fixGuidance')}
+                            </p>
+                            <p className="mt-1 text-text-mid">{dtc.fix_guidance}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 

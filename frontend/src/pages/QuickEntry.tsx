@@ -2,18 +2,20 @@ import { useState, useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
-import { Car, Fuel, Wrench, Gauge, ChevronRight, LayoutDashboard } from 'lucide-react'
+import { Car, Fuel, Wrench, Gauge, ChevronRight, LayoutDashboard, Timer } from 'lucide-react'
 import { toast } from 'sonner'
 import FuelRecordForm from '../components/FuelRecordForm'
 import ServiceVisitForm from '../components/ServiceVisitForm'
 import OdometerRecordForm from '../components/OdometerRecordForm'
+import HoursRecordForm from '../components/HoursRecordForm'
 import { Select } from '../components/ui'
 import { useQuickEntryVehicles } from '../hooks/queries/useQuickEntryVehicles'
 import { vehicleLabel } from '../utils/vehicleLabel'
 import { withBase } from '../utils/basePath'
 import type { VehicleType } from '../types/vehicle'
+import { getUsageTracking } from '../utils/usageTracking'
 
-type EntryType = 'fuel' | 'service' | 'odometer' | null
+type EntryType = 'fuel' | 'service' | 'odometer' | 'hours' | null
 
 export default function QuickEntry() {
   const { t } = useTranslation('vehicles')
@@ -46,6 +48,8 @@ export default function QuickEntry() {
       setEntryType('service')
     } else if (action === 'odometer' || action === 'add-odometer') {
       setEntryType('odometer')
+    } else if (action === 'hours' || action === 'add-hours' || action === 'engine-hours') {
+      setEntryType('hours')
     }
   }, [searchParams])
 
@@ -58,12 +62,17 @@ export default function QuickEntry() {
   }, [vehicles])
 
   const selectedVehicle = vehicles.find(v => v.vin === selectedVin)
+  const { tracksDistance, tracksHours } = getUsageTracking({
+    usage_unit: selectedVehicle?.usage_unit || 'distance',
+    secondary_usage_enabled: !!selectedVehicle?.secondary_usage_enabled,
+  })
 
   const handleSuccess = (type: EntryType) => {
     const labels: Record<string, string> = {
       fuel: t('quickEntry.fuelRecord'),
       service: t('quickEntry.serviceVisit'),
       odometer: t('quickEntry.mileage'),
+      hours: t('quickEntry.engineHours'),
     }
     toast.success(t('quickEntry.recordSaved', { type: labels[type as string] ?? t('quickEntry.record') }))
     setEntryType(null)
@@ -185,6 +194,7 @@ export default function QuickEntry() {
                     <ChevronRight className="w-5 h-5 text-garage-text-muted" />
                   </button>
 
+                  {tracksDistance && (
                   <button
                     onClick={() => setEntryType('odometer')}
                     className="flex items-center justify-between w-full px-4 py-4 bg-garage-surface border border-garage-border rounded-lg text-left hover:border-primary transition-colors active:scale-95"
@@ -200,6 +210,25 @@ export default function QuickEntry() {
                     </div>
                     <ChevronRight className="w-5 h-5 text-garage-text-muted" />
                   </button>
+                  )}
+
+                  {tracksHours && (
+                  <button
+                    onClick={() => setEntryType('hours')}
+                    className="flex items-center justify-between w-full px-4 py-4 bg-garage-surface border border-garage-border rounded-lg text-left hover:border-primary transition-colors active:scale-95"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-teal-500/10 rounded-lg">
+                        <Timer className="w-5 h-5 text-teal-500" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-garage-text">{t('quickEntry.engineHours')}</div>
+                        <div className="text-xs text-garage-text-muted">{t('quickEntry.engineHoursDesc')}</div>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-garage-text-muted" />
+                  </button>
+                  )}
                 </div>
               </div>
             )}
@@ -230,6 +259,14 @@ export default function QuickEntry() {
           vin={selectedVin}
           onClose={() => setEntryType(null)}
           onSuccess={() => handleSuccess('odometer')}
+        />
+      )}
+
+      {entryType === 'hours' && selectedVin && (
+        <HoursRecordForm
+          vin={selectedVin}
+          onClose={() => setEntryType(null)}
+          onSuccess={() => handleSuccess('hours')}
         />
       )}
     </div>

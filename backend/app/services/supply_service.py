@@ -104,6 +104,7 @@ class SupplyService:
             id=supply.id,
             name=supply.name,
             part_number=supply.part_number,
+            barcode=supply.barcode,
             category=supply.category,
             unit_type=supply.unit_type,
             vin=supply.vin,
@@ -163,6 +164,7 @@ class SupplyService:
         supply = Supply(
             name=data.name,
             part_number=data.part_number,
+            barcode=data.barcode,
             category=data.category,
             unit_type=data.unit_type,
             vin=data.vin.upper().strip() if data.vin else None,

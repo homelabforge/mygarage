@@ -33,7 +33,18 @@
   "closeMenu": "Close menu",
   "searchShellTitle": "Search is coming soon",
   "searchShellBody": "Global search across vehicles, service history, and VINs is on the way.",
+  "searchLoading": "Searching…",
+  "searchHint": "Type a nickname, VIN, plate, make, or reminder title.",
+  "searchNoResultsTitle": "No matches",
+  "searchNoResultsBody": "Try a different nickname, VIN, plate, or reminder title.",
+  "searchTypeVehicle": "Vehicle",
+  "searchTypeReminder": "Reminder",
   "notifications": "Notifications",
   "notificationsEmptyTitle": "No notifications",
-  "notificationsEmptyBody": "You are all caught up. New alerts will appear here."
+  "notificationsEmptyBody": "You are all caught up. New alerts will appear here.",
+  "notificationsLoading": "Loading notifications…",
+  "notificationsDismiss": "Dismiss",
+  "notificationsDismissAll": "Dismiss all",
+  "notificationsOverdue": "Overdue",
+  "notificationsUpcoming": "Upcoming"
 }

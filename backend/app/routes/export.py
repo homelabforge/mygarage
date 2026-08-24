@@ -56,34 +56,77 @@ EXPORT_SCHEMA_VERSION = "5"
 EXPORT_UNITS = "metric"
 
 
-def _per_liter_to_per_gallon(value: Any) -> float | None:
-    """A canonical per-litre price expressed per US gallon."""
+def _per_liter_to_per_gallon(value: Any, gallons_to_liters: Decimal) -> float | None:
+    """A canonical per-litre price expressed per gallon of the given flavour."""
     if value in (None, ""):
         return None
-    return UnitConverter.round_result(Decimal(str(value)) * UnitConverter.GALLONS_TO_LITERS)
+    return UnitConverter.round_result(Decimal(str(value)) * gallons_to_liters)
 
 
-# Metric header -> (imperial header, value converter).
+# Metric header -> (imperial header, value converter). Built per request from
+# one explicit gallon standard rather than read off the mutable class attribute,
+# so a settings change mid-export cannot produce a file whose volume column and
+# whose unit_system marker disagree.
 #
 # The imperial names are deliberately the ones `import_data.py` ALREADY reads
 # ("Mileage", "Gallons", "Price Per Gallon", "Reading"), so an imperial export
 # round-trips through the existing importer and stays readable if the
 # `unit_system` marker column is ever stripped by a spreadsheet.
-_IMPERIAL_COLUMNS: dict[str, tuple[str, Any]] = {
-    "Odometer (km)": ("Mileage", UnitConverter.km_to_miles),
-    "Reading (km)": ("Reading", UnitConverter.km_to_miles),
-    "Liters": ("Gallons", UnitConverter.liters_to_gallons),
-    "Price Per Liter": ("Price Per Gallon", _per_liter_to_per_gallon),
-    # DEF keeps the column name — that is the only key its importer reads —
-    # but the value still has to move to per-gallon.
-    "Price Per Unit": ("Price Per Unit", _per_liter_to_per_gallon),
-    "Outside Temp (C)": ("Outside Temp (F)", UnitConverter.celsius_to_fahrenheit),
-    "OBC L/100km": ("OBC MPG", UnitConverter.l100km_to_mpg),
-    "OBC Avg Speed (km/h)": ("OBC Avg Speed (mph)", UnitConverter.km_to_miles),
-}
+def _l100km_to_mpg(value: Any, numerator: Decimal) -> float | None:
+    """L/100km as MPG against an explicit numerator (US 235.214 / UK 282.481).
+
+    Mirrors UnitConverter.l100km_to_mpg but takes the numerator rather than
+    reading the mutable class attribute, so one export cannot mix flavours.
+    """
+    val = UnitConverter.to_decimal(value)
+    if val is None or val == 0:
+        return None
+    return UnitConverter.round_result(numerator / val, 1)
 
 
-def to_imperial(headers: list[str], rows: list[list[Any]]) -> tuple[list[str], list[list[Any]]]:
+def _imperial_columns(gallons_to_liters: Decimal) -> dict[str, tuple[str, Any]]:
+    """Header and converter map for one gallon standard.
+
+    The imperial names are deliberately the ones `import_data.py` ALREADY reads
+    ("Mileage", "Gallons", "Price Per Gallon", "Reading"), so an imperial export
+    round-trips through the existing importer and stays readable if the
+    `unit_system` marker column is ever stripped by a spreadsheet.
+    """
+    uk = gallons_to_liters == UnitConverter.UK_GALLONS_TO_LITERS
+    return {
+        "Odometer (km)": ("Mileage", UnitConverter.km_to_miles),
+        "Reading (km)": ("Reading", UnitConverter.km_to_miles),
+        "Liters": (
+            "Gallons",
+            lambda v: UnitConverter.round_result(Decimal(str(v)) / gallons_to_liters),
+        ),
+        "Price Per Liter": (
+            "Price Per Gallon",
+            lambda v: _per_liter_to_per_gallon(v, gallons_to_liters),
+        ),
+        # DEF keeps the column name — that is the only key its importer reads —
+        # but the value still has to move to per-gallon.
+        "Price Per Unit": (
+            "Price Per Unit",
+            lambda v: _per_liter_to_per_gallon(v, gallons_to_liters),
+        ),
+        "Outside Temp (C)": ("Outside Temp (F)", UnitConverter.celsius_to_fahrenheit),
+        "OBC L/100km": (
+            "OBC MPG",
+            lambda v: _l100km_to_mpg(
+                v,
+                UnitConverter.UK_MPG_TO_L100KM_NUMERATOR
+                if uk
+                else UnitConverter.US_MPG_TO_L100KM_NUMERATOR,
+            ),
+        ),
+        "OBC Avg Speed (km/h)": ("OBC Avg Speed (mph)", UnitConverter.km_to_miles),
+    }
+
+
+def to_imperial(
+    headers: list[str], rows: list[list[Any]], gallons_to_liters: Decimal
+) -> tuple[list[str], list[list[Any]]]:
     """Rewrite metric headers and values to imperial.
 
     Storage is metric-canonical, so every export was metric regardless of the
@@ -91,10 +134,11 @@ def to_imperial(headers: list[str], rows: list[list[Any]]) -> tuple[list[str], l
     imperial data into another program (#128). Columns with no unit
     (dates, notes, engine hours, costs) pass through untouched.
     """
+    columns = _imperial_columns(gallons_to_liters)
     converters: list[Any] = []
     out_headers: list[str] = []
     for header in headers:
-        mapped = _IMPERIAL_COLUMNS.get(header)
+        mapped = columns.get(header)
         if mapped is None:
             out_headers.append(header)
             converters.append(None)
@@ -130,6 +174,28 @@ def generate_csv_stream(
     writer.writerows([sanitize_csv_row([EXPORT_SCHEMA_VERSION, unit_system, *row]) for row in rows])
     output.seek(0)
     return output
+
+
+def build_csv(headers: list[str], rows: list[list[Any]], units: str) -> io.StringIO:
+    """Convert to the requested unit system and stream, with ONE gallon standard.
+
+    The standard is read once here and drives both the value conversion and the
+    `unit_system` marker written into the file, so the two can never disagree.
+    A UK export is labelled `imperial_uk`; the importer reads that marker to
+    decide which gallon the values are in, and treats anything else as US.
+    """
+    marker = units
+    if units == "imperial":
+        gallons_to_liters = (
+            UnitConverter.UK_GALLONS_TO_LITERS
+            if UnitConverter.get_gallon_standard() == "uk"
+            else UnitConverter.US_GALLONS_TO_LITERS
+        )
+        headers, rows = to_imperial(headers, rows, gallons_to_liters)
+        marker = (
+            "imperial_uk" if gallons_to_liters == UnitConverter.UK_GALLONS_TO_LITERS else "imperial"
+        )
+    return generate_csv_stream(headers, rows, unit_system=marker)
 
 
 @router.get("/vehicles/{vin}/service/csv")
@@ -211,9 +277,7 @@ async def export_service_records_csv(
                 ]
             )
 
-    if units == "imperial":
-        headers, rows = to_imperial(headers, rows)
-    output = generate_csv_stream(headers, rows, unit_system=units)
+    output = build_csv(headers, rows, units)
 
     # Generate filename
     filename = f"{vehicle.year}_{vehicle.make}_{vehicle.model}_service_records_{datetime.now().strftime('%Y%m%d')}.csv"
@@ -328,9 +392,7 @@ async def export_fuel_records_csv(
             ]
         )
 
-    if units == "imperial":
-        headers, rows = to_imperial(headers, rows)
-    output = generate_csv_stream(headers, rows, unit_system=units)
+    output = build_csv(headers, rows, units)
 
     # Generate filename
     filename = f"{vehicle.year}_{vehicle.make}_{vehicle.model}_fuel_records_{datetime.now().strftime('%Y%m%d')}.csv"
@@ -393,9 +455,7 @@ async def export_def_records_csv(
             ]
         )
 
-    if units == "imperial":
-        headers, rows = to_imperial(headers, rows)
-    output = generate_csv_stream(headers, rows, unit_system=units)
+    output = build_csv(headers, rows, units)
 
     filename = f"{vehicle.year}_{vehicle.make}_{vehicle.model}_def_records_{datetime.now().strftime('%Y%m%d')}.csv"
 
@@ -444,9 +504,7 @@ async def export_odometer_records_csv(
             ]
         )
 
-    if units == "imperial":
-        headers, rows = to_imperial(headers, rows)
-    output = generate_csv_stream(headers, rows, unit_system=units)
+    output = build_csv(headers, rows, units)
 
     # Generate filename
     filename = f"{vehicle.year}_{vehicle.make}_{vehicle.model}_odometer_records_{datetime.now().strftime('%Y%m%d')}.csv"

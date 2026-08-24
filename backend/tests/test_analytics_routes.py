@@ -301,3 +301,42 @@ async def test_anomaly_detection(
             assert "severity" in anomaly
             assert anomaly["severity"] in ["warning", "critical"]
             assert "message" in anomaly
+
+
+@pytest.mark.integration
+@pytest.mark.analytics
+@pytest.mark.asyncio
+async def test_analytics_pdf_requests_full_anomaly_history(
+    client: AsyncClient, test_vehicle, auth_headers: dict, monkeypatch
+):
+    """The PDF must ask for every anomaly, not the default display window.
+
+    `export_analytics_pdf` calls `get_vehicle_analytics` as a plain function, so
+    an omitted `anomaly_range` binds the fastapi Query OBJECT rather than its
+    default string. Every `== "3m"` test then fails and
+    `filter_anomalies_to_window` falls through to its 12-month else branch, which
+    silently drops older anomalies from the report. Changing the Query default
+    alone does not fix that: the argument has to be passed here.
+    """
+    from app.routes import analytics as analytics_routes
+
+    seen: dict[str, object] = {}
+    original = analytics_routes.get_vehicle_analytics
+
+    async def _spy(vin, *args, **kwargs):
+        seen.update(kwargs)
+        return await original(vin, *args, **kwargs)
+
+    monkeypatch.setattr(analytics_routes, "get_vehicle_analytics", _spy)
+
+    response = await client.get(
+        f"/api/analytics/vehicles/{test_vehicle['vin']}/export",
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 200
+    assert response.content[:4] == b"%PDF"
+    assert seen.get("anomaly_range") == "all", (
+        "the PDF path must pass anomaly_range explicitly; a bound Query object "
+        "silently means 12 months"
+    )

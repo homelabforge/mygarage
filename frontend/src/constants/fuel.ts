@@ -72,3 +72,7 @@ export const FUEL_TYPE_LABELS: Record<FuelType, string> = {
 export function isDieselFuelType(fuelType?: string | null): boolean {
   return fuelType?.toLowerCase().includes('diesel') ?? false
 }
+
+export function isFuelType(value: string | null | undefined): value is FuelType {
+  return !!value && (FUEL_TYPE_VALUES as readonly string[]).includes(value)
+}

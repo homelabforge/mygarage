@@ -9,7 +9,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Eye, EyeOff, RotateCcw, Trash2, AlertTriangle } from 'lucide-react'
+import { Eye, EyeOff, RotateCcw, Trash2, AlertTriangle, Download } from 'lucide-react'
 import api from '@/services/api'
 import { toast } from 'sonner'
 import { formatAPITimestamp } from '@/utils/parseAPITimestamp'
@@ -21,6 +21,7 @@ export default function ArchivedVehiclesList() {
   const [loading, setLoading] = useState(true)
   const [selectedVins, setSelectedVins] = useState<Set<string>>(new Set())
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [exporting, setExporting] = useState(false)
 
   // `t` is used only for an error toast, so it must not sit in the deps below:
   // a new identity on language switch would re-run the effect and refetch the
@@ -81,6 +82,39 @@ export default function ArchivedVehiclesList() {
     setSelectedVins(newSelected)
   }
 
+  const downloadReportPdf = async (vin: string, reportType: 'sale-history' | 'service-history') => {
+    const response = await api.get(`/vehicles/${vin}/reports/${reportType}-pdf`, {
+      responseType: 'blob',
+    })
+    const downloadUrl = window.URL.createObjectURL(response.data)
+    const a = document.createElement('a')
+    a.href = downloadUrl
+    a.download = `${reportType}_${vin}_${Date.now()}.pdf`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    window.URL.revokeObjectURL(downloadUrl)
+  }
+
+  const handleExportBeforeDelete = async (reportType: 'sale-history' | 'service-history') => {
+    if (selectedVins.size === 0) {
+      toast.error(t('archivedList.noVehiclesSelected'))
+      return
+    }
+    setExporting(true)
+    try {
+      for (const vin of selectedVins) {
+        await downloadReportPdf(vin, reportType)
+      }
+      toast.success(t('archivedList.exportSuccess', { count: selectedVins.size }))
+    } catch (error) {
+      toast.error(t('archivedList.exportError'))
+      console.error('Export before delete failed:', error)
+    } finally {
+      setExporting(false)
+    }
+  }
+
   // Bulk delete selected vehicles
   const handleBulkDelete = async () => {
     if (selectedVins.size === 0) {
@@ -139,7 +173,25 @@ export default function ArchivedVehiclesList() {
               {t('archivedVehiclesList.deleteSelected')}
             </button>
           ) : (
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+              <button
+                type="button"
+                onClick={() => handleExportBeforeDelete('sale-history')}
+                disabled={exporting}
+                className="px-4 py-2 bg-garage-surface border border-garage-border text-garage-text rounded-lg hover:bg-garage-bg transition-colors flex items-center gap-2 disabled:opacity-50"
+              >
+                <Download className="w-4 h-4" />
+                {t('archivedList.exportSaleHistory')}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleExportBeforeDelete('service-history')}
+                disabled={exporting}
+                className="px-4 py-2 bg-garage-surface border border-garage-border text-garage-text rounded-lg hover:bg-garage-bg transition-colors flex items-center gap-2 disabled:opacity-50"
+              >
+                <Download className="w-4 h-4" />
+                {t('archivedList.exportBeforeDelete')}
+              </button>
               <button
                 onClick={() => setConfirmDelete(false)}
                 className="px-4 py-2 bg-garage-surface border border-garage-border text-garage-text rounded-lg hover:bg-garage-bg transition-colors"

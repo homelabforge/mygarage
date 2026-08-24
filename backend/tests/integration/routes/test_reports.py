@@ -277,3 +277,68 @@ class TestReportRoutes:
             headers=non_admin_headers,
         )
         assert response.status_code == 403
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+class TestSaleHistoryPrivacy:
+    """The buyer-facing PDF must contain only what its header promises.
+
+    Asserting on raw response bytes would be a test that cannot fail: ReportLab
+    writes text into compressed content streams, so a plain substring check
+    passes whether or not the string was rendered. Text is extracted with fitz,
+    the same way tests/unit/utils/test_pdf_generator.py does it.
+    """
+
+    async def test_notes_never_reach_the_sale_pdf(
+        self, client: AsyncClient, auth_headers, test_user, db_session
+    ):
+        from datetime import date
+
+        import fitz
+
+        from app.models.service_visit import ServiceVisit
+        from app.models.vehicle import Vehicle
+
+        vin = "SALEPDFPRIV000001"
+        db_session.add(
+            Vehicle(
+                vin=vin,
+                user_id=test_user["id"],
+                nickname="For Sale",
+                vehicle_type="Car",
+                year=2020,
+                make="Test",
+                model="Sale",
+                license_plate="ABC-1234",
+            )
+        )
+        await db_session.commit()
+
+        # A visit with NO line items: the branch that used to fall back to notes.
+        db_session.add(
+            ServiceVisit(
+                vin=vin,
+                date=date(2026, 1, 15),
+                service_category="Maintenance",
+                notes="Paid $850 cash at Joe's Garage, plate ABC-1234, claim #55",
+            )
+        )
+        await db_session.commit()
+
+        response = await client.get(
+            f"/api/vehicles/{vin}/reports/sale-history-pdf", headers=auth_headers
+        )
+        assert response.status_code == 200
+        assert response.content[:4] == b"%PDF"
+
+        with fitz.open(stream=response.content, filetype="pdf") as doc:
+            text = "".join(page.get_text() for page in doc)
+
+        # The header promises costs, vendors and plates are omitted.
+        assert "850" not in text
+        assert "Joe's Garage" not in text
+        assert "ABC-1234" not in text
+        assert "claim #55" not in text
+        # The service still appears, by category.
+        assert "Maintenance" in text

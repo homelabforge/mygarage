@@ -309,6 +309,11 @@ export default function VehicleEditDrawer({
                 has none either) — a null submit would 409 server-side and roll
                 back the whole update. */}
             <Field id="vehicle_type" label={t('edit.vehicleType')} error={errors.vehicle_type}>
+              {/* Deliberately no onChange resetting usage_unit. The wizard does
+                  that because a new vehicle has no choice to destroy; here it is
+                  an existing setting with hours history hanging off it, and
+                  correcting a mis-typed vehicle_type would silently flip a Boat
+                  from hours to distance and hide its Hours tab. */}
               <Select
                 id="vehicle_type"
                 {...register('vehicle_type')}

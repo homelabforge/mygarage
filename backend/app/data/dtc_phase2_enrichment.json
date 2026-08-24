@@ -1,0 +1,50 @@
+[
+  {
+    "code": "P0300",
+    "common_causes": ["Worn spark plugs", "Faulty ignition coils", "Vacuum leak", "Low fuel pressure", "Bad fuel injectors"],
+    "symptoms": ["Rough idle", "Engine misfire", "Check engine light", "Poor acceleration", "Increased fuel consumption"],
+    "fix_guidance": "Scan for specific cylinder misfire codes (P0301–P0308). Inspect plugs, coils, and intake for vacuum leaks."
+  },
+  {
+    "code": "P0171",
+    "common_causes": ["Vacuum leak", "Dirty MAF sensor", "Weak fuel pump", "Clogged fuel filter", "Faulty O2 sensor"],
+    "symptoms": ["Lean condition", "Hesitation on accel", "Check engine light", "Rough idle"],
+    "fix_guidance": "Check for unmetered air (intake boots, PCV). Clean or replace MAF; verify fuel pressure."
+  },
+  {
+    "code": "P0420",
+    "common_causes": ["Failing catalytic converter", "Downstream O2 sensor fault", "Exhaust leak before converter", "Rich/lean mixture"],
+    "symptoms": ["Check engine light", "Failed emissions test", "Possible sulfur smell"],
+    "fix_guidance": "Verify no upstream misfires or exhaust leaks. Test O2 sensors before replacing the catalytic converter."
+  },
+  {
+    "code": "P0455",
+    "common_causes": ["Loose or missing gas cap", "EVAP hose leak", "Faulty purge valve", "Damaged charcoal canister"],
+    "symptoms": ["Check engine light", "Fuel smell", "Failed EVAP monitor"],
+    "fix_guidance": "Tighten or replace the gas cap first. Smoke-test the EVAP system if the code returns."
+  },
+  {
+    "code": "P0128",
+    "common_causes": ["Stuck-open thermostat", "Low coolant", "Faulty coolant temp sensor", "Cooling fan always on"],
+    "symptoms": ["Engine slow to warm", "Low temperature gauge", "Poor heater performance", "Check engine light"],
+    "fix_guidance": "Confirm coolant level and thermostat operation. Compare ECT sensor reading to actual temperature."
+  },
+  {
+    "code": "P0401",
+    "common_causes": ["Clogged EGR passages", "Faulty EGR valve", "Carbon buildup", "DPFE / EGR sensor fault"],
+    "symptoms": ["Check engine light", "Ping/knock under load", "Failed emissions", "Rough idle"],
+    "fix_guidance": "Clean EGR valve and passages. Test EGR solenoid and related sensors."
+  },
+  {
+    "code": "P0442",
+    "common_causes": ["Small EVAP leak", "Worn gas cap seal", "Cracked EVAP hose", "Purge/vent solenoid leak"],
+    "symptoms": ["Check engine light", "Usually no drivability symptoms"],
+    "fix_guidance": "Inspect gas cap seal and EVAP lines. Use a smoke machine for small leaks."
+  },
+  {
+    "code": "P0507",
+    "common_causes": ["Vacuum leak", "Dirty throttle body", "Faulty IAC / electronic throttle", "PCV issues"],
+    "symptoms": ["High idle", "Check engine light", "Whistling from intake"],
+    "fix_guidance": "Clean the throttle body and check for vacuum leaks. Adapt/relearn idle if required after cleaning."
+  }
+]

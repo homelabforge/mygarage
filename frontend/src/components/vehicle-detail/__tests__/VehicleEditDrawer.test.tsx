@@ -746,4 +746,24 @@ describe('VehicleEditDrawer — connected devices (Torque sources)', () => {
     // The type-gated neighbours are correctly absent on the same vehicle.
     expect(screen.queryByRole('heading', { name: 'detail.windowSticker' })).not.toBeInTheDocument()
   })
+
+  it('changing vehicle_type does NOT rewrite an existing usage_unit (fails if the wizard onChange is copied here)', async () => {
+    // A Boat tracked in hours, with hours history hanging off that column. The
+    // owner opens the drawer to correct a mis-typed vehicle_type; the type
+    // default for the new type must not silently flip the vehicle to distance
+    // and hide its Hours tab.
+    renderVehicleEditWithStats(
+      { ...baseVehicle, vehicle_type: 'Boat', usage_unit: 'hours' },
+      baseDetailStats,
+    )
+
+    await screen.findByLabelText('edit.nickname *')
+    fireEvent.change(screen.getByLabelText('edit.vehicleType'), { target: { value: 'Car' } })
+    fireEvent.submit(document.querySelector('form') as HTMLFormElement)
+
+    await waitFor(() => expect(mockedApi.put).toHaveBeenCalled())
+    const body = mockedApi.put.mock.calls.at(-1)?.[1] as Record<string, unknown>
+    expect(body.vehicle_type).toBe('Car')
+    expect(body.usage_unit).toBe('hours')
+  })
 })

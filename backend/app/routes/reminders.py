@@ -20,10 +20,13 @@ packs_router = APIRouter(prefix="/api/reminder-packs", tags=["Reminders"])
 
 @packs_router.get("", response_model=list[ReminderPackSummary])
 async def list_reminder_packs(
+    vehicle_type: str | None = Query(
+        None, description="Filter packs applicable to this vehicle type"
+    ),
     current_user: User = Depends(require_auth),
 ):
     """List built-in reminder packs available to apply to a vehicle."""
-    return reminder_pack_service.list_packs()
+    return reminder_pack_service.list_packs(vehicle_type=vehicle_type)
 
 
 @router.get("", response_model=list[ReminderResponse])

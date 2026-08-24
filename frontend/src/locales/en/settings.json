@@ -36,7 +36,13 @@
     "imperialDescription": "Using imperial units: gallons, miles, MPG, °F, PSI, lbs, lb-ft",
     "metricDescription": "Using metric units: liters, kilometers, L/100km, °C, bar, kg, Nm",
     "showBoth": "Show both units",
-    "showBothDescription": "Display values in both imperial and metric (e.g., \"25 MPG (9.4 L/100km)\")"
+    "showBothDescription": "Display values in both imperial and metric (e.g., \"25 MPG (9.4 L/100km)\")",
+    "gallonStandard": "Imperial gallon standard",
+    "gallonUs": "US gallon (3.785 L)",
+    "gallonUk": "UK gallon (4.546 L)",
+    "gallonStandardDescription": "Used when the unit system is Imperial for volume and MPG conversions.",
+    "gallonSaved": "Gallon standard saved",
+    "gallonError": "Failed to save gallon standard"
   },
   "language": {
     "label": "Language",
@@ -88,7 +94,12 @@
   },
   "archive": {
     "title": "Archived Vehicles",
-    "description": "View and manage vehicles you've archived (sold, totaled, gifted, etc.). Archived vehicles remain in analytics but can be hidden from the main list."
+    "description": "View and manage vehicles you've archived (sold, totaled, gifted, etc.). Archived vehicles remain in analytics but can be hidden from the main list.",
+    "autoArchiveLabel": "Auto-archive inactive vehicles",
+    "autoArchiveDescription": "Archive vehicles with no fuel, service, odometer, or hours activity after N days. 0 disables. Runs daily when the scheduler is enabled, and applies to every vehicle on this instance, including other users'.",
+    "autoArchiveDays": "Days of inactivity",
+    "autoArchiveSaved": "Auto-archive setting saved",
+    "autoArchiveError": "Failed to save auto-archive setting"
   },
   "secretKey": {
     "label": "Secret Key:",
@@ -181,7 +192,25 @@
     "firmwareUpdate": "Firmware update available for one or more devices",
     "configureLiveLink": "Configure LiveLink",
     "configureDesc": "Manage WiCAN devices, MQTT settings, and telemetry parameters.",
-    "aboutLiveLink": "About LiveLink"
+    "aboutLiveLink": "About LiveLink",
+    "webhooks": "Inbound Webhooks",
+    "webhooksDesc": "Allow Home Assistant, n8n, or Shortcuts to post fuel, odometer, and reminder completions.",
+    "webhookToken": "Webhook ingest token",
+    "webhookTokenPlaceholder": "Generate a long random token",
+    "webhookTokenDesc": "Required on every inbound webhook request. Leave blank to disable ingest.",
+    "webhookHeaderHint": "Send header X-Webhook-Token (or ?token=) matching the value above.",
+    "telegramInbound": "Telegram fuel bot",
+    "telegramInboundDesc": "Accept structured fuel commands from Telegram (uses the same bot token under Notifications).",
+    "enableTelegramInbound": "Enable Telegram inbound commands",
+    "enableTelegramInboundDesc": "Requires a webhook ingest token and outbound Telegram bot token + chat ID.",
+    "telegramCommandHint": "Point Telegram's webhook at POST /api/v1/webhooks/telegram, then send:",
+    "llmReceipt": "LLM receipt parse",
+    "llmReceiptDesc": "Opt-in local or OpenAI-compatible draft parsing for fuel receipts. Never saves until you confirm.",
+    "enableLlmReceipt": "Enable receipt draft parsing",
+    "llmBaseUrl": "API base URL",
+    "llmModel": "Model",
+    "llmApiKey": "API key (optional)",
+    "llmReceiptHint": "Defaults to a local Ollama endpoint. Use the fuel form's Parse receipt control to fill a draft."
   },
   "notifications": {
     "loading": "Loading notification settings...",
@@ -493,7 +522,9 @@
     "infoSizeDepends": "Backup size depends on the amount of photos and documents you have uploaded",
     "infoRestoreOverwrites": "Restoring a full backup will OVERWRITE all current data and files",
     "infoSafetyBackup": "A safety backup is automatically created before any restore operation",
-    "infoRestartRequired": "Application restart may be required after restoring a full backup"
+    "infoRestartRequired": "Application restart may be required after restoring a full backup",
+    "postgresRestoreTitle": "PostgreSQL full restore",
+    "postgresRestoreMessage": "Full restore via the UI is not available for PostgreSQL. Stop the app and run: pg_restore --clean --if-exists --no-owner --no-privileges -d <dbname> mygarage.pgdump"
   },
   "filesTab": {
     "aboutWindowStickersBody": "Window stickers (Monroney labels) are federally mandated labels on new vehicles showing MSRP, fuel economy, standard equipment, and optional features. Upload your vehicle's window sticker to automatically populate pricing and specification data.",
