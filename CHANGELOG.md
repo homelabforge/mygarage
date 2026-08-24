@@ -26,10 +26,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Reminder packs: type-filtered catalog plus ATV/UTV and snowmobile packs; boats only see winterization.
 - Quick Entry: engine-hours action + PWA shortcut (`?action=hours`); hours-default vehicle types on create/edit.
 - Global search (vehicles + reminders) and in-app notification inbox (overdue/upcoming reminders).
-- Supply barcode/QR scan on purchases with `/api/supplies/lookup` (migration 089).
-- LiveLink session insights: idle time, harsh accel/brake counts from telemetry (migration 089).
+- Supply barcode/QR scan on supply create/edit forms (migration 090).
+- LiveLink session insights: idle time, harsh accel/brake counts from telemetry (migration 090).
 - Sanitized for-sale history PDF (`/api/vehicles/{vin}/reports/sale-history-pdf`) plus export-before-delete in Archived Vehicles.
-- DTC Phase 2 enrichment: common causes, symptoms, and fix guidance on LiveLink DTCs (migration 090).
+- DTC Phase 2 enrichment: common causes, symptoms, and fix guidance on LiveLink DTCs (migration 091).
 - UK Imperial gallon standard (US 3.785 L vs UK 4.546 L) in Settings → System; volume and MPG conversions follow it.
 - Bulk archive from the dashboard (multi-select) and scheduled auto-archive after N days of inactivity.
 - HEIC/HEIF photo uploads convert to JPEG when pillow-heif is available; PostgreSQL full restore is blocked in the UI with restore instructions.
