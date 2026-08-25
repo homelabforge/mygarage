@@ -139,7 +139,7 @@ async def build_garage_context(
             parsed = json.loads(raw)
             if isinstance(parsed, list):
                 return [str(x) for x in parsed]
-        except (json.JSONDecodeError, TypeError):
+        except json.JSONDecodeError, TypeError:
             pass
         return None
 
@@ -295,10 +295,13 @@ async def build_garage_context(
     serialized = json.dumps(context, default=str)
     if len(serialized) > _MAX_CONTEXT_CHARS:
         # Drop oldest notes / supplies first, then truncate note content further.
-        while len(context["notes"]) > 2 and len(json.dumps(context, default=str)) > _MAX_CONTEXT_CHARS:
+        while (
+            len(context["notes"]) > 2 and len(json.dumps(context, default=str)) > _MAX_CONTEXT_CHARS
+        ):
             context["notes"].pop()
         while (
-            len(context["supplies"]) > 4 and len(json.dumps(context, default=str)) > _MAX_CONTEXT_CHARS
+            len(context["supplies"]) > 4
+            and len(json.dumps(context, default=str)) > _MAX_CONTEXT_CHARS
         ):
             context["supplies"].pop()
         while (
