@@ -88,10 +88,11 @@ async def get_public_settings(db: AsyncSession = Depends(get_db)):
         # Read during frontend init by every user, not just admins. GET /settings
         # is admin-only, so serving these from there left non-admins on US gallons
         # while the admin had configured UK (every volume ~20% wrong) and hid the
-        # receipt-parse panel from them entirely. Both are non-sensitive: a unit
-        # preference and a feature flag.
+        # receipt-parse / Ask My Garage panels from them entirely. These are
+        # non-sensitive: a unit preference and feature flags.
         "imperial_gallon_standard",
         "llm_receipt_parse_enabled",
+        "llm_garage_assistant_enabled",
     }
 
     result = await db.execute(

@@ -493,7 +493,7 @@ DEFAULT_SETTINGS = {
         "description": "DEF level percentage at or below which to notify",
         "encrypted": False,
     },
-    # Opt-in LLM receipt parse (local/self-hosted OpenAI-compatible API)
+    # Opt-in LLM features (local/self-hosted OpenAI-compatible API)
     "llm_receipt_parse_enabled": {
         "value": "false",
         "category": "integrations",
@@ -509,7 +509,7 @@ DEFAULT_SETTINGS = {
     "llm_model": {
         "value": "llama3.2",
         "category": "integrations",
-        "description": "LLM model name for receipt parsing",
+        "description": "LLM model name for receipt parse and Ask My Garage",
         "encrypted": False,
     },
     "llm_api_key": {
@@ -517,6 +517,12 @@ DEFAULT_SETTINGS = {
         "category": "integrations",
         "description": "Optional API key for the LLM endpoint",
         "encrypted": True,
+    },
+    "llm_garage_assistant_enabled": {
+        "value": "false",
+        "category": "integrations",
+        "description": "Enable opt-in Ask My Garage assistant (specs + diagnostics Q&A)",
+        "encrypted": False,
     },
     # CarComplaints Integration
     "carcomplaints_enabled": {

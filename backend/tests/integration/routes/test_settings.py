@@ -52,6 +52,7 @@ class TestSettingsRoutes:
                 "family_friends_enabled",
                 "imperial_gallon_standard",
                 "llm_receipt_parse_enabled",
+                "llm_garage_assistant_enabled",
             }
 
     async def test_public_settings_serve_the_frontend_init_keys(
@@ -69,6 +70,7 @@ class TestSettingsRoutes:
         """
         await _set_setting(db_session, "imperial_gallon_standard", "uk")
         await _set_setting(db_session, "llm_receipt_parse_enabled", "true")
+        await _set_setting(db_session, "llm_garage_assistant_enabled", "true")
 
         response = await client.get("/api/settings/public")
 
@@ -76,6 +78,7 @@ class TestSettingsRoutes:
         values = {s["key"]: s["value"] for s in response.json()["settings"]}
         assert values.get("imperial_gallon_standard") == "uk"
         assert values.get("llm_receipt_parse_enabled") == "true"
+        assert values.get("llm_garage_assistant_enabled") == "true"
 
     async def test_list_settings_unauthorized(self, client: AsyncClient, auth_headers):
         """Test that non-admin users cannot list all settings."""

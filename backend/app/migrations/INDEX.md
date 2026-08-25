@@ -103,3 +103,4 @@ migrations must swallow their own operational errors.
 | `090_supply_barcode_session_insights` | **FATAL** — Add supply barcode + LiveLink drive-session insight columns. |
 | `091_dtc_phase2_enrichment` | Seed Phase 2 DTC causes/symptoms/fix_guidance for common codes. |
 | `092_nullable_transfer_from_user` | **FATAL** — Allow NULL vehicle_transfers.from_user_id for ownerless assignments. |
+| `093_add_vehicle_maintenance_specs` | **FATAL** — Add structured maintenance-spec columns on vehicles (oil, torque, fluids). |

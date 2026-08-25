@@ -3919,6 +3919,29 @@ export interface paths {
         patch: operations["toggle_archived_visibility_api_vehicles__vin__archive_visibility_patch"];
         trace?: never;
     };
+    "/api/vehicles/{vin}/assistant/chat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Garage Assistant Chat
+         * @description Ask a grounded question about this vehicle (specs, history, diagnostics).
+         *
+         *     Requires ``llm_garage_assistant_enabled``. Answers use garage records and
+         *     curated DTC enrichment only — never persists chat history.
+         */
+        post: operations["garage_assistant_chat_api_vehicles__vin__assistant_chat_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/vehicles/{vin}/def": {
         parameters: {
             query?: never;
@@ -6874,6 +6897,29 @@ export interface components {
             /** Pack Id */
             pack_id: string;
         };
+        /** AssistantCitation */
+        AssistantCitation: {
+            /** Detail */
+            detail?: string | null;
+            /** Label */
+            label: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "vehicle_spec" | "service_visit" | "note" | "supply" | "tire" | "reminder" | "dtc" | "dtc_definition" | "trailer";
+        };
+        /** AssistantHistoryMessage */
+        AssistantHistoryMessage: {
+            /** Content */
+            content: string;
+            /**
+             * Role
+             * @description Chat turn role
+             * @enum {string}
+             */
+            role: "user" | "assistant";
+        };
         /**
          * AttachmentListResponse
          * @description Schema for list of attachments.
@@ -9324,6 +9370,31 @@ export interface components {
              * @default 0
              */
             vehicle_count: number;
+        };
+        /** GarageAssistantChatRequest */
+        GarageAssistantChatRequest: {
+            /**
+             * History
+             * @description Optional prior turns (client-held; not persisted server-side)
+             */
+            history?: components["schemas"]["AssistantHistoryMessage"][];
+            /**
+             * Message
+             * @description User question
+             */
+            message: string;
+        };
+        /** GarageAssistantChatResponse */
+        GarageAssistantChatResponse: {
+            /** Answer */
+            answer: string;
+            /** Citations */
+            citations?: components["schemas"]["AssistantCitation"][];
+            /**
+             * Missing
+             * @description Spec fields or data the user asked about that are not in records
+             */
+            missing?: string[];
         };
         /**
          * GarageCostByCategory
@@ -14526,10 +14597,20 @@ export interface components {
              */
             body_class?: string | null;
             /**
+             * Brake Fluid Type
+             * @description Brake fluid type (e.g. DOT 4)
+             */
+            brake_fluid_type?: string | null;
+            /**
              * Color
              * @description Vehicle color
              */
             color?: string | null;
+            /**
+             * Coolant Type
+             * @description Coolant / antifreeze type
+             */
+            coolant_type?: string | null;
             /**
              * Current Hours
              * @description Current engine-hour reading (used when usage_unit == 'hours')
@@ -14581,6 +14662,16 @@ export interface components {
              */
             license_plate?: string | null;
             /**
+             * Lug Nut Torque Nm
+             * @description Wheel lug-nut torque in Newton-meters
+             */
+            lug_nut_torque_nm?: number | string | null;
+            /**
+             * Maintenance Specs Notes
+             * @description Freeform notes for other fluid/torque specs
+             */
+            maintenance_specs_notes?: string | null;
+            /**
              * Make
              * @description Manufacturer brand
              */
@@ -14595,6 +14686,21 @@ export interface components {
              * @description User-friendly display name
              */
             nickname: string;
+            /**
+             * Oil Capacity Liters
+             * @description Engine oil capacity in liters (with filter)
+             */
+            oil_capacity_liters?: number | string | null;
+            /**
+             * Oil Filter Part Number
+             * @description Oil filter part number
+             */
+            oil_filter_part_number?: string | null;
+            /**
+             * Oil Viscosity
+             * @description Engine oil viscosity grade (e.g. 5W-30)
+             */
+            oil_viscosity?: string | null;
             /**
              * Purchase Date
              * @description Date purchased
@@ -14621,6 +14727,11 @@ export interface components {
              * @description Sale price
              */
             sold_price?: number | string | null;
+            /**
+             * Transmission Fluid Type
+             * @description Transmission fluid type
+             */
+            transmission_fluid_type?: string | null;
             /**
              * Transmission Speeds
              * @description Transmission speeds
@@ -14962,10 +15073,20 @@ export interface components {
              */
             body_class?: string | null;
             /**
+             * Brake Fluid Type
+             * @description Brake fluid type (e.g. DOT 4)
+             */
+            brake_fluid_type?: string | null;
+            /**
              * Color
              * @description Vehicle color
              */
             color?: string | null;
+            /**
+             * Coolant Type
+             * @description Coolant / antifreeze type
+             */
+            coolant_type?: string | null;
             /**
              * Created At
              * Format: date-time
@@ -15042,8 +15163,18 @@ export interface components {
              * @default true
              */
             location_tracking_enabled: boolean;
+            /**
+             * Lug Nut Torque Nm
+             * @description Wheel lug-nut torque in Newton-meters
+             */
+            lug_nut_torque_nm?: string | null;
             /** Main Photo */
             main_photo?: string | null;
+            /**
+             * Maintenance Specs Notes
+             * @description Freeform notes for other fluid/torque specs
+             */
+            maintenance_specs_notes?: string | null;
             /**
              * Make
              * @description Manufacturer brand
@@ -15065,6 +15196,21 @@ export interface components {
              * @description User-friendly display name
              */
             nickname: string;
+            /**
+             * Oil Capacity Liters
+             * @description Engine oil capacity in liters (with filter)
+             */
+            oil_capacity_liters?: string | null;
+            /**
+             * Oil Filter Part Number
+             * @description Oil filter part number
+             */
+            oil_filter_part_number?: string | null;
+            /**
+             * Oil Viscosity
+             * @description Engine oil viscosity grade (e.g. 5W-30)
+             */
+            oil_viscosity?: string | null;
             /** Optional Equipment */
             optional_equipment?: {
                 [key: string]: unknown;
@@ -15107,6 +15253,11 @@ export interface components {
             sticker_transmission_description?: string | null;
             /** Tire Specs */
             tire_specs?: string | null;
+            /**
+             * Transmission Fluid Type
+             * @description Transmission fluid type
+             */
+            transmission_fluid_type?: string | null;
             /**
              * Transmission Speeds
              * @description Transmission speeds
@@ -15389,10 +15540,20 @@ export interface components {
              */
             body_class?: string | null;
             /**
+             * Brake Fluid Type
+             * @description Brake fluid type (e.g. DOT 4)
+             */
+            brake_fluid_type?: string | null;
+            /**
              * Color
              * @description Vehicle color
              */
             color?: string | null;
+            /**
+             * Coolant Type
+             * @description Coolant / antifreeze type
+             */
+            coolant_type?: string | null;
             /**
              * Current Hours
              * @description Current engine-hour reading (used when usage_unit == 'hours')
@@ -15459,6 +15620,16 @@ export interface components {
              */
             license_plate?: string | null;
             /**
+             * Lug Nut Torque Nm
+             * @description Wheel lug-nut torque in Newton-meters
+             */
+            lug_nut_torque_nm?: number | string | null;
+            /**
+             * Maintenance Specs Notes
+             * @description Freeform notes for other fluid/torque specs
+             */
+            maintenance_specs_notes?: string | null;
+            /**
              * Make
              * @description Manufacturer brand
              */
@@ -15488,6 +15659,21 @@ export interface components {
              * @description User-friendly display name
              */
             nickname?: string | null;
+            /**
+             * Oil Capacity Liters
+             * @description Engine oil capacity in liters (with filter)
+             */
+            oil_capacity_liters?: number | string | null;
+            /**
+             * Oil Filter Part Number
+             * @description Oil filter part number
+             */
+            oil_filter_part_number?: string | null;
+            /**
+             * Oil Viscosity
+             * @description Engine oil viscosity grade (e.g. 5W-30)
+             */
+            oil_viscosity?: string | null;
             /**
              * Optional Equipment
              * @description Optional equipment (category -> list of items)
@@ -15547,6 +15733,11 @@ export interface components {
              * @description Tire specifications
              */
             tire_specs?: string | null;
+            /**
+             * Transmission Fluid Type
+             * @description Transmission fluid type
+             */
+            transmission_fluid_type?: string | null;
             /**
              * Transmission Speeds
              * @description Transmission speeds
@@ -22142,6 +22333,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VehicleResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    garage_assistant_chat_api_vehicles__vin__assistant_chat_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vin: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GarageAssistantChatRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GarageAssistantChatResponse"];
                 };
             };
             /** @description Validation Error */

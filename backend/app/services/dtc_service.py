@@ -337,7 +337,7 @@ class DTCService:
                     parsed = json.loads(raw)
                     if isinstance(parsed, list):
                         return [str(x) for x in parsed]
-                except json.JSONDecodeError, TypeError:
+                except (json.JSONDecodeError, TypeError):
                     pass
                 return None
 

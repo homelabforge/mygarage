@@ -131,6 +131,15 @@ class Vehicle(Base):
     )
     # DEF tracking
     def_tank_capacity_liters: Mapped[Decimal | None] = mapped_column(Numeric(6, 2))
+    # Structured maintenance specs (migration 093) — oil / torque / fluids
+    oil_viscosity: Mapped[str | None] = mapped_column(String(30))
+    oil_capacity_liters: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
+    oil_filter_part_number: Mapped[str | None] = mapped_column(String(50))
+    lug_nut_torque_nm: Mapped[Decimal | None] = mapped_column(Numeric(6, 1))
+    coolant_type: Mapped[str | None] = mapped_column(String(50))
+    brake_fluid_type: Mapped[str | None] = mapped_column(String(30))
+    transmission_fluid_type: Mapped[str | None] = mapped_column(String(50))
+    maintenance_specs_notes: Mapped[str | None] = mapped_column(String(500))
     # Milestone notification tracking (km, per migration 053)
     last_milestone_notified_km: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
     # DEF-low crossing dedup marker (migration 064); Task 16 consumer

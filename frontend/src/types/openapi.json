@@ -1095,6 +1095,73 @@
         "title": "ApplyReminderPackRequest",
         "type": "object"
       },
+      "AssistantCitation": {
+        "properties": {
+          "detail": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "label": {
+            "maxLength": 120,
+            "title": "Label",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "vehicle_spec",
+              "service_visit",
+              "note",
+              "supply",
+              "tire",
+              "reminder",
+              "dtc",
+              "dtc_definition",
+              "trailer"
+            ],
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "label"
+        ],
+        "title": "AssistantCitation",
+        "type": "object"
+      },
+      "AssistantHistoryMessage": {
+        "properties": {
+          "content": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Content",
+            "type": "string"
+          },
+          "role": {
+            "description": "Chat turn role",
+            "enum": [
+              "user",
+              "assistant"
+            ],
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "role",
+          "content"
+        ],
+        "title": "AssistantHistoryMessage",
+        "type": "object"
+      },
       "AttachmentListResponse": {
         "description": "Schema for list of attachments.",
         "examples": [
@@ -6893,6 +6960,59 @@
           "total_costs"
         ],
         "title": "GarageAnalytics",
+        "type": "object"
+      },
+      "GarageAssistantChatRequest": {
+        "properties": {
+          "history": {
+            "description": "Optional prior turns (client-held; not persisted server-side)",
+            "items": {
+              "$ref": "#/components/schemas/AssistantHistoryMessage"
+            },
+            "maxItems": 6,
+            "title": "History",
+            "type": "array"
+          },
+          "message": {
+            "description": "User question",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "title": "GarageAssistantChatRequest",
+        "type": "object"
+      },
+      "GarageAssistantChatResponse": {
+        "properties": {
+          "answer": {
+            "title": "Answer",
+            "type": "string"
+          },
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/AssistantCitation"
+            },
+            "title": "Citations",
+            "type": "array"
+          },
+          "missing": {
+            "description": "Spec fields or data the user asked about that are not in records",
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing",
+            "type": "array"
+          }
+        },
+        "required": [
+          "answer"
+        ],
+        "title": "GarageAssistantChatResponse",
         "type": "object"
       },
       "GarageCostByCategory": {
@@ -18994,6 +19114,19 @@
             "description": "Body class",
             "title": "Body Class"
           },
+          "brake_fluid_type": {
+            "anyOf": [
+              {
+                "maxLength": 30,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Brake fluid type (e.g. DOT 4)",
+            "title": "Brake Fluid Type"
+          },
           "color": {
             "anyOf": [
               {
@@ -19006,6 +19139,19 @@
             ],
             "description": "Vehicle color",
             "title": "Color"
+          },
+          "coolant_type": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Coolant / antifreeze type",
+            "title": "Coolant Type"
           },
           "current_hours": {
             "anyOf": [
@@ -19144,6 +19290,37 @@
             "description": "License plate number",
             "title": "License Plate"
           },
+          "lug_nut_torque_nm": {
+            "anyOf": [
+              {
+                "maximum": 99999.9,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Wheel lug-nut torque in Newton-meters",
+            "title": "Lug Nut Torque Nm"
+          },
+          "maintenance_specs_notes": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Freeform notes for other fluid/torque specs",
+            "title": "Maintenance Specs Notes"
+          },
           "make": {
             "anyOf": [
               {
@@ -19176,6 +19353,50 @@
             "minLength": 1,
             "title": "Nickname",
             "type": "string"
+          },
+          "oil_capacity_liters": {
+            "anyOf": [
+              {
+                "maximum": 999.99,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Engine oil capacity in liters (with filter)",
+            "title": "Oil Capacity Liters"
+          },
+          "oil_filter_part_number": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Oil filter part number",
+            "title": "Oil Filter Part Number"
+          },
+          "oil_viscosity": {
+            "anyOf": [
+              {
+                "maxLength": 30,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Engine oil viscosity grade (e.g. 5W-30)",
+            "title": "Oil Viscosity"
           },
           "purchase_date": {
             "anyOf": [
@@ -19240,6 +19461,19 @@
             ],
             "description": "Sale price",
             "title": "Sold Price"
+          },
+          "transmission_fluid_type": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Transmission fluid type",
+            "title": "Transmission Fluid Type"
           },
           "transmission_speeds": {
             "anyOf": [
@@ -20017,6 +20251,19 @@
             "description": "Body class",
             "title": "Body Class"
           },
+          "brake_fluid_type": {
+            "anyOf": [
+              {
+                "maxLength": 30,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Brake fluid type (e.g. DOT 4)",
+            "title": "Brake Fluid Type"
+          },
           "color": {
             "anyOf": [
               {
@@ -20029,6 +20276,19 @@
             ],
             "description": "Vehicle color",
             "title": "Color"
+          },
+          "coolant_type": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Coolant / antifreeze type",
+            "title": "Coolant Type"
           },
           "created_at": {
             "format": "date-time",
@@ -20260,6 +20520,19 @@
             "title": "Location Tracking Enabled",
             "type": "boolean"
           },
+          "lug_nut_torque_nm": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Wheel lug-nut torque in Newton-meters",
+            "title": "Lug Nut Torque Nm"
+          },
           "main_photo": {
             "anyOf": [
               {
@@ -20270,6 +20543,19 @@
               }
             ],
             "title": "Main Photo"
+          },
+          "maintenance_specs_notes": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Freeform notes for other fluid/torque specs",
+            "title": "Maintenance Specs Notes"
           },
           "make": {
             "anyOf": [
@@ -20339,6 +20625,45 @@
             "minLength": 1,
             "title": "Nickname",
             "type": "string"
+          },
+          "oil_capacity_liters": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Engine oil capacity in liters (with filter)",
+            "title": "Oil Capacity Liters"
+          },
+          "oil_filter_part_number": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Oil filter part number",
+            "title": "Oil Filter Part Number"
+          },
+          "oil_viscosity": {
+            "anyOf": [
+              {
+                "maxLength": 30,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Engine oil viscosity grade (e.g. 5W-30)",
+            "title": "Oil Viscosity"
           },
           "optional_equipment": {
             "anyOf": [
@@ -20465,6 +20790,19 @@
               }
             ],
             "title": "Tire Specs"
+          },
+          "transmission_fluid_type": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Transmission fluid type",
+            "title": "Transmission Fluid Type"
           },
           "transmission_speeds": {
             "anyOf": [
@@ -21268,6 +21606,19 @@
             "description": "Body class",
             "title": "Body Class"
           },
+          "brake_fluid_type": {
+            "anyOf": [
+              {
+                "maxLength": 30,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Brake fluid type (e.g. DOT 4)",
+            "title": "Brake Fluid Type"
+          },
           "color": {
             "anyOf": [
               {
@@ -21280,6 +21631,19 @@
             ],
             "description": "Vehicle color",
             "title": "Color"
+          },
+          "coolant_type": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Coolant / antifreeze type",
+            "title": "Coolant Type"
           },
           "current_hours": {
             "anyOf": [
@@ -21460,6 +21824,37 @@
             "description": "License plate number",
             "title": "License Plate"
           },
+          "lug_nut_torque_nm": {
+            "anyOf": [
+              {
+                "maximum": 99999.9,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Wheel lug-nut torque in Newton-meters",
+            "title": "Lug Nut Torque Nm"
+          },
+          "maintenance_specs_notes": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Freeform notes for other fluid/torque specs",
+            "title": "Maintenance Specs Notes"
+          },
           "make": {
             "anyOf": [
               {
@@ -21547,6 +21942,50 @@
             ],
             "description": "User-friendly display name",
             "title": "Nickname"
+          },
+          "oil_capacity_liters": {
+            "anyOf": [
+              {
+                "maximum": 999.99,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Engine oil capacity in liters (with filter)",
+            "title": "Oil Capacity Liters"
+          },
+          "oil_filter_part_number": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Oil filter part number",
+            "title": "Oil Filter Part Number"
+          },
+          "oil_viscosity": {
+            "anyOf": [
+              {
+                "maxLength": 30,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Engine oil viscosity grade (e.g. 5W-30)",
+            "title": "Oil Viscosity"
           },
           "optional_equipment": {
             "anyOf": [
@@ -21695,6 +22134,19 @@
             ],
             "description": "Tire specifications",
             "title": "Tire Specs"
+          },
+          "transmission_fluid_type": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Transmission fluid type",
+            "title": "Transmission Fluid Type"
           },
           "transmission_speeds": {
             "anyOf": [
@@ -33211,6 +33663,64 @@
         "summary": "Toggle Archived Visibility",
         "tags": [
           "Vehicles"
+        ]
+      }
+    },
+    "/api/vehicles/{vin}/assistant/chat": {
+      "post": {
+        "description": "Ask a grounded question about this vehicle (specs, history, diagnostics).\n\nRequires ``llm_garage_assistant_enabled``. Answers use garage records and\ncurated DTC enrichment only \u2014 never persists chat history.",
+        "operationId": "garage_assistant_chat_api_vehicles__vin__assistant_chat_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vin",
+            "required": true,
+            "schema": {
+              "title": "Vin",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GarageAssistantChatRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GarageAssistantChatResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Garage Assistant Chat",
+        "tags": [
+          "assistant"
         ]
       }
     },

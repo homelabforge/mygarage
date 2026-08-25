@@ -111,6 +111,29 @@ class VehicleBase(BaseModel):
     def_tank_capacity_liters: Decimal | None = Field(
         None, description="DEF tank capacity in liters", ge=0, le=9999.99
     )
+    # Structured maintenance specs (oil / torque / fluids)
+    oil_viscosity: str | None = Field(
+        None, description="Engine oil viscosity grade (e.g. 5W-30)", max_length=30
+    )
+    oil_capacity_liters: Decimal | None = Field(
+        None, description="Engine oil capacity in liters (with filter)", ge=0, le=999.99
+    )
+    oil_filter_part_number: str | None = Field(
+        None, description="Oil filter part number", max_length=50
+    )
+    lug_nut_torque_nm: Decimal | None = Field(
+        None, description="Wheel lug-nut torque in Newton-meters", ge=0, le=99999.9
+    )
+    coolant_type: str | None = Field(None, description="Coolant / antifreeze type", max_length=50)
+    brake_fluid_type: str | None = Field(
+        None, description="Brake fluid type (e.g. DOT 4)", max_length=30
+    )
+    transmission_fluid_type: str | None = Field(
+        None, description="Transmission fluid type", max_length=50
+    )
+    maintenance_specs_notes: str | None = Field(
+        None, description="Freeform notes for other fluid/torque specs", max_length=500
+    )
 
 
 class VehicleCreate(VehicleBase):
