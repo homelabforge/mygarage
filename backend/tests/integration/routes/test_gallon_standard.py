@@ -1,9 +1,9 @@
 """The UK gallon setting must never change how a stored file is read.
 
-`UnitConverter.GALLONS_TO_LITERS` is a mutable class attribute repointed
-process-wide by the `imperial_gallon_standard` setting. The legacy-format
-converters in `import_data.py` and the imperial export in `export.py` both read
-it, so on a UK-configured instance:
+Originally, `UnitConverter.GALLONS_TO_LITERS` was a mutable class attribute
+repointed process-wide by the `imperial_gallon_standard` setting. The
+legacy-format converters in `import_data.py` and the imperial export in
+`export.py` both read it, so on a UK-configured instance:
 
 - importing a v2-era backup (always US gallons) multiplied every volume by
   4.54609 instead of 3.78541 and wrote that into canonical storage, permanently;
@@ -12,6 +12,13 @@ it, so on a UK-configured instance:
 
 The fix makes the file itself authoritative: an export declares its flavour in
 the `unit_system` marker, and anything not marked `imperial_uk` is US.
+
+Units phase 0 (Task 2/3) then deleted that mutable class state entirely.
+`export.py` now resolves the flavour explicitly per request via
+`resolve_gallon_flavour(db)`, which reads the `imperial_gallon_standard`
+`Setting` row. The `uk_gallons` fixture below seeds that row directly instead
+of reaching into `UnitConverter` internals, so these tests exercise the real
+resolution path end to end.
 """
 
 from __future__ import annotations
@@ -22,27 +29,68 @@ from datetime import date
 from decimal import Decimal
 
 import pytest
+import pytest_asyncio
 from httpx import AsyncClient
 from sqlalchemy import select
 
 from app.models.fuel import FuelRecord
+from app.models.settings import Setting
 from app.models.vehicle import Vehicle
-from app.utils.units import UnitConverter
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 US_GAL_L = Decimal("3.78541")
 UK_GAL_L = Decimal("4.54609")
 
+GALLON_STANDARD_KEY = "imperial_gallon_standard"
 
-@pytest.fixture
-def uk_gallons():
-    """Run the body with the instance set to UK gallons, then restore US."""
-    UnitConverter.set_gallon_standard("uk")
+
+async def _set_gallon_standard(db_session, value: str) -> None:
+    """Upsert the `imperial_gallon_standard` setting row."""
+    existing = (
+        await db_session.execute(select(Setting).where(Setting.key == GALLON_STANDARD_KEY))
+    ).scalar_one_or_none()
+    if existing is None:
+        db_session.add(Setting(key=GALLON_STANDARD_KEY, value=value))
+    else:
+        existing.value = value
+    await db_session.commit()
+
+
+@pytest_asyncio.fixture
+async def uk_gallons(db_session):
+    """Seed the instance's `imperial_gallon_standard` setting to UK, then restore
+    whatever was genuinely there beforehand -- including row absence.
+
+    Exercises the same `resolve_gallon_flavour(db)` path the route uses at
+    request time, rather than reaching past it into `UnitConverter` class
+    internals (deleted in Task 2 — there is no class state left to set).
+
+    This used to hardcode the restore to "us", which left a row behind even
+    when none existed before this fixture ran. That made
+    `test_defaults_to_us_when_row_absent` in test_gallon_flavour.py pass only
+    by accident of which test file happened to run first (see
+    reference_mygarage_test_isolation): correct by luck, not by design.
+    Restoring the actual prior state removes that landmine.
+    """
+    existing = (
+        await db_session.execute(select(Setting).where(Setting.key == GALLON_STANDARD_KEY))
+    ).scalar_one_or_none()
+    original_value = existing.value if existing is not None else None
+
+    await _set_gallon_standard(db_session, "uk")
     try:
         yield
     finally:
-        UnitConverter.set_gallon_standard("us")
+        if original_value is None:
+            row = (
+                await db_session.execute(select(Setting).where(Setting.key == GALLON_STANDARD_KEY))
+            ).scalar_one_or_none()
+            if row is not None:
+                await db_session.delete(row)
+                await db_session.commit()
+        else:
+            await _set_gallon_standard(db_session, original_value)
 
 
 async def _make_vehicle(db_session, test_user, vin: str) -> None:

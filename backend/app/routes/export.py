@@ -30,7 +30,8 @@ from app.services.auth import get_vehicle_or_403, require_auth
 from app.services.fuel_service import resolve_station_names
 from app.services.service_visit_service import service_visit_cost_load_options
 from app.utils.csv_safe import sanitize_csv_row
-from app.utils.units import UnitConverter
+from app.utils.gallon_flavour import resolve_gallon_flavour
+from app.utils.units import GallonFlavour, UnitConverter
 
 router = APIRouter(prefix="/api/export", tags=["export"])
 
@@ -176,25 +177,28 @@ def generate_csv_stream(
     return output
 
 
-def build_csv(headers: list[str], rows: list[list[Any]], units: str) -> io.StringIO:
-    """Convert to the requested unit system and stream, with ONE gallon standard.
+def build_csv(
+    headers: list[str],
+    rows: list[list[Any]],
+    units: str,
+    flavour: GallonFlavour,
+) -> io.StringIO:
+    """Convert to the requested unit system and stream, with ONE gallon flavour.
 
-    The standard is read once here and drives both the value conversion and the
-    `unit_system` marker written into the file, so the two can never disagree.
-    A UK export is labelled `imperial_uk`; the importer reads that marker to
-    decide which gallon the values are in, and treats anything else as US.
+    The flavour is passed in by the route, which resolved it once, and drives
+    both the value conversion and the `unit_system` marker written into the
+    file, so the two can never disagree. A UK export is labelled `imperial_uk`;
+    the importer reads that marker to decide which gallon the values are in.
     """
     marker = units
     if units == "imperial":
         gallons_to_liters = (
             UnitConverter.UK_GALLONS_TO_LITERS
-            if UnitConverter.get_gallon_standard() == "uk"
+            if flavour == "uk"
             else UnitConverter.US_GALLONS_TO_LITERS
         )
         headers, rows = to_imperial(headers, rows, gallons_to_liters)
-        marker = (
-            "imperial_uk" if gallons_to_liters == UnitConverter.UK_GALLONS_TO_LITERS else "imperial"
-        )
+        marker = "imperial_uk" if flavour == "uk" else "imperial"
     return generate_csv_stream(headers, rows, unit_system=marker)
 
 
@@ -277,7 +281,8 @@ async def export_service_records_csv(
                 ]
             )
 
-    output = build_csv(headers, rows, units)
+    flavour = await resolve_gallon_flavour(db)
+    output = build_csv(headers, rows, units, flavour=flavour)
 
     # Generate filename
     filename = f"{vehicle.year}_{vehicle.make}_{vehicle.model}_service_records_{datetime.now().strftime('%Y%m%d')}.csv"
@@ -392,7 +397,8 @@ async def export_fuel_records_csv(
             ]
         )
 
-    output = build_csv(headers, rows, units)
+    flavour = await resolve_gallon_flavour(db)
+    output = build_csv(headers, rows, units, flavour=flavour)
 
     # Generate filename
     filename = f"{vehicle.year}_{vehicle.make}_{vehicle.model}_fuel_records_{datetime.now().strftime('%Y%m%d')}.csv"
@@ -455,7 +461,8 @@ async def export_def_records_csv(
             ]
         )
 
-    output = build_csv(headers, rows, units)
+    flavour = await resolve_gallon_flavour(db)
+    output = build_csv(headers, rows, units, flavour=flavour)
 
     filename = f"{vehicle.year}_{vehicle.make}_{vehicle.model}_def_records_{datetime.now().strftime('%Y%m%d')}.csv"
 
@@ -504,7 +511,8 @@ async def export_odometer_records_csv(
             ]
         )
 
-    output = build_csv(headers, rows, units)
+    flavour = await resolve_gallon_flavour(db)
+    output = build_csv(headers, rows, units, flavour=flavour)
 
     # Generate filename
     filename = f"{vehicle.year}_{vehicle.make}_{vehicle.model}_odometer_records_{datetime.now().strftime('%Y%m%d')}.csv"

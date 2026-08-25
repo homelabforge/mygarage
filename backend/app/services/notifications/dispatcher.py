@@ -16,6 +16,7 @@ from app.services.notifications.pushover import PushoverNotificationService
 from app.services.notifications.slack import SlackNotificationService
 from app.services.notifications.telegram import TelegramNotificationService
 from app.services.settings_service import SettingsService
+from app.utils.gallon_flavour import resolve_gallon_flavour
 from app.utils.units import UnitConverter
 
 logger = logging.getLogger(__name__)
@@ -478,7 +479,8 @@ class NotificationDispatcher:
         conversion via UnitConverter) plus the as-of date of the underlying
         reading, so staleness is visible rather than silently gated.
         """
-        remaining_gallons = UnitConverter.liters_to_gallons(remaining_liters)
+        flavour = await resolve_gallon_flavour(self.db)
+        remaining_gallons = UnitConverter.liters_to_gallons(remaining_liters, flavour=flavour)
         return await self.dispatch(
             event_type="def_low",
             title=f"DEF Low: {vehicle_name}",

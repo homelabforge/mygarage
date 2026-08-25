@@ -13,16 +13,19 @@ Supported conversions:
 - Fuel Economy: MPG ↔ L/100km
 - Dimensions: feet ↔ meters
 - Temperature: °F ↔ °C
-- Pressure: PSI ↔ bar
+- Pressure: PSI ↔ kPa (canonical target; see `psi_to_kpa`)
 - Weight: pounds ↔ kilograms
 - Torque: lb-ft ↔ Nm
 - Electric: kWh, kW, voltage (no conversion needed, universal)
 """
 
 from decimal import Decimal
+from typing import Literal
 
 # Type alias for numeric values
 Numeric = int | float | Decimal | None
+
+GallonFlavour = Literal["us", "uk"]
 
 
 class UnitConverter:
@@ -32,31 +35,25 @@ class UnitConverter:
     # NB: LBS_TO_KG matches migration 053's exact factor (was 0.453592, now 0.45359237).
     US_GALLONS_TO_LITERS = Decimal("3.78541")
     UK_GALLONS_TO_LITERS = Decimal("4.54609")
-    GALLONS_TO_LITERS = US_GALLONS_TO_LITERS  # active; use set_gallon_standard()
     MILES_TO_KM = Decimal("1.60934")
     FEET_TO_METERS = Decimal("0.3048")
     PSI_TO_BAR = Decimal("0.0689476")
+    PSI_TO_KPA = Decimal("6.89476")
     LBS_TO_KG = Decimal("0.45359237")
     LBFT_TO_NM = Decimal("1.35582")
-    # L/100km = MPG_TO_L100KM_NUMERATOR / MPG (reciprocal — division, not multiplication).
+    # L/100km = numerator / MPG (reciprocal - division, not multiplication).
     US_MPG_TO_L100KM_NUMERATOR = Decimal("235.214")
     UK_MPG_TO_L100KM_NUMERATOR = Decimal("282.481")
-    MPG_TO_L100KM_NUMERATOR = US_MPG_TO_L100KM_NUMERATOR
 
     @classmethod
-    def set_gallon_standard(cls, standard: str) -> None:
-        """Select US (3.785 L) or UK (4.546 L) imperial gallon for volume/MPG."""
-        if (standard or "us").lower() == "uk":
-            cls.GALLONS_TO_LITERS = cls.UK_GALLONS_TO_LITERS
-            cls.MPG_TO_L100KM_NUMERATOR = cls.UK_MPG_TO_L100KM_NUMERATOR
-        else:
-            cls.GALLONS_TO_LITERS = cls.US_GALLONS_TO_LITERS
-            cls.MPG_TO_L100KM_NUMERATOR = cls.US_MPG_TO_L100KM_NUMERATOR
+    def _gallons_to_liters_factor(cls, flavour: GallonFlavour) -> Decimal:
+        """Litres per gallon for the requested flavour."""
+        return cls.UK_GALLONS_TO_LITERS if flavour == "uk" else cls.US_GALLONS_TO_LITERS
 
     @classmethod
-    def get_gallon_standard(cls) -> str:
-        """Return 'uk' or 'us' for the active gallon standard."""
-        return "uk" if cls.GALLONS_TO_LITERS == cls.UK_GALLONS_TO_LITERS else "us"
+    def _mpg_numerator(cls, flavour: GallonFlavour) -> Decimal:
+        """MPG <-> L/100km numerator for the requested flavour."""
+        return cls.UK_MPG_TO_L100KM_NUMERATOR if flavour == "uk" else cls.US_MPG_TO_L100KM_NUMERATOR
 
     @staticmethod
     def to_decimal(value: Numeric) -> Decimal | None:
@@ -81,7 +78,9 @@ class UnitConverter:
     # ========== DECIMAL-SAFE WRITE-PATH HELPERS ==========
 
     @classmethod
-    def to_canonical_decimal(cls, value: Numeric, from_unit: str) -> Decimal | None:
+    def to_canonical_decimal(
+        cls, value: Numeric, from_unit: str, flavour: GallonFlavour = "us"
+    ) -> Decimal | None:
         """Convert a user-entered value into the canonical metric Decimal.
 
         Use this on the API write path so the stored value matches what the
@@ -91,7 +90,7 @@ class UnitConverter:
             - 'km'        → already metric, pass through as Decimal
             - 'mi'        → multiply by MILES_TO_KM
             - 'L'         → already metric, pass through
-            - 'gal'       → multiply by GALLONS_TO_LITERS
+            - 'gal'       → multiply by the gallon factor for `flavour`
             - 'kg'        → already metric
             - 'lb'        → multiply by LBS_TO_KG
             - 'm'         → already metric
@@ -99,11 +98,14 @@ class UnitConverter:
             - 'C'         → already metric
             - 'F'         → (val - 32) * 5/9
             - 'kPa'       → already metric
-            - 'PSI'       → multiply by PSI_TO_BAR (then * 100 for kPa? — see helper)
+            - 'PSI'       → multiply by PSI_TO_KPA (canonical is kPa, not bar)
             - 'Nm'        → already metric
             - 'lbft'      → multiply by LBFT_TO_NM
             - 'L/100km'   → already metric
-            - 'MPG'       → 235.214 / value
+            - 'MPG'       → the MPG numerator for `flavour` / value
+
+        `flavour` selects US (3.785 L) or UK (4.546 L) gallons; it only
+        affects the 'gal' and 'MPG' cases and defaults to 'us'.
 
         Returns None for None input. Raises ValueError for unknown units so a
         typo at a call site fails loudly instead of silently corrupting data.
@@ -118,7 +120,7 @@ class UnitConverter:
             case "mi":
                 return val * cls.MILES_TO_KM
             case "gal":
-                return val * cls.GALLONS_TO_LITERS
+                return val * cls._gallons_to_liters_factor(flavour)
             case "lb":
                 return val * cls.LBS_TO_KG
             case "ft":
@@ -126,13 +128,13 @@ class UnitConverter:
             case "F":
                 return (val - Decimal("32")) * Decimal("5") / Decimal("9")
             case "PSI":
-                return val * cls.PSI_TO_BAR
+                return val * cls.PSI_TO_KPA
             case "lbft":
                 return val * cls.LBFT_TO_NM
             case "MPG":
                 if val == 0:
                     return None
-                return cls.MPG_TO_L100KM_NUMERATOR / val
+                return cls._mpg_numerator(flavour) / val
             case _:
                 raise ValueError(
                     f"Unknown source unit {from_unit!r}; expected one of "
@@ -142,20 +144,20 @@ class UnitConverter:
     # ========== VOLUME CONVERSIONS ==========
 
     @classmethod
-    def gallons_to_liters(cls, gallons: Numeric) -> float | None:
-        """Convert gallons to liters."""
+    def gallons_to_liters(cls, gallons: Numeric, flavour: GallonFlavour = "us") -> float | None:
+        """Convert gallons to liters using the given gallon flavour."""
         val = cls.to_decimal(gallons)
         if val is None:
             return None
-        return cls.round_result(val * cls.GALLONS_TO_LITERS)
+        return cls.round_result(val * cls._gallons_to_liters_factor(flavour))
 
     @classmethod
-    def liters_to_gallons(cls, liters: Numeric) -> float | None:
-        """Convert liters to gallons."""
+    def liters_to_gallons(cls, liters: Numeric, flavour: GallonFlavour = "us") -> float | None:
+        """Convert liters to gallons using the given gallon flavour."""
         val = cls.to_decimal(liters)
         if val is None:
             return None
-        return cls.round_result(val / cls.GALLONS_TO_LITERS)
+        return cls.round_result(val / cls._gallons_to_liters_factor(flavour))
 
     # ========== DISTANCE CONVERSIONS ==========
 
@@ -178,26 +180,20 @@ class UnitConverter:
     # ========== FUEL ECONOMY CONVERSIONS ==========
 
     @classmethod
-    def mpg_to_l100km(cls, mpg: Numeric) -> float | None:
-        """Convert MPG to L/100km.
-
-        Formula: L/100km = numerator / MPG (US 235.214 or UK 282.481).
-        """
+    def mpg_to_l100km(cls, mpg: Numeric, flavour: GallonFlavour = "us") -> float | None:
+        """Convert MPG to L/100km. Formula: L/100km = numerator / MPG."""
         val = cls.to_decimal(mpg)
         if val is None or val == 0:
             return None
-        return cls.round_result(cls.MPG_TO_L100KM_NUMERATOR / val, 1)
+        return cls.round_result(cls._mpg_numerator(flavour) / val, 1)
 
     @classmethod
-    def l100km_to_mpg(cls, l100km: Numeric) -> float | None:
-        """Convert L/100km to MPG.
-
-        Formula: MPG = numerator / (L/100km) — US 235.214 or UK 282.481.
-        """
+    def l100km_to_mpg(cls, l100km: Numeric, flavour: GallonFlavour = "us") -> float | None:
+        """Convert L/100km to MPG. Formula: MPG = numerator / (L/100km)."""
         val = cls.to_decimal(l100km)
         if val is None or val == 0:
             return None
-        return cls.round_result(cls.MPG_TO_L100KM_NUMERATOR / val, 1)
+        return cls.round_result(cls._mpg_numerator(flavour) / val, 1)
 
     @classmethod
     def l100km_to_kmpl(cls, l100km: Numeric) -> float | None:
@@ -271,6 +267,14 @@ class UnitConverter:
         if val is None:
             return None
         return cls.round_result(val / cls.PSI_TO_BAR)
+
+    @classmethod
+    def psi_to_kpa(cls, psi: Numeric) -> float | None:
+        """Convert PSI to kPa (canonical pressure unit)."""
+        val = cls.to_decimal(psi)
+        if val is None:
+            return None
+        return cls.round_result(val * cls.PSI_TO_KPA)
 
     # ========== WEIGHT CONVERSIONS ==========
 

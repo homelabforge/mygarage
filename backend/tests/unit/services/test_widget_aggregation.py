@@ -29,10 +29,14 @@ from app.models.odometer import OdometerRecord
 from app.models.photo import VehiclePhoto
 from app.models.reminder import Reminder
 from app.models.service_visit import ServiceVisit
+from app.models.settings import Setting
 from app.models.user import User
 from app.models.vehicle import Vehicle
 from app.services.fuel_service import calculate_l_per_100km
 from app.services.widget_aggregation import WidgetAggregationService
+from app.utils.units import UnitConverter
+
+GALLON_STANDARD_KEY = "imperial_gallon_standard"
 
 
 # Conversion helpers — all storage is metric, but legacy widget output is imperial.
@@ -42,6 +46,42 @@ def _mi_to_km(miles: float | int) -> Decimal:
 
 def _gal_to_l(gallons: float | int | Decimal) -> Decimal:
     return Decimal(str(round(float(gallons) * 3.78541, 2)))
+
+
+async def _seed_gallon_standard(db_session, value: str) -> str | None:
+    """Upsert `imperial_gallon_standard`, returning the prior value (None if absent).
+
+    The test DB is shared across the whole run with no per-test rollback (see
+    reference_mygarage_test_isolation), so this upserts rather than a bare
+    `add()` and hands back what was there before so the caller can restore it.
+    """
+    existing = (
+        await db_session.execute(select(Setting).where(Setting.key == GALLON_STANDARD_KEY))
+    ).scalar_one_or_none()
+    original_value = existing.value if existing is not None else None
+    if existing is None:
+        db_session.add(Setting(key=GALLON_STANDARD_KEY, value=value))
+    else:
+        existing.value = value
+    await db_session.commit()
+    return original_value
+
+
+async def _restore_gallon_standard(db_session, original_value: str | None) -> None:
+    """Restore `imperial_gallon_standard` to `original_value` (None = row absent)."""
+    row = (
+        await db_session.execute(select(Setting).where(Setting.key == GALLON_STANDARD_KEY))
+    ).scalar_one_or_none()
+    if original_value is None:
+        if row is not None:
+            await db_session.delete(row)
+            await db_session.commit()
+    elif row is not None:
+        row.value = original_value
+        await db_session.commit()
+    else:
+        db_session.add(Setting(key=GALLON_STANDARD_KEY, value=original_value))
+        await db_session.commit()
 
 
 TEST_PASSWORD_HASH = (
@@ -249,6 +289,79 @@ class TestMpgParity:
         # → mean L/100km ≈ 6.86 → MPG ≈ 34.3.
         assert result.recent_mpg == pytest.approx(34.3, abs=0.1)
         assert result.average_mpg == pytest.approx(34.3, abs=0.1)
+
+    @pytest.mark.asyncio
+    async def test_uk_gallon_flavour_uses_the_uk_mpg_numerator(self, db_session, aggregation_user):
+        """Regression: widget MPG must come from the resolved instance flavour.
+
+        `WidgetAggregationService.vehicle()` calls `UnitConverter.l100km_to_mpg(
+        core.recent_l100km, flavour=flavour)` with a real
+        `flavour = await resolve_gallon_flavour(self.db)`. Nothing else in this
+        file seeds `imperial_gallon_standard = "uk"`, so nothing would notice if
+        `flavour=flavour` were dropped from that call -- the resolver would keep
+        returning "us" and this MPG figure would look identical. Same fuel data
+        as `test_numeric_parity_with_calculate_mpg` above; only the flavour
+        setting differs, so the two tests must land on different numbers.
+        """
+        original_value = await _seed_gallon_standard(db_session, "uk")
+        try:
+            vehicle = await _make_vehicle(db_session, aggregation_user)
+            vin = vehicle.vin
+
+            records = [
+                FuelRecord(
+                    vin=vin,
+                    date=date(2026, 1, 1),
+                    odometer_km=_mi_to_km(10000),
+                    liters=_gal_to_l(Decimal("10.0")),
+                    price_per_unit=Decimal("3.50"),
+                    cost=Decimal("35.00"),
+                    is_full_tank=True,
+                ),
+                FuelRecord(
+                    vin=vin,
+                    date=date(2026, 1, 15),
+                    odometer_km=_mi_to_km(10300),
+                    liters=_gal_to_l(Decimal("10.0")),
+                    price_per_unit=Decimal("3.50"),
+                    cost=Decimal("35.00"),
+                    is_full_tank=True,
+                ),
+                FuelRecord(
+                    vin=vin,
+                    date=date(2026, 1, 30),
+                    odometer_km=_mi_to_km(10620),
+                    liters=_gal_to_l(Decimal("8.0")),
+                    price_per_unit=Decimal("3.50"),
+                    cost=Decimal("28.00"),
+                    is_full_tank=True,
+                ),
+            ]
+            for r in records:
+                db_session.add(r)
+            await db_session.commit()
+
+            svc = WidgetAggregationService(db_session)
+            result = await svc.vehicle(aggregation_user.id, vin, allowed_vins=None)
+
+            # Same reference pairs as test_numeric_parity_with_calculate_mpg.
+            ref_newest = calculate_l_per_100km(records[2], records[1])
+            ref_second = calculate_l_per_100km(records[1], records[0])
+            assert ref_newest is not None
+            assert ref_second is not None
+            mean_l100km = (ref_newest + ref_second) / 2
+
+            expected_uk_mpg = float(UnitConverter.UK_MPG_TO_L100KM_NUMERATOR / mean_l100km)
+            expected_us_mpg = float(UnitConverter.US_MPG_TO_L100KM_NUMERATOR / mean_l100km)
+
+            assert result is not None
+            assert result.recent_mpg == pytest.approx(expected_uk_mpg, abs=0.1)
+            assert result.average_mpg == pytest.approx(expected_uk_mpg, abs=0.1)
+            # 282.481 (UK) vs 235.214 (US) are far enough apart that this also
+            # rules out the flavour silently defaulting back to US.
+            assert result.recent_mpg != pytest.approx(expected_us_mpg, abs=0.1)
+        finally:
+            await _restore_gallon_standard(db_session, original_value)
 
     @pytest.mark.asyncio
     async def test_partial_tank_fuel_counted_toward_next_full(self, db_session, aggregation_user):

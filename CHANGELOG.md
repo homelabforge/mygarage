@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Structured vehicle maintenance specs (oil viscosity/capacity/filter, lug-nut torque Nm, coolant/brake/transmission fluid) with Overview editor (migration 093).
 - Opt-in **Ask My Garage** assistant: grounded Q&A over specs, service history, and LiveLink DTCs (Phase 2 causes/symptoms/fix guidance). See [docs/tier2-features.md](docs/tier2-features.md).
+### Fixed
+- PSI-to-canonical conversion returned bar instead of kPa.
 
 ## [3.1.0] - 2026-08-24
 

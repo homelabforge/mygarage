@@ -4,11 +4,12 @@ Unit tests for unit conversion utilities.
 Tests imperial/metric conversions for volume, distance, fuel economy, etc.
 """
 
+import asyncio
 from decimal import Decimal
 
 import pytest
 
-from app.utils.units import UnitConverter
+from app.utils.units import GallonFlavour, UnitConverter
 
 
 @pytest.mark.unit
@@ -318,3 +319,108 @@ class TestDecimalPrecision:
         result = UnitConverter.miles_to_km(100.5)
         assert isinstance(result, float)
         assert result == pytest.approx(161.74, rel=0.01)
+
+
+@pytest.mark.unit
+class TestGoldenConversions:
+    """Absolute conversions pinned to known-correct values.
+
+    Round-trip tests (`to_display(to_canonical(x)) == x`) pass against a wrong
+    factor because both directions share it. These assert the factor itself.
+    """
+
+    def test_psi_canonicalises_to_kpa_not_bar(self) -> None:
+        # 1 PSI == 6.89476 kPa. Returning 0.0689476 means bar was emitted.
+        assert UnitConverter.to_canonical_decimal(1, "PSI") == Decimal("6.89476")
+
+    def test_psi_canonical_matches_the_psi_to_kpa_helper(self) -> None:
+        canonical_result = float(UnitConverter.to_canonical_decimal(31.9, "PSI"))
+        helper_result = UnitConverter.psi_to_kpa(31.9)
+        # Helper rounds to 2 decimals; canonical preserves full precision.
+        assert canonical_result == pytest.approx(helper_result, rel=1e-4)
+
+    @pytest.mark.parametrize(
+        ("value", "from_unit", "expected"),
+        [
+            (1, "mi", Decimal("1.60934")),
+            (1, "ft", Decimal("0.3048")),
+            (1, "lb", Decimal("0.45359237")),
+            (1, "lbft", Decimal("1.35582")),
+            (32, "F", Decimal("0")),
+            (1, "kPa", Decimal("1")),
+        ],
+    )
+    def test_golden_absolute_conversions(
+        self, value: float, from_unit: str, expected: Decimal
+    ) -> None:
+        result = UnitConverter.to_canonical_decimal(value, from_unit)
+        assert result is not None
+        # These factors are all exactly representable in Decimal, and this
+        # test's whole purpose is pinning factor exactness -- an approx/float
+        # comparison would let a wrong-but-close factor slip through.
+        assert result == expected
+
+
+async def _convert_after_yield(gallons: int, flavour: GallonFlavour) -> float | None:
+    """Perform one gallons-to-liters conversion with real yield points around it.
+
+    Mimics one coroutine's slice of concurrent request handling: yield to the
+    event loop (letting other coroutines' calls interleave), convert, then
+    yield again. `flavour` is a local variable closed over by this coroutine,
+    never shared -- that's exactly the property under test.
+    """
+    await asyncio.sleep(0)
+    result = UnitConverter.gallons_to_liters(gallons, flavour=flavour)
+    await asyncio.sleep(0)
+    return result
+
+
+@pytest.mark.unit
+class TestGallonFlavour:
+    """Gallon flavour is an argument, never ambient class state."""
+
+    def test_us_is_the_default(self) -> None:
+        assert UnitConverter.gallons_to_liters(1) == pytest.approx(3.79, rel=1e-3)
+
+    def test_uk_gallon_is_larger(self) -> None:
+        assert UnitConverter.gallons_to_liters(1, flavour="uk") == pytest.approx(4.55, rel=1e-3)
+
+    def test_liters_to_gallons_honours_flavour(self) -> None:
+        assert UnitConverter.liters_to_gallons(10, flavour="us") == pytest.approx(2.64, rel=1e-3)
+        assert UnitConverter.liters_to_gallons(10, flavour="uk") == pytest.approx(2.20, rel=1e-3)
+
+    def test_mpg_numerator_follows_flavour(self) -> None:
+        assert UnitConverter.mpg_to_l100km(30, flavour="us") == pytest.approx(7.8, rel=1e-2)
+        assert UnitConverter.mpg_to_l100km(30, flavour="uk") == pytest.approx(9.4, rel=1e-2)
+
+    def test_canonical_gal_honours_flavour(self) -> None:
+        assert UnitConverter.to_canonical_decimal(1, "gal", flavour="uk") == Decimal("4.54609")
+
+    @pytest.mark.asyncio
+    async def test_interleaved_concurrent_conversions_keep_each_callers_flavour(self) -> None:
+        """Genuinely concurrent conversions never cross-contaminate flavour.
+
+        Runs 20 coroutines (alternating us/uk) through `asyncio.gather`, each
+        yielding to the event loop both before and after its own conversion so
+        the others' calls actually interleave around it -- not three
+        sequential synchronous calls. Each coroutine must get the value
+        correct for ITS OWN flavour, not merely a value that differs from its
+        neighbours'. With class-level ambient state, a coroutine resuming
+        after another had set a different flavour would pick up the wrong
+        factor; with flavour as a parameter closed over per-coroutine, it
+        cannot.
+        """
+        flavours: list[GallonFlavour] = ["us", "uk"] * 10
+        results = await asyncio.gather(*(_convert_after_yield(1, flavour) for flavour in flavours))
+        expected = {"us": pytest.approx(3.79, rel=1e-3), "uk": pytest.approx(4.55, rel=1e-3)}
+        for flavour, result in zip(flavours, results, strict=True):
+            assert result == expected[flavour], (
+                f"flavour {flavour!r} produced {result}: another coroutine's flavour leaked "
+                "into this concurrent conversion"
+            )
+
+    def test_mutable_class_state_is_gone(self) -> None:
+        assert not hasattr(UnitConverter, "GALLONS_TO_LITERS")
+        assert not hasattr(UnitConverter, "MPG_TO_L100KM_NUMERATOR")
+        assert not hasattr(UnitConverter, "set_gallon_standard")
+        assert not hasattr(UnitConverter, "get_gallon_standard")

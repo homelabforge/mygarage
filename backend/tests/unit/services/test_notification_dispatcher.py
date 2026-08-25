@@ -8,7 +8,10 @@ from decimal import Decimal
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.settings import Setting
 from app.services.notifications.base import NotificationService
 from app.services.notifications.dispatcher import (
     EVENT_PRIORITY_MAP,
@@ -16,6 +19,44 @@ from app.services.notifications.dispatcher import (
     EVENT_TAGS_MAP,
     NotificationDispatcher,
 )
+
+GALLON_STANDARD_KEY = "imperial_gallon_standard"
+
+
+async def _seed_gallon_standard(db_session: AsyncSession, value: str) -> str | None:
+    """Upsert `imperial_gallon_standard`, returning the prior value (None if absent).
+
+    The test DB is shared across the whole run with no per-test rollback (see
+    reference_mygarage_test_isolation), so this upserts rather than a bare
+    `add()` and hands back what was there before so the caller can restore it.
+    """
+    existing = (
+        await db_session.execute(select(Setting).where(Setting.key == GALLON_STANDARD_KEY))
+    ).scalar_one_or_none()
+    original_value = existing.value if existing is not None else None
+    if existing is None:
+        db_session.add(Setting(key=GALLON_STANDARD_KEY, value=value))
+    else:
+        existing.value = value
+    await db_session.commit()
+    return original_value
+
+
+async def _restore_gallon_standard(db_session: AsyncSession, original_value: str | None) -> None:
+    """Restore `imperial_gallon_standard` to `original_value` (None = row absent)."""
+    row = (
+        await db_session.execute(select(Setting).where(Setting.key == GALLON_STANDARD_KEY))
+    ).scalar_one_or_none()
+    if original_value is None:
+        if row is not None:
+            await db_session.delete(row)
+            await db_session.commit()
+    elif row is not None:
+        row.value = original_value
+        await db_session.commit()
+    else:
+        db_session.add(Setting(key=GALLON_STANDARD_KEY, value=original_value))
+        await db_session.commit()
 
 
 class FakeNotificationService(NotificationService):
@@ -357,13 +398,22 @@ class TestConvenienceMethods:
     @pytest.mark.asyncio
     async def test_notify_def_low(self, dispatcher):
         """Test DEF-low notification formatting: percent, both L and gal, and as-of date."""
-        await dispatcher.notify_def_low(
-            vehicle_name="My Truck",
-            vin="1FTFW1ET5DFC10312",
-            percent=Decimal("25"),
-            remaining_liters=Decimal("2.50"),
-            as_of_date=date(2026, 6, 15),
-        )
+        # dispatcher.db is a bare AsyncMock (see the `dispatcher` fixture above), not a
+        # real AsyncSession — resolve_gallon_flavour's `select(...)` round-trip through
+        # it would fabricate a coroutine instead of a Setting row. Patch the resolver
+        # directly so this stays a pure message-formatting test against the historical
+        # US default, same as before flavour resolution was threaded into this call.
+        with patch(
+            "app.services.notifications.dispatcher.resolve_gallon_flavour",
+            AsyncMock(return_value="us"),
+        ):
+            await dispatcher.notify_def_low(
+                vehicle_name="My Truck",
+                vin="1FTFW1ET5DFC10312",
+                percent=Decimal("25"),
+                remaining_liters=Decimal("2.50"),
+                as_of_date=date(2026, 6, 15),
+            )
 
         call_kwargs = dispatcher.dispatch.call_args
         assert call_kwargs.kwargs["event_type"] == "def_low"
@@ -377,3 +427,39 @@ class TestConvenienceMethods:
         assert "gal" in message
         assert "0.66" in message
         assert "2026-06-15" in message
+
+    @pytest.mark.asyncio
+    async def test_notify_def_low_uses_uk_gallons_when_flavour_resolves_to_uk(
+        self, db_session: AsyncSession
+    ) -> None:
+        """Regression for the real `resolve_gallon_flavour(self.db)` round trip.
+
+        `test_notify_def_low` above patches the resolver out, so nothing exercises
+        the actual DB read or would notice if `flavour=flavour` were deleted from
+        the `UnitConverter.liters_to_gallons(remaining_liters, flavour=flavour)`
+        call in `notify_def_low` -- the resolver would still default to "us" and
+        the message would come out byte-identical. This test seeds a real
+        `imperial_gallon_standard = "uk"` row and drives `notify_def_low` against
+        a real `AsyncSession`, so it can only pass if the flavour actually reaches
+        the conversion. 2.5 L is ~0.55 UK gal vs ~0.66 US gal -- unambiguous.
+        """
+        original_value = await _seed_gallon_standard(db_session, "uk")
+        try:
+            dispatcher = NotificationDispatcher(db_session)
+            dispatcher.dispatch = AsyncMock(return_value={"ntfy": True})
+
+            await dispatcher.notify_def_low(
+                vehicle_name="My Truck",
+                vin="1FTFW1ET5DFC10312",
+                percent=Decimal("25"),
+                remaining_liters=Decimal("2.50"),
+                as_of_date=date(2026, 6, 15),
+            )
+
+            call_kwargs = dispatcher.dispatch.call_args
+            message = call_kwargs.kwargs["message"]
+            # 2.50 L / 4.54609 (UK gal) = 0.55, NOT 2.50 L / 3.78541 (US gal) = 0.66.
+            assert "0.55" in message
+            assert "0.66" not in message
+        finally:
+            await _restore_gallon_standard(db_session, original_value)

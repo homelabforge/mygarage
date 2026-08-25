@@ -151,19 +151,6 @@ async def lifespan(app: FastAPI):
     async with get_db_context() as db:
         await initialize_default_settings(db)
 
-        # Apply imperial gallon standard (US vs UK) for backend conversions
-        from sqlalchemy import select
-
-        from app.models.settings import Setting
-        from app.utils.units import UnitConverter
-
-        gallon_row = (
-            await db.execute(select(Setting).where(Setting.key == "imperial_gallon_standard"))
-        ).scalar_one_or_none()
-        UnitConverter.set_gallon_standard(
-            gallon_row.value if gallon_row and gallon_row.value else "us"
-        )
-
         # Check for insecure auth_mode='none' and log warning
         from app.services.auth import get_auth_mode
 

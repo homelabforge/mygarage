@@ -67,6 +67,13 @@ class TestSettingsRoutes:
 
         The rows are seeded here because the endpoint returns only rows that
         exist; settings_init creates them at startup in a real instance.
+
+        Cleaned up in `finally`: the test DB is shared and not rolled back
+        between tests, and `resolve_gallon_flavour` (units phase 0, Task 3)
+        now reads `imperial_gallon_standard` straight from this table on every
+        call. An un-reset "uk" row here previously leaked silently; it now
+        corrupts every later test that resolves gallon flavour against real
+        settings state.
         """
         await _set_setting(db_session, "imperial_gallon_standard", "uk")
         await _set_setting(db_session, "llm_receipt_parse_enabled", "true")
@@ -79,6 +86,21 @@ class TestSettingsRoutes:
         assert values.get("imperial_gallon_standard") == "uk"
         assert values.get("llm_receipt_parse_enabled") == "true"
         assert values.get("llm_garage_assistant_enabled") == "true"
+        try:
+            response = await client.get("/api/settings/public")
+
+            assert response.status_code == 200
+            values = {s["key"]: s["value"] for s in response.json()["settings"]}
+            assert values.get("imperial_gallon_standard") == "uk"
+            assert values.get("llm_receipt_parse_enabled") == "true"
+        finally:
+            for key in ("imperial_gallon_standard", "llm_receipt_parse_enabled"):
+                row = (
+                    await db_session.execute(select(Setting).where(Setting.key == key))
+                ).scalar_one_or_none()
+                if row is not None:
+                    await db_session.delete(row)
+            await db_session.commit()
 
     async def test_list_settings_unauthorized(self, client: AsyncClient, auth_headers):
         """Test that non-admin users cannot list all settings."""

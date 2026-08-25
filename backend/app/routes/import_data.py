@@ -77,11 +77,14 @@ def _row_gallons_to_liters(row: dict) -> Decimal:
     Everything else is the US gallon: every v2-era export, every third-party
     sheet, every file written before the UK option existed.
 
-    This deliberately does NOT read `UnitConverter.GALLONS_TO_LITERS`. That
-    attribute follows the instance's current display preference, so reading it
-    here meant importing an old US-gallon backup on a UK-configured instance
-    multiplied every volume by 4.54609 instead of 3.78541 and wrote the result
-    into canonical storage permanently.
+    This deliberately does NOT resolve the instance's gallon-flavour preference
+    (`resolve_gallon_flavour(db)`). That preference reflects how the CURRENT
+    user wants values displayed today, not what unit a given file's numbers
+    were actually written in -- using it here meant importing an old
+    US-gallon backup on a UK-configured instance multiplied every volume by
+    4.54609 instead of 3.78541 and wrote the result into canonical storage
+    permanently. This function reads the file's own `unit_system` marker
+    instead, which travels with the data and can't drift from it.
     """
     marker = (row.get("unit_system") or "").strip().lower()
     return (

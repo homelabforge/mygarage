@@ -44,9 +44,9 @@ class TestToCanonicalDecimal:
         assert UnitConverter.to_canonical_decimal(32, "F") == Decimal("0")
         assert UnitConverter.to_canonical_decimal(212, "F") == Decimal("100")
 
-    def test_psi_to_bar(self) -> None:
+    def test_psi_to_kpa(self) -> None:
         result = UnitConverter.to_canonical_decimal(30, "PSI")
-        assert result == Decimal("30") * Decimal("0.0689476")
+        assert result == Decimal("30") * Decimal("6.89476")
 
     def test_mpg_to_l_per_100km(self) -> None:
         # 18 MPG → 235.214 / 18

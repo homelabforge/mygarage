@@ -586,11 +586,6 @@ async def update_setting(
     await db.commit()
     await db.refresh(setting)
 
-    if key == "imperial_gallon_standard" and "value" in update_data:
-        from app.utils.units import UnitConverter
-
-        UnitConverter.set_gallon_standard(setting.value or "us")
-
     logger.info("Updated setting: %s", sanitize_for_log(key))
     return _to_response(setting)
 
@@ -635,11 +630,6 @@ async def batch_update_settings(
     # Refresh all settings
     for setting in updated_settings:
         await db.refresh(setting)
-
-    if "imperial_gallon_standard" in batch.settings:
-        from app.utils.units import UnitConverter
-
-        UnitConverter.set_gallon_standard(batch.settings["imperial_gallon_standard"] or "us")
 
     logger.info("Batch updated %s settings", len(updated_settings))
 

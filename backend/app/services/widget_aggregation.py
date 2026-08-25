@@ -45,6 +45,7 @@ from app.schemas.widget import (
 from app.services.fuel_service import calculate_average_hours_economy
 from app.services.hours_service import latest_engine_hours_and_date
 from app.services.reminder_service import get_current_hours, is_reminder_overdue
+from app.utils.gallon_flavour import resolve_gallon_flavour
 from app.utils.units import UnitConverter
 
 RECENT_MPG_WINDOW = 3
@@ -292,6 +293,7 @@ class WidgetAggregationService:
         core = await self._vehicle_core(user_id, vin, allowed_vins)
         if core is None:
             return None
+        flavour = await resolve_gallon_flavour(self.db)
         miles = UnitConverter.km_to_miles(core.odometer_km)
         return WidgetVehicle(
             label=core.label,
@@ -300,8 +302,8 @@ class WidgetAggregationService:
             model=core.model,
             odometer=int(round(miles)) if miles is not None else None,
             odometer_date=core.odometer_date,
-            recent_mpg=UnitConverter.l100km_to_mpg(core.recent_l100km),
-            average_mpg=UnitConverter.l100km_to_mpg(core.average_l100km),
+            recent_mpg=UnitConverter.l100km_to_mpg(core.recent_l100km, flavour=flavour),
+            average_mpg=UnitConverter.l100km_to_mpg(core.average_l100km, flavour=flavour),
             upcoming_maintenance=core.upcoming_maintenance,
             overdue_maintenance=core.overdue_maintenance,
             service_records=core.service_records,
@@ -323,6 +325,7 @@ class WidgetAggregationService:
         core = await self._vehicle_core(user_id, vin, allowed_vins)
         if core is None:
             return None
+        flavour = await resolve_gallon_flavour(self.db)
         miles = UnitConverter.km_to_miles(core.odometer_km)
         return WidgetVehicleV2(
             label=core.label,
@@ -336,8 +339,8 @@ class WidgetAggregationService:
             average_l_per_100km=UnitConverter.round_result(core.average_l100km, 2),
             recent_km_per_l=UnitConverter.l100km_to_kmpl(core.recent_l100km),
             average_km_per_l=UnitConverter.l100km_to_kmpl(core.average_l100km),
-            recent_mpg=UnitConverter.l100km_to_mpg(core.recent_l100km),
-            average_mpg=UnitConverter.l100km_to_mpg(core.average_l100km),
+            recent_mpg=UnitConverter.l100km_to_mpg(core.recent_l100km, flavour=flavour),
+            average_mpg=UnitConverter.l100km_to_mpg(core.average_l100km, flavour=flavour),
             latest_hours=core.latest_hours,
             average_l_per_hr=core.average_l_per_hr,
             average_cost_per_hr=core.average_cost_per_hr,

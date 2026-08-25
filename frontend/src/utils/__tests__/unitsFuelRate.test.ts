@@ -5,7 +5,7 @@ import { UnitFormatter } from '../units'
 // analog of formatFuelEconomy/getFuelEconomyUnit. Engine hours are
 // dimensionless — only the volume side (L vs gal) converts between
 // systems, using the EXACT US-gallon factor (1 gal = 3.785411784 L),
-// distinct from UnitConverter's rounded GALLONS_TO_LITERS (3.78541).
+// distinct from UnitConverter's rounded US_GALLONS_TO_LITERS (3.78541).
 describe('UnitFormatter.formatFuelRate', () => {
   it('metric: shows L/hr with 2 decimals', () => {
     expect(UnitFormatter.formatFuelRate(3.2, 'metric')).toBe('3.20 L/hr')
