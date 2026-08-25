@@ -33,7 +33,8 @@ async def garage_assistant_chat(
     curated DTC enrichment only — never persists chat history.
     """
     vin = vin.upper().strip()
-    await get_vehicle_or_403(vin, current_user, db)
+    # POST for payload size / rate limits only — no garage writes.
+    await get_vehicle_or_403(vin, current_user, db)  # tripwire: read-only
 
     return await ask_garage(
         db,
