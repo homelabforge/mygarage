@@ -18,9 +18,23 @@ import { useAuth } from '../contexts/AuthContext'
 
 export type TimeFormat = '12h' | '24h'
 
+/**
+ * Narrow an unvalidated time-format string.
+ *
+ * `users.time_format` is a plain VARCHAR, so the generated schema types it as
+ * `string`. Anything that is not exactly '24h' renders on a 12-hour clock,
+ * which is also the app default. Shared with the Settings tab so both agree.
+ *
+ * @param value A stored or transmitted preference, possibly absent.
+ * @returns The narrowed preference.
+ */
+export function asTimeFormat(value: string | null | undefined): TimeFormat {
+  return value === '24h' ? '24h' : '12h'
+}
+
 /** Read the persisted preference from localStorage, defaulting to 12h. */
 function readStored(): TimeFormat {
-  return localStorage.getItem('time_format') === '24h' ? '24h' : '12h'
+  return asTimeFormat(localStorage.getItem('time_format'))
 }
 
 /**
@@ -43,7 +57,7 @@ export function useTimeFormat(): { timeFormat: TimeFormat } {
   }, [])
 
   if (isAuthenticated && user) {
-    return { timeFormat: (user.time_format as TimeFormat) || '12h' }
+    return { timeFormat: asTimeFormat(user.time_format) }
   }
   return { timeFormat: stored }
 }

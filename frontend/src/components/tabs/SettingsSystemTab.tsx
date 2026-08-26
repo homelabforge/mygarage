@@ -4,6 +4,9 @@ import { Server, CheckCircle, AlertCircle, Info, Shield, Users, AlertTriangle, K
 import { useAuth } from '@/contexts/AuthContext'
 import { useSettings } from '@/contexts/SettingsContext'
 import type { DashboardResponse } from '@/types/dashboard'
+import type { UnitPreference } from '@/types/units'
+import { asTimeFormat } from '@/hooks/useTimeFormat'
+import { useUnitPreference } from '@/hooks/useUnitPreference'
 import api from '@/services/api'
 import { toast } from 'sonner'
 import {
@@ -56,11 +59,27 @@ export default function SettingsSystemTab() {
   const [showOIDCModal, setShowOIDCModal] = useState(false)
 
   // Unit preference state
-  const [unitPreference, setUnitPreference] = useState<'imperial' | 'metric'>('imperial')
+  // Widened to the stored vocabulary, which migration 093 can set to 'custom'.
+  // The two buttons below then show neither as selected, which is the honest
+  // rendering of a per-quantity account: the dedicated editor that replaces
+  // this toggle is phase 4, and nothing here should pretend otherwise.
+  const [unitPreference, setUnitPreference] = useState<UnitPreference>('imperial')
   const [showBothUnits, setShowBothUnits] = useState(false)
   const [unitPreferenceSaving, setUnitPreferenceSaving] = useState(false)
   const [gallonStandard, setGallonStandard] = useState<'us' | 'uk'>('us')
   const [gallonStandardSaving, setGallonStandardSaving] = useState(false)
+
+  // The binary system this account actually renders in. `unitPreference` can be
+  // 'custom' (migration 093 materialises a UK instance's imperial users that
+  // way), which is neither 'imperial' nor 'metric', so branching on it directly
+  // showed those users the metric description and hid the US/UK gallon panel
+  // entirely — removing the only UI that changes their gallon flavour, on
+  // exactly the instances this feature exists for. `useUnitPreference` already
+  // owns the custom -> binary mapping; the local state still wins for the two
+  // preset values so the copy switches with the optimistic toggle instead of
+  // lagging a refreshUser() round trip.
+  const { system: resolvedSystem } = useUnitPreference()
+  const displaySystem = unitPreference === 'custom' ? resolvedSystem : unitPreference
   const [autoArchiveDays, setAutoArchiveDays] = useState('0')
   const [autoArchiveSaving, setAutoArchiveSaving] = useState(false)
 
@@ -206,7 +225,7 @@ export default function SettingsSystemTab() {
     if (currentUser) {
       setUnitPreference(currentUser.unit_preference || 'imperial')
       setShowBothUnits(currentUser.show_both_units || false)
-      setTimeFormat(currentUser.time_format || '12h')
+      setTimeFormat(asTimeFormat(currentUser.time_format))
       setMobileQuickEntry(currentUser.mobile_quick_entry_enabled ?? true)
       setSelectedLanguage(currentUser.language || 'en')
       setSelectedCurrency(currentUser.currency_code || 'USD')
@@ -217,7 +236,7 @@ export default function SettingsSystemTab() {
       const storedShowBoth = localStorage.getItem('show_both_units') === 'true'
       setUnitPreference(storedSystem || 'imperial')
       setShowBothUnits(storedShowBoth)
-      setTimeFormat((localStorage.getItem('time_format') as '12h' | '24h') || '12h')
+      setTimeFormat(asTimeFormat(localStorage.getItem('time_format')))
       setSelectedLanguage(localStorage.getItem('i18nextLng') || 'en')
       setSelectedCurrency(localStorage.getItem('currency_code') || 'USD')
     }
@@ -431,9 +450,9 @@ export default function SettingsSystemTab() {
       toast.error(t('preferences.timeError'))
       // Revert on error
       if (isAuthenticated) {
-        setTimeFormat((currentUser?.time_format as '12h' | '24h') || '12h')
+        setTimeFormat(asTimeFormat(currentUser?.time_format))
       } else {
-        setTimeFormat((localStorage.getItem('time_format') as '12h' | '24h') || '12h')
+        setTimeFormat(asTimeFormat(localStorage.getItem('time_format')))
       }
     } finally {
       setTimeFormatSaving(false)
@@ -693,7 +712,7 @@ export default function SettingsSystemTab() {
             </button>
           </div>
           <p className="mt-2 text-sm text-garage-text-muted">
-            {unitPreference === 'imperial'
+            {displaySystem === 'imperial'
               ? t('units.imperialDescription')
               : t('units.metricDescription')
             }
@@ -712,7 +731,7 @@ export default function SettingsSystemTab() {
             </p>
           </div>
 
-          {unitPreference === 'imperial' && (
+          {displaySystem === 'imperial' && (
             <div className="mt-4">
               <label className="block text-sm font-medium text-garage-text mb-2">
                 {t('units.gallonStandard')}

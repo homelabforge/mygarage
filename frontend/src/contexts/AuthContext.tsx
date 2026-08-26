@@ -1,23 +1,15 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react'
 import api, { setCSRFToken, getCSRFToken, clearCSRFToken, setApiAuthMode } from '../services/api'
+import type { components } from '../types/api.generated'
 
-interface User {
-  id: number
-  username: string
-  email: string
-  is_admin: boolean
-  unit_preference?: 'imperial' | 'metric'
-  show_both_units?: boolean
-  time_format?: '12h' | '24h'
-  mobile_quick_entry_enabled?: boolean
-  language?: string
-  currency_code?: string
-  accent_color?: string | null
-  theme?: 'light' | 'dark' | null
-  // Fuel-tracking form defaults (issue #69)
-  default_payment_method?: string | null
-  default_trip_type?: string | null
-}
+/**
+ * The user shape comes from the generated schema, not from a hand-maintained
+ * interface. The previous local interface declared
+ * `unit_preference?: 'imperial' | 'metric'` and drifted silently: the API
+ * freshness gate diffs the generated file, so nothing was watching this one.
+ * Migration 093 can now write 'custom', a value that union never admitted.
+ */
+type User = components['schemas']['UserResponse']
 
 interface AuthContextType {
   user: User | null

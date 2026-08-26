@@ -18035,6 +18035,119 @@
         "title": "TripSummary",
         "type": "object"
       },
+      "UnitSet": {
+        "additionalProperties": false,
+        "description": "A fully resolved set of unit choices. Every field is required.\n\nFrozen: a module-level preset that could be mutated in place would be\nprocess-global state, which is what phase 0 removed from the converter.\n\nextra=\"forbid\": a stored default unit set carrying an unknown key means the\nwriter and the reader disagree about the shape, and Pydantic's default of\nsilently ignoring extras would hide that until something formatted a number\nwrongly. `default_unit_prefs` parsing depends on this.\n\nOBLIGATION: adding or removing a field must ship alongside a migration that\nrewrites every stored `default_unit_prefs` row, which holds a full dump of\nthis model and stops validating the moment the arity changes. See\n`app.utils.default_unit_prefs.parse_default_unit_prefs` for what that\nsilently costs a UK instance, and\n`test_unit_set_shape_matches_what_stored_default_unit_prefs_rows_carry`,\nwhich fails until the migration lands.",
+        "properties": {
+          "consumption": {
+            "enum": [
+              "l_100km",
+              "km_l",
+              "mpg_us",
+              "mpg_uk"
+            ],
+            "title": "Consumption",
+            "type": "string"
+          },
+          "distance": {
+            "enum": [
+              "km",
+              "mi"
+            ],
+            "title": "Distance",
+            "type": "string"
+          },
+          "length": {
+            "enum": [
+              "m",
+              "ft"
+            ],
+            "title": "Length",
+            "type": "string"
+          },
+          "mass": {
+            "enum": [
+              "kg",
+              "lb"
+            ],
+            "title": "Mass",
+            "type": "string"
+          },
+          "pressure": {
+            "enum": [
+              "kpa",
+              "bar",
+              "psi"
+            ],
+            "title": "Pressure",
+            "type": "string"
+          },
+          "secondary_gallon": {
+            "enum": [
+              "us",
+              "uk"
+            ],
+            "title": "Secondary Gallon",
+            "type": "string"
+          },
+          "speed": {
+            "enum": [
+              "kmh",
+              "mph"
+            ],
+            "title": "Speed",
+            "type": "string"
+          },
+          "temperature": {
+            "enum": [
+              "c",
+              "f"
+            ],
+            "title": "Temperature",
+            "type": "string"
+          },
+          "torque": {
+            "enum": [
+              "nm",
+              "lbft"
+            ],
+            "title": "Torque",
+            "type": "string"
+          },
+          "tread": {
+            "enum": [
+              "mm",
+              "in32"
+            ],
+            "title": "Tread",
+            "type": "string"
+          },
+          "volume": {
+            "enum": [
+              "L",
+              "gal_us",
+              "gal_uk"
+            ],
+            "title": "Volume",
+            "type": "string"
+          }
+        },
+        "required": [
+          "distance",
+          "speed",
+          "length",
+          "volume",
+          "consumption",
+          "pressure",
+          "temperature",
+          "mass",
+          "torque",
+          "tread",
+          "secondary_gallon"
+        ],
+        "title": "UnitSet",
+        "type": "object"
+      },
       "UserCreate": {
         "description": "Schema for creating a new user.",
         "properties": {
@@ -18266,6 +18379,26 @@
             ],
             "title": "Relationship Custom"
           },
+          "resolved_units": {
+            "$ref": "#/components/schemas/UnitSet",
+            "description": "The unit set that actually applies: preset base with overrides on top.\n\nDerived rather than stored so it cannot drift from the raw columns above.\n`resolve_units` is pure and synchronous for exactly this reason; if it\never needs the database, this field has to move to the route.\n\nThis call is the only place a `UserResponse` is checked against the\n`UnitPreferenceSource` Protocol. That check only runs because of this\nfile's `reportArgumentType=error` pragma: the project-wide setting is\n\"none\" (FastAPI `Depends()` noise), which would silently accept a\nbroken Protocol conformance here too. Do not remove the pragma without\nanother way to catch that.",
+            "readOnly": true
+          },
+          "secondary_gallon": {
+            "anyOf": [
+              {
+                "enum": [
+                  "us",
+                  "uk"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Secondary Gallon"
+          },
           "show_both_units": {
             "default": false,
             "title": "Show Both Units",
@@ -18292,10 +18425,169 @@
             "title": "Time Format",
             "type": "string"
           },
+          "unit_consumption": {
+            "anyOf": [
+              {
+                "enum": [
+                  "l_100km",
+                  "km_l",
+                  "mpg_us",
+                  "mpg_uk"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Consumption"
+          },
+          "unit_distance": {
+            "anyOf": [
+              {
+                "enum": [
+                  "km",
+                  "mi"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Distance"
+          },
+          "unit_length": {
+            "anyOf": [
+              {
+                "enum": [
+                  "m",
+                  "ft"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Length"
+          },
+          "unit_mass": {
+            "anyOf": [
+              {
+                "enum": [
+                  "kg",
+                  "lb"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Mass"
+          },
           "unit_preference": {
             "default": "imperial",
+            "enum": [
+              "imperial",
+              "metric",
+              "custom"
+            ],
             "title": "Unit Preference",
             "type": "string"
+          },
+          "unit_pressure": {
+            "anyOf": [
+              {
+                "enum": [
+                  "kpa",
+                  "bar",
+                  "psi"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Pressure"
+          },
+          "unit_speed": {
+            "anyOf": [
+              {
+                "enum": [
+                  "kmh",
+                  "mph"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Speed"
+          },
+          "unit_temperature": {
+            "anyOf": [
+              {
+                "enum": [
+                  "c",
+                  "f"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Temperature"
+          },
+          "unit_torque": {
+            "anyOf": [
+              {
+                "enum": [
+                  "nm",
+                  "lbft"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Torque"
+          },
+          "unit_tread": {
+            "anyOf": [
+              {
+                "enum": [
+                  "mm",
+                  "in32"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Tread"
+          },
+          "unit_volume": {
+            "anyOf": [
+              {
+                "enum": [
+                  "L",
+                  "gal_us",
+                  "gal_uk"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Volume"
           },
           "updated_at": {
             "format": "date-time",
@@ -18317,7 +18609,8 @@
           "is_admin",
           "created_at",
           "updated_at",
-          "last_login"
+          "last_login",
+          "resolved_units"
         ],
         "title": "UserResponse",
         "type": "object"

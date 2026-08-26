@@ -131,7 +131,7 @@ class Vehicle(Base):
     )
     # DEF tracking
     def_tank_capacity_liters: Mapped[Decimal | None] = mapped_column(Numeric(6, 2))
-    # Structured maintenance specs (migration 093) — oil / torque / fluids
+    # Structured maintenance specs (migration 094) — oil / torque / fluids
     oil_viscosity: Mapped[str | None] = mapped_column(String(30))
     oil_capacity_liters: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
     oil_filter_part_number: Mapped[str | None] = mapped_column(String(50))

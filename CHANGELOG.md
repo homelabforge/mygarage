@@ -8,8 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Structured vehicle maintenance specs (oil viscosity/capacity/filter, lug-nut torque Nm, coolant/brake/transmission fluid) with Overview editor (migration 093).
+- Structured vehicle maintenance specs (oil viscosity/capacity/filter, lug-nut torque Nm, coolant/brake/transmission fluid) with Overview editor (migration 094).
 - Opt-in **Ask My Garage** assistant: grounded Q&A over specs, service history, and LiveLink DTCs (Phase 2 causes/symptoms/fix guidance). See [docs/tier2-features.md](docs/tier2-features.md).
+- Groundwork for per-quantity unit preferences: per-user unit columns and a resolved unit set on the user API, with no settings UI yet (migration 093, #152).
+- Instance-wide default unit set for anonymous clients and new accounts.
+
+### Changed
+- Instances set to UK gallons store their imperial users as a custom unit set; displayed values are unchanged (migration 093).
+
 ### Fixed
 - PSI-to-canonical conversion returned bar instead of kPa.
 

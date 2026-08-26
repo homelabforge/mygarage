@@ -44,11 +44,38 @@ class User(Base):
     # Unit preference
     unit_preference: Mapped[str] = mapped_column(
         String(20), default="imperial", nullable=False
-    )  # 'imperial' or 'metric'
+    )  # 'imperial', 'metric', or 'custom' (see app/constants/units.py)
     show_both_units: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     time_format: Mapped[str] = mapped_column(
         String(10), default="12h", nullable=False
     )  # '12h' or '24h'
+
+    # Per-quantity unit overrides (issue #152, migration 093).
+    #
+    # NULL means "no override", NOT "derive from preset": unit_preference
+    # supplies the base and any non-null column beats it (spec D3). That makes
+    # the columns' default state a no-op, which is what keeps every pre-093 user
+    # resolving exactly as they did before.
+    #
+    # All eleven are VARCHAR(12) for uniformity. The vocabularies live in
+    # app/constants/units.py and are enforced by Pydantic, not by a DB CHECK;
+    # PostgreSQL enforces the width, SQLite does not.
+    unit_distance: Mapped[str | None] = mapped_column(String(12), nullable=True)
+    unit_speed: Mapped[str | None] = mapped_column(String(12), nullable=True)
+    unit_length: Mapped[str | None] = mapped_column(String(12), nullable=True)
+    unit_volume: Mapped[str | None] = mapped_column(String(12), nullable=True)
+    unit_consumption: Mapped[str | None] = mapped_column(String(12), nullable=True)
+    unit_pressure: Mapped[str | None] = mapped_column(String(12), nullable=True)
+    unit_temperature: Mapped[str | None] = mapped_column(String(12), nullable=True)
+    unit_mass: Mapped[str | None] = mapped_column(String(12), nullable=True)
+    unit_torque: Mapped[str | None] = mapped_column(String(12), nullable=True)
+    unit_tread: Mapped[str | None] = mapped_column(String(12), nullable=True)
+
+    # D4b: which gallon a forced gallon-based representation uses when the
+    # primary unit does not itself say (show-both counterparts, and the widget
+    # endpoints, which always emit MPG fields regardless of show_both_units).
+    # Written for EVERY user by migration 093, metric ones included.
+    secondary_gallon: Mapped[str | None] = mapped_column(String(12), nullable=True)
 
     # i18n preferences
     language: Mapped[str] = mapped_column(

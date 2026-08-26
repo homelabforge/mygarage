@@ -218,6 +218,35 @@ class TestProtectedEndpoints:
         assert data["username"] == test_user["username"]
         assert data["email"] == test_user["email"]
 
+    async def test_me_returns_raw_and_resolved_units(
+        self, client: AsyncClient, auth_headers, test_user
+    ):
+        """The frontend needs both: raw columns drive the settings selects, and
+        the resolved set drives every formatter. Serialising only one of them
+        makes the other impossible."""
+        response = await client.get("/api/auth/me", headers=auth_headers)
+
+        assert response.status_code == 200
+        body = response.json()
+        assert set(body["resolved_units"]) == {
+            "distance",
+            "speed",
+            "length",
+            "volume",
+            "consumption",
+            "pressure",
+            "temperature",
+            "mass",
+            "torque",
+            "tread",
+            "secondary_gallon",
+        }
+        # The raw column is present and distinct from the resolved value: NULL
+        # here means "no override", which is not the same as the resolved unit.
+        assert "unit_pressure" in body
+        assert body["unit_pressure"] is None
+        assert body["resolved_units"]["pressure"] == "psi"  # imperial test_user
+
     async def test_get_current_user_no_auth(self, client: AsyncClient):
         """Test accessing /me endpoint without authentication."""
         response = await client.get("/api/auth/me")

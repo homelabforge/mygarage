@@ -19,6 +19,7 @@ from app.config import settings
 from app.models.user import User
 from app.utils.datetime_utils import utc_now
 from app.utils.logging_utils import sanitize_for_log
+from app.utils.unit_resolution import new_user_unit_kwargs
 
 from .state import store_oidc_state
 
@@ -272,6 +273,7 @@ async def create_or_update_user_from_oidc(
         counter += 1
 
     # Create user (no password required for OIDC-only users)
+    unit_kwargs = await new_user_unit_kwargs(db)
     user = User(
         username=username,
         email=email,
@@ -283,6 +285,7 @@ async def create_or_update_user_from_oidc(
         oidc_provider=provider_name,
         auth_method="oidc",
         last_login=utc_now(),
+        **unit_kwargs,
     )
 
     db.add(user)

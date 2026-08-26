@@ -39,6 +39,7 @@ from app.services.auth import (
 from app.utils.datetime_utils import utc_now
 from app.utils.logging_utils import sanitize_for_log
 from app.utils.request_scheme import get_cookie_secure
+from app.utils.unit_resolution import new_user_unit_kwargs
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +92,7 @@ async def register(
 
     # Create first user as admin
     hashed_password = hash_password(user_data.password)
+    unit_kwargs = await new_user_unit_kwargs(db)
     new_user = User(
         username=user_data.username,
         email=user_data.email,
@@ -98,6 +100,7 @@ async def register(
         hashed_password=hashed_password,
         is_active=True,  # First user is auto-activated
         is_admin=True,  # First user is admin
+        **unit_kwargs,
     )
 
     db.add(new_user)
@@ -469,6 +472,7 @@ async def create_user(
 
     # Create new user (inactive by default, non-admin by default)
     hashed_password = hash_password(user_data.password)
+    unit_kwargs = await new_user_unit_kwargs(db)
     new_user = User(
         username=user_data.username,
         email=user_data.email,
@@ -480,6 +484,7 @@ async def create_user(
         relationship=user_data.relationship,
         relationship_custom=user_data.relationship_custom,
         show_on_family_dashboard=user_data.show_on_family_dashboard,
+        **unit_kwargs,
     )
 
     db.add(new_user)

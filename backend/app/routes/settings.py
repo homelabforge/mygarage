@@ -93,6 +93,11 @@ async def get_public_settings(db: AsyncSession = Depends(get_db)):
         "imperial_gallon_standard",
         "llm_receipt_parse_enabled",
         "llm_garage_assistant_enabled",
+        # Replaces imperial_gallon_standard for clients with no user: anonymous
+        # visitors and every client on an auth_mode=none instance skip /auth/me,
+        # so they have no user row to resolve units from (spec D5). Non-sensitive:
+        # it is a unit preference, not a credential.
+        "default_unit_prefs",
     }
 
     result = await db.execute(

@@ -1,5 +1,6 @@
 """Settings initialization service."""
 
+import json
 import logging
 
 from sqlalchemy import select
@@ -7,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings as app_settings
 from app.models.settings import Setting
+from app.utils.default_unit_prefs import DEFAULT_UNIT_PREFS_KEY, default_unit_prefs_for_instance
 
 logger = logging.getLogger(__name__)
 
@@ -610,6 +612,17 @@ DEFAULT_SETTINGS = {
         "description": "Imperial gallon standard: us (3.785 L) or uk (4.546 L)",
         "encrypted": False,
     },
+    # No static "value": the seeded value is derived per instance below, from
+    # the live gallon flavour. `category` and `description` must stay
+    # byte-identical to what migration 093 writes, or the update branch below
+    # issues a pointless UPDATE on every boot.
+    "default_unit_prefs": {
+        "category": "general",
+        "description": (
+            "Default unit set for anonymous clients and new accounts (JSON, keyed by quantity)"
+        ),
+        "encrypted": False,
+    },
 }
 
 
@@ -646,16 +659,34 @@ async def initialize_default_settings(db: AsyncSession) -> None:
 
         if setting is None:
             # Create new setting
+            if key == DEFAULT_UNIT_PREFS_KEY:
+                # This key has no static default: a created row must derive
+                # from the instance's real gallon flavour. Migration 093
+                # normally seeds this row correctly on the dialect that matters
+                # (production SQLite runs it before this function ever
+                # executes), but the key can also be removed through the
+                # generic, admin-only DELETE /api/settings/{key} endpoint,
+                # which has no per-key protection. Migration 093 is a one-shot,
+                # stamped migration: it will never re-run to repair a deleted
+                # row, so this is the only remaining path standing between a UK
+                # instance and a silently-wrong US reseed (task-3 review,
+                # Fix 1). See default_unit_prefs_for_instance's docstring for
+                # the one-shot caveat (this does not live-track later changes
+                # to imperial_gallon_standard).
+                unit_set = await default_unit_prefs_for_instance(db)
+                value = json.dumps(unit_set.model_dump(), sort_keys=True)
+            else:
+                value = config["value"]
             setting = Setting(
                 key=key,
-                value=config["value"],
+                value=value,
                 category=config["category"],
                 description=config["description"],
                 encrypted=config["encrypted"],
             )
             db.add(setting)
             settings_added += 1
-            logger.info("Added default setting: %s = %s", key, config["value"])
+            logger.info("Added default setting: %s = %s", key, value)
         else:
             # Update category and description if they don't match
             # (preserves user-modified values)

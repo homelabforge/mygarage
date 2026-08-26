@@ -14157,6 +14157,83 @@ export interface components {
             started_at: string;
         };
         /**
+         * UnitSet
+         * @description A fully resolved set of unit choices. Every field is required.
+         *
+         *     Frozen: a module-level preset that could be mutated in place would be
+         *     process-global state, which is what phase 0 removed from the converter.
+         *
+         *     extra="forbid": a stored default unit set carrying an unknown key means the
+         *     writer and the reader disagree about the shape, and Pydantic's default of
+         *     silently ignoring extras would hide that until something formatted a number
+         *     wrongly. `default_unit_prefs` parsing depends on this.
+         *
+         *     OBLIGATION: adding or removing a field must ship alongside a migration that
+         *     rewrites every stored `default_unit_prefs` row, which holds a full dump of
+         *     this model and stops validating the moment the arity changes. See
+         *     `app.utils.default_unit_prefs.parse_default_unit_prefs` for what that
+         *     silently costs a UK instance, and
+         *     `test_unit_set_shape_matches_what_stored_default_unit_prefs_rows_carry`,
+         *     which fails until the migration lands.
+         */
+        UnitSet: {
+            /**
+             * Consumption
+             * @enum {string}
+             */
+            consumption: "l_100km" | "km_l" | "mpg_us" | "mpg_uk";
+            /**
+             * Distance
+             * @enum {string}
+             */
+            distance: "km" | "mi";
+            /**
+             * Length
+             * @enum {string}
+             */
+            length: "m" | "ft";
+            /**
+             * Mass
+             * @enum {string}
+             */
+            mass: "kg" | "lb";
+            /**
+             * Pressure
+             * @enum {string}
+             */
+            pressure: "kpa" | "bar" | "psi";
+            /**
+             * Secondary Gallon
+             * @enum {string}
+             */
+            secondary_gallon: "us" | "uk";
+            /**
+             * Speed
+             * @enum {string}
+             */
+            speed: "kmh" | "mph";
+            /**
+             * Temperature
+             * @enum {string}
+             */
+            temperature: "c" | "f";
+            /**
+             * Torque
+             * @enum {string}
+             */
+            torque: "nm" | "lbft";
+            /**
+             * Tread
+             * @enum {string}
+             */
+            tread: "mm" | "in32";
+            /**
+             * Volume
+             * @enum {string}
+             */
+            volume: "L" | "gal_us" | "gal_uk";
+        };
+        /**
          * UserCreate
          * @description Schema for creating a new user.
          */
@@ -14253,6 +14330,23 @@ export interface components {
             /** Relationship Custom */
             relationship_custom?: string | null;
             /**
+             * @description The unit set that actually applies: preset base with overrides on top.
+             *
+             *     Derived rather than stored so it cannot drift from the raw columns above.
+             *     `resolve_units` is pure and synchronous for exactly this reason; if it
+             *     ever needs the database, this field has to move to the route.
+             *
+             *     This call is the only place a `UserResponse` is checked against the
+             *     `UnitPreferenceSource` Protocol. That check only runs because of this
+             *     file's `reportArgumentType=error` pragma: the project-wide setting is
+             *     "none" (FastAPI `Depends()` noise), which would silently accept a
+             *     broken Protocol conformance here too. Do not remove the pragma without
+             *     another way to catch that.
+             */
+            readonly resolved_units: components["schemas"]["UnitSet"];
+            /** Secondary Gallon */
+            secondary_gallon?: ("us" | "uk") | null;
+            /**
              * Show Both Units
              * @default false
              */
@@ -14269,11 +14363,32 @@ export interface components {
              * @default 12h
              */
             time_format: string;
+            /** Unit Consumption */
+            unit_consumption?: ("l_100km" | "km_l" | "mpg_us" | "mpg_uk") | null;
+            /** Unit Distance */
+            unit_distance?: ("km" | "mi") | null;
+            /** Unit Length */
+            unit_length?: ("m" | "ft") | null;
+            /** Unit Mass */
+            unit_mass?: ("kg" | "lb") | null;
             /**
              * Unit Preference
              * @default imperial
+             * @enum {string}
              */
-            unit_preference: string;
+            unit_preference: "imperial" | "metric" | "custom";
+            /** Unit Pressure */
+            unit_pressure?: ("kpa" | "bar" | "psi") | null;
+            /** Unit Speed */
+            unit_speed?: ("kmh" | "mph") | null;
+            /** Unit Temperature */
+            unit_temperature?: ("c" | "f") | null;
+            /** Unit Torque */
+            unit_torque?: ("nm" | "lbft") | null;
+            /** Unit Tread */
+            unit_tread?: ("mm" | "in32") | null;
+            /** Unit Volume */
+            unit_volume?: ("L" | "gal_us" | "gal_uk") | null;
             /**
              * Updated At
              * Format: date-time
