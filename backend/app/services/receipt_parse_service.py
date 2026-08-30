@@ -2,16 +2,13 @@
 
 from __future__ import annotations
 
-import json
 import logging
-import re
 from typing import Any
 
-import httpx
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.services.settings_service import SettingsService
+from app.services import llm_client
 
 logger = logging.getLogger(__name__)
 
@@ -30,48 +27,6 @@ _DRAFT_KEYS = (
 )
 
 
-async def _setting(db: AsyncSession, key: str, default: str = "") -> str:
-    row = await SettingsService.get(db, key)
-    return (row.value if row and row.value is not None else default) or default
-
-
-async def _enabled(db: AsyncSession) -> bool:
-    return (await _setting(db, "llm_receipt_parse_enabled", "false")).lower() in (
-        "true",
-        "1",
-        "yes",
-    )
-
-
-def _extract_json_object(text: str) -> dict[str, Any]:
-    text = text.strip()
-    try:
-        data = json.loads(text)
-        if isinstance(data, dict):
-            return data
-    except json.JSONDecodeError:
-        pass
-    match = re.search(r"\{[\s\S]*\}", text)
-    if not match:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="LLM response did not contain a JSON object",
-        )
-    try:
-        data = json.loads(match.group(0))
-    except json.JSONDecodeError as err:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="LLM response JSON was invalid",
-        ) from err
-    if not isinstance(data, dict):
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="LLM response JSON must be an object",
-        )
-    return data
-
-
 async def parse_receipt_draft(
     db: AsyncSession,
     *,
@@ -81,7 +36,7 @@ async def parse_receipt_draft(
     content_type: str | None = None,
 ) -> dict[str, Any]:
     """Return ``{"draft": {...}, "source": "llm"}``. Raises 403 when disabled."""
-    if not await _enabled(db):
+    if not await llm_client.setting_enabled(db, "llm_receipt_parse_enabled"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="LLM receipt parsing is disabled",
@@ -116,53 +71,18 @@ async def parse_receipt_draft(
             detail=OCR_FAILED_DETAIL if file_bytes else "Provide text or an image file",
         )
 
-    base_url = (await _setting(db, "llm_base_url", "http://127.0.0.1:11434/v1")).rstrip("/")
-    model = await _setting(db, "llm_model", "llama3.2")
-    api_key = await _setting(db, "llm_api_key", "")
-
     system = (
         "You extract vehicle fuel/charge receipt fields. "
         "Reply with ONLY a JSON object using keys: "
         + ", ".join(_DRAFT_KEYS)
         + ". Use null for unknown values. Prefer metric: liters, odometer_km, price per liter."
     )
-    headers = {"Content-Type": "application/json"}
-    if api_key:
-        headers["Authorization"] = f"Bearer {api_key}"
-
-    payload = {
-        "model": model,
-        "messages": [
-            {"role": "system", "content": system},
-            {"role": "user", "content": f"Receipt text:\n{receipt_text[:8000]}"},
-        ],
-        "temperature": 0,
-    }
-
-    try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(
-                f"{base_url}/chat/completions",
-                headers=headers,
-                json=payload,
-            )
-            response.raise_for_status()
-            body = response.json()
-    except httpx.HTTPError as err:
-        logger.error("LLM receipt parse HTTP error: %s", err)
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="LLM endpoint request failed",
-        ) from err
-
-    try:
-        content = body["choices"][0]["message"]["content"]
-    except (KeyError, IndexError, TypeError) as err:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Unexpected LLM response shape",
-        ) from err
-
-    raw = _extract_json_object(str(content))
+    content = await llm_client.chat_completion(
+        db,
+        system=system,
+        user=f"Receipt text:\n{receipt_text[:8000]}",
+        temperature=0,
+    )
+    raw = llm_client.extract_json_object(str(content))
     draft = {k: raw.get(k) for k in _DRAFT_KEYS}
     return {"draft": draft, "source": "llm"}

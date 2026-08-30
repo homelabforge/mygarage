@@ -698,6 +698,7 @@ export default function VehicleDetail() {
             lastLocation={lastLocation}
             onEditPricing={() => setPricingDrawerOpen(true)}
             onEditCard={openFieldsCard}
+            onVehicleUpdated={setVehicle}
           />
         )}
 

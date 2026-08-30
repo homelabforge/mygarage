@@ -74,6 +74,7 @@ export default function SettingsIntegrationsTab() {
     webhook_ingest_token: '',
     telegram_inbound_enabled: 'false',
     llm_receipt_parse_enabled: 'false',
+    llm_garage_assistant_enabled: 'false',
     llm_base_url: 'http://127.0.0.1:11434/v1',
     llm_model: 'llama3.2',
     llm_api_key: '',
@@ -101,6 +102,7 @@ export default function SettingsIntegrationsTab() {
         webhook_ingest_token: settingsMap['webhook_ingest_token'] || '',
         telegram_inbound_enabled: settingsMap['telegram_inbound_enabled'] || 'false',
         llm_receipt_parse_enabled: settingsMap['llm_receipt_parse_enabled'] || 'false',
+        llm_garage_assistant_enabled: settingsMap['llm_garage_assistant_enabled'] || 'false',
         llm_base_url: settingsMap['llm_base_url'] || 'http://127.0.0.1:11434/v1',
         llm_model: settingsMap['llm_model'] || 'llama3.2',
         llm_api_key: settingsMap['llm_api_key'] || '',
@@ -190,6 +192,7 @@ export default function SettingsIntegrationsTab() {
         webhook_ingest_token: formData.webhook_ingest_token,
         telegram_inbound_enabled: formData.telegram_inbound_enabled,
         llm_receipt_parse_enabled: formData.llm_receipt_parse_enabled,
+        llm_garage_assistant_enabled: formData.llm_garage_assistant_enabled,
         llm_base_url: formData.llm_base_url,
         llm_model: formData.llm_model,
         llm_api_key: formData.llm_api_key,
@@ -330,8 +333,8 @@ export default function SettingsIntegrationsTab() {
           <div className="flex items-start gap-3 mb-6">
             <Sparkles className="w-6 h-6 text-primary mt-1" />
             <div className="flex-1">
-              <h2 className="text-xl font-semibold text-garage-text mb-2">{t('integrations.llmReceipt')}</h2>
-              <p className="text-sm text-garage-text-muted">{t('integrations.llmReceiptDesc')}</p>
+              <h2 className="text-xl font-semibold text-garage-text mb-2">{t('integrations.llmSection')}</h2>
+              <p className="text-sm text-garage-text-muted">{t('integrations.llmSectionDesc')}</p>
             </div>
           </div>
           <div className="space-y-4">
@@ -342,6 +345,16 @@ export default function SettingsIntegrationsTab() {
                 setFormData({ ...formData, llm_receipt_parse_enabled: next ? 'true' : 'false' })
               }
             />
+            <Toggle
+              label={t('integrations.enableLlmAssistant')}
+              checked={formData.llm_garage_assistant_enabled === 'true'}
+              onChange={(next) =>
+                setFormData({ ...formData, llm_garage_assistant_enabled: next ? 'true' : 'false' })
+              }
+            />
+            <p className="text-xs text-garage-text-muted -mt-2 ml-14">
+              {t('integrations.enableLlmAssistantDesc')}
+            </p>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label htmlFor="llm_base_url" className="block text-sm font-medium text-garage-text mb-2">
@@ -351,7 +364,10 @@ export default function SettingsIntegrationsTab() {
                   type="url"
                   id="llm_base_url"
                   value={formData.llm_base_url}
-                  disabled={formData.llm_receipt_parse_enabled === 'false'}
+                  disabled={
+                    formData.llm_receipt_parse_enabled === 'false' &&
+                    formData.llm_garage_assistant_enabled === 'false'
+                  }
                   onChange={(e) => setFormData({ ...formData, llm_base_url: e.target.value })}
                   className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50 font-mono text-sm"
                   placeholder="http://127.0.0.1:11434/v1"
@@ -365,7 +381,10 @@ export default function SettingsIntegrationsTab() {
                   type="text"
                   id="llm_model"
                   value={formData.llm_model}
-                  disabled={formData.llm_receipt_parse_enabled === 'false'}
+                  disabled={
+                    formData.llm_receipt_parse_enabled === 'false' &&
+                    formData.llm_garage_assistant_enabled === 'false'
+                  }
                   onChange={(e) => setFormData({ ...formData, llm_model: e.target.value })}
                   className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
                   placeholder="llama3.2"
@@ -379,14 +398,17 @@ export default function SettingsIntegrationsTab() {
                   type="password"
                   id="llm_api_key"
                   value={formData.llm_api_key}
-                  disabled={formData.llm_receipt_parse_enabled === 'false'}
+                  disabled={
+                    formData.llm_receipt_parse_enabled === 'false' &&
+                    formData.llm_garage_assistant_enabled === 'false'
+                  }
                   onChange={(e) => setFormData({ ...formData, llm_api_key: e.target.value })}
                   className="w-full px-3 py-2 bg-garage-bg border border-garage-border rounded-lg text-garage-text focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
                   autoComplete="off"
                 />
               </div>
             </div>
-            <p className="text-sm text-garage-text-muted">{t('integrations.llmReceiptHint')}</p>
+            <p className="text-sm text-garage-text-muted">{t('integrations.llmHint')}</p>
           </div>
         </div>
       </div>

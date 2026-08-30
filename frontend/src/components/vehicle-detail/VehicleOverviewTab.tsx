@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Calendar } from 'lucide-react'
 import { Card, CardHeader, Mono } from '../ui'
@@ -16,6 +16,8 @@ import { useTimeFormat } from '../../hooks/useTimeFormat'
 import { formatDateTime } from '../../utils/parseAPITimestamp'
 import TransferHistorySection from '../TransferHistorySection'
 import TrailerTowPanel from './TrailerTowPanel'
+import VehicleSpecsPanel from './VehicleSpecsPanel'
+import GarageAssistantPanel from './GarageAssistantPanel'
 
 // Lazy-load map component — keeps Leaflet's ~150KB out of the main bundle
 const LastLocationMap = lazy(() => import('../maps/LastLocationMap'))
@@ -29,6 +31,8 @@ interface VehicleOverviewTabProps {
   /** Opens the shared field editor sidecar for an info card (basic / details /
    *  powertrain / warranty). Omitted → those cards are read-only. */
   onEditCard?: (card: VehicleCardKey) => void
+  /** Receives the server's updated vehicle after Specs save. */
+  onVehicleUpdated?: (vehicle: Vehicle) => void
 }
 
 /**
@@ -37,13 +41,14 @@ interface VehicleOverviewTabProps {
  * read-only collapsible card here.
  */
 export default function VehicleOverviewTab({
-  vin, vehicle, lastLocation, onEditPricing, onEditCard,
+  vin, vehicle, lastLocation, onEditPricing, onEditCard, onVehicleUpdated,
 }: VehicleOverviewTabProps) {
   const { t } = useTranslation('vehicles')
   const u = useUnitFormat()
   const dateLocale = useDateLocale()
   const { currencyCode, locale } = useCurrencyPreference()
   const { timeFormat } = useTimeFormat()
+  const [specsEditKey, setSpecsEditKey] = useState(0)
 
   // Recomputed locally (was VehicleDetail.tsx:444) — the Overview reads it for
   // the VIN-decoded / powertrain / non-motorized-fuel-type gates.
@@ -231,6 +236,20 @@ export default function VehicleOverviewTab({
       <TransferHistorySection vin={vin} />
 
       <TrailerTowPanel vehicle={vehicle} />
+
+      {onVehicleUpdated && (
+        <VehicleSpecsPanel
+          vin={vin}
+          vehicle={vehicle}
+          onUpdated={onVehicleUpdated}
+          editRequestKey={specsEditKey}
+        />
+      )}
+
+      <GarageAssistantPanel
+        vin={vin}
+        onEditSpecs={() => setSpecsEditKey((k) => k + 1)}
+      />
 
       {/* Fuel Economy */}
       {(vehicle.fuel_economy_city_l_per_100km || vehicle.fuel_economy_highway_l_per_100km || vehicle.fuel_economy_combined_l_per_100km) && (

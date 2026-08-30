@@ -278,11 +278,16 @@
     "telegramCommandHint": "Point Telegram's webhook at POST /api/v1/webhooks/telegram, then send:",
     "llmReceipt": "LLM receipt parse",
     "llmReceiptDesc": "Opt-in local or OpenAI-compatible draft parsing for fuel receipts. Never saves until you confirm.",
+    "llmSection": "LLM features",
+    "llmSectionDesc": "Opt-in local or OpenAI-compatible helpers for receipt drafts and Ask My Garage (specs + diagnostics).",
     "enableLlmReceipt": "Enable receipt draft parsing",
+    "enableLlmAssistant": "Enable Ask My Garage assistant",
+    "enableLlmAssistantDesc": "Answer oil, torque, service history, and DTC troubleshooting questions from your garage data only.",
     "llmBaseUrl": "API base URL",
     "llmModel": "Model",
     "llmApiKey": "API key (optional)",
-    "llmReceiptHint": "Defaults to a local Ollama endpoint. Use the fuel form's Parse receipt control to fill a draft."
+    "llmReceiptHint": "Defaults to a local Ollama endpoint. Use the fuel form's Parse receipt control to fill a draft.",
+    "llmHint": "Defaults to a local Ollama endpoint. Shared by receipt parse and Ask My Garage."
   },
   "notifications": {
     "loading": "Loading notification settings...",

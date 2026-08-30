@@ -52,6 +52,7 @@ class TestSettingsRoutes:
                 "family_friends_enabled",
                 "imperial_gallon_standard",
                 "llm_receipt_parse_enabled",
+                "llm_garage_assistant_enabled",
                 "default_unit_prefs",
             }
 
@@ -77,6 +78,7 @@ class TestSettingsRoutes:
         """
         await _set_setting(db_session, "imperial_gallon_standard", "uk")
         await _set_setting(db_session, "llm_receipt_parse_enabled", "true")
+        await _set_setting(db_session, "llm_garage_assistant_enabled", "true")
 
         try:
             response = await client.get("/api/settings/public")
@@ -85,8 +87,13 @@ class TestSettingsRoutes:
             values = {s["key"]: s["value"] for s in response.json()["settings"]}
             assert values.get("imperial_gallon_standard") == "uk"
             assert values.get("llm_receipt_parse_enabled") == "true"
+            assert values.get("llm_garage_assistant_enabled") == "true"
         finally:
-            for key in ("imperial_gallon_standard", "llm_receipt_parse_enabled"):
+            for key in (
+                "imperial_gallon_standard",
+                "llm_receipt_parse_enabled",
+                "llm_garage_assistant_enabled",
+            ):
                 row = (
                     await db_session.execute(select(Setting).where(Setting.key == key))
                 ).scalar_one_or_none()

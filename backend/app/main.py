@@ -308,6 +308,7 @@ from app.routes import (
     export_router,
     external_vehicles_router,
     fuel_router,
+    garage_assistant_router,
     hours_router,
     import_router,
     insurance_router,
@@ -359,6 +360,7 @@ app.include_router(vin_router)
 app.include_router(vehicles_router)
 app.include_router(photos_router)
 app.include_router(fuel_router)
+app.include_router(garage_assistant_router)
 app.include_router(def_router)
 app.include_router(odometer_router)
 app.include_router(hours_router)

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Structured vehicle maintenance specs (oil viscosity/capacity/filter, lug-nut torque, coolant/brake/transmission fluid) with an Overview editor (migration 095).
+- Opt-in **Ask My Garage** assistant: grounded Q&A over specs, service history, and LiveLink DTCs. See [docs/tier2-features.md](docs/tier2-features.md).
+
 ## [3.2.0] - 2026-08-30
 
 ### Added

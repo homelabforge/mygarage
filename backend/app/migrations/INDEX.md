@@ -105,3 +105,4 @@ migrations must swallow their own operational errors.
 | `092_nullable_transfer_from_user` | **FATAL** — Allow NULL vehicle_transfers.from_user_id for ownerless assignments. |
 | `093_add_unit_preferences` | **FATAL** — Add per-quantity unit preference columns to users (issue #152). |
 | `094_nullable_reading_tread` | **FATAL** — Allow NULL tire_readings.tread_depth_mm for pressure-only readings. |
+| `095_add_vehicle_maintenance_specs` | **FATAL** — Add structured maintenance-spec columns on vehicles (oil, torque, fluids). |
