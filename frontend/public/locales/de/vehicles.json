@@ -21,7 +21,11 @@
     "vehicleShown": "Fahrzeug in Hauptliste angezeigt",
     "vehiclesDeleted": "{{count}} Fahrzeug(e) dauerhaft gelöscht",
     "vin": "VIN",
-    "visibilityError": "Sichtbarkeit konnte nicht aktualisiert werden"
+    "visibilityError": "Sichtbarkeit konnte nicht aktualisiert werden",
+    "exportBeforeDelete": "Vor dem Löschen exportieren",
+    "exportError": "Verlauf-PDF konnte nicht exportiert werden",
+    "exportSaleHistory": "Verkaufshistorie (anonymisiert)",
+    "exportSuccess": "Verlauf für {{count}} Fahrzeug(e) exportiert"
   },
   "calendar": {
     "bulkMode": "Massenmodus",
@@ -80,20 +84,21 @@
       "statusOnTrack": "Im Plan",
       "today": "Heute",
       "tomorrow": "Morgen",
-      "viewNotes": "Notizen anzeigen"
+      "viewNotes": "Notizen anzeigen",
+      "completeReminderAction": "Erinnerung abschließen"
     }
   },
   "dashboard": {
     "addFirstVehicle": "Füge dein erstes Fahrzeug hinzu",
     "addVehicle": "Fahrzeug hinzufügen",
     "byMaintenance": "Nach Wartung",
-    "getStarted": "Lege los, indem du dein erstes Fahrzeug hinzufügst",
+    "getStarted": "Fange an, indem du dein erstes Fahrzeug hinzufügst",
     "loadError": "Dashboard konnte nicht geladen werden. Bitte versuche es erneut.",
     "loading": "Dashboard wird geladen...",
     "newestFirst": "Neueste zuerst",
     "noVehiclesYet": "Noch keine Fahrzeuge",
     "oldestFirst": "Älteste zuerst",
-    "sharedWithMeSection": "Für mich freigegeben ({{count}})",
+    "sharedWithMeSection": "Mit mir geteilt ({{count}})",
     "sortByName": "Nach Name sortieren",
     "sortTrigger": "Sortierung: {{label}}",
     "sortVehicles": "Fahrzeuge sortieren",
@@ -104,7 +109,19 @@
       "overdueCaption": "Überfällig · Handlungsbedarf",
       "spentLabel": "Ausgaben",
       "upcomingCaption": "Anstehend · nächste 30 Tage"
-    }
+    },
+    "addReferenceVehicle": "Referenzfahrzeug hinzufügen",
+    "bulkArchive": "Ausgewählte archivieren",
+    "cancelSelect": "Abbrechen",
+    "familyEmptyDesc": "Erfasse ein Fahrzeug für jemanden, der kein Haushaltskonto besitzt.",
+    "familyEmptyTitle": "Noch keine Familien-Referenzfahrzeuge",
+    "familyFriendsSection": "Familie & Freunde ({{count}})",
+    "familyFriendsSubtitle": "Einfache Datensätze für Personen ohne Konto",
+    "myVehiclesSection": "Meine Fahrzeuge ({{count}})",
+    "noOwnedVehicles": "Keine eigenen Fahrzeuge",
+    "noOwnedVehiclesDesc": "Füge ein eigenes Fahrzeug hinzu oder warte darauf, dass jemand eines mit dir teilt.",
+    "selectVehicles": "Auswählen",
+    "selectedCount": "{{count}} ausgewählt"
   },
   "defList": {
     "actions": "Aktionen",
@@ -136,7 +153,11 @@
     "totalSpent": "Gesamtausgaben",
     "type": "Typ",
     "avgCostPerVolume": "Ø Kosten/{{unit}}",
-    "volumeTotal": "{{value}} gesamt"
+    "volumeTotal": "{{value}} gesamt",
+    "deleteAction": "DEF-Eintrag löschen",
+    "tableCaption": "DEF-Kaufhistorie",
+    "volumeUnit": "Volumen ({{unit}})",
+    "loadAction": "DEF-Einträge laden"
   },
   "detail": {
     "actions": "Aktionen",
@@ -166,9 +187,9 @@
     "lastLocation": "Zuletzt hier gesehen",
     "lastLocationSeenAt": "Zuletzt gesehen: {{time}}",
     "loading": "Fahrzeugdetails werden geladen...",
-    "manufacturing": "Produktion",
-    "msrpPricing": "MSRP-Preisgestaltung",
-    "noWindowSticker": "Kein Window Sticker hochgeladen",
+    "manufacturing": "Herstellung",
+    "msrpPricing": "UVP-Preise",
+    "noWindowSticker": "Kein Fensteraufkleber hochgeladen",
     "notSpecified": "Nicht angegeben",
     "offlineCachedData": "Offline: Es werden zwischengespeicherte Daten angezeigt",
     "optionalEquipment": "Optionale Ausstattung",
@@ -189,11 +210,11 @@
       "maintenance": "Wartung",
       "media": "Medien",
       "overview": "Übersicht",
-      "tracking": "Verfolgung"
+      "tracking": "Tracking"
     },
-    "transfer": "Übertragen",
+    "transfer": "Übertrag",
     "transferVehicle": "Fahrzeug übertragen",
-    "uploadWindowSticker": "Window Sticker hochladen",
+    "uploadWindowSticker": "Fensteraufkleber hochladen",
     "vehicleDetails": "Fahrzeugdetails",
     "vehicleNotFound": "Fahrzeug nicht gefunden",
     "viewAnalytics": "Analysen anzeigen",
@@ -258,31 +279,71 @@
       "vehicleSections": "Fahrzeugbereiche",
       "vinMismatch": "VIN: Keine Übereinstimmung",
       "vinVerified": "VIN: Verifiziert",
-      "wheels": "Räder"
+      "wheels": "Räder",
+      "hours": "Stunden",
+      "loadAction": "Fahrzeug laden",
+      "subSections": "Unterbereiche"
     },
     "cardEdit": {
-      "saveError": "Änderungen konnten nicht gespeichert werden. Bitte erneut versuchen.",
+      "saveError": "Änderungen konnten nicht gespeichert werden. Bitte versuche es erneut.",
       "title": "{{section}} bearbeiten"
     },
     "cardEmpty": "Noch nichts erfasst",
     "equipment": {
       "add": "Hinzufügen",
-      "addPlaceholder": "Ausstattung hinzufügen ...",
+      "addPlaceholder": "Ausstattung hinzufügen...",
       "done": "Fertig",
       "editSubtitle": "Ausstattung dieses Fahrzeugs bearbeiten",
-      "empty": "Noch keine Ausstattung. Unten Einträge hinzufügen.",
+      "empty": "Noch keine Ausstattung vorhanden. Füge unten Elemente hinzu.",
       "remove": "{{item}} entfernen",
-      "saveError": "Ausstattung konnte nicht gespeichert werden. Bitte erneut versuchen."
+      "saveError": "Ausstattung konnte nicht gespeichert werden. Bitte versuche es erneut."
     },
     "pricing": {
       "editTitle": "Preise bearbeiten",
-      "msrpHint": "Wird normalerweise aus dem Preisaufkleber ausgelesen; bearbeiten, um ihn zu korrigieren oder zu ergänzen.",
-      "saveError": "Preise konnten nicht gespeichert werden. Bitte erneut versuchen.",
+      "msrpHint": "Normalerweise aus dem Fensteraufkleber (Window Sticker) ausgelesen; bearbeiten, um ihn zu korrigieren oder hinzuzufügen.",
+      "saveError": "Preise konnten nicht gespeichert werden. Bitte versuche es erneut.",
       "title": "Preise"
     },
     "settings": {
       "title": "Fahrzeugeinstellungen"
-    }
+    },
+    "hero": {
+      "logService": "Service erfassen",
+      "addFuel": "Tanken hinzufügen",
+      "reminder": "Erinnerung",
+      "equipment": "Ausstattung",
+      "standard": "Standard",
+      "optional": "Optional"
+    },
+    "keyFacts": {
+      "spent": "Ausgaben",
+      "upcoming": "Anstehend"
+    },
+    "tow": {
+      "axles": "Achsen",
+      "axlesInvalid": "Die Anzahl der Achsen muss eine ganze Zahl von 1 bis 10 sein",
+      "brakeElectric": "Elektrisch",
+      "brakeHydraulic": "Hydraulisch",
+      "brakeNone": "Keine",
+      "brakes": "Bremstyp",
+      "editTitle": "Anhänger-Verknüpfung bearbeiten",
+      "hitch": "Kupplungstyp",
+      "hitchBall": "Kugelkopf",
+      "hitchFifthWheel": "Sattelkupplung (Fifth Wheel)",
+      "hitchGooseneck": "Gooseneck (Sattelkupplung)",
+      "hitchPintle": "Hakenkupplung",
+      "linkedTrailers": "Verknüpfte Anhänger",
+      "loadingTitle": "Anhänger-Verknüpfung",
+      "none": "Keine",
+      "notConnected": "{{type}} ist derzeit nicht verbunden",
+      "notSet": "Nicht festgelegt",
+      "saveError": "Anhängerdetails konnten nicht gespeichert werden",
+      "saved": "Anhängerdetails gespeichert",
+      "title": "Anhänger & Zugfahrzeug",
+      "towVehicle": "Zugfahrzeug"
+    },
+    "exportAction": "Fahrzeugdaten exportieren",
+    "importAction": "Fahrzeugdaten importieren"
   },
   "documentList": {
     "confirmDelete": "Bist du sicher, dass du dieses Dokument löschen möchtest?",
@@ -309,7 +370,11 @@
     "typeManual": "Handbuch",
     "typeOther": "Sonstige",
     "typeReceipt": "Beleg",
-    "typeRegistration": "Zulassung"
+    "typeRegistration": "Zulassung",
+    "deleteAction": "Dokument löschen",
+    "downloadAction": "Dokument herunterladen",
+    "updateAction": "Dokument aktualisieren",
+    "loadAction": "Dokumente laden"
   },
   "documentUpload": {
     "title": "Dokument hochladen",
@@ -335,7 +400,8 @@
       "typeOther": "Sonstige",
       "selectFile": "Datei auswählen",
       "errorOccurred": "Ein Fehler ist aufgetreten"
-    }
+    },
+    "uploadAction": "Dokument hochladen"
   },
   "edit": {
     "alsoTrackDistance": "Auch Strecke/Kilometerstand erfassen",
@@ -366,13 +432,17 @@
     "trim": "Ausstattungslinie (Trim)",
     "vehicleDetails": "Fahrzeugdetails",
     "vehicleType": "Fahrzeugtyp",
-    "year": "Jahr"
+    "year": "Jahr",
+    "usageTracking": "Nutzungs-Tracking",
+    "usageDistance": "Danzanz (Kilometerstand)",
+    "usageHours": "Stunden (Betriebsstundenzähler)",
+    "currentHours": "Aktuelle Stunden"
   },
   "fuelList": {
     "actions": "Aktionen",
     "addFillUp": "Betankung hinzufügen",
     "addFirstFillUp": "Erste Betankung hinzufügen",
-    "avgFuelEconomy": "Durchschn. Kraftstoffverbrauch",
+    "avgFuelEconomy": "Durchschnittlicher Kraftstoffverbrauch",
     "confirmDelete": "Bist du sicher, dass du diesen Kraftstoffeintrag löschen möchtest?",
     "date": "Datum",
     "deleteError": "Eintrag konnte nicht gelöscht werden",
@@ -382,8 +452,8 @@
     "exporting": "Wird exportiert...",
     "fuelEconomy": "Kraftstoffverbrauch",
     "full": "Voll",
-    "fullTank": "Vollbetankung",
-    "hauling": "Nutzlast / Transport",
+    "fullTank": "Voller Tank",
+    "hauling": "Transportbetrieb",
     "importCSV": "CSV importieren",
     "importError": "Daten konnten nicht importiert werden",
     "importFromCSV": "Aus CSV importieren",
@@ -406,12 +476,27 @@
     "paginatedCount": "{{shown}} von {{total}}",
     "pageRange": "Zeige {{start}}–{{end}} von {{total}}",
     "pageOf": "Seite {{page}} von {{total}}",
-    "avgFuelRate": "Ø {{unit}}",
+    "avgFuelRate": "Durchschnittlich {{unit}}",
     "costPerHour": "Kosten/Std.",
     "costPerDistance": "Kosten/{{unit}}",
     "avgCostPerVolume": "Ø Kosten/{{unit}}",
     "volumeTotal": "{{value}} gesamt",
-    "fuelRate": "Verbrauchsrate"
+    "fuelRate": "Kraftstoffverbrauch",
+    "importFormat": "Importformat",
+    "importFormatCsv": "MyGarage CSV",
+    "importFormatFuelio": "Fuelio",
+    "importFormatDrivvo": "Drivvo",
+    "importFormatTesla": "Tesla / ABRP",
+    "importFormatAuto": "Automatisch erkennen",
+    "importCompleted": "Import abgeschlossen: {{success}} importiert, {{skipped}} übersprungen, {{errors}} Fehler",
+    "volumeUnit": "Volumen ({{unit}})",
+    "propaneUnit": "Propan ({{unit}})",
+    "unitPrice": "Einzelpreis",
+    "tableCaption": "Kraftstoff-Betankungshistorie",
+    "exportAction": "Kraftstoffeinträge exportieren",
+    "importAction": "Kraftstoffeinträge importieren",
+    "deleteAction": "Kraftstoffeintrag löschen",
+    "loadAction": "Kraftstoffhistorie laden"
   },
   "insuranceList": {
     "addFirstPolicy": "Füge deine erste Versicherungspolice hinzu",
@@ -429,7 +514,9 @@
     "policyNumber": "Versicherungsnummer",
     "premiumAmount": "Prämienbetrag",
     "startDate": "Startdatum",
-    "title": "Versicherungspolicen"
+    "title": "Versicherungspolicen",
+    "deleteAction": "Versicherungspolice löschen",
+    "loadAction": "Versicherungspolicen laden"
   },
   "lineItemEditor": {
     "cost": "Kosten",
@@ -568,9 +655,9 @@
       "clearError": "DTC konnte nicht gelöscht werden",
       "cleared": "Gelöscht",
       "clearedAt": "Gelöscht am",
-      "confirmClear": "Möchtest du {{code}} als gelöscht markieren? Dies zeigt an, dass du das Problem behoben hast.",
+      "confirmClear": "{{code}} als behoben markieren? Dies zeigt an, dass du das Problem gelöst hast.",
       "criticalCount": "{{count}} kritisch",
-      "emissions": "Abgassystem / Emissionen",
+      "emissions": "Emissionen",
       "firstSeen": "Zuerst gesehen",
       "lastSeen": "Zuletzt gesehen",
       "loadError": "Diagnose-Fehlercodes konnten nicht geladen werden",
@@ -585,7 +672,10 @@
       "searchHint": "Klicke auf das Suchen-Symbol bei einem Code, um online nach Ursachen und Lösungen zu suchen",
       "searchOnline": "Online suchen",
       "unknownCode": "Unbekannter Code",
-      "willAppear": "DTCs werden hier angezeigt, wenn dein WiCAN-Gerät Probleme erkennt"
+      "willAppear": "DTCs werden hier angezeigt, wenn dein WiCAN-Gerät Probleme erkennt",
+      "commonCauses": "Häufige Ursachen",
+      "fixGuidance": "Anleitung zur Behebung",
+      "symptoms": "Symptome"
     },
     "ensureDeviceLinked": "Stelle sicher, dass ein WiCAN-Gerät mit diesem Fahrzeug verknüpft ist",
     "fetchStatusError": "Status konnte nicht abgerufen werden",
@@ -604,7 +694,10 @@
       "loadError": "Fahrt-Sitzungen konnten nicht geladen werden",
       "noRecords": "Keine Fahrt-Sitzungen aufgezeichnet",
       "odometerStartEnd": "Kilometerstand Start / Ende",
-      "sessionCount": "{{count}} Sitzung(en) aufgezeichnet"
+      "sessionCount": "{{count}} Sitzung(en) aufgezeichnet",
+      "harshAccel": "Starkes Beschleunigen",
+      "harshBrake": "Starkes Bremsen",
+      "idleTime": "Leerlaufzeit"
     },
     "telemetryWillAppear": "Daten werden hier angezeigt, sobald dein WiCAN-Gerät Messwerte sendet",
     "trips": {
@@ -639,14 +732,16 @@
     "deleteError": "Notiz konnte nicht gelöscht werden",
     "loading": "Notizen werden geladen...",
     "noRecords": "Noch keine Notizen vorhanden",
-    "noRecordsDesc": "Verfolge Beobachtungen, Modifikationen, Fahrten und andere Informationen über dein Fahrzeug",
-    "noteCount": "{{count}} Notiz(en)",
+    "noRecordsDesc": "Halte Beobachtungen, Modifikationen, Fahrten und andere Informationen über dein Fahrzeug fest",
+    "noteCount": "{{count}} Notizen",
     "title": "Notizen",
-    "updated": "Aktualisiert"
+    "updated": "Aktualisiert",
+    "deleteAction": "Notiz löschen",
+    "loadAction": "Notizen laden"
   },
   "odometerList": {
     "actions": "Aktionen",
-    "addFirstReading": "Ersten Eintrag hinzufügen",
+    "addFirstReading": "Ersten Kilometerstand hinzufügen",
     "addReading": "Kilometerstand hinzufügen",
     "confirmDelete": "Bist du sicher, dass du diesen Kilometerstandseintrag löschen möchtest?",
     "date": "Datum",
@@ -659,13 +754,18 @@
     "importError": "Daten konnten nicht importiert werden",
     "importFromCSV": "Aus CSV importieren",
     "importing": "Wird importiert...",
-    "latestMileage": "Aktueller Kilometerstand",
+    "latestMileage": "Letzter Kilometerstand",
     "loading": "Kilometerstandseinträge werden geladen...",
     "noRecords": "Noch keine Kilometerstandseinträge vorhanden",
-    "noRecordsDesc": "Verfolge den Kilometerstand deines Fahrzeugs im Zeitverlauf",
+    "noRecordsDesc": "Erfasse den Kilometerstand deines Fahrzeugs im Zeitverlauf",
     "notes": "Notizen",
     "recordCount": "{{count}} Eintrag/Einträge",
-    "title": "Kilometerstände"
+    "title": "Kilometerstände",
+    "deleteAction": "Kilometerstandseintrag lökoschen",
+    "exportAction": "Kilometerstandseinträge exportieren",
+    "importAction": "Kilometerstandseinträge importieren",
+    "tableCaption": "Historie der Kilometerstände",
+    "loadAction": "Kilometerstände laden"
   },
   "photoGallery": {
     "deletePhoto": "Foto löschen",
@@ -695,7 +795,11 @@
       "noCaption": "Keine Bildunterschrift",
       "editCaption": "Bildunterschrift bearbeiten",
       "save": "Speichern",
-      "errorOccurred": "Ein Fehler ist aufgetreten"
+      "errorOccurred": "Ein Fehler ist aufgetreten",
+      "loadAction": "Fotos laden",
+      "deleteAction": "Foto löschen",
+      "setMainAction": "Als Hauptfoto festlegen",
+      "captionAction": "Bildunterschrift aktualisieren"
     }
   },
   "photoUpload": {
@@ -712,11 +816,12 @@
     "previewAlt": "Vorschau",
     "selectFile": "Datei auswählen",
     "setAsMain": "Als Hauptfahrzeugfoto festlegen",
-    "title": "Foto hochladen"
+    "title": "Foto hochladen",
+    "uploadAction": "Foto hochladen"
   },
   "propaneList": {
     "actions": "Aktionen",
-    "addFirstRecord": "Füge deinen ersten Eintrag hinzu",
+    "addFirstRecord": "Ersten Eintrag hinzufügen",
     "addPropane": "Propan hinzufügen",
     "confirmDelete": "Bist du sicher, dass du diesen Propan-Eintrag löschen möchtest?",
     "cost": "Kosten",
@@ -726,19 +831,23 @@
     "gallons": "Gallonen",
     "loading": "Propan-Einträge werden geladen...",
     "noRecords": "Noch keine Propan-Einträge vorhanden",
-    "noRecordsDesc": "Verfolge Propan-Befüllungen für deinen Sattelauflieger (Fifth Wheel)",
+    "noRecordsDesc": "Erfasse Propan-Nachfüllungen für dein Wohnmobil (Fifth Wheel)",
     "pricePerUnit": "Preis/Einheit",
     "recordCount": "{{count}} Eintrag/Einträge",
     "title": "Propan-Einträge",
     "totalVolume": "Gesamt ({{unit}})",
     "totalSpent": "Gesamtausgaben",
     "vendor": "Händler",
-    "avgCostPerVolume": "Ø Kosten/{{unit}}"
+    "avgCostPerVolume": "Ø Kosten/{{unit}}",
+    "deleteAction": "Propan-Eintrag löschen",
+    "tableCaption": "Propan-Nachfüllhistorie",
+    "volumeUnit": "Volumen ({{unit}})",
+    "loadAction": "Propan-Einträge laden"
   },
   "quickEntry": {
     "fuelRecord": "Kraftstoffeintrag",
     "fuelUp": "Tanken",
-    "fuelUpDesc": "Einen Tank- oder Ladevorgang erfassen",
+    "fuelUpDesc": "Eine Betankung oder Ladung erfassen",
     "goToDashboard": "Zum Dashboard",
     "loadError": "Fahrzeuge konnten nicht geladen werden",
     "loadingVehicles": "Fahrzeuge werden geladen...",
@@ -753,7 +862,9 @@
     "serviceVisitDesc": "Wartung oder Reparatur erfassen",
     "title": "Schnelleingabe",
     "vehicle": "Fahrzeug",
-    "whatLogging": "Was möchtest du erfassen?"
+    "whatLogging": "Was möchtest du erfassen?",
+    "engineHours": "Motorbetriebsstunden",
+    "engineHoursDesc": "Zählerstand der Betriebsstunden aufzeichnen"
   },
   "recallList": {
     "activeCount": "{{active}} aktiv, {{resolved}} behoben",
@@ -784,7 +895,11 @@
     "title": "Sicherheitsrückrufe",
     "viewOnCarComplaints": "Auf CarComplaints.com ansehen",
     "checkNHTSATitle": "NHTSA auf Rückrufe überprüfen",
-    "notAvailable": "N/V"
+    "notAvailable": "N/V",
+    "nhtsaCheckAction": "Nach Rückrufen suchen",
+    "deleteAction": "Rückruf löschen",
+    "statusAction": "Rückrufstatus aktualisieren",
+    "loadAction": "Sicherheitsrückrufe laden"
   },
   "reminderList": {
     "addReminder": "Erinnerung hinzufügen",
@@ -794,22 +909,27 @@
     "dismissError": "Erinnerung konnte nicht verworfen werden",
     "dismissed": "Erinnerung verworfen",
     "due": "Fällig",
-    "estimated": "Geschätzt",
-    "linkedToService": "Verknüpft mit Servicebericht",
+    "estimated": "Schätzung",
+    "linkedToService": "Mit Serviceeintrag verknüpft",
     "loading": "Erinnerungen werden geladen...",
     "markDone": "Als erledigt markieren",
     "markDoneError": "Erinnerung konnte nicht als erledigt markiert werden",
     "markedDone": "Erinnerung als erledigt markiert",
-    "noReminders": "Keine {{status}} Erinnerungen",
+    "noReminders": "Keine {{status}}en Erinnerungen",
     "title": "Erinnerungen",
     "statusDismissed": "Verworfen",
     "statusDone": "Erledigt",
     "statusPending": "Ausstehend",
-    "dueAtHours": "fällig bei {{n}} Std."
+    "dueAtHours": "Fällig bei {{n}} Std.",
+    "packApplied": "Erinnerungspaket angewendet",
+    "packApplyError": "Paket konnte nicht angewendet werden",
+    "applyPack": "Paket anwenden",
+    "applyPackAria": "Erinnerungspaket anwenden",
+    "choosePack": "Paket auswählen…"
   },
   "serviceList": {
     "attachments": "Anhänge",
-    "confirmDelete": "Bist du sicher, dass du diesen Servicebesuch und alle zugehörigen Posten löschen möchtest?",
+    "confirmDelete": "Bist du sicher, dass du diesen Servicebesuch und alle dazugehörigen Positionen löschen möchtest?",
     "costBreakdown": "Kostenaufschlüsselung",
     "deleteFailed": "Löschen fehlgeschlagen",
     "deleteFailedDesc": "Servicebesuch konnte nicht gelöscht werden",
@@ -832,7 +952,9 @@
     "tax": "Steuer",
     "title": "Servicehistorie",
     "total": "Gesamt",
-    "visitCount": "{{count}} Besuche"
+    "visitCount": "{{count}} Besuche",
+    "deleteAction": "Servicebesuch löschen",
+    "loadAction": "Servicehistorie laden"
   },
   "serviceVisitAttachmentUpload": {
     "title": "Anhang hochladen",
@@ -843,7 +965,8 @@
     "errorUploadFailed": "Datei konnte nicht hochgeladen werden",
     "supportedFormats": "Unterstützte Formate: JPG, PNG, GIF, PDF (max. 10 MB)",
     "upload": "Hochladen",
-    "uploading": "Wird hochgeladen..."
+    "uploading": "Wird hochgeladen...",
+    "uploadAction": "Anhang hochladen"
   },
   "spotRentalList": {
     "active": "Aktiv",
@@ -888,33 +1011,39 @@
     "waste": "Abfall",
     "water": "Wasser",
     "weekly": "Wöchentlich",
-    "addBilling": "Abrechnung hinzufügen"
+    "addBilling": "Abrechnung hinzufügen",
+    "deleteAction": "Stellplatzvermietung löschen",
+    "billingDeleteAction": "Abrechnungseintrag löschen",
+    "loadAction": "Stellplatzvermietungen laden"
   },
   "taxList": {
     "actions": "Aktionen",
-    "addFirstRecord": "Füge deinen ersten Eintrag hinzu",
+    "addFirstRecord": "Ersten Eintrag hinzufügen",
     "addRecord": "Eintrag hinzufügen",
     "amount": "Betrag",
-    "confirmDelete": "Bist du sicher, dass du diesen Steuerdatensatz löschen möchtest?",
+    "confirmDelete": "Bist du sicher, dass du diesen Steuereintrag löschen möchtest?",
     "datePaid": "Zahlungsdatum",
-    "deleteError": "Steuerdatensatz konnte nicht gelöscht werden",
-    "loading": "Steuerdatensätze werden geladen...",
-    "noRecords": "Noch keine Steuer- oder Zulassungsdatensätze vorhanden",
-    "noRecordsDesc": "Verfolge Zulassungsgebühren, Inspektionen, Kfz-Steuern und Mautgebühren",
+    "deleteError": "Steuereintrag konnte nicht gelöscht werden",
+    "loading": "Steuereinträge werden geladen...",
+    "noRecords": "Noch keine Steuer- oder Zulassungseinträge vorhanden",
+    "noRecordsDesc": "Erfasse Zulassungsgebühren, Inspektionen, Kfz-Steuern und Mautgebühren",
     "notes": "Notizen",
     "recordCount": "{{count}} Eintrag/Einträge",
     "renewalDate": "Verlängerungsdatum",
-    "title": "Steuer- & Zulassungsdatensätze",
+    "title": "Steuer- & Zulassungseinträge",
     "total": "Gesamt",
-    "type": "Typ"
+    "type": "Typ",
+    "deleteAction": "Steuereintrag löschen",
+    "tableCaption": "Historie der Steuer- und Zulassungseinträge",
+    "loadAction": "Steuereinträge laden"
   },
   "tollList": {
-    "addFirstTransaction": "Füge deine erste Transaktion hinzu",
+    "addFirstTransaction": "Erste Transaktion hinzufügen",
     "allTags": "Alle Transponder",
     "amount": "Betrag",
     "averagePerTransaction": "Durchschnitt pro Transaktion",
-    "confirmDelete": "Bist du sicher, dass du diese Mauttransaktion löschen möchtest?",
-    "deleteError": "Mauttransaktion konnte nicht gelöscht werden",
+    "confirmDelete": "Bist du sicher, dass du diese Maut-Transaktion löschen möchtest?",
+    "deleteError": "Maut-Transaktion konnte nicht gelöscht werden",
     "error": "Ein Fehler ist aufgetreten",
     "export": "Exportieren",
     "exportError": "Daten konnten nicht exportiert werden",
@@ -929,10 +1058,14 @@
     "totalAmount": "Gesamtbetrag",
     "totalTransactions": "Mauttransaktionen Gesamt",
     "transactionCount": "{{count}} Transaktion(en) aufgezeichnet",
-    "transactions": "Transaktionen"
+    "transactions": "Transaktionen",
+    "deleteAction": "Maut-Transaktion löschen",
+    "exportAction": "Maut-Transaktionen exportieren",
+    "monthlyBreakdownCaption": "Monatliche Maut-Gesamtbeträge",
+    "loadAction": "Maut-Transaktionen laden"
   },
   "tollTagList": {
-    "addFirstTollTag": "Füge deinen ersten Maut-Transponder hinzu",
+    "addFirstTollTag": "Ersten Maut-Transponder hinzufügen",
     "addTollTag": "Maut-Transponder hinzufügen",
     "confirmDelete": "Bist du sicher, dass du diesen Maut-Transponder löschen möchtest?",
     "deleteError": "Maut-Transponder konnte nicht gelöscht werden",
@@ -941,7 +1074,9 @@
     "notes": "Notizen",
     "status": "Status",
     "tagCount": "{{count}} Transponder konfiguriert",
-    "title": "Maut-Transponder"
+    "title": "Maut-Transponder",
+    "deleteAction": "Maut-Transponder löschen",
+    "loadAction": "Maut-Transponder laden"
   },
   "transferHistory": {
     "title": "Übertragungshistorie",
@@ -957,7 +1092,7 @@
     "hoursValue": "{{value}} Std.",
     "lastFillUp": "Letzte Betankung",
     "lastService": "Letzter Service",
-    "latestHours": "Letzte Motorstunden",
+    "latestHours": "Letzte Stunden",
     "latestOdometer": "Aktueller Kilometerstand",
     "maintenance": "Wartung",
     "never": "Nie",
@@ -980,7 +1115,8 @@
     "createAsNew": "„{{query}}“ als neuen Dienstleister erstellen",
     "created": "Dienstleister erstellt: {{name}}",
     "nameRequired": "Dienstleistername ist erforderlich",
-    "createFailed": "Dienstleister konnte nicht erstellt werden"
+    "createFailed": "Dienstleister konnte nicht erstellt werden",
+    "createAction": "Händler erstellen"
   },
   "vinDemo": {
     "enterVIN": "VIN eingeben"
@@ -1005,7 +1141,8 @@
     "fieldYear": "Jahr:",
     "invalidFormat": "Ungültiges VIN-Format",
     "mustBe17Characters": "VIN muss exakt 17 Zeichen lang sein",
-    "validateFailed": "VIN-Validierung fehlgeschlagen"
+    "validateFailed": "VIN konnte nicht validiert werden",
+    "decodeAction": "VIN entschlüsseln"
   },
   "warrantyList": {
     "addFirstWarranty": "Füge deine erste Garantie hinzu",
@@ -1022,7 +1159,9 @@
     "policyNumber": "Garantienummer",
     "startDate": "Startdatum",
     "title": "Garantien",
-    "warrantyCount": "{{count}} Garantien verfolgt"
+    "warrantyCount": "{{count}} Garantien erfasst",
+    "deleteAction": "Garantie löschen",
+    "loadAction": "Garantien laden"
   },
   "windowSticker": {
     "dropOrClick": "Datei hierher ziehen oder zum Hochladen klicken",
@@ -1102,15 +1241,18 @@
       "rawExtractedText": "Extrahierter Rohtext",
       "smogRating": "Smog-Bewertung",
       "testFailed": "Extraktionstest fehlgeschlagen",
-      "totalMsrp": "Gesamt-MSRP",
+      "totalMsrp": "Gesamt-UVP",
       "transmission": "Getriebe",
       "unknown": "Unbekannt",
       "validationWarnings": "Validierungswarnungen",
       "vehicleDetails": "Fahrzeugdetails",
       "vinLabel": "VIN",
       "vinMismatch": "(Abweichung!)",
-      "warranty": "Garantie"
-    }
+      "warranty": "Garantie",
+      "testAction": "Extraktion testen"
+    },
+    "uploadAction": "Fensteraufkleber hochladen",
+    "saveAction": "Daten des Fensteraufklebers speichern"
   },
   "wizard": {
     "color": "Farbe",
@@ -1120,7 +1262,7 @@
     "next": "Weiter",
     "nickname": "Spitzname",
     "title": "Neues Fahrzeug hinzufügen",
-    "trim": "Ausstattungslinie (Trim)",
+    "trim": "Ausstattungsvariante (Trim)",
     "vin": "VIN",
     "year": "Jahr",
     "misc": {
@@ -1154,8 +1296,11 @@
       "cancel": "Abbrechen",
       "creating": "Wird erstellt...",
       "createVehicle": "Fahrzeug erstellen",
-      "createFailed": "Fahrzeug konnte nicht erstellt werden"
-    }
+      "createFailed": "Fahrzeug konnte nicht erstellt werden",
+      "progressLabel": "Fortschritt beim Hinzufügen",
+      "createAction": "Fahrzeug erstellen"
+    },
+    "stepOf": "Schritt {{current}} von {{total}}"
   },
   "serviceVisitAttachments": {
     "loading": "Anhänge werden geladen...",
@@ -1168,7 +1313,10 @@
     "unknownSize": "Unbekannte Größe",
     "sizeBytes": "{{size}} B",
     "sizeKb": "{{size}} KB",
-    "sizeMb": "{{size}} MB"
+    "sizeMb": "{{size}} MB",
+    "loadAction": "Anhänge laden",
+    "deleteAction": "Anhang löschen",
+    "downloadAction": "Anhang herunterladen"
   },
   "livelinkDtcs": {
     "filterAll": "Alle",
@@ -1204,7 +1352,8 @@
     "uploadDifferent": "Andere PDF hochladen",
     "useThisData": "Diese Daten verwenden",
     "vehiclesFound": "{{count}} Fahrzeug(e) gefunden: {{vehicles}}",
-    "warnings": "Warnungen:"
+    "warnings": "Warnungen:",
+    "parseAction": "Versicherungs-PDF auslesen"
   },
   "odometerRecordList": {
     "autoTrackedByLiveLink": "Automatisch erfasst durch LiveLink",
@@ -1224,7 +1373,9 @@
   },
   "vehicleEditPage": {
     "genericError": "Ein Fehler ist aufgetreten",
-    "nicknamePlaceholder": "Mein Auto"
+    "nicknamePlaceholder": "Mein Auto",
+    "saveAction": "Fahrzeugeinstellungen speichern",
+    "currentHoursPlaceholder": "z. B. 123,5"
   },
   "inspectionResult": {
     "title": "Inspektionsergebnis",
@@ -1292,35 +1443,103 @@
   },
   "hoursList": {
     "actions": "Aktionen",
-    "addFirstReading": "Erste Ablesung hinzufügen",
-    "addReading": "Ablesung hinzufügen",
-    "confirmDelete": "Diesen Motorstunden-Eintrag wirklich löschen?",
+    "addFirstReading": "Ersten Zählerstand hinzufügen",
+    "addReading": "Zählerstand hinzufügen",
+    "confirmDelete": "Bist du sicher, dass du diesen Stundeneintrag löschen möchtest?",
     "date": "Datum",
     "deleteError": "Eintrag konnte nicht gelöscht werden",
-    "latestReading": "Letzte Ablesung",
-    "loading": "Motorstunden werden geladen ...",
-    "noRecords": "Noch keine Motorstunden-Einträge",
-    "noRecordsDesc": "Erfassen Sie die Motorstunden Ihres Fahrzeugs im Zeitverlauf",
+    "latestReading": "Letzter Zählerstand",
+    "loading": "Stundeneinträge werden geladen...",
+    "noRecords": "Noch keine Stundeneinträge vorhanden",
+    "noRecordsDesc": "Erfasse die Motorbetriebsstunden deines Fahrzeugs im Zeitverlauf",
     "notes": "Notizen",
-    "recordCount": "Einträge: {{count}}",
+    "recordCount": "{{count}} Eintrag/Einträge",
     "source": "Quelle",
     "sourceFuel": "Kraftstoff",
     "sourceManual": "Manuell",
     "sourceServiceVisit": "Service",
-    "tableCaption": "Verlauf der Motorstunden-Ablesungen",
-    "title": "Motorstunden-Ablesungen"
+    "tableCaption": "Historie der Motorbetriebsstunden",
+    "title": "Motorbetriebsstunden-Zählerstände",
+    "deleteAction": "Stundeneintrag löschen",
+    "loadAction": "Motorbetriebsstunden-Zählerstände laden"
   },
   "vehicleTypeLabels": {
-    "ATV": "Quad",
+    "ATV": "ATV / Quad",
     "Car": "Auto",
-    "Electric": "Elektro",
-    "FifthWheel": "Fifth-Wheel",
+    "Electric": "Elektrofahrzeug",
+    "FifthWheel": "Sattelauflieger (Fifth Wheel)",
     "Hybrid": "Hybrid",
     "Motorcycle": "Motorrad",
     "RV": "Wohnmobil",
     "SUV": "SUV",
     "Trailer": "Anhänger",
     "TravelTrailer": "Wohnwagen",
-    "Truck": "Pick-up"
+    "Truck": "Lkw / Pickup",
+    "Boat": "Boot",
+    "UTV": "UTV / SxS",
+    "Snowmobile": "Motorschlitten",
+    "Bicycle": "Fahrrad",
+    "EBike": "E-Bike"
+  },
+  "externalVehicles": {
+    "addReferenceTitle": "Referenzfahrzeug hinzufügen",
+    "confirmDelete": "Diesen Fahrzeugdatensatz löschen? Dies kann nicht rückgängig gemacht werden.",
+    "contactName": "Name des Kontakts",
+    "contactPhone": "Telefon",
+    "created": "Fahrzeug gespeichert",
+    "delete": "Löschen",
+    "deleteError": "Fahrzeug konnte nicht gelöscht werden",
+    "deleted": "Fahrzeug gelöscht",
+    "editTitle": "Fahrzeug bearbeiten",
+    "make": "Marke",
+    "model": "Modell",
+    "nickname": "Spitzname",
+    "nicknamePlaceholder": "z. B. Papas RAV4",
+    "nicknameRequired": "Spitzname ist erforderlich",
+    "notes": "Notizen",
+    "referenceBadge": "Referenz",
+    "referenceContactHint": "Kontakt · kein Konto",
+    "save": "Speichern",
+    "saveError": "Fahrzeug konnte nicht gespeichert werden",
+    "saving": "Wird gespeichert…",
+    "updated": "Fahrzeug aktualisiert",
+    "vin": "VIN",
+    "year": "Jahr"
+  },
+  "tireList": {
+    "add": "Reifen hinzufügen",
+    "addReading": "Messung erfassen",
+    "addTitle": "Reifen hinzufügen",
+    "brand": "Marke",
+    "confirmDelete": "Bist du sicher, dass du diesen Reifen löschen möchtest?",
+    "deleteAction": "Reifen löschen",
+    "deleted": "Reifen gelöscht",
+    "dot": "DOT",
+    "edit": "Bearbeiten",
+    "editTitleNamed": "Reifen {{position}}",
+    "empty": "Noch keine Reifen erfasst",
+    "emptyHint": "Füge VL/VR/HL/HR (und Ersatzrad) mit Profiltiefe und DOT-Code hinzu.",
+    "loadAction": "Reifen laden",
+    "lowTread": "Geringe Profiltiefe",
+    "model": "Modell",
+    "position": "Position",
+    "positions": {
+      "FL": "Vorne Links",
+      "FR": "Vorne Rechts",
+      "RL": "Hinten Links",
+      "RR": "Hinten Rechts",
+      "SPARE": "Ersatzrad"
+    },
+    "pressure": "Reifendruck",
+    "pressureWithUnit": "Reifendruck ({{unit}})",
+    "projection": "Verschleißprognose",
+    "readingSaved": "Messung gespeichert",
+    "readingTitle": "Messung erfassen ({{position}})",
+    "saveAction": "Reifen speichern",
+    "saveReadingAction": "Messung speichern",
+    "saved": "Reifen gespeichert",
+    "size": "Größe",
+    "title": "Reifen",
+    "tread": "Profil"
   }
 }

@@ -22,7 +22,7 @@
   {
    "path": "public/locales/de/analytics.json",
    "disposition": "audited",
-   "digest": "8d4d9c88c0b557a2013e29c7cc76b32617c100a7ca10b18479267b127892da53",
+   "digest": "ccf9ad84358d52e4e112724ef73c88464338facc7f57fbf38476c018101c6c03",
    "reason": "the MPG help copy is untranslated here and falls back to English; the digest forces a re-review when it is translated. Task 6 replaced the raw `units.volume === 'L'` prose selection with the same `{{unit}}` interpolation the volume COLUMN already used, so the two cannot disagree: totalLiters / totalGallons are gone and totalVolume takes getVolumeUnit(units). Fix round 1 restored the strings whose MEANING never changed, under their new keys: task 6b's deletion rule (a translation of a changed sentence is a lie in another language) was applied to some that named no unit at all. German kept all seven; French kept only the three that are unit-neutral in French, since its 'Calcul du MPG :' and 'MPG moyen :' name the unit outright. Where the English gained a {{unit}} the placeholder was appended in parentheses, because validate-translations.ts blocks on a dropped interpolation. Task 7 added the cost-per-distance card's label as `{{unit}}` interpolation (`fuelList.costPerDistance` / `vehicle.costPerDistance`): it used to be two hardcoded English strings inside `UnitFormatter.getCostPerDistanceLabel`, which bypassed i18n entirely, so every reader of every language was shown 'Cost/1k Miles' or 'Cost/100 km'. The unit half is composed from the resolved distance adapter, so the bundle names no unit of its own. Fix round 1 added `avgCostPerVolume` (and, where the list shows a total, `volumeTotal`) for the same reason and in the same shape: they replace two hardcoded English strings inside UnitFormatter that rendered in six summary cards. Both interpolate the unit or the already-composed value, so the bundle still names no unit of its own.",
    "tests": [
     "__tests__/volumeTotalLabelLocales.test.ts"
@@ -31,13 +31,13 @@
   {
    "path": "public/locales/de/common.json",
    "disposition": "no unit behaviour",
-   "digest": "a0db91c5b935bee1b4a58080e0344fead0286daa9e6ab992bec9300fab3574e7",
+   "digest": "66c4905513143950aa7e36ebcd194ca61bacab89ba07cf9c63f2cbead1cb4618",
    "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched 9 of them; every hit was read in context and none is a unit decision or a unit-bearing quantity."
   },
   {
    "path": "public/locales/de/forms.json",
    "disposition": "audited",
-   "digest": "d0fcf9009135d73a61b0492015df2a2c30535d3eb9530647900bafe72c52b3bd",
+   "digest": "ce1239cd135a49074f467321e44bed35573cb2f363a9c337e5cc01f125d6e02d",
    "reason": "fuel.receiptTextPlaceholder is a plausible EXAMPLE receipt (ruling R5's exempt class): there is no canonical value behind it to convert. Task 6 fixed the reminder distance copy: reminder.milesUntilDue / reminder.milesRequired are renamed to reminder.distanceUntilDue / reminder.distanceRequired and their prose no longer names a unit, so the unit comes only from u.distance.label. Covered by components/__tests__/ReminderForm.distanceCopy.test.tsx, which resolves this bundle and asserts the RENDERED prose rather than a key. Task 6b removed this bundle's stale copies of the unit-naming keys it corrected rather than leaving them saying the old thing in another language, so those keys fall back to the corrected English; a missing key is non-blocking in validate-translations.ts, and English that is true beats a translation that is not. Re-translating them is a translation pass, not unit work. __tests__/unitCopy.resolvedProse.test.tsx walks every bundle on disk and fails if any of them names a unit unconditionally again.",
    "tests": [
     "components/__tests__/ReminderForm.distanceCopy.test.tsx",
@@ -47,13 +47,13 @@
   {
    "path": "public/locales/de/nav.json",
    "disposition": "no unit behaviour",
-   "digest": "cdcb139a948b000be30acb6bd3127339fe225d0a01778e57f4c6b529502d67cf",
+   "digest": "52d09e0260687869950a5e0c041c6d9b8f8d5a6724ac8b5fd5d11a70dd02b5a5",
    "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched NONE of them."
   },
   {
    "path": "public/locales/de/settings.json",
    "disposition": "audited",
-   "digest": "4aacb130eb2fcb8594394dd22964cfd8ce5382256047e9b409b86a337dbd39cf",
+   "digest": "e3759f63188ebbc78dcea721eee33f71d7e1c99931b24e6c230f6ec442e2504d",
    "reason": "units.resolvedDescription is COMPOSED from the resolved set, so it carries no unit names of its own: the labels are interpolated from UNIT_ADAPTERS, which is the same table every rendered quantity reads (plan 3b R1). units.gallonUs / units.gallonUk state literal conversion facts and units.showBothDescription is an example; none is a converted quantity. Task 6b removed this bundle's stale copies of the unit-naming keys it corrected rather than leaving them saying the old thing in another language, so those keys fall back to the corrected English; a missing key is non-blocking in validate-translations.ts, and English that is true beats a translation that is not. Re-translating them is a translation pass, not unit work. __tests__/unitCopy.resolvedProse.test.tsx walks every bundle on disk and fails if any of them names a unit unconditionally again. Phase 4 task 6 added this bundle's translations of the 47 `units.*` keys tasks 4 and 5 added to `en`: eleven quantity NAMES, twenty-six per-quantity OPTION labels, the preset-switch confirmation and the instance-default copy. They name units the way `units.gallonUs` / `units.gallonUk` already do and for the same reason: an option label in a unit PICKER is the choice on offer, not a converted quantity, and the picker's selection is what the resolved set is built FROM. Every unit SYMBOL inside them (km, mi, m, ft, L, gal, km/L, L/100km, MPG, kPa, bar, PSI, °C, °F, kg, lb, Nm, lb-ft, mm, /32 in, km/h, mph) is copied verbatim from `en` per D10, checked mechanically over all 162 parenthesised tokens in the six bundles with zero misses; only unit NAMES are translated. The one number that moves is the decimal mark in the two gallon volumes (3.785 L -> 3,785 L), because the app formats every other number through `Intl.NumberFormat(getActiveLocale())` and `decimalInput.ts` reads the locale's own separator, so a dot here would be the inconsistent choice, not the safe one. `units.showBothDescription` was deliberately NOT translated: it is in `unitCopy.resolvedProse.test.tsx`'s FIXED list, whose cross-bundle receipt pins which bundles carry a FIXED key, so translating it here would be a units decision rather than a translation pass.",
    "tests": [
     "__tests__/unitDescriptionLocales.test.ts",
@@ -64,7 +64,7 @@
   {
    "path": "public/locales/de/vehicles.json",
    "disposition": "audited",
-   "digest": "f5c5d2c77c890689d9a1d8518e3c4043ee45d3a4b2524c92be3cc492c671b318",
+   "digest": "e840bfe37e679d01a8160cec7d558c563381dddc0829ece3f672eb30d19c50b0",
    "reason": "windowSticker.misc.fuelEconomyMpg and the warranty placeholders reproduce a US Monroney label verbatim and are exempt for the same reason as WindowStickerUpload. defList.gallons and propaneList.gallons still EXIST in `en` and in these bundles; what changed is that no code reads them any more (both list headers moved to the `volumeUnit` interpolation, and their tests assert the old key is absent from the rendered header). Unreferenced keys, not stale translations: verified by grep, because the first version of this sentence said `en` had dropped them and `en` had not. Task 6 replaced the raw `units.volume === 'L'` prose selection with the same `{{unit}}` interpolation the volume COLUMN already used, so the two cannot disagree: totalLiters / totalGallons are gone and totalVolume takes getVolumeUnit(units). Task 7 added the cost-per-distance card's label as `{{unit}}` interpolation (`fuelList.costPerDistance` / `vehicle.costPerDistance`): it used to be two hardcoded English strings inside `UnitFormatter.getCostPerDistanceLabel`, which bypassed i18n entirely, so every reader of every language was shown 'Cost/1k Miles' or 'Cost/100 km'. The unit half is composed from the resolved distance adapter, so the bundle names no unit of its own. Fix round 1 added `avgCostPerVolume` (and, where the list shows a total, `volumeTotal`) for the same reason and in the same shape: they replace two hardcoded English strings inside UnitFormatter that rendered in six summary cards. Both interpolate the unit or the already-composed value, so the bundle still names no unit of its own.",
    "tests": [
     "__tests__/volumeTotalLabelLocales.test.ts"
