@@ -7,11 +7,16 @@ import FormModalWrapper from '../FormModalWrapper'
 import CardEditOverlay, { EDITABLE_CARD_CLASS } from './CardEditOverlay'
 import vehicleService from '../../services/vehicleService'
 import { emptyToNull, str } from '../../utils/formUtils'
-import { toCanonicalLiters } from '../../utils/decimalSafe'
 import { parseDecimalInput } from '../../utils/decimalInput'
 import { getActiveLocale } from '@/constants/i18n'
-import { UnitConverter, UnitFormatter } from '../../utils/units'
-import { useUnitPreference } from '../../hooks/useUnitPreference'
+import {
+  seedUnitField,
+  unitFieldUnchanged,
+  type QuantityFormat,
+  type UnitFieldOrigin,
+  type UnitFormat,
+} from '../../utils/unitFormat'
+import { useUnitFormat } from '../../hooks/useUnitFormat'
 import type { Vehicle, VehicleUpdate } from '../../types/vehicle'
 
 interface VehicleSpecsPanelProps {
@@ -20,6 +25,17 @@ interface VehicleSpecsPanelProps {
   onUpdated: (vehicle: Vehicle) => void
   /** When this counter increments, open the editor (used by Ask My Garage). */
   editRequestKey?: number
+}
+
+/**
+ * The canonical origin of this form's two unit-bearing fields.
+ *
+ * Held INSIDE the form state, as on the tire form, so every `setForm` carries
+ * the origins forward and there is no way to update one and forget the other.
+ */
+interface SpecFormOrigins {
+  oil_capacity_liters: UnitFieldOrigin
+  lug_nut_torque_nm: UnitFieldOrigin
 }
 
 type SpecForm = {
@@ -31,43 +47,67 @@ type SpecForm = {
   brake_fluid_type: string
   transmission_fluid_type: string
   maintenance_specs_notes: string
+  origins: SpecFormOrigins
 }
 
-function seedForm(vehicle: Vehicle, system: 'metric' | 'imperial'): SpecForm {
-  const oilLiters =
-    vehicle.oil_capacity_liters != null ? Number(vehicle.oil_capacity_liters) : null
-  const torqueNm =
-    vehicle.lug_nut_torque_nm != null ? Number(vehicle.lug_nut_torque_nm) : null
+/**
+ * Read a unit-bearing field back into canonical storage, locale-aware.
+ *
+ * The locale-aware sibling of `canonicalFromUnitField`, which this form cannot
+ * use: its numeric controls are `NumberInput`, which renders `type="text"` with
+ * `inputMode="decimal"`, so a reader on a comma locale types `4,5` and that
+ * helper's `Number()` would read it as NaN and silently store nothing. The
+ * untouched-field rule is identical and shared, via `unitFieldUnchanged`: a
+ * field the user did not touch posts back the canonical value it was seeded
+ * from, never a re-conversion of what it displays.
+ *
+ * @param quantity The resolved adapter for this field's quantity.
+ * @returns `null` for a field that cannot be read; the caller reports it.
+ */
+function readUnitField(
+  typed: string,
+  origin: UnitFieldOrigin,
+  quantity: QuantityFormat,
+  locale: string
+): { ok: true; value: number | null } | { ok: false } {
+  if (unitFieldUnchanged(typed, origin)) return { ok: true, value: origin.canonical }
+  const parsed = parseDecimalInput(typed, locale)
+  if (parsed.kind === 'invalid') return { ok: false }
+  if (parsed.kind === 'empty') return { ok: true, value: null }
+  return { ok: true, value: quantity.toCanonical(parsed.value) }
+}
 
-  const oilDisplay =
-    oilLiters == null || Number.isNaN(oilLiters)
-      ? ''
-      : system === 'imperial'
-        ? String(UnitConverter.litersToGallons(oilLiters) ?? oilLiters)
-        : String(oilLiters)
-
-  const torqueDisplay =
-    torqueNm == null || Number.isNaN(torqueNm)
-      ? ''
-      : system === 'imperial'
-        ? String(UnitConverter.nmToLbft(torqueNm) ?? torqueNm)
-        : String(torqueNm)
+function seedForm(vehicle: Vehicle, u: UnitFormat): SpecForm {
+  const oil = seedUnitField(
+    vehicle.oil_capacity_liters != null ? Number(vehicle.oil_capacity_liters) : null,
+    u.volume
+  )
+  const torque = seedUnitField(
+    vehicle.lug_nut_torque_nm != null ? Number(vehicle.lug_nut_torque_nm) : null,
+    u.torque
+  )
 
   return {
     oil_viscosity: str(vehicle.oil_viscosity),
-    oil_capacity: oilDisplay,
+    oil_capacity: oil.display,
     oil_filter_part_number: str(vehicle.oil_filter_part_number),
-    lug_nut_torque: torqueDisplay,
+    lug_nut_torque: torque.display,
     coolant_type: str(vehicle.coolant_type),
     brake_fluid_type: str(vehicle.brake_fluid_type),
     transmission_fluid_type: str(vehicle.transmission_fluid_type),
     maintenance_specs_notes: str(vehicle.maintenance_specs_notes),
+    origins: { oil_capacity_liters: oil, lug_nut_torque_nm: torque },
   }
 }
 
 /**
  * Overview card for structured maintenance specs (oil, lug torque, fluids).
- * Canonical storage is liters / Nm; the editor converts for imperial users.
+ *
+ * Canonical storage stays liters / Nm. Display and entry resolve PER QUANTITY
+ * through `useUnitFormat`, not through the binary imperial/metric flag the
+ * first version branched on: that flag is collapsed out of VOLUME, so a reader
+ * who chose litres with lb-ft was shown Nm, which is the disagreement issue
+ * #152 was filed about.
  */
 export default function VehicleSpecsPanel({
   vin,
@@ -76,14 +116,14 @@ export default function VehicleSpecsPanel({
   editRequestKey = 0,
 }: VehicleSpecsPanelProps) {
   const { t } = useTranslation('vehicles')
-  const { system } = useUnitPreference()
+  const u = useUnitFormat()
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [form, setForm] = useState<SpecForm>(() => seedForm(vehicle, system))
+  const [form, setForm] = useState<SpecForm>(() => seedForm(vehicle, u))
 
   useEffect(() => {
-    if (open) setForm(seedForm(vehicle, system))
-  }, [open, vehicle, system])
+    if (open) setForm(seedForm(vehicle, u))
+  }, [open, vehicle, u])
 
   useEffect(() => {
     if (editRequestKey > 0) setOpen(true)
@@ -100,7 +140,8 @@ export default function VehicleSpecsPanel({
       vehicle.maintenance_specs_notes,
   )
 
-  const setField = (key: keyof SpecForm, value: string) => {
+  /** `origins` is excluded from the key type so a field write cannot replace it. */
+  const setField = (key: Exclude<keyof SpecForm, 'origins'>, value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }))
   }
 
@@ -108,40 +149,36 @@ export default function VehicleSpecsPanel({
     setSaving(true)
     try {
       const locale = getActiveLocale()
-      let oil_capacity_liters: number | null = null
-      if (form.oil_capacity.trim()) {
-        const parsed = parseDecimalInput(form.oil_capacity, locale)
-        if (parsed.kind === 'invalid') {
-          toast.error(t('detail.specs.oilCapacityInvalid'))
-          setSaving(false)
-          return
-        }
-        if (parsed.kind === 'value') {
-          oil_capacity_liters = toCanonicalLiters(parsed.value, system)
-        }
+
+      const oil = readUnitField(
+        form.oil_capacity,
+        form.origins.oil_capacity_liters,
+        u.volume,
+        locale
+      )
+      if (!oil.ok) {
+        toast.error(t('detail.specs.oilCapacityInvalid'))
+        setSaving(false)
+        return
       }
 
-      let lug_nut_torque_nm: number | null = null
-      if (form.lug_nut_torque.trim()) {
-        const parsed = parseDecimalInput(form.lug_nut_torque, locale)
-        if (parsed.kind === 'invalid') {
-          toast.error(t('detail.specs.lugTorqueInvalid'))
-          setSaving(false)
-          return
-        }
-        if (parsed.kind === 'value') {
-          lug_nut_torque_nm =
-            system === 'imperial'
-              ? UnitConverter.lbftToNm(parsed.value)
-              : parsed.value
-        }
+      const torque = readUnitField(
+        form.lug_nut_torque,
+        form.origins.lug_nut_torque_nm,
+        u.torque,
+        locale
+      )
+      if (!torque.ok) {
+        toast.error(t('detail.specs.lugTorqueInvalid'))
+        setSaving(false)
+        return
       }
 
       const payload: VehicleUpdate = {
         oil_viscosity: emptyToNull(form.oil_viscosity),
-        oil_capacity_liters,
+        oil_capacity_liters: oil.value,
         oil_filter_part_number: emptyToNull(form.oil_filter_part_number),
-        lug_nut_torque_nm,
+        lug_nut_torque_nm: torque.value,
         coolant_type: emptyToNull(form.coolant_type),
         brake_fluid_type: emptyToNull(form.brake_fluid_type),
         transmission_fluid_type: emptyToNull(form.transmission_fluid_type),
@@ -159,8 +196,10 @@ export default function VehicleSpecsPanel({
     }
   }
 
-  const volumeUnit = system === 'imperial' ? 'gal' : 'L'
-  const torqueUnit = UnitFormatter.getTorqueUnit(system)
+  /* One interpolated key per field, carrying the resolved unit, replacing the
+   * pair of hardcoded 'gal'/'L' strings and the binary getTorqueUnit call. */
+  const oilCapacityLabel = t('detail.specs.oilCapacityWithUnit', { unit: u.volume.label })
+  const lugTorqueLabel = t('detail.specs.lugTorqueWithUnit', { unit: u.torque.label })
 
   return (
     <>
@@ -182,7 +221,7 @@ export default function VehicleSpecsPanel({
               <div>
                 <p className="text-sm text-text-mute">{t('detail.specs.oilCapacity')}</p>
                 <Mono size="sm" className="block">
-                  {UnitFormatter.formatVolume(Number(vehicle.oil_capacity_liters), system)}
+                  {u.volume.format(Number(vehicle.oil_capacity_liters))}
                 </Mono>
               </div>
             )}
@@ -196,7 +235,7 @@ export default function VehicleSpecsPanel({
               <div>
                 <p className="text-sm text-text-mute">{t('detail.specs.lugTorque')}</p>
                 <Mono size="sm" className="block">
-                  {UnitFormatter.formatTorque(Number(vehicle.lug_nut_torque_nm), system, true)}
+                  {u.torque.format(Number(vehicle.lug_nut_torque_nm))}
                 </Mono>
               </div>
             )}
@@ -256,7 +295,7 @@ export default function VehicleSpecsPanel({
               placeholder="5W-30"
             />
           </Field>
-          <Field id="spec_oil_capacity" label={`${t('detail.specs.oilCapacity')} (${volumeUnit})`}>
+          <Field id="spec_oil_capacity" label={oilCapacityLabel}>
             <NumberInput
               id="spec_oil_capacity"
               value={form.oil_capacity}
@@ -270,7 +309,7 @@ export default function VehicleSpecsPanel({
               onChange={(e) => setField('oil_filter_part_number', e.target.value)}
             />
           </Field>
-          <Field id="spec_lug_torque" label={`${t('detail.specs.lugTorque')} (${torqueUnit})`}>
+          <Field id="spec_lug_torque" label={lugTorqueLabel}>
             <NumberInput
               id="spec_lug_torque"
               value={form.lug_nut_torque}

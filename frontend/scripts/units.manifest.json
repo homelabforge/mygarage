@@ -1365,7 +1365,7 @@
   {
    "path": "src/components/tabs/SettingsIntegrationsTab.tsx",
    "disposition": "no unit behaviour",
-   "digest": "e12ba4ad99e582f4a85131daa7ba7d092d2eac7c3285ad3c39cefd1976d93ffe",
+   "digest": "a9500d42d7dee24ed4f7e94eac9fd0cbe11428d920f55cb424cb959731782d59",
    "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched 5 of them; every hit was read in context and none is a unit decision or a unit-bearing quantity."
   },
   {
@@ -1615,6 +1615,12 @@
    "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched 1 of them; every hit was read in context and none is a unit decision or a unit-bearing quantity."
   },
   {
+   "path": "src/components/vehicle-detail/GarageAssistantPanel.tsx",
+   "disposition": "no unit behaviour",
+   "digest": "ebd4c8b438da3cddee193a4949bc19501bfaa1d02322c7e36f842ed8b22f4689",
+   "reason": "no unit behaviour: the panel posts a question and renders the answer, citations and 'missing' list the server returns. It reads no canonical field, calls no adapter and names no unit. Its scan hits are substring matches inside ordinary identifiers (`mm` inside `trimmed`), read in context and none a unit decision. ONE THING A REVIEWER SHOULD KNOW AND THIS FILE CANNOT FIX: the answer STRING can itself contain units, because the assistant's system prompt tells the model which to use. That is a backend decision in garage_assistant_service/garage_context_service, which resolves the reader's units and states them in the prompt; nothing the frontend does can correct a unit already baked into model output."
+  },
+  {
    "path": "src/components/vehicle-detail/PricingDrawer.tsx",
    "disposition": "no unit behaviour",
    "digest": "7ab255fe55ea69ad987b6255e9cc04f6ca3ec5f8878de74d9b14b1c1e52254ff",
@@ -1672,7 +1678,7 @@
   {
    "path": "src/components/vehicle-detail/VehicleOverviewTab.tsx",
    "disposition": "audited",
-   "digest": "e36e31d6b2f0a116d9b9eef2fe4d8217d6aa313c3bb5c0171b593aa9d521507e",
+   "digest": "64e0b59ba476e8f32b619dd98ff65a02d9c3d7967a4a27e9d695b8d9a22f9152",
    "reason": "no binary unit decision left. Task 6b migrated the fuel-economy and fuel-rate family onto the resolved `units.consumption` and `units.volume` tokens (31 sites over 4 files, enumerated by `scripts/enumerate-fuel-consumption.ts`), and `UnitFormatter.formatFuelEconomy`, `getFuelEconomyUnit`, `formatFuelRate` and `getFuelRateUnit` were deleted once `unitsBinaryApiSurface.test.ts` reported all four as dead. Its three EPA figures (city, highway, combined) were the file's only unit behaviour and had no test at all; task 6b added mixed-set render tests for both directions, plus one pinning that they use `formatPrimary` and never append a counterpart.",
    "tests": [
     "components/vehicle-detail/__tests__/VehicleOverviewTab.test.tsx"
@@ -1683,6 +1689,15 @@
    "disposition": "no unit behaviour",
    "digest": "16f66929d3768d25b99b9d8646935569cb660b78b758e545bdcd145b9379271e",
    "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched 1 of them; every hit was read in context and none is a unit decision or a unit-bearing quantity."
+  },
+  {
+   "path": "src/components/vehicle-detail/VehicleSpecsPanel.tsx",
+   "disposition": "audited",
+   "digest": "d9672d1504579e2931e938aee03003ac484aece8147e3a9b22fc9efff8390287",
+   "reason": "oil capacity and lug-nut torque through useUnitFormat with seeded origins. Canonical storage is liters and Nm. The first version branched on `useUnitPreference().system`, which is collapsed out of VOLUME (spec D8), so a reader on litres with lb-ft was shown Nm: the same disagreement issue #152 was filed about, and it is pinned by a test using exactly that mixed set. Entry uses `readUnitField`, the locale-aware sibling of `canonicalFromUnitField`: this form's numeric controls are NumberInput, which renders type=\"text\" with inputMode=\"decimal\", so a comma-locale reader types `4,5` and canonicalFromUnitField's Number() would read NaN. The untouched-field rule is shared rather than reimplemented, via `unitFieldUnchanged`, so an untouched field posts back the canonical value it was seeded from and a round trip through gallons cannot drift the record. Both editor labels interpolate the resolved unit; the hardcoded 'gal'/'L' pair and the binary getTorqueUnit call are gone.",
+   "tests": [
+    "components/vehicle-detail/__tests__/VehicleSpecsPanel.test.tsx"
+   ]
   },
   {
    "path": "src/constants/accents.ts",
@@ -2024,7 +2039,7 @@
   {
    "path": "src/locales/en/settings.json",
    "disposition": "audited",
-   "digest": "3662e9b4bc95c6716db68596a1a34de2627330fac6b187ec804493ff3a5399cb",
+   "digest": "edd07a0bded5fd28567c1c9bb05f1f62fa52b8a770f5b7a3d8a039837508cb35",
    "reason": "units.resolvedDescription is COMPOSED from the resolved set, so it carries no unit names of its own: the labels are interpolated from UNIT_ADAPTERS, which is the same table every rendered quantity reads (plan 3b R1). Task 6b composed units.showBothDescription the same way, replacing its fixed 25 MPG example with one rendered through the reader's own consumption formatter, and moved events.card.milesBefore onto the reader's distance label. units.gallonUs / units.gallonUk state literal conversion facts, and units.gallonStandardDescription names the gallon on purpose: that IS the setting's subject. What it stopped saying is \"when the unit system is Imperial\", which is not a thing a resolved set has. Phase 4 task 4 added the Custom editor's English strings: `units.custom`, `units.customDescription`, the four preset-confirmation keys, eleven `units.quantities.*` headings and twenty-six `units.options.*` names, one per OPTION rather than one per quantity (D10: names are translated, symbols are not, so the select reads 'Kilopascals (kPa)' and never `kpa`). English lands in this task because a missing English key has no fallback and renders the raw identifier; the other six locales are a later task and fall back to these. `units.gallonUs` / `units.gallonUk` are deliberately NOT reused for `units.options.secondary_gallon.*`: the panel names an instance-wide setting and the option names a per-account quantity, and one string serving both would couple two retirements. Phase 4 task 5 added four keys for the instance-default card: `units.instanceDefault`, `units.instanceDefaultDescription`, `units.instanceDefaultSaved` and `units.instanceDefaultError`. None names a unit: the card renders the eleven per-quantity labels through `units.options.*`, which this bundle already carried and which `UnitSetEditor` reads, so the new copy describes WHO the default applies to and nothing about what it is. The six gallon-panel keys (`units.gallonStandard`, `gallonStandardDescription`, `gallonUs`, `gallonUk`, `gallonSaved`, `gallonError`) are KEPT although task 5 deleted their only reader, on the same ruling this file already records for `defList.gallons` and `propaneList.gallons`: unreferenced keys are not stale translations, and `__tests__/unitCopy.resolvedProse.test.tsx` carries a live recorded decision about two of them that deleting would silently discard. Verified by grep that no code reads any of the six.",
    "tests": [
     "__tests__/unitDescriptionLocales.test.ts",
@@ -2042,7 +2057,7 @@
   {
    "path": "src/locales/en/vehicles.json",
    "disposition": "audited",
-   "digest": "06a64de2d4ff47ddb9a14b44f6f848ce57673edc7307d34ffd889ed1e22282cc",
+   "digest": "ccb4e6c8ef025e18f0bf091b57a13152a1031e2e1683a4899c8cef1d9d95f35a",
    "reason": "windowSticker.misc.fuelEconomyMpg and the warranty placeholders reproduce a US Monroney label verbatim and are exempt for the same reason as WindowStickerUpload. defList.gallons and propaneList.gallons still EXIST in `en` and in these bundles; what changed is that no code reads them any more (both list headers moved to the `volumeUnit` interpolation, and their tests assert the old key is absent from the rendered header). Unreferenced keys, not stale translations: verified by grep, because the first version of this sentence said `en` had dropped them and `en` had not. Task 6 replaced the raw `units.volume === 'L'` prose selection with the same `{{unit}}` interpolation the volume COLUMN already used, so the two cannot disagree: totalLiters / totalGallons are gone and totalVolume takes getVolumeUnit(units). Task 7 added the cost-per-distance card's label as `{{unit}}` interpolation (`fuelList.costPerDistance` / `vehicle.costPerDistance`): it used to be two hardcoded English strings inside `UnitFormatter.getCostPerDistanceLabel`, which bypassed i18n entirely, so every reader of every language was shown 'Cost/1k Miles' or 'Cost/100 km'. The unit half is composed from the resolved distance adapter, so the bundle names no unit of its own. Fix round 1 added `avgCostPerVolume` (and, where the list shows a total, `volumeTotal`) for the same reason and in the same shape: they replace two hardcoded English strings inside UnitFormatter that rendered in six summary cards. Both interpolate the unit or the already-composed value, so the bundle still names no unit of its own. Phase 5a (#152) replaced tireList.treadRequired with tireList.treadOrPressureRequired, the refusal message for a reading that measures nothing. Neither string names or implies a unit: the tread and pressure FIELDS are labelled by the existing treadWithUnit / pressureWithUnit interpolations, which are unchanged. The tireList.history* keys and tireList.odometer added with the reading-history drawer name no unit either: odometer is a bare label matching the existing bare tread and pressure labels on the card, and the value beside each is composed by the resolved adapter rather than by the bundle.",
    "tests": [
     "__tests__/volumeTotalLabelLocales.test.ts",
@@ -2172,7 +2187,7 @@
   {
    "path": "src/pages/VehicleDetail.tsx",
    "disposition": "no unit behaviour",
-   "digest": "4e3686facbc2cffc06eb90f06302e354a962e5527eff56729134914ac89b955f",
+   "digest": "9b4a235430f4d92138097f5102a7229d889bf0ec522ccd2d14b37fc1f785b832",
    "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched 6 of them; every hit was read in context and none is a unit decision or a unit-bearing quantity."
   },
   {
@@ -2413,7 +2428,7 @@
   {
    "path": "src/types/api.generated.ts",
    "disposition": "no unit behaviour",
-   "digest": "46ea4b66d82484d158233172a0c960f0d0efa336b8a483428e68fe5b02b2910f",
+   "digest": "7ba7e8c581eb2ddbc00d350c9147c9bd4b9faba04b7a199183d3c794dfd496fa",
    "reason": "no unit behaviour: a GENERATED type module. It declares the `UnitSet` vocabulary itself (`distance: \"km\" | \"mi\"` and nine more), so it is dense with unit vocabulary in a unit context, but it declares types rather than deciding or rendering anything. Its digest is load-bearing rather than incidental: this is the file the token-branch leg derives its vocabularies from, so a new unit token arriving from the backend is a review event, and an unrelated schema change costs one cheap re-acknowledgement. Re-acknowledged for phase 5a (#152): the regenerated schema widens TireReadingCreate.tread_depth_mm to optional-nullable and TireReadingResponse.tread_depth_mm to `string | null`. A nullability change on an existing mm-canonical field, not a new unit token; the UnitSet vocabulary is untouched."
   },
   {

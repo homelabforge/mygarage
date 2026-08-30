@@ -19,6 +19,8 @@ from app.models.tire import Tire
 from app.models.vehicle import TrailerDetails, Vehicle
 from app.models.vehicle_dtc import VehicleDTC
 from app.services.dtc_service import DTCService
+from app.utils.render_context import RenderContext, render_context_default
+from app.utils.unit_formatting import format_quantity
 
 # SAE-style OBD codes: P/B/C/U + 4 hex digits (e.g. P0420, B0001).
 _DTC_CODE_RE = re.compile(r"\b([PBCUpbcu][0-9A-Fa-f]{4})\b")
@@ -58,16 +60,25 @@ async def build_garage_context(
     vin: str,
     *,
     user_message: str | None = None,
+    ctx: RenderContext | None = None,
 ) -> dict[str, Any]:
     """Assemble garage + diagnostics context for one VIN.
 
     Pure DB reads — no LLM call. Truncates deterministically to stay under
     ``_MAX_CONTEXT_CHARS`` when serialized.
+
+    :param ctx: Whose units the reader reads in. The unit-bearing maintenance
+        specs are ALSO rendered as finished strings under
+        ``maintenance_specs.display``, so the model quotes a value instead of
+        converting one. Defaults to the instance default when omitted.
     """
     vin = vin.upper().strip()
     vehicle = await db.get(Vehicle, vin)
     if vehicle is None:
         return {}
+
+    if ctx is None:
+        ctx = await render_context_default(db)
 
     dtc_service = DTCService(db)
 
@@ -208,6 +219,15 @@ async def build_garage_context(
             "oil_capacity_liters": _jsonable(vehicle.oil_capacity_liters),
             "oil_filter_part_number": vehicle.oil_filter_part_number,
             "lug_nut_torque_nm": _jsonable(vehicle.lug_nut_torque_nm),
+            # Canonical liters/Nm stay above for anything that compares them;
+            # these are what the model is told to quote. Rendering here rather
+            # than naming units in the prompt is deliberate: the prompt cannot
+            # know whether this reader uses Nm or lb-ft, and a model asked to
+            # convert is a model doing arithmetic on a torque spec.
+            "display": {
+                "oil_capacity": format_quantity(vehicle.oil_capacity_liters, ctx, "volume"),
+                "lug_nut_torque": format_quantity(vehicle.lug_nut_torque_nm, ctx, "torque"),
+            },
             "coolant_type": vehicle.coolant_type,
             "brake_fluid_type": vehicle.brake_fluid_type,
             "transmission_fluid_type": vehicle.transmission_fluid_type,

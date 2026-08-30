@@ -41,4 +41,5 @@ async def garage_assistant_chat(
         vin=vin,
         message=body.message,
         history=body.history,
+        current_user=current_user,
     )
