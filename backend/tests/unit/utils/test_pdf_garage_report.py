@@ -239,3 +239,43 @@ class TestGenerateGarageAnalyticsPdf:
         assert "$200" in text  # inspection
         assert "$1,200" in text  # collision
         assert "$300" in text  # detailing
+
+
+class TestLargeCurrencyValuesRenderIntact:
+    """A knock-on effect of Task 5's KPI value fitting, on a report Task 5
+    does not otherwise touch.
+
+    Before the fitting existed, the Garage Value card rendered a large
+    currency value at a fixed 20-point monospace in a ~111-point card, so
+    reportlab split the token mid-number and the card read
+
+        $1,234,56
+        8
+
+    That was a pre-existing rendering bug, unrelated to units, that the
+    fitting incidentally fixed. It is a user-visible change to this report,
+    so it is pinned here rather than left to be rediscovered.
+    """
+
+    def test_a_large_garage_value_is_not_split_mid_number(self) -> None:
+        data = _make_garage_data()
+        data["total_costs"]["total_garage_value"] = Decimal("1234567.89")
+
+        buf = generate_garage_analytics_pdf(data)
+        # Normalized, not whitespace-stripped: stripping all spaces would
+        # rejoin "$1,234,56" and "8" and make this test unable to fail.
+        text = _extract_text(buf.read(), normalize=True)
+
+        assert "GARAGE VALUE" in text
+        assert "$1,234,568" in text
+        assert "$1,234,56 8" not in text
+
+    def test_a_garage_value_that_already_fitted_is_unchanged(self) -> None:
+        """The other half: the fixture's own value rendered fine before and
+        must still render identically, at the untouched base font."""
+        data = _make_garage_data()
+
+        buf = generate_garage_analytics_pdf(data)
+        text = _extract_text(buf.read(), normalize=True)
+
+        assert "$120,000" in text

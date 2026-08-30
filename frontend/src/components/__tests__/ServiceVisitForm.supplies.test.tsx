@@ -27,9 +27,17 @@ vi.mock('../../services/api', () => ({
 // System is 'imperial' deliberately: the mock supply is unit_type 'volume', so a
 // display-unit (quart) quantity only round-trips to a distinct canonical (liter)
 // value under imperial — proving conversion actually ran, not just passed through.
-vi.mock('../../hooks/useUnitPreference', () => ({
-  useUnitPreference: () => ({ system: 'imperial', showBoth: false }),
-}))
+vi.mock('../../hooks/useUnitPreference', async () => {
+  const { IMPERIAL_UNITS } = await import('@/__tests__/factories')
+  return {
+    useUnitPreference: () => ({
+      system: 'imperial',
+      showBoth: false,
+      units: IMPERIAL_UNITS,
+      gallonStandard: 'us',
+    }),
+  }
+})
 
 vi.mock('../../hooks/useCurrencyPreference', () => ({
   useCurrencyPreference: () => ({

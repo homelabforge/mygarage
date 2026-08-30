@@ -255,9 +255,20 @@ class TireService:
             # yesterday. The upsert-supplied tread carries no measurement date,
             # so the first dated reading wins. Closing that gap needs a
             # tread_measured_at column, which needs a migration.
+            #
+            # Each measurement is carried across only when the reading actually
+            # supplies it. Tread used to be assigned unconditionally, which was
+            # harmless only while the column was NOT NULL. Since 094 a
+            # pressure-only reading (#152: a slow leak, no tread gauge) would
+            # otherwise null the parent tire's tread, and an unknown tread is
+            # not a measurement of a healthy one: `below_threshold` would drop
+            # to False and `_sync_low_tread_reminder` would mark a live
+            # low-tread reminder done. Logging a pressure would have silently
+            # dismissed the warning that the tire is worn out.
             recorded_dates = [r.recorded_at for r in (tire.readings or [])]
             if not recorded_dates or data.recorded_at >= max(recorded_dates):
-                tire.tread_depth_mm = data.tread_depth_mm
+                if data.tread_depth_mm is not None:
+                    tire.tread_depth_mm = data.tread_depth_mm
                 if data.pressure_kpa is not None:
                     tire.pressure_kpa = data.pressure_kpa
             await self.db.commit()
@@ -283,11 +294,28 @@ class TireService:
         separate notification channel.
         """
         title = f"Tire tread low ({tire.position})"
-        below = bool(
-            tire.tread_depth_mm is not None
-            and tire.min_tread_mm is not None
-            and tire.tread_depth_mm <= tire.min_tread_mm
-        )
+        # THREE states, not two. `not below` used to conflate "measured, and it
+        # is fine" with "we do not know", which was safe only while a tread was
+        # mandatory everywhere. It is not: `Tire.tread_depth_mm` has been
+        # nullable since 085 (clear the field in the edit drawer and the upsert
+        # writes an explicit null), and since 094 a reading may omit one too.
+        # Only a MEASUREMENT above the threshold may complete a live safety
+        # reminder; an unknown tread leaves it exactly as it was.
+        #
+        # `known` and `below` are derived in ONE branch rather than each
+        # repeating the None checks: two copies of one predicate can drift
+        # apart, and a `below` that outlives its `known` is precisely the defect
+        # this code exists to prevent. A branch rather than
+        # `known and tread <= limit` because pyright does not carry a
+        # `is not None` narrowing through an intermediate flag.
+        tread = tire.tread_depth_mm
+        limit = tire.min_tread_mm
+        if tread is None or limit is None:
+            known = False
+            below = False
+        else:
+            known = True
+            below = tread <= limit
         result = await self.db.execute(
             select(Reminder).where(
                 Reminder.vin == tire.vin,
@@ -314,6 +342,6 @@ class TireService:
             )
             self.db.add(reminder)
             await self.db.commit()
-        elif not below and existing is not None:
+        elif known and not below and existing is not None:
             existing.status = "done"
             await self.db.commit()

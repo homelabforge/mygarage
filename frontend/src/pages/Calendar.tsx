@@ -13,10 +13,9 @@ import { useNavigate } from 'react-router-dom'
 import type { CalendarEvent, CalendarResponse } from '../types/calendar'
 import type { Vehicle } from '../types/vehicle'
 import api from '../services/api'
-import { useUnitPreference } from '../hooks/useUnitPreference'
+import { useUnitFormat } from '../hooks/useUnitFormat'
 import { useTimeFormat } from '../hooks/useTimeFormat'
 import { useDateLocale } from '../hooks/useDateLocale'
-import { UnitFormatter, UnitConverter } from '../utils/units'
 import { formatDateForDisplay } from '../utils/dateUtils'
 import { withBase } from '../utils/basePath'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
@@ -66,7 +65,7 @@ const EVENT_TYPE_FALLBACK_KEY = 'eventTypes.unknown'
 export default function CalendarPage() {
   const { t } = useTranslation('vehicles')
   const navigate = useNavigate()
-  const { system } = useUnitPreference()
+  const u = useUnitFormat()
   const { timeFormat } = useTimeFormat()
   const dateLocale = useDateLocale()
   const [events, setEvents] = useState<CalendarEvent[]>([])
@@ -689,7 +688,7 @@ export default function CalendarPage() {
                           {event.due_mileage_km && (
                             <span className="flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-blue-500/20 text-blue-500">
                               <Gauge className="w-3 h-3" />
-                              {UnitFormatter.formatDistance(parseFloat(event.due_mileage_km), system)}
+                              {u.distance.formatPrimary(parseFloat(event.due_mileage_km))}
                             </span>
                           )}
                           <span className={`text-xs font-medium uppercase ${
@@ -724,10 +723,12 @@ export default function CalendarPage() {
                               if (event.km_until_due == null) return null
                               const km = parseFloat(event.km_until_due)
                               if (isNaN(km)) return null
-                              const distanceUnit = UnitFormatter.getDistanceUnit(system)
-                              // 500 mi ≈ 805 km warning threshold; convert to display unit for thresholds.
+                              // 500 of the reader's own distance units is the
+                              // warning threshold, so the comparison happens in
+                              // the DISPLAY unit and the badge is composed by
+                              // the adapter rather than here.
                               const warnThresholdInDisplay = 500
-                              const displayValue = system === 'imperial' ? (UnitConverter.kmToMiles(km) ?? 0) : km
+                              const displayValue = u.distance.toDisplay(km) ?? 0
                               return (
                                 <span className={`text-xs px-1.5 py-0.5 rounded ${
                                   displayValue <= 0 ? 'bg-danger/20 text-danger' :
@@ -735,8 +736,8 @@ export default function CalendarPage() {
                                   'bg-garage-bg text-garage-text-muted'
                                 }`}>
                                   {displayValue <= 0
-                                    ? t('calendar.misc.distanceOver', { distance: `${Math.abs(displayValue).toLocaleString(dateLocale)} ${distanceUnit}` })
-                                    : t('calendar.misc.distanceLeft', { distance: `${displayValue.toLocaleString(dateLocale)} ${distanceUnit}` })}
+                                    ? t('calendar.misc.distanceOver', { distance: u.distance.formatPrimary(Math.abs(km)) })
+                                    : t('calendar.misc.distanceLeft', { distance: u.distance.formatPrimary(km) })}
                                 </span>
                               )
                             })()}
@@ -863,7 +864,7 @@ export default function CalendarPage() {
                     {selectedEventForNotes.due_mileage_km && (
                       <p className="text-sm text-garage-text-muted mt-2">
                         {t('calendar.misc.dueAt', {
-                          distance: UnitFormatter.formatDistance(parseFloat(selectedEventForNotes.due_mileage_km), system),
+                          distance: u.distance.formatPrimary(parseFloat(selectedEventForNotes.due_mileage_km)),
                         })}
                       </p>
                     )}

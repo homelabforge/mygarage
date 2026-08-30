@@ -41,17 +41,20 @@ const RECEIPT_ACCEPT = '.jpg,.jpeg,.png,.gif,.pdf'
 
 
 /** Canonical → display magnitude, formatted per unit type (whole numbers for count). */
+// units-exempt(binary-conversion): R3 supplies deferral, at the DECLARATION. A local binary helper: fix round 1 widened the leg to module-local declarations, which is where five of these lived. It threads the collapsed `system` down to `canonicalToDisplay` / `supplyUnitLabel`, which carry the same ruling at their own declarations in `utils/supplyUnits.ts`: D8 gave supplies a qt/L vocabulary `UnitSet` cannot express, so there is nothing resolved for this to read instead. Owner: deferred, pending the D8 amendment. Expires with the three legs in supplyUnits.ts, never alone.
 function formatMagnitude(value: number, supply: Supply, system: UnitSystem): string {
   const display = canonicalToDisplay(value, supply.unit_type, system)
   return supply.unit_type === 'count' ? Math.round(display).toLocaleString(getActiveLocale()) : display.toFixed(2)
 }
 
+// units-exempt(binary-conversion): R3 supplies deferral, at the DECLARATION. A local binary helper, delegating to formatMagnitude. It threads the collapsed `system` down to `canonicalToDisplay` / `supplyUnitLabel`, which carry the same ruling at their own declarations in `utils/supplyUnits.ts`: D8 gave supplies a qt/L vocabulary `UnitSet` cannot express, so there is nothing resolved for this to read instead. Owner: deferred, pending the D8 amendment. Expires with the three legs in supplyUnits.ts, never alone.
 function formatQuantity(raw: string, supply: Supply, system: UnitSystem): string {
   const label = supplyUnitLabel(supply.unit_type, system)
   const formatted = formatMagnitude(Number(raw), supply, system)
   return label ? `${formatted} ${label}` : formatted
 }
 
+// units-exempt(binary-conversion): R3 supplies deferral, at the DECLARATION. A local binary helper, delegating to formatMagnitude. It threads the collapsed `system` down to `canonicalToDisplay` / `supplyUnitLabel`, which carry the same ruling at their own declarations in `utils/supplyUnits.ts`: D8 gave supplies a qt/L vocabulary `UnitSet` cannot express, so there is nothing resolved for this to read instead. Owner: deferred, pending the D8 amendment. Expires with the three legs in supplyUnits.ts, never alone.
 function formatSignedQuantity(raw: string, supply: Supply, system: UnitSystem): string {
   const value = Number(raw)
   const label = supplyUnitLabel(supply.unit_type, system)
@@ -167,6 +170,7 @@ interface LedgerRowProps {
   system: UnitSystem
 }
 
+// units-exempt(binary-conversion): R3 supplies deferral, at the DECLARATION. A component whose props carry the binary system, which the precondition ruled IS a binary API; its JSX render site is where the collapse crosses the boundary. It threads the collapsed `system` down to `canonicalToDisplay` / `supplyUnitLabel`, which carry the same ruling at their own declarations in `utils/supplyUnits.ts`: D8 gave supplies a qt/L vocabulary `UnitSet` cannot express, so there is nothing resolved for this to read instead. Owner: deferred, pending the D8 amendment. Expires with the three legs in supplyUnits.ts, never alone.
 function PurchaseRow({ entry, supply, system }: LedgerRowProps) {
   const { t } = useTranslation('common')
   const { formatCurrency } = useCurrencyPreference()
@@ -318,6 +322,7 @@ function PurchaseRow({ entry, supply, system }: LedgerRowProps) {
   )
 }
 
+// units-exempt(binary-conversion): R3 supplies deferral, at the DECLARATION. A component whose props carry the binary system, same shape as PurchaseRow. It threads the collapsed `system` down to `canonicalToDisplay` / `supplyUnitLabel`, which carry the same ruling at their own declarations in `utils/supplyUnits.ts`: D8 gave supplies a qt/L vocabulary `UnitSet` cannot express, so there is nothing resolved for this to read instead. Owner: deferred, pending the D8 amendment. Expires with the three legs in supplyUnits.ts, never alone.
 function UsageRow({ entry, supply, system }: LedgerRowProps) {
   const { t } = useTranslation('common')
   const { formatCurrency } = useCurrencyPreference()
@@ -417,6 +422,7 @@ interface PurchaseFormValues {
   part_number: string
 }
 
+// units-exempt(binary-conversion): R3 supplies deferral, at the DECLARATION. A component whose inline props type carries the binary system. It threads the collapsed `system` down to `canonicalToDisplay` / `supplyUnitLabel`, which carry the same ruling at their own declarations in `utils/supplyUnits.ts`: D8 gave supplies a qt/L vocabulary `UnitSet` cannot express, so there is nothing resolved for this to read instead. Owner: deferred, pending the D8 amendment. Expires with the three legs in supplyUnits.ts, never alone.
 function PurchaseForm({
   supply,
   system,
@@ -633,6 +639,7 @@ interface AdjustmentFormValues {
   quantity: number
 }
 
+// units-exempt(binary-conversion): R3 supplies deferral, at the DECLARATION. A component whose inline props type carries the binary system. It threads the collapsed `system` down to `canonicalToDisplay` / `supplyUnitLabel`, which carry the same ruling at their own declarations in `utils/supplyUnits.ts`: D8 gave supplies a qt/L vocabulary `UnitSet` cannot express, so there is nothing resolved for this to read instead. Owner: deferred, pending the D8 amendment. Expires with the three legs in supplyUnits.ts, never alone.
 function AdjustmentForm({
   supply,
   system,

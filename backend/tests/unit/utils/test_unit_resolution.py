@@ -226,33 +226,58 @@ class TestNewUserSeeding:
 
 class TestEveryCreationPathSeeds:
     """A creation path that builds a User without the seeding helper silently
-    gives new accounts US gallons on a UK instance."""
+    gives new accounts US gallons on a UK instance.
 
-    def test_all_known_user_construction_sites_use_the_helper(self) -> None:
+    ★ This guard used to scan a hardcoded two-file list, and its own self-check
+    counted constructions WITHIN that list. So a fourth creation path added in
+    any other module escaped both the guard and the check that was supposed to
+    prove the guard was looking. An inventory that cannot grow is a floor, and a
+    floor inside the artifact whose whole job is to be the inventory is the
+    shape this workstream keeps producing. Both now walk the entire `app` tree.
+    """
+
+    @staticmethod
+    def _user_construction_sites() -> list[tuple[str, int, set[str]]]:
+        """Return every `User(...)` construction under `app/`, with its splats.
+
+        Walks the tree rather than a list of files, so a creation path added in
+        a module nobody thought of is still seen. Matches both the bare
+        `User(...)` and the qualified `models.User(...)` call forms.
+        """
         import ast
-        from pathlib import Path
+        from pathlib import Path as _Path
 
-        backend = Path(__file__).parent.parent.parent.parent
-        sources = [
-            backend / "app" / "routes" / "auth.py",
-            backend / "app" / "services" / "oidc" / "users.py",
-        ]
-
-        offenders: list[str] = []
-        for path in sources:
+        app_root = _Path(__file__).parent.parent.parent.parent / "app"
+        sites: list[tuple[str, int, set[str]]] = []
+        for path in sorted(app_root.rglob("*.py")):
             tree = ast.parse(path.read_text(encoding="utf-8"))
             for node in ast.walk(tree):
-                if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)):
+                if not isinstance(node, ast.Call):
                     continue
-                if node.func.id != "User":
+                func = node.func
+                name = (
+                    func.id
+                    if isinstance(func, ast.Name)
+                    else func.attr
+                    if isinstance(func, ast.Attribute)
+                    else None
+                )
+                if name != "User":
                     continue
                 starred = {
                     kw.value.id
                     for kw in node.keywords
                     if kw.arg is None and isinstance(kw.value, ast.Name)
                 }
-                if "unit_kwargs" not in starred:
-                    offenders.append(f"{path.name}:{node.lineno}")
+                sites.append((str(path.relative_to(app_root)), node.lineno, starred))
+        return sites
+
+    def test_all_user_construction_sites_use_the_helper(self) -> None:
+        offenders = [
+            f"{name}:{line}"
+            for name, line, starred in self._user_construction_sites()
+            if "unit_kwargs" not in starred
+        ]
 
         assert offenders == [], (
             f"User(...) built without **unit_kwargs at {offenders}. "
@@ -260,27 +285,19 @@ class TestEveryCreationPathSeeds:
         )
 
     def test_the_guard_sees_the_call_sites_it_claims_to_check(self) -> None:
-        """A path typo would make the guard above scan nothing and pass. Assert
-        it actually found User(...) constructions."""
-        import ast
-        from pathlib import Path
+        """A broken walk would make the guard above scan nothing and pass.
 
-        backend = Path(__file__).parent.parent.parent.parent
-        found = 0
-        for name in (
-            backend / "app" / "routes" / "auth.py",
-            backend / "app" / "services" / "oidc" / "users.py",
-        ):
-            assert name.exists(), name
-            tree = ast.parse(name.read_text(encoding="utf-8"))
-            found += sum(
-                1
-                for node in ast.walk(tree)
-                if isinstance(node, ast.Call)
-                and isinstance(node.func, ast.Name)
-                and node.func.id == "User"
-            )
-        assert found == 3, f"expected 3 User(...) construction sites, found {found}"
+        Asserts a floor rather than an exact count: a new creation path should
+        make the guard above fail loudly for the right reason, not make this
+        bookkeeping assertion fail first and send the reader to the wrong file.
+        """
+        sites = self._user_construction_sites()
+
+        assert len(sites) >= 3, f"expected at least 3 User(...) sites, found {sites}"
+        assert {name for name, _, _ in sites} >= {
+            "routes/auth.py",
+            "services/oidc/users.py",
+        }, f"the known creation paths are missing from the walk: {sites}"
 
 
 class TestUserResponseSerialisation:
@@ -425,18 +442,32 @@ class TestUserResponseSerialisation:
         assert response.unit_pressure == "psi"
         assert response.resolved_units.pressure == "psi"
 
-    def test_write_schemas_still_reject_custom(self) -> None:
-        """Ruling P1: the dedicated unit mutation arrives in phase 4, and until it
-        does, a generic setter that can write 'custom' without materialising the
-        eleven columns is the back door D9b exists to close."""
-        import pytest as _pytest
+    def test_write_schemas_carry_no_unit_preference_at_all(self) -> None:
+        """Ruling P1, finished: phase 4 removed the field instead of widening it.
+
+        This test used to assert only that the generic setters rejected
+        `custom`, which was the strongest guard available while they still
+        carried a `^(imperial|metric)$` field. It is too weak now: writing
+        `metric` through them is the release-blocking defect on its own,
+        because the eleven override columns survive the write and mask it.
+
+        Both halves are needed. `UserSelfUpdate` sets `extra="forbid"`, so the
+        stale key is a 422 and the raise below catches a re-added field. The
+        admin schema does not, so its key is silently ignored and no raise can
+        ever fire there; the field-list assertion is the only thing that would
+        notice the field coming back.
+        """
         from pydantic import ValidationError
 
         from app.schemas.user import AdminUserUpdate, UserSelfUpdate
 
         for schema in (UserSelfUpdate, AdminUserUpdate):
-            with _pytest.raises(ValidationError):
-                schema(unit_preference="custom")
+            assert "unit_preference" not in schema.model_fields
+
+        with pytest.raises(ValidationError):
+            UserSelfUpdate(unit_preference="metric")
+
+        assert "unit_preference" not in AdminUserUpdate(unit_preference="metric").model_dump()
 
     def test_out_of_vocabulary_unit_preference_reads_as_imperial(self) -> None:
         """The twelfth field needs the same defence-in-depth as the eleven raw

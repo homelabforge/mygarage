@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '../../__tests__/test-utils'
 import { fireEvent } from '@testing-library/react'
-import { UnitFormatter } from '../../utils/units'
+import { makeUnitFormat } from '../../utils/unitFormat'
+import { METRIC_UNITS } from '../../__tests__/factories'
 import type { WarrantyRecord } from '../../types/warranty'
 
 const useWarrantyRecordsMock = vi.fn()
@@ -10,7 +11,16 @@ vi.mock('../../hooks/queries/useWarrantyRecords', () => ({
   useWarrantyRecords: () => useWarrantyRecordsMock(),
   useDeleteWarrantyRecord: () => ({ mutate: deleteMutate, isPending: false, variables: undefined }),
 }))
-vi.mock('../../hooks/useUnitPreference', () => ({ useUnitPreference: () => ({ system: 'metric', showBoth: false }) }))
+vi.mock('../../hooks/useUnitPreference', () => ({
+  useUnitPreference: () => ({
+    system: 'metric',
+    showBoth: false,
+    gallonStandard: 'us',
+    // The RESOLVED set, not just the collapsed system: this component reads
+    // its distance through `useUnitFormat()`, which closes over `units`.
+    units: METRIC_UNITS,
+  }),
+}))
 vi.mock('../../hooks/useDateLocale', () => ({ useDateLocale: () => undefined }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
@@ -36,14 +46,16 @@ beforeEach(() => {
 })
 
 describe('WarrantyList — rendering + row actions', () => {
-  it('renders the warranty type + provider + the mileage limit via the REAL formatDistance (fails if the header content is dropped or the mileage renders raw canonical km instead of the formatted value)', () => {
+  it('renders the warranty type + provider + the mileage limit via the REAL distance formatter (fails if the header content is dropped or the mileage renders raw canonical km instead of the formatted value)', () => {
     render(<WarrantyList {...PROPS} />)
     expect(screen.getByText('Manufacturer')).toBeInTheDocument()
     expect(screen.getByText('Toyota')).toBeInTheDocument()
     // M2: the mileage cell is a load-bearing display conversion — assert the EXACT
     // formatter output (96561 km, metric → "96,561 km"), a value DISTINCT from every
     // other cell (dates 2020/2099, policy# W-1) so it can't cross-match.
-    expect(screen.getByText(UnitFormatter.formatDistance(96561, 'metric', false))).toBeInTheDocument()
+    expect(
+      screen.getByText(makeUnitFormat(METRIC_UNITS).distance.format(96561))
+    ).toBeInTheDocument()
   })
 
   it('clicking row Edit calls onEditClick with THE WHOLE warranty (fails if edit is unwired, passes the wrong row, or a truncated object)', () => {

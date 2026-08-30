@@ -13,9 +13,12 @@
     }
   },
   "vehicle": {
+    "totalVolume": "Всього ({{unit}})",
     "anomalyAbove": "Витрачено {{spent}} — на {{deviation}}% вище середнього значення {{avg}}.",
     "anomalyBelow": "Витрачено {{spent}} — на {{deviation}}% нижче середнього значення {{avg}}.",
     "costPerHourAxis": "Вартість/година ({{currency}})",
+    "costPerDistance": "Вартість/{{unit}}",
+    "avgCostPerVolume": "Сер. вартість/{{unit}}",
     "costPerHourLabel": "Вартість/година",
     "costPerHourValue": "{{value}}/год",
     "engineHoursAxis": "Мотогодини",

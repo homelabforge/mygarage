@@ -12,10 +12,9 @@ import { Clock, MapPin, Calendar, RefreshCw, Route, Map as MapIcon } from 'lucid
 import { livelinkService } from '@/services/livelinkService'
 import vehicleService from '@/services/vehicleService'
 import type { Trip, TripList, TripPoint } from '@/types/trips'
-import { useUnitPreference } from '@/hooks/useUnitPreference'
 import { useTimeFormat } from '@/hooks/useTimeFormat'
 import { formatAPITimestamp, formatTime } from '@/utils/parseAPITimestamp'
-import { UnitFormatter } from '@/utils/units'
+import { formatUnverifiedValue } from '@/utils/telemetryUnits'
 import { Card, Toggle, Mono, EmptyState } from '../ui'
 
 // Lazy-load map component — keeps Leaflet's ~150KB out of the main bundle
@@ -34,7 +33,6 @@ export default function LiveLinkTripsTab({ vin }: LiveLinkTripsTabProps) {
   const [pointsLoading, setPointsLoading] = useState(false)
   const [locationTrackingEnabled, setLocationTrackingEnabled] = useState<boolean | null>(null)
   const [trackingSaving, setTrackingSaving] = useState(false)
-  const { system: unitSystem, showBoth } = useUnitPreference()
 
   const fetchTrips = useCallback(async () => {
     setLoading(true)
@@ -116,10 +114,18 @@ export default function LiveLinkTripsTab({ vin }: LiveLinkTripsTabProps) {
     return `${minutes}m`
   }
 
-  const formatDistance = (km: number | null | undefined): string => {
-    if (km == null) return '--'
-    return UnitFormatter.formatDistance(km, unitSystem, showBoth)
-  }
+  // ★ `Trip.distance_km` is `DriveSession.distance_km` verbatim
+  // (`location_service.py::get_trips` selects that column), so it carries the
+  // custom-PID ambiguity `LiveLinkSessionsTab` documents: the odometer delta
+  // wins over the GPS haversine whenever an odometer reading exists, and the
+  // PIDs it is read from are the ones that "may already be in the user's
+  // unit". Sending it through `UnitFormatter.formatDistance` treated it as
+  // canonical kilometres and converted an already-mile delta a SECOND time for
+  // an imperial client, while the Sessions tab merely relabelled the same
+  // number. Three consumers of one column held three different beliefs about
+  // it; this removes one rather than adding a fourth.
+  const formatDistance = (km: number | null | undefined): string =>
+    formatUnverifiedValue(km, t)
 
   const toggleSelected = (sessionId: number): void => {
     setSelectedTripId(selectedTripId === sessionId ? null : sessionId)

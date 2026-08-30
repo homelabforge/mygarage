@@ -55,8 +55,20 @@ jobs:
         with:
           bun-version-file: '.bun-version'
 
-      # The translation scripts import only Node built-ins (no third-party
-      # deps), so `bun install` is intentionally skipped here.
+      # The four i18n scripts import only Node built-ins, and this step used to
+      # skip `bun install` for that reason. `validate-units.ts` broke the
+      # assumption: it loads the real TypeScript compiler out of node_modules to
+      # resolve what an identifier refers to, which no regex can do. Without the
+      # install it fails with ENOENT rather than silently reporting a clean tree,
+      # because the gate asserts its parser before scanning, but red is red.
+      #
+      # Installing here also keeps this job honest as a standalone reproduction
+      # of what a contributor runs locally: `bun run validate:translations` needs
+      # dependencies now, and a workflow that pretends otherwise teaches the
+      # wrong thing.
+      - name: Install dependencies
+        run: cd frontend && bun install --frozen-lockfile
+
       - name: Validate translations
         run: cd frontend && bun run validate:translations
 

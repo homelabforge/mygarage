@@ -8,7 +8,10 @@ import { makeDateSchema, makeOdometerSchema, makeNotesSchema } from './shared'
  *
  * Field `odometer_km` is the form-side name; values represent the user's
  * displayed unit (km for metric, mi for imperial). The form converts to
- * canonical km via toCanonicalKm before submission.
+ * canonical km via `canonicalFromUnitField` against a seeded `UnitFieldOrigin`
+ * on `u.distance` (see OdometerRecordForm.tsx). The binary `toCanonicalKm` this
+ * path used to call was deleted in phase 3b task 5 (ruling R8), so there is no
+ * longer a second way to write this field.
  *
  * Factory, not a constant — see the header of schemas/auth.ts for why.
  */

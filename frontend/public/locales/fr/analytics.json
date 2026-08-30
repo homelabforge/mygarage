@@ -248,8 +248,7 @@
     },
     "propaneAnalysis": "Analyse du propane",
     "totalSpent": "Total dépensé",
-    "totalLiters": "Total de litres",
-    "totalGallons": "Total de gallons",
+    "totalVolume": "Total ({{unit}})",
     "avgPricePerUnit": "Prix moy./{{unit}}",
     "monthlyPropaneCosts": "Coûts mensuels du propane",
     "spotRentalAnalysis": "Analyse de la location d’emplacement",
@@ -307,6 +306,8 @@
     "period1Value": "Période 1 : {{value}}",
     "period2Value": "Période 2 : {{value}}",
     "costPerHourAxis": "Coût/heure ({{currency}})",
+    "costPerDistance": "Coût/{{unit}}",
+    "avgCostPerVolume": "Coût moy./{{unit}}",
     "costPerHourLabel": "Coût/heure",
     "costPerHourValue": "{{value}}/h",
     "engineHoursAxis": "Heures moteur",
@@ -351,8 +352,6 @@
       "totalCostDesc": "Somme de toutes les dépenses de service et de carburant suivies.",
       "avgMonthlyLabel": "Coût mensuel moyen :",
       "avgMonthlyDesc": "Coût total divisé par le nombre de mois suivis.",
-      "costPerMileLabel": "Coût par mile :",
-      "costPerMileDesc": "Coût total divisé par le nombre total de miles parcourus (si les données de kilométrage sont disponibles).",
       "serviceBreakdownLabel": "Répartition par type de service :",
       "serviceBreakdownDesc": "Montre quels types de services coûtent le plus cher."
     },
@@ -386,13 +385,9 @@
     },
     "fuelEconomy": {
       "title": "Consommation de carburant",
-      "mpgCalcLabel": "Calcul du MPG :",
-      "mpgCalcDesc": "Calculé automatiquement à partir de pleins complets consécutifs. Les pleins partiels ne sont pas utilisés dans les calculs de MPG.",
-      "averageMpgLabel": "MPG moyen :",
-      "averageMpgDesc": "Consommation moyenne sur tous les pleins complets.",
-      "recentMpgLabel": "MPG récent :",
-      "recentMpgDesc": "Moyenne des 5 derniers pleins complets.",
-      "note": "Une baisse de la consommation peut indiquer des besoins d’entretien (filtre à air, bougies, pression des pneus) ou des changements d’habitudes de conduite. Des baisses importantes méritent une vérification."
+      "note": "Une baisse de la consommation peut indiquer des besoins d’entretien (filtre à air, bougies, pression des pneus) ou des changements d’habitudes de conduite. Des baisses importantes méritent une vérification.",
+      "averageEconomyDesc": "Consommation moyenne sur tous les pleins complets.",
+      "recentEconomyDesc": "Moyenne des 5 derniers pleins complets."
     },
     "vendorSpending": {
       "title": "Dépenses par fournisseur",
@@ -435,11 +430,10 @@
     "tips": {
       "title": "Conseils pour de meilleurs résultats",
       "enterAllRecords": "Saisissez tous les enregistrements d’entretien et de carburant pour des analyses complètes",
-      "includeMileage": "Incluez les données de kilométrage pour les calculs de coût par mile",
-      "markFullTank": "Marquez les pleins comme « pleins complets » pour un suivi précis de la consommation",
       "addVendorNames": "Ajoutez les noms des fournisseurs pour identifier les tendances de dépenses",
       "trackMonths": "Suivez au moins 3 à 6 mois de données pour obtenir des tendances significatives",
-      "reviewAnomalies": "Examinez les anomalies pour comprendre les dépenses inhabituelles"
+      "reviewAnomalies": "Examinez les anomalies pour comprendre les dépenses inhabituelles",
+      "markFullTank": "Marquez les pleins comme « pleins complets » pour un suivi précis de la consommation ({{unit}})"
     }
   },
   "reports": {

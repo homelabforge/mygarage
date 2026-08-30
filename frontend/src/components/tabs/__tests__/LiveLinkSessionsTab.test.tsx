@@ -3,6 +3,8 @@ import type { ReactNode } from 'react'
 import { render, screen, cleanup } from '../../../__tests__/test-utils'
 import { fireEvent } from '@testing-library/react'
 import type { DriveSession, DriveSessionListResponse } from '../../../types/livelink'
+import { binarySystemFor, presetUnitsFor, type UnitSet } from '../../../types/units'
+import vehiclesEn from '../../../locales/en/vehicles.json'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Harness note (mirrors the Task-1/Task-2 LiveLink precedent — assertions and
@@ -21,8 +23,15 @@ import type { DriveSession, DriveSessionListResponse } from '../../../types/live
 // This is a TEST-harness fix only; the component's fetch/effect logic is
 // unchanged (reskin = rendering-only).
 // ─────────────────────────────────────────────────────────────────────────────
+//
+// The `t` below resolves ONE key from the SHIPPED English bundle:
+// `vehicles:livelink.unknownUnit`. That key's value is the entire
+// user-visible wording of the L6 affordance, and a key-echoing mock would let
+// the wording change without a test noticing. Every other key still echoes, so
+// the existing key-name assertions are untouched.
 vi.mock('react-i18next', () => {
-  const t = (key: string) => key
+  const t = (key: string) =>
+    key === 'vehicles:livelink.unknownUnit' ? vehiclesEn.livelink.unknownUnit : key
   return {
     useTranslation: () => ({
       t,
@@ -37,7 +46,22 @@ const getSessions = vi.fn()
 vi.mock('@/services/livelinkService', () => ({
   livelinkService: { getSessions: (vin: string, params: unknown) => getSessions(vin, params) },
 }))
-vi.mock('@/hooks/useUnitPreference', () => ({ useUnitPreference: () => ({ system: 'imperial', showBoth: false }) }))
+// The tab reads `useUnitFormat()`, which is left REAL so the rendered strings
+// come from the shared adapter table rather than from a stub. Only the resolved
+// set underneath it is swapped, per test.
+// `system` is DERIVED from `units` exactly as the real hook derives it. Pinning
+// it to a literal would let the custom-set case pass for the wrong reason: the
+// defect being pinned is that `system` (collapsed from VOLUME) disagrees with
+// the per-quantity tokens, and a hardcoded `system` cannot express that.
+let units: UnitSet = presetUnitsFor('imperial', 'us')
+vi.mock('@/hooks/useUnitPreference', () => ({
+  useUnitPreference: () => ({
+    system: binarySystemFor(units.volume),
+    showBoth: false,
+    units,
+    gallonStandard: units.secondary_gallon,
+  }),
+}))
 vi.mock('@/hooks/useTimeFormat', () => ({ useTimeFormat: () => ({ timeFormat: '12h' }) }))
 vi.mock('@/constants/i18n', () => ({ getActiveLocale: () => 'en-US' }))
 vi.mock('@/utils/parseAPITimestamp', () => ({ formatAPITimestamp: () => 'Sun, Jul 26', formatTime: () => '12:00' }))
@@ -60,6 +84,7 @@ const list = (over: Partial<DriveSessionListResponse> = {}) =>
 
 beforeEach(() => {
   vi.clearAllMocks()
+  units = presetUnitsFor('imperial', 'us')
   getSessions.mockResolvedValue(list())
 })
 
@@ -67,7 +92,10 @@ describe('LiveLinkSessionsTab', () => {
   it('renders the session figures via the component formatters and calls getSessions(vin, {limit:50}) (fails if the list, a formatter, or the fetch args break)', async () => {
     render(<LiveLinkSessionsTab vin="V1" />)
     expect(await screen.findByText('1h 0m')).toBeInTheDocument() // formatDuration(3600)
-    expect(screen.getByText('100 mi')).toBeInTheDocument()        // formatOdometer(100), imperial
+    // distance_km is filled from a CUSTOM-PID odometer delta, so no unit can be
+    // claimed for it. It read "100 mi" before this and the miles were a guess.
+    expect(screen.getByText('100 (unknown unit)')).toBeInTheDocument()
+    expect(screen.getByText('37 mph')).toBeInTheDocument()         // 60 km/h / 1.60934, at 0 dp
     expect(getSessions.mock.calls).toStrictEqual([['V1', { limit: 50 }]]) // M1: exact call identity
   })
 
@@ -91,6 +119,76 @@ describe('LiveLinkSessionsTab', () => {
     expect(screen.getByText('livelink.sessions.duration')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button'))
     expect(screen.queryByText('livelink.sessions.duration')).not.toBeInTheDocument()
+  })
+
+  it('marks the odometer pair unverified and renders coolant through the adapter', async () => {
+    render(<LiveLinkSessionsTab vin="V1" />)
+    await screen.findByText('1h 0m')
+    fireEvent.click(screen.getByRole('button'))
+    // start_odometer / end_odometer come from the SAME custom-PID query as the
+    // distance delta, so neither may be labelled either.
+    expect(
+      screen.getByText('1,000 (unknown unit) \u2192 1,100 (unknown unit)'),
+    ).toBeInTheDocument()
+    // 90 C x 9/5 + 32 = 194, at the f adapter's 1 dp. It read "194\u00b0F" before.
+    expect(screen.getByText('194.0 \u00b0F / 203.0 \u00b0F')).toBeInTheDocument()
+  })
+
+  it('groups RPM in the active locale and treats zero as a reading, not as absent', async () => {
+    // RPM is outside the unit system, but it is still a NUMBER a reader reads:
+    // `toFixed(0)` is locale-blind, so this tile said "2000" while the LiveLink
+    // gauge for the same reading said "2,000". That half is the fix.
+    //
+    // The zero half is a PIN, not a fix, and the distinction is deliberate: the
+    // old `avg_rpm?.toFixed(0) || '--'` looks like it swallows a genuine 0 and
+    // does not, because `(0)?.toFixed(0)` is the truthy string "0". Verified
+    // rather than assumed. It is pinned so that a later `value ? ... : '--'`,
+    // which WOULD swallow it, cannot land silently.
+    render(<LiveLinkSessionsTab vin="V1" />)
+    await screen.findByText('1h 0m')
+    fireEvent.click(screen.getByRole('button'))
+    expect(screen.getByText('2,000 / 4,000')).toBeInTheDocument()
+    cleanup()
+
+    getSessions.mockResolvedValue(list({ sessions: [{ ...endedSession, avg_rpm: 0 }] }))
+    render(<LiveLinkSessionsTab vin="V1" />)
+    await screen.findByText('1h 0m')
+    fireEvent.click(screen.getByRole('button'))
+    expect(screen.getByText('0 / 4,000')).toBeInTheDocument()
+  })
+
+  it('answers PER QUANTITY for a custom set, where the binary system would say metric', async () => {
+    // Spec D8 collapses `system` from VOLUME, so this client reads 'metric' and
+    // every `system === 'imperial'` branch answers no, while the user has in
+    // fact chosen mph and \u00b0F. Before the adapter, this rendered km/h and \u00b0C.
+    units = { ...presetUnitsFor('metric', 'us'), speed: 'mph', temperature: 'f' }
+    render(<LiveLinkSessionsTab vin="V1" />)
+    await screen.findByText('1h 0m')
+    expect(screen.getByText('37 mph')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button'))
+    expect(screen.getByText('194.0 \u00b0F / 203.0 \u00b0F')).toBeInTheDocument()
+  })
+
+  it('renders the same unverified distance under a metric set, claiming nothing either way', async () => {
+    units = presetUnitsFor('metric', 'us')
+    render(<LiveLinkSessionsTab vin="V1" />)
+    await screen.findByText('1h 0m')
+    // It read "100 km" here and "100 mi" under imperial: two different claims
+    // about one stored number, neither of them checkable.
+    expect(screen.getByText('100 (unknown unit)')).toBeInTheDocument()
+    expect(screen.queryByText('100 km')).not.toBeInTheDocument()
+  })
+
+  it('marks a present odometer and leaves an absent one as the absent marker', async () => {
+    getSessions.mockResolvedValue(
+      list({ sessions: [{ ...endedSession, distance_km: null, end_odometer: null }] }),
+    )
+    render(<LiveLinkSessionsTab vin="V1" />)
+    await screen.findByText('1h 0m')
+    fireEvent.click(screen.getByRole('button'))
+    // The absent half must not acquire a marker, and the present half must.
+    expect(screen.getByText('1,000 (unknown unit) \u2192 --')).toBeInTheDocument()
+    expect(screen.getByText('--')).toBeInTheDocument() // the Distance tile
   })
 
   it('shows the empty state when there are no sessions (fails if the empty branch is dropped)', async () => {

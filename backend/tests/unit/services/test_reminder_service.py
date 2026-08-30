@@ -22,7 +22,9 @@ import pytest_asyncio
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.constants.units import METRIC_PRESET
 from app.models import HoursRecord, OdometerRecord, Reminder
+from app.models.user import User
 from app.services.reminder_service import (
     _build_reminder_message,
     calculate_hours_driving_rate,
@@ -32,6 +34,12 @@ from app.services.reminder_service import (
     get_current_hours,
     validate_reminder_state,
 )
+from app.utils.render_context import RenderContext
+
+# `_build_reminder_message` renders a reminder's `due_mileage_km` in the
+# reader's distance unit, so these tests state the unit set they expect
+# rather than inheriting whatever the shared fixture user happens to carry.
+_METRIC_CTX = RenderContext(units=METRIC_PRESET, show_both=False)
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -598,9 +606,24 @@ class TestCheckDueRemindersHours:
         monkeypatch,
     ):
         """A 'mileage' reminder's overdue behavior is unchanged by the hours
-        additions."""
+        additions.
+
+        The message now renders `due_mileage_km` in the VEHICLE OWNER's
+        distance unit, so the owner is pinned to metric here (and restored
+        afterwards) rather than inheriting whatever `test_user` happens to
+        carry when this file runs. Which context the scheduler resolves is
+        `test_reminder_notification_units.py`'s subject, not this test's.
+        """
         vin = test_vehicle["vin"]
         await _add_odometer_record(db_session, vin, date.today(), Decimal("60000"))
+
+        owner = await db_session.get(User, test_vehicle["user_id"])
+        assert owner is not None
+        original_preference = owner.unit_preference
+        original_distance = owner.unit_distance
+        owner.unit_preference = "metric"
+        owner.unit_distance = None
+        await db_session.commit()
 
         reminder = Reminder(
             vin=vin,
@@ -626,13 +649,18 @@ class TestCheckDueRemindersHours:
             _StubDispatcher,
         )
 
-        await check_due_reminders(db_session)
+        try:
+            await check_due_reminders(db_session)
 
-        own_messages = [
-            m for m in sent_messages if m.startswith(f"Service reminder: {reminder.title}")
-        ]
-        assert len(own_messages) == 1
-        assert "Due mileage: 55,000 km" in own_messages[0]
+            own_messages = [
+                m for m in sent_messages if m.startswith(f"Service reminder: {reminder.title}")
+            ]
+            assert len(own_messages) == 1
+            assert "Due mileage: 55,000 km" in own_messages[0]
+        finally:
+            owner.unit_preference = original_preference
+            owner.unit_distance = original_distance
+            await db_session.commit()
 
 
 # ---------------------------------------------------------------------------
@@ -726,7 +754,7 @@ class TestBuildReminderMessage:
             reminder_type="hours",
             due_hours=Decimal("500.0"),
         )
-        message = _build_reminder_message(reminder)
+        message = _build_reminder_message(reminder, _METRIC_CTX)
         assert "Due hours: 500" in message
 
     def test_omits_due_hours_when_unset(self):
@@ -736,6 +764,6 @@ class TestBuildReminderMessage:
             reminder_type="mileage",
             due_mileage_km=Decimal("50000"),
         )
-        message = _build_reminder_message(reminder)
+        message = _build_reminder_message(reminder, _METRIC_CTX)
         assert "Due hours" not in message
         assert "Due mileage: 50,000 km" in message

@@ -30,16 +30,31 @@ const { VIN, STATUS } = vi.hoisted(() => {
   }
 })
 
+const getVehicleStatus = vi.fn()
 vi.mock('@/services/livelinkService', () => ({
-  livelinkService: {
-    getVehicleStatus: vi.fn().mockResolvedValue(STATUS),
-  },
+  livelinkService: { getVehicleStatus: () => getVehicleStatus() },
 }))
 
 import VehicleLiveLinkWidget from '../VehicleLiveLinkWidget'
 
+// A RUNNING device, which is the only state that renders the metrics grid. The
+// three figures below are the widget's whole numeric surface and nothing used
+// to cover them, so the grid's rendering was unkillable by any mutation.
+const RUNNING = {
+  ...STATUS,
+  ecu_status: 'online',
+  latest_values: [
+    { param_key: 'SPEED', value: 100, unit: 'km/h', display_name: 'Speed', in_warning: false, timestamp: 'x' },
+    { param_key: 'ENGINE_RPM', value: 3200, unit: 'rpm', display_name: 'RPM', in_warning: false, timestamp: 'x' },
+    { param_key: 'COOLANT_TMP', value: 90, unit: 'C', display_name: 'Coolant', in_warning: false, timestamp: 'x' },
+  ],
+} satisfies VehicleLiveLinkStatus
+
 describe('VehicleLiveLinkWidget keyboard activation (I12 a11y fix)', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+    getVehicleStatus.mockResolvedValue(STATUS)
+  })
 
   it('activates navigation on Enter and Space, and does not bubble to a parent handler', async () => {
     // The region is a sibling control inside a stretched-link card (see
@@ -63,6 +78,22 @@ describe('VehicleLiveLinkWidget keyboard activation (I12 a11y fix)', () => {
     expect(mockNavigate).toHaveBeenLastCalledWith(`/vehicles/${VIN}?tab=live`)
 
     expect(parentKeyDown).not.toHaveBeenCalled()
+  })
+
+  it('renders the running metrics through the shared adapter, not through its own arithmetic', async () => {
+    getVehicleStatus.mockResolvedValue(RUNNING)
+    render(<VehicleLiveLinkWidget vin={VIN} />)
+    // No account and no stored choice, so `useUnitPreference` lands on the
+    // imperial preset. 100 km/h / 1.60934 = 62.13..., at the mph adapter's 0 dp.
+    expect(await screen.findByText('62')).toBeInTheDocument()
+    expect(screen.getByText('MPH')).toBeInTheDocument()
+    // 90 C x 9/5 + 32 = 194, at the f adapter's 1 dp. It read "194\u00b0F" before,
+    // because the widget rounded the number itself.
+    expect(screen.getByText('194.0\u00b0F')).toBeInTheDocument()
+    // RPM is outside the unit system, so it is not CONVERTED, but it is still
+    // grouped for the locale by the same helper every other figure uses. It
+    // read "3200" here and "3,200" on the LiveLink gauge, from one reading.
+    expect(screen.getByText('3,200')).toBeInTheDocument()
   })
 
   it('ignores other keys', async () => {

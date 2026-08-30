@@ -8,8 +8,12 @@ import { useNavigate } from 'react-router-dom'
 import { Radio, Activity, Car, Thermometer } from 'lucide-react'
 import { livelinkService } from '@/services/livelinkService'
 import type { VehicleLiveLinkStatus } from '@/types/livelink'
-import { useUnitPreference } from '@/hooks/useUnitPreference'
+import { useUnitFormat } from '@/hooks/useUnitFormat'
 import { convertTelemetryValue } from '@/utils/telemetryUnits'
+import { formatAtPrecision } from '@/utils/unitFormat'
+
+/** RPM is outside the unit system: not converted, still grouped for the locale. */
+const RPM_PRECISION = 0
 
 interface VehicleLiveLinkWidgetProps {
   vin: string
@@ -21,7 +25,7 @@ export default function VehicleLiveLinkWidget({ vin }: VehicleLiveLinkWidgetProp
   const [status, setStatus] = useState<VehicleLiveLinkStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [hasDevice, setHasDevice] = useState(false)
-  const { system: unitSystem } = useUnitPreference()
+  const unitFormat = useUnitFormat()
 
   useEffect(() => {
     const fetchStatus = async () => {
@@ -85,13 +89,13 @@ export default function VehicleLiveLinkWidget({ vin }: VehicleLiveLinkWidgetProp
   // Convert values based on unit preference (hooks must be before early return)
   const convertedSpeed = useMemo(() => {
     if (!speed) return null
-    return convertTelemetryValue(speed.value, 'SPEED', speed.unit ?? null, unitSystem)
-  }, [speed, unitSystem])
+    return convertTelemetryValue(speed.value, 'SPEED', speed.unit ?? null, unitFormat, t)
+  }, [speed, unitFormat, t])
 
   const convertedCoolant = useMemo(() => {
     if (!coolant) return null
-    return convertTelemetryValue(coolant.value, 'COOLANT_TMP', coolant.unit ?? null, unitSystem)
-  }, [coolant, unitSystem])
+    return convertTelemetryValue(coolant.value, 'COOLANT_TMP', coolant.unit ?? null, unitFormat, t)
+  }, [coolant, unitFormat, t])
 
   // Don't render if no device or loading
   if (loading || !hasDevice || !status) {
@@ -156,14 +160,14 @@ export default function VehicleLiveLinkWidget({ vin }: VehicleLiveLinkWidgetProp
           {convertedSpeed && (
             <div className="text-center">
               <Activity className="w-3 h-3 mx-auto mb-1 text-garage-text-muted" />
-              <div className="text-xs font-bold text-garage-text">{Math.round(convertedSpeed.value)}</div>
+              <div className="text-xs font-bold text-garage-text">{convertedSpeed.text}</div>
               <div className="text-[10px] text-garage-text-muted">{convertedSpeed.unit.toUpperCase()}</div>
             </div>
           )}
           {rpm !== undefined && (
             <div className="text-center">
               <Car className="w-3 h-3 mx-auto mb-1 text-garage-text-muted" />
-              <div className="text-xs font-bold text-garage-text">{rpm.value.toFixed(0)}</div>
+              <div className="text-xs font-bold text-garage-text">{formatAtPrecision(rpm.value, RPM_PRECISION)}</div>
               <div className="text-[10px] text-garage-text-muted">RPM</div>
             </div>
           )}
@@ -171,7 +175,7 @@ export default function VehicleLiveLinkWidget({ vin }: VehicleLiveLinkWidgetProp
             <div className="text-center">
               <Thermometer className={`w-3 h-3 mx-auto mb-1 ${coolant.in_warning ? 'text-red-500' : 'text-garage-text-muted'}`} />
               <div className={`text-xs font-bold ${coolant.in_warning ? 'text-red-500' : 'text-garage-text'}`}>
-                {Math.round(convertedCoolant.value)}{convertedCoolant.unit}
+                {convertedCoolant.text}{convertedCoolant.unit}
               </div>
               <div className="text-[10px] text-garage-text-muted">{t('vehicleLiveLinkWidget.coolant')}</div>
             </div>

@@ -24,6 +24,101 @@ export const ADMIN = {
   full_name: 'E2E Test Admin',
 }
 
+/**
+ * A real admin session, for a spec that has to drive the API directly.
+ *
+ * A second hand-rolled login inside a spec is how `forms.ts` grew a helper that
+ * PATCHed a route which never existed, so session handling lives here beside
+ * the credentials it uses.
+ */
+export interface AdminSession {
+  /** Cookie + CSRF headers to attach to an API call. */
+  headers: Record<string, string>
+  accessToken: string
+  csrfToken: string
+}
+
+/**
+ * Recover the session `seedAndAuthenticate` already established, WITHOUT
+ * logging in again.
+ *
+ * ★ `/api/auth/login` IS RATE LIMITED TO FIVE ATTEMPTS A MINUTE PER IP
+ * (`rate_limit_auth`), and the whole suite runs from one address in well under
+ * a minute. `auth.spec.ts` spends two of those on purpose (a good login and a
+ * bad one) and the setup project spends a third, so a spec that logs in for its
+ * own setup passes when run alone and 429s in the full suite. That failure
+ * arrives as "Login failed: 429" from a helper, which reads as a broken helper
+ * rather than as a budget.
+ *
+ * The cookie in `storageState` is a bearer token that is still valid, and
+ * `GET /auth/csrf-token` mints a fresh CSRF token from it with no limiter
+ * attached. So a spec needing API credentials takes them from the session that
+ * already exists rather than making a new one.
+ *
+ * @param request Any Playwright request context.
+ * @param apiBase Absolute API root, e.g. `http://localhost:8686/api`.
+ * @param authFile The storageState file `seedAndAuthenticate` wrote.
+ * @returns The session, with the headers an API call needs.
+ */
+export async function adminSessionFromStorageState(
+  request: APIRequestContext,
+  apiBase: string,
+  authFile: string,
+): Promise<AdminSession> {
+  const state = JSON.parse(readFileSync(authFile, 'utf8')) as {
+    cookies?: { name: string; value: string }[]
+  }
+  const cookie = (state.cookies ?? []).find((entry) => entry.name === 'mygarage_token')
+  if (cookie === undefined) {
+    throw new Error(`No mygarage_token cookie in ${authFile}; did the setup project run?`)
+  }
+  const cookieHeader = `mygarage_token=${cookie.value}`
+
+  const csrfResp = await request.get(`${apiBase}/auth/csrf-token`, {
+    headers: { Cookie: cookieHeader },
+  })
+  expect(csrfResp.ok(), `CSRF refresh failed: ${csrfResp.status()}`).toBeTruthy()
+  const csrfToken: string | null = (await csrfResp.json()).csrf_token
+  // Null here means the cookie was not accepted (expired, or `auth_mode=none`),
+  // which would otherwise surface much later as an unexplained 401.
+  expect(csrfToken, 'the stored session did not yield a CSRF token').toBeTruthy()
+
+  return {
+    headers: { Cookie: cookieHeader, 'X-CSRF-Token': csrfToken ?? '' },
+    accessToken: cookie.value,
+    csrfToken: csrfToken ?? '',
+  }
+}
+
+/**
+ * Log the seeded admin in over the API.
+ *
+ * Spends one of the five-per-minute auth attempts, so it is deliberately NOT
+ * exported: `adminSessionFromStorageState` is what a spec should use.
+ *
+ * @param request Any Playwright request context.
+ * @param apiBase Absolute API root, e.g. `http://localhost:8686/api`.
+ * @returns The session, with the headers an API call needs.
+ */
+async function loginAsAdmin(
+  request: APIRequestContext,
+  apiBase: string,
+): Promise<AdminSession> {
+  const loginResp = await request.post(`${apiBase}/auth/login`, {
+    data: { username: ADMIN.username, password: ADMIN.password },
+  })
+  expect(loginResp.ok(), `Login failed: ${loginResp.status()}`).toBeTruthy()
+  const loginData = await loginResp.json()
+  return {
+    headers: {
+      Cookie: `mygarage_token=${loginData.access_token}`,
+      'X-CSRF-Token': loginData.csrf_token,
+    },
+    accessToken: loginData.access_token,
+    csrfToken: loginData.csrf_token,
+  }
+}
+
 /** Seeded test vehicle used by workflow specs (records, tabs, archive). */
 export const TEST_VEHICLE = {
   vin: 'TEST0000000000001',
@@ -73,16 +168,8 @@ export async function seedAndAuthenticate(
   expect([201, 403]).toContain(regResp.status())
 
   // Step 2: Login for JWT + CSRF token.
-  const loginResp = await request.post(`${apiBase}/auth/login`, {
-    data: { username: ADMIN.username, password: ADMIN.password },
-  })
-  expect(loginResp.ok(), `Login failed: ${loginResp.status()}`).toBeTruthy()
-  const loginData = await loginResp.json()
-
-  const authHeaders = {
-    Cookie: `mygarage_token=${loginData.access_token}`,
-    'X-CSRF-Token': loginData.csrf_token,
-  }
+  const session = await loginAsAdmin(request, apiBase)
+  const authHeaders = session.headers
 
   // Step 3: Enable local auth mode (fresh DB defaults to "none").
   const authModeResp = await request.put(`${apiBase}/settings/auth_mode`, {
@@ -120,7 +207,7 @@ export async function seedAndAuthenticate(
   await page.context().addCookies([
     {
       name: 'mygarage_token',
-      value: loginData.access_token,
+      value: session.accessToken,
       domain: cookieDomain,
       path: '/',
       httpOnly: true,
@@ -136,7 +223,7 @@ export async function seedAndAuthenticate(
   await page.evaluate((token: string) => {
     sessionStorage.setItem('csrf_token', token)
     localStorage.setItem('i18nextLng', 'en')
-  }, loginData.csrf_token)
+  }, session.csrfToken)
 
   // Step 7: Verify auth works (reload to pick up English locale).
   await page.goto('.')

@@ -28,6 +28,7 @@ from decimal import Decimal
 from sqlalchemy import case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.constants.units import UnitSet
 from app.models.document import Document
 from app.models.fuel import FuelRecord
 from app.models.note import Note
@@ -45,11 +46,48 @@ from app.schemas.widget import (
 from app.services.fuel_service import calculate_average_hours_economy
 from app.services.hours_service import latest_engine_hours_and_date
 from app.services.reminder_service import get_current_hours, is_reminder_overdue
-from app.utils.gallon_flavour import resolve_gallon_flavour
-from app.utils.units import UnitConverter
+from app.utils.unit_adapters import ADAPTERS, UnitAdapter
+from app.utils.unit_counterparts import forced_mpg_adapter
 
 RECENT_MPG_WINDOW = 3
 AVERAGE_MPG_WINDOW = 10
+
+# D7 freezes widget field MEANINGS, not only names. `odometer` is MILES for
+# every owner and `odometer_km` is KILOMETRES; the v2 consumption pair names
+# its own unit too. Those fields therefore take a FORCED adapter, never
+# `adapter_for(units, ...)`: resolving the owner's `distance` here would hand a
+# metric owner kilometres under the key `odometer`, which is the same key set
+# with a silently different meaning. Only `recent_mpg`/`average_mpg` take their
+# context from the owner, and only for the gallon flavour (D4b).
+_MILES = ADAPTERS["mi"]
+_KILOMETRES = ADAPTERS["km"]
+_L_PER_100KM = ADAPTERS["l_100km"]
+_KM_PER_L = ADAPTERS["km_l"]
+
+
+def _as_int(adapter: UnitAdapter, canonical: Decimal | None) -> int | None:
+    """Render `canonical` in `adapter`'s unit as a whole number.
+
+    The odometer fields are `int | None` (frozen by D7), so they round to
+    units rather than to the adapter's own precision.
+    """
+    display = adapter.to_display(canonical)
+    return int(round(display)) if display is not None else None
+
+
+def _as_float(adapter: UnitAdapter, canonical: Decimal | None) -> float | None:
+    """Render `canonical` in `adapter`'s unit at that adapter's precision.
+
+    `to_display` deliberately does no rounding, returning an unrounded
+    `Decimal`, while these fields are `float | None` with an established
+    number of decimals: MPG to one, the metric consumption pair to two.
+    Rounding here preserves that contract instead of exposing a
+    28-significant-digit quotient. A reciprocal adapter returns `None` for a
+    zero canonical value, matching the guard the previous `UnitConverter`
+    helpers applied.
+    """
+    display = adapter.to_display(canonical)
+    return float(round(display, adapter.precision)) if display is not None else None
 
 
 def _vehicle_label(vehicle: Vehicle) -> str:
@@ -282,28 +320,33 @@ class WidgetAggregationService:
         )
 
     async def vehicle(
-        self, user_id: int, vin: str, allowed_vins: list[str] | None
+        self, user_id: int, vin: str, allowed_vins: list[str] | None, *, units: UnitSet
     ) -> WidgetVehicle | None:
         """Per-vehicle rollup (imperial). Returns None if VIN not owned/allowed.
 
         The route maps None → 404 (not 403) to avoid confirming existence.
         v1's ``WidgetVehicle`` schema intentionally has no hours fields — the
         legacy endpoint is frozen (Task 8). Hours land in v2 only, below.
+
+        ``units`` is the key owner's resolved unit set, supplied by the route
+        (D7). This service never resolves it and never reads the instance-wide
+        ``imperial_gallon_standard``, so the conversion context can only be
+        the one the caller passed in. ``odometer`` stays miles regardless;
+        only the MPG pair's gallon flavour follows ``units`` (D4b).
         """
         core = await self._vehicle_core(user_id, vin, allowed_vins)
         if core is None:
             return None
-        flavour = await resolve_gallon_flavour(self.db)
-        miles = UnitConverter.km_to_miles(core.odometer_km)
+        mpg = forced_mpg_adapter(units)
         return WidgetVehicle(
             label=core.label,
             year=core.year,
             make=core.make,
             model=core.model,
-            odometer=int(round(miles)) if miles is not None else None,
+            odometer=_as_int(_MILES, core.odometer_km),
             odometer_date=core.odometer_date,
-            recent_mpg=UnitConverter.l100km_to_mpg(core.recent_l100km, flavour=flavour),
-            average_mpg=UnitConverter.l100km_to_mpg(core.average_l100km, flavour=flavour),
+            recent_mpg=_as_float(mpg, core.recent_l100km),
+            average_mpg=_as_float(mpg, core.average_l100km),
             upcoming_maintenance=core.upcoming_maintenance,
             overdue_maintenance=core.overdue_maintenance,
             service_records=core.service_records,
@@ -316,31 +359,35 @@ class WidgetAggregationService:
         )
 
     async def vehicle_v2(
-        self, user_id: int, vin: str, allowed_vins: list[str] | None
+        self, user_id: int, vin: str, allowed_vins: list[str] | None, *, units: UnitSet
     ) -> WidgetVehicleV2 | None:
         """Per-vehicle rollup exposing both metric and imperial units.
 
         A strict superset of the v1 `vehicle()` shape. The route maps None → 404.
+
+        ``units`` is the key owner's resolved unit set, supplied by the route
+        (D7), exactly as in `vehicle()` above. v2 deliberately exposes BOTH
+        systems, so every field here keeps the meaning its name states and
+        only the MPG pair's gallon flavour follows ``units``.
         """
         core = await self._vehicle_core(user_id, vin, allowed_vins)
         if core is None:
             return None
-        flavour = await resolve_gallon_flavour(self.db)
-        miles = UnitConverter.km_to_miles(core.odometer_km)
+        mpg = forced_mpg_adapter(units)
         return WidgetVehicleV2(
             label=core.label,
             year=core.year,
             make=core.make,
             model=core.model,
-            odometer=int(round(miles)) if miles is not None else None,
-            odometer_km=int(round(core.odometer_km)) if core.odometer_km is not None else None,
+            odometer=_as_int(_MILES, core.odometer_km),
+            odometer_km=_as_int(_KILOMETRES, core.odometer_km),
             odometer_date=core.odometer_date,
-            recent_l_per_100km=UnitConverter.round_result(core.recent_l100km, 2),
-            average_l_per_100km=UnitConverter.round_result(core.average_l100km, 2),
-            recent_km_per_l=UnitConverter.l100km_to_kmpl(core.recent_l100km),
-            average_km_per_l=UnitConverter.l100km_to_kmpl(core.average_l100km),
-            recent_mpg=UnitConverter.l100km_to_mpg(core.recent_l100km, flavour=flavour),
-            average_mpg=UnitConverter.l100km_to_mpg(core.average_l100km, flavour=flavour),
+            recent_l_per_100km=_as_float(_L_PER_100KM, core.recent_l100km),
+            average_l_per_100km=_as_float(_L_PER_100KM, core.average_l100km),
+            recent_km_per_l=_as_float(_KM_PER_L, core.recent_l100km),
+            average_km_per_l=_as_float(_KM_PER_L, core.average_l100km),
+            recent_mpg=_as_float(mpg, core.recent_l100km),
+            average_mpg=_as_float(mpg, core.average_l100km),
             latest_hours=core.latest_hours,
             average_l_per_hr=core.average_l_per_hr,
             average_cost_per_hr=core.average_cost_per_hr,

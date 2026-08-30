@@ -3,10 +3,18 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { render, screen } from '../../../__tests__/test-utils'
 import type { Vehicle, VehicleDetailStats } from '../../../types/vehicle'
-import { UnitFormatter } from '../../../utils/units'
+import { IMPERIAL_UNITS } from '../../../__tests__/factories'
+import { makeUnitFormat } from '../../../utils/unitFormat'
 
 vi.mock('../../../hooks/useUnitPreference', () => ({
-  useUnitPreference: () => ({ system: 'imperial' }),
+  useUnitPreference: () => ({
+    system: 'imperial',
+    showBoth: false,
+    gallonStandard: 'us',
+    // The RESOLVED set, not just the collapsed system: this component reads
+    // its distance through `useUnitFormat()`, which closes over `units`.
+    units: IMPERIAL_UNITS,
+  }),
 }))
 
 // LOCAL i18n mock (same pattern as FuelRecordList's B7 fix): the GLOBAL
@@ -60,7 +68,9 @@ describe('VehicleHero', () => {
     expect(screen.queryByText('vehicleStats.upcoming')).not.toBeInTheDocument()
     expect(screen.getByText('detail.misc.odometer')).toBeInTheDocument()
     // The km is converted at the boundary (would fail if the hero printed raw km).
-    const expected = UnitFormatter.formatDistance(parseFloat(STATS.latest_odometer_km!), 'imperial')
+    const expected = makeUnitFormat(IMPERIAL_UNITS).distance.formatPrimary(
+      parseFloat(STATS.latest_odometer_km!)
+    )
     expect(screen.getByText(expected)).toBeInTheDocument()
     // Companion reading date is displayed (m2); only the reading date carries 2026 here.
     expect(screen.getByText(/2026/)).toBeInTheDocument()
@@ -103,7 +113,9 @@ describe('VehicleHero', () => {
       latest_hours: '321.75',
     }
     render(<VehicleHero vehicle={VEHICLE} photoUrl={null} fromCache={false} detailStats={dualStats} />)
-    const expectedDistance = UnitFormatter.formatDistance(parseFloat(dualStats.latest_odometer_km!), 'imperial')
+    const expectedDistance = makeUnitFormat(IMPERIAL_UNITS).distance.formatPrimary(
+      parseFloat(dualStats.latest_odometer_km!)
+    )
     expect(screen.getByText('detail.misc.odometer')).toBeInTheDocument()
     expect(screen.getByText(expectedDistance)).toBeInTheDocument()
     expect(screen.getByText('detail.misc.hours')).toBeInTheDocument()
@@ -119,7 +131,9 @@ describe('VehicleHero', () => {
       latest_hours: '321.75',
     }
     render(<VehicleHero vehicle={VEHICLE} photoUrl={null} fromCache={false} detailStats={dualStats} />)
-    const expectedDistance = UnitFormatter.formatDistance(parseFloat(dualStats.latest_odometer_km!), 'imperial')
+    const expectedDistance = makeUnitFormat(IMPERIAL_UNITS).distance.formatPrimary(
+      parseFloat(dualStats.latest_odometer_km!)
+    )
     expect(screen.getByText('detail.misc.hours')).toBeInTheDocument()
     expect(screen.getByText('vehicleStats.hoursValue (321.75)')).toBeInTheDocument()
     expect(screen.getByText('detail.misc.odometer')).toBeInTheDocument()

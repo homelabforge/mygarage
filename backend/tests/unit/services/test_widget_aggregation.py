@@ -21,6 +21,7 @@ import pytest
 import pytest_asyncio
 from sqlalchemy import select
 
+from app.constants.units import IMPERIAL_PRESET, METRIC_PRESET, UnitSet
 from app.models.document import Document
 from app.models.fuel import FuelRecord
 from app.models.hours import HoursRecord
@@ -218,7 +219,9 @@ class TestFanOutRegression:
         await db_session.commit()
 
         svc = WidgetAggregationService(db_session)
-        result = await svc.vehicle(aggregation_user.id, vin, allowed_vins=None)
+        result = await svc.vehicle(
+            aggregation_user.id, vin, allowed_vins=None, units=IMPERIAL_PRESET
+        )
 
         assert result is not None
         assert result.service_records == n_service
@@ -269,7 +272,9 @@ class TestMpgParity:
         await db_session.commit()
 
         svc = WidgetAggregationService(db_session)
-        result = await svc.vehicle(aggregation_user.id, vin, allowed_vins=None)
+        result = await svc.vehicle(
+            aggregation_user.id, vin, allowed_vins=None, units=IMPERIAL_PRESET
+        )
 
         # Reference: pairwise calculate_l_per_100km() on the same data,
         # converted back to MPG for the legacy widget contract.
@@ -291,17 +296,20 @@ class TestMpgParity:
         assert result.average_mpg == pytest.approx(34.3, abs=0.1)
 
     @pytest.mark.asyncio
-    async def test_uk_gallon_flavour_uses_the_uk_mpg_numerator(self, db_session, aggregation_user):
-        """Regression: widget MPG must come from the resolved instance flavour.
+    async def test_mpg_flavour_follows_the_unit_set_not_the_instance_setting(
+        self, db_session, aggregation_user
+    ):
+        """Regression: widget MPG comes from the CALLER's `UnitSet` (D7, task 7).
 
-        `WidgetAggregationService.vehicle()` calls `UnitConverter.l100km_to_mpg(
-        core.recent_l100km, flavour=flavour)` with a real
-        `flavour = await resolve_gallon_flavour(self.db)`. Nothing else in this
-        file seeds `imperial_gallon_standard = "uk"`, so nothing would notice if
-        `flavour=flavour` were dropped from that call -- the resolver would keep
-        returning "us" and this MPG figure would look identical. Same fuel data
-        as `test_numeric_parity_with_calculate_mpg` above; only the flavour
-        setting differs, so the two tests must land on different numbers.
+        Until task 7 both `vehicle()` and `vehicle_v2()` called
+        `resolve_gallon_flavour(self.db)`, an instance-wide setting carrying no
+        caller identity at all. This test seeds that setting to "uk" and then
+        asks for both flavours through the parameter, so it fails in one
+        direction if the flavour is ever hardcoded, and in the other if the
+        global creeps back: a US unit set must give US MPG even on a "uk"
+        instance. Same fuel data as `test_numeric_parity_with_calculate_mpg`
+        above; only the unit set differs, so the flavours must land on
+        different numbers.
         """
         original_value = await _seed_gallon_standard(db_session, "uk")
         try:
@@ -342,7 +350,20 @@ class TestMpgParity:
             await db_session.commit()
 
             svc = WidgetAggregationService(db_session)
-            result = await svc.vehicle(aggregation_user.id, vin, allowed_vins=None)
+            uk_units = UnitSet.model_validate(
+                IMPERIAL_PRESET.model_dump() | {"consumption": "mpg_uk"}
+            )
+            uk_result = await svc.vehicle(
+                aggregation_user.id, vin, allowed_vins=None, units=uk_units
+            )
+            us_result = await svc.vehicle(
+                aggregation_user.id, vin, allowed_vins=None, units=IMPERIAL_PRESET
+            )
+            # METRIC_PRESET states no gallon flavour (`consumption="l_100km"`),
+            # so D4b hands it `secondary_gallon`, which the preset sets to "us".
+            metric_result = await svc.vehicle(
+                aggregation_user.id, vin, allowed_vins=None, units=METRIC_PRESET
+            )
 
             # Same reference pairs as test_numeric_parity_with_calculate_mpg.
             ref_newest = calculate_l_per_100km(records[2], records[1])
@@ -354,12 +375,17 @@ class TestMpgParity:
             expected_uk_mpg = float(UnitConverter.UK_MPG_TO_L100KM_NUMERATOR / mean_l100km)
             expected_us_mpg = float(UnitConverter.US_MPG_TO_L100KM_NUMERATOR / mean_l100km)
 
-            assert result is not None
-            assert result.recent_mpg == pytest.approx(expected_uk_mpg, abs=0.1)
-            assert result.average_mpg == pytest.approx(expected_uk_mpg, abs=0.1)
+            assert uk_result is not None and us_result is not None
+            assert metric_result is not None
+            assert uk_result.recent_mpg == pytest.approx(expected_uk_mpg, abs=0.1)
+            assert uk_result.average_mpg == pytest.approx(expected_uk_mpg, abs=0.1)
             # 282.481 (UK) vs 235.214 (US) are far enough apart that this also
             # rules out the flavour silently defaulting back to US.
-            assert result.recent_mpg != pytest.approx(expected_us_mpg, abs=0.1)
+            assert uk_result.recent_mpg != pytest.approx(expected_us_mpg, abs=0.1)
+            # ... and the instance setting sitting at "uk" must not drag these
+            # two back to the UK numerator.
+            assert us_result.recent_mpg == pytest.approx(expected_us_mpg, abs=0.1)
+            assert metric_result.recent_mpg == pytest.approx(expected_us_mpg, abs=0.1)
         finally:
             await _restore_gallon_standard(db_session, original_value)
 
@@ -408,7 +434,9 @@ class TestMpgParity:
         await db_session.commit()
 
         svc = WidgetAggregationService(db_session)
-        result = await svc.vehicle(aggregation_user.id, vin, allowed_vins=None)
+        result = await svc.vehicle(
+            aggregation_user.id, vin, allowed_vins=None, units=IMPERIAL_PRESET
+        )
         assert result is not None
         assert result.recent_mpg == pytest.approx(20.0)
 
@@ -444,7 +472,9 @@ class TestMpgParity:
         await db_session.commit()
 
         svc = WidgetAggregationService(db_session)
-        result = await svc.vehicle(aggregation_user.id, vin, allowed_vins=None)
+        result = await svc.vehicle(
+            aggregation_user.id, vin, allowed_vins=None, units=IMPERIAL_PRESET
+        )
         assert result is not None
         assert result.recent_mpg is None
         assert result.average_mpg is None
@@ -469,7 +499,9 @@ class TestMpgParity:
         await db_session.commit()
 
         svc = WidgetAggregationService(db_session)
-        result = await svc.vehicle(aggregation_user.id, vin, allowed_vins=None)
+        result = await svc.vehicle(
+            aggregation_user.id, vin, allowed_vins=None, units=IMPERIAL_PRESET
+        )
         assert result is not None
         assert result.recent_mpg is None
         assert result.average_mpg is None
@@ -528,7 +560,9 @@ class TestMpgParity:
         await db_session.commit()
 
         svc = WidgetAggregationService(db_session)
-        result = await svc.vehicle(aggregation_user.id, vin, allowed_vins=None)
+        result = await svc.vehicle(
+            aggregation_user.id, vin, allowed_vins=None, units=IMPERIAL_PRESET
+        )
         assert result is not None
         # Recent 3 are all 20 MPG
         assert result.recent_mpg == pytest.approx(20.0)
@@ -584,7 +618,9 @@ class TestScopingAndAccessChecks:
         theirs = await _make_vehicle(db_session, other)
 
         svc = WidgetAggregationService(db_session)
-        result = await svc.vehicle(aggregation_user.id, theirs.vin, allowed_vins=None)
+        result = await svc.vehicle(
+            aggregation_user.id, theirs.vin, allowed_vins=None, units=IMPERIAL_PRESET
+        )
         assert result is None
 
     @pytest.mark.asyncio
@@ -595,7 +631,10 @@ class TestScopingAndAccessChecks:
         svc = WidgetAggregationService(db_session)
         # The key scope excludes this VIN even though the user owns it.
         result = await svc.vehicle(
-            aggregation_user.id, vehicle.vin, allowed_vins=["1OTHERVIN00000000"]
+            aggregation_user.id,
+            vehicle.vin,
+            allowed_vins=["1OTHERVIN00000000"],
+            units=IMPERIAL_PRESET,
         )
         assert result is None
 
@@ -661,7 +700,9 @@ class TestReminderClassification:
         await db_session.commit()
 
         svc = WidgetAggregationService(db_session)
-        result = await svc.vehicle(aggregation_user.id, vin, allowed_vins=None)
+        result = await svc.vehicle(
+            aggregation_user.id, vin, allowed_vins=None, units=IMPERIAL_PRESET
+        )
         assert result is not None
         assert result.overdue_maintenance == 2
         assert result.upcoming_maintenance == 2
@@ -701,7 +742,9 @@ class TestPhotoCountFromDb:
             db_session.add(VehiclePhoto(vin=vin, file_path=f"/fake/{vin}/p{i}.jpg"))
         await db_session.commit()
 
-        result = await svc.vehicle(aggregation_user.id, vin, allowed_vins=None)
+        result = await svc.vehicle(
+            aggregation_user.id, vin, allowed_vins=None, units=IMPERIAL_PRESET
+        )
         assert result is not None
         assert result.photos == 3
         summary = await svc.summary(aggregation_user.id, allowed_vins=None)
@@ -720,7 +763,9 @@ class TestArchiveVisibility:
         await db_session.commit()
 
         svc = WidgetAggregationService(db_session)
-        result = await svc.vehicle(aggregation_user.id, hidden.vin, allowed_vins=None)
+        result = await svc.vehicle(
+            aggregation_user.id, hidden.vin, allowed_vins=None, units=IMPERIAL_PRESET
+        )
         assert result is None
 
     @pytest.mark.asyncio
@@ -745,7 +790,9 @@ class TestArchiveVisibility:
         )
         # archived_visible defaults to True on the model.
         svc = WidgetAggregationService(db_session)
-        result = await svc.vehicle(aggregation_user.id, visible_archive.vin, allowed_vins=None)
+        result = await svc.vehicle(
+            aggregation_user.id, visible_archive.vin, allowed_vins=None, units=IMPERIAL_PRESET
+        )
         assert result is not None
 
     @pytest.mark.asyncio
@@ -794,8 +841,10 @@ class TestVehicleV2:
         await db_session.commit()
 
         svc = WidgetAggregationService(db_session)
-        v1 = await svc.vehicle(aggregation_user.id, vin, allowed_vins=None)
-        v2 = await svc.vehicle_v2(aggregation_user.id, vin, allowed_vins=None)
+        v1 = await svc.vehicle(aggregation_user.id, vin, allowed_vins=None, units=IMPERIAL_PRESET)
+        v2 = await svc.vehicle_v2(
+            aggregation_user.id, vin, allowed_vins=None, units=IMPERIAL_PRESET
+        )
 
         assert v1 is not None and v2 is not None
         # v2 is a STRICT SUPERSET of v1: every v1 field key exists in v2 (R1-H1).
@@ -813,7 +862,9 @@ class TestVehicleV2:
     async def test_vehicle_v2_returns_none_for_unowned_vin(self, db_session, aggregation_user):
         await _make_vehicle(db_session, aggregation_user)
         svc = WidgetAggregationService(db_session)
-        result = await svc.vehicle_v2(aggregation_user.id, "NOTOWNED00000000X", allowed_vins=None)
+        result = await svc.vehicle_v2(
+            aggregation_user.id, "NOTOWNED00000000X", allowed_vins=None, units=IMPERIAL_PRESET
+        )
         assert result is None
 
 
@@ -857,7 +908,9 @@ class TestVehicleV2HoursFields:
         await db_session.commit()
 
         svc = WidgetAggregationService(db_session)
-        result = await svc.vehicle_v2(aggregation_user.id, vin, allowed_vins=None)
+        result = await svc.vehicle_v2(
+            aggregation_user.id, vin, allowed_vins=None, units=IMPERIAL_PRESET
+        )
 
         assert result is not None
         assert result.latest_hours == Decimal("120.5")
@@ -876,7 +929,9 @@ class TestVehicleV2HoursFields:
         await db_session.commit()
 
         svc = WidgetAggregationService(db_session)
-        result = await svc.vehicle_v2(aggregation_user.id, vin, allowed_vins=None)
+        result = await svc.vehicle_v2(
+            aggregation_user.id, vin, allowed_vins=None, units=IMPERIAL_PRESET
+        )
         assert result is not None
         assert result.latest_hours is None
         assert result.average_l_per_hr is None
@@ -915,7 +970,9 @@ class TestVehicleV2HoursFields:
         await db_session.commit()
 
         svc = WidgetAggregationService(db_session)
-        result = await svc.vehicle_v2(aggregation_user.id, vin, allowed_vins=None)
+        result = await svc.vehicle_v2(
+            aggregation_user.id, vin, allowed_vins=None, units=IMPERIAL_PRESET
+        )
         assert result is not None
         assert result.latest_hours == Decimal("50.0")
         assert result.average_l_per_hr is not None
@@ -966,7 +1023,9 @@ class TestVehicleV2HoursFields:
         await db_session.commit()
 
         svc = WidgetAggregationService(db_session)
-        result = await svc.vehicle_v2(aggregation_user.id, vin, allowed_vins=None)
+        result = await svc.vehicle_v2(
+            aggregation_user.id, vin, allowed_vins=None, units=IMPERIAL_PRESET
+        )
         assert result is not None
         assert result.latest_hours == Decimal("80.0")
         assert result.average_l_per_hr is not None
@@ -999,7 +1058,9 @@ class TestVehicleV2HoursAwareOverdueCount:
         await db_session.commit()
 
         svc = WidgetAggregationService(db_session)
-        result = await svc.vehicle_v2(aggregation_user.id, vin, allowed_vins=None)
+        result = await svc.vehicle_v2(
+            aggregation_user.id, vin, allowed_vins=None, units=IMPERIAL_PRESET
+        )
         assert result is not None
         assert result.overdue_maintenance == 1
         assert result.upcoming_maintenance == 0
@@ -1021,7 +1082,9 @@ class TestVehicleV2HoursAwareOverdueCount:
         await db_session.commit()
 
         svc = WidgetAggregationService(db_session)
-        result = await svc.vehicle_v2(aggregation_user.id, vin, allowed_vins=None)
+        result = await svc.vehicle_v2(
+            aggregation_user.id, vin, allowed_vins=None, units=IMPERIAL_PRESET
+        )
         assert result is not None
         assert result.overdue_maintenance == 0
         assert result.upcoming_maintenance == 1
@@ -1088,7 +1151,9 @@ class TestVehicleV2HoursAwareOverdueCount:
         await db_session.commit()
 
         svc = WidgetAggregationService(db_session)
-        result = await svc.vehicle_v2(aggregation_user.id, vin, allowed_vins=None)
+        result = await svc.vehicle_v2(
+            aggregation_user.id, vin, allowed_vins=None, units=IMPERIAL_PRESET
+        )
         assert result is not None
         assert result.overdue_maintenance == 3
         assert result.upcoming_maintenance == 3
@@ -1167,7 +1232,9 @@ class TestVehicleV2HoursAwareOverdueCount:
         monkeypatch.setattr(widget_aggregation_module, "latest_engine_hours_and_date", counting)
 
         svc = WidgetAggregationService(db_session)
-        result = await svc.vehicle_v2(aggregation_user.id, vin, allowed_vins=None)
+        result = await svc.vehicle_v2(
+            aggregation_user.id, vin, allowed_vins=None, units=IMPERIAL_PRESET
+        )
         assert result is not None
         # current hours = 500.0: due_hours 100/200 are overdue, 999 is not.
         assert result.overdue_maintenance == 2

@@ -14,15 +14,38 @@ vi.mock('../../hooks/queries/usePropaneRecords', () => ({
 }))
 vi.mock('@tanstack/react-query', () => ({ useQueryClient: () => ({ invalidateQueries: vi.fn() }) }))
 // Mutable unit mock so one test can render imperial (B7 header coverage).
-const unitPrefMock = vi.hoisted(() => ({ system: 'metric' as 'metric' | 'imperial', showBoth: false }))
-vi.mock('../../hooks/useUnitPreference', () => ({ useUnitPreference: () => unitPrefMock }))
+const unitPrefMock = vi.hoisted(() => ({
+  system: 'metric' as 'metric' | 'imperial',
+  showBoth: false,
+  // Set to pin an exact resolved set (a `gal_uk` user, say); left null the set
+  // follows `system`, the way the real hook derives both on one rung.
+  units: null as null | import('@/types/units').UnitSet,
+}))
+vi.mock('../../hooks/useUnitPreference', async () => {
+  const { IMPERIAL_UNITS, METRIC_UNITS } = await import('@/__tests__/factories')
+  return {
+    useUnitPreference: () => ({
+      system: unitPrefMock.system,
+      showBoth: unitPrefMock.showBoth,
+      units:
+        unitPrefMock.units ??
+        (unitPrefMock.system === 'imperial' ? IMPERIAL_UNITS : METRIC_UNITS),
+    }),
+  }
+})
 // LOCAL i18n mock (B5) — overrides the global setup mock FOR THIS FILE ONLY. For a `{ unit }`
 // call it appends the unit so the volume header reflects {{unit}} (the only way this file can
 // tell L from gal — the global mock swallows interpolation); every other call returns the bare
 // key, so the drawer-title / vendor / action assertions below are unaffected.
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, options?: { unit?: string }) => (options?.unit ? `${key} (${options.unit})` : key),
+    // `value` as well as `unit`: fix round 1 routed the volume-total and
+    // avg-cost captions through `t()` with an interpolated NUMBER, and a mock
+    // that dropped it would render the same key for 10.4 gal and 47.3 L.
+    t: (key: string, options?: { unit?: string; value?: string }) =>
+      options?.unit !== undefined || options?.value !== undefined
+        ? `${key} (${options.unit ?? options.value})`
+        : key,
     i18n: { language: 'en', changeLanguage: () => Promise.resolve() },
   }),
   Trans: ({ children }: { children: React.ReactNode }) => children,
@@ -34,6 +57,8 @@ vi.mock('../../hooks/useCurrencyPreference', () => ({
 // PropaneRecordForm (rendered on Add/Edit) → CurrencyInputPrefix → useCurrencySymbol.
 vi.mock('../../hooks/useCurrencySymbol', () => ({ useCurrencySymbol: () => '$' }))
 
+import { UK_IMPERIAL_UNITS } from '../../__tests__/factories'
+import { UnitConverter } from '../../utils/units'
 import PropaneRecordList from '../PropaneRecordList'
 
 // NOTE: the component imports formatCurrency from utils/formatUtils (NOT the currency
@@ -57,7 +82,7 @@ beforeEach(() => {
   usePropaneRecordsMock.mockReturnValue({ data: { records: [record] }, isLoading: false, error: null })
   useDeletePropaneRecordMock.mockReturnValue({ mutate: deleteMutate, isPending: false, variables: undefined })
 })
-afterEach(() => { unitPrefMock.system = 'metric' })
+afterEach(() => { unitPrefMock.system = 'metric'; unitPrefMock.units = null })
 
 describe('PropaneRecordList — DataTable rows scoped to the named table', () => {
   it('renders the row vendor (parsed from notes) and the row cost INSIDE the table (fails if the vendor or cost column is dropped; scoping stops the Total-Spent tile from satisfying the cost check)', () => {
@@ -77,6 +102,23 @@ describe('PropaneRecordList — DataTable rows scoped to the named table', () =>
     unitPrefMock.system = 'imperial'
     render(<PropaneRecordList vin="TEST12345678901234" />)
     expect(within(table()).getByRole('columnheader', { name: 'propaneList.volumeUnit (gal)' })).toBeInTheDocument()
+  })
+
+  it('interpolates the same unit into the TOTALS caption, which used to be a raw token branch', () => {
+    // `units.volume === 'L' ? t('propaneList.totalLiters') : t('propaneList.totalGallons')`
+    // was a second vocabulary of unit names in PROSE, one the units gate reports
+    // under its token-branch leg and one that could disagree with the header
+    // three lines up. It is now the same `{{unit}}` interpolation the header
+    // uses, off the same `getVolumeUnit(units)`.
+    unitPrefMock.system = 'metric'
+    const metric = render(<PropaneRecordList vin="TEST12345678901234" />)
+    expect(screen.getByText('propaneList.totalVolume (L)')).toBeInTheDocument()
+    expect(screen.queryByText('propaneList.totalLiters')).not.toBeInTheDocument()
+    metric.unmount()
+    unitPrefMock.system = 'imperial'
+    render(<PropaneRecordList vin="TEST12345678901234" />)
+    expect(screen.getByText('propaneList.totalVolume (gal)')).toBeInTheDocument()
+    expect(screen.queryByText('propaneList.totalGallons')).not.toBeInTheDocument()
   })
 })
 
@@ -110,5 +152,44 @@ describe('PropaneRecordList — empty state CTA is wired', () => {
     expect(screen.getByText('propaneList.noRecords')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'propaneList.addFirstRecord' }))
     expect(screen.getByText('propane.createTitle')).toBeInTheDocument()
+  })
+})
+
+describe('PropaneRecordList — one gallon per page, taken from the user', () => {
+  beforeEach(() => {
+    UnitConverter.setGallonStandard('us')
+    unitPrefMock.units = null
+  })
+
+  it('puts the header, the volume cell, the price cell and both cards on the imperial gallon', () => {
+    UnitConverter.setGallonStandard('us')
+    unitPrefMock.system = 'imperial'
+    unitPrefMock.units = UK_IMPERIAL_UNITS
+
+    render(<PropaneRecordList vin="TEST12345678901234" />)
+
+    // 39.75 L is 8.74 imperial gallons (10.50 US ones).
+    expect(within(table()).getByRole('columnheader', { name: 'propaneList.volumeUnit (gal)' })).toBeInTheDocument()
+    expect(within(table()).getByText('8.74 gal')).toBeInTheDocument()
+    // $0.766/L is $3.48 per imperial gallon, $2.90 per US one.
+    expect(within(table()).getByText('$3.48')).toBeInTheDocument()
+    // The total tile and its label follow the same token.
+    expect(screen.getByText('propaneList.totalVolume (gal)')).toBeInTheDocument()
+    expect(screen.getByText('8.7 gal')).toBeInTheDocument()
+    expect(screen.getByText('propaneList.avgCostPerVolume (gal)')).toBeInTheDocument()
+    expect(UnitConverter.getGallonStandard()).toBe('us')
+  })
+
+  it('stays in litres for a metric set even on a UK-default instance', () => {
+    UnitConverter.setGallonStandard('uk')
+    unitPrefMock.system = 'metric'
+
+    render(<PropaneRecordList vin="TEST12345678901234" />)
+
+    expect(within(table()).getByRole('columnheader', { name: 'propaneList.volumeUnit (L)' })).toBeInTheDocument()
+    expect(within(table()).getByText('39.75 L')).toBeInTheDocument()
+    expect(screen.getByText('propaneList.totalVolume (L)')).toBeInTheDocument()
+    expect(screen.getByText('39.8 L')).toBeInTheDocument()
+    expect(screen.getByText('propaneList.avgCostPerVolume (L)')).toBeInTheDocument()
   })
 })

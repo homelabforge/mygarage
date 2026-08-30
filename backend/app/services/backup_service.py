@@ -16,6 +16,10 @@ from urllib.parse import unquote, urlparse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.settings_service import SettingsService
+from app.utils.default_unit_prefs import (
+    DEFAULT_UNIT_PREFS_KEY,
+    validate_default_unit_prefs_value,
+)
 from app.utils.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
@@ -428,6 +432,34 @@ class BackupService:
                 if not key:
                     logger.warning("Skipping setting with no key during restore")
                     continue
+
+                # ★ THE FOURTH WRITER OF A SETTINGS VALUE, and the only one that
+                # is not on `app.routes.settings.router`. That router refuses a
+                # `default_unit_prefs` the reader could not use, on all three of
+                # its write paths; an uploaded backup reaches
+                # `SettingsService.set` directly, so a hand-edited or pre-093
+                # file was a back door onto the exact row that validator exists
+                # to protect. `parse_default_unit_prefs` degrades WHOLE and only
+                # logs, so an unreadable value here silently hands every
+                # anonymous client the imperial preset: on a UK or metric
+                # instance, about a 20 percent error in every volume, price per
+                # volume and fuel economy, with a success response on top.
+                #
+                # SKIPPED, NOT FATAL. A restore that aborts partway leaves the
+                # instance half-configured, which is worse than one row not
+                # coming back; the row reseeds from
+                # `default_unit_prefs_for_instance` on the next boot if it is
+                # missing, and keeps its current value if it is not.
+                if key == DEFAULT_UNIT_PREFS_KEY:
+                    try:
+                        validate_default_unit_prefs_value(value)
+                    except ValueError as exc:
+                        logger.warning(
+                            "Skipping %s during restore: value %s",
+                            sanitize_for_log(key),
+                            sanitize_for_log(str(exc)),
+                        )
+                        continue
 
                 # Update setting in database
                 await SettingsService.set(

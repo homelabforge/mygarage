@@ -26,9 +26,17 @@ vi.mock('../../services/api', () => ({
 }))
 
 // Requires AuthProvider otherwise — same mock pattern as ServiceVisitForm.test.tsx.
-vi.mock('../../hooks/useUnitPreference', () => ({
-  useUnitPreference: () => ({ system: 'metric', showBoth: false }),
-}))
+vi.mock('../../hooks/useUnitPreference', async () => {
+  const { METRIC_UNITS } = await import('@/__tests__/factories')
+  return {
+    useUnitPreference: () => ({
+      system: 'metric',
+      showBoth: false,
+      units: METRIC_UNITS,
+      gallonStandard: 'us',
+    }),
+  }
+})
 vi.mock('../../hooks/useCurrencyPreference', () => ({
   useCurrencyPreference: () => ({
     currencyCode: 'USD',

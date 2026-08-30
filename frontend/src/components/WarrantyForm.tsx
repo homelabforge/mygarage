@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Save } from 'lucide-react'
@@ -10,9 +10,9 @@ import { makeWarrantySchema, type WarrantyFormData, WARRANTY_TYPES } from '../sc
 import { useCreateWarrantyRecord, useUpdateWarrantyRecord } from '../hooks/queries/useWarrantyRecords'
 import { formatDateForInput } from '../utils/dateUtils'
 import { useFormSubmit } from '../hooks/useFormSubmit'
-import { useUnitPreference } from '../hooks/useUnitPreference'
-import { UnitConverter, UnitFormatter } from '../utils/units'
-import { toCanonicalKm } from '../utils/decimalSafe'
+import { useUnitFormat } from '../hooks/useUnitFormat'
+import { canonicalFromUnitField, seedUnitField, type UnitFieldOrigin } from '../utils/unitFormat'
+import { readNumber } from '../utils/decimalSafe'
 
 interface WarrantyFormProps {
   vin: string
@@ -26,16 +26,40 @@ export default function WarrantyForm({ vin, record, onClose, onSuccess }: Warran
   const isEdit = !!record
   const createMutation = useCreateWarrantyRecord(vin)
   const updateMutation = useUpdateWarrantyRecord(vin)
-  const { system } = useUnitPreference()
+  const u = useUnitFormat()
+
+  /**
+   * The canonical origin of the mileage limit, seeded once.
+   *
+   * The limit used to be read and written on `useUnitPreference().system`,
+   * which spec D8 collapses from VOLUME: a `{volume: 'L', distance: 'mi'}`
+   * account entered miles into a field labelled `km` and stored them verbatim.
+   * `u.distance` is the token the account actually chose.
+   *
+   * The origin is what stops an untouched save from rewriting the record:
+   * 96560 km displays as 60000 mi and 60000 mi converts back to 96560.4 km, so
+   * re-converting the display would move a limit the user only looked at.
+   * Seeded through a lazy `useState` for the same reason `defaultValues` is
+   * computed once; an origin that moved on re-render would stop being one.
+   */
+  const [mileageLimitOrigin] = useState<UnitFieldOrigin>(() =>
+    seedUnitField(readNumber(record?.mileage_limit_km), u.distance)
+  )
 
   const submitFn = useCallback(async (data: WarrantyFormData) => {
-    // Convert user-entered mileage limit to canonical km.
+    // Back through `units.distance`, and an untouched field returns the
+    // canonical value it was seeded from rather than a re-conversion of a
+    // rounded display. `readNumber` also absorbs `registerDecimal`'s
+    // INVALID_NUMBER symbol, which throws on every implicit coercion.
+    const limitTyped = readNumber(data.mileage_limit_km)
     const payload: WarrantyRecordCreate | WarrantyRecordUpdate = {
       warranty_type: data.warranty_type,
       provider: data.provider,
       start_date: data.start_date,
       end_date: data.end_date,
-      mileage_limit_km: toCanonicalKm(data.mileage_limit_km, system) ?? undefined,
+      mileage_limit_km:
+        canonicalFromUnitField(String(limitTyped ?? ''), mileageLimitOrigin, u.distance) ??
+        undefined,
       coverage_details: data.coverage_details,
       policy_number: data.policy_number,
       notes: data.notes,
@@ -46,7 +70,7 @@ export default function WarrantyForm({ vin, record, onClose, onSuccess }: Warran
     } else {
       await createMutation.mutateAsync(payload as WarrantyRecordCreate)
     }
-  }, [isEdit, record, system, createMutation, updateMutation])
+  }, [isEdit, record, mileageLimitOrigin, u.distance, createMutation, updateMutation])
 
   const { error, handleSubmit: onSubmit } = useFormSubmit(submitFn, {
     onSuccess,
@@ -70,15 +94,7 @@ export default function WarrantyForm({ vin, record, onClose, onSuccess }: Warran
       provider: record?.provider || '',
       start_date: formatDateForInput(record?.start_date),
       end_date: formatDateForInput(record?.end_date === '' || record?.end_date === null ? undefined : record?.end_date),
-      mileage_limit_km: (() => {
-        const lim = record?.mileage_limit_km
-        if (lim == null) return undefined
-        const num = typeof lim === 'string' ? parseFloat(lim) : lim
-        if (isNaN(num)) return undefined
-        return system === 'imperial'
-          ? Math.round(UnitConverter.kmToMiles(num) ?? num)
-          : Math.round(num)
-      })(),
+      mileage_limit_km: readNumber(mileageLimitOrigin.display),
       coverage_details: record?.coverage_details || '',
       policy_number: record?.policy_number || '',
       notes: record?.notes || '',
@@ -135,7 +151,7 @@ export default function WarrantyForm({ vin, record, onClose, onSuccess }: Warran
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <Field id="mileage_limit_km" label={t('warranty.mileageLimit')} unit={UnitFormatter.getDistanceUnit(system)} error={errors.mileage_limit_km}>
+            <Field id="mileage_limit_km" label={t('warranty.mileageLimit')} unit={u.distance.label} error={errors.mileage_limit_km}>
               <NumberInput id="mileage_limit_km" {...registerDecimal(register, 'mileage_limit_km')} placeholder={t('warrantyForm.mileageLimitPlaceholder')} invalid={!!errors.mileage_limit_km} disabled={isSubmitting} />
             </Field>
             <Field id="policy_number" label={t('insurance.policyNumber')} error={errors.policy_number}>

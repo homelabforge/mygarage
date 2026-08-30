@@ -16,18 +16,19 @@ interface POIResult {
 interface Props {
   pois: POIResult[]
   userLocation: { lat: number; lng: number }
-  searchRadius: number
+  /** The search radius in METRES. See LeafletMap for why it is not the user's own unit. */
+  radiusMeters: number
   onMarkerClick: (poi: POIResult) => void
 }
 
-export default function MapDisplay({ pois, userLocation, searchRadius, onMarkerClick }: Props) {
+export default function MapDisplay({ pois, userLocation, radiusMeters, onMarkerClick }: Props) {
   return (
     <div className="mb-6">
       <Suspense fallback={<div className="h-[400px] bg-zinc-800 rounded-lg animate-pulse" />}>
         <LeafletMap
           pois={pois}
           userLocation={userLocation}
-          searchRadius={searchRadius}
+          radiusMeters={radiusMeters}
           onMarkerClick={onMarkerClick}
         />
       </Suspense>

@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useCallback } from 'react'
+import { useMemo, useRef, useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -9,11 +9,14 @@ import FormModalWrapper from '../FormModalWrapper'
 import { Button, Field, Input, NumberInput, Select, Toggle, registerDecimal } from '../ui'
 import vehicleService from '../../services/vehicleService'
 import type { Vehicle, VehicleUpdate } from '../../types/vehicle'
+import type { UnitSet } from '../../types/units'
 import { makeVehicleEditSchema, type VehicleEditFormData, vehicleTypeOptions, NON_MOTORIZED_TYPES } from '../../schemas/vehicle'
 import { FUEL_TYPE_VALUES, FUEL_TYPE_LABELS, isDieselFuelType } from '../../constants/fuel'
 import { useUnitPreference } from '../../hooks/useUnitPreference'
-import { UnitConverter, UnitFormatter } from '../../utils/units'
-import { toCanonicalLiters } from '../../utils/decimalSafe'
+import { useUnitFormat } from '../../hooks/useUnitFormat'
+import { UnitFormatter } from '../../utils/units'
+import { toLitersWirePrecision } from '../../utils/decimalSafe'
+import { canonicalFromUnitField, seedUnitField, type UnitFieldOrigin } from '../../utils/unitFormat'
 import { getUsageTracking } from '../../utils/usageTracking'
 import { applyServerErrors } from '../../hooks/useApiFormErrors'
 import { getActionErrorMessage } from '../../utils/httpErrorHandler'
@@ -24,6 +27,21 @@ const NON_MOTORIZED: readonly string[] = NON_MOTORIZED_TYPES
 
 /** Only these carry a Monroney label, so only these get the sticker section. */
 const WINDOW_STICKER_TYPES = ['Car', 'Truck', 'SUV']
+
+/**
+ * The DEF tank-capacity EXAMPLE each volume token gets, as ONE physical tank.
+ *
+ * Keyed by the resolved token rather than selected by a binary system, for the
+ * reason PropaneRecordForm's sibling table states: `system` is D8-collapsed
+ * from volume, so `gal_uk` and `gal_us` both read 'imperial' and a UK account
+ * was shown a US-gallon example beside a field labelled with ITS gallon.
+ * 19 L / 3.78541 = 5.0 US gallons and / 4.54609 = 4.2 imperial ones.
+ */
+const DEF_CAPACITY_EXAMPLES: Readonly<Record<UnitSet['volume'], string>> = {
+  L: '19.0',
+  gal_us: '5.0',
+  gal_uk: '4.2',
+}
 
 interface VehicleEditDrawerProps {
   open: boolean
@@ -93,7 +111,27 @@ export default function VehicleEditDrawer({
   // fresh data never populates — `reset()` then submits them as explicit
   // `null`, clearing real columns.
   const [seedSource, setSeedSource] = useState<Vehicle | null>(null)
-  const { system } = useUnitPreference()
+  const { units } = useUnitPreference()
+  const u = useUnitFormat()
+
+  /**
+   * The DEF tank capacity's canonical origin, re-seeded on every open.
+   *
+   * A ref rather than state because nothing renders from it: `seedForm` writes
+   * it in the same act that computes the field's display string, which is the
+   * invariant that makes it an origin at all. It is re-seeded rather than
+   * seeded once because this drawer re-`reset()`s from a FRESH fetch each time
+   * it opens, so an origin captured at mount would describe a value the field
+   * no longer holds.
+   *
+   * ★ It is here because this field had the identical shift the entry grid did
+   * (ruling R4). The capacity was seeded through a display conversion that
+   * rounds a gallon to two decimals and submitted through a helper that
+   * converted that rounding straight back: a stored 37.9 L came back 37.892 on
+   * a save that only renamed the vehicle. Same defect, same fix, one drawer
+   * over from the three forms the ruling names.
+   */
+  const defCapacityOrigin = useRef<UnitFieldOrigin>({ canonical: null, display: '' })
 
   const isMotorized = seedSource ? !NON_MOTORIZED.includes(seedSource.vehicle_type) : false
   const hasWindowSticker = seedSource
@@ -171,11 +209,22 @@ export default function VehicleEditDrawer({
       // Always included (propane on fifth wheels).
       fuel_type: source.fuel_type,
       def_tank_capacity_liters: (() => {
+        // ★ THE ORIGIN IS WRITTEN ON EVERY PATH, INCLUDING THE ABSENT ONES, and
+        // that is the whole reason this is not an early return. The two `return
+        // undefined` branches used to leave the PREVIOUS open's origin in place,
+        // which is exactly the state this ref's docstring says it exists to
+        // prevent: open a vehicle with 19 L (origin `{19, '4.18'}`), turn DEF
+        // tracking off, save, reopen on the fresh null, re-enable and type
+        // `4.18`, and the stale origin claims the field is untouched and posts
+        // 19 instead of the 19.003 that value converts to. `seedUnitField`
+        // answers `{canonical: null, display: ''}` for an absent value, so the
+        // reset is the same call rather than a second spelling of it.
         const cap = source.def_tank_capacity_liters
-        if (cap == null) return undefined
-        const num = typeof cap === 'string' ? parseFloat(cap) : Number(cap)
-        if (isNaN(num)) return undefined
-        return system === 'imperial' ? UnitConverter.litersToGallons(num) ?? num : num
+        const raw = cap == null ? NaN : typeof cap === 'string' ? parseFloat(cap) : Number(cap)
+        defCapacityOrigin.current = seedUnitField(isNaN(raw) ? null : raw, u.volume)
+        return defCapacityOrigin.current.display === ''
+          ? undefined
+          : Number(defCapacityOrigin.current.display)
       })(),
     }
 
@@ -191,7 +240,10 @@ export default function VehicleEditDrawer({
     // another.
     setSeedSource(source)
     reset(formData as VehicleEditFormData)
-  }, [vin, vehicle, reset, system])
+    // `u.volume` rather than the whole resolved set: that is the only unit
+    // decision this callback makes now, and `useUnitFormat` memoizes on the set
+    // so the identity is as stable as `units` was.
+  }, [vin, vehicle, reset, u.volume])
 
   // Reseed on each open transition only. Deliberately NOT keyed on `vehicle`:
   // the parent re-setting it while the drawer is open would reset the form
@@ -218,9 +270,16 @@ export default function VehicleEditDrawer({
     if (!defEnabled) {
       data.def_tank_capacity_liters = null
     } else if (data.def_tank_capacity_liters != null) {
-      // The entered value is in the user's display unit (L metric, gal
-      // imperial). Convert to canonical litres before submit.
-      const canonical = toCanonicalLiters(data.def_tank_capacity_liters, system)
+      // The entered value is in `units.volume`. An untouched field returns the
+      // canonical litres it was seeded from; an edited one converts through the
+      // same adapter, then takes the API's declared precision.
+      const canonical = toLitersWirePrecision(
+        canonicalFromUnitField(
+          String(data.def_tank_capacity_liters),
+          defCapacityOrigin.current,
+          u.volume
+        )
+      )
       data.def_tank_capacity_liters = canonical ?? data.def_tank_capacity_liters
     }
 
@@ -410,7 +469,7 @@ export default function VehicleEditDrawer({
                   <Field
                     id="def_tank_capacity_liters"
                     label={t('edit.defTankCapacity')}
-                    unit={UnitFormatter.getVolumeUnit(system)}
+                    unit={UnitFormatter.getVolumeUnit(units)}
                     error={errors.def_tank_capacity_liters}
                     hint={isDieselSelected ? t('edit.defTankCapacityHint') : undefined}
                   >
@@ -419,7 +478,7 @@ export default function VehicleEditDrawer({
                       {...registerDecimal(register, 'def_tank_capacity_liters')}
                       disabled={isSubmitting || !isDieselSelected}
                       invalid={!!errors.def_tank_capacity_liters}
-                      placeholder={system === 'imperial' ? '5.0' : '19.0'}
+                      placeholder={DEF_CAPACITY_EXAMPLES[units.volume]}
                     />
                     {!isDieselSelected && (
                       <div className="mt-1 space-y-1">

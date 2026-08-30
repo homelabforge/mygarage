@@ -15,7 +15,9 @@ import { Button, Select, Toggle } from '@/components/ui'
 import POICard from '@/components/POICard'
 import MapDisplay from '@/components/MapDisplay'
 import { useUnitPreference } from '@/hooks/useUnitPreference'
-import { UnitFormatter } from '@/utils/units'
+import { useUnitFormat } from '@/hooks/useUnitFormat'
+import { radiusToMeters } from '@/utils/unitAdapters'
+import type { UnitSet } from '@/types/units'
 import type {
   POIResult,
   POIRecommendation,
@@ -26,9 +28,29 @@ import type {
 
 type Step = 'permission' | 'searching' | 'results'
 
+/**
+ * The radii offered, keyed by the client's own DISTANCE unit.
+ *
+ * Keyed by the resolved token rather than by the binary `system`, which spec D8
+ * collapses from VOLUME: a custom client with litres and miles used to be
+ * offered kilometre radii against a mile preference. `Record<UnitSet['distance']>`
+ * makes a token added to the vocabulary a compile error rather than a silent
+ * fall into the kilometre list.
+ */
+const RADIUS_OPTIONS: Readonly<Record<UnitSet['distance'], readonly number[]>> = {
+  km: [10, 25, 50, 100, 200],
+  mi: [5, 10, 25, 50, 100],
+}
+
+/** The radius pre-selected for each distance unit. */
+const DEFAULT_RADIUS: Readonly<Record<UnitSet['distance'], number>> = { km: 10, mi: 5 }
+
 export default function POIFinder() {
   const { t } = useTranslation('common')
-  const { system } = useUnitPreference()
+  // Both hooks: `useUnitFormat` composes the label, and the resolved set itself
+  // keys the radius table and the metre conversion.
+  const { units } = useUnitPreference()
+  const u = useUnitFormat()
   const [step, setStep] = useState<Step>('permission')
   const [recommendations, setRecommendations] = useState<POIRecommendation[]>([])
   const [searchResults, setSearchResults] = useState<POIResult[]>([])
@@ -42,9 +64,13 @@ export default function POIFinder() {
 
   // Phase 3.10 — radius is in the user's display unit (miles or km),
   // converted to meters at request time. rc1 was miles-only.
-  const [searchRadius, setSearchRadius] = useState<number>(
-    system === 'imperial' ? 5 : 10
-  )
+  const [searchRadius, setSearchRadius] = useState<number>(DEFAULT_RADIUS[units.distance])
+  // ★ ONE radius in metres, used by BOTH the search request and the map circle.
+  // The map used to be handed `searchRadius` raw and multiply it by a hardcoded
+  // 1609.34 unconditionally, so a metric client searching 10 km was drawn a
+  // 16.1 km circle. A map cannot know the client's distance unit, so it is given
+  // metres and does no arithmetic.
+  const radiusMeters = radiusToMeters(units, searchRadius) ?? 0
   const [categories, setCategories] = useState<Record<POICategory, boolean>>({
     auto_shop: true,
     rv_shop: false,
@@ -177,10 +203,6 @@ export default function POIFinder() {
     setUserLocation({ lat: latitude, lng: longitude })
 
     try {
-      // Convert the user's display-unit radius to meters for the API.
-      const radiusMeters = Math.round(
-        searchRadius * (system === 'imperial' ? 1609.34 : 1000)
-      )
       const activeCategories = getActiveCategories()
 
       const response = await api.post<POISearchResponse>('/poi/search', {
@@ -297,12 +319,9 @@ export default function POIFinder() {
                 value={searchRadius}
                 onChange={(e) => setSearchRadius(Number(e.target.value))}
                 className="w-full md:w-64"
-                options={(system === 'imperial'
-                  ? [5, 10, 25, 50, 100]
-                  : [10, 25, 50, 100, 200]
-                ).map((value) => ({
+                options={RADIUS_OPTIONS[units.distance].map((value) => ({
                   value: String(value),
-                  label: `${value} ${UnitFormatter.getDistanceUnit(system)}`,
+                  label: `${value} ${u.distance.label}`,
                 }))}
               />
             </div>
@@ -429,7 +448,7 @@ export default function POIFinder() {
             <MapDisplay
               pois={searchResults}
               userLocation={userLocation}
-              searchRadius={searchRadius}
+              radiusMeters={radiusMeters}
               onMarkerClick={(poi) => {
                 const cardElement = document.getElementById(`poi-card-${poi.external_id || poi.business_name}`)
                 if (cardElement) {

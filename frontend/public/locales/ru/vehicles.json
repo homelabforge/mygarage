@@ -102,7 +102,9 @@
     "source": "Источник",
     "title": "Записи DEF",
     "totalSpent": "Всего потрачено",
-    "type": "Тип"
+    "type": "Тип",
+    "avgCostPerVolume": "Сред. стоимость/{{unit}}",
+    "volumeTotal": "{{value}} всего"
   },
   "detail": {
     "actions": "Действия",
@@ -258,6 +260,9 @@
     "avgFuelRate": "Сред. {{unit}}",
     "confirmDelete": "Подтвердить удаление",
     "costPerHour": "Стоимость/ч",
+    "costPerDistance": "Стоимость/{{unit}}",
+    "avgCostPerVolume": "Сред. стоимость/{{unit}}",
+    "volumeTotal": "{{value}} всего",
     "date": "Дата",
     "deleteError": "Ошибка удаления",
     "exportCSV": "Экспорт CSV",
@@ -457,10 +462,10 @@
     "pricePerUnit": "Цена за единицу",
     "recordCount": "{{count}} запись(-ей)",
     "title": "Записи о пропане",
-    "totalGallons": "Всего галлонов",
-    "totalLiters": "Всего литров",
+    "totalVolume": "Всего ({{unit}})",
     "totalSpent": "Всего потрачено",
-    "vendor": "Поставщик"
+    "vendor": "Поставщик",
+    "avgCostPerVolume": "Сред. стоимость/{{unit}}"
   },
   "quickEntry": {
     "fuelRecord": "Запись о топливе",

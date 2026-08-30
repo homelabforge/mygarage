@@ -6,7 +6,8 @@
     "fileManagement": "Dateiverwaltung",
     "integrations": "Integrationen",
     "notifications": "Benachrichtigungen",
-    "backupRestore": "Sichern & Wiederherstellen"
+    "backupRestore": "Sichern & Wiederherstellen",
+    "sections": "Einstellungen-Bereiche"
   },
   "systemConfig": {
     "title": "Systemkonfiguration",
@@ -26,10 +27,87 @@
     "label": "Einheitensystem",
     "imperial": "Imperial",
     "metric": "Metrisch",
-    "imperialDescription": "Verwendung imperialer Einheiten: gallons, miles, MPG, °F, PSI, lbs, lb-ft",
-    "metricDescription": "Verwendung metrischer Einheiten: liters, kilometers, L/100km, °C, bar, kg, Nm",
+    "resolvedDescription": "Verwendete Einheiten: {{units}}",
+    "instanceDefault": "Standardeinheiten für diese Instanz",
+    "instanceDefaultDescription": "Werden von abgemeldeten Besuchern verwendet, von allen Clients, wenn die Anmeldung deaktiviert ist, und als Ausgangswert für jedes neue Konto. Ein Konto, das bereits eigene Einheiten hat, wird dadurch nicht geändert.",
+    "instanceDefaultSaved": "Standardeinheiten der Instanz gespeichert",
+    "instanceDefaultError": "Standardeinheiten der Instanz konnten nicht gespeichert werden",
     "showBoth": "Beide Einheiten anzeigen",
-    "showBothDescription": "Werte sowohl imperial als auch metrisch anzeigen (z. B. \"25 MPG (9.4 L/100km)\")"
+    "custom": "Benutzerdefiniert",
+    "customDescription": "Wähle für jede Größe eine Einheit. Diese überschreiben die Voreinstellung in der gesamten Anwendung.",
+    "presetConfirmTitle": "Auf {{preset}} umstellen?",
+    "presetConfirmMessage": "Dies löscht alle einzeln gewählten Einheiten und verwendet überall die Voreinstellung.",
+    "presetConfirmGallon": "Imperial verwendet die US-Gallone (3,785 L). Deine Einstellung für die UK-Gallone wird ersetzt.",
+    "presetConfirmAction": "Einheiten wechseln",
+    "quantities": {
+      "distance": "Strecke",
+      "speed": "Geschwindigkeit",
+      "length": "Länge",
+      "volume": "Volumen",
+      "consumption": "Kraftstoffverbrauch",
+      "pressure": "Druck",
+      "temperature": "Temperatur",
+      "mass": "Masse",
+      "torque": "Drehmoment",
+      "tread": "Reifenprofiltiefe",
+      "secondaryGallon": "Für MPG verwendete Gallone"
+    },
+    "options": {
+      "distance": {
+        "km": "Kilometer (km)",
+        "mi": "Meilen (mi)"
+      },
+      "speed": {
+        "kmh": "Kilometer pro Stunde (km/h)",
+        "mph": "Meilen pro Stunde (mph)"
+      },
+      "length": {
+        "m": "Meter (m)",
+        "ft": "Fuß (ft)"
+      },
+      "volume": {
+        "L": "Liter (L)",
+        "gal_us": "US-Gallonen (gal)",
+        "gal_uk": "UK-Gallonen (gal)"
+      },
+      "consumption": {
+        "l_100km": "Liter pro 100 km (L/100km)",
+        "km_l": "Kilometer pro Liter (km/L)",
+        "mpg_us": "Meilen pro US-Gallone (MPG)",
+        "mpg_uk": "Meilen pro UK-Gallone (MPG)"
+      },
+      "pressure": {
+        "kpa": "Kilopascal (kPa)",
+        "bar": "Bar (bar)",
+        "psi": "Pfund pro Quadratzoll (PSI)"
+      },
+      "temperature": {
+        "c": "Celsius (°C)",
+        "f": "Fahrenheit (°F)"
+      },
+      "mass": {
+        "kg": "Kilogramm (kg)",
+        "lb": "Pfund (lb)"
+      },
+      "torque": {
+        "nm": "Newtonmeter (Nm)",
+        "lbft": "Pfund-Fuß (lb-ft)"
+      },
+      "tread": {
+        "mm": "Millimeter (mm)",
+        "in32": "Zweiunddreißigstel Zoll (/32 in)"
+      },
+      "secondary_gallon": {
+        "us": "US-Gallone (3,785 L)",
+        "uk": "UK-Gallone (4,546 L)"
+      }
+    },
+    "gallonStandard": "Gallonen-Standard",
+    "gallonUs": "US-Gallone (3,785 L)",
+    "gallonUk": "UK-Gallone (4,546 L)",
+    "gallonStandardDescription": "Wird verwendet, wenn das Einheitensystem Imperial für Volumen- und MPG-Umrechnungen eingestellt ist.",
+    "gallonSaved": "Gallonen-Standard gespeichert",
+    "gallonError": "Gallonen-Standard konnte nicht gespeichert werden"
   },
   "language": {
     "label": "Sprache",
@@ -81,7 +159,12 @@
   },
   "archive": {
     "title": "Archivierte Fahrzeuge",
-    "description": "Anzeigen und Verwalten von Fahrzeugen, die du archiviert hast (verkauft, Totalschaden, verschenkt etc.). Archivierte Fahrzeuge verbleiben in den Analysen, können aber in der Hauptliste ausgeblendet werden."
+    "description": "Anzeigen und Verwalten von Fahrzeugen, die du archiviert hast (verkauft, Totalschaden, verschenkt etc.). Archivierte Fahrzeuge verbleiben in den Analysen, können aber in der Hauptliste ausgeblendet werden.",
+    "autoArchiveLabel": "Inaktive Fahrzeuge automatisch archivieren",
+    "autoArchiveDescription": "Archiviert Fahrzeuge nach N Tagen ohne Aktivität (Kraftstoff, Service, Kilometerstand oder Betriebsstunden). 0 deaktiviert die Funktion. Wird täglich ausgeführt, wenn der Scheduler aktiviert ist, und gilt für jedes Fahrzeug auf dieser Instanz, einschließlich derer anderer Benutzer.",
+    "autoArchiveDays": "Tage der Inaktivität",
+    "autoArchiveSaved": "Einstellung für automatische Archivierung gespeichert",
+    "autoArchiveError": "Einstellung für automatische Archivierung konnte nicht gespeichert werden"
   },
   "secretKey": {
     "label": "Secret Key:",
@@ -172,8 +255,27 @@
     "noDevices": "Keine Geräte konfiguriert",
     "firmwareUpdate": "Firmware-Update für ein oder mehrere Geräte verfügbar",
     "configureLiveLink": "LiveLink konfigurieren",
-    "configureDesc": "Verwalte WiCAN-Geräte, MQTT-Einstellungen und Telemetrieparameter.",
-    "aboutLiveLink": "Über LiveLink"
+    "configureDesc": "Verwalte WiCAN-Geräte, MQTT-Einstellungen und Telemetrie-Parameter.",
+    "aboutLiveLink": "Über LiveLink",
+    "removeProviderAction": "Anbieter entfernen",
+    "webhooks": "Eingehende Webhooks",
+    "webhooksDesc": "Ermögliche es Home Assistant, n8n oder Kurzbefehlen, Kraftstoffdaten, Kilometerstände und erledigte Erinnerungen zu übermitteln.",
+    "webhookToken": "Webhook-Ingest-Token",
+    "webhookTokenPlaceholder": "Generiere ein langes, zufälliges Token",
+    "webhookTokenDesc": "Erforderlich für jede eingehende Webhook-Anfrage. Leer lassen, um den Ingest zu deaktivieren.",
+    "webhookHeaderHint": "Sende den Header X-Webhook-Token (oder ?token=), der dem obigen Wert entspricht.",
+    "telegramInbound": "Telegram-Kraftstoff-Bot",
+    "telegramInboundDesc": "Akzeptiere strukturierte Kraftstoff-Befehle von Telegram (verwendet dasselbe Bot-Token wie unter Benachrichtigungen).",
+    "enableTelegramInbound": "Eingehende Telegram-Befehle aktivieren",
+    "enableTelegramInboundDesc": "Erfordert ein Webhook-Ingest-Token sowie ein ausgehendes Telegram-Bot-Token + eine Chat-ID.",
+    "telegramCommandHint": "Richte den Webhook von Telegram auf POST /api/v1/webhooks/telegram und sende dann:",
+    "llmReceipt": "LLM-Belegauslesung",
+    "llmReceiptDesc": "Aktiviere die lokale oder OpenAI-kompatible Entwurfsanalyse für Kraftstoffbelege. Es wird nichts gespeichert, bis du es bestätigst.",
+    "enableLlmReceipt": "Entwurfsanalyse für Belege aktivieren",
+    "llmBaseUrl": "API-Basis-URL",
+    "llmModel": "Modell",
+    "llmApiKey": "API-Schlüssel (optional)",
+    "llmReceiptHint": "Standardmäßig ist ein lokaler Ollama-Endpunkt eingestellt. Verwende das Steuerelement „Beleg auslesen“ im Kraftstoffformular, um einen Entwurf auszufüllen."
   },
   "notifications": {
     "loading": "Benachrichtigungseinstellungen werden geladen...",
@@ -256,7 +358,7 @@
       "step2": "Wähle \"Kanal bearbeiten\" > \"Integrationen\"",
       "step3": "Klicke auf \"Webhook erstellen\"",
       "step4": "Kopiere die Webhook-URL",
-      "docsLink": "Leitfaden für Discord-Webhooks"
+      "docsLink": "Discord Webhooks Handbuch"
     }
   },
   "telegram": {
@@ -329,9 +431,7 @@
       "warrantyExpiringLabel": "Garantie läuft ab",
       "warrantyExpiringDesc": "Benachrichtigen, bevor die Garantie abläuft",
       "milestonesLabel": "Kilometerstand-Meilensteine",
-      "milestonesDesc": "Benachrichtigen beim Erreichen bedeutender Meilensteine des Kilometerstands (z. B. 100k Meilen)",
       "daysBefore": "Tage vorher",
-      "milesBefore": "Meilen vorher",
       "advanced": "Erweitert",
       "advancedDesc": "Wiederholungsversuch-Einstellungen für Benachrichtigungen mit hoher Priorität",
       "retryAttempts": "Wiederholungsversuche",
@@ -458,7 +558,7 @@
     "fullRestoreComplete": "Vollständiges Backup wiederhergestellt! Bitte aktualisiere die Seite oder starte die Anwendung neu, damit die Änderungen wirksam werden.",
     "restoreFailed": "Wiederherstellung fehlgeschlagen",
     "confirmDelete": "Bist du sicher, dass du {{filename}} löschen möchtest?",
-    "deleteSuccess": "Backup {{filename}} erfolgreich gelöscht",
+    "deleteSuccess": "Backup {{filename}} wurde erfolgreich gelöscht",
     "deleteError": "Backup konnte nicht gelöscht werden",
     "uploadSuccess": "Backup erfolgreich hochgeladen!",
     "uploadFailed": "Upload fehlgeschlagen",
@@ -469,7 +569,12 @@
     "infoSizeDepends": "Die Backup-Größe hängt von der Menge der von dir hochgeladenen Fotos und Dokumente ab",
     "infoRestoreOverwrites": "Das Wiederherstellen eines vollständigen Backups wird alle aktuellen Daten und Dateien ÜBERSCHREIBEN",
     "infoSafetyBackup": "Vor jedem Wiederherstellungsvorgang wird automatisch ein Sicherheits-Backup erstellt",
-    "infoRestartRequired": "Nach dem Wiederherstellen eines vollständigen Backups kann ein Neustart der Anwendung erforderlich sein"
+    "infoRestartRequired": "Nach dem Wiederherstellen eines vollständigen Backups kann ein Neustart der Anwendung erforderlich sein",
+    "restoreAction": "Backup wiederherstellen",
+    "deleteAction": "Backup löschen",
+    "uploadAction": "Backup hochladen",
+    "postgresRestoreTitle": "Vollständige PostgreSQL-Wiederherstellung",
+    "postgresRestoreMessage": "Eine vollständige Wiederherstellung über die Benutzeroberfläche ist für PostgreSQL nicht verfügbar. Stoppe die App und führe folgenden Befehl aus: pg_restore --clean --if-exists --no-owner --no-privileges -d <dbname> mygarage.pgdump"
   },
   "filesTab": {
     "aboutWindowStickersBody": "Window Sticker (Monroney-Label) sind in den USA gesetzlich vorgeschriebene Aufkleber auf Neuwagen, die den Listenpreis (MSRP), den Kraftstoffverbrauch, die Standardausstattung und optionale Extras ausweisen. Lade den Window Sticker deines Fahrzeugs hoch, um Preis- und Spezifikationsdaten automatisch auszufüllen.",
@@ -485,5 +590,34 @@
     "defaultTripType": "Standard-Fahrtart",
     "defaultsSaved": "Kraftstoff-Standardwerte gespeichert",
     "defaultsError": "Kraftstoff-Standardwerte konnten nicht gespeichert werden"
+  },
+  "garageSections": {
+    "title": "Garage-Bereiche",
+    "description": "Aktiviere leicht zugängliche Referenzfahrzeuge von Familie/Freunden. Standardmäßig deaktiviert. Freigegebene Fahrzeuge werden immer in einem eigenen Bereich angezeigt.",
+    "familyFriends": "Familie & Freunde anzeigen",
+    "familyFriendsDesc": "Leicht zugängliche Referenzfahrzeuge von Familie/Freunden. Freigegebene Haushaltsfahrzeuge werden immer in der Garage angezeigt, auch wenn dies deaktiviert ist."
+  },
+  "matrix": {
+    "enable": "Matrix-Benachrichtigungen aktivieren",
+    "homeserver": "Homeserver-URL",
+    "accessToken": "Access-Token",
+    "roomId": "Raum-ID",
+    "misc": {
+      "title": "Matrix",
+      "subtitle": "MyGarage-Warnmeldungen in einen Matrix-Raum posten",
+      "sending": "Wird gesendet…",
+      "testConnection": "Verbindung testen",
+      "setupHint": "Erstelle einen dedizierten Matrix-Benutzer, lade ihn in einen Raum ein und füge sein Access-Token hier ein."
+    }
+  },
+  "accent": {
+    "label": "Akzentfarbe",
+    "description": "Ändert die Akzentfarbe in der gesamten App.",
+    "blue": "Blau",
+    "amber": "Bernstein",
+    "teal": "Teal",
+    "red": "Rot",
+    "violet": "Violett",
+    "green": "Grün"
   }
 }

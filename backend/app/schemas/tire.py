@@ -7,7 +7,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 TirePosition = Literal["FL", "FR", "RL", "RR", "SPARE"]
 TIRE_POSITIONS: tuple[str, ...] = ("FL", "FR", "RL", "RR", "SPARE")
@@ -54,13 +54,34 @@ class TireUpdate(BaseModel):
 
 
 class TireReadingCreate(BaseModel):
-    """Record a tread/pressure reading (updates the parent tire's latest depth)."""
+    """Record a tread/pressure reading (updates the parent tire's latest depth).
+
+    Tread is OPTIONAL (#152): the reporter tracks a slow pressure leak and owns
+    no tread gauge, and a required tread beside an optional odometer meant they
+    could not record a pressure at all. What is required is that a reading carry
+    at least one measurement (see ``_at_least_one_measurement``).
+    """
 
     recorded_at: date_type
     odometer_km: Decimal | None = Field(None, ge=0)
-    tread_depth_mm: Decimal = Field(..., ge=0, le=30)
+    tread_depth_mm: Decimal | None = Field(None, ge=0, le=30)
     pressure_kpa: Decimal | None = Field(None, ge=0, le=1000)
     notes: str | None = None
+
+    @model_validator(mode="after")
+    def _at_least_one_measurement(self) -> TireReadingCreate:
+        """Reject a reading that measures nothing.
+
+        ``odometer_km`` deliberately does not count. It is context for the wear
+        projection, not an observation of the tire, so a date-plus-odometer row
+        would add a history entry that says nothing about the tire and would
+        still be picked up by ``_project_wear`` as the newest reading.
+
+        :raises ValueError: when both tread and pressure are absent.
+        """
+        if self.tread_depth_mm is None and self.pressure_kpa is None:
+            raise ValueError("A reading needs a tread depth, a pressure, or both")
+        return self
 
 
 class TireReadingResponse(BaseModel):
@@ -72,7 +93,7 @@ class TireReadingResponse(BaseModel):
     position: str
     recorded_at: date_type
     odometer_km: Decimal | None
-    tread_depth_mm: Decimal
+    tread_depth_mm: Decimal | None
     pressure_kpa: Decimal | None
     notes: str | None
     created_at: datetime

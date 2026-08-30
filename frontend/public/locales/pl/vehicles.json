@@ -102,7 +102,9 @@
     "source": "Źródło",
     "title": "Rejestr DEF",
     "totalSpent": "Łącznie wydano",
-    "type": "Typ"
+    "type": "Typ",
+    "avgCostPerVolume": "Śr. koszt/{{unit}}",
+    "volumeTotal": "{{value}} łącznie"
   },
   "detail": {
     "actions": "Akcje",
@@ -258,6 +260,9 @@
     "avgFuelRate": "Śr. {{unit}}",
     "confirmDelete": "Potwierdź usunięcie",
     "costPerHour": "Koszt/godz.",
+    "costPerDistance": "Koszt/{{unit}}",
+    "avgCostPerVolume": "Śr. koszt/{{unit}}",
+    "volumeTotal": "{{value}} łącznie",
     "date": "Data",
     "deleteError": "Błąd usuwania",
     "exportCSV": "Eksportuj CSV",
@@ -457,10 +462,10 @@
     "pricePerUnit": "Cena za jednostkę",
     "recordCount": "{{count}} rekord(ów)",
     "title": "Rejestr propanu",
-    "totalGallons": "Wszystkie galony",
-    "totalLiters": "Wszystkie litry",
+    "totalVolume": "Łącznie ({{unit}})",
     "totalSpent": "Łącznie wydano",
-    "vendor": "Sprzedawca"
+    "vendor": "Sprzedawca",
+    "avgCostPerVolume": "Śr. koszt/{{unit}}"
   },
   "quickEntry": {
     "fuelRecord": "Rejestr paliwa",

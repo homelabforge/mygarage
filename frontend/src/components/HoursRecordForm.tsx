@@ -21,7 +21,8 @@ interface HoursRecordFormProps {
 /**
  * Engine-hours analog of OdometerRecordForm. Engine hours are dimensionless
  * -- there is no UnitPreference/UnitConverter round-trip here, unlike
- * odometer_km's toCanonicalKm conversion: the entered value is submitted as-is.
+ * odometer_km's `canonicalFromUnitField` conversion: the entered value is
+ * submitted as-is.
  */
 export default function HoursRecordForm({ vin, record, onClose, onSuccess }: HoursRecordFormProps) {
   const { t } = useTranslation('forms')

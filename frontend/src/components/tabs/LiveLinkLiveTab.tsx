@@ -19,14 +19,10 @@ import {
 } from 'lucide-react'
 import { livelinkService } from '@/services/livelinkService'
 import type { VehicleLiveLinkStatus, TelemetryLatestValue } from '@/types/livelink'
-import { useUnitPreference } from '@/hooks/useUnitPreference'
+import { useUnitFormat } from '@/hooks/useUnitFormat'
 import { useTimeFormat } from '@/hooks/useTimeFormat'
-import {
-  convertTelemetryValue,
-  formatTelemetryValue,
-  getParamDisplayName,
-} from '@/utils/telemetryUnits'
-import type { UnitSystem } from '@/utils/units'
+import { convertTelemetryValue, getParamDisplayName } from '@/utils/telemetryUnits'
+import type { UnitFormat } from '@/utils/unitFormat'
 import { formatTime } from '@/utils/parseAPITimestamp'
 import { Card, Mono, EmptyState } from '../ui'
 
@@ -40,7 +36,7 @@ export default function LiveLinkLiveTab({ vin }: LiveLinkLiveTabProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
-  const { system: unitSystem } = useUnitPreference()
+  const unitFormat = useUnitFormat()
   const { timeFormat } = useTimeFormat()
 
   const fetchStatus = useCallback(async () => {
@@ -187,7 +183,7 @@ export default function LiveLinkLiveTab({ vin }: LiveLinkLiveTabProps) {
       {(status.latest_values?.length ?? 0) > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {status.latest_values?.map((value) => (
-            <GaugeCard key={value.param_key} value={value} unitSystem={unitSystem} />
+            <GaugeCard key={value.param_key} value={value} unitFormat={unitFormat} />
           ))}
         </div>
       ) : (
@@ -200,10 +196,11 @@ export default function LiveLinkLiveTab({ vin }: LiveLinkLiveTabProps) {
 // Gauge Card Component
 interface GaugeCardProps {
   value: TelemetryLatestValue
-  unitSystem: UnitSystem
+  unitFormat: UnitFormat
 }
 
-function GaugeCard({ value, unitSystem }: GaugeCardProps) {
+function GaugeCard({ value, unitFormat }: GaugeCardProps) {
+  const { t } = useTranslation('vehicles')
   const { timeFormat } = useTimeFormat()
   const IconComponent = useMemo(() => {
     const key = value.param_key.toLowerCase()
@@ -214,10 +211,12 @@ function GaugeCard({ value, unitSystem }: GaugeCardProps) {
     return Zap
   }, [value.param_key])
 
-  // Convert value based on unit preference
+  // Convert through the shared adapter. `unit` is the resolved label, or the
+  // unknown-unit marker when the reading establishes no unit at all (a custom
+  // odometer PID); `converted.unverified` says which of the two it is.
   const converted = useMemo(() => {
-    return convertTelemetryValue(value.value, value.param_key, value.unit ?? null, unitSystem)
-  }, [value.value, value.param_key, value.unit, unitSystem])
+    return convertTelemetryValue(value.value, value.param_key, value.unit ?? null, unitFormat, t)
+  }, [value.value, value.param_key, value.unit, unitFormat, t])
 
   // Format the display name
   const displayName = useMemo(() => {
@@ -238,7 +237,7 @@ function GaugeCard({ value, unitSystem }: GaugeCardProps) {
         {value.in_warning && <AlertTriangle aria-hidden="true" className="w-4 h-4 text-danger" />}
       </div>
       <Mono as="div" size="2xl" weight="bold" tone={value.in_warning ? 'danger' : 'default'}>
-        {formatTelemetryValue(converted.value, value.param_key)}
+        {converted.text}
         {converted.unit && <span className="text-sm font-normal text-text-mute ml-1">{converted.unit}</span>}
       </Mono>
       <div className="text-xs text-text-mute mt-1">

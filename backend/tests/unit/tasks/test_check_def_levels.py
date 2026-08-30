@@ -19,6 +19,7 @@ transaction while still exercising real DB fixtures end-to-end. Only
 
 from __future__ import annotations
 
+import json
 from collections.abc import Awaitable, Callable
 from datetime import date
 from decimal import Decimal
@@ -30,11 +31,16 @@ import pytest_asyncio
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.constants.units import IMPERIAL_PRESET, METRIC_PRESET, UnitSet, field_to_column
 from app.models.def_record import DEFRecord
+from app.models.settings import Setting
+from app.models.user import User
 from app.models.vehicle import Vehicle
 from app.services.settings_service import SettingsService
 from app.tasks.scheduled import _get_def_low_threshold_percent, check_def_levels
 from app.utils.datetime_utils import utc_now
+from app.utils.default_unit_prefs import DEFAULT_UNIT_PREFS_KEY
+from app.utils.render_context import RenderContext
 
 # Every vehicle this module creates uses this VIN prefix, so the autouse
 # cleanup fixture below can wipe just this module's leftovers.
@@ -165,6 +171,76 @@ async def enable_def_low(db_session: AsyncSession) -> Callable[..., Awaitable[No
         await db_session.flush()
 
     return _enable
+
+
+_OWNER_USERNAME = "def_units_owner"
+
+
+def _user_unit_columns(units: UnitSet) -> dict[str, str]:
+    """Explicit overrides for all eleven quantities, so the owner's resolved
+    set is exactly `units` (`field_to_column` owns the `secondary_gallon`
+    prefix asymmetry)."""
+    return {field_to_column(field): value for field, value in units.model_dump().items()}
+
+
+@pytest_asyncio.fixture
+async def def_owner(db_session: AsyncSession):
+    """An imperial vehicle owner, removed afterwards.
+
+    Its vehicles go first: `Vehicle.user_id` references this row, and the
+    autouse `_clean_slate` only runs at the START of a test, so a user
+    deleted while one of this module's vehicles still pointed at it would
+    trip the foreign key.
+    """
+    owner = User(
+        username=_OWNER_USERNAME,
+        email=f"{_OWNER_USERNAME}@example.test",
+        unit_preference="custom",
+        show_both_units=False,
+        **_user_unit_columns(IMPERIAL_PRESET),
+    )
+    db_session.add(owner)
+    await db_session.commit()
+    await db_session.refresh(owner)
+    try:
+        yield owner
+    finally:
+        await db_session.rollback()
+        await db_session.execute(delete(DEFRecord).where(DEFRecord.vin.like(f"{_VIN_PREFIX}%")))
+        await db_session.execute(delete(Vehicle).where(Vehicle.vin.like(f"{_VIN_PREFIX}%")))
+        await db_session.execute(delete(User).where(User.username == _OWNER_USERNAME))
+        await db_session.commit()
+
+
+@pytest_asyncio.fixture
+async def metric_instance_default(db_session: AsyncSession):
+    """Pin `default_unit_prefs` to METRIC, the opposite of `def_owner`'s set,
+    restoring whatever the shared settings table held before."""
+    row = await db_session.get(Setting, DEFAULT_UNIT_PREFS_KEY)
+    original: dict[str, str | None] | None = None
+    if row is not None:
+        original = {"value": row.value, "category": row.category}
+        row.value = json.dumps(METRIC_PRESET.model_dump())
+    else:
+        db_session.add(
+            Setting(
+                key=DEFAULT_UNIT_PREFS_KEY,
+                value=json.dumps(METRIC_PRESET.model_dump()),
+                category="general",
+            )
+        )
+    await db_session.commit()
+    yield
+    saved = await db_session.get(Setting, DEFAULT_UNIT_PREFS_KEY)
+    if original is None:
+        if saved is not None:
+            await db_session.delete(saved)
+    elif saved is not None:
+        saved.value = original["value"]
+        saved.category = original["category"]
+    else:
+        db_session.add(Setting(key=DEFAULT_UNIT_PREFS_KEY, **original))
+    await db_session.commit()
 
 
 def _def_calls(mock: AsyncMock) -> list[Any]:
@@ -453,3 +529,85 @@ class TestThresholdClamp:
         await db_session.flush()
 
         assert await _get_def_low_threshold_percent(db_session) == expected
+
+
+@pytest.mark.unit
+@pytest.mark.def_records
+@pytest.mark.asyncio
+class TestDefLowRenderContextWiring:
+    """Which render context the job hands `notify_def_low`.
+
+    The DEF message is a forced litres/gallons pair whose gallon flavour comes
+    from that context (D4b), so a job that resolved the wrong one would ship a
+    correct-looking message in the wrong gallon. The dispatcher-level suite
+    (`tests/unit/services/test_notification_units.py`) constructs the context
+    itself and cannot see this; the wiring is what these two tests pin.
+
+    A scheduled job has no caller, so it uses the VEHICLE OWNER's units and
+    falls back to the instance default when the vehicle is ownerless. The
+    instance default is pinned to metric here while the owner is imperial, so
+    the two paths are distinguishable rather than equal by luck.
+    """
+
+    async def _run(
+        self,
+        db_session: AsyncSession,
+        make_vehicle,
+        add_def_record,
+        enable_def_low,
+        monkeypatch: pytest.MonkeyPatch,
+        *,
+        owner: User | None,
+    ) -> RenderContext:
+        await enable_def_low(threshold="25")
+        vehicle = await make_vehicle(capacity=Decimal("75.00"))
+        if owner is not None:
+            vehicle.user_id = owner.id
+            await db_session.flush()
+        await add_def_record(vehicle.vin, fill_level=Decimal("0.20"), record_date=date(2026, 7, 1))
+        mock = _patch_notify_def_low(monkeypatch)
+
+        await check_def_levels()
+
+        calls = [call for call in _def_calls(mock) if call.kwargs["vin"] == vehicle.vin]
+        assert len(calls) == 1
+        return calls[0].kwargs["ctx"]
+
+    async def test_owned_vehicle_uses_the_owners_units(
+        self,
+        patch_session,
+        db_session: AsyncSession,
+        make_vehicle,
+        add_def_record,
+        enable_def_low,
+        metric_instance_default,
+        def_owner,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ctx = await self._run(
+            db_session, make_vehicle, add_def_record, enable_def_low, monkeypatch, owner=def_owner
+        )
+
+        assert ctx.units.volume == "gal_us"
+        assert ctx.units.distance == "mi"
+        assert ctx.show_both is False
+
+    async def test_ownerless_vehicle_falls_back_to_the_instance_default(
+        self,
+        patch_session,
+        db_session: AsyncSession,
+        make_vehicle,
+        add_def_record,
+        enable_def_low,
+        metric_instance_default,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """`make_vehicle` leaves `user_id` NULL, which is a real production
+        state, not a test-only shortcut."""
+        ctx = await self._run(
+            db_session, make_vehicle, add_def_record, enable_def_low, monkeypatch, owner=None
+        )
+
+        assert ctx.units.volume == "L"
+        assert ctx.units.distance == "km"
+        assert ctx.show_both is False

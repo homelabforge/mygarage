@@ -91,7 +91,14 @@ vi.mock('../../hooks/useOnlineStatus', () => ({
   useOnlineStatus: vi.fn(() => true),
 }))
 vi.mock('../../hooks/useUnitPreference', () => ({
-  useUnitPreference: () => ({ system: 'imperial' }),
+  useUnitPreference: () => ({
+    system: 'imperial',
+    showBoth: false,
+    gallonStandard: 'us',
+    // The RESOLVED set, not just the collapsed system: the hero reads its
+    // odometer through `useUnitFormat()`, which closes over `units`.
+    units: IMPERIAL_UNITS,
+  }),
 }))
 vi.mock('../../contexts/AuthContext', () => ({
   useAuth: vi.fn(() => ({
@@ -114,9 +121,9 @@ import vehicleService from '../../services/vehicleService'
 import { livelinkService } from '../../services/livelinkService'
 import { useAuth } from '../../contexts/AuthContext'
 import type { Vehicle, VehicleDetailStats, VehicleType } from '../../types/vehicle'
-import { UnitFormatter } from '../../utils/units'
+import { makeUnitFormat } from '../../utils/unitFormat'
 import VehicleDetail from '../VehicleDetail'
-import { makeUser } from '../../__tests__/factories'
+import { IMPERIAL_UNITS, makeUser } from '../../__tests__/factories'
 
 const mockedVehicleService = vi.mocked(vehicleService)
 const mockedLivelinkService = vi.mocked(livelinkService)
@@ -461,6 +468,8 @@ describe('VehicleDetail', () => {
       isAdmin: true,
       loading: false,
       authMode: 'local',
+      defaultUnitPrefs: null,
+      publicSettingsLoaded: true,
       login: vi.fn(),
       register: vi.fn(),
       logout: vi.fn(),
@@ -553,10 +562,10 @@ describe('VehicleDetail', () => {
     expect(await screen.findByText('vehicleStats.overdue')).toBeInTheDocument()
     expect(screen.getByText('detail.misc.odometer')).toBeInTheDocument()
     // R3-B2: assert the CONVERTED odometer VALUE, not just its label — computed
-    // from the SAME UnitFormatter the hero uses, with the file-pinned imperial
-    // system, so it renders in the hero's `<Mono>{reading}</Mono>` node. This fails
+    // from the SAME resolved adapter the hero uses, with the file-pinned imperial
+    // set, so it renders in the hero's `<Mono>{reading}</Mono>` node. This fails
     // if the boundary conversion is removed or raw km leaks to the UI.
-    const expectedOdometer = UnitFormatter.formatDistance(160000, 'imperial')
+    const expectedOdometer = makeUnitFormat(IMPERIAL_UNITS).distance.formatPrimary(160000)
     expect(screen.getByText(expectedOdometer)).toBeInTheDocument()
     expect(screen.getByText(/Jul 1, 2026/)).toBeInTheDocument()
 

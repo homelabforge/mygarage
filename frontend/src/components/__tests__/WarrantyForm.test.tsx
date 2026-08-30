@@ -2,8 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { render } from '../../__tests__/test-utils'
-import { toCanonicalKm } from '../../utils/decimalSafe'
-import { UnitConverter } from '../../utils/units'
 import type { WarrantyRecord } from '../../types/warranty'
 
 const createMutateAsync = vi.fn().mockResolvedValue({})
@@ -12,7 +10,21 @@ vi.mock('../../hooks/queries/useWarrantyRecords', () => ({
   useCreateWarrantyRecord: () => ({ mutateAsync: createMutateAsync }),
   useUpdateWarrantyRecord: () => ({ mutateAsync: updateMutateAsync }),
 }))
-vi.mock('../../hooks/useUnitPreference', () => ({ useUnitPreference: () => ({ system: 'imperial', showBoth: false }) }))
+// The imperial PRESET, resolved set included: `useUnitFormat` reads `units`,
+// and a mock that supplied only the collapsed `system` would hand the form an
+// undefined set. Mixed sets, where `system` and `units.distance` disagree, are
+// exercised in WarrantyForm.mixedUnits.test.tsx.
+vi.mock('../../hooks/useUnitPreference', async () => {
+  const { IMPERIAL_UNITS } = await import('@/__tests__/factories')
+  return {
+    useUnitPreference: () => ({
+      system: 'imperial',
+      showBoth: false,
+      units: IMPERIAL_UNITS,
+      gallonStandard: 'us',
+    }),
+  }
+})
 
 import WarrantyForm from '../WarrantyForm'
 
@@ -48,13 +60,13 @@ describe('WarrantyForm — routing + canonical mileage + exact payload', () => {
     await fillCreate(user)
     await user.click(screen.getByRole('button', { name: 'common:create' }))
     await waitFor(() => expect(createMutateAsync).toHaveBeenCalledTimes(1))
-    const expectedKm = toCanonicalKm(60000, 'imperial')! // ~96561 km, NOT the raw 60000
+    // 60000 mi x 1.60934 = 96560.4 km, NOT the raw 60000.
     expect(createMutateAsync).toHaveBeenCalledWith({
       warranty_type: 'Manufacturer',
       provider: 'Toyota',
       start_date: '2026-01-01',
       end_date: '2030-01-01',
-      mileage_limit_km: expect.closeTo(expectedKm, 1),
+      mileage_limit_km: 96560.4,
       coverage_details: 'Full coverage',
       policy_number: 'W-1',
       notes: 'note',
@@ -74,10 +86,10 @@ describe('WarrantyForm — routing + canonical mileage + exact payload', () => {
     await user.type(screen.getByLabelText('insurance.provider'), 'Honda Ltd')
     await user.click(screen.getByRole('button', { name: 'common:update' }))
     await waitFor(() => expect(updateMutateAsync).toHaveBeenCalledTimes(1))
-    // The edit seeds the mileage from 96561 km, shown in miles (imperial, Math.round)
-    // and converted back on submit — assert the SAME round-trip the code performs.
-    const seededMi = Math.round(UnitConverter.kmToMiles(96561)!)
-    const expectedKm = toCanonicalKm(seededMi, 'imperial')!
+    // The edit seeds the mileage from 96561 km, shown as 60000 mi
+    // (96561 / 1.60934 = 60000.3728..., at the mi adapter's zero decimals).
+    // The field was never touched, so the ORIGIN is posted back: 96561, not
+    // the 96560.4 that re-converting 60000 mi would produce.
     // B1/LD4: assert the COMPLETE 9-property update object (id + all 8 body fields), not a
     // partial objectContaining — dropping a date/coverage/policy#/notes must FAIL the test.
     expect(updateMutateAsync).toHaveBeenCalledWith({
@@ -86,7 +98,7 @@ describe('WarrantyForm — routing + canonical mileage + exact payload', () => {
       provider: 'Honda Ltd',
       start_date: '2025-01-01',
       end_date: '2029-01-01',
-      mileage_limit_km: expect.closeTo(expectedKm, 1),
+      mileage_limit_km: 96561,
       coverage_details: 'x',
       policy_number: 'P-9',
       notes: '',

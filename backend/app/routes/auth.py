@@ -21,6 +21,7 @@ from app.schemas.user import (
     AdminUserUpdate,
     LoginRequest,
     Token,
+    UnitPreferenceUpdate,
     UserCreate,
     UserPasswordUpdate,
     UserResponse,
@@ -318,9 +319,6 @@ async def update_current_user(
     if user_update.full_name is not None:
         current_user.full_name = user_update.full_name
 
-    if user_update.unit_preference is not None:
-        current_user.unit_preference = user_update.unit_preference
-
     if user_update.time_format is not None:
         current_user.time_format = user_update.time_format
 
@@ -358,6 +356,45 @@ async def update_current_user(
     await db.refresh(current_user)
 
     logger.info("User updated their profile: %s", sanitize_for_log(current_user.username))
+
+    return current_user
+
+
+@router.put("/me/units", response_model=UserResponse)
+async def update_current_user_units(
+    payload: UnitPreferenceUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Set the current user's units, clearing or materialising every override.
+
+    Spec D3: a preset clears all eleven override columns, because
+    `resolve_units` is "preset base, overrides on top" and a surviving override
+    would mask the preset the user just chose. Custom materialises all eleven,
+    so nothing resolves from the base.
+
+    Which columns to write is `UnitPreferenceUpdate.column_values`'s decision,
+    not this route's. It sits beside the validator that guarantees the
+    clear-versus-materialise invariant, so the two cannot drift apart across
+    two files, and it derives the column set from `UNIT_COLUMN_NAMES` so a
+    twelfth quantity cannot silently escape either branch.
+    """
+    for column, value in payload.column_values().items():
+        setattr(current_user, column, value)
+    current_user.unit_preference = payload.unit_preference
+
+    if payload.show_both_units is not None:
+        current_user.show_both_units = payload.show_both_units
+
+    current_user.updated_at = utc_now()
+    await db.commit()
+    await db.refresh(current_user)
+
+    logger.info(
+        "User set unit preference to %s: %s",
+        sanitize_for_log(payload.unit_preference),
+        sanitize_for_log(current_user.username),
+    )
 
     return current_user
 
@@ -575,9 +612,6 @@ async def update_user(
         user.family_dashboard_order = user_update.family_dashboard_order
 
     # Preference fields (also settable by admin)
-    if user_update.unit_preference is not None:
-        user.unit_preference = user_update.unit_preference
-
     if user_update.time_format is not None:
         user.time_format = user_update.time_format
 

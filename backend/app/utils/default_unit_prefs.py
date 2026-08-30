@@ -83,6 +83,47 @@ def parse_default_unit_prefs(raw: str | None) -> UnitSet:
         return IMPERIAL_PRESET
 
 
+def validate_default_unit_prefs_value(raw: str | None) -> None:
+    """Raise ``ValueError`` when a candidate ``default_unit_prefs`` would not parse.
+
+    The write-side half of ``parse_default_unit_prefs``, and it exists because
+    that function degrades WHOLE and only logs. On READ that is right: an
+    exception during frontend bootstrap would take the whole app down for
+    logged-out users on nothing worse than a hand-edited row. On WRITE it means
+    an admin can store a value that silently reverts every anonymous client to
+    the imperial fallback, with a 200 in the response and nothing but a warning
+    in a log nobody is reading.
+
+    Same JSON load, same ``UnitSet.model_validate``, same whole-set rule
+    (``extra="forbid"`` rejects an unknown key, a missing one fails required).
+    An empty value is rejected too: storing it is the same silent revert spelled
+    differently.
+
+    The message names the reason, never the submitted value, which is untrusted
+    text bound for a log line and an error response.
+
+    Args:
+        raw: The candidate settings-row value.
+
+    Raises:
+        ValueError: When the value is not a complete, in-vocabulary unit set.
+    """
+    if not raw:
+        raise ValueError("must be a JSON object describing a complete unit set")
+    try:
+        payload = json.loads(raw)
+    except (ValueError, TypeError, RecursionError) as exc:
+        # RecursionError is a RuntimeError subclass reachable through deeply
+        # nested JSON; caught for the reason parse_default_unit_prefs states.
+        raise ValueError("is not valid JSON") from exc
+    if not isinstance(payload, dict):
+        raise ValueError("is not a JSON object")
+    try:
+        UnitSet.model_validate(payload)
+    except ValidationError as exc:
+        raise ValueError("does not describe a complete unit set") from exc
+
+
 async def load_default_unit_prefs(db: AsyncSession) -> UnitSet:
     """Return the instance default unit set, or the imperial preset."""
     row = (

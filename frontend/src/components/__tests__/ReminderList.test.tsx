@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '../../__tests__/test-utils'
 import { fireEvent } from '@testing-library/react'
 import type { Reminder } from '../../types/reminder'
+import { IMPERIAL_UNITS } from '../../__tests__/factories'
 
 const useRemindersMock = vi.fn()
 const markDoneMock = vi.fn().mockResolvedValue(undefined)
@@ -16,7 +17,16 @@ vi.mock('../../hooks/useReminders', () => ({
 vi.mock('../../hooks/useLatestMileage', () => ({ useLatestMileage: () => ({ data: null }) }))
 vi.mock('../../hooks/useLatestHours', () => ({ useLatestHours: () => ({ data: null }) }))
 vi.mock('../../hooks/useDateLocale', () => ({ useDateLocale: () => 'en-US' }))
-vi.mock('../../hooks/useUnitPreference', () => ({ useUnitPreference: () => ({ system: 'imperial', showBoth: false }) }))
+vi.mock('../../hooks/useUnitPreference', () => ({
+  useUnitPreference: () => ({
+    system: 'imperial',
+    showBoth: false,
+    gallonStandard: 'us',
+    // The RESOLVED set, not just the collapsed system: this component reads
+    // its distance through `useUnitFormat()`, which closes over `units`.
+    units: IMPERIAL_UNITS,
+  }),
+}))
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 // Capture the reminder prop the mounted ReminderForm receives (vi.hoisted so the holder is safe to
 // reference inside the hoisted vi.mock factory — the house idiom). Sentinel 'UNSET' distinguishes

@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { render, screen, waitFor } from '../../../__tests__/test-utils'
 import { fireEvent } from '@testing-library/react'
 import type { Trip, TripList, TripPointsResponse } from '../../../types/trips'
+import vehiclesEn from '../../../locales/en/vehicles.json'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Harness note (mirrors the merged LiveLink Sessions/Charts precedent —
@@ -22,8 +23,14 @@ import type { Trip, TripList, TripPointsResponse } from '../../../types/trips'
 // production. TEST-harness fix only; the component's fetch/effect/[vin, t] deps
 // are unchanged (reskin = rendering-only).
 // ─────────────────────────────────────────────────────────────────────────────
+//
+// The `t` below resolves ONE key from the SHIPPED English bundle:
+// `vehicles:livelink.unknownUnit`. That key holds the whole user-visible
+// wording of the unknown-unit affordance, so a key-echoing mock would let the
+// wording change with nothing failing. Every other key still echoes.
 vi.mock('react-i18next', () => {
-  const t = (key: string) => key
+  const t = (key: string) =>
+    key === 'vehicles:livelink.unknownUnit' ? vehiclesEn.livelink.unknownUnit : key
   return {
     useTranslation: () => ({
       t,
@@ -46,9 +53,7 @@ vi.mock('@/services/livelinkService', () => ({
   },
 }))
 vi.mock('@/services/vehicleService', () => ({ default: { get: (vin: string) => vehicleGet(vin) } }))
-vi.mock('@/hooks/useUnitPreference', () => ({ useUnitPreference: () => ({ system: 'imperial', showBoth: false }) }))
 vi.mock('@/hooks/useTimeFormat', () => ({ useTimeFormat: () => ({ timeFormat: '12h' }) }))
-vi.mock('@/utils/units', () => ({ UnitFormatter: { formatDistance: (km: number) => `${km} mi` } }))
 vi.mock('@/utils/parseAPITimestamp', () => ({ formatAPITimestamp: () => 'Sun, Jul 26', formatTime: () => '12:00' }))
 vi.mock('@/components/maps/TripRouteMap', () => ({ default: () => <div data-testid="trip-route-map" /> }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
@@ -124,6 +129,26 @@ describe('LiveLinkTripsTab', () => {
     await waitFor(() => expect(toggle).toBeEnabled()) // enabled once the tracking state (true) loads
     fireEvent.click(toggle)
     await waitFor(() => expect(setLocationTracking.mock.calls).toStrictEqual([['V1', false]]))
+  })
+
+  it('marks the trip distance unverified instead of formatting it as canonical km', async () => {
+    // `Trip.distance_km` is `DriveSession.distance_km` verbatim
+    // (`location_service.py::get_trips`), so it is the SAME column the Sessions
+    // tab reads and carries the same custom-PID ambiguity. This tab used to
+    // send it through `UnitFormatter.formatDistance`, which treats its argument
+    // as canonical kilometres and converted it a second time for an imperial
+    // client, while the Sessions tab, on the same number, only relabelled it.
+    render(<LiveLinkTripsTab vin="V1" />)
+    expect(await screen.findByText('20 (unknown unit)')).toBeInTheDocument()
+    expect(screen.queryByText('20 mi')).not.toBeInTheDocument()
+  })
+
+  it('renders the absent marker for a trip with no recorded distance', async () => {
+    getTrips.mockResolvedValue(list({ trips: [{ ...trip, distance_km: null }] }))
+    render(<LiveLinkTripsTab vin="V1" />)
+    await screen.findByRole('button', { name: /Sun, Jul 26/ })
+    expect(screen.getByText('--')).toBeInTheDocument()
+    expect(screen.queryByText(/unknown unit/)).not.toBeInTheDocument()
   })
 
   it('shows the no-trips empty state when there are no trips', async () => {

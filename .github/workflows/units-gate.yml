@@ -1,0 +1,163 @@
+name: Unit Gate Selftest
+
+# The unit gate's mutation harness: every deliberate defect in
+# units_gate_selftest.py's MUTATIONS and WALK_MUTATIONS tables, applied to a copy
+# of scripts/validate-units.ts or of eslint.config.js, each of which must flip
+# exactly the corpus cases that name it, plus the tree-walk and baseline proofs.
+#
+# The count is deliberately not written here: the run prints it, and a number in
+# prose is a number that goes stale. An earlier version of this comment said 40
+# when the tables held 44.
+#
+# The manifest's own harness lives in units-manifest-gate.yml. The two were one
+# workflow until 2026-08-30. They had to be split because `paths:` is applied per
+# WORKFLOW and not per job, so units.manifest.json in the shared filter fired
+# this 47-minute job as well as the 0.4-second one. Every locale file carries a
+# manifest row, so every translation PR re-stamped a digest and paid the full
+# mutation run for a file this harness does not read: PR #155 (German) is the
+# worked example. Nothing here reads units.manifest.json, and the one mention of
+# that name in units_gate_selftest.py is inside a prose string.
+#
+# Why it is a workflow of its own rather than a step in the main CI job:
+#
+#   * it re-runs a whole corpus leg per mutation, so its cost is
+#     cases x mutations and it moves whenever either grows. MEASURED at 1278 s
+#     on a phase 4 run, and at 1266.0 s and 1266.7 s on two runs before it, all
+#     three at 85 cases, 80 scan mutations and 3 walk mutations; and at 1229.8
+#     to 1232.9 s on three runs at 84 cases and
+#     79 scan mutations, up from a measured 1071.6 s at 79 and 74
+#     scan mutations, 10 min 34 s at 66 and 60, and 3 min 38 s at 49 and 41.
+#     Plan 3b task 8 and its fix round added the cases and the mutations that
+#     moved it. Every figure here is from a timed run on the same host,
+#     because the one before them was INFERRED from spaced polling, said ~18
+#     minutes, and was wrong by 5x in the direction that would have justified
+#     weakening the check. Re-measure after any change to either table rather
+#     than reasoning about the delta;
+#   * ★ EVERY LOCAL FIGURE ABOVE IS LOCAL, AND THE TIMEOUT GOVERNS THE RUNNER,
+#     which is the gap that let this job stop finishing without anyone noticing.
+#     `bf6a078` COMPLETED in 397 s at 49 cases, 41 scan mutations and 3 walk
+#     mutations, which is 1.8x the 218 s local figure at those same counts.
+#     `4a63349`, at 85 cases and 80 scan mutations, was CANCELLED at 45m16s by
+#     the old 45-minute budget. `f5a4106` then COMPLETED in 47m02s (2822 s) at
+#     those same counts under the 90-minute budget, a 2.20x ratio against its
+#     own 1284 s local run;
+#   * the set of files that can change its result is small and knowable, so the
+#     `paths:` filter below is exact rather than a guess: the gate, the corpus,
+#     this harness, eslint.config.js, units.baseline.json (read at
+#     units_gate_selftest.py:1823 for the R4 count-versus-membership proof),
+#     translation-utils.ts (validate-units.ts imports ROOT from it),
+#     package.json plus bun.lock, because a TypeScript or ESLint major genuinely
+#     can change what the mutations do, and the FOUR SOURCES the three phase-3b
+#     detectors derive their vocabularies from at runtime. Those four were
+#     missing when the detectors landed, and a filter that claims to be exact
+#     while missing an input is worse than one that admits it is a guess.
+#     validate-reachability.ts is deliberately NOT here: its three mentions in
+#     this harness and its corpus are prose, and the only real import of it
+#     (walkGraph) is in validate-units-manifest.ts, so it moved to the manifest
+#     workflow with the job that actually depends on it;
+#   * SAMPLING IT IS NOT AN OPTION. Which mutant survives is not knowable in
+#     advance, which is the entire premise of a mutation harness, so a sampled
+#     run is how a survivor hides. The cost has gone from those ten minutes to
+#     21 locally and past 45 in CI, which is an argument for a bigger budget
+#     and for the process-spawn lever below, not for a cheaper run that can
+#     miss a survivor.
+#
+# ★ AND IF IT EVER DOES NEED TO BE FASTER, the lever is PROCESS SPAWNS, not
+# coverage. The run is about 6,800 `bun` and `bunx` invocations (85 cases x 80
+# mutations, plus the reference pass, the validity probes and the scope, walk,
+# baseline, cross-file, clean-room and re-export proofs), each paying full
+# interpreter startup for a scan that
+# takes milliseconds. Batching several cases per invocation, or scanning
+# in-process, would take most of it off the clock without dropping a single
+# mutant. Cutting mutants to buy time is the one optimisation that trades away
+# the thing the job exists for.
+#
+# ★ Deliberately NOT a required check. A required check with a `paths:` filter
+# never reports on the PRs it filters out, which leaves those PRs wedged waiting
+# for a status that will never arrive. Keep this out of branch protection and
+# that hazard does not apply. The corpus it mutates DOES run on every PR, inside
+# `validate:translations` in the required Frontend Tests job, so the loosening
+# direction is guarded continuously and only the harness proving the corpus is
+# occasional.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/scripts/validate-units.ts'
+      - 'frontend/scripts/units_gate_corpus.py'
+      - 'frontend/scripts/units_gate_selftest.py'
+      - 'frontend/scripts/units.baseline.json'
+      # The three detectors DERIVE their vocabularies from these four at
+      # runtime, so a change to any of them changes what the mutations do.
+      - 'frontend/src/utils/units.ts'
+      - 'frontend/src/utils/decimalSafe.ts'
+      - 'frontend/src/types/units.ts'
+      - 'frontend/src/types/api.generated.ts'
+      - 'frontend/eslint.config.js'
+      - 'frontend/scripts/translation-utils.ts'
+      - 'frontend/package.json'
+      - 'frontend/bun.lock'
+      - '.github/workflows/units-gate.yml'
+  pull_request:
+    paths:
+      - 'frontend/scripts/validate-units.ts'
+      - 'frontend/scripts/units_gate_corpus.py'
+      - 'frontend/scripts/units_gate_selftest.py'
+      - 'frontend/scripts/units.baseline.json'
+      # The three detectors DERIVE their vocabularies from these four at
+      # runtime, so a change to any of them changes what the mutations do.
+      - 'frontend/src/utils/units.ts'
+      - 'frontend/src/utils/decimalSafe.ts'
+      - 'frontend/src/types/units.ts'
+      - 'frontend/src/types/api.generated.ts'
+      - 'frontend/eslint.config.js'
+      - 'frontend/scripts/translation-utils.ts'
+      - 'frontend/package.json'
+      - 'frontend/bun.lock'
+      - '.github/workflows/units-gate.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: units-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  selftest:
+    name: Unit Gate Selftest (advisory)
+    runs-on: ubuntu-latest
+    # 90 rather than 45. MEASURED ON THE RUNNER at last, which is the number
+    # this budget actually governs and the one every earlier figure in this file
+    # was not: run 33317510064 on f5a4106 completed in 47m02s (2822 s) at 85
+    # cases, 80 scan mutations and 3 walk mutations. Against the 1284 s local
+    # run of the same commit that is a CI-to-local ratio of 2.20x, so the old
+    # 45-minute budget missed by two minutes and this one leaves 91% headroom.
+    # Re-measure HERE, not just locally, whenever either table grows: the
+    # earlier completed run (bf6a078, 397 s at 49 cases and 41 mutations) gave a
+    # 1.8x ratio, and the ratio moved with the corpus. Advisory and not in
+    # branch protection (checked: the seven required contexts are the ci and
+    # codeql ones), so a long job blocks no PR.
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: '.bun-version'
+
+      # The gate loads the real TypeScript compiler out of node_modules to
+      # resolve what an identifier refers to, and the ESLint leg needs the
+      # plugin closure, so the install is not optional here.
+      - name: Install dependencies
+        run: cd frontend && bun install --frozen-lockfile
+
+      # Never piped: a pipe would mask the exit code, which is the only thing
+      # this job reports.
+      - name: Run the unit gate selftest
+        run: cd frontend && bun run validate:units-selftest

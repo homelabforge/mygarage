@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach, vi } from 'vitest'
 import { render, screen } from '../../__tests__/test-utils'
 import VehicleStatisticsCard from '../VehicleStatisticsCard'
+import { METRIC_UNITS } from '../../__tests__/factories'
 
 /**
  * Component-level guard for subpath deployments (#107).
@@ -12,7 +13,14 @@ import VehicleStatisticsCard from '../VehicleStatisticsCard'
  */
 
 vi.mock('../../hooks/useUnitPreference', () => ({
-  useUnitPreference: () => ({ system: 'metric' }),
+  useUnitPreference: () => ({
+    system: 'metric',
+    showBoth: false,
+    gallonStandard: 'us',
+    // The RESOLVED set, not just the collapsed system: this component reads
+    // its distance through `useUnitFormat()`, which closes over `units`.
+    units: METRIC_UNITS,
+  }),
 }))
 
 vi.mock('../livelink/VehicleLiveLinkWidget', () => ({ default: () => null }))

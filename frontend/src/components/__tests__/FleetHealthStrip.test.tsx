@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '../../__tests__/test-utils'
 import type { FleetHealth } from '../../types/dashboard'
+import { METRIC_UNITS } from '../../__tests__/factories'
 
 // FleetHealthStrip -> useCurrencyPreference/useUnitPreference -> useAuth. The
 // shared render has no AuthProvider, so stub the context (finding 3). Pin units
@@ -9,7 +10,14 @@ vi.mock('../../contexts/AuthContext', () => ({
   useAuth: () => ({ user: null, isAuthenticated: false }),
 }))
 vi.mock('../../hooks/useUnitPreference', () => ({
-  useUnitPreference: () => ({ system: 'metric', showBoth: false }),
+  useUnitPreference: () => ({
+    system: 'metric',
+    showBoth: false,
+    gallonStandard: 'us',
+    // The RESOLVED set, not just the collapsed system: the strip reads its
+    // mileage through `useUnitFormat()`, which closes over `units`.
+    units: METRIC_UNITS,
+  }),
 }))
 
 import FleetHealthStrip from '../FleetHealthStrip'

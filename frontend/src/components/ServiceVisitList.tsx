@@ -27,8 +27,7 @@ import type { Vehicle } from '../types/vehicle'
 import api from '../services/api'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
 import { withBase } from '../utils/basePath'
-import { useUnitPreference } from '../hooks/useUnitPreference'
-import { UnitFormatter } from '../utils/units'
+import { useUnitFormat } from '../hooks/useUnitFormat'
 import { getUsageTracking } from '../utils/usageTracking'
 import { useServiceVisits, useDeleteServiceVisit } from '../hooks/queries/useServiceVisits'
 import { Button, Card, IconButton, Chip, Mono, SearchField, EmptyState } from './ui'
@@ -82,7 +81,7 @@ export default function ServiceVisitList({
   const [searchQuery, setSearchQuery] = useState('')
   const [expandedVisits, setExpandedVisits] = useState<Set<number>>(new Set())
   const [visitAttachments, setVisitAttachments] = useState<Record<number, Attachment[]>>({})
-  const { system, showBoth } = useUnitPreference()
+  const u = useUnitFormat()
   const { currencyCode, locale } = useCurrencyPreference()
   // Task 14 — which usage dimension(s) this vehicle tracks, driving the
   // odometer vs. engine-hours reading display below. Defaults mirror
@@ -369,7 +368,7 @@ export default function ServiceVisitList({
                     {tracksDistance && visit.odometer_km != null && (
                       <div className="flex items-center gap-1 text-sm text-text-mute">
                         <Gauge aria-hidden="true" className="w-4 h-4" />
-                        <Mono size="sm">{UnitFormatter.formatDistance(parseFloat(String(visit.odometer_km)), system, showBoth)}</Mono>
+                        <Mono size="sm">{u.distance.format(parseFloat(String(visit.odometer_km)))}</Mono>
                       </div>
                     )}
 

@@ -2,10 +2,27 @@
 Integration tests for report routes.
 
 Tests PDF and CSV report generation endpoints.
+
+The two CSV reports emit v6 unit tokens in the caller's units (issue #152
+phase 2b task 5), so their distance and volume headers depend on who asked.
+The assertions here cover the shape both spellings share; which spelling a
+given caller gets is pinned against controlled accounts in
+`test_reports_csv_v6_units.py`.
 """
 
 import pytest
 from httpx import AsyncClient
+
+# Hand-written: the complete ordered header row each report can emit.
+SERVICE_HISTORY_HEADERS = {
+    "Date,Odometer (km),Category,Description,Cost,Vendor,Notes",
+    "Date,Odometer (mi),Category,Description,Cost,Vendor,Notes",
+}
+ALL_RECORDS_HEADERS = {
+    f"Date,Type,Category,Description,Cost,Odometer ({distance}),Vendor,Volume ({volume})"
+    for distance in ("km", "mi")
+    for volume in ("L", "gal_us", "gal_uk")
+}
 
 
 @pytest.mark.integration
@@ -100,11 +117,8 @@ class TestReportRoutes:
 
         assert response.status_code == 200
         assert response.headers.get("content-type") == "text/csv; charset=utf-8"
-        # Verify it has CSV header
         content = response.content.decode("utf-8")
-        assert "Date" in content
-        assert "Mileage" in content
-        assert "Category" in content
+        assert content.split("\r\n")[0] in SERVICE_HISTORY_HEADERS
 
     async def test_download_service_history_csv_with_date_range(
         self, client: AsyncClient, auth_headers, test_vehicle
@@ -128,11 +142,8 @@ class TestReportRoutes:
 
         assert response.status_code == 200
         assert response.headers.get("content-type") == "text/csv; charset=utf-8"
-        # Verify it has CSV header
         content = response.content.decode("utf-8")
-        assert "Date" in content
-        assert "Type" in content
-        assert "Category" in content
+        assert content.split("\r\n")[0] in ALL_RECORDS_HEADERS
 
     async def test_download_all_records_csv_filtered_by_year(
         self, client: AsyncClient, auth_headers, test_vehicle
@@ -225,34 +236,28 @@ class TestReportRoutes:
         assert ".csv" in content_disp
 
     async def test_csv_header_columns(self, client: AsyncClient, auth_headers, test_vehicle):
-        """Test that CSV exports have correct column headers."""
-        # Service history CSV
+        """Both reports emit one complete, ordered, v6 header row.
+
+        The old form of this test looked for a handful of names ANYWHERE in
+        the first line, which cannot see a column landing in the wrong place,
+        an extra column, or a missing one. Comparing the whole row can.
+        """
         response = await client.get(
             f"/api/vehicles/{test_vehicle['vin']}/reports/service-history-csv",
             headers=auth_headers,
         )
         assert response.status_code == 200
-        content = response.content.decode("utf-8")
-        first_line = content.split("\n")[0]
-        assert "Date" in first_line
-        assert "Mileage" in first_line
-        assert "Category" in first_line
-        assert "Cost" in first_line
-        assert "Vendor" in first_line
+        first_line = response.content.decode("utf-8").split("\r\n")[0]
+        assert first_line in SERVICE_HISTORY_HEADERS
+        assert "Mileage" not in first_line
 
-        # All records CSV
         response = await client.get(
             f"/api/vehicles/{test_vehicle['vin']}/reports/all-records-csv",
             headers=auth_headers,
         )
         assert response.status_code == 200
-        content = response.content.decode("utf-8")
-        first_line = content.split("\n")[0]
-        assert "Date" in first_line
-        assert "Type" in first_line
-        assert "Category" in first_line
-        assert "Description" in first_line
-        assert "Cost" in first_line
+        first_line = response.content.decode("utf-8").split("\r\n")[0]
+        assert first_line in ALL_RECORDS_HEADERS
 
     async def test_cost_summary_pdf_different_years(
         self, client: AsyncClient, auth_headers, test_vehicle

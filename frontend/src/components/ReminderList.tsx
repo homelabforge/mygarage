@@ -13,8 +13,7 @@ import { formatDateForDisplay } from '../utils/dateUtils'
 import { useDateLocale } from '../hooks/useDateLocale'
 import ReminderForm from './ReminderForm'
 import type { Reminder, ReminderStatus } from '../types/reminder'
-import { useUnitPreference } from '../hooks/useUnitPreference'
-import { UnitFormatter } from '../utils/units'
+import { useUnitFormat } from '../hooks/useUnitFormat'
 import { Button, IconButton, Card, Chip, Mono, EmptyState, Select } from './ui'
 import api from '../services/api'
 import { useQueryClient } from '@tanstack/react-query'
@@ -40,7 +39,7 @@ const TYPE_ICONS: Record<string, typeof Bell> = {
 export default function ReminderList({ vin }: ReminderListProps) {
   const { t } = useTranslation('vehicles')
   const dateLocale = useDateLocale()
-  const { system, showBoth } = useUnitPreference()
+  const u = useUnitFormat()
   const queryClient = useQueryClient()
   const [activeStatus, setActiveStatus] = useState<ReminderStatus | 'all'>('pending')
   const [showForm, setShowForm] = useState(false)
@@ -224,7 +223,7 @@ export default function ReminderList({ vin }: ReminderListProps) {
                         )}
                         {reminder.due_mileage_km && (
                           <span className="text-xs text-text-mute">
-                            {t('reminderList.due')}: <Mono size="xs" tone="muted">{UnitFormatter.formatDistance(parseFloat(String(reminder.due_mileage_km)), system, showBoth)}</Mono>
+                            {t('reminderList.due')}: <Mono size="xs" tone="muted">{u.distance.format(parseFloat(String(reminder.due_mileage_km)))}</Mono>
                           </span>
                         )}
                         {/* Task 15 — hours-based target. Dimensionless: no UnitFormatter

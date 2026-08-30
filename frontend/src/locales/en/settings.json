@@ -33,16 +33,88 @@
     "label": "Unit System",
     "imperial": "Imperial",
     "metric": "Metric",
-    "imperialDescription": "Using imperial units: gallons, miles, MPG, °F, PSI, lbs, lb-ft",
-    "metricDescription": "Using metric units: liters, kilometers, L/100km, °C, bar, kg, Nm",
+    "resolvedDescription": "Using these units: {{units}}",
+    "instanceDefault": "Default units for this instance",
+    "instanceDefaultDescription": "Used by signed-out visitors, by every client when authentication is disabled, and to seed each new account. It does not change an account that already has its own units.",
+    "instanceDefaultSaved": "Instance default units saved",
+    "instanceDefaultError": "Failed to save the instance default units",
     "showBoth": "Show both units",
-    "showBothDescription": "Display values in both imperial and metric (e.g., \"25 MPG (9.4 L/100km)\")",
+    "showBothDescription": "Show each value with its counterpart in parentheses, for example {{example}}.",
     "gallonStandard": "Imperial gallon standard",
     "gallonUs": "US gallon (3.785 L)",
     "gallonUk": "UK gallon (4.546 L)",
-    "gallonStandardDescription": "Used when the unit system is Imperial for volume and MPG conversions.",
+    "gallonStandardDescription": "Applies wherever your units name a gallon: volume, price per volume, and MPG.",
     "gallonSaved": "Gallon standard saved",
-    "gallonError": "Failed to save gallon standard"
+    "gallonError": "Failed to save gallon standard",
+    "custom": "Custom",
+    "customDescription": "Choose a unit for each quantity. These override the preset everywhere in the app.",
+    "presetConfirmTitle": "Switch to {{preset}} units?",
+    "presetConfirmMessage": "This clears any per-quantity units you have set and uses the preset everywhere.",
+    "presetConfirmGallon": "Imperial uses the US gallon (3.785 L). Your UK gallon setting will be replaced.",
+    "presetConfirmAction": "Switch units",
+    "quantities": {
+      "distance": "Distance",
+      "speed": "Speed",
+      "length": "Length",
+      "volume": "Volume",
+      "consumption": "Fuel economy",
+      "pressure": "Pressure",
+      "temperature": "Temperature",
+      "mass": "Mass",
+      "torque": "Torque",
+      "tread": "Tire tread depth",
+      "secondaryGallon": "Gallon used for MPG"
+    },
+    "options": {
+      "distance": {
+        "km": "Kilometers (km)",
+        "mi": "Miles (mi)"
+      },
+      "speed": {
+        "kmh": "Kilometers per hour (km/h)",
+        "mph": "Miles per hour (mph)"
+      },
+      "length": {
+        "m": "Meters (m)",
+        "ft": "Feet (ft)"
+      },
+      "volume": {
+        "L": "Liters (L)",
+        "gal_us": "US gallons (gal)",
+        "gal_uk": "UK gallons (gal)"
+      },
+      "consumption": {
+        "l_100km": "Liters per 100 km (L/100km)",
+        "km_l": "Kilometers per liter (km/L)",
+        "mpg_us": "Miles per US gallon (MPG)",
+        "mpg_uk": "Miles per UK gallon (MPG)"
+      },
+      "pressure": {
+        "kpa": "Kilopascals (kPa)",
+        "bar": "Bar (bar)",
+        "psi": "Pounds per square inch (PSI)"
+      },
+      "temperature": {
+        "c": "Celsius (°C)",
+        "f": "Fahrenheit (°F)"
+      },
+      "mass": {
+        "kg": "Kilograms (kg)",
+        "lb": "Pounds (lb)"
+      },
+      "torque": {
+        "nm": "Newton meters (Nm)",
+        "lbft": "Pound-feet (lb-ft)"
+      },
+      "tread": {
+        "mm": "Millimeters (mm)",
+        "in32": "Thirty-seconds of an inch (/32 in)"
+      },
+      "secondary_gallon": {
+        "us": "US gallon (3.785 L)",
+        "uk": "UK gallon (4.546 L)"
+      }
+    }
   },
   "language": {
     "label": "Language",
@@ -384,9 +456,9 @@
       "warrantyExpiringLabel": "Warranty Expiring",
       "warrantyExpiringDesc": "Notify before warranty expires",
       "milestonesLabel": "Odometer Milestones",
-      "milestonesDesc": "Notify when reaching significant mileage milestones (e.g., 100k miles)",
+      "milestonesDesc": "Notify when reaching significant odometer milestones.",
       "daysBefore": "days before",
-      "milesBefore": "miles before",
+      "milesBefore": "{{unit}} before",
       "advanced": "Advanced",
       "advancedDesc": "Retry settings for high-priority notifications",
       "retryAttempts": "Retry Attempts",

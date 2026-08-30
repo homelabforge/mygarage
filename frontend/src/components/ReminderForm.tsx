@@ -22,9 +22,9 @@ import { toast } from 'sonner'
 import { useCreateReminder, useUpdateReminder } from '../hooks/useReminders'
 import type { Reminder, ReminderType } from '../types/reminder'
 import type { Vehicle } from '../types/vehicle'
-import { useUnitPreference } from '../hooks/useUnitPreference'
-import { UnitConverter, UnitFormatter } from '../utils/units'
-import { toCanonicalKm } from '../utils/decimalSafe'
+import { useUnitFormat } from '../hooks/useUnitFormat'
+import { canonicalFromUnitField, seedUnitField, type UnitFieldOrigin } from '../utils/unitFormat'
+import { readNumber } from '../utils/decimalSafe'
 import { parseDecimalInput } from '../utils/decimalInput'
 import { getUsageTracking } from '../utils/usageTracking'
 import api from '../services/api'
@@ -71,11 +71,12 @@ export default function ReminderForm({ vin, reminder, currentMileage, currentHou
   const updateMutation = useUpdateReminder(vin)
   const hasMileage = currentMileage != null && currentMileage > 0
   const hasHours = currentHours != null && currentHours > 0
-  const { system } = useUnitPreference()
-  // currentMileage is in canonical km. Convert to user display unit when present.
-  const currentDisplay = currentMileage != null
-    ? (system === 'imperial' ? UnitConverter.kmToMiles(currentMileage) ?? currentMileage : currentMileage)
-    : null
+  const u = useUnitFormat()
+  // currentMileage is in canonical km, shown in `units.distance`. It used to be
+  // converted on `useUnitPreference().system`, which spec D8 collapses from
+  // VOLUME, so a `{volume: 'L', distance: 'mi'}` account read its odometer in
+  // kilometres beside a `mi` label and every target below was computed from it.
+  const currentDisplay = u.distance.toDisplay(currentMileage)
 
   // Task 15 — which usage dimension(s) this vehicle tracks, driving the
   // reminder-type options + due_hours field visibility below. Defaults mirror
@@ -126,22 +127,21 @@ export default function ReminderForm({ vin, reminder, currentMileage, currentHou
   const [lastDoneMileageText, setLastDoneMileageText] = useState('')
   const [lastDoneHoursText, setLastDoneHoursText] = useState('')
 
-  // For edits: reverse-compute interval (in user display unit) from absolute
-  // canonical km target.
-  const initialInterval = (() => {
-    const dueKm = reminder?.due_mileage_km
-    if (dueKm == null) return undefined
-    const dueKmNum = typeof dueKm === 'string' ? parseFloat(dueKm) : dueKm
-    if (isNaN(dueKmNum)) return undefined
-    const remainingKm = currentMileage != null ? Math.max(0, dueKmNum - currentMileage) : dueKmNum
-    if (system === 'imperial') {
-      return Math.round(UnitConverter.kmToMiles(remainingKm) ?? remainingKm)
-    }
-    return Math.round(remainingKm)
+  // For edits: reverse-compute the remaining interval from the absolute
+  // canonical km target. Kept in CANONICAL km, because it is what the origin
+  // below has to hand back: the display is rounded to the distance unit's
+  // precision, and 80468 km shows as 50001 mi, which converts back to
+  // 80468.6 km. Reopening a reminder and saving it untouched would move the
+  // target by that difference every time.
+  const initialRemainingKm = (() => {
+    const dueKmNum = readNumber(reminder?.due_mileage_km)
+    if (dueKmNum == null) return null
+    return currentMileage != null ? Math.max(0, dueKmNum - currentMileage) : dueKmNum
   })()
-  const [mileageIntervalText, setMileageIntervalText] = useState(
-    initialInterval != null ? String(initialInterval) : '',
+  const [mileageIntervalOrigin] = useState<UnitFieldOrigin>(() =>
+    seedUnitField(initialRemainingKm, u.distance),
   )
+  const [mileageIntervalText, setMileageIntervalText] = useState(mileageIntervalOrigin.display)
 
   // Task 15 (revised) — hours input is always an interval ("engine-hours
   // until due"), mirroring the mileage field above exactly. On edit, reverse-
@@ -244,7 +244,7 @@ export default function ReminderForm({ vin, reminder, currentMileage, currentHou
     }
 
     if (needsMileageField && !mileageInterval) {
-      setError(t('reminder.milesRequired'))
+      setError(t('reminder.distanceRequired'))
       return
     }
 
@@ -275,14 +275,23 @@ export default function ReminderForm({ vin, reminder, currentMileage, currentHou
       }
     }
 
-    // Convert user-entered values (display unit) to canonical km, then add
-    // baseline for absolute target. Never sent for an hours-only or
+    // Convert user-entered values (in `units.distance`) to canonical km, then
+    // add the baseline for the absolute target. Never sent for an hours-only or
     // smart-hours reminder — the backend rejects both metrics at once.
-    const intervalKm = toCanonicalKm(mileageInterval ?? null, system)
+    // The ROUNDED display value is what goes back through the origin, because
+    // it is what the field shows and what the target hint quotes; an untouched
+    // field matches its origin exactly and returns the stored canonical.
+    const intervalKm = canonicalFromUnitField(
+      String(mileageInterval ?? ''),
+      mileageIntervalOrigin,
+      u.distance,
+    )
     let due_mileage_km: number | undefined
     if (needsMileageField) {
       if (mileageFromLast && lastDoneMileage != null && intervalKm != null) {
-        const lastKm = toCanonicalKm(lastDoneMileage, system)
+        // The baseline is typed, never seeded, so there is no origin to
+        // preserve and the plain adapter is the whole conversion.
+        const lastKm = u.distance.toCanonical(lastDoneMileage)
         due_mileage_km = lastKm != null ? lastKm + intervalKm : undefined
       } else if (hasMileage && intervalKm != null && !mileageFromLast) {
         due_mileage_km = currentMileage! + intervalKm
@@ -474,18 +483,14 @@ export default function ReminderForm({ vin, reminder, currentMileage, currentHou
               <Field
                 id="reminder-last-done-mileage"
                 label={t('reminder.lastDoneMileage')}
-                unit={UnitFormatter.getDistanceUnit(system)}
+                unit={u.distance.label}
                 required
               >
                 <NumberInput
                   id="reminder-last-done-mileage"
                   value={lastDoneMileageText}
                   onChange={(e) => setLastDoneMileageText(e.target.value)}
-                  placeholder={
-                    system === 'imperial'
-                      ? t('reminderForm.lastDoneMileagePlaceholderImperial')
-                      : t('reminderForm.lastDoneMileagePlaceholderMetric')
-                  }
+                  placeholder={t('reminderForm.mileageExamplePlaceholder')}
                   disabled={submitting}
                 />
               </Field>
@@ -498,9 +503,9 @@ export default function ReminderForm({ vin, reminder, currentMileage, currentHou
                   ? t('reminder.dueMileage')
                   : mileageFromLast
                     ? t('reminder.mileageInterval')
-                    : t('reminder.milesUntilDue')
+                    : t('reminder.distanceUntilDue')
               }
-              unit={UnitFormatter.getDistanceUnit(system)}
+              unit={u.distance.label}
               required
               error={fieldErrors.due_mileage_km}
             >
@@ -508,12 +513,17 @@ export default function ReminderForm({ vin, reminder, currentMileage, currentHou
                 id="reminder-mileage"
                 value={mileageIntervalText}
                 onChange={(e) => setMileageIntervalText(e.target.value)}
+                /* One example reading for every account. R5 calls a
+                   placeholder an EXAMPLE value with nothing canonical to
+                   convert, and it was still being chosen by the collapsed
+                   system, so a litres-and-miles account read "e.g., 148000"
+                   beside a `mi` label. A reading that reads plausibly in either
+                   unit needs no branch, which is what this form's interval hint
+                   and WarrantyForm's mileage hint have always done. */
                 placeholder={
                   hasMileage
                     ? t('reminderForm.mileageIntervalPlaceholder')
-                    : system === 'imperial'
-                      ? t('reminderForm.mileageAbsolutePlaceholderImperial')
-                      : t('reminderForm.mileageAbsolutePlaceholderMetric')
+                    : t('reminderForm.mileageExamplePlaceholder')
                 }
                 disabled={submitting}
               />
@@ -525,14 +535,14 @@ export default function ReminderForm({ vin, reminder, currentMileage, currentHou
                     last: Math.round(lastDoneMileage).toLocaleString(getActiveLocale()),
                     interval: mileageInterval.toLocaleString(getActiveLocale()),
                     target: Math.round(absoluteTarget ?? 0).toLocaleString(getActiveLocale()),
-                    unit: UnitFormatter.getDistanceUnit(system),
+                    unit: u.distance.label,
                   })}
                 </p>
                 {mileageTargetOverdue && currentDisplay != null && (
                   <p className="text-xs text-danger">
                     {t('reminderForm.mileageLastOverdueNote', {
                       current: Math.round(currentDisplay).toLocaleString(getActiveLocale()),
-                      unit: UnitFormatter.getDistanceUnit(system),
+                      unit: u.distance.label,
                     })}
                   </p>
                 )}
@@ -543,13 +553,13 @@ export default function ReminderForm({ vin, reminder, currentMileage, currentHou
                   current: Math.round(currentDisplay).toLocaleString(getActiveLocale()),
                   interval: mileageInterval.toLocaleString(getActiveLocale()),
                   target: Math.round(absoluteTarget ?? 0).toLocaleString(getActiveLocale()),
-                  unit: UnitFormatter.getDistanceUnit(system),
+                  unit: u.distance.label,
                 })}
               </p>
             ) : !hasMileage ? (
               <p className="text-xs text-warning">{t('reminder.noOdometerData')}</p>
             ) : null}
-            {isEdit && hasMileage && !mileageFromLast && initialInterval !== undefined && initialInterval <= 0 && (
+            {isEdit && hasMileage && !mileageFromLast && initialRemainingKm !== null && initialRemainingKm <= 0 && (
               <p className="text-xs text-danger">
                 {t('reminder.overdueHint')}
               </p>

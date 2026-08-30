@@ -19,6 +19,10 @@ from reportlab.platypus import (
     TableStyle,
 )
 
+from app.utils.render_context import RenderContext
+from app.utils.unit_adapters import adapter_for
+from app.utils.unit_formatting import format_label
+
 
 class PDFReportGenerator:
     """Generate PDF reports for vehicle maintenance tracking.
@@ -26,13 +30,79 @@ class PDFReportGenerator:
     Handles service history, cost summary, and tax deduction reports.
     For analytics reports (vehicle + garage), see pdf_vehicle_report.py
     and pdf_garage_report.py.
+
+    Every report is rendered in one caller's units. `render_context` is
+    required rather than defaulted, so a new report or a new route cannot
+    silently fall back to a hardcoded unit; the two reports that render no
+    unit-bearing quantity at all (cost summary, tax deduction) still take
+    one, because the context belongs to the generator, not to one method.
     """
 
-    def __init__(self, currency_code: str = "USD", locale: str = "en-US"):
+    def __init__(
+        self,
+        render_context: RenderContext,
+        currency_code: str = "USD",
+        locale: str = "en-US",
+    ):
+        """Build a generator bound to one render context and currency."""
         self.styles = getSampleStyleSheet()
         self._setup_custom_styles()
         self.currency_code = currency_code
         self.locale = locale
+        self.render_context = render_context
+
+    def _odometer_header(self) -> str:
+        """The odometer column's header cell, e.g. `"Odometer (km)"`.
+
+        `format_label`, not `format_quantity`: a header names one column and
+        has no value to format, and a header stating two units for one
+        column would be a defect even under show-both.
+        """
+        return f"Odometer ({format_label(self.render_context, 'distance')})"
+
+    def _format_odometer(self, odometer_km: Any) -> str:
+        """Render a canonical-km odometer reading for a unit-labelled column.
+
+        A bare number with no unit: `_odometer_header` already names the
+        column's unit once, so repeating it on every row (or appending a
+        show-both counterpart inside a 0.9-inch column) would be noise.
+
+        RECORDED EXCEPTION to the "every human-readable `UnitSet` quantity
+        goes through the composition layer" rule (phase exit criterion 8,
+        custom-units phase 2a). These two table cells are the one distance
+        site in the phase that never gains a ` (counterpart)`, whatever the
+        reader's `show_both_units` says -- see the call site below.
+
+        Falsy input stays `"N/A"`, exactly as before: a zero odometer is a
+        missing reading rather than a real one, and that predates this
+        becoming unit-aware.
+
+        AUTHORISED BEHAVIOUR CHANGE: both odometer columns now round through
+        the distance adapter (precision 0). The service-history report used
+        to truncate (`int()`) and the sale report used to print the raw
+        `Decimal`, so `123.90` rendered `123` in one and `123.90` in the
+        other; one adapter precision cannot reproduce both, and it now
+        renders `124` in both.
+        """
+        if not odometer_km:
+            return "N/A"
+        # DELIBERATE conversion-layer call from a human-readable surface, and
+        # the only one in the phase (exit criterion 8 names it explicitly).
+        # `format_quantity` cannot serve this site twice over: it always emits
+        # the unit label the header already carries, and under `show_both` it
+        # appends a counterpart a fixed-width table cell cannot hold. Measured
+        # in the 9 pt Helvetica these cells use: the service-history odometer
+        # column is 0.9 inch = 64.80 pt, while `"123,457 km (76,713 mi)"` is
+        # 95.04 pt. The cell is a bare `str`, not a `Paragraph`, so ReportLab
+        # does not wrap it -- it spills into the Date and Type columns either
+        # side. The sale report's 1.4 inch = 100.80 pt column holds today's
+        # six-figure pairing and not a seven-figure one, so it follows the same
+        # rule rather than diverging by column width. The unit is stated once,
+        # in `_odometer_header`, which is `format_label` from the composition
+        # layer. Pinned by
+        # `test_pdf_generator.py::TestOdometerCellsStaySingleRepresentationUnderShowBoth`.
+        adapter = adapter_for(self.render_context.units, "distance")
+        return adapter.format(Decimal(str(odometer_km)), with_label=False)
 
     def _setup_custom_styles(self):
         """Setup custom paragraph styles."""
@@ -125,7 +195,7 @@ class PDFReportGenerator:
             story.append(Spacer(1, 0.1 * inch))
 
             # Table headers
-            headers = ["Date", "Odometer (km)", "Type", "Description", "Cost", "Vendor"]
+            headers = ["Date", self._odometer_header(), "Type", "Description", "Cost", "Vendor"]
             header_style = ParagraphStyle(
                 "TableHeader",
                 parent=self.styles["Normal"],
@@ -143,12 +213,10 @@ class PDFReportGenerator:
                 if cost:
                     total_cost += Decimal(str(cost))
 
-                odometer_km_value = record.get("odometer_km")
-                odom_str = f"{int(odometer_km_value):,}" if odometer_km_value else "N/A"
                 table_data.append(
                     [
                         self._format_date(record.get("date")),
-                        odom_str,
+                        self._format_odometer(record.get("odometer_km")),
                         Paragraph(
                             str(record.get("service_category") or "Service"),
                             self.styles["Normal"],
@@ -256,14 +324,13 @@ class PDFReportGenerator:
         if service_records:
             story.append(Paragraph("Service History", self.styles["CustomSubtitle"]))
             story.append(Spacer(1, 0.1 * inch))
-            table_data = [["Date", "Odometer (km)", "Service"]]
+            table_data = [["Date", self._odometer_header(), "Service"]]
             for record in service_records:
-                odometer_km_value = record.get("odometer_km")
                 desc = record.get("service_type") or record.get("description") or "Service"
                 table_data.append(
                     [
                         self._format_date(record.get("date")),
-                        f"{odometer_km_value:,}" if odometer_km_value else "N/A",
+                        self._format_odometer(record.get("odometer_km")),
                         Paragraph(str(desc)[:80], self.styles["Normal"]),
                     ]
                 )

@@ -25,11 +25,20 @@ interface POIResult {
 interface Props {
   pois: POIResult[]
   userLocation: { lat: number; lng: number }
-  searchRadius: number  // in miles
+  /**
+   * The search radius in METRES, which is what Leaflet's `Circle` takes.
+   *
+   * ★ This used to be the radius in MILES, multiplied here by a hardcoded
+   * `1609.34` UNCONDITIONALLY, so a metric client who searched a 10 km radius
+   * was drawn a 16.1 km circle. A map component cannot know which unit the
+   * client chose, so the conversion belongs to the caller and this takes the
+   * canonical map unit.
+   */
+  radiusMeters: number
   onMarkerClick: (poi: POIResult) => void
 }
 
-export default function LeafletMap({ pois, userLocation, searchRadius, onMarkerClick }: Props) {
+export default function LeafletMap({ pois, userLocation, radiusMeters, onMarkerClick }: Props) {
   const { t } = useTranslation('common')
 
   // POI-category colours (data-encoding, NOT UI semantics). Kept as a literal palette (G4(e) carve-out):
@@ -75,7 +84,7 @@ export default function LeafletMap({ pois, userLocation, searchRadius, onMarkerC
       {/* Search radius circle */}
       <Circle
         center={[userLocation.lat, userLocation.lng]}
-        radius={searchRadius * 1609.34}  // miles to meters
+        radius={radiusMeters}
         pathOptions={{ fillColor: 'var(--accent)', fillOpacity: 0.1, color: 'var(--accent)' }}
       />
 

@@ -12,10 +12,22 @@ vi.mock('../../services/api', () => ({
   },
 }))
 
-// Mock unit preference hook (requires AuthProvider otherwise)
-vi.mock('../../hooks/useUnitPreference', () => ({
-  useUnitPreference: () => ({ system: 'imperial', showBoth: false }),
-}))
+// Mock unit preference hook (requires AuthProvider otherwise). The resolved
+// set is supplied too: `useUnitFormat` reads `units`, and a mock that gave only
+// the collapsed `system` would hand the form an undefined set. Mixed sets,
+// where `system` and `units.distance` disagree, are exercised in
+// ServiceVisitForm.mixedUnits.test.tsx.
+vi.mock('../../hooks/useUnitPreference', async () => {
+  const { IMPERIAL_UNITS } = await import('@/__tests__/factories')
+  return {
+    useUnitPreference: () => ({
+      system: 'imperial',
+      showBoth: false,
+      units: IMPERIAL_UNITS,
+      gallonStandard: 'us',
+    }),
+  }
+})
 
 // Mock currency preference hook (CurrencyInputPrefix depends on it, which needs AuthProvider)
 vi.mock('../../hooks/useCurrencyPreference', () => ({

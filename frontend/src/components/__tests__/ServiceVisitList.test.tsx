@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ServiceVisit } from '../../types/serviceVisit'
+import { METRIC_UNITS } from '../../__tests__/factories'
 
 const useServiceVisitsMock = vi.fn()
 const deleteMutate = vi.fn()
@@ -15,7 +16,16 @@ vi.mock('../../hooks/queries/useServiceVisits', () => ({
 // every other test in this file leaves it at the attachments-only default.
 const apiGetMock = vi.fn().mockResolvedValue({ data: { attachments: [] } })
 vi.mock('../../services/api', () => ({ default: { get: (...args: unknown[]) => apiGetMock(...args) } }))
-vi.mock('../../hooks/useUnitPreference', () => ({ useUnitPreference: () => ({ system: 'metric', showBoth: false }) }))
+vi.mock('../../hooks/useUnitPreference', () => ({
+  useUnitPreference: () => ({
+    system: 'metric',
+    showBoth: false,
+    gallonStandard: 'us',
+    // The RESOLVED set, not just the collapsed system: this component reads
+    // its distance through `useUnitFormat()`, which closes over `units`.
+    units: METRIC_UNITS,
+  }),
+}))
 vi.mock('../../hooks/useCurrencyPreference', () => ({ useCurrencyPreference: () => ({ currencyCode: 'USD', locale: 'en-US' }) }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 

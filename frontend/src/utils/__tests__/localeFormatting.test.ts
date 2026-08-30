@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { getActiveLocale, setActiveLocale } from '@/constants/i18n'
-import { UnitFormatter } from '@/utils/units'
+import { makeUnitFormat } from '@/utils/unitFormat'
+import { presetUnitsFor } from '@/types/units'
 import { formatDateForDisplay, getDateFnsLocale } from '@/utils/dateUtils'
 
 /**
@@ -28,10 +29,14 @@ describe('locale-aware number formatting', () => {
   })
 
   it('formats distance with the separators of the active language', () => {
+    // Through the resolved `km` adapter: task 6 deleted the binary
+    // `formatDistance`, and the grouping this case is about is the same
+    // `Intl.NumberFormat(getActiveLocale())` either way.
+    const km = makeUnitFormat(presetUnitsFor('metric', 'us')).distance
     setActiveLocale('en')
-    const en = UnitFormatter.formatDistance(12345, 'metric')
+    const en = km.format(12345)
     setActiveLocale('de')
-    const de = UnitFormatter.formatDistance(12345, 'metric')
+    const de = km.format(12345)
 
     // en-US groups with a comma, de-DE with a period — the point is that the
     // two differ, which is exactly what a bare toLocaleString() failed to do.
@@ -40,11 +45,20 @@ describe('locale-aware number formatting', () => {
     expect(en).not.toBe(de)
   })
 
-  it('formats weight with the separators of the active language', () => {
+  it('formats mass with the separators of the active language', () => {
+    // Was `UnitFormatter.formatWeight(1500, 'metric')`, a binary method that
+    // plan 3b task 2 deleted because no production file called it. The
+    // resolved-set formatter reads the same active locale, and the assertion
+    // gets stronger on the way across: the original only claimed the two
+    // strings differ, which a change of unit would also satisfy.
+    const mass = makeUnitFormat(presetUnitsFor('metric', 'us')).mass
     setActiveLocale('en')
-    const en = UnitFormatter.formatWeight(1500, 'metric')
+    const en = mass.format(1500)
     setActiveLocale('de')
-    const de = UnitFormatter.formatWeight(1500, 'metric')
+    const de = mass.format(1500)
+
+    expect(en).toBe('1,500.00 kg')
+    expect(de).toBe('1.500,00 kg')
     expect(en).not.toBe(de)
   })
 

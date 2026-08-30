@@ -7,7 +7,9 @@ import { useTranslation } from 'react-i18next'
 import { Check, Save, MapPin, Phone, Star, Globe, Zap } from 'lucide-react'
 import type { POIResult, EVChargingMetadata } from '../types/poi'
 import { useUnitPreference } from '../hooks/useUnitPreference'
-import { UnitConverter, UnitFormatter, type UnitSystem } from '../utils/units'
+import { UNIT_ADAPTERS, metersToDistance } from '../utils/unitAdapters'
+import { formatAtPrecision } from '../utils/unitFormat'
+import type { UnitSet } from '../types/units'
 
 interface POICardProps {
   poi: POIResult
@@ -16,27 +18,42 @@ interface POICardProps {
 }
 
 /**
- * Distance in the user's chosen unit system.
+ * The small unit each distance unit falls back to under one of itself.
+ *
+ * A sub-unit refinement of a DISTANCE, so it follows the distance token rather
+ * than the separate `length` quantity a user may have set independently.
+ * Exhaustive: a distance token added to the vocabulary is a compile error here.
+ */
+const SUB_UNIT: Readonly<Record<UnitSet['distance'], 'm' | 'ft'>> = { km: 'm', mi: 'ft' }
+
+/** Decimals on a result's distance, and on its sub-unit fallback. */
+const RESULT_PRECISION = 1
+const SUB_UNIT_PRECISION = 0
+
+/**
+ * Distance in the client's own distance unit.
  *
  * This used to convert to miles unconditionally and then, confusingly, fall
- * back to metres under a mile — so a metric user saw "1.4 mi" and an imperial
- * user saw "340 m". Both halves now follow `system`.
+ * back to metres under a mile, so a metric user saw "1.4 mi" and an imperial
+ * user saw "340 m". Both halves then followed the binary `system`, which spec
+ * D8 collapses from VOLUME, so a custom client with litres and miles read
+ * kilometres beside a radius selector offering miles. Both halves now follow
+ * `units.distance`, and the "under one unit" threshold is the same test in
+ * both systems rather than two hand-written ones.
  *
- * One decimal rather than UnitFormatter.formatDistance, which rounds to whole
- * units and would collapse every nearby result to "0 mi" (same reason
- * ShopFinder formats its own).
+ * One decimal rather than the km/mi adapter's own zero, which would collapse
+ * every nearby result to "0 mi" (same reason ShopFinder formats its own).
  */
-function formatDistance(meters: number | undefined, system: UnitSystem): string {
+function formatDistance(meters: number | undefined, units: UnitSet): string {
   if (!meters) return ''
 
-  if (system === 'metric') {
-    if (meters < 1000) return `${Math.round(meters)} m`
-    return `${(meters / 1000).toFixed(1)} ${UnitFormatter.getDistanceUnit(system)}`
+  const value = metersToDistance(units, meters) ?? 0
+  if (value < 1) {
+    const small = UNIT_ADAPTERS[SUB_UNIT[units.distance]]
+    const near = small.toDisplay(meters) ?? 0
+    return `${formatAtPrecision(near, SUB_UNIT_PRECISION)} ${small.label}`
   }
-
-  const miles = UnitConverter.kmToMiles(meters / 1000) ?? 0
-  if (miles < 1) return `${Math.round(UnitConverter.metersToFeet(meters) ?? 0)} ft`
-  return `${miles.toFixed(1)} ${UnitFormatter.getDistanceUnit(system)}`
+  return `${formatAtPrecision(value, RESULT_PRECISION)} ${UNIT_ADAPTERS[units.distance].label}`
 }
 
 function CategoryBadge({ category }: { category: string }) {
@@ -90,7 +107,7 @@ function EVChargingInfo({ metadata }: { metadata: EVChargingMetadata }) {
 
 export default function POICard({ poi, onSave, isSaved }: POICardProps) {
   const { t } = useTranslation('common')
-  const { system } = useUnitPreference()
+  const { units } = useUnitPreference()
   const fullAddress = [
     poi.address,
     poi.city && poi.state ? `${poi.city}, ${poi.state}` : poi.city || poi.state,
@@ -106,7 +123,7 @@ export default function POICard({ poi, onSave, isSaved }: POICardProps) {
         <CategoryBadge category={poi.poi_category} />
         {poi.distance_meters && (
           <span className="text-sm text-gray-500 dark:text-gray-400">
-            {formatDistance(poi.distance_meters, system)}
+            {formatDistance(poi.distance_meters, units)}
           </span>
         )}
       </div>

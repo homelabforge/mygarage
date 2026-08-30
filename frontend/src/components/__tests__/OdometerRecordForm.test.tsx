@@ -1,8 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { screen, fireEvent, waitFor } from '@testing-library/react'
 import { render } from '../../__tests__/test-utils'
-import { toCanonicalKm } from '../../utils/decimalSafe'
-import { UnitConverter } from '../../utils/units'
 import type { OdometerRecord } from '../../types/odometer'
 
 const createMutateAsync = vi.fn().mockResolvedValue({})
@@ -11,7 +9,21 @@ vi.mock('../../hooks/queries/useOdometerRecords', () => ({
   useCreateOdometerRecord: () => ({ mutateAsync: createMutateAsync }),
   useUpdateOdometerRecord: () => ({ mutateAsync: updateMutateAsync }),
 }))
-vi.mock('../../hooks/useUnitPreference', () => ({ useUnitPreference: () => ({ system: 'imperial', showBoth: false }) }))
+// The imperial PRESET, resolved set included: `useUnitFormat` reads `units`,
+// and a mock that supplied only the collapsed `system` would hand the form an
+// undefined set. Mixed sets, where `system` and `units.distance` disagree, are
+// exercised in OdometerRecordForm.mixedUnits.test.tsx.
+vi.mock('../../hooks/useUnitPreference', async () => {
+  const { IMPERIAL_UNITS } = await import('@/__tests__/factories')
+  return {
+    useUnitPreference: () => ({
+      system: 'imperial',
+      showBoth: false,
+      units: IMPERIAL_UNITS,
+      gallonStandard: 'us',
+    }),
+  }
+})
 
 import OdometerRecordForm from '../OdometerRecordForm'
 
@@ -24,11 +36,11 @@ describe('OdometerRecordForm — routing + canonical conversion + exact payload'
     fireEvent.change(document.getElementById('odometer_km')!, { target: { value: '50000' } })
     fireEvent.click(screen.getByRole('button', { name: 'common:create' }))
     await waitFor(() => expect(createMutateAsync).toHaveBeenCalledTimes(1))
-    const expectedKm = toCanonicalKm(50000, 'imperial')! // ~80467 km, NOT the raw 50000
+    // 50000 mi x 1.60934 = 80467 km, NOT the raw 50000.
     expect(createMutateAsync).toHaveBeenCalledWith({
       vin: 'V1',
       date: '2026-03-01',
-      odometer_km: expect.closeTo(expectedKm, 2),
+      odometer_km: 80467,
       notes: '',
     })
     expect(updateMutateAsync).not.toHaveBeenCalled()
@@ -40,14 +52,14 @@ describe('OdometerRecordForm — routing + canonical conversion + exact payload'
     fireEvent.change(document.getElementById('date')!, { target: { value: '2026-04-01' } }) // change a field to observe it lands in the payload
     fireEvent.click(screen.getByRole('button', { name: 'common:update' }))
     await waitFor(() => expect(updateMutateAsync).toHaveBeenCalledTimes(1))
-    // The edit seeds km from the stored 80467 km, shown in miles (imperial) and
-    // converted back on submit — assert the SAME round-trip the code performs.
-    const expectedKm = toCanonicalKm(UnitConverter.kmToMiles(80467)!, 'imperial')!
+    // The edit seeds from the stored 80467 km, shown as 50000 mi
+    // (80467 / 1.60934 = 50000 exactly). The reading was never touched, so the
+    // ORIGIN is posted back rather than a re-conversion of the display.
     expect(updateMutateAsync).toHaveBeenCalledWith({
       id: 7,
       vin: 'V1',
       date: '2026-04-01',
-      odometer_km: expect.closeTo(expectedKm, 2),
+      odometer_km: 80467,
       notes: '',
     })
     expect(createMutateAsync).not.toHaveBeenCalled()

@@ -8,16 +8,90 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Structured vehicle maintenance specs (oil viscosity/capacity/filter, lug-nut torque Nm, coolant/brake/transmission fluid) with Overview editor (migration 094).
-- Opt-in **Ask My Garage** assistant: grounded Q&A over specs, service history, and LiveLink DTCs (Phase 2 causes/symptoms/fix guidance). See [docs/tier2-features.md](docs/tier2-features.md).
-- Groundwork for per-quantity unit preferences: per-user unit columns and a resolved unit set on the user API, with no settings UI yet (migration 093, #152).
+- Structured vehicle maintenance specs (oil viscosity/capacity/filter, lug-nut torque, coolant/brake/transmission fluid) with an Overview editor (migration 095).
+- Opt-in **Ask My Garage** assistant: grounded Q&A over specs, service history, and LiveLink DTCs. See [docs/tier2-features.md](docs/tier2-features.md).
+
+## [3.2.0] - 2026-08-30
+
+### Added
+- Settings → System has a Custom unit system, with its own control for distance, speed, length, volume, fuel economy, pressure, temperature, mass, torque, tire tread depth and the gallon your MPG is measured in, so an account can read litres with miles and tire pressure in PSI (migration 093, #152, #153). The gallon control is offered whatever your volume unit is, because MPG names a gallon even when you fill up in litres.
+- The unit controls write to your account when you have one, and to this browser when you do not, so a signed-out visitor and an instance with authentication disabled can hold a full custom set rather than only Imperial or Metric.
 - Instance-wide default unit set for anonymous clients and new accounts.
+- CSV import reads schema v6 per-column unit headers (`Odometer (mi)`, `Volume (gal_uk)`, `Price Per Unit (gal_us)`), taking each column's unit from the file rather than from any account preference (#152).
+- CSV export writes schema v6 per-column unit headers in the reader's own units, so a file exported by a user with custom units round-trips back to the same values (#152). One CSV is not covered: the LiveLink session export still writes `distance_km` and raw km/h speeds for everyone.
+- All-records report CSV gains a `Volume (<unit>)` column, so a fill-up's quantity is a number a spreadsheet can sum (#152).
+- Settings → System has a control for the instance-wide default unit set. It applies to signed-out visitors, to every client when authentication is disabled, and to each new account at creation. Admins see it, and so does the single user on an instance with authentication disabled.
+- The unit settings are translated into German, French, Polish, Brazilian Portuguese, Russian and Ukrainian (47 strings each). Unit symbols stay as they are in every language; only the names around them are translated. Machine-drafted and not yet read by a speaker, so corrections are welcome.
+- Tire readings accept a pressure on its own. Tread depth was required while the odometer was optional, so anyone tracking a slow leak without a tread gauge could not log a reading at all (#152). A reading still needs at least one of tread or pressure, and one that carries no tread now leaves the tire's recorded tread alone instead of erasing it.
+- Clicking a tire card shows its logged readings: tread, pressure and odometer for every reading, in your own units (#152). They were recorded and sent to the browser already, and nothing displayed them.
 
 ### Changed
-- Instances set to UK gallons store their imperial users as a custom unit set; displayed values are unchanged (migration 093).
+- **BREAKING (API):** `unit_preference` is no longer accepted by `PUT /auth/me` or `PUT /auth/users/{id}`. A self-update carrying it is rejected with HTTP 422 and an admin update carrying it is ignored; units are written through `PUT /auth/me/units`, which sets or clears all eleven per-quantity units in one request, so a script or integration that set units through a profile update needs changing.
+- Instances set to UK gallons store their imperial users as a custom unit set. The migration itself changed no displayed value; the unit changes listed below are separate.
+- Tire tread now displays and is entered in the unit you use: thirty-seconds of an inch for imperial accounts, millimetres for metric. It was millimetres for everyone, and no conversion existed.
+- Metric tire pressure now reads in kPa on the tire card, matching the form beside it, which already used kPa.
+- The odometer field on the fuel and DEF forms now reads and is entered in whole miles or kilometres. No stored reading moves: opening a record and saving it without touching that field posts the value back exactly as it was stored.
+- UK-gallon accounts will see existing fuel prices read back about 20% higher than before: a price entered as 6.000/gal now reads 7.206/gal. Only accounts on instances set to UK gallons are affected. If a record was entered while this instance was already set to UK gallons, its stored price is about 20% too high and re-entering the price you actually paid corrects it. If it was entered while the instance used US gallons, the stored price is right and the new reading is right; leave it alone.
+- The tire wear projection reads in whole units. Metric readers see no change.
+- Engine RPM now reads `3,200` everywhere, instead of `3200` on the widget and `3,200` on the session tile.
+- LiveLink session distance is shown as a plain number marked `(unknown unit)`. The device reports it without saying whether it is miles or kilometres, so the previous label was a guess. Nothing about the stored data changed.
+- Fuel and DEF CSV column headers change spelling for everyone, metric readers included: `Liters` is now `Volume (L)`, `Price Per Liter` is `Price Per Unit (L)`, `Outside Temp (C)` is `Outside Temp (c)`, `OBC L/100km` is `OBC Economy (l_100km)`, and `OBC Avg Speed (km/h)` is `OBC Avg Speed (kmh)`. A spreadsheet or script that reads these files by column name needs updating. Every older file still imports unchanged.
+- Exporting with `?units=imperial` now writes US gallons and marks the file `imperial`, even on an instance set to the UK gallon standard. Files already marked `imperial_uk` still import correctly and always will.
+- CSV import now refuses an ambiguous or self-contradictory file with HTTP 400 naming the cause, instead of guessing: an unknown unit token, a unit token for the wrong quantity, an unrecognised `unit_system` marker, two columns for the same quantity, and rows that disagree about `unit_system` or `units_version`.
+- Service-history and all-records report CSVs are now written in the reader's own units, with the unit named in the column header (`Odometer (mi)`, `Volume (gal_us)`). Both were kilometres and litres for everyone.
+- The service-history report CSV's `Mileage` column is now `Odometer (<unit>)`, matching every other CSV the app writes. `Mileage` is still read on import from older backup files.
+- All-records report CSV fuel rows describe the fuel grade instead of repeating the quantity as text (`40.000L`); the quantity moved to the new `Volume` column.
+- Importing a report CSV is refused with HTTP 400, whatever version exported it. A report is a printable summary, not a backup: importing an all-records report created a service visit out of every fuel fill-up, recorded as Maintenance and indistinguishable from real service. Backups from Export still import, v2-era files included.
+- Report CSVs write a value of exactly 0 as a number instead of leaving the cell blank: 0 km is a real reading on a new vehicle, and a warranty repair really can cost $0.00. A blank cell now means only that nothing was recorded.
+- A standalone odometer CSV whose only distance column is a bare `Reading`, with no units marker and no schema version, is now read as miles (the v2 export shape) rather than kilometres.
+- PDFs and notifications now follow each user's unit preferences. Two surfaces do not: low-tread reminder notes still use millimetres and kilometres, and LiveLink threshold alerts still report the unit the device sent.
+- The Vehicle Analytics PDF's "Cost Per km" card is now "Cost Per Distance", and its value states its own unit (for example, $42.00/100 km).
+- Vehicle Analytics PDF fuel economy now shows two decimal places for metric readers instead of one.
+- Reminder notifications now show due-mileage and due-hours with consistent decimal precision instead of echoing the stored value's raw decimals.
+- Widget `odometer` (v1 and v2) rounds the mile figure once instead of twice, which moves about one reading in 200 by a single mile. The field is still miles for every user.
+- The standalone US/UK gallon control in Settings → System is gone. The instance-wide default unit set replaces it, and an account picks its own gallon under Custom units.
+- The `imperial_gallon_standard` setting row is kept, deliberately, as the seed and fallback the default unit set is rebuilt from if its own row is ever deleted. Nothing in the browser reads it any more.
+- Distances read to whole miles for imperial accounts everywhere the web app shows one, so an odometer that read `99,419.27 mi` now reads `99,419 mi`. It matches the entry fields, which already took whole miles. Stored values do not move, and neither does the metric reading itself; a metric account that shows both units reads its parenthesised mile figure in whole miles too.
+- Metric accounts read whole kilometres in the odometer field on the odometer and service-visit forms, so a stored `72420.5` reads `72421`. Only the reading changed: saving without touching the field posts `72420.5` back.
+- Metric fuel economy reads to two decimals, so `7.2` now reads `7.20 L/100km`, and a fuel economy of exactly zero reads `0.00 L/100km` instead of `N/A`. MPG is unchanged at one decimal, and both MPG and km/L still read `N/A` at zero, because a reciprocal unit has no finite value there.
+- Metric volume entry fields show two decimals, so a stored `45.461` litres reads `45.46`, matching every other volume in the app. The price field beside it keeps three decimals, because a price is a rate over a volume rather than a volume; the third decimal of the stored volume is posted back unchanged if you do not edit the field.
+- The engine-hours fuel rate is labelled `gal/hr` instead of `GPH`, which never said which gallon it meant, and a rate of zero now reads `0.00 L/hr` instead of `N/A`. No fuel burned over an hour is a real reading, not a missing one.
+- The propane tank-size field is labelled `lb` rather than `lbs`.
+- The DEF and propane consumption caption names both of your units, so an account using litres with miles reads `L/1,000 mi`, and the cost-per-distance caption reads `Cost/1,000 mi` rather than `Cost/1k Miles`. Both denominators are grouped for your language, so a German reader gets `L/1.000 km`.
+- The mileage examples in the reminder and service line-item forms are one figure for every account (`e.g., 100000`) instead of a preset imperial or metric one, and the fuel and propane volume and price examples name your own gallon. A UK-gallon account was shown a US-gallon example, for a unit 20% larger.
+- The receipt-parse preview shows the volume in your own unit (`12.50 gal`) instead of the canonical litres it always printed (`47.318 L`), so it agrees with the field that accepting it fills in.
+- Choosing Imperial or Metric clears the per-quantity units you have set and applies the preset everywhere, after a confirmation that says so before anything is saved. On an instance set to UK gallons, where the migration stored each imperial account as a custom set, this is what makes those two buttons change what you read.
+- An account whose gallon is the UK one lands on the US gallon when it chooses Imperial, because there is one imperial preset and it is US. The confirmation names it before you commit; to keep the UK gallon, choose Custom and set the gallon there.
+- The Analytics CSV export's cost-per-distance row label follows the same change as the card: it was a hardcoded English `Cost/1k Miles` or `Cost/100 km` and now reads in your language, named for your distance unit. It is a summary export rather than a backup, so nothing that re-imports is affected.
+- Translation coverage regressed on purpose in six languages: 8 strings in German, 12 in French and 3 each in Polish, Brazilian Portuguese, Russian and Ukrainian now fall back to English. Each was a translation of a sentence whose meaning changed with this unit work, mostly by naming a unit the reader does not use, and a confidently wrong translation is worse than an English fallback. They are up for retranslation.
 
 ### Fixed
+
+- Clearing a tire's tread depth no longer marks a pending "Tire tread low" reminder as done. The check read a missing tread as a healthy one, so blanking the field in the tire editor dismissed a live warning that the tire was worn out. An unknown tread now leaves the reminder pending, and only a measured tread above the threshold completes it.
+- A default unit set written through the settings API is refused with HTTP 422 unless it is a complete, in-vocabulary set. It used to be accepted, and an unreadable value silently reverted every signed-out client to US imperial with nothing in the response to say so.
+- Screens, forms and lists take each quantity from its own unit, instead of from one imperial-or-metric flag collapsed out of your volume choice. An account that used litres with miles read kilometre distances, cost per 100 km, and DEF and propane consumption per 1,000 km, on the same cards whose odometer column was in miles.
+- UK-gallon accounts stored fuel, DEF and propane prices about 20% too high, and read them back with the same wrong factor so the form looked correct. Volume and price now use your own gallon (#152).
+- Anonymous visitors were shown imperial units regardless of the instance default, because the fallback was hardcoded rather than read from the configured default.
+- Fuel economy for UK-gallon accounts was calculated with US gallons, so MPG read about 20% low beside a correctly converted volume.
+- A metric account entering a volume with three decimals, such as `47.3176` litres, could not save the record at all.
+- The shop and POI map drew its search-radius circle at imperial scale for everyone, whatever the account's units.
+- DEF tank capacity entered in gallons was stored using the US gallon on instances set to UK gallons.
+- Logged-out visitors who have never picked a unit system now see the units the instance is configured for, instead of always imperial. A visitor who has picked one keeps that choice.
+- A browser upgrading from the older unit settings no longer freezes a gallon flavour it never chose, and neither does toggling show-both units afterwards. It was reachable on a UK-gallon instance whose first settings fetch after the upgrade failed, and on any instance whose admin later switched the flavour, and it left every volume and fuel economy about 20% wrong with nothing that could correct it afterwards.
 - PSI-to-canonical conversion returned bar instead of kPa.
+- Exporting an imperial CSV backup and importing it again silently changed the data. Miles and gallons were written with two decimals, so 500.00 km came back as 500.01 and 40.000 L came back as 40.012, drifting further on every round trip. v6 writes enough decimals to be exact.
+- Fuel CSV import reads back the outside temperature, on-board economy and average speed columns the exporter has always written; they were silently dropped, so those three values were lost on every export-and-reimport.
+- Service-history and sale-history report odometer values now round consistently instead of disagreeing between the two reports.
+- Long values in PDF report KPI cards shrink to fit instead of splitting mid-number; the longest, such as a cost per distance shown in both units, still wrap onto a second line at the smallest readable size.
+- Odometer-milestone notifications no longer report kilometres as miles.
+- A distance typed into a reminder or a service line item was stored as kilometres whenever your volume and distance units disagreed, so `500` miles until due was stored as 500 km and the reminder came due 189 miles early. It is stored as 804.67 km now. Reminders saved before this keep the value they were saved with, so re-enter the interval on any that come due too soon.
+- The on-board-computer economy and average speed fields on the fuel form were labelled `L/100km` and `km/h` for every account and stored what you typed unchanged. Both now read, are entered in, and convert from your own consumption and speed units, and the suggestion preview beside them follows. A reading you copied off an imperial trip computer was stored as though it were metric, so re-enter any that look wrong.
+- Opening a fuel, DEF or propane record and saving it without editing the volume or the price no longer rewrites either one. Both were converted to your unit for display and converted straight back on save, so a value that did not land exactly on the entry grid moved every time: across 27 measured value and unit-set combinations, 13 volumes and 16 prices moved, from 6 millilitres on a 10,000 litre fill (0.00006%) to the whole value at the smallest volume the API stores. The DEF tank capacity in Vehicle Settings had the same shift.
+- The reminder mileage field read `Miles Until Due (km)` to a kilometre account, and `Quilômetros até o vencimento (mi)` to a Brazilian account using miles. It reads `Distance Until Due` now, and the unit comes from the field beside it.
+- Fuel and DEF summary captions were hardcoded English in every language: a German fuel row read `Kosten/100 km` beside `Avg Cost/gal` and `45,5 L total`. The average-cost, total-volume and cost-per-distance captions are translated now, and `Total Liters` and `Total Gallons` are one caption that names your unit.
+- The Analytics help modal and the fuel form's tip named MPG whatever units you use. Both name your own fuel-economy unit now, `Cost Per Mile` is `Cost Per Distance`, and the electric tip no longer promises a `kWh/100mi` figure the app does not calculate.
+- The Settings units summary read `Using metric units: liters, kilometers, L/100km, °C, bar, kg, Nm` to an account using litres with miles and PSI. It lists the units you actually resolve to now, and the show-both example demonstrates your own pair instead of a fixed `25 MPG (9.4 L/100km)`.
+- The notification settings read `miles before` to a kilometre account, and the odometer-milestone description promised milestones `(e.g., 100k miles)` where the check actually runs on 10,000 km boundaries. The lead field names your unit now, and the description no longer names a figure.
 
 ## [3.1.0] - 2026-08-24
 

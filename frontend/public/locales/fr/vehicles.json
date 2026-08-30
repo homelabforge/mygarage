@@ -136,7 +136,9 @@
     "title": "Enregistrements DEF",
     "totalSpent": "Total dépensé",
     "type": "Type",
-    "volumeUnit": "Volume ({{unit}})"
+    "volumeUnit": "Volume ({{unit}})",
+    "avgCostPerVolume": "Coût moy./{{unit}}",
+    "volumeTotal": "{{value}} au total"
   },
   "detail": {
     "actions": "Actions",
@@ -430,6 +432,9 @@
     "tableCaption": "Fuel fill-up history",
     "avgFuelRate": "Moy. {{unit}}",
     "costPerHour": "Coût/h",
+    "costPerDistance": "Coût/{{unit}}",
+    "avgCostPerVolume": "Coût moy./{{unit}}",
+    "volumeTotal": "{{value}} au total",
     "fuelRate": "Débit de carburant"
   },
   "insuranceList": {
@@ -751,11 +756,11 @@
     "recordCount": "{{count}} enregistrement(s)",
     "tableCaption": "Propane refill history",
     "title": "Enregistrements de propane",
-    "totalGallons": "Total gallons",
-    "totalLiters": "Total litres",
+    "totalVolume": "Total ({{unit}})",
     "totalSpent": "Total dépensé",
     "vendor": "Fournisseur",
-    "volumeUnit": "Volume ({{unit}})"
+    "volumeUnit": "Volume ({{unit}})",
+    "avgCostPerVolume": "Coût moy./{{unit}}"
   },
   "quickEntry": {
     "fuelRecord": "Enregistrement de carburant",

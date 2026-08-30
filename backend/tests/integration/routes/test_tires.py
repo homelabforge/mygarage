@@ -259,3 +259,247 @@ class TestTireRoutes:
         assert response.status_code in (200, 201)
         # Numeric(5, 2) round-trips as "4.00": compare values, not formatting.
         assert Decimal(str(response.json()["tread_depth_mm"])) == Decimal("4.0")
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+class TestPressureOnlyTireReadings:
+    """Readings that carry a pressure but no tread depth (issue #152).
+
+    Issue #152's reporter tracks a slow leak and owns no tread gauge. Tread was
+    NOT NULL on ``tire_readings`` while the odometer beside it was optional, so
+    there was no way to record a pressure at all.
+
+    Every test here builds its own vehicle. The backend suite shares one
+    database with no per-test rollback, and a low-tread reminder is looked up by
+    ``(vin, title, status='pending')``, so reusing ``test_vehicle`` would let a
+    reminder created by an unrelated tire test decide the outcome here.
+    """
+
+    async def _vehicle(self, client: AsyncClient, auth_headers, vin: str) -> str:
+        """Create an isolated vehicle and assert the setup actually landed.
+
+        :param client: The test HTTP client.
+        :param auth_headers: Auth headers for the test user.
+        :param vin: The VIN to create.
+        :returns: The VIN, once the vehicle exists.
+        """
+        response = await client.post(
+            "/api/vehicles",
+            headers=auth_headers,
+            json={
+                "vin": vin,
+                "nickname": "Tire Reading Rig",
+                "vehicle_type": "Car",
+                "year": 2020,
+                "make": "Honda",
+                "model": "Civic",
+            },
+        )
+        assert response.status_code == 201, response.text
+        return vin
+
+    async def _reminder_status(self, db_session, vin: str, title: str) -> str | None:
+        """Read a reminder's status straight from the database.
+
+        ``expire_all`` first: the API and this query share one session with
+        ``expire_on_commit=False``, so an already-loaded Reminder would answer
+        from the identity map with whatever it held before the request.
+
+        :param db_session: The shared test session.
+        :param vin: Vehicle the reminder belongs to.
+        :param title: Reminder title to look for.
+        :returns: The status string, or None when no such reminder exists.
+        """
+        from sqlalchemy import select
+
+        from app.models.reminder import Reminder
+
+        db_session.expire_all()
+        result = await db_session.execute(
+            select(Reminder).where(Reminder.vin == vin, Reminder.title == title)
+        )
+        reminders = result.scalars().all()
+        assert len(reminders) <= 1, (
+            f"expected at most one {title!r} for {vin}, got {len(reminders)}"
+        )
+        return reminders[0].status if reminders else None
+
+    async def test_pressure_only_reading_keeps_tread_and_leaves_reminder_pending(
+        self, client: AsyncClient, auth_headers, db_session
+    ):
+        """★ The test this change exists for.
+
+        Logging a tyre pressure must not silently dismiss a live low-tread
+        warning. Against the naive change (column nullable, service untouched)
+        the pressure-only reading falls through the unconditional
+        ``tire.tread_depth_mm = data.tread_depth_mm`` assignment, nulls the
+        parent tire's tread, and ``_sync_low_tread_reminder`` reads the missing
+        measurement as "not below" and marks the reminder done.
+
+        Both directions are asserted: the reminder must survive an unknown
+        tread, and it must still complete when a tread is actually measured
+        back above the threshold. A guard that simply never completes anything
+        would pass the first half and fail the second.
+        """
+        vin = await self._vehicle(client, auth_headers, "1HGCM82633A152001")
+        title = "Tire tread low (FL)"
+
+        created = await client.post(
+            f"/api/vehicles/{vin}/tires",
+            headers=auth_headers,
+            json={
+                "vin": vin,
+                "position": "FL",
+                "tread_depth_mm": "1.8",
+                "min_tread_mm": "2.0",
+                "pressure_kpa": "230",
+            },
+        )
+        assert created.status_code == 201, created.text
+        tire_id = created.json()["id"]
+        # Setup assertions, not outcome assertions: without these a broken
+        # create would leave "no reminder" looking like "reminder preserved".
+        assert created.json()["below_threshold"] is True
+        assert await self._reminder_status(db_session, vin, title) == "pending"
+
+        reading = await client.post(
+            f"/api/vehicles/{vin}/tires/{tire_id}/readings",
+            headers=auth_headers,
+            json={"recorded_at": "2026-09-01", "pressure_kpa": "205"},
+        )
+        assert reading.status_code == 201, reading.text
+        body = reading.json()
+
+        # 1. the parent tire keeps the tread it was measured with
+        assert body["tread_depth_mm"] is not None
+        assert Decimal(str(body["tread_depth_mm"])) == Decimal("1.8")
+        # the pressure the reading DID carry still lands
+        assert Decimal(str(body["pressure_kpa"])) == Decimal("205")
+        # 2. the tire is still reported as worn out
+        assert body["below_threshold"] is True
+        # 3. and the safety reminder is still pending
+        assert await self._reminder_status(db_session, vin, title) == "pending"
+
+        # The reading itself stored no tread: the row is a pressure observation.
+        stored = [r for r in body["readings"] if r["recorded_at"] == "2026-09-01"]
+        assert len(stored) == 1
+        assert stored[0]["tread_depth_mm"] is None
+        assert Decimal(str(stored[0]["pressure_kpa"])) == Decimal("205")
+
+        # Other direction: a MEASURED tread back above the threshold must still
+        # complete the reminder.
+        healthy = await client.post(
+            f"/api/vehicles/{vin}/tires/{tire_id}/readings",
+            headers=auth_headers,
+            json={"recorded_at": "2026-09-02", "tread_depth_mm": "8.0"},
+        )
+        assert healthy.status_code == 201, healthy.text
+        assert healthy.json()["below_threshold"] is False
+        assert await self._reminder_status(db_session, vin, title) == "done"
+
+    async def test_clearing_a_tire_tread_leaves_the_reminder_pending(
+        self, client: AsyncClient, auth_headers, db_session
+    ):
+        """An unknown tread is a third state, not "fine".
+
+        This reaches ``_sync_low_tread_reminder`` through the upsert path rather
+        than the reading path, where ``Tire.tread_depth_mm`` has been nullable
+        since 085, so the "unknown completes a live reminder" defect is
+        reachable today, before any part of this change. Clearing the tread
+        field in the edit drawer sends an explicit null.
+        """
+        vin = await self._vehicle(client, auth_headers, "1HGCM82633A152002")
+        title = "Tire tread low (RR)"
+
+        created = await client.post(
+            f"/api/vehicles/{vin}/tires",
+            headers=auth_headers,
+            json={"vin": vin, "position": "RR", "tread_depth_mm": "1.5", "min_tread_mm": "3.0"},
+        )
+        assert created.status_code == 201, created.text
+        assert created.json()["below_threshold"] is True
+        assert await self._reminder_status(db_session, vin, title) == "pending"
+
+        cleared = await client.post(
+            f"/api/vehicles/{vin}/tires",
+            headers=auth_headers,
+            json={"vin": vin, "position": "RR", "tread_depth_mm": None},
+        )
+        assert cleared.status_code in (200, 201), cleared.text
+        assert cleared.json()["tread_depth_mm"] is None
+        assert await self._reminder_status(db_session, vin, title) == "pending"
+
+    async def test_reading_without_tread_or_pressure_is_rejected(
+        self, client: AsyncClient, auth_headers
+    ):
+        """A reading that measures nothing is not a reading.
+
+        An odometer alone does not qualify: it is context for the wear
+        projection, not an observation of the tire.
+        """
+        vin = await self._vehicle(client, auth_headers, "1HGCM82633A152003")
+        created = await client.post(
+            f"/api/vehicles/{vin}/tires",
+            headers=auth_headers,
+            json={"vin": vin, "position": "FR", "tread_depth_mm": "6.0"},
+        )
+        assert created.status_code == 201, created.text
+        tire_id = created.json()["id"]
+
+        empty = await client.post(
+            f"/api/vehicles/{vin}/tires/{tire_id}/readings",
+            headers=auth_headers,
+            json={"recorded_at": "2026-09-01"},
+        )
+        assert empty.status_code == 422, empty.text
+
+        odometer_only = await client.post(
+            f"/api/vehicles/{vin}/tires/{tire_id}/readings",
+            headers=auth_headers,
+            json={"recorded_at": "2026-09-01", "odometer_km": "42000"},
+        )
+        assert odometer_only.status_code == 422, odometer_only.text
+
+        # The accepting direction, so the 422s above cannot come from something
+        # unrelated to the at-least-one rule.
+        pressure_only = await client.post(
+            f"/api/vehicles/{vin}/tires/{tire_id}/readings",
+            headers=auth_headers,
+            json={"recorded_at": "2026-09-01", "pressure_kpa": "210"},
+        )
+        assert pressure_only.status_code == 201, pressure_only.text
+
+    async def test_pressure_only_reading_round_trips_through_the_api(
+        self, client: AsyncClient, auth_headers
+    ):
+        """The #152 flow end to end: no tread anywhere, pressure history only."""
+        vin = await self._vehicle(client, auth_headers, "1HGCM82633A152004")
+        created = await client.post(
+            f"/api/vehicles/{vin}/tires",
+            headers=auth_headers,
+            json={"vin": vin, "position": "RL", "pressure_kpa": "240"},
+        )
+        assert created.status_code == 201, created.text
+        assert created.json()["tread_depth_mm"] is None
+        tire_id = created.json()["id"]
+
+        for day, kpa in (("2026-09-01", "235"), ("2026-09-08", "228")):
+            response = await client.post(
+                f"/api/vehicles/{vin}/tires/{tire_id}/readings",
+                headers=auth_headers,
+                json={"recorded_at": day, "pressure_kpa": kpa},
+            )
+            assert response.status_code == 201, response.text
+
+        listed = await client.get(f"/api/vehicles/{vin}/tires", headers=auth_headers)
+        assert listed.status_code == 200
+        tire = next(t for t in listed.json()["tires"] if t["id"] == tire_id)
+        assert tire["tread_depth_mm"] is None
+        assert Decimal(str(tire["pressure_kpa"])) == Decimal("228")
+        assert tire["below_threshold"] is False
+        assert len(tire["readings"]) == 2
+        assert all(r["tread_depth_mm"] is None for r in tire["readings"])
+        # No tread history means no wear projection, rather than a bogus one.
+        assert tire["projected_km_remaining"] is None
+        assert tire["projected_wear_date"] is None

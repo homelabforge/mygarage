@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next'
 import { ChevronDown, ChevronRight, Bell, Settings2 } from 'lucide-react';
 import { Toggle } from '@/components/ui'
+import { useUnitFormat } from '@/hooks/useUnitFormat'
 
 interface EventNotificationsCardProps {
   settings: Record<string, unknown>;
@@ -13,7 +14,7 @@ interface EventNotificationsCardProps {
 
 // A boolean event toggle can pair with zero or more numeric companion
 // settings (e.g. "Service Due" pairs with both a days-before and a
-// miles-before field). Data-driven so a new unit (days/miles/percent/...)
+// distance-before field). Data-driven so a new unit (days/distance/percent/...)
 // is a config addition, not a new copy-pasted JSX block.
 interface NumberFieldConfig {
   key: string;
@@ -47,6 +48,13 @@ export function EventNotificationsCard({
 }: EventNotificationsCardProps) {
   const { t } = useTranslation('settings')
   const [showAdvanced, setShowAdvanced] = useState(false);
+
+  // The service-reminder lead distance is entered in the reader's OWN distance
+  // unit, so its suffix comes off the resolved token rather than reading
+  // "miles before" to everyone. `notify_service_miles` stores the number bare
+  // and nothing consumes it yet; whatever eventually does has to decide the
+  // unit, and this label is what the user believed they typed.
+  const u = useUnitFormat()
 
   // Built inside the component (not at module scope) because every label and
   // description resolves through `t` — a module-scope constant has no access
@@ -88,7 +96,7 @@ export function EventNotificationsCard({
                 min: 100,
                 max: 5000,
                 step: 100,
-                suffix: t('events.card.milesBefore'),
+                suffix: t('events.card.milesBefore', { unit: u.distance.label }),
               },
             ],
           },
@@ -162,7 +170,7 @@ export function EventNotificationsCard({
         ],
       },
     ],
-    [t],
+    [t, u],
   );
 
   if (!hasEnabledService) {

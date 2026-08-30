@@ -3,6 +3,7 @@ import { render, screen, waitFor, cleanup } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import type { VehicleAnalytics, AnomalyAlert } from '../../types/analytics'
+import { METRIC_UNITS } from '../../__tests__/factories'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Issue #131 regression: the vehicle Analytics page rendered `alert.message`,
@@ -47,7 +48,14 @@ vi.mock('../../services/api', () => ({
 }))
 
 vi.mock('../../hooks/useUnitPreference', () => ({
-  useUnitPreference: () => ({ system: 'metric', showBoth: false }),
+  useUnitPreference: () => ({
+    system: 'metric',
+    showBoth: false,
+    gallonStandard: 'us',
+    // The RESOLVED set, not just the collapsed system: this component reads
+    // its distance through `useUnitFormat()`, which closes over `units`.
+    units: METRIC_UNITS,
+  }),
 }))
 // The reporter's configuration: Polish złoty.
 vi.mock('../../hooks/useCurrencyPreference', () => ({

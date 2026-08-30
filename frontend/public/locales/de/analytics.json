@@ -42,7 +42,8 @@
       "def": "DEF",
       "total": "Gesamt"
     },
-    "donutTotal": "Gesamt"
+    "donutTotal": "Gesamt",
+    "loadAction": "Garage-Analyse laden"
   },
   "garageHelp": {
     "title": "Hilfe zur Garage-Analyse",
@@ -63,7 +64,7 @@
       "insuranceLabel": "Versicherung:",
       "insuranceDesc": "Kombinierte Versicherungskosten für alle Fahrzeuge.",
       "taxesLabel": "Steuern:",
-      "taxesDesc": "Gesamte Zulassungs- und Steuerpflichten.",
+      "taxesDesc": "Gesamte Zulassungs- und Steueraufwendungen.",
       "defLabel": "DEF:",
       "defDesc": "Gesamtkosten für AdBlue/DEF (wird angezeigt, wenn ein Fahrzeug DEF verwendet)."
     },
@@ -110,7 +111,7 @@
       "item3": "Die besten/schlechtesten Fahrzeuge in Bezug auf den Kraftstoffverbrauch",
       "item4": "Kandidaten für einen Austausch basierend auf den Gesamtbetriebskosten",
       "categoryColumnsLabel": "Kategoriespalten:",
-      "categoryColumnsDesc": "Die Ausgaben jedes Fahrzeugs aufgeschlüsselt nach Wartung, Upgrades, Inspektion, Unfall, Aufbereitung, Kraftstoff und DEF."
+      "categoryColumnsDesc": "Die Ausgaben jedes Fahrzeugs, aufgeschlüsselt nach Wartung, Upgrades, Inspektion, Unfall, Aufbereitung, Kraftstoff und DEF."
     },
     "exportOptions": {
       "title": "Export-Optionen",
@@ -248,8 +249,7 @@
     },
     "propaneAnalysis": "Propan-Analyse",
     "totalSpent": "Gesamtausgaben",
-    "totalLiters": "Liter Gesamt",
-    "totalGallons": "Gallonen Gesamt",
+    "totalVolume": "Gesamt ({{unit}})",
     "avgPricePerUnit": "Durchschnittspreis/{{unit}}",
     "monthlyPropaneCosts": "Monatliche Propankosten",
     "spotRentalAnalysis": "Kurzzeitmieten-Analyse",
@@ -307,16 +307,18 @@
     "period1Value": "Zeitraum 1: {{value}}",
     "period2Value": "Zeitraum 2: {{value}}",
     "costPerHourAxis": "Kosten/Stunde ({{currency}})",
+    "costPerDistance": "Kosten/{{unit}}",
+    "avgCostPerVolume": "Ø Kosten/{{unit}}",
     "costPerHourLabel": "Kosten/Stunde",
     "costPerHourValue": "{{value}}/Std.",
-    "engineHoursAxis": "Motorstunden",
+    "engineHoursAxis": "Motorbetriebsstunden",
     "engineHoursReading": "{{value}} Std.",
-    "fuelRateUnitLabel": "Verbrauchsrate ({{unit}})",
-    "hoursAccumulatedTitle": "Verlauf der Motorstunden",
-    "hoursEconomyAnalysis": "Effizienzanalyse nach Motorstunden",
-    "hoursEconomyTrendTitle": "Verlauf der Effizienz nach Motorstunden",
-    "anomalyAbove": "Ausgaben {{spent}} — {{deviation}} % über Ihrem Durchschnitt von {{avg}}.",
-    "anomalyBelow": "Ausgaben {{spent}} — {{deviation}} % unter Ihrem Durchschnitt von {{avg}}.",
+    "fuelRateUnitLabel": "Kraftstoffverbrauch ({{unit}})",
+    "hoursAccumulatedTitle": "Akkumulierte Motorbetriebsstunden im Zeitverlauf",
+    "hoursEconomyAnalysis": "Effizienzanalyse der Motorbetriebsstunden",
+    "hoursEconomyTrendTitle": "Trend der Effizienz der Motorbetriebsstunden im Zeitverlauf",
+    "anomalyAbove": "Ausgaben: {{spent}} — {{deviation}}% über Ihrem Durchschnitt von {{avg}}.",
+    "anomalyBelow": "Ausgaben: {{spent}} — {{deviation}}% unter Ihrem Durchschnitt von {{avg}}.",
     "severity": {
       "critical": "Kritisch",
       "info": "Info",
@@ -335,7 +337,17 @@
         "body": "Erfassen Sie mindestens drei Volltank-Betankungen, um detaillierte Verbrauchsauswertungen freizuschalten.",
         "title": "Zu wenig Kraftstoffdaten"
       }
-    }
+    },
+    "anomalyRange": "Zeitraum",
+    "anomalyRange3m": "Letzte 3 Monate",
+    "anomalyRange6m": "Letzte 6 Monate",
+    "anomalyRange12m": "Letzte 12 Monate",
+    "anomalyRangeYtd": "Aktuelles Jahr",
+    "anomalyRangeAll": "Gesamter Zeitraum",
+    "anomalyRangeCustom": "Benutzerdefiniert",
+    "anomalyStart": "Von",
+    "anomalyEnd": "Bis",
+    "loadAction": "Fahrzeug-Analyse laden"
   },
   "vehicleHelp": {
     "title": "Hilfe zu den Analysen",
@@ -351,8 +363,6 @@
       "totalCostDesc": "Summe aller erfassten Service- und Kraftstoffausgaben.",
       "avgMonthlyLabel": "Durchschnittliche monatliche Kosten:",
       "avgMonthlyDesc": "Gesamtkosten geteilt durch die Anzahl der erfassten Monate.",
-      "costPerMileLabel": "Kosten pro Meile:",
-      "costPerMileDesc": "Gesamtkosten geteilt durch die gefahrenen Gesamtmeilen (sofern Kilometerstandsdaten verfügbar sind).",
       "serviceBreakdownLabel": "Aufschlüsselung nach Serviceart:",
       "serviceBreakdownDesc": "Zeigt, welche Servicearten die höchsten Kosten verursachen."
     },
@@ -386,13 +396,13 @@
     },
     "fuelEconomy": {
       "title": "Kraftstoffverbrauch",
-      "mpgCalcLabel": "Verbrauchsberechnung:",
-      "mpgCalcDesc": "Wird automatisch anhand aufeinanderfolgender Vollbetankungen berechnet. Teilbetankungen werden bei der Verbrauchsberechnung nicht berücksichtigt.",
-      "averageMpgLabel": "Durchschnittlicher Verbrauch:",
-      "averageMpgDesc": "Mittelwert des Kraftstoffverbrauchs über alle Vollbetankungen hinweg.",
-      "recentMpgLabel": "Aktueller Verbrauch:",
-      "recentMpgDesc": "Durchschnitt der letzten 5 Vollbetankungen.",
-      "note": "Ein verschlechterter Kraftstoffverbrauch kann auf Wartungsbedarf hindeuten (Luftfilter, Zündkerzen, Reifendruck) oder auf Änderungen der Fahrgewohnheiten. Deutliche Einbrüche sollten untersucht werden."
+      "note": "Ein verschlechterter Kraftstoffverbrauch kann auf Wartungsbedarf hindeuten (Luftfilter, Zündkerzen, Reifendruck) oder auf Änderungen der Fahrgewohnheiten. Deutliche Einbrüche sollten untersucht werden.",
+      "economyCalcLabel": "Verbrauchsberechnung ({{unit}}):",
+      "economyCalcDesc": "Wird automatisch anhand aufeinanderfolgender Vollbetankungen berechnet. Teilbetankungen werden bei der Verbrauchsberechnung nicht berücksichtigt.",
+      "averageEconomyLabel": "Durchschnittlicher Verbrauch ({{unit}}):",
+      "averageEconomyDesc": "Mittelwert des Kraftstoffverbrauchs über alle Vollbetankungen hinweg.",
+      "recentEconomyLabel": "Aktueller Verbrauch ({{unit}}):",
+      "recentEconomyDesc": "Durchschnitt der letzten 5 Vollbetankungen."
     },
     "vendorSpending": {
       "title": "Ausgaben nach Dienstleister",
@@ -435,11 +445,10 @@
     "tips": {
       "title": "Tipps für beste Ergebnisse",
       "enterAllRecords": "Trage alle Service- und Kraftstoffeinträge ein, um vollständige Analysen zu erhalten",
-      "includeMileage": "Nimm Kilometerstandsdaten auf, um Berechnungen der Kosten pro Meile zu ermöglichen",
-      "markFullTank": "Markiere Betankungen als \"Vollbetankung\" für eine genaue Verbrauchserfassung",
       "addVendorNames": "Füge Dienstleisternamen hinzu, um Ausgabenmuster zu erkennen",
       "trackMonths": "Erfasse Daten über mindestens 3–6 Monate, um aussagekräftige Trends zu erhalten",
-      "reviewAnomalies": "Überprüfe Anomalien, um ungewöhnliche Ausgaben zu verstehen"
+      "reviewAnomalies": "Überprüfe Anomalien, um ungewöhnliche Ausgaben zu verstehen",
+      "markFullTank": "Markiere Betankungen als \"Vollbetankung\" für eine genaue Verbrauchserfassung ({{unit}})"
     }
   },
   "reports": {
@@ -467,7 +476,11 @@
     "exportCsv": "CSV exportieren",
     "generating": "Bericht wird erstellt...",
     "pdfError": "Bericht konnte nicht erstellt werden",
-    "csvError": "Daten konnten nicht exportiert werden"
+    "csvError": "Daten konnten nicht exportiert werden",
+    "saleHistoryTitle": "Verkaufshistorie (anonymisiert)",
+    "saleHistoryDesc": "Käufersichere Service-Historie ohne Kosten, Werkstätten oder Kennzeichen",
+    "pdfAction": "Bericht erstellen",
+    "csvAction": "Daten exportieren"
   },
   "confidenceLevels": {
     "high": "Hoch",

@@ -15,7 +15,10 @@ from app.models.service_line_item import ServiceLineItem
 from app.models.service_visit import ServiceVisit
 from app.schemas.reminder import ReminderCreate, ReminderResponse, ReminderUpdate
 from app.services.hours_service import latest_engine_hours_and_date
+from app.utils.hours_formatting import format_hours
 from app.utils.logging_utils import sanitize_for_log
+from app.utils.render_context import RenderContext, render_context_for_vehicle
+from app.utils.unit_formatting import format_quantity
 
 logger = logging.getLogger(__name__)
 
@@ -429,10 +432,16 @@ async def check_due_reminders(db: AsyncSession) -> None:
 
         if should_notify:
             try:
+                # No caller: a scheduled job renders in the VEHICLE OWNER's
+                # units (render_context_for_vehicle), which falls back to the
+                # instance default for an ownerless vehicle. Resolved here,
+                # inside the notify branch, so a sweep over pending reminders
+                # that sends nothing costs no extra queries.
+                ctx = await render_context_for_vehicle(db, reminder.vin)
                 await dispatcher.dispatch(
                     event_type="reminder_due",
                     title=f"Reminder Due: {reminder.title}",
-                    message=_build_reminder_message(reminder),
+                    message=_build_reminder_message(reminder, ctx),
                 )
                 reminder.last_notified_at = now
                 logger.info(
@@ -450,15 +459,45 @@ async def check_due_reminders(db: AsyncSession) -> None:
     await db.commit()
 
 
-def _build_reminder_message(reminder: Reminder) -> str:
-    """Build notification message for a due reminder."""
+def _build_reminder_message(reminder: Reminder, ctx: RenderContext) -> str:
+    """Build the notification message for a due reminder, rendered in ``ctx``.
+
+    Three kinds of content, three deliberately different treatments:
+
+    - ``due_mileage_km`` is canonical km and renders in ``ctx``'s distance
+      unit, gaining a parenthetical counterpart when ``ctx.show_both``.
+    - ``due_hours`` is dimensionless (R6): ``"hours"`` is not a ``UnitSet``
+      quantity, so it keeps ``format_hours``'s fixed ``hr`` label, the same
+      helper the vehicle PDF renders this field with.
+    - ``notes`` is stored prose, passed through byte-identically (see below).
+
+    ``ctx`` is supplied by the caller rather than resolved here, so this stays
+    pure and synchronous and can be unit-tested against any unit set.
+    """
     parts = [f"Service reminder: {reminder.title}"]
     if reminder.due_date:
         parts.append(f"Due date: {reminder.due_date.isoformat()}")
     if reminder.due_mileage_km:
-        parts.append(f"Due mileage: {reminder.due_mileage_km:,} km")
+        parts.append(f"Due mileage: {format_quantity(reminder.due_mileage_km, ctx, 'distance')}")
     if reminder.due_hours:
-        parts.append(f"Due hours: {reminder.due_hours:,} hr")
+        parts.append(f"Due hours: {format_hours(reminder.due_hours)}")
     if reminder.notes:
+        # Byte-identical passthrough, deliberate and NOT an oversight.
+        #
+        # An auto-generated low-tread reminder (TireService._sync_low_tread_
+        # reminder) stores due_mileage_km=None and puts its tread depth and
+        # projected remaining distance ONLY in this prose, so there is nothing
+        # in such a message for the conversion above to reach. Rewriting the
+        # stored text here instead would persist display units: it would go
+        # stale the moment the reader changed preferences and would never
+        # refresh, because notes are written once at creation and the reminder
+        # is completed only when tread recovers.
+        #
+        # Correct low-tread units are therefore a hard PREREQUISITE on the
+        # tire workstream: migration A gains structured tread and distance
+        # columns on vehicle_reminders (with an explicit legacy-row policy),
+        # after which these values are rendered at read time from those
+        # columns. Recorded in 2026-08-25-tire-mount-periods-design.md under
+        # "Low-tread reminder units".
         parts.append(f"Notes: {reminder.notes}")
     return "\n".join(parts)

@@ -8,12 +8,8 @@ import { useCurrencyPreference } from '@/hooks/useCurrencyPreference'
 import { useUnitPreference } from '@/hooks/useUnitPreference'
 import { useDateLocale } from '@/hooks/useDateLocale'
 import { formatDateForDisplay } from '@/utils/dateUtils'
-import {
-  canonicalToDisplay,
-  supplyUnitLabel,
-  type SupplyUnitType,
-  type UnitSystem,
-} from '@/utils/supplyUnits'
+import { canonicalToDisplay, supplyUnitLabel, type SupplyUnitType } from '@/utils/supplyUnits'
+import type { UnitSystem } from '@/utils/units'
 import type { SupplyUsage } from '@/types/supplies'
 
 interface SuppliesUsedTabProps {
@@ -23,6 +19,7 @@ interface SuppliesUsedTabProps {
 // Quantity is stored canonically (L for volume, count for count); convert to the
 // user's display units and append the unit label (SupplyUsageResponse carries the
 // owning supply's unit_type).
+// units-exempt(binary-conversion): R3 supplies deferral, at the DECLARATION. A local binary helper on the same supplies path. It threads the collapsed `system` down to `canonicalToDisplay` / `supplyUnitLabel`, which carry the same ruling at their own declarations in `utils/supplyUnits.ts`: D8 gave supplies a qt/L vocabulary `UnitSet` cannot express, so there is nothing resolved for this to read instead. Owner: deferred, pending the D8 amendment. Expires with the three legs in supplyUnits.ts, never alone.
 function formatQuantity(
   raw: string,
   unitType: SupplyUnitType,

@@ -8,10 +8,11 @@ import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
 import type { DEFRecord } from '../types/def'
 import DEFRecordForm from './DEFRecordForm'
 import { useUnitPreference } from '../hooks/useUnitPreference'
-import { UnitConverter, UnitFormatter } from '../utils/units'
+import { useUnitFormat } from '../hooks/useUnitFormat'
+import { formatVolumePerDistance, volumePerDistanceLabel } from '../utils/unitFormat'
+import { UnitFormatter } from '../utils/units'
 import { useDEFRecords, useDEFAnalytics, useDeleteDEFRecord } from '../hooks/queries/useDEFRecords'
 import { useQueryClient } from '@tanstack/react-query'
-import { getActiveLocale } from '@/constants/i18n'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
 import { Button, IconButton, Card, Mono, Chip, DataTable, EmptyState } from './ui'
 import type { DataTableColumn } from './ui'
@@ -28,7 +29,8 @@ export default function DEFRecordList({ vin, readOnly = false }: DEFRecordListPr
   const [showForm, setShowForm] = useState(false)
   const [editingRecord, setEditingRecord] = useState<DEFRecord | undefined>()
   const { t } = useTranslation('vehicles')
-  const { system, showBoth } = useUnitPreference()
+  const { showBoth, units } = useUnitPreference()
+  const u = useUnitFormat()
   const { currencyCode, locale } = useCurrencyPreference()
 
   const { data: recordsData, isLoading, error } = useDEFRecords(vin)
@@ -80,7 +82,7 @@ export default function DEFRecordList({ vin, readOnly = false }: DEFRecordListPr
   const formatVolume = (liters?: number | string | null): string => {
     const num = parseNum(liters)
     if (num === null) return '-'
-    return UnitFormatter.formatVolume(num, system, showBoth)
+    return UnitFormatter.formatVolume(num, units, showBoth)
   }
 
   const formatFillLevel = (level?: number | string | null): string => {
@@ -106,10 +108,10 @@ export default function DEFRecordList({ vin, readOnly = false }: DEFRecordListPr
         ? <Chip tone="info">{t('defList.auto')}</Chip>
         : <Chip tone="success">{t('defList.purchase')}</Chip> },
     { id: 'mileage', header: t('defList.mileage'), align: 'right', mono: true,
-      render: (r) => r.odometer_km != null ? UnitFormatter.formatDistance(parseFloat(String(r.odometer_km)), system, showBoth) : '-' },
+      render: (r) => r.odometer_km != null ? u.distance.format(parseFloat(String(r.odometer_km))) : '-' },
     // B7: unit-aware header — formatVolume yields liters in metric, so the old static
     // `defList.gallons` ("Gallons") lied to metric users. `volumeUnit` interpolates the system unit.
-    { id: 'gallons', header: t('defList.volumeUnit', { unit: UnitFormatter.getVolumeUnit(system) }), align: 'right', mono: true, render: (r) => formatVolume(r.liters) },
+    { id: 'gallons', header: t('defList.volumeUnit', { unit: UnitFormatter.getVolumeUnit(units) }), align: 'right', mono: true, render: (r) => formatVolume(r.liters) },
     { id: 'fillLevel', header: t('defList.fillLevel'), align: 'left',
       render: (r) => {
         const fillLevel = parseNum(r.fill_level)
@@ -172,12 +174,10 @@ export default function DEFRecordList({ vin, readOnly = false }: DEFRecordListPr
             <Card padding="sm">
               <div className="flex items-center gap-1 text-xs text-text-mute mb-1">
                 <TrendingDown aria-hidden="true" className="w-3 h-3" />
-                <span>Est. {UnitFormatter.getDistanceUnit(system)} Left</span>
+                <span>Est. {u.distance.label} Left</span>
               </div>
               <Mono size="2xl" weight="bold" tone={remainingTone(parseNum(analytics.estimated_km_remaining) ?? 0)}>
-                {system === 'imperial'
-                  ? Math.round(UnitConverter.kmToMiles(parseNum(analytics.estimated_km_remaining) ?? 0) ?? 0).toLocaleString(getActiveLocale())
-                  : Math.round(parseNum(analytics.estimated_km_remaining) ?? 0).toLocaleString(getActiveLocale())}
+                {u.distance.toDisplayText(parseNum(analytics.estimated_km_remaining) ?? 0)}
               </Mono>
               {analytics.estimated_days_remaining !== null && (
                 <p className="text-xs text-text-mute">{t('defList.estimatedDays', { count: analytics.estimated_days_remaining })}</p>
@@ -191,17 +191,17 @@ export default function DEFRecordList({ vin, readOnly = false }: DEFRecordListPr
                 <Droplets aria-hidden="true" className="w-3 h-3" />
                 <span>{t('defList.consumption')}</span>
               </div>
-              <Mono size="2xl" weight="bold">{UnitFormatter.formatVolumePerDistance(parseNum(analytics.liters_per_1000_km) ?? 0, system)}</Mono>
-              <p className="text-xs text-text-mute">{UnitFormatter.getVolumePerDistanceLabel(system)}</p>
+              <Mono size="2xl" weight="bold">{formatVolumePerDistance(units, parseNum(analytics.liters_per_1000_km) ?? 0)}</Mono>
+              <p className="text-xs text-text-mute">{volumePerDistanceLabel(units)}</p>
             </Card>
           )}
 
           {analytics.avg_cost_per_liter !== null && (
             <Card padding="sm">
               <div className="flex items-center gap-1 text-xs text-text-mute mb-1">
-                <span>{UnitFormatter.getCostPerVolumeLabel(system)}</span>
+                <span>{t('defList.avgCostPerVolume', { unit: UnitFormatter.getVolumeUnit(units) })}</span>
               </div>
-              <Mono size="2xl" weight="bold">{UnitFormatter.formatCostPerVolume(parseNum(analytics.avg_cost_per_liter) ?? 0, system, currencyCode, locale)}</Mono>
+              <Mono size="2xl" weight="bold">{UnitFormatter.formatCostPerVolume(parseNum(analytics.avg_cost_per_liter) ?? 0, units, currencyCode, locale)}</Mono>
             </Card>
           )}
 
@@ -211,7 +211,7 @@ export default function DEFRecordList({ vin, readOnly = false }: DEFRecordListPr
                 <span>{t('defList.totalSpent')}</span>
               </div>
               <Mono size="2xl" weight="bold">{formatCurrency(analytics.total_cost, { currencyCode, locale })}</Mono>
-              <Mono size="sm" tone="muted" className="mt-1 block">{UnitFormatter.formatVolumeTotal(parseNum(analytics.total_liters) ?? 0, system)}</Mono>
+              <Mono size="sm" tone="muted" className="mt-1 block">{t('defList.volumeTotal', { value: UnitFormatter.formatVolumeShort(parseNum(analytics.total_liters) ?? 0, units) })}</Mono>
             </Card>
           )}
 

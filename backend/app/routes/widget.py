@@ -19,6 +19,7 @@ from app.services.widget_auth import (
     widget_key_func,
     widget_limiter,
 )
+from app.utils.unit_resolution import resolve_units
 
 router = APIRouter(prefix="/api/widget", tags=["widget"])
 
@@ -60,9 +61,21 @@ async def get_widget_vehicle(
 ) -> WidgetVehicle:
     """Per-vehicle rollup. Returns 404 (not 403) for out-of-scope VINs to
     avoid confirming their existence."""
+    # D7: resolve the key OWNER's unit set here and pass it in. A widget key is
+    # scoped to its owner's own vehicles, so the owner IS the caller.
+    # `resolve_units` is pure and synchronous, and the aggregation deliberately
+    # does not re-query, so the conversion context can only be the one this
+    # route supplies. `render_context_for_request` is NOT used: that is the
+    # formatting layer, and these response fields are frozen numerics (R4).
+    #
+    # Kept out of the docstring on purpose: FastAPI publishes a route
+    # docstring as the operation's OpenAPI description, which ships to
+    # frontend/src/types/api.generated.ts.
     user, key = user_key
     service = WidgetAggregationService(db)
-    result = await service.vehicle(user.id, vin, allowed_vins=key.allowed_vins)
+    result = await service.vehicle(
+        user.id, vin, allowed_vins=key.allowed_vins, units=resolve_units(user)
+    )
     if result is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
     return result

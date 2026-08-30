@@ -26,10 +26,81 @@
     "label": "System jednostek",
     "imperial": "Imperialny",
     "metric": "Metryczny",
-    "imperialDescription": "Używane jednostki imperialne: galony, mile, MPG, °F, PSI, funty, funto-stopy",
-    "metricDescription": "Używane jednostki metryczne: litry, kilometry, l/100km, °C, bar, kg, Nm",
+    "resolvedDescription": "Używane jednostki: {{units}}",
+    "instanceDefault": "Domyślne jednostki tej instancji",
+    "instanceDefaultDescription": "Używane przez niezalogowanych odwiedzających, przez wszystkich klientów przy wyłączonym logowaniu oraz jako wartość początkowa każdego nowego konta. Nie zmieniają konta, które ma już własne jednostki.",
+    "instanceDefaultSaved": "Zapisano domyślne jednostki instancji",
+    "instanceDefaultError": "Nie udało się zapisać domyślnych jednostek instancji",
     "showBoth": "Pokaż oba systemy",
-    "showBothDescription": "Wyświetlaj wartości w jednostkach imperialnych i metrycznych (np. \"25 MPG (9.4 l/100km)\")"
+    "custom": "Niestandardowe",
+    "customDescription": "Wybierz jednostkę dla każdej wielkości. Zastępują one gotowy zestaw w całej aplikacji.",
+    "presetConfirmTitle": "Przełączyć na system {{preset}}?",
+    "presetConfirmMessage": "Spowoduje to usunięcie jednostek wybranych osobno dla poszczególnych wielkości i zastosowanie gotowego zestawu wszędzie.",
+    "presetConfirmGallon": "System imperialny używa galona amerykańskiego (3,785 L). Twoje ustawienie galona brytyjskiego zostanie zastąpione.",
+    "presetConfirmAction": "Zmień jednostki",
+    "quantities": {
+      "distance": "Dystans",
+      "speed": "Prędkość",
+      "length": "Długość",
+      "volume": "Objętość",
+      "consumption": "Zużycie paliwa",
+      "pressure": "Ciśnienie",
+      "temperature": "Temperatura",
+      "mass": "Masa",
+      "torque": "Moment obrotowy",
+      "tread": "Głębokość bieżnika opon",
+      "secondaryGallon": "Galon używany do MPG"
+    },
+    "options": {
+      "distance": {
+        "km": "Kilometry (km)",
+        "mi": "Mile (mi)"
+      },
+      "speed": {
+        "kmh": "Kilometry na godzinę (km/h)",
+        "mph": "Mile na godzinę (mph)"
+      },
+      "length": {
+        "m": "Metry (m)",
+        "ft": "Stopy (ft)"
+      },
+      "volume": {
+        "L": "Litry (L)",
+        "gal_us": "Galony amerykańskie (gal)",
+        "gal_uk": "Galony brytyjskie (gal)"
+      },
+      "consumption": {
+        "l_100km": "Litry na 100 km (L/100km)",
+        "km_l": "Kilometry na litr (km/L)",
+        "mpg_us": "Mile na galon amerykański (MPG)",
+        "mpg_uk": "Mile na galon brytyjski (MPG)"
+      },
+      "pressure": {
+        "kpa": "Kilopaskale (kPa)",
+        "bar": "Bar (bar)",
+        "psi": "Funty na cal kwadratowy (PSI)"
+      },
+      "temperature": {
+        "c": "Celsjusz (°C)",
+        "f": "Fahrenheit (°F)"
+      },
+      "mass": {
+        "kg": "Kilogramy (kg)",
+        "lb": "Funty (lb)"
+      },
+      "torque": {
+        "nm": "Niutonometry (Nm)",
+        "lbft": "Funtostopy (lb-ft)"
+      },
+      "tread": {
+        "mm": "Milimetry (mm)",
+        "in32": "Trzydzieste drugie części cala (/32 in)"
+      },
+      "secondary_gallon": {
+        "us": "Galon amerykański (3,785 L)",
+        "uk": "Galon brytyjski (4,546 L)"
+      }
+    }
   },
   "language": {
     "label": "Język",

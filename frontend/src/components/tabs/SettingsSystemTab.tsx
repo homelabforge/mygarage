@@ -1,23 +1,19 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Server, CheckCircle, AlertCircle, Info, Shield, Users, AlertTriangle, Key, Wrench, Fuel, Bell, FileText, StickyNote, Camera, Ruler, Clock, Archive, Smartphone, Globe, DollarSign } from 'lucide-react'
+import { Server, CheckCircle, AlertCircle, Info, Shield, Users, AlertTriangle, Key, Wrench, Fuel, Bell, FileText, StickyNote, Camera, Clock, Archive, Smartphone, Globe, DollarSign } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useSettings } from '@/contexts/SettingsContext'
 import type { DashboardResponse } from '@/types/dashboard'
-import type { UnitPreference } from '@/types/units'
 import { asTimeFormat } from '@/hooks/useTimeFormat'
-import { useUnitPreference } from '@/hooks/useUnitPreference'
 import api from '@/services/api'
 import { toast } from 'sonner'
-import {
-  getGallonStandard,
-  setGallonStandard as applyGallonStandard,
-} from '@/utils/gallonStandardStore'
 import { formatCurrency } from '@/utils/formatUtils'
 import { SUPPORTED_LANGUAGES, SUPPORTED_CURRENCIES, languageToLocale } from '@/constants/i18n'
 import OIDCModal from '@/components/modals/OIDCModal'
 import FamilyManagementModal from '@/components/modals/FamilyManagementModal'
 import ArchivedVehiclesList from '@/components/ArchivedVehiclesList'
+import InstanceUnitDefaultsCard from '@/components/settings/InstanceUnitDefaultsCard'
+import UnitPreferencesCard from '@/components/settings/UnitPreferencesCard'
 import { Select, Toggle } from '../ui'
 
 type RawSetting = {
@@ -58,28 +54,6 @@ export default function SettingsSystemTab() {
   const [showFamilyManagement, setShowFamilyManagement] = useState(false)
   const [showOIDCModal, setShowOIDCModal] = useState(false)
 
-  // Unit preference state
-  // Widened to the stored vocabulary, which migration 093 can set to 'custom'.
-  // The two buttons below then show neither as selected, which is the honest
-  // rendering of a per-quantity account: the dedicated editor that replaces
-  // this toggle is phase 4, and nothing here should pretend otherwise.
-  const [unitPreference, setUnitPreference] = useState<UnitPreference>('imperial')
-  const [showBothUnits, setShowBothUnits] = useState(false)
-  const [unitPreferenceSaving, setUnitPreferenceSaving] = useState(false)
-  const [gallonStandard, setGallonStandard] = useState<'us' | 'uk'>('us')
-  const [gallonStandardSaving, setGallonStandardSaving] = useState(false)
-
-  // The binary system this account actually renders in. `unitPreference` can be
-  // 'custom' (migration 093 materialises a UK instance's imperial users that
-  // way), which is neither 'imperial' nor 'metric', so branching on it directly
-  // showed those users the metric description and hid the US/UK gallon panel
-  // entirely — removing the only UI that changes their gallon flavour, on
-  // exactly the instances this feature exists for. `useUnitPreference` already
-  // owns the custom -> binary mapping; the local state still wins for the two
-  // preset values so the copy switches with the optimistic toggle instead of
-  // lagging a refreshUser() round trip.
-  const { system: resolvedSystem } = useUnitPreference()
-  const displaySystem = unitPreference === 'custom' ? resolvedSystem : unitPreference
   const [autoArchiveDays, setAutoArchiveDays] = useState('0')
   const [autoArchiveSaving, setAutoArchiveSaving] = useState(false)
 
@@ -197,10 +171,6 @@ export default function SettingsSystemTab() {
       setFormData(newFormData)
       setLoadedFormData(newFormData)
 
-      const gallon = settingsMap.imperial_gallon_standard === 'uk' ? 'uk' : 'us'
-      setGallonStandard(gallon)
-      localStorage.setItem('imperial_gallon_standard', gallon)
-
       setAutoArchiveDays(settingsMap.auto_archive_inactive_days || '0')
 
       // Check user count to determine if auth has ever been enabled
@@ -223,8 +193,6 @@ export default function SettingsSystemTab() {
   // Load user's preferences
   useEffect(() => {
     if (currentUser) {
-      setUnitPreference(currentUser.unit_preference || 'imperial')
-      setShowBothUnits(currentUser.show_both_units || false)
       setTimeFormat(asTimeFormat(currentUser.time_format))
       setMobileQuickEntry(currentUser.mobile_quick_entry_enabled ?? true)
       setSelectedLanguage(currentUser.language || 'en')
@@ -232,10 +200,6 @@ export default function SettingsSystemTab() {
       setDefaultPaymentMethod(currentUser.default_payment_method ?? '')
       setDefaultTripType(currentUser.default_trip_type ?? '')
     } else {
-      const storedSystem = localStorage.getItem('unit_preference') as 'imperial' | 'metric' | null
-      const storedShowBoth = localStorage.getItem('show_both_units') === 'true'
-      setUnitPreference(storedSystem || 'imperial')
-      setShowBothUnits(storedShowBoth)
       setTimeFormat(asTimeFormat(localStorage.getItem('time_format')))
       setSelectedLanguage(localStorage.getItem('i18nextLng') || 'en')
       setSelectedCurrency(localStorage.getItem('currency_code') || 'USD')
@@ -321,95 +285,6 @@ export default function SettingsSystemTab() {
       setTimeout(() => setMessage(null), 5000)
     }
   }, [formData, loadedFormData])
-
-  // Handle unit preference change
-  const handleUnitPreferenceChange = async (system: 'imperial' | 'metric') => {
-    setUnitPreferenceSaving(true)
-    setUnitPreference(system)
-
-    try {
-      if (isAuthenticated) {
-        // Save to user profile if authenticated
-        await api.put('/auth/me', {
-          unit_preference: system,
-        })
-        await refreshUser()
-      } else {
-        // Save to localStorage if not authenticated
-        localStorage.setItem('unit_preference', system)
-      }
-
-      toast.success(t('preferences.unitSaved'))
-      // Force a re-render to update displays
-      window.dispatchEvent(new Event('storage'))
-    } catch {
-      toast.error(t('preferences.unitError'))
-      // Revert on error
-      if (isAuthenticated) {
-        setUnitPreference(currentUser?.unit_preference || 'imperial')
-      } else {
-        const stored = localStorage.getItem('unit_preference') as 'imperial' | 'metric' | null
-        setUnitPreference(stored || 'imperial')
-      }
-    } finally {
-      setUnitPreferenceSaving(false)
-    }
-  }
-
-  const handleShowBothUnitsChange = async (showBoth: boolean) => {
-    setUnitPreferenceSaving(true)
-    setShowBothUnits(showBoth)
-
-    try {
-      if (isAuthenticated) {
-        // Save to user profile if authenticated
-        await api.put('/auth/me', {
-          show_both_units: showBoth,
-        })
-        await refreshUser()
-      } else {
-        // Save to localStorage if not authenticated
-        localStorage.setItem('show_both_units', showBoth.toString())
-      }
-
-      toast.success(t('preferences.displaySaved'))
-      // Force a re-render to update displays
-      window.dispatchEvent(new Event('storage'))
-    } catch {
-      toast.error(t('preferences.displayError'))
-      // Revert on error
-      if (isAuthenticated) {
-        setShowBothUnits(currentUser?.show_both_units || false)
-      } else {
-        const stored = localStorage.getItem('show_both_units') === 'true'
-        setShowBothUnits(stored)
-      }
-    } finally {
-      setUnitPreferenceSaving(false)
-    }
-  }
-
-  const handleGallonStandardChange = async (standard: 'us' | 'uk') => {
-    // The store owns persistence, the UnitConverter write and the re-render.
-    // This used to setItem directly and fire a `storage` event that nothing
-    // listens for, so nothing already on screen updated.
-    const previous = getGallonStandard()
-    setGallonStandardSaving(true)
-    setGallonStandard(standard)
-    applyGallonStandard(standard)
-    try {
-      await api.post('/settings/batch', {
-        settings: { imperial_gallon_standard: standard },
-      })
-      toast.success(t('units.gallonSaved'))
-    } catch {
-      toast.error(t('units.gallonError'))
-      setGallonStandard(previous)
-      applyGallonStandard(previous)
-    } finally {
-      setGallonStandardSaving(false)
-    }
-  }
 
   const handleAutoArchiveDaysChange = (raw: string) => {
     setAutoArchiveDays(raw.replace(/[^\d]/g, ''))
@@ -680,94 +555,11 @@ export default function SettingsSystemTab() {
           </div>
         </div>
 
-        {/* Unit System Setting */}
-        <div>
-          <label className="block text-sm font-medium text-garage-text mb-3">
-            {t('units.label')}
-          </label>
-          <div className="flex gap-3">
-            <button
-              onClick={() => handleUnitPreferenceChange('imperial')}
-              disabled={unitPreferenceSaving}
-              className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 transition-all ${
-                unitPreference === 'imperial'
-                  ? 'border-primary bg-primary/10 text-primary'
-                  : 'border-garage-border bg-garage-bg text-garage-text hover:border-garage-border'
-              } ${unitPreferenceSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
-            >
-              <Ruler className="w-5 h-5" />
-              <span className="font-medium">{t('units.imperial')}</span>
-            </button>
-            <button
-              onClick={() => handleUnitPreferenceChange('metric')}
-              disabled={unitPreferenceSaving}
-              className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 transition-all ${
-                unitPreference === 'metric'
-                  ? 'border-primary bg-primary/10 text-primary'
-                  : 'border-garage-border bg-garage-bg text-garage-text hover:border-garage-border'
-              } ${unitPreferenceSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
-            >
-              <Ruler className="w-5 h-5" />
-              <span className="font-medium">{t('units.metric')}</span>
-            </button>
-          </div>
-          <p className="mt-2 text-sm text-garage-text-muted">
-            {displaySystem === 'imperial'
-              ? t('units.imperialDescription')
-              : t('units.metricDescription')
-            }
-          </p>
+        {/* Unit System Setting: this client's own units, then the instance
+            default an admin sets for everyone who has not chosen. */}
+        <UnitPreferencesCard />
 
-          {/* Show Both Units Toggle */}
-          <div className="mt-4">
-            <Toggle
-              label={t('units.showBoth')}
-              checked={showBothUnits}
-              onChange={handleShowBothUnitsChange}
-              disabled={unitPreferenceSaving}
-            />
-            <p className="mt-1 text-sm text-garage-text-muted">
-              {t('units.showBothDescription')}
-            </p>
-          </div>
-
-          {displaySystem === 'imperial' && (
-            <div className="mt-4">
-              <label className="block text-sm font-medium text-garage-text mb-2">
-                {t('units.gallonStandard')}
-              </label>
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => handleGallonStandardChange('us')}
-                  disabled={gallonStandardSaving}
-                  className={`flex-1 px-4 py-3 rounded-lg border-2 transition-all ${
-                    gallonStandard === 'us'
-                      ? 'border-primary bg-primary/10 text-primary'
-                      : 'border-garage-border bg-garage-bg text-garage-text hover:border-garage-border'
-                  }`}
-                >
-                  {t('units.gallonUs')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleGallonStandardChange('uk')}
-                  disabled={gallonStandardSaving}
-                  className={`flex-1 px-4 py-3 rounded-lg border-2 transition-all ${
-                    gallonStandard === 'uk'
-                      ? 'border-primary bg-primary/10 text-primary'
-                      : 'border-garage-border bg-garage-bg text-garage-text hover:border-garage-border'
-                  }`}
-                >
-                  {t('units.gallonUk')}
-                </button>
-              </div>
-              <p className="mt-2 text-sm text-garage-text-muted">
-                {t('units.gallonStandardDescription')}
-              </p>
-            </div>
-          )}
-        </div>
+        <InstanceUnitDefaultsCard />
 
         <div>
           <label className="block text-sm font-medium text-garage-text mb-2">

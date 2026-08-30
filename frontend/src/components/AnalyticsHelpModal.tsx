@@ -4,6 +4,7 @@
 
 import { useTranslation } from 'react-i18next'
 import { X, Info } from 'lucide-react'
+import { useUnitFormat } from '../hooks/useUnitFormat'
 
 interface AnalyticsHelpModalProps {
   isOpen: boolean
@@ -12,6 +13,10 @@ interface AnalyticsHelpModalProps {
 
 export default function AnalyticsHelpModal({ isOpen, onClose }: AnalyticsHelpModalProps) {
   const { t } = useTranslation('analytics')
+  // Help copy that names a unit has to name the reader's OWN. These four
+  // sentences said "MPG" and "Cost Per Mile" to everybody, describing a screen
+  // that had already been rendering L/100km beside them.
+  const u = useUnitFormat()
 
   if (!isOpen) return null
 
@@ -49,7 +54,7 @@ export default function AnalyticsHelpModal({ isOpen, onClose }: AnalyticsHelpMod
             <div className="space-y-2 text-garage-text-muted">
               <p><strong className="text-garage-text">{t('vehicleHelp.costAnalysis.totalCostLabel')}</strong> {t('vehicleHelp.costAnalysis.totalCostDesc')}</p>
               <p><strong className="text-garage-text">{t('vehicleHelp.costAnalysis.avgMonthlyLabel')}</strong> {t('vehicleHelp.costAnalysis.avgMonthlyDesc')}</p>
-              <p><strong className="text-garage-text">{t('vehicleHelp.costAnalysis.costPerMileLabel')}</strong> {t('vehicleHelp.costAnalysis.costPerMileDesc')}</p>
+              <p><strong className="text-garage-text">{t('vehicleHelp.costAnalysis.costPerDistanceLabel')}</strong> {t('vehicleHelp.costAnalysis.costPerDistanceDesc')}</p>
               <p><strong className="text-garage-text">{t('vehicleHelp.costAnalysis.serviceBreakdownLabel')}</strong> {t('vehicleHelp.costAnalysis.serviceBreakdownDesc')}</p>
             </div>
           </section>
@@ -97,10 +102,10 @@ export default function AnalyticsHelpModal({ isOpen, onClose }: AnalyticsHelpMod
             <h3 className="text-xl font-semibold text-garage-text mb-3">{t('vehicleHelp.fuelEconomy.title')}</h3>
             <div className="space-y-2 text-garage-text-muted">
               <p>
-                <strong className="text-garage-text">{t('vehicleHelp.fuelEconomy.mpgCalcLabel')}</strong> {t('vehicleHelp.fuelEconomy.mpgCalcDesc')}
+                <strong className="text-garage-text">{t('vehicleHelp.fuelEconomy.economyCalcLabel', { unit: u.consumption.label })}</strong> {t('vehicleHelp.fuelEconomy.economyCalcDesc')}
               </p>
-              <p><strong className="text-garage-text">{t('vehicleHelp.fuelEconomy.averageMpgLabel')}</strong> {t('vehicleHelp.fuelEconomy.averageMpgDesc')}</p>
-              <p><strong className="text-garage-text">{t('vehicleHelp.fuelEconomy.recentMpgLabel')}</strong> {t('vehicleHelp.fuelEconomy.recentMpgDesc')}</p>
+              <p><strong className="text-garage-text">{t('vehicleHelp.fuelEconomy.averageEconomyLabel', { unit: u.consumption.label })}</strong> {t('vehicleHelp.fuelEconomy.averageEconomyDesc')}</p>
+              <p><strong className="text-garage-text">{t('vehicleHelp.fuelEconomy.recentEconomyLabel', { unit: u.consumption.label })}</strong> {t('vehicleHelp.fuelEconomy.recentEconomyDesc')}</p>
               <p className="mt-2">
                 {t('vehicleHelp.fuelEconomy.note')}
               </p>
@@ -169,8 +174,8 @@ export default function AnalyticsHelpModal({ isOpen, onClose }: AnalyticsHelpMod
             <h3 className="text-xl font-semibold text-blue-900 mb-3">{t('vehicleHelp.tips.title')}</h3>
             <ul className="list-disc list-inside space-y-1 text-blue-800">
               <li>{t('vehicleHelp.tips.enterAllRecords')}</li>
-              <li>{t('vehicleHelp.tips.includeMileage')}</li>
-              <li>{t('vehicleHelp.tips.markFullTank')}</li>
+              <li>{t('vehicleHelp.tips.includeOdometer')}</li>
+              <li>{t('vehicleHelp.tips.markFullTank', { unit: u.consumption.label })}</li>
               <li>{t('vehicleHelp.tips.addVendorNames')}</li>
               <li>{t('vehicleHelp.tips.trackMonths')}</li>
               <li>{t('vehicleHelp.tips.reviewAnomalies')}</li>

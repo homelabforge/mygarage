@@ -46,6 +46,21 @@ export const IMPERIAL_UNITS: UnitSet = {
 }
 
 /**
+ * The UK-imperial preset, as `resolve_units` returns it.
+ *
+ * Mirrors `app/utils/default_unit_prefs.py`'s `UK_IMPERIAL_PRESET`: the
+ * imperial preset with volume, consumption and secondary_gallon replaced. It is
+ * the set that separates a per-user gallon from the instance-wide one, so
+ * anything asserting defect L1 is fixed uses it.
+ */
+export const UK_IMPERIAL_UNITS: UnitSet = {
+  ...IMPERIAL_UNITS,
+  volume: 'gal_uk',
+  consumption: 'mpg_uk',
+  secondary_gallon: 'uk',
+}
+
+/**
  * Build a resolved unit set, metric unless overridden.
  *
  * @param overrides Fields to replace on the metric preset.

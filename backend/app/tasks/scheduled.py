@@ -10,6 +10,7 @@ import asyncio
 import logging
 import os
 from datetime import date, timedelta
+from decimal import Decimal
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sqlalchemy import select
@@ -38,6 +39,7 @@ from app.tasks.livelink_tasks import (
     prune_old_telemetry,
 )
 from app.utils.datetime_utils import utc_now
+from app.utils.render_context import render_context_for_vehicle
 
 logger = logging.getLogger(__name__)
 
@@ -227,9 +229,15 @@ async def check_odometer_milestones() -> None:
                         vehicle_name = (
                             vehicle.nickname or f"{vehicle.year} {vehicle.make} {vehicle.model}"
                         )
+                        # A scheduled job has no caller, so it renders in the
+                        # VEHICLE OWNER's units -- the opposite of a request,
+                        # which renders in the caller's. An ownerless vehicle
+                        # falls back to the instance default.
+                        ctx = await render_context_for_vehicle(db, vehicle.vin)
                         await dispatcher.notify_odometer_milestone(
                             vehicle_name=vehicle_name,
-                            milestone=current_milestone,
+                            canonical_km=Decimal(current_milestone),
+                            ctx=ctx,
                         )
                         vehicle.last_milestone_notified_km = current_milestone
                         logger.info(
@@ -324,12 +332,18 @@ async def check_def_levels() -> None:
                                 vehicle.nickname or f"{vehicle.year} {vehicle.make} {vehicle.model}"
                             )
                             remaining_liters = fill_level * vehicle.def_tank_capacity_liters
+                            # Owner's units again (see check_odometer_milestones):
+                            # the forced litres/gallons pair takes its gallon
+                            # flavour from this context, not from an
+                            # instance-wide setting.
+                            ctx = await render_context_for_vehicle(db, vehicle.vin)
                             dispatch_results = await dispatcher.notify_def_low(
                                 vehicle_name=vehicle_name,
                                 vin=vehicle.vin,
                                 percent=percent,
                                 remaining_liters=remaining_liters,
                                 as_of_date=record_date,
+                                ctx=ctx,
                             )
                             # Stamp only on at least one successful dispatch
                             # (mirrors TelemetryService.check_thresholds's

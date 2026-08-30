@@ -1,5 +1,13 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
+
+// The card reads `useUnitFormat()` for the service-reminder lead-distance
+// suffix, and that reaches `useAuth()`, which throws without a provider. An
+// anonymous client is the shape these tests have always assumed.
+vi.mock('../../../contexts/AuthContext', () => ({
+  useAuth: () => ({ user: null, isAuthenticated: false, defaultUnitPrefs: null }),
+}))
+
 import { EventNotificationsCard } from '../EventNotificationsCard'
 
 describe('EventNotificationsCard — DEF-low event (Task 17)', () => {

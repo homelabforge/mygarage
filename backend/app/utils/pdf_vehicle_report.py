@@ -24,7 +24,7 @@ from reportlab.platypus import (
     TableStyle,
 )
 
-from app.utils.currency import get_currency_symbol
+from app.utils.hours_formatting import format_hours
 from app.utils.pdf_charts import (
     render_donut_chart,
     render_monthly_spending_chart,
@@ -56,6 +56,9 @@ from app.utils.pdf_styles import (
     get_styles,
     register_fonts,
 )
+from app.utils.render_context import RenderContext
+from app.utils.unit_derived import format_cost_per_distance, format_fuel_rate
+from app.utils.unit_formatting import format_quantity, format_rate
 
 logger = logging.getLogger(__name__)
 
@@ -152,6 +155,7 @@ def _build_usage_efficiency_cards(
     analytics_data: dict[str, Any],
     currency_code: str,
     locale: str,
+    render_context: RenderContext,
 ) -> list[dict[str, Any]]:
     """Build KPI cards for the "Usage & Efficiency" section.
 
@@ -161,19 +165,27 @@ def _build_usage_efficiency_cards(
     vehicle therefore never shows a distance/MPG placeholder, a
     pure-distance vehicle gets no cards here at all (the caller skips the
     whole section in that case — see ``generate_vehicle_analytics_pdf``),
-    and a dual-track vehicle gets both. No unit conversion — hours are
-    dimensionless and this report is metric-canonical throughout.
+    and a dual-track vehicle gets both.
+
+    Distance, consumption and fuel-rate cards render in ``render_context``'s
+    units; the engine-hours card does not, because hours are dimensionless
+    (R6, see ``format_hours``). Storage stays metric-canonical either way:
+    conversion happens here, at the render boundary, and nowhere else.
     """
     cards: list[dict[str, Any]] = []
 
     total_km_driven = _safe_decimal(analytics_data.get("total_km_driven"))
     if total_km_driven is not None:
         average_km_per_month = _safe_decimal(analytics_data.get("average_km_per_month"))
-        sub = f"Avg {average_km_per_month:,.0f} km/mo" if average_km_per_month is not None else ""
+        sub = (
+            f"Avg {format_rate(average_km_per_month, render_context, 'distance', '/mo')}"
+            if average_km_per_month is not None
+            else ""
+        )
         cards.append(
             {
                 "label": "Distance Driven",
-                "value": f"{total_km_driven:,.0f} km",
+                "value": format_quantity(total_km_driven, render_context, "distance"),
                 "sub": sub,
                 "color": "blue",
             }
@@ -184,7 +196,7 @@ def _build_usage_efficiency_cards(
         cards.append(
             {
                 "label": "Fuel Economy",
-                "value": f"{avg_l_100km:,.1f} L/100km" if avg_l_100km is not None else "N/A",
+                "value": format_quantity(avg_l_100km, render_context, "consumption"),
                 "sub": "",
                 "color": "green",
             }
@@ -196,7 +208,7 @@ def _build_usage_efficiency_cards(
         cards.append(
             {
                 "label": "Engine Hours",
-                "value": f"{latest_hours:,.1f} hr" if latest_hours is not None else "N/A",
+                "value": format_hours(latest_hours),
                 "sub": f"As of {_format_date(latest_date)}" if latest_date is not None else "",
                 "color": "amber",
             }
@@ -213,7 +225,7 @@ def _build_usage_efficiency_cards(
         cards.append(
             {
                 "label": "Hours Economy",
-                "value": f"{avg_l_hr:,.2f} L/hr" if avg_l_hr is not None else "N/A",
+                "value": format_fuel_rate(avg_l_hr, render_context),
                 "sub": cost_sub,
                 "color": "red",
             }
@@ -252,9 +264,7 @@ def _build_hours_history_table(
         rows.append(
             [
                 Paragraph(_format_date(_parse_date(point.get("date"))), cell_style),
-                Paragraph(
-                    f"{engine_hours:,.1f} hr" if engine_hours is not None else "N/A", amt_style
-                ),
+                Paragraph(format_hours(engine_hours), amt_style),
                 Paragraph(str(source), cell_style),
             ]
         )
@@ -267,13 +277,15 @@ def _build_hours_history_table(
     )
 
 
-def _reminder_due_text(reminder: dict[str, Any]) -> str:
+def _reminder_due_text(reminder: dict[str, Any], render_context: RenderContext) -> str:
     """Render a reminder's target as readable text.
 
     ``due_hours`` takes priority over ``due_mileage_km`` when both happen to
     be set on one reminder (not expected in practice, but keeps an
     hours-targeted reminder from ever silently falling back to a mileage
-    figure). No unit conversion — hours are dimensionless.
+    figure). ``due_hours`` is dimensionless (R6) and stays in ``hr``;
+    ``due_mileage_km`` is canonical km and renders in ``render_context``'s
+    distance unit.
     """
     parts: list[str] = []
     due_date = _parse_date(reminder.get("due_date"))
@@ -283,9 +295,9 @@ def _reminder_due_text(reminder: dict[str, Any]) -> str:
     due_hours = _safe_decimal(reminder.get("due_hours"))
     due_mileage_km = _safe_decimal(reminder.get("due_mileage_km"))
     if due_hours is not None:
-        parts.append(f"{due_hours:,.1f} hr")
+        parts.append(format_hours(due_hours))
     elif due_mileage_km is not None:
-        parts.append(f"{due_mileage_km:,.0f} km")
+        parts.append(format_quantity(due_mileage_km, render_context, "distance"))
 
     return " · ".join(parts) if parts else "N/A"
 
@@ -293,6 +305,7 @@ def _reminder_due_text(reminder: dict[str, Any]) -> str:
 def _build_reminders_table(
     reminders_data: list[dict[str, Any]],
     styles: dict[str, Any],
+    render_context: RenderContext,
 ) -> Table:
     """Build the upcoming-reminders table. A reminder with ``due_hours`` set
     renders its target in hours (see ``_reminder_due_text``), never blank
@@ -306,7 +319,7 @@ def _build_reminders_table(
             [
                 Paragraph(str(reminder.get("title", "")), cell_style),
                 Paragraph(str(reminder.get("reminder_type", "")).title(), cell_style),
-                Paragraph(_reminder_due_text(reminder), cell_style),
+                Paragraph(_reminder_due_text(reminder, render_context), cell_style),
             ]
         )
 
@@ -335,6 +348,8 @@ def generate_vehicle_analytics_pdf(
     currency_code: str = "USD",
     locale: str = "en-US",
     reminders_data: list[dict[str, Any]] | None = None,
+    *,
+    render_context: RenderContext,
 ) -> BytesIO:
     """Generate a branded vehicle analytics PDF report.
 
@@ -356,6 +371,11 @@ def generate_vehicle_analytics_pdf(
             its target in hours, never blank or a mileage figure. Follows
             the same optional-section pattern as ``vendor_data``/
             ``seasonal_data`` — omitted entirely when None.
+        render_context: Whose units this report renders in. Keyword-only and
+            required, with no default: every distance, consumption and
+            fuel-rate figure below depends on it, and a defaulted context
+            would let a new call site silently render one instance-wide unit
+            for every reader. Hours are exempt (R6, ``format_hours``).
 
     Returns:
         BytesIO containing the PDF document.
@@ -419,7 +439,7 @@ def generate_vehicle_analytics_pdf(
 
     # ── 2. KPI Cards ──────────────────────────────────────────
     total_cost = _safe_float(cost.get("total_cost", 0))
-    cost_per_km = _safe_float(cost.get("cost_per_km"))
+    cost_per_km = _safe_decimal(cost.get("cost_per_km"))
     avg_monthly = _safe_float(cost.get("average_monthly_cost", 0))
     projected_12m = _safe_float(projection.get("twelve_month_projection", 0))
     service_count = _safe_int(cost.get("service_count", 0))
@@ -435,9 +455,13 @@ def generate_vehicle_analytics_pdf(
             "color": "blue",
         },
         {
-            "label": "Cost Per km",
+            # Not "Cost Per km": the value string names its own denominator
+            # (D4c pairs a km reader with "/100 km" and a mile reader with
+            # "/1,000 mi"), so a label hardcoding one unit would contradict
+            # the number underneath it for every imperial reader.
+            "label": "Cost Per Distance",
             "value": (
-                f"{get_currency_symbol(currency_code, locale)}{cost_per_km:.2f}"
+                format_cost_per_distance(cost_per_km, render_context, currency_code, locale)
                 if cost_per_km
                 else "N/A"
             ),
@@ -469,7 +493,9 @@ def generate_vehicle_analytics_pdf(
     # Distance cards only appear when total_km_driven is present; hours
     # cards only when hours_accumulated is non-empty. A pure-distance
     # vehicle (neither) skips this whole block — report unchanged.
-    usage_cards = _build_usage_efficiency_cards(analytics_data, currency_code, locale)
+    usage_cards = _build_usage_efficiency_cards(
+        analytics_data, currency_code, locale, render_context
+    )
     if usage_cards:
         story.append(make_section_header("Usage & Efficiency"))
         story.append(Spacer(1, 10))
@@ -509,7 +535,7 @@ def generate_vehicle_analytics_pdf(
         story.append(Spacer(1, 10))
         # style_as_card, not wrap_in_card — reminders_data is caller-sized
         # and unbounded; keep the table splittable across pages.
-        story.append(style_as_card(_build_reminders_table(reminders_data, styles)))
+        story.append(style_as_card(_build_reminders_table(reminders_data, styles, render_context)))
         story.append(Spacer(1, SECTION_SPACING))
 
     # ── 3. Monthly Spending Chart ─────────────────────────────

@@ -6,6 +6,9 @@
  * script checks each language AGAINST English, so English is its reference:
  *
  *  1. Every literal `t('...')` in src/ must resolve in en/<namespace>.json.
+ *     A key held in a module-level constant is resolved through that constant
+ *     (`t(UNKNOWN_UNIT_KEY)`); the literal-only scan used to miss those
+ *     entirely, so deleting the English string left this gate green.
  *     A key missing from English is invisible to a language-vs-English diff,
  *     and the vitest mock is `t: (key) => key`, so component tests can't see it
  *     either. `t('installPrompt.title')` shipped through both blind spots and
@@ -64,6 +67,33 @@ function walk(dir: string): string[] {
     } else if (/\.(ts|tsx)$/.test(entry) && !/\.test\.tsx?$/.test(entry)) {
       out.push(full)
     }
+  }
+  return out
+}
+
+/**
+ * Module-level `const NAME = 'literal'` bindings, so `t(NAME)` can be resolved.
+ *
+ * Check 1 used to extract only a literal inside `t(...)`, which made a key held
+ * in a constant invisible: `utils/telemetryUnits.ts` spells its key once as
+ * `UNKNOWN_UNIT_KEY` and passes the const at both call sites, so deleting the
+ * English string left this gate GREEN while the marker it names is the whole
+ * user-visible half of a deliverable. That is the same failure mode
+ * `installPrompt.title` produced, reintroduced through indirection rather than
+ * through a bare key, and namespace-qualifying the key does not close it.
+ *
+ * Anchored at column 0 (`^`, with an optional `export`), so ONLY module-level
+ * constants are collected. That restriction is what makes a regex sound here:
+ * this script has no scope model, and an indented `const key = '...'` inside a
+ * function could shadow a module name or hold something that is not a key at
+ * all. A function-scoped indirection stays invisible, exactly as before.
+ */
+function stringConstsFor(text: string): Map<string, string> {
+  const out = new Map<string, string>()
+  for (const m of text.matchAll(
+    /^(?:export\s+)?const\s+([A-Za-z_$][\w$]*)\s*(?::[^=\n]+)?=\s*'([^'\\\n]*)'/gm
+  )) {
+    out.set(m[1], m[2])
   }
   return out
 }
@@ -131,6 +161,7 @@ function record(
 for (const file of walk(SRC)) {
   const text = readFileSync(file, 'utf-8')
   const bound = namespacesFor(text)
+  const consts = stringConstsFor(text)
 
   // Literal t('key') / t('key', { ... }) only. Template literals are dynamic and
   // every one in the codebase carries a defaultValue, so they can't render raw.
@@ -142,9 +173,8 @@ for (const file of walk(SRC)) {
   // gate. A namespace-qualified key carries its own scope and needs no binding;
   // only a BARE key in a bound-less file is genuinely unresolvable, and that is
   // reported rather than skipped.
-  for (const m of text.matchAll(/\bt\(\s*'([^']+)'\s*(,\s*\{[^}]*\})?\s*\)/g)) {
-    const [, rawKey, opts = ''] = m
-    if (opts.includes('defaultValue')) continue
+  const scanCall = (rawKey: string, opts: string, index: number): void => {
+    if (opts.includes('defaultValue')) return
 
     // i18next takes the namespace two ways: the 'ns:key' prefix, and an
     // { ns: 'forms' } option. Only honouring the prefix made every
@@ -156,15 +186,31 @@ for (const file of walk(SRC)) {
     if (scope.length === 0 && !rawKey.includes(':')) {
       violations.push({
         file: relative(ROOT, file),
-        line: text.slice(0, m.index ?? 0).split('\n').length,
+        line: text.slice(0, index).split('\n').length,
         key: rawKey,
         searched: ['<no useTranslation in this file — qualify the key as "ns:key">'],
         via: 'call',
       })
-      continue
+      return
     }
 
-    record(file, text, m.index ?? 0, rawKey, scope, 'call')
+    record(file, text, index, rawKey, scope, 'call')
+  }
+
+  for (const m of text.matchAll(/\bt\(\s*'([^']+)'\s*(,\s*\{[^}]*\})?\s*\)/g)) {
+    scanCall(m[1], m[2] ?? '', m.index ?? 0)
+  }
+
+  // The same call, with the key held in a module-level constant. Resolved
+  // through `stringConstsFor` and then treated exactly as a literal would be,
+  // so a const-held key gets the namespace rules, the defaultValue skip and the
+  // bound-less report identically. An identifier this file does not declare at
+  // module level (a parameter, a local, a field lookup) is not in the map and is
+  // skipped, which is what the scan did with all of them before.
+  for (const m of text.matchAll(/\bt\(\s*([A-Za-z_$][\w$]*)\s*(,\s*\{[^}]*\})?\s*\)/g)) {
+    const resolved = consts.get(m[1])
+    if (resolved === undefined) continue
+    scanCall(resolved, m[2] ?? '', m.index ?? 0)
   }
 
   // `labelKey` / `descriptionKey` fields on option-list constants (resolved at

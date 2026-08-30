@@ -8,8 +8,17 @@ import { useParams, Link } from 'react-router-dom'
 import api from '../services/api'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
 import { useUnitPreference } from '../hooks/useUnitPreference'
+import { useUnitFormat } from '../hooks/useUnitFormat'
+import {
+  costPerDistanceUnitLabel,
+  formatCostPerDistance,
+  formatFuelRate,
+  formatVolumePerDistance,
+  fuelRateLabel,
+  volumePerDistanceLabel,
+} from '../utils/unitFormat'
 import { NON_MOTORIZED_TYPES } from '../schemas/vehicle'
-import { UnitConverter, UnitFormatter } from '../utils/units'
+import { UnitFormatter } from '../utils/units'
 import { withBase } from '../utils/basePath'
 import {
   ArrowLeft,
@@ -91,7 +100,12 @@ const DEFAULT_ANOMALY_RANGE: AnomalyRange = '12m'
 export default function Analytics() {
   const { t } = useTranslation('analytics')
   const { vin } = useParams<{ vin: string }>()
-  const { system, showBoth } = useUnitPreference()
+  // ★ No `system` here any more. The last two consumers were
+  // `UnitFormatter.getCostPerDistanceLabel(system)` and its formatter, which
+  // decided a DISTANCE on a binary collapsed from VOLUME; both now read
+  // `units.distance` through `utils/unitFormat.ts`.
+  const { showBoth, units } = useUnitPreference()
+  const u = useUnitFormat()
   const { currencyCode, locale } = useCurrencyPreference()
   const currencySymbol = useCurrencySymbol()
   const dateLocale = useDateLocale()
@@ -254,7 +268,10 @@ export default function Analytics() {
     rows.push(['Service Count', cost_analysis.service_count.toString()])
     rows.push(['Fuel Count', cost_analysis.fuel_count.toString()])
     if (cost_analysis.cost_per_km) {
-      rows.push([UnitFormatter.getCostPerDistanceLabel(system), UnitFormatter.formatCostPerDistance(parseFloat(String(cost_analysis.cost_per_km)), system, currencyCode, locale)])
+      rows.push([
+        t('vehicle.costPerDistance', { unit: costPerDistanceUnitLabel(units) }),
+        formatCostPerDistance(units, parseFloat(String(cost_analysis.cost_per_km)), currencyCode, locale),
+      ])
     }
     rows.push([]) // Empty row
 
@@ -543,8 +560,8 @@ export default function Analytics() {
                   {(alert.recent_l_per_100km || alert.baseline_l_per_100km) && (
                     <p className="text-xs mt-2">
                       {t('vehicle.recentBaseline', {
-                        recent: alert.recent_l_per_100km ? UnitFormatter.formatFuelEconomy(parseFloat(alert.recent_l_per_100km), system, showBoth) : '—',
-                        baseline: alert.baseline_l_per_100km ? UnitFormatter.formatFuelEconomy(parseFloat(alert.baseline_l_per_100km), system, showBoth) : '—',
+                        recent: alert.recent_l_per_100km ? u.consumption.format(parseFloat(alert.recent_l_per_100km)) : '—',
+                        baseline: alert.baseline_l_per_100km ? u.consumption.format(parseFloat(alert.baseline_l_per_100km)) : '—',
                       })}
                     </p>
                   )}
@@ -688,7 +705,7 @@ export default function Analytics() {
               <Fuel className="w-5 h-5 text-garage-text-muted" />
             </div>
             <p className="text-2xl font-bold text-garage-text">
-              {fuel_economy.average_l_per_100km ? UnitFormatter.formatFuelEconomy(parseFloat(fuel_economy.average_l_per_100km), system, showBoth) : t('vehicle.notAvailable')}
+              {fuel_economy.average_l_per_100km ? u.consumption.format(parseFloat(fuel_economy.average_l_per_100km)) : t('vehicle.notAvailable')}
             </p>
             <div className="flex items-center gap-2 mt-1">
               {getTrendIcon(fuel_economy.trend)}
@@ -700,15 +717,15 @@ export default function Analytics() {
         {isMotorized && (
           <div className="bg-garage-surface border border-garage-border rounded-lg p-6">
             <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-garage-text-muted">{UnitFormatter.getCostPerDistanceLabel(system)}</h3>
+              <h3 className="text-sm font-medium text-garage-text-muted">{t('vehicle.costPerDistance', { unit: costPerDistanceUnitLabel(units) })}</h3>
               <LineChart className="w-5 h-5 text-garage-text-muted" />
             </div>
             <p className="text-2xl font-bold text-garage-text">
-              {cost_analysis.cost_per_km ? UnitFormatter.formatCostPerDistance(parseFloat(String(cost_analysis.cost_per_km)), system, currencyCode, locale) : t('vehicle.notAvailable')}
+              {cost_analysis.cost_per_km ? formatCostPerDistance(units, parseFloat(String(cost_analysis.cost_per_km)), currencyCode, locale) : t('vehicle.notAvailable')}
             </p>
             {analytics.total_km_driven && (
               <p className="text-xs text-garage-text-muted mt-1">
-                {t('vehicle.distanceDriven', { distance: UnitFormatter.formatDistance(parseFloat(String(analytics.total_km_driven)), system, showBoth) })}
+                {t('vehicle.distanceDriven', { distance: u.distance.format(parseFloat(String(analytics.total_km_driven))) })}
               </p>
             )}
           </div>
@@ -962,7 +979,7 @@ export default function Analytics() {
                         <span className="text-garage-text-muted">{formatDate(prediction.predicted_date)}</span>
                       )}
                       {prediction.predicted_odometer_km && (
-                        <span className="text-garage-text-muted">@ {UnitFormatter.formatDistance(parseFloat(String(prediction.predicted_odometer_km)), system, false)}</span>
+                        <span className="text-garage-text-muted">@ {u.distance.formatPrimary(parseFloat(String(prediction.predicted_odometer_km)))}</span>
                       )}
                     </div>
                     {/* Scheduled Maintenance if exists */}
@@ -973,7 +990,7 @@ export default function Analytics() {
                           <span className="text-garage-text-muted">{formatDate(prediction.schedule_item_next_date)}</span>
                         )}
                         {prediction.schedule_item_next_odometer_km && (
-                          <span className="text-garage-text-muted">@ {UnitFormatter.formatDistance(parseFloat(String(prediction.schedule_item_next_odometer_km)), system, false)}</span>
+                          <span className="text-garage-text-muted">@ {u.distance.formatPrimary(parseFloat(String(prediction.schedule_item_next_odometer_km)))}</span>
                         )}
                       </div>
                     )}
@@ -993,7 +1010,7 @@ export default function Analytics() {
                   )}
                   {prediction.km_until_due != null && (
                     <p className="text-xs text-garage-text-muted mt-1">
-                      {parseFloat(prediction.km_until_due) < 0 ? t('vehicle.pastMileage') : UnitFormatter.formatDistance(parseFloat(prediction.km_until_due), system, false)}
+                      {parseFloat(prediction.km_until_due) < 0 ? t('vehicle.pastMileage') : u.distance.formatPrimary(parseFloat(prediction.km_until_due))}
                     </p>
                   )}
                 </div>
@@ -1192,19 +1209,19 @@ export default function Analytics() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
             <div className="text-center p-4 bg-garage-bg rounded-lg">
               <p className="text-sm text-garage-text-muted mb-1">{t('vehicle.average')}</p>
-              <p className="text-2xl font-bold text-garage-text">{fuel_economy.average_l_per_100km ? UnitFormatter.formatFuelEconomy(parseFloat(fuel_economy.average_l_per_100km), system, showBoth) : t('vehicle.notAvailable')}</p>
+              <p className="text-2xl font-bold text-garage-text">{fuel_economy.average_l_per_100km ? u.consumption.format(parseFloat(fuel_economy.average_l_per_100km)) : t('vehicle.notAvailable')}</p>
             </div>
             <div className="text-center p-4 bg-garage-bg rounded-lg">
               <p className="text-sm text-garage-text-muted mb-1">{t('vehicle.best')}</p>
-              <p className="text-2xl font-bold text-green-500">{fuel_economy.best_l_per_100km ? UnitFormatter.formatFuelEconomy(parseFloat(fuel_economy.best_l_per_100km), system, showBoth) : t('vehicle.notAvailable')}</p>
+              <p className="text-2xl font-bold text-green-500">{fuel_economy.best_l_per_100km ? u.consumption.format(parseFloat(fuel_economy.best_l_per_100km)) : t('vehicle.notAvailable')}</p>
             </div>
             <div className="text-center p-4 bg-garage-bg rounded-lg">
               <p className="text-sm text-garage-text-muted mb-1">{t('vehicle.worst')}</p>
-              <p className="text-2xl font-bold text-red-500">{fuel_economy.worst_l_per_100km ? UnitFormatter.formatFuelEconomy(parseFloat(fuel_economy.worst_l_per_100km), system, showBoth) : t('vehicle.notAvailable')}</p>
+              <p className="text-2xl font-bold text-red-500">{fuel_economy.worst_l_per_100km ? u.consumption.format(parseFloat(fuel_economy.worst_l_per_100km)) : t('vehicle.notAvailable')}</p>
             </div>
             <div className="text-center p-4 bg-garage-bg rounded-lg">
               <p className="text-sm text-garage-text-muted mb-1">{t('vehicle.latestFillUp')}</p>
-              <p className="text-2xl font-bold text-primary">{fuel_economy.recent_l_per_100km ? UnitFormatter.formatFuelEconomy(parseFloat(fuel_economy.recent_l_per_100km), system, showBoth) : t('vehicle.notAvailable')}</p>
+              <p className="text-2xl font-bold text-primary">{fuel_economy.recent_l_per_100km ? u.consumption.format(parseFloat(fuel_economy.recent_l_per_100km)) : t('vehicle.notAvailable')}</p>
             </div>
           </div>
 
@@ -1220,7 +1237,7 @@ export default function Analytics() {
                     date: formatDateForDisplay(point.date, { month: 'short', day: 'numeric' }, dateLocale),
                     lPer100km: rawLPer100km,
                     displayFuelEconomy: !isNaN(rawLPer100km) && rawLPer100km > 0
-                      ? (system === 'metric' ? rawLPer100km : UnitConverter.l100kmToMpg(rawLPer100km))
+                      ? u.consumption.toDisplay(rawLPer100km)
                       : null,
                     odometer_km: isNaN(km) ? null : km,
                   };
@@ -1236,7 +1253,7 @@ export default function Analytics() {
                 <YAxis
                   stroke="#9E9E9E"
                   style={{ fontSize: '12px' }}
-                  label={{ value: UnitFormatter.getFuelEconomyUnit(system), angle: -90, position: 'insideLeft', fill: '#9E9E9E' }}
+                  label={{ value: u.consumption.label, angle: -90, position: 'insideLeft', fill: '#9E9E9E' }}
                 />
                 <Tooltip
                   cursor={false}
@@ -1247,11 +1264,11 @@ export default function Analytics() {
                         <div style={{ backgroundColor: '#1a1f28', border: '1px solid #3a4050', borderRadius: '8px', padding: '12px', color: '#e4e6eb' }}>
                           <p style={{ fontWeight: '600', marginBottom: '8px' }}>{label}</p>
                           <p style={{ fontSize: '14px', color: '#9ca3af' }}>
-                            {UnitFormatter.formatFuelEconomy(payload[0].payload.lPer100km as number, system, showBoth)}
+                            {u.consumption.format(payload[0].payload.lPer100km as number)}
                           </p>
                           {payload[0].payload.odometer_km != null && (
                             <p style={{ fontSize: '12px', color: '#9ca3af', marginTop: '4px' }}>
-                              {UnitFormatter.formatDistance(payload[0].payload.odometer_km as number, system, false)}
+                              {u.distance.formatPrimary(payload[0].payload.odometer_km as number)}
                             </p>
                           )}
                         </div>
@@ -1270,7 +1287,7 @@ export default function Analytics() {
                   strokeWidth={2}
                   dot={{ fill: '#3B82F6', r: 4 }}
                   activeDot={{ r: 6 }}
-                  name={t('vehicle.fuelEconomyUnitLabel', { unit: UnitFormatter.getFuelEconomyUnit(system) })}
+                  name={t('vehicle.fuelEconomyUnitLabel', { unit: u.consumption.label })}
                   connectNulls
                 />
               </RechartsLineChart>
@@ -1283,8 +1300,8 @@ export default function Analytics() {
                 <tr className="border-b border-garage-border">
                   <th className="text-left py-2 px-4 text-sm font-medium text-garage-text-muted">{t('vehicle.table.date')}</th>
                   <th className="text-right py-2 px-4 text-sm font-medium text-garage-text-muted">{t('vehicle.table.fuelEconomy')}</th>
-                  <th className="text-right py-2 px-4 text-sm font-medium text-garage-text-muted">{t('vehicle.table.mileage', { unit: UnitFormatter.getDistanceUnit(system) })}</th>
-                  <th className="text-right py-2 px-4 text-sm font-medium text-garage-text-muted">{t('vehicle.table.volume', { unit: UnitFormatter.getVolumeUnit(system) })}</th>
+                  <th className="text-right py-2 px-4 text-sm font-medium text-garage-text-muted">{t('vehicle.table.mileage', { unit: u.distance.label })}</th>
+                  <th className="text-right py-2 px-4 text-sm font-medium text-garage-text-muted">{t('vehicle.table.volume', { unit: UnitFormatter.getVolumeUnit(units) })}</th>
                   <th className="text-right py-2 px-4 text-sm font-medium text-garage-text-muted">{t('vehicle.table.cost')}</th>
                 </tr>
               </thead>
@@ -1292,9 +1309,9 @@ export default function Analytics() {
                 {fuel_economy.data_points.slice(-10).reverse().map((point, idx) => (
                   <tr key={idx} className="border-b border-garage-border/50">
                     <td className="py-2 px-4 text-sm text-garage-text">{formatDate(point.date)}</td>
-                    <td className="py-2 px-4 text-sm text-garage-text text-right font-medium">{UnitFormatter.formatFuelEconomy(parseFloat(point.l_per_100km), system, showBoth)}</td>
-                    <td className="py-2 px-4 text-sm text-garage-text text-right">{UnitFormatter.formatDistance(parseFloat(point.odometer_km), system, false)}</td>
-                    <td className="py-2 px-4 text-sm text-garage-text text-right">{UnitFormatter.formatVolume(parseFloat(point.liters), system, false)}</td>
+                    <td className="py-2 px-4 text-sm text-garage-text text-right font-medium">{u.consumption.format(parseFloat(point.l_per_100km))}</td>
+                    <td className="py-2 px-4 text-sm text-garage-text text-right">{u.distance.formatPrimary(parseFloat(point.odometer_km))}</td>
+                    <td className="py-2 px-4 text-sm text-garage-text text-right">{UnitFormatter.formatVolume(parseFloat(point.liters), units, false)}</td>
                     <td className="py-2 px-4 text-sm text-garage-text text-right">{formatCurrency(point.cost, { currencyCode, locale })}</td>
                   </tr>
                 ))}
@@ -1333,7 +1350,7 @@ export default function Analytics() {
                     date: formatDateForDisplay(point.date, { month: 'short', day: 'numeric' }, dateLocale),
                     lPerHr: validLPerHr,
                     displayFuelRate: validLPerHr !== null
-                      ? (system === 'metric' ? validLPerHr : UnitConverter.litersToGallons(validLPerHr))
+                      ? u.volume.toDisplay(validLPerHr)
                       : null,
                     costPerHr: isNaN(costPerHr) ? null : costPerHr,
                   }
@@ -1350,7 +1367,7 @@ export default function Analytics() {
                   yAxisId="rate"
                   stroke="#9E9E9E"
                   style={{ fontSize: '12px' }}
-                  label={{ value: UnitFormatter.getFuelRateUnit(system), angle: -90, position: 'insideLeft', fill: '#9E9E9E' }}
+                  label={{ value: fuelRateLabel(units), angle: -90, position: 'insideLeft', fill: '#9E9E9E' }}
                 />
                 <YAxis
                   yAxisId="cost"
@@ -1369,7 +1386,7 @@ export default function Analytics() {
                         <div style={{ backgroundColor: '#1a1f28', border: '1px solid #3a4050', borderRadius: '8px', padding: '12px', color: '#e4e6eb' }}>
                           <p style={{ fontWeight: '600', marginBottom: '8px' }}>{label}</p>
                           <p style={{ fontSize: '14px', color: '#9ca3af' }}>
-                            {UnitFormatter.formatFuelRate(point.lPerHr, system, showBoth)}
+                            {formatFuelRate(units, point.lPerHr, showBoth)}
                           </p>
                           {point.costPerHr != null && (
                             <p style={{ fontSize: '14px', color: '#9ca3af', marginTop: '4px' }}>
@@ -1393,7 +1410,7 @@ export default function Analytics() {
                   strokeWidth={2}
                   dot={{ fill: '#3B82F6', r: 4 }}
                   activeDot={{ r: 6 }}
-                  name={t('vehicle.fuelRateUnitLabel', { unit: UnitFormatter.getFuelRateUnit(system) })}
+                  name={t('vehicle.fuelRateUnitLabel', { unit: fuelRateLabel(units) })}
                   connectNulls
                 />
                 <Line
@@ -1494,16 +1511,16 @@ export default function Analytics() {
               </p>
             </div>
             <div className="text-center p-4 bg-garage-bg rounded-lg">
-              <p className="text-sm text-garage-text-muted mb-1">{system === 'metric' ? t('vehicle.totalLiters') : t('vehicle.totalGallons')}</p>
+              <p className="text-sm text-garage-text-muted mb-1">{t('vehicle.totalVolume', { unit: UnitFormatter.getVolumeUnit(units) })}</p>
               <p className="text-2xl font-bold text-garage-text">
-                {UnitFormatter.formatVolumeShort(parseFloat(propane.total_liters), system)}
+                {UnitFormatter.formatVolumeShort(parseFloat(propane.total_liters), units)}
               </p>
             </div>
             <div className="text-center p-4 bg-garage-bg rounded-lg">
-              <p className="text-sm text-garage-text-muted mb-1">{t('vehicle.avgPricePerUnit', { unit: UnitFormatter.getVolumeUnit(system) })}</p>
+              <p className="text-sm text-garage-text-muted mb-1">{t('vehicle.avgPricePerUnit', { unit: UnitFormatter.getVolumeUnit(units) })}</p>
               <p className="text-2xl font-bold text-primary">
                 {propane.avg_price_per_liter
-                  ? UnitFormatter.formatCostPerVolume(parseFloat(propane.avg_price_per_liter), system, currencyCode, locale)
+                  ? UnitFormatter.formatCostPerVolume(parseFloat(propane.avg_price_per_liter), units, currencyCode, locale)
                   : t('vehicle.notAvailable')}
               </p>
             </div>
@@ -1635,16 +1652,16 @@ export default function Analytics() {
               </p>
             </div>
             <div className="text-center p-4 bg-garage-bg rounded-lg">
-              <p className="text-sm text-garage-text-muted mb-1">{system === 'metric' ? t('vehicle.totalLiters') : t('vehicle.totalGallons')}</p>
+              <p className="text-sm text-garage-text-muted mb-1">{t('vehicle.totalVolume', { unit: UnitFormatter.getVolumeUnit(units) })}</p>
               <p className="text-2xl font-bold text-garage-text">
-                {UnitFormatter.formatVolumeShort(parseFloat(defAnalysis.total_liters), system)}
+                {UnitFormatter.formatVolumeShort(parseFloat(defAnalysis.total_liters), units)}
               </p>
             </div>
             <div className="text-center p-4 bg-garage-bg rounded-lg">
-              <p className="text-sm text-garage-text-muted mb-1">{UnitFormatter.getCostPerVolumeLabel(system)}</p>
+              <p className="text-sm text-garage-text-muted mb-1">{t('vehicle.avgCostPerVolume', { unit: UnitFormatter.getVolumeUnit(units) })}</p>
               <p className="text-2xl font-bold text-garage-text">
                 {defAnalysis.avg_cost_per_liter
-                  ? UnitFormatter.formatCostPerVolume(parseFloat(defAnalysis.avg_cost_per_liter), system, currencyCode, locale)
+                  ? UnitFormatter.formatCostPerVolume(parseFloat(defAnalysis.avg_cost_per_liter), units, currencyCode, locale)
                   : '-'}
               </p>
             </div>
@@ -1652,7 +1669,7 @@ export default function Analytics() {
               <p className="text-sm text-garage-text-muted mb-1">{t('vehicle.consumptionRate')}</p>
               <p className="text-2xl font-bold text-primary">
                 {defAnalysis.liters_per_1000_km
-                  ? `${UnitFormatter.formatVolumePerDistance(parseFloat(defAnalysis.liters_per_1000_km), system)} ${UnitFormatter.getVolumePerDistanceLabel(system)}`
+                  ? `${formatVolumePerDistance(units, parseFloat(defAnalysis.liters_per_1000_km))} ${volumePerDistanceLabel(units)}`
                   : '-'}
               </p>
             </div>
@@ -1681,7 +1698,7 @@ export default function Analytics() {
                     <p className="text-sm text-garage-text-muted mb-2">{item.description}</p>
                   )}
                   <div className="flex items-center gap-4 text-xs text-garage-text-muted">
-                    {item.odometer_km && <span>{UnitFormatter.formatDistance(parseFloat(item.odometer_km), system, false)}</span>}
+                    {item.odometer_km && <span>{u.distance.formatPrimary(parseFloat(item.odometer_km))}</span>}
                     {item.vendor_name && <span>{item.vendor_name}</span>}
                     {item.days_since_last && (
                       <span className="text-primary">
@@ -1690,7 +1707,7 @@ export default function Analytics() {
                     )}
                     {item.km_since_last && (
                       <span className="text-primary">
-                        {t('vehicle.distanceSinceLast', { distance: UnitFormatter.formatDistance(parseFloat(item.km_since_last), system, false) })}
+                        {t('vehicle.distanceSinceLast', { distance: u.distance.formatPrimary(parseFloat(item.km_since_last)) })}
                       </span>
                     )}
                   </div>
@@ -2081,7 +2098,7 @@ export default function Analytics() {
                         <div className="flex justify-between">
                           <span className="text-garage-text-muted">{t('vehicle.avgFuelEconomyLabel')}</span>
                           <span className="font-medium text-garage-text">
-                            {UnitFormatter.formatFuelEconomy(parseFloat(comparisonData.period1_avg_l_per_100km), system, showBoth)}
+                            {u.consumption.format(parseFloat(comparisonData.period1_avg_l_per_100km))}
                           </span>
                         </div>
                       )}
@@ -2110,7 +2127,7 @@ export default function Analytics() {
                         <div className="flex justify-between">
                           <span className="text-garage-text-muted">{t('vehicle.avgFuelEconomyLabel')}</span>
                           <span className="font-medium text-garage-text">
-                            {UnitFormatter.formatFuelEconomy(parseFloat(comparisonData.period2_avg_l_per_100km), system, showBoth)}
+                            {u.consumption.format(parseFloat(comparisonData.period2_avg_l_per_100km))}
                           </span>
                         </div>
                       )}

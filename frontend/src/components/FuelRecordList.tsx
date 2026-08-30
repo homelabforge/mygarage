@@ -9,7 +9,14 @@ import { formatCurrency } from '../utils/formatUtils'
 import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
 import api from '../services/api'
 import { useUnitPreference } from '../hooks/useUnitPreference'
+import { useUnitFormat } from '../hooks/useUnitFormat'
 import { UnitFormatter } from '../utils/units'
+import {
+  costPerDistanceUnitLabel,
+  formatCostPerDistance,
+  formatFuelRate,
+  fuelRateLabel,
+} from '../utils/unitFormat'
 import { priceToDisplay } from '../utils/decimalSafe'
 import { getUsageTracking } from '../utils/usageTracking'
 import { useFuelRecords, useDeleteFuelRecord, useImportFuelCSV } from '../hooks/queries/useFuelRecords'
@@ -39,7 +46,12 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick }: FuelRec
   const [vehicleSecondaryUsageEnabled, setVehicleSecondaryUsageEnabled] = useState<boolean>(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [importFormat, setImportFormat] = useState<ImportFormat>('csv')
-  const { system, showBoth } = useUnitPreference()
+  // ★ No `system` here any more. The last two consumers were
+  // `UnitFormatter.getCostPerDistanceLabel(system)` and its formatter, which
+  // decided a DISTANCE on a binary collapsed from VOLUME; both now read
+  // `units.distance` through `utils/unitFormat.ts`.
+  const { showBoth, units } = useUnitPreference()
+  const u = useUnitFormat()
   const { currencyCode, locale } = useCurrencyPreference()
 
   // Phase 3.8 — paginate the fuel-records list. rc1 silently capped
@@ -114,8 +126,15 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick }: FuelRec
       // metric-canonical, so without this an imperial account got a
       // metric file (#128). The backend stamps a `unit_system` column
       // so re-importing converts back correctly.
+      //
+      // `units` is deliberately NOT sent. It used to carry `system`, the
+      // binary metric/imperial collapse of the account's volume unit, which
+      // meant an account with mixed preferences (km with UK gallons, say)
+      // asked for a clean preset and never received its own units. Omitting
+      // the parameter tells the backend to export in the caller's resolved
+      // unit set, which CSV schema v6 spells out per column
+      // (`Odometer (km)`, `Volume (gal_uk)`).
       const response = await api.get(`/export/vehicles/${vin}/fuel/csv`, {
-        params: { units: system },
         responseType: 'blob'
       })
 
@@ -206,32 +225,33 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick }: FuelRec
     { id: 'date', header: t('fuelList.date'), mono: true, render: (r) => formatDate(r.date) },
     ...(tracksDistance ? [{
       id: 'mileage', header: t('fuelList.mileage'), align: 'right' as const, mono: true,
-      render: (r: FuelRecord) => r.odometer_km != null ? UnitFormatter.formatDistance(parseFloat(String(r.odometer_km)), system, showBoth) : '-',
+      render: (r: FuelRecord) => r.odometer_km != null ? u.distance.format(parseFloat(String(r.odometer_km))) : '-',
     }] : []),
-    { id: 'volume', header: t('fuelList.volumeUnit', { unit: UnitFormatter.getVolumeUnit(system) }), align: 'right', mono: true,
-      render: (r) => r.liters ? UnitFormatter.formatVolume(parseFloat(r.liters.toString()), system, showBoth) : '-' },
+    { id: 'volume', header: t('fuelList.volumeUnit', { unit: UnitFormatter.getVolumeUnit(units) }), align: 'right', mono: true,
+      render: (r) => r.liters ? UnitFormatter.formatVolume(parseFloat(r.liters.toString()), units, showBoth) : '-' },
     ...(showPropaneColumn ? [{
-      id: 'propane', header: t('fuelList.propaneUnit', { unit: UnitFormatter.getVolumeUnit(system) }), align: 'right' as const, mono: true,
-      render: (r: FuelRecord) => r.propane_liters ? UnitFormatter.formatVolume(parseFloat(r.propane_liters.toString()), system, showBoth) : '-',
+      id: 'propane', header: t('fuelList.propaneUnit', { unit: UnitFormatter.getVolumeUnit(units) }), align: 'right' as const, mono: true,
+      render: (r: FuelRecord) => r.propane_liters ? UnitFormatter.formatVolume(parseFloat(r.propane_liters.toString()), units, showBoth) : '-',
     }] : []),
     // B8: generic truthful header — the row value already respects every price_basis
     // via priceToDisplay(…, r.price_basis), so a volume-only "Price/L" heading would
     // lie for per_weight/per_kwh/per_tank rows. "Unit price" is honest across all four.
     { id: 'price', header: t('fuelList.unitPrice'), align: 'right', mono: true,
-      render: (r) => r.price_per_unit ? formatCurrency(priceToDisplay(r.price_per_unit, system, r.price_basis) ?? 0, { currencyCode, locale }) : '-' },
+      render: (r) => r.price_per_unit ? formatCurrency(priceToDisplay(r.price_per_unit, units, r.price_basis) ?? 0, { currencyCode, locale }) : '-' },
     { id: 'cost', header: t('fuelList.totalCost'), align: 'right', mono: true,
       render: (r) => r.cost ? formatCurrency(parseFloat(r.cost.toString()), { currencyCode, locale }) : '-' },
     ...(tracksDistance ? [{
       id: 'economy', header: t('fuelList.fuelEconomy'),
       render: (r: FuelRecord) => r.l_per_100km
-        ? <Badge tone="success">{UnitFormatter.formatFuelEconomy(parseFloat(r.l_per_100km.toString()), system, showBoth)}</Badge>
+        ? <Badge tone="success">{u.consumption.format(parseFloat(r.l_per_100km.toString()))}</Badge>
         : <span className="text-sm text-text-mute">-</span>,
     }] : []),
-    // Task 13 — engine-hours economy (GPH imperial / L/hr metric display; canonical L/hr storage).
+    // Task 13 — engine-hours economy (canonical L/hr storage, read in the
+    // reader's own volume unit per hour).
     ...(tracksHours ? [{
       id: 'fuelRate', header: t('fuelList.fuelRate'),
       render: (r: FuelRecord) => r.l_per_hr
-        ? <Badge tone="success">{UnitFormatter.formatFuelRate(parseFloat(r.l_per_hr.toString()), system, showBoth)}</Badge>
+        ? <Badge tone="success">{formatFuelRate(units, parseFloat(r.l_per_hr.toString()), showBoth)}</Badge>
         : <span className="text-sm text-text-mute">-</span>,
     }] : []),
     { id: 'fullTank', header: t('fuelList.fullTank'),
@@ -351,7 +371,7 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick }: FuelRec
                   <TrendingUp aria-hidden="true" className="w-3 h-3" />
                   <span>{t('fuelList.avgFuelEconomy')}</span>
                 </div>
-                <Mono size="2xl" weight="bold">{UnitFormatter.formatFuelEconomy(averageEconomy, system, showBoth)}</Mono>
+                <Mono size="2xl" weight="bold">{u.consumption.format(averageEconomy)}</Mono>
                 <div className="mt-1">
                   <Checkbox
                     id="fuel-incl-towing"
@@ -368,25 +388,25 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick }: FuelRec
                   <span>{t('fuelList.totalSpent')}</span>
                 </div>
                 <Mono size="2xl" weight="bold">{formatCurrency(totalCost, { currencyCode, locale })}</Mono>
-                <Mono size="sm" tone="muted" className="mt-1 block">{UnitFormatter.formatVolumeTotal(totalLiters, system)}</Mono>
+                <Mono size="sm" tone="muted" className="mt-1 block">{t('fuelList.volumeTotal', { value: UnitFormatter.formatVolumeShort(totalLiters, units) })}</Mono>
               </Card>
             )}
             {avgCostPerLiter !== null && (
               <Card padding="sm">
                 <div className="flex items-center gap-1 text-xs text-text-mute mb-1">
                   <Gauge aria-hidden="true" className="w-3 h-3" />
-                  <span>{UnitFormatter.getCostPerVolumeLabel(system)}</span>
+                  <span>{t('fuelList.avgCostPerVolume', { unit: UnitFormatter.getVolumeUnit(units) })}</span>
                 </div>
-                <Mono size="2xl" weight="bold">{UnitFormatter.formatCostPerVolume(avgCostPerLiter, system, currencyCode, locale)}</Mono>
+                <Mono size="2xl" weight="bold">{UnitFormatter.formatCostPerVolume(avgCostPerLiter, units, currencyCode, locale)}</Mono>
               </Card>
             )}
             {tracksDistance && costPerKm !== null && isFinite(costPerKm) && (
               <Card padding="sm">
                 <div className="flex items-center gap-1 text-xs text-text-mute mb-1">
                   <Truck aria-hidden="true" className="w-3 h-3" />
-                  <span>{UnitFormatter.getCostPerDistanceLabel(system)}</span>
+                  <span>{t('fuelList.costPerDistance', { unit: costPerDistanceUnitLabel(units) })}</span>
                 </div>
-                <Mono size="2xl" weight="bold">{UnitFormatter.formatCostPerDistance(costPerKm, system, currencyCode, locale)}</Mono>
+                <Mono size="2xl" weight="bold">{formatCostPerDistance(units, costPerKm, currencyCode, locale)}</Mono>
               </Card>
             )}
             {/* Task 13 — engine-hours economy stats. */}
@@ -394,9 +414,9 @@ export default function FuelRecordList({ vin, onAddClick, onEditClick }: FuelRec
               <Card padding="sm">
                 <div className="flex items-center gap-1 text-xs text-text-mute mb-1">
                   <Gauge aria-hidden="true" className="w-3 h-3" />
-                  <span>{t('fuelList.avgFuelRate', { unit: UnitFormatter.getFuelRateUnit(system) })}</span>
+                  <span>{t('fuelList.avgFuelRate', { unit: fuelRateLabel(units) })}</span>
                 </div>
-                <Mono size="2xl" weight="bold">{UnitFormatter.formatFuelRate(averageFuelRate, system, showBoth)}</Mono>
+                <Mono size="2xl" weight="bold">{formatFuelRate(units, averageFuelRate, showBoth)}</Mono>
               </Card>
             )}
             {tracksHours && averageCostPerHr !== null && (

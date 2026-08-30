@@ -79,7 +79,11 @@ class TireReading(Base):
     position: Mapped[str] = mapped_column(String(10), nullable=False)
     recorded_at: Mapped[dt.date] = mapped_column(Date, nullable=False)
     odometer_km: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
-    tread_depth_mm: Mapped[Decimal] = mapped_column(Numeric(5, 2), nullable=False)
+    # Nullable since migration 094: a reader with no tread gauge logs pressure
+    # alone (#152). ``TireReadingCreate`` still refuses a reading that carries
+    # neither, and ``TireService.add_reading`` leaves the parent tire's tread
+    # untouched when a reading omits one.
+    tread_depth_mm: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
     pressure_kpa: Mapped[Decimal | None] = mapped_column(Numeric(7, 2))
     notes: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

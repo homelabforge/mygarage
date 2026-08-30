@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, within, fireEvent } from '@testing-library/react'
-import { UnitFormatter } from '../../utils/units'
+import { makeUnitFormat } from '../../utils/unitFormat'
+import { METRIC_UNITS } from '../../__tests__/factories'
 import type { OdometerRecord } from '../../types/odometer'
 
 const useOdometerRecordsMock = vi.fn()
@@ -12,7 +13,16 @@ vi.mock('../../hooks/queries/useOdometerRecords', () => ({
   useImportOdometerCSV: () => ({ mutate: vi.fn(), isPending: false }),
 }))
 vi.mock('../../services/api', () => ({ default: { get: vi.fn() } }))
-vi.mock('../../hooks/useUnitPreference', () => ({ useUnitPreference: () => ({ system: 'metric', showBoth: false }) }))
+vi.mock('../../hooks/useUnitPreference', () => ({
+  useUnitPreference: () => ({
+    system: 'metric',
+    showBoth: false,
+    gallonStandard: 'us',
+    // The RESOLVED set, not just the collapsed system: this component reads
+    // its distance through `useUnitFormat()`, which closes over `units`.
+    units: METRIC_UNITS,
+  }),
+}))
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
 import OdometerRecordList from '../OdometerRecordList'
@@ -23,6 +33,16 @@ const onAddClick = vi.fn()
 const onEditClick = vi.fn()
 const PROPS = { vin: 'V1', onAddClick, onEditClick }
 const table = () => screen.getByRole('table', { name: 'odometerList.tableCaption' })
+
+/**
+ * The rendering oracle, through the SAME resolved adapter the component uses.
+ *
+ * Task 6 deleted `UnitFormatter.formatDistance`; these cases were never about
+ * the binary system, only about which DOM node the value lands in, so the
+ * oracle moves to `makeUnitFormat(METRIC_UNITS).distance` and the strings are
+ * unchanged (`80,467 km`, `80,500 km`).
+ */
+const km = (canonical: number): string => makeUnitFormat(METRIC_UNITS).distance.format(canonical)
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -35,10 +55,10 @@ beforeEach(() => {
 describe('OdometerRecordList — DataTable rows scoped to the named table', () => {
   it('renders the mileage cell INSIDE the named table and the unit-aware header (fails if the DataTable/caption is dropped or the mileage column vanishes; scoping stops the hero tile from satisfying it)', () => {
     render(<OdometerRecordList {...PROPS} />)
-    // real formatDistance(80467,'metric') → "80,467 km" — the row value; the hero shows
+    // the row value renders as "80,467 km"; the hero shows
     // the DISTINCT latest (80500) and lives OUTSIDE the table, so within(table()) proves
     // the row CELL renders (scoping stops the hero tile from satisfying it).
-    expect(within(table()).getByText(UnitFormatter.formatDistance(80467, 'metric', false))).toBeInTheDocument()
+    expect(within(table()).getByText(km(80467))).toBeInTheDocument()
     // The header uses the unit-aware KEY (not a hardcoded "Mileage (km)" literal).
     expect(within(table()).getByRole('columnheader', { name: 'odometerRecordList.mileageColumn' })).toBeInTheDocument()
   })
@@ -49,7 +69,7 @@ describe('OdometerRecordList — DataTable rows scoped to the named table', () =
     // scope to that container and assert the exact formatted LATEST (80500 ≠ the row's
     // 80467), proving the hero shows the latest value, not merely that a label exists.
     const hero = screen.getByText('odometerList.latestMileage').parentElement as HTMLElement
-    expect(within(hero).getByText(UnitFormatter.formatDistance(80500, 'metric', false))).toBeInTheDocument()
+    expect(within(hero).getByText(km(80500))).toBeInTheDocument()
     // and the hero label never appears inside the table.
     expect(within(table()).queryByText('odometerList.latestMileage')).not.toBeInTheDocument()
   })
@@ -63,7 +83,7 @@ describe('OdometerRecordList — LiveLink source badge', () => {
     // the livelink row by its distinct mileage (80500, scoped inside the table so the
     // hero's 80500 does not interfere).
     const ordinaryRow = within(table()).getByText('road trip').closest('tr') as HTMLElement
-    const livelinkRow = within(table()).getByText(UnitFormatter.formatDistance(80500, 'metric', false)).closest('tr') as HTMLElement
+    const livelinkRow = within(table()).getByText(km(80500)).closest('tr') as HTMLElement
     expect(within(livelinkRow).getByText('odometerRecordList.autoTrackedByLiveLink')).toBeInTheDocument()
     expect(within(ordinaryRow).queryByText('odometerRecordList.autoTrackedByLiveLink')).not.toBeInTheDocument()
   })

@@ -2,8 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { AlertTriangle, Calendar } from 'lucide-react'
 import type { FleetHealth } from '../types/dashboard'
 import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
-import { useUnitPreference } from '../hooks/useUnitPreference'
-import { UnitFormatter } from '../utils/units'
+import { useUnitFormat } from '../hooks/useUnitFormat'
 import { formatDateForDisplay } from '../utils/dateUtils'
 import { Mono } from './ui'
 
@@ -23,7 +22,7 @@ interface FleetHealthStripProps {
 export default function FleetHealthStrip({ fleet }: FleetHealthStripProps) {
   const { t } = useTranslation('vehicles')
   const { formatCurrency } = useCurrencyPreference()
-  const { system } = useUnitPreference()
+  const u = useUnitFormat()
 
   const nextDueWhen = fleet.next_due?.due_date
     ? formatDateForDisplay(fleet.next_due.due_date, {
@@ -32,10 +31,12 @@ export default function FleetHealthStrip({ fleet }: FleetHealthStripProps) {
         year: 'numeric',
       })
     : null
-  // due_mileage_km is canonical km (metric-canonical storage); format it via
-  // the user's distance preference, exactly like the card's odometer row.
+  // due_mileage_km is canonical km (metric-canonical storage); rendered through
+  // the resolved `units.distance` token, exactly like the card's odometer row.
+  // `formatPrimary`, not `format`: this cell is one line of a four-cell strip
+  // and a parenthesised counterpart would not fit it.
   const nextDueMileage = fleet.next_due?.due_mileage_km
-    ? UnitFormatter.formatDistance(parseFloat(fleet.next_due.due_mileage_km), system, false)
+    ? u.distance.formatPrimary(parseFloat(fleet.next_due.due_mileage_km))
     : null
 
   return (

@@ -27,10 +27,81 @@
     "label": "Système d'unités",
     "imperial": "Impérial",
     "metric": "Métrique",
-    "imperialDescription": "Utilisation des unités impériales : gallons, miles, MPG, °F, PSI, lbs, lb-ft",
-    "metricDescription": "Utilisation des unités métriques : litres, kilomètres, L/100km, °C, bar, kg, Nm",
+    "resolvedDescription": "Unités utilisées : {{units}}",
+    "instanceDefault": "Unités par défaut de cette instance",
+    "instanceDefaultDescription": "Utilisées par les visiteurs non connectés, par tous les clients lorsque l'authentification est désactivée, et pour initialiser chaque nouveau compte. Un compte qui a déjà ses propres unités n'est pas modifié.",
+    "instanceDefaultSaved": "Unités par défaut de l'instance enregistrées",
+    "instanceDefaultError": "Échec de l'enregistrement des unités par défaut de l'instance",
     "showBoth": "Afficher les deux unités",
-    "showBothDescription": "Afficher les valeurs en unités impériales et métriques (ex. : \"25 MPG (9.4 L/100km)\")"
+    "custom": "Personnalisé",
+    "customDescription": "Choisissez une unité pour chaque grandeur. Elles remplacent le préréglage partout dans l'application.",
+    "presetConfirmTitle": "Passer au système {{preset}} ?",
+    "presetConfirmMessage": "Cela efface les unités que vous avez choisies grandeur par grandeur et applique le préréglage partout.",
+    "presetConfirmGallon": "Le système impérial utilise le gallon US (3,785 L). Votre réglage de gallon UK sera remplacé.",
+    "presetConfirmAction": "Changer d'unités",
+    "quantities": {
+      "distance": "Distance",
+      "speed": "Vitesse",
+      "length": "Longueur",
+      "volume": "Volume",
+      "consumption": "Consommation",
+      "pressure": "Pression",
+      "temperature": "Température",
+      "mass": "Masse",
+      "torque": "Couple",
+      "tread": "Profondeur de la bande de roulement",
+      "secondaryGallon": "Gallon utilisé pour les MPG"
+    },
+    "options": {
+      "distance": {
+        "km": "Kilomètres (km)",
+        "mi": "Miles (mi)"
+      },
+      "speed": {
+        "kmh": "Kilomètres par heure (km/h)",
+        "mph": "Miles par heure (mph)"
+      },
+      "length": {
+        "m": "Mètres (m)",
+        "ft": "Pieds (ft)"
+      },
+      "volume": {
+        "L": "Litres (L)",
+        "gal_us": "Gallons US (gal)",
+        "gal_uk": "Gallons UK (gal)"
+      },
+      "consumption": {
+        "l_100km": "Litres aux 100 km (L/100km)",
+        "km_l": "Kilomètres par litre (km/L)",
+        "mpg_us": "Miles par gallon US (MPG)",
+        "mpg_uk": "Miles par gallon UK (MPG)"
+      },
+      "pressure": {
+        "kpa": "Kilopascals (kPa)",
+        "bar": "Bar (bar)",
+        "psi": "Livres par pouce carré (PSI)"
+      },
+      "temperature": {
+        "c": "Celsius (°C)",
+        "f": "Fahrenheit (°F)"
+      },
+      "mass": {
+        "kg": "Kilogrammes (kg)",
+        "lb": "Livres (lb)"
+      },
+      "torque": {
+        "nm": "Newtons-mètres (Nm)",
+        "lbft": "Livres-pieds (lb-ft)"
+      },
+      "tread": {
+        "mm": "Millimètres (mm)",
+        "in32": "Trente-deuxièmes de pouce (/32 in)"
+      },
+      "secondary_gallon": {
+        "us": "Gallon US (3,785 L)",
+        "uk": "Gallon UK (4,546 L)"
+      }
+    }
   },
   "language": {
     "label": "Langue",
@@ -330,9 +401,7 @@
       "warrantyExpiringLabel": "Garantie expirant bientôt",
       "warrantyExpiringDesc": "Notifier avant l'expiration de la garantie",
       "milestonesLabel": "Jalons du compteur kilométrique",
-      "milestonesDesc": "Notifier lors de l'atteinte de jalons kilométriques importants (ex. : 100k miles)",
       "daysBefore": "jours avant",
-      "milesBefore": "miles avant",
       "advanced": "Avancé",
       "advancedDesc": "Paramètres de nouvelle tentative pour les notifications à haute priorité",
       "retryAttempts": "Nombre de tentatives",

@@ -13,9 +13,12 @@
     }
   },
   "vehicle": {
+    "totalVolume": "Total ({{unit}})",
     "anomalyAbove": "Gasto {{spent}} — {{deviation}}% acima da sua média de {{avg}}.",
     "anomalyBelow": "Gasto {{spent}} — {{deviation}}% abaixo da sua média de {{avg}}.",
     "costPerHourAxis": "Custo/hora ({{currency}})",
+    "costPerDistance": "Custo/{{unit}}",
+    "avgCostPerVolume": "Custo méd./{{unit}}",
     "costPerHourLabel": "Custo/hora",
     "costPerHourValue": "{{value}}/h",
     "engineHoursAxis": "Horas do motor",

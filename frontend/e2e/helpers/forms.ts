@@ -60,21 +60,6 @@ export function captureApiRequest(
   })
 }
 
-/** Set the test user's unit preference (metric|imperial) for label
- * assertions. Used by Phase 3.6 (per-volume label) and Phase 3.10
- * (POI radius unit).
- */
-export async function setUnitPreference(
-  request: APIRequestContext,
-  system: 'metric' | 'imperial',
-  authHeader: string
-): Promise<void> {
-  await request.patch('/api/users/me/preferences', {
-    headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
-    data: { unit_preference: system },
-  })
-}
-
 /** Open the "Add Fill-up" modal on a vehicle's fuel tab.
  *
  * Standardizes the entry point for fuel-form tests so individual

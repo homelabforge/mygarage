@@ -3,6 +3,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { SettingsProvider, useSettings } from '@/contexts/SettingsContext'
 
+// EventNotificationsCard, rendered by this tab, reads `useUnitFormat()` for the
+// service-reminder lead-distance suffix, and that reaches `useAuth()`, which
+// throws without a provider.
+vi.mock('@/contexts/AuthContext', () => ({
+  useAuth: () => ({ user: null, isAuthenticated: false, defaultUnitPrefs: null }),
+}))
+
 vi.mock('@/services/api', () => ({
   default: {
     get: vi.fn(),

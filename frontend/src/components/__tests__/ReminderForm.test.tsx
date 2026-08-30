@@ -3,8 +3,6 @@ import { render, screen, waitFor } from '../../__tests__/test-utils'
 import { fireEvent, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { Reminder } from '../../types/reminder'
-import { toCanonicalKm } from '../../utils/decimalSafe'
-import { UnitConverter } from '../../utils/units'
 
 const createMock = vi.fn().mockResolvedValue({})
 const updateMock = vi.fn().mockResolvedValue({})
@@ -12,9 +10,21 @@ vi.mock('../../hooks/useReminders', () => ({
   useCreateReminder: () => ({ mutateAsync: createMock }),
   useUpdateReminder: () => ({ mutateAsync: updateMock }),
 }))
-vi.mock('../../hooks/useUnitPreference', () => ({
-  useUnitPreference: () => ({ system: 'imperial', showBoth: false }),
-}))
+// The imperial PRESET, resolved set included: `useUnitFormat` reads `units`,
+// and a mock that supplied only the collapsed `system` would hand the form an
+// undefined set. Mixed sets, where `system` and `units.distance` disagree, are
+// exercised in ReminderForm.mixedUnits.test.tsx.
+vi.mock('../../hooks/useUnitPreference', async () => {
+  const { IMPERIAL_UNITS } = await import('@/__tests__/factories')
+  return {
+    useUnitPreference: () => ({
+      system: 'imperial',
+      showBoth: false,
+      units: IMPERIAL_UNITS,
+      gallonStandard: 'us',
+    }),
+  }
+})
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 // Task 15 — ReminderForm now fetches the vehicle for usage_unit/secondary_usage_enabled
 // (mirrors FuelRecordForm/ServiceVisitForm). This suite is all date-type reminders on a
@@ -34,9 +44,13 @@ const reminder = {
   created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
 } as unknown as Reminder
 
-/** Current odometer in canonical km corresponding to 149977 mi display. */
-const CURRENT_MI = 149977
-const CURRENT_KM = UnitConverter.milesToKm(CURRENT_MI)!
+/**
+ * Current odometer in canonical km, showing as 149977 mi.
+ *
+ * 149977 x 1.60934 = 241363.98518, at `UnitConverter.milesToKm`'s two-decimal
+ * result rounding: 241363.99.
+ */
+const CURRENT_KM = 241363.99
 
 beforeEach(() => vi.clearAllMocks())
 
@@ -194,7 +208,7 @@ describe('ReminderForm — from last service mileage baseline', () => {
     await user.type(screen.getByLabelText('common:title *'), 'Oil change')
     typeMileage()
     expect(screen.getByRole('button', { name: 'reminderForm.modeFromNow' })).toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('reminder.milesUntilDue * (mi)'), { target: { value: '5000' } })
+    fireEvent.change(screen.getByLabelText('reminder.distanceUntilDue * (mi)'), { target: { value: '5000' } })
     fireEvent.click(screen.getByRole('button', { name: 'common:create' }))
 
     await waitFor(() => expect(createMock).toHaveBeenCalledTimes(1))
@@ -202,7 +216,8 @@ describe('ReminderForm — from last service mileage baseline', () => {
       title: 'Oil change',
       reminder_type: 'mileage',
       due_date: undefined,
-      due_mileage_km: CURRENT_KM + toCanonicalKm(5000, 'imperial')!,
+      // 241363.99 + (5000 mi x 1.60934 = 8046.7) = 249410.69
+      due_mileage_km: 249410.69,
       due_hours: undefined,
       notes: undefined,
     })
@@ -229,13 +244,14 @@ describe('ReminderForm — from last service mileage baseline', () => {
     fireEvent.click(screen.getByRole('button', { name: 'common:create' }))
 
     await waitFor(() => expect(createMock).toHaveBeenCalledTimes(1))
-    const expectedDue =
-      toCanonicalKm(142965, 'imperial')! + toCanonicalKm(5000, 'imperial')!
+    // 142965 mi x 1.60934 = 230079.2931, + 8046.7 = 238125.9931, and the sum
+    // of the two conversions is not itself re-normalised, so the wire value
+    // carries IEEE 754's last digits.
     expect(createMock.mock.calls[0][0]).toStrictEqual({
       title: 'Oil change',
       reminder_type: 'mileage',
       due_date: undefined,
-      due_mileage_km: expectedDue,
+      due_mileage_km: 238125.99310000002,
       due_hours: undefined,
       notes: undefined,
     })

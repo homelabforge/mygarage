@@ -25,12 +25,20 @@ vi.mock('../../hooks/useReminders', () => ({
   useUpdateReminder: () => ({ mutateAsync: updateMock }),
 }))
 // Metric throughout — the mileage-comparison tests below assert the raw
-// entered value passes straight through un-converted (toCanonicalKm is a
-// no-op under metric), keeping the numbers exact without deriving
+// entered value passes straight through un-converted (the distance round trip
+// is a no-op under metric), keeping the numbers exact without deriving
 // mi->km conversion constants.
-vi.mock('../../hooks/useUnitPreference', () => ({
-  useUnitPreference: () => ({ system: 'metric', showBoth: false }),
-}))
+vi.mock('../../hooks/useUnitPreference', async () => {
+  const { METRIC_UNITS } = await import('@/__tests__/factories')
+  return {
+    useUnitPreference: () => ({
+      system: 'metric',
+      showBoth: false,
+      units: METRIC_UNITS,
+      gallonStandard: 'us',
+    }),
+  }
+})
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
 const mockedApiGet = vi.fn()
@@ -194,7 +202,7 @@ describe('ReminderForm — smart reminders target the vehicle PRIMARY dimension 
     fireEvent.click(typeButton('reminderForm.typeSmart'))
     fireEvent.change(screen.getByLabelText('reminder.dueDate *'), { target: { value: '2026-12-01' } })
     expect(screen.getByLabelText('reminder.dueHours * (hr)')).toBeInTheDocument()
-    expect(screen.queryByLabelText(/reminder\.dueMileage|reminder\.milesUntilDue/)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/reminder\.dueMileage|reminder\.distanceUntilDue/)).not.toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('reminder.dueHours * (hr)'), { target: { value: '900' } })
     fireEvent.click(screen.getByRole('button', { name: 'common:create' }))
 

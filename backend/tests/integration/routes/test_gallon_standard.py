@@ -14,11 +14,28 @@ The fix makes the file itself authoritative: an export declares its flavour in
 the `unit_system` marker, and anything not marked `imperial_uk` is US.
 
 Units phase 0 (Task 2/3) then deleted that mutable class state entirely.
-`export.py` now resolves the flavour explicitly per request via
+`export.py` resolved the flavour explicitly per request via
 `resolve_gallon_flavour(db)`, which reads the `imperial_gallon_standard`
 `Setting` row. The `uk_gallons` fixture below seeds that row directly instead
 of reaching into `UnitConverter` internals, so these tests exercise the real
 resolution path end to end.
+
+CONTRACT CHANGE, units phase 2b task 3 (CSV schema v6)
+------------------------------------------------------
+The EXPORT half of the story above is now obsolete, deliberately. v6 stops
+emitting the `unit_system` marker `imperial_uk` altogether: the gallon
+flavour travels in the header token instead (`Volume (gal_uk)`), and
+`?units=imperial` means the imperial PRESET, whose volume is `gal_us`. So
+`imperial_gallon_standard` no longer reaches the exporter at all, and a UK
+export comes from a UK ACCOUNT's own preferences rather than from an
+instance-wide setting (see `test_export_csv_v6_units.py`). The tests below
+therefore assert that the setting is IGNORED on export, which is the
+opposite of what two of them asserted before.
+
+Nothing about the IMPORT half changed. `imperial_uk` is still accepted
+forever, because v2 through v5 files carry it, and an unmarked legacy file is
+still read as US gallons however the instance is configured. That is the
+corruption this module exists to prevent, and it is still pinned below.
 """
 
 from __future__ import annotations
@@ -109,10 +126,20 @@ async def _make_vehicle(db_session, test_user, vin: str) -> None:
 
 
 class TestGallonStandardRoundTrip:
-    async def test_uk_export_declares_its_flavour_and_round_trips(
+    async def test_explicit_imperial_ignores_the_instance_gallon_setting(
         self, client: AsyncClient, auth_headers, test_user, db_session, uk_gallons
     ):
-        """A UK imperial export must import back to the same canonical liters."""
+        """CONTRACT CHANGE (v6): `?units=imperial` is the imperial PRESET.
+
+        This asserted `unit_system == "imperial_uk"` and 10.0 UK gallons until
+        phase 2b task 3. An explicit `?units=imperial` now means the imperial
+        preset whatever `imperial_gallon_standard` says, so the same 45.461 L
+        comes out as 12.0095 US gallons under the marker `imperial`.
+
+        What has NOT changed, and is still the point of the test: the file
+        says which gallon it holds, and re-importing it lands on the identical
+        canonical litres.
+        """
         src, dst = "UKGALSRC000000001", "UKGALDST000000001"
         await _make_vehicle(db_session, test_user, src)
         await _make_vehicle(db_session, test_user, dst)
@@ -137,11 +164,14 @@ class TestGallonStandardRoundTrip:
 
         body = export_resp.content.decode()
         rows = list(csv.DictReader(io.StringIO(body)))
-        # The file says which gallon it is in. Without this the importer cannot
-        # tell a UK export from a US one and has to guess.
-        assert rows[0]["unit_system"] == "imperial_uk"
-        # 45.461 L / 4.54609 = 10.0 UK gal (not 12.01 US gal)
-        assert float(rows[0]["Gallons"]) == pytest.approx(10.0, abs=0.01)
+        # The header token says which gallon it is in, so the marker no longer
+        # has to. `imperial_uk` is never emitted again.
+        assert rows[0]["unit_system"] == "imperial"
+        assert rows[0]["unit_system"] != "imperial_uk"
+        # 45.461 L / 3.78541 = 12.0095 US gal. Under the old contract this
+        # instance would have written 10.0 UK gal here.
+        assert rows[0]["Volume (gal_us)"] == "12.0095"
+        assert "Volume (gal_uk)" not in body.splitlines()[0]
 
         import_resp = await client.post(
             f"/api/import/vehicles/{dst}/fuel/csv",
@@ -187,7 +217,8 @@ class TestGallonStandardRoundTrip:
     async def test_us_export_still_says_imperial_and_uses_us_gallons(
         self, client: AsyncClient, auth_headers, test_user, db_session
     ):
-        """The default path must be untouched: marker `imperial`, US divisor."""
+        """Marker `imperial`, US divisor, and the v6 `Volume (gal_us)` header
+        in place of the bare `Gallons` v2 through v5 wrote."""
         vin = "USGALSRC000000001"
         await _make_vehicle(db_session, test_user, vin)
         db_session.add(
@@ -207,12 +238,19 @@ class TestGallonStandardRoundTrip:
         assert resp.status_code == 200
         rows = list(csv.DictReader(io.StringIO(resp.content.decode())))
         assert rows[0]["unit_system"] == "imperial"
-        assert float(rows[0]["Gallons"]) == pytest.approx(10.0, abs=0.01)
+        # 37.8541 L / 3.78541 = exactly 10 US gal, at four decimals.
+        assert rows[0]["Volume (gal_us)"] == "10.0000"
 
     async def test_metric_export_is_unaffected_by_the_uk_setting(
         self, client: AsyncClient, auth_headers, test_user, db_session, uk_gallons
     ):
-        """Canonical storage is metric; the setting is an imperial-display choice."""
+        """Canonical storage is metric; the setting is an imperial-display choice.
+
+        `?units=metric` is now explicit. Omitting it exports in the CALLER's
+        own units (phase 2b task 3), and conftest's `test_user` is an
+        imperial-preset account, so an omitted parameter would legitimately
+        produce an imperial file here.
+        """
         vin = "UKGALMETRIC000001"
         await _make_vehicle(db_session, test_user, vin)
         db_session.add(
@@ -226,8 +264,10 @@ class TestGallonStandardRoundTrip:
         )
         await db_session.commit()
 
-        resp = await client.get(f"/api/export/vehicles/{vin}/fuel/csv", headers=auth_headers)
+        resp = await client.get(
+            f"/api/export/vehicles/{vin}/fuel/csv?units=metric", headers=auth_headers
+        )
         assert resp.status_code == 200
         rows = list(csv.DictReader(io.StringIO(resp.content.decode())))
         assert rows[0]["unit_system"] == "metric"
-        assert float(rows[0]["Liters"]) == pytest.approx(40.0, abs=0.001)
+        assert rows[0]["Volume (L)"] == "40.000"

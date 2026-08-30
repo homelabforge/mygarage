@@ -1,441 +1,226 @@
-# Unit Conversion System
+# Units
 
-MyGarage includes a comprehensive unit conversion system that allows users to view and enter data in either Imperial (US) or Metric units based on their preference.
+A map of where units live in MyGarage, with pointers to the code that owns each
+decision. It is deliberately short: an earlier version of this file ran to 434
+lines and described a different application (Imperial storage, a `mileage`
+column, a backend with no conversion logic), and a public repo whose docs
+disagree with its code costs a contributor more than one with no docs at all.
+**When this file and the code disagree, the code is right. Say so in a PR.**
 
-## Overview
+## Storage is metric-canonical
 
-The unit conversion system supports per-user preferences, allowing different users to work with their preferred unit system. All data is stored in Imperial units (the canonical format) and converted on-the-fly for display and input.
+Every unit-bearing column holds an SI value. Nothing in the database is
+Imperial, and there is no per-user storage format.
 
-### Supported Units
+| Quantity | Stored as | A real column |
+|---|---|---|
+| Distance | kilometres | `fuel_records.odometer_km` `Numeric(10,2)` |
+| Speed | km/h | `fuel_records.obc_avg_speed_kmh` `Numeric(5,1)` |
+| Volume | litres | `fuel_records.liters` `Numeric(9,3)` |
+| Consumption | L/100km | `fuel_records.obc_l_per_100km` `Numeric(5,2)` |
+| Mass | kilograms | `fuel_records.tank_size_kg` `Numeric(6,2)` |
+| Pressure | kPa | `tires.pressure_kpa` `Numeric(7,2)` |
+| Temperature | °C | `fuel_records.outside_temp_c` `Numeric(4,1)` |
+| Length | metres | `vehicles.length_m` `Numeric(5,2)` |
+| Tread | millimetres | `tires.tread_depth_mm` `Numeric(5,2)` |
+| Torque | Nm | none yet: a display preference with nothing stored |
 
-| Measurement Type | Imperial | Metric |
-|-----------------|----------|--------|
-| **Distance** | Miles (mi) | Kilometers (km) |
-| **Volume** | Gallons (gal) | Liters (L) |
-| **Fuel Economy** | Miles per Gallon (MPG) | Liters per 100km (L/100km) |
-| **Temperature** | Fahrenheit (°F) | Celsius (°C) |
-| **Pressure** | PSI | Bar / kPa |
-| **Weight** | Pounds (lb) | Kilograms (kg) |
-| **Dimensions** | Inches (in) | Centimeters (cm) |
-| **Torque** | Foot-pounds (ft-lb) | Newton-meters (Nm) |
+The column NAME carries the unit, which is the point: a column called
+`odometer_km` cannot quietly come to mean miles. Engine hours
+(`fuel_records.engine_hours`) are dimensionless and have no adapter.
 
-## User Interface
+Torque is the exception and worth knowing about before you go looking: the
+`UnitSet` carries a torque preference and `UNIT_ADAPTERS` carries `nm` and
+`lbft`, but no column stores a torque today. The preference is real and the
+storage is not yet.
 
-### Settings Location
+Migration `053_metric_canonical_units.py` performed the inversion in place and
+is `FATAL = True`. There is no rollback path.
 
-Navigate to **Settings → Preferences → Unit System** to configure your unit preferences.
+## Units are resolved per QUANTITY, not per system
 
-**Available Options:**
-- **Unit System**: Choose between `Imperial` or `Metric`
-- **Show Both Units**: Toggle to display both unit systems simultaneously
-  - Example: `25 MPG (9.4 L/100km)` or `100 km (62 mi)`
+A user does not have "a unit system". They have eleven stored choices, which
+resolve into a `UnitSet`: ten quantities plus `secondary_gallon`, the flavour a
+gallon takes when the primary unit does not state one.
 
-### Where Units Are Applied
+- Vocabulary and presets: `backend/app/constants/units.py`
+- Resolution (preset plus per-column overrides): `backend/app/utils/unit_resolution.py`
+- Stored on `users`: `unit_preference`, `show_both_units`, and eleven nullable
+  override columns (`unit_distance`, `unit_volume`, ..., `secondary_gallon`).
+  NULL means "no override", never "derive from the preset".
+- Instance-wide default for clients with no account: the `default_unit_prefs`
+  setting, parsed by `backend/app/utils/default_unit_prefs.py`.
+- A client with no account keeps its own set in one `unit_prefs` localStorage
+  key (`frontend/src/utils/unitPrefsStore.ts`), which replaced three legacy
+  keys. It holds THREE states, not two: no units, units derived for this
+  session by migrating the legacy keys, and units the client actually chose.
+  Only a chosen set is persisted. Persisting a derived one freezes the gallon
+  flavour guessed at module load, before `/settings/public` resolves, and
+  every later path is guarded on the key being absent, so nothing heals it.
 
-Unit conversion is automatically applied across the entire application:
+One route writes a preference: `PUT /auth/me/units`, schema
+`UnitPreferenceUpdate` in `app/schemas/user.py`. A preset writes eleven
+explicit NULLs and `custom` writes all eleven values, in one transaction;
+there is no partial custom. `unit_preference` is deliberately absent from
+`UserSelfUpdate` and `AdminUserUpdate`, because those routes guard every field
+with `if ... is not None` and so cannot express "clear this column": a preset
+written through one of them would leave the override columns masking it.
+`PUT /auth/me` rejects the key with 422 (`extra="forbid"`) and
+`PUT /auth/users/{id}` ignores it, because forbidding extras there would
+change the rejection behaviour of every other admin field at the same time.
 
-#### Forms (Input)
-- **Fuel Record Form**: Volume (gallons/liters), Odometer reading (miles/km)
-- **Odometer Record Form**: Mileage (miles/km)
-- **Service Record Form**: Mileage (miles/km), Service reminder mileage (miles/km)
-- **Reminder Form**: Due mileage field (miles/km)
+The controls are `frontend/src/components/settings/UnitSetEditor.tsx`: the
+Imperial / Metric / Custom buttons plus the eleven selects, holding no state and
+performing no request. `UnitPreferencesCard.tsx` writes this client's units with
+it and `InstanceUnitDefaultsCard.tsx` writes `default_unit_prefs` with the same
+controls. Choosing a preset CLEARS overrides, so the editor confirms first, and
+the confirmation is in the editor rather than in either writer.
 
-#### Display Components
-- **Dashboard**: Vehicle odometer readings, average fuel economy
-- **Fuel Record List**: Volume, mileage, fuel economy
-- **Odometer Record List**: All mileage values
-- **Service Record List**: Service mileage values
-- **Analytics Page**: All charts, statistics, and tables
-  - Fuel Economy Analysis (charts and trends)
-  - Summary statistics
-  - Period comparisons
-  - Service predictions
+So litres with miles is a real, supported account, and **any code that collapses
+the set into one binary `imperial | metric` answer is a defect**. The frontend's
+`useUnitPreference().system` still exposes such a collapse, derived from VOLUME;
+it is being removed, and the remaining call sites are the work list printed by
+`bun run validate:units -- --report`.
 
-#### Charts & Visualizations
-- **Fuel Economy Trend Chart**: Y-axis automatically shows MPG or L/100km
-- **Analytics Tables**: All columns with distance, volume, or fuel economy
-- **Tooltips**: Hover values display in user's preferred units
+## Conversion happens at the boundary, on BOTH sides
 
-## Technical Implementation
+Both halves of the app convert, and they mirror each other module for module.
 
-### Architecture Pattern: Canonical Storage
+| Layer | Backend | Frontend |
+|---|---|---|
+| Conversion (numbers only) | `app/utils/unit_adapters.py` | `src/utils/unitAdapters.ts` |
+| Show-both pairing | `app/utils/unit_counterparts.py` | (same file) |
+| Composition (strings) | `app/utils/unit_formatting.py` | `src/utils/unitFormat.ts` |
+| Derived rates | `app/utils/unit_derived.py` | (in `unitFormat.ts`) |
+| Per-render context | `app/utils/render_context.py` | `useUnitFormat()` |
 
-MyGarage uses a **canonical storage pattern** where:
-1. All data is stored in **Imperial units** in the database
-2. Conversion happens at the **API boundary** (frontend ↔ backend)
-3. Users see and enter data in their **preferred units**
+The conversion layer returns numbers and never a string. The composition layer
+returns strings and does no arithmetic ON A SINGLE QUANTITY: it asks an adapter.
+The one place it computes is a DERIVED rate, where two adapters have to be
+combined and there is no single adapter to ask (`formatVolumePerDistance`
+multiplies a converted volume by the distance adapter's own factor). Keeping the
+layers apart is what lets a chart, a form field, a CSV column and a PDF share one
+conversion.
 
-**Benefits:**
-- No data migration required when changing preferences
-- Single source of truth prevents rounding errors
-- Historical data remains consistent
-- Easy to add new unit systems in the future
+The backend converts for everything it renders itself: PDF reports
+(`app/utils/pdf_*.py`), notifications
+(`app/services/notifications/dispatcher.py`), scheduled jobs
+(`app/tasks/scheduled.py`) and the report CSVs. Whose units it uses depends on
+who asked: a request-driven render takes the caller's, a scheduled job takes the
+vehicle owner's. `render_context.py` owns that choice.
 
-### Data Flow
+CSV import and export are their own contract: a v6 header names its own unit
+with a vocabulary token (`Odometer (mi)`, `Volume (gal_uk)`), so a file is
+readable without knowing who wrote it. See `app/utils/csv_units.py`.
 
-#### Input Flow (User → Database)
-```
-User enters: 100 km
-↓
-Frontend converts: km → miles (62.137 mi)
-↓
-API receives: 62.137 mi
-↓
-Database stores: 62.137 (imperial)
-```
+## Reading a value in a component
 
-#### Output Flow (Database → User)
-```
-Database returns: 62.137 (imperial)
-↓
-API sends: 62.137 mi
-↓
-Frontend converts: miles → km (100 km)
-↓
-User sees: 100 km
-```
+```tsx
+const u = useUnitFormat()
 
-### Conversion Utilities
-
-#### UnitConverter Class
-Located in `frontend/src/utils/units.ts`
-
-Provides static methods for bidirectional conversion:
-
-```typescript
-// Distance conversions
-UnitConverter.milesToKm(miles: number): number
-UnitConverter.kmToMiles(km: number): number
-
-// Volume conversions
-UnitConverter.gallonsToLiters(gallons: number): number
-UnitConverter.litersToGallons(liters: number): number
-
-// Fuel economy conversions
-UnitConverter.mpgToLPer100Km(mpg: number): number
-UnitConverter.lPer100KmToMpg(lPer100Km: number): number
-
-// Temperature conversions
-UnitConverter.fahrenheitToCelsius(f: number): number
-UnitConverter.celsiusToFahrenheit(c: number): number
-
-// Pressure conversions
-UnitConverter.psiToBar(psi: number): number
-UnitConverter.barToPsi(bar: number): number
-UnitConverter.psiToKpa(psi: number): number
-UnitConverter.kpaToPsi(kpa: number): number
-
-// Weight conversions
-UnitConverter.lbsToKg(lbs: number): number
-UnitConverter.kgToLbs(kg: number): number
-
-// Torque conversions
-UnitConverter.ftLbsToNm(ftLbs: number): number
-UnitConverter.nmToFtLbs(nm: number): number
+<p>{u.distance.format(record.odometer_km)}</p>        // honours show-both
+<p>{u.distance.formatPrimary(record.odometer_km)}</p> // one unit, never a counterpart
+<Field label={t('common:mileage')} unit={u.distance.label}>
 ```
 
-#### UnitFormatter Class
-Located in `frontend/src/utils/units.ts`
+`format` appends the counterpart when the reader has show-both on;
+`formatPrimary` never does. Show-both is a preference about a reading, not about
+every reading, so a chart tooltip or a dense table cell picks `formatPrimary`.
 
-Provides display formatting with unit labels:
+A derived quantity composes two units and is a module function rather than a
+member of `u`, because a suffix has to be applied to each representation
+independently (`"3.20 L/hr (0.85 gal/hr)"`, never `"3.20 L (0.85 gal)/hr"`):
 
-```typescript
-// Format distance with unit label
-UnitFormatter.formatDistance(miles: number, system: 'imperial' | 'metric', showBoth: boolean): string
-// Returns: "100 mi" or "161 km" or "100 mi (161 km)"
-
-// Format volume with unit label
-UnitFormatter.formatVolume(gallons: number, system: 'imperial' | 'metric', showBoth: boolean): string
-// Returns: "15 gal" or "56.8 L" or "15 gal (56.8 L)"
-
-// Format fuel economy with unit label
-UnitFormatter.formatFuelEconomy(mpg: number, system: 'imperial' | 'metric', showBoth: boolean): string
-// Returns: "25 MPG" or "9.4 L/100km" or "25 MPG (9.4 L/100km)"
-
-// Get unit labels only
-UnitFormatter.getDistanceUnit(system: 'imperial' | 'metric'): string  // "mi" or "km"
-UnitFormatter.getVolumeUnit(system: 'imperial' | 'metric'): string    // "gal" or "L"
-UnitFormatter.getFuelEconomyUnit(system: 'imperial' | 'metric'): string  // "MPG" or "L/100km"
+```ts
+formatFuelRate(units, record.l_per_hr, showBoth)   // volume per engine hour
+formatVolumePerDistance(units, litersPer1000Km)    // DEF and propane rates
 ```
 
-### React Hook: useUnitPreference
+## Entering and storing a value
 
-Located in `frontend/src/hooks/useUnitPreference.ts`
+Display and entry use the SAME unit, so a form must not re-convert a field the
+user never touched. Round-tripping 7.50 mm through a `/32 in` field yields
+7.14375 mm, which silently rewrites a value the user only looked at.
 
-Provides access to user's unit preferences:
-
-```typescript
-const { system, showBoth } = useUnitPreference()
-
-// system: 'imperial' | 'metric'
-// showBoth: boolean
+```ts
+const origin = seedUnitField(record.odometer_km, u.distance)   // populate
+const canonical = canonicalFromUnitField(typed, origin, u.distance)  // read back
 ```
 
-Uses React Context to share preferences across the application.
+`canonicalFromUnitField` returns the ORIGINAL canonical value when the field
+still reads what it was seeded with, compared numerically rather than as
+characters. Every path into a form (add, edit, a receipt draft, a suggestion)
+has to go through both, or the one that does not becomes the corrupting one.
+Both are in `frontend/src/utils/unitFormat.ts`.
 
-### Fuel Economy Conversion Formula
+## The gate
 
-Fuel economy uses a special conversion formula since the metrics are inverted:
+`frontend/scripts/validate-units.ts` fails a build on ANY unit-system branch it
+can see. It reports five kinds, each with its own remedy in the failure message.
+
+It used to be a baseline gate, where known findings were recorded in
+`units.baseline.json` and the baseline could only shrink. Plan 3b task 8 retired
+that: the baseline file is `[]`, the gate is CLEAN-ROOM, and `--update` refuses
+to rewrite it and exits 2. There is nowhere to record a new finding, which is
+the point. Fix it, or mark the line:
 
 ```
-MPG ↔ L/100km conversion factor: 235.214
-
-L/100km = 235.214 / MPG
-MPG = 235.214 / L/100km
+// units-exempt(<kind>): <reason>
 ```
 
-**Examples:**
-- 25 MPG = 9.41 L/100km
-- 10 L/100km = 23.52 MPG
+The kind is required. It silences that leg on that line and leaves every other
+kind reportable, which the bare form did not. On a binary DECLARATION the kind
+is `binary-conversion` or `formatter-binary`, and that one line removes the
+declaration from the gate's vocabulary, and with it every reference to it in
+every module; the gate counts what each mechanism hides on every run.
 
-## Form Implementation Pattern
-
-### Input Forms (Two-way Conversion)
-
-Forms must handle conversion in both directions:
-
-```typescript
-import { useUnitPreference } from '../hooks/useUnitPreference'
-import { UnitConverter, UnitFormatter } from '../utils/units'
-
-function MyForm({ record }) {
-  const { system } = useUnitPreference()
-
-  // 1. Convert defaultValues when loading existing record
-  const defaultValues = {
-    mileage: system === 'metric' && record?.mileage
-      ? UnitConverter.milesToKm(record.mileage) ?? undefined
-      : record?.mileage ?? undefined,
-  }
-
-  // 2. Convert onSubmit before sending to API
-  const onSubmit = (data) => {
-    const payload = {
-      mileage: system === 'metric' && data.mileage
-        ? UnitConverter.kmToMiles(data.mileage) ?? data.mileage
-        : data.mileage,
-    }
-    // Send payload to API...
-  }
-
-  // 3. Use dynamic labels and placeholders
-  return (
-    <form onSubmit={handleSubmit(onSubmit)}>
-      <label>
-        Mileage ({UnitFormatter.getDistanceUnit(system)})
-      </label>
-      <input
-        placeholder={system === 'imperial' ? '45000' : '72420'}
-        {...register('mileage')}
-      />
-    </form>
-  )
-}
+```
+bun run validate:units                   # the gate
+bun run validate:units -- --report       # every finding, by file
+bun run validate:units -- --derived      # the binary API surface it derives
+bun run validate:units -- --suppressions # everything it is deliberately silent about
 ```
 
-### Display Components (Read-only)
+What the gate prints is "no unsuppressed expression matches these detectors",
+which is smaller than "no unit defect exists" and deliberately so. Two shapes
+have no lexical form for any detector to match: a resolved-set helper that
+collapses INTERNALLY, and a forced-unit template. Those, and anything else it
+cannot see mechanically, are recorded in `frontend/scripts/units.manifest.json`,
+a reviewed per-file snapshot with its own checker.
 
-Display components only need to format values:
+## Gallon flavour
 
-```typescript
-import { useUnitPreference } from '../hooks/useUnitPreference'
-import { UnitFormatter } from '../utils/units'
+US and UK gallons differ by 20%, so `gal` alone is not a unit. The account's own
+`secondary_gallon` decides which one a litre-primary reader is paired with (D4b);
+`gal_us` and `gal_uk` state their own flavour and win outright.
 
-function MyDisplay({ record }) {
-  const { system, showBoth } = useUnitPreference()
+A legacy instance-wide `imperial_gallon_standard` setting still exists, with no
+control of its own and nothing in the browser reading it. It is read only when
+the `default_unit_prefs` row is created or recreated at boot
+(`default_unit_prefs_for_instance`), so changing it afterwards does not
+retroactively move anything. It is kept deliberately, as the seed and fallback
+that row is rebuilt from if it is ever deleted, and for nothing else. Do not
+reach for it in new code; resolve the account's `secondary_gallon`, which the
+Custom controls set per account.
 
-  return (
-    <div>
-      <p>{UnitFormatter.formatDistance(record.mileage, system, showBoth)}</p>
-      <p>{UnitFormatter.formatVolume(record.volume, system, showBoth)}</p>
-      <p>{UnitFormatter.formatFuelEconomy(record.mpg, system, showBoth)}</p>
-    </div>
-  )
-}
-```
+| Flavour | Litres | MPG factor |
+|---|---|---|
+| US | 3.78541 | 235.214 |
+| UK | 4.54609 | 282.481 |
 
-### Chart Components
+## Adding a unit
 
-Charts need dynamic axis labels and tooltip formatting:
+1. Add the token to the quantity's `Literal` in `app/constants/units.py` and to
+   the generated frontend types (`bun run generate:api`).
+2. Add its adapter to `ADAPTERS` in `app/utils/unit_adapters.py` and to
+   `UNIT_ADAPTERS` in `src/utils/unitAdapters.ts`, with the same label and
+   precision. Nothing asserts those two tables against each other across the
+   language boundary, so this step is a manual mirror; each side's own tests
+   pin its half.
+3. Give it a counterpart in both `unit_counterparts` modules, or decide it has
+   none.
+4. Add a migration if a stored `default_unit_prefs` row changes shape.
 
-```typescript
-import { useUnitPreference } from '../hooks/useUnitPreference'
-import { UnitFormatter } from '../utils/units'
-
-function MyChart({ data }) {
-  const { system, showBoth } = useUnitPreference()
-
-  return (
-    <LineChart data={data}>
-      <YAxis
-        label={{
-          value: UnitFormatter.getFuelEconomyUnit(system),
-          angle: -90,
-          position: 'insideLeft'
-        }}
-      />
-      <Tooltip
-        content={({ payload }) => (
-          <div>
-            {UnitFormatter.formatFuelEconomy(payload[0].value, system, showBoth)}
-          </div>
-        )}
-      />
-    </LineChart>
-  )
-}
-```
-
-## Backend API
-
-The backend API **always expects and returns Imperial units**. No conversion logic exists on the backend.
-
-### Request Example
-```json
-POST /api/fuel-records
-{
-  "vin": "1HGCM82633A123456",
-  "date": "2025-12-11",
-  "mileage": 62137,        // Always in miles
-  "gallons": 12.5,         // Always in gallons
-  "price_per_gallon": 3.45
-}
-```
-
-### Response Example
-```json
-GET /api/fuel-records/123
-{
-  "id": 123,
-  "vin": "1HGCM82633A123456",
-  "date": "2025-12-11",
-  "mileage": 62137,        // Always in miles
-  "gallons": 12.5,         // Always in gallons
-  "mpg": 28.5,             // Always MPG (when calculated)
-  "price_per_gallon": 3.45
-}
-```
-
-The frontend is responsible for converting to/from the user's preferred units.
-
-## Database Schema
-
-All numeric columns store Imperial units:
-
-```sql
--- fuel_records table
-CREATE TABLE fuel_records (
-    id INTEGER PRIMARY KEY,
-    vin TEXT NOT NULL,
-    date DATE NOT NULL,
-    mileage INTEGER NOT NULL,      -- Stored in miles
-    gallons REAL NOT NULL,          -- Stored in gallons
-    price_per_gallon REAL,
-    -- ...
-);
-
--- odometer_records table
-CREATE TABLE odometer_records (
-    id INTEGER PRIMARY KEY,
-    vin TEXT NOT NULL,
-    date DATE NOT NULL,
-    mileage INTEGER NOT NULL,      -- Stored in miles
-    -- ...
-);
-```
-
-## User Preferences Storage
-
-Unit preferences are stored per-user in the `user_settings` table:
-
-```sql
-CREATE TABLE user_settings (
-    user_id TEXT PRIMARY KEY,
-    unit_system TEXT DEFAULT 'imperial',  -- 'imperial' or 'metric'
-    show_both_units BOOLEAN DEFAULT 0,
-    -- ...
-);
-```
-
-Preferences are loaded on app initialization and stored in React Context.
-
-## Testing Recommendations
-
-When testing unit conversion:
-
-1. **Create records in Imperial mode**
-   - Add a fuel record: 100 miles, 5 gallons = 20 MPG
-
-2. **Switch to Metric mode**
-   - Verify display shows: 161 km, 18.9 L, 11.8 L/100km
-
-3. **Edit the record in Metric mode**
-   - Change to 200 km
-   - Save and verify it saved as ~124 miles
-
-4. **Test "Show Both Units" toggle**
-   - Enable and verify display shows: "200 km (124 mi)"
-
-5. **Test charts and analytics**
-   - Verify Y-axis labels change
-   - Verify tooltip values convert properly
-   - Check table headers show correct units
-
-## Known Limitations
-
-- **Existing API clients**: If you have custom scripts calling the MyGarage API, they must continue to use Imperial units
-- **Database queries**: Direct database queries will return Imperial units
-- **Import/Export**: CSV exports currently use Imperial units (may add unit selection in future)
-
-## Future Enhancements
-
-Potential improvements for future versions:
-
-- [x] Support for additional unit systems (e.g., UK Imperial with different gallons)
-- [ ] Per-record unit display for mixed garages (US and EU vehicles)
-- [ ] Unit preference for CSV exports
-- [ ] API parameter to request specific unit system in response
-- [ ] Bulk data migration tool (if user wants to store in metric)
-
-### UK Imperial gallons
-
-Settings → System Configuration → Imperial gallon standard (when unit system is Imperial):
-
-- **US gallon** (default): 3.78541 L — US MPG factor 235.214
-- **UK gallon**: 4.54609 L — UK MPG factor 282.481
-
-Storage remains SI metric; only display and form conversion use the selected gallon.
-
-## Troubleshooting
-
-### Issue: Values look wrong after switching units
-
-**Solution**: Clear browser cache and reload. The unit preference is cached in localStorage.
-
-### Issue: Form won't accept my metric value
-
-**Solution**: Ensure your browser locale uses decimal point (.) not comma (,). Example: `100.5` not `100,5`
-
-### Issue: Chart shows Imperial even though I selected Metric
-
-**Solution**: The chart component may need a page refresh to pick up the new context value. Try hard refresh (Ctrl+Shift+R).
-
-### Issue: "Show Both Units" not working
-
-**Solution**: This feature requires both toggles to be enabled:
-1. Unit System must be set (Imperial or Metric)
-2. "Show Both Units" toggle must be ON
-
-## Contributing
-
-To add support for a new unit type:
-
-1. Add conversion methods to `UnitConverter` class
-2. Add formatting method to `UnitFormatter` class
-3. Add the unit type to the settings form
-4. Update relevant form components to use the new converter
-5. Update display components to use the new formatter
-6. Add tests for the conversion formulas
-7. Update this documentation
-
-See `frontend/src/utils/units.ts` for implementation examples.
+A new QUANTITY is more work: `UNIT_QUANTITIES` in `src/types/units.ts` carries a
+compile-time completeness proof, so the type errors will find the call sites for
+you.

@@ -129,13 +129,20 @@ class UserCreate(UserBase):
 
 
 class UserSelfUpdate(BaseModel):
-    """Schema for users updating their own profile. Rejects privileged fields."""
+    """Schema for users updating their own profile. Rejects privileged fields.
+
+    Carries no `unit_preference` (D9b). Its route guards every field with
+    `if ... is not None`, so it cannot express "clear this column", and a
+    preset written here would leave the eleven override columns masking it.
+    Units are set through `PUT /auth/me/units` and `UnitPreferenceUpdate`,
+    which writes all eleven or clears all eleven. `show_both_units` stays: it
+    is a display toggle, not a choice of unit.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
     email: EmailStr | None = Field(None, max_length=255)
     full_name: str | None = Field(None, max_length=255)
-    unit_preference: str | None = Field(None, pattern="^(imperial|metric)$")
     show_both_units: bool | None = None
     time_format: str | None = Field(None, pattern="^(12h|24h)$")
     mobile_quick_entry_enabled: bool | None = None
@@ -203,14 +210,73 @@ class UserSelfUpdate(BaseModel):
         return v
 
 
+class UnitPreferenceUpdate(BaseModel):
+    """Schema for the dedicated unit-preference mutation (spec D9b).
+
+    `PUT /auth/me` guards every field with `if ... is not None`, so it cannot
+    express "clear this column". D3 requires that selecting a preset writes
+    eleven explicit nulls, which is why unit preferences do not ride the
+    generic profile route.
+
+    The `units` field is required for `custom` and forbidden otherwise. A
+    partial custom would leave some columns resolving from the base preset,
+    which is the masking this phase exists to remove; a preset carrying a set
+    would make the request's intent unknowable.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    unit_preference: UnitPreference
+    units: UnitSet | None = None
+    show_both_units: bool | None = None
+
+    @model_validator(mode="after")
+    def units_present_exactly_when_custom(self) -> UnitPreferenceUpdate:
+        """Enforce D3's all-eleven-or-none rule."""
+        is_custom = self.unit_preference == "custom"
+        if is_custom and self.units is None:
+            raise ValueError("unit_preference 'custom' requires a full units set")
+        if not is_custom and self.units is not None:
+            raise ValueError("units may only accompany unit_preference 'custom'")
+        return self
+
+    def column_values(self) -> dict[str, str | None]:
+        """Return the eleven ``users`` unit columns this request implies.
+
+        Lives here, beside the validator that guarantees the invariant, rather
+        than in the route. The clear case and the materialise case are two
+        readings of one rule (D3), and a caller deciding between them has to
+        re-derive which of ``unit_preference`` and ``units`` is authoritative.
+        Reading it off ``units`` alone is correct only while
+        ``units_present_exactly_when_custom`` holds; if that validator were ever
+        relaxed to let ``custom`` mean "keep what I have", such a caller would
+        silently take the CLEAR path, write eleven nulls, and resolve through
+        ``base_preset_for("custom")`` to the imperial preset. A UK-gallon user
+        pressing Custom would land on US gallons: this phase's own defect class,
+        inverted. Keeping the mapping next to the invariant means the two cannot
+        drift apart in separate files.
+
+        Derived from ``UNIT_COLUMN_NAMES`` and ``UnitSet``, never hand-written,
+        so a twelfth quantity extends both branches automatically.
+        """
+        if self.units is None:
+            return dict.fromkeys(UNIT_COLUMN_NAMES, None)
+        return {field_to_column(field): value for field, value in self.units.model_dump().items()}
+
+
 class AdminUserUpdate(BaseModel):
-    """Schema for admin updating any user. Includes privileged fields."""
+    """Schema for admin updating any user. Includes privileged fields.
+
+    Carries no `unit_preference`, for the reason `UserSelfUpdate` gives. Unlike
+    that schema this one does not set `extra="forbid"`, so a stale client's key
+    is ignored rather than rejected: forbidding extras here would change the
+    rejection behaviour of every other admin field at the same time.
+    """
 
     email: EmailStr | None = Field(None, max_length=255)
     full_name: str | None = Field(None, max_length=255)
     is_active: bool | None = None
     is_admin: bool | None = None
-    unit_preference: str | None = Field(None, pattern="^(imperial|metric)$")
     show_both_units: bool | None = None
     time_format: str | None = Field(None, pattern="^(12h|24h)$")
     mobile_quick_entry_enabled: bool | None = None

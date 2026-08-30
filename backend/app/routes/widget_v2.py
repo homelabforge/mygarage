@@ -19,6 +19,7 @@ from app.services.widget_auth import (
     widget_key_func,
     widget_limiter,
 )
+from app.utils.unit_resolution import resolve_units
 
 router = APIRouter(prefix="/api/v2/widget", tags=["widget-v2"])
 
@@ -59,9 +60,15 @@ async def get_widget_vehicle(
     db: AsyncSession = Depends(get_db),
 ) -> WidgetVehicleV2:
     """Per-vehicle rollup in both unit systems. 404 (not 403) for out-of-scope VINs."""
+    # D7: resolve the key OWNER's unit set and pass it in, exactly as
+    # `routes/widget.py` does (see the fuller note there). The two modules call
+    # different service methods, so threading the context through one and not
+    # the other would leave this endpoint on the instance-wide default.
     user, key = user_key
     service = WidgetAggregationService(db)
-    result = await service.vehicle_v2(user.id, vin, allowed_vins=key.allowed_vins)
+    result = await service.vehicle_v2(
+        user.id, vin, allowed_vins=key.allowed_vins, units=resolve_units(user)
+    )
     if result is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
     return result

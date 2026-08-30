@@ -13,14 +13,45 @@ import api from '@/services/api'
 import { getActionErrorMessage } from '@/utils/httpErrorHandler'
 import { Select } from '@/components/ui'
 import { useUnitPreference } from '@/hooks/useUnitPreference'
-import { UnitConverter, UnitFormatter } from '@/utils/units'
+import { useUnitFormat } from '@/hooks/useUnitFormat'
+import { metersToDistance, radiusToMeters } from '@/utils/unitAdapters'
+import { formatAtPrecision } from '@/utils/unitFormat'
+import type { UnitSet } from '@/types/units'
 import type { PlaceResult, ShopRecommendation, ShopSearchResponse, ShopRecommendationsResponse } from '@/types/shopDiscovery'
 
 type Step = 'permission' | 'searching' | 'results'
 
+/**
+ * The radii offered, keyed by the client's own DISTANCE unit.
+ *
+ * Keyed by the resolved token rather than by the binary `system`, which spec D8
+ * collapses from VOLUME: a custom client with litres and miles used to be
+ * offered kilometre radii against a mile preference. `Record<UnitSet['distance']>`
+ * makes a token added to the vocabulary a compile error rather than a silent
+ * fall into the kilometre list.
+ */
+const RADIUS_OPTIONS: Readonly<Record<UnitSet['distance'], readonly number[]>> = {
+  km: [10, 25, 50, 100, 150],
+  mi: [5, 10, 25, 50, 100],
+}
+
+/** The radius pre-selected for each distance unit. */
+const DEFAULT_RADIUS: Readonly<Record<UnitSet['distance'], number>> = { km: 25, mi: 5 }
+
+/**
+ * Decimals on a result's distance.
+ *
+ * One, not the km/mi adapter's zero: a whole-unit result collapses every nearby
+ * shop to "0 mi".
+ */
+const RESULT_PRECISION = 1
+
 export default function ShopFinder() {
   const { t } = useTranslation('common')
-  const { system } = useUnitPreference()
+  // Both hooks: `useUnitFormat` composes the label, and the resolved set itself
+  // keys the radius table and the metre conversion.
+  const { units } = useUnitPreference()
+  const u = useUnitFormat()
   const [step, setStep] = useState<Step>('permission')
   const [recommendations, setRecommendations] = useState<ShopRecommendation[]>([])
   const [searchResults, setSearchResults] = useState<PlaceResult[]>([])
@@ -32,11 +63,11 @@ export default function ShopFinder() {
   // Radius is held in the user's own unit and converted at request time.
   // Imperial users pick miles, metric users pick kilometres — hardcoding miles
   // showed "5 miles" to metric users and searched an imperial radius.
-  const radiusOptions = system === 'metric' ? [10, 25, 50, 100, 150] : [5, 10, 25, 50, 100]
-  // Unit symbol always comes from UnitFormatter — never hardcoded into a
+  const radiusOptions = RADIUS_OPTIONS[units.distance]
+  // Unit symbol always comes from the adapter, never hardcoded into a
   // translation value, which is how metric users used to be told "miles".
-  const distanceUnit = UnitFormatter.getDistanceUnit(system)
-  const [searchRadius, setSearchRadius] = useState<number>(system === 'metric' ? 25 : 5)
+  const distanceUnit = u.distance.label
+  const [searchRadius, setSearchRadius] = useState<number>(DEFAULT_RADIUS[units.distance])
   const [shopType, setShopType] = useState<'auto' | 'rv'>('auto')
 
   // Load recommendations on mount
@@ -72,11 +103,7 @@ export default function ShopFinder() {
 
   const formatDistance = (meters?: number): string => {
     if (!meters) return t('shopFinder.distanceUnknown')
-    const km = meters / 1000
-    const value = system === 'metric' ? km : (UnitConverter.kmToMiles(km) ?? 0)
-    // One decimal, not UnitFormatter.formatDistance — that rounds to whole
-    // units, which collapses every nearby shop to "0 mi".
-    return `${value.toFixed(1)} ${UnitFormatter.getDistanceUnit(system)}`
+    return `${formatAtPrecision(metersToDistance(units, meters) ?? 0, RESULT_PRECISION)} ${distanceUnit}`
   }
 
   const handleRequestLocation = () => {
@@ -120,10 +147,7 @@ export default function ShopFinder() {
 
   const searchNearbyShops = async (latitude: number, longitude: number) => {
     try {
-      const radiusMeters =
-        system === 'metric'
-          ? Math.round(searchRadius * 1000)
-          : Math.round(searchRadius * 1609.34)
+      const radiusMeters = radiusToMeters(units, searchRadius) ?? 0
 
       const response = await api.post<ShopSearchResponse>('/shop-discovery/search', {
         latitude,
@@ -217,7 +241,7 @@ export default function ShopFinder() {
                   onChange={(e) => setSearchRadius(Number(e.target.value))}
                   options={radiusOptions.map((r) => ({
                     value: String(r),
-                    label: `${r} ${UnitFormatter.getDistanceUnit(system)}`,
+                    label: `${r} ${distanceUnit}`,
                   }))}
                 />
               </div>

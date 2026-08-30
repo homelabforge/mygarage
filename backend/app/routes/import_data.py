@@ -4,17 +4,32 @@ CSV/JSON exports from v2.26.2+ carry a schema marker:
   - CSV: leading `units_version` column on every row (= "3" for SI metric)
   - JSON: top-level `"export_version"` and `"units"` keys
 
-This importer accepts both v3 (metric) and legacy v2 (imperial). When the
-marker is missing or `"2"`, imperial-named fields are read and converted
-on ingest. v3 reads new metric fields verbatim. The legacy ORM kwargs
-were already updated to the new column names so v2 fallback paths must
-convert before constructing the model.
+JSON backups are still schema 5 and still resolve units file-wide, below.
+CSV moved to schema 6 for issue #152: a per-quantity unit preference makes a
+single `metric`/`imperial` marker unable to describe a file whose distance is
+miles and whose volume is litres, so a v6 CSV column names its own unit with
+a phase-1 vocabulary token (`Odometer (mi)`, `Volume (gal_uk)`).
+
+`app.utils.csv_units` owns that decision for the four unit-bearing CSV pairs
+(service, fuel, DEF, odometer). It resolves the unit from the FILE alone --
+header token, then marker, then `units_version`, then a narrow inference over
+the column names -- and refuses the upload rather than guessing when the file
+is ambiguous. It never reads the importing account's preferences: doing that
+is what once multiplied an old US-gallon backup by 4.54609 on a
+UK-configured instance and wrote the result into canonical storage
+permanently.
+
+This importer still accepts every older shape: v3-v5 metric
+(`Odometer (km)` / `Liters` / `Price Per Liter`) and legacy v2 imperial
+(`Mileage` / `Gallons` / `Price Per Gallon`), which is converted on ingest
+because the ORM columns are metric.
 """
 
 import csv
 import io
 import json
 import logging
+from collections.abc import Mapping, Sequence
 from datetime import date as date_type
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
@@ -49,95 +64,29 @@ from app.services.fuel_side_effects import (
     apply_fuel_record_side_effects,
     invalidate_cache_for_vehicle,
 )
+from app.utils.csv_units import (
+    CONSUMPTION,
+    DEF_PRICE,
+    DISTANCE,
+    FUEL_CONSUMPTION,
+    FUEL_PRICE,
+    FUEL_SPEED,
+    FUEL_TEMPERATURE,
+    FUEL_VOLUME,
+    ODOMETER_DISTANCE,
+    PRICE_PER_VOLUME,
+    READING_DISTANCE,
+    SPEED,
+    TEMPERATURE,
+    VOLUME,
+    CsvUnitContext,
+    QuantitySpec,
+    build_csv_unit_context,
+)
 from app.utils.def_sync import ensure_def_capable
 from app.utils.file_validation import validate_csv_upload
 from app.utils.logging_utils import sanitize_for_log
 from app.utils.units import UnitConverter
-
-
-# Conversion helpers for legacy-v2-CSV imports. Each takes a Decimal in the
-# imperial unit and returns the metric Decimal. None passes through.
-def _mi_to_km(value: Decimal | None) -> Decimal | None:
-    return value * UnitConverter.MILES_TO_KM if value is not None else None
-
-
-def _gal_to_l(value: Decimal | None, gallons_to_liters: Decimal) -> Decimal | None:
-    return value * gallons_to_liters if value is not None else None
-
-
-def _per_gal_to_per_l(value: Decimal | None, gallons_to_liters: Decimal) -> Decimal | None:
-    """Price/volume: $/gal → $/L."""
-    return value / gallons_to_liters if value is not None else None
-
-
-def _row_gallons_to_liters(row: dict) -> Decimal:
-    """Which gallon this row's imperial values are measured in.
-
-    Only a file this app wrote while set to UK carries the `imperial_uk` marker.
-    Everything else is the US gallon: every v2-era export, every third-party
-    sheet, every file written before the UK option existed.
-
-    This deliberately does NOT resolve the instance's gallon-flavour preference
-    (`resolve_gallon_flavour(db)`). That preference reflects how the CURRENT
-    user wants values displayed today, not what unit a given file's numbers
-    were actually written in -- using it here meant importing an old
-    US-gallon backup on a UK-configured instance multiplied every volume by
-    4.54609 instead of 3.78541 and wrote the result into canonical storage
-    permanently. This function reads the file's own `unit_system` marker
-    instead, which travels with the data and can't drift from it.
-    """
-    marker = (row.get("unit_system") or "").strip().lower()
-    return (
-        UnitConverter.UK_GALLONS_TO_LITERS
-        if marker == "imperial_uk"
-        else UnitConverter.US_GALLONS_TO_LITERS
-    )
-
-
-def _row_is_legacy_v2(row: dict) -> bool:
-    """Whether this CSV row's values need converting from imperial to metric.
-
-    Resolution order:
-
-    1. `unit_system` — written by exports that deliberately emit imperial
-       (see `export.py`). Explicit and version-independent, so it wins.
-    2. `units_version` — a SCHEMA version, not a units flag. v3 introduced
-       metric-canonical values, so v3 *and later* are metric.
-    3. No marker at all → infer from the column names: `Mileage`/`Gallons`
-       without `Odometer (km)`/`Liters` means a legacy v2 export (or a
-       hand-written imperial sheet, which is how #128 was reported).
-
-    Step 2 used to read `version != "3"` as legacy, which broke the moment
-    `EXPORT_SCHEMA_VERSION` moved to "4" for the extended fuel columns: every
-    current export was re-imported through the imperial converter, inflating
-    distance by 1.609 and volume by 3.785 on each cycle. The round-trip test
-    that existed asserted only `engine_hours`, which is dimensionless, so it
-    never noticed.
-    """
-    unit_system = (row.get("unit_system") or "").strip().lower()
-    # "imperial" (US) and "imperial_uk" both need converting; the flavour is
-    # resolved separately by _row_gallons_to_liters.
-    if unit_system.startswith("imperial"):
-        return True
-    if unit_system == "metric":
-        return False
-
-    version = (row.get("units_version") or "").strip()
-    if version:
-        try:
-            # >= 3 is metric-canonical; 1/2 predate it.
-            return int(version) < 3
-        except ValueError:
-            # Unparseable marker: fall back to the conservative reading rather
-            # than silently trusting a value we don't understand.
-            return True
-
-    # No marker → infer from column shape: "Mileage"/"Gallons" present without
-    # "Odometer (km)"/"Liters" means legacy.
-    has_imperial = bool(row.get("Mileage") or row.get("Gallons"))
-    has_metric = bool(row.get("Odometer (km)") or row.get("Liters"))
-    return has_imperial and not has_metric
-
 
 logger = logging.getLogger(__name__)
 
@@ -270,6 +219,37 @@ def parse_bool(value: str) -> bool:
     return value in ("true", "yes", "1", "y")
 
 
+def _read_csv_with_units(
+    csv_data: str, specs: Sequence[QuantitySpec]
+) -> tuple[list[dict[str, Any]], CsvUnitContext]:
+    """Every data row, plus the ONE unit context they are all read under.
+
+    `unit_system` and `units_version` are written into every data row by
+    `export.generate_csv_stream`, not once per file, so a later row can
+    disagree with the first and be converted under a context it does not
+    belong to. The whole upload is read up front (already size-bounded by
+    `validate_csv_upload`) so that disagreement is detectable and so every
+    rejection lands before a single ORM row is added.
+    """
+    reader = csv.DictReader(io.StringIO(csv_data))
+    rows = list(reader)
+    return rows, build_csv_unit_context(reader.fieldnames, rows, specs)
+
+
+def _canonical_cell(units: CsvUnitContext, row: Mapping[str, Any], quantity: str) -> Decimal | None:
+    """One row's `quantity`, converted into canonical metric storage.
+
+    None when the file has no column for that quantity, so an importer can
+    ask for every quantity it supports without first checking which the file
+    happens to carry. The unit comes from the file alone (see
+    `app.utils.csv_units`), never from the importing account's preferences.
+    """
+    header = units.column(quantity)
+    if header is None:
+        return None
+    return units.to_canonical(quantity, parse_decimal(row.get(header, "")))
+
+
 @router.post("/vehicles/{vin}/service/csv")
 @limiter.limit(settings.rate_limit_uploads)
 async def import_service_csv(
@@ -283,13 +263,15 @@ async def import_service_csv(
     """Import service records from CSV file (creates ServiceVisit + ServiceLineItem)."""
     await get_vehicle_or_403(vin, current_user, db, require_write=True)
 
-    # Validate and parse CSV
+    # Validate and parse CSV, then settle the file's units once, before any
+    # ORM write. A bad header or a self-contradictory file is refused whole
+    # rather than half-imported (see `app.utils.csv_units`).
     csv_data = await validate_csv_upload(file)
-    csv_reader = csv.DictReader(io.StringIO(csv_data))
+    rows, units = _read_csv_with_units(csv_data, (ODOMETER_DISTANCE,))
 
     import_result = ImportResult()
 
-    for row_num, row in enumerate(csv_reader, start=2):  # Start at 2 (header is row 1)
+    for row_num, row in enumerate(rows, start=2):  # Start at 2 (header is row 1)
         try:
             # Parse required fields
             date = parse_date(row.get("Date", ""))
@@ -313,10 +295,10 @@ async def import_service_csv(
             # Use service_type or raw_category as description fallback
             if not description:
                 description = service_type or raw_category
-            # Legacy v2 CSV header is "Mileage" (miles); v3 uses "Odometer (km)".
-            # Convert legacy values to km on ingest so the metric ORM column is correct.
-            odometer_raw = parse_decimal(row.get("Odometer (km)", "") or row.get("Mileage", ""))
-            odometer_km = _mi_to_km(odometer_raw) if _row_is_legacy_v2(row) else odometer_raw
+            # Distance arrives as a v6 token header (`Odometer (mi)`), as
+            # `Odometer (km)`, or as legacy v2 `Mileage` in miles. `units`
+            # already resolved which, from the file and nothing else.
+            odometer_km = _canonical_cell(units, row, DISTANCE)
             # Engine-hours: hour-metered vehicles (ATVs, side-by-sides, equipment).
             # Dimensionless — no unit conversion (never present in legacy v2 CSVs).
             engine_hours = parse_decimal(row.get("Engine Hours", ""))
@@ -402,13 +384,24 @@ async def import_fuel_csv(
     # way as the JSON fuel-record routes: call ensure_def_capable(vehicle)
     # before writing a DEF observation for a non-diesel vehicle.
 
-    # Validate and parse CSV
+    # Validate and parse CSV, then settle the file's units once, before any
+    # ORM write (see `app.utils.csv_units`).
     csv_data = await validate_csv_upload(file)
-    csv_reader = csv.DictReader(io.StringIO(csv_data))
+    rows, units = _read_csv_with_units(
+        csv_data,
+        (
+            ODOMETER_DISTANCE,
+            FUEL_VOLUME,
+            FUEL_PRICE,
+            FUEL_TEMPERATURE,
+            FUEL_CONSUMPTION,
+            FUEL_SPEED,
+        ),
+    )
 
     import_result = ImportResult()
 
-    for row_num, row in enumerate(csv_reader, start=2):
+    for row_num, row in enumerate(rows, start=2):
         try:
             # Parse required fields
             date = parse_date(row.get("Date", ""))
@@ -416,30 +409,22 @@ async def import_fuel_csv(
                 import_result.add_error(row_num, "Date is required")
                 continue
 
-            # Parse optional fields. v3+ uses "Odometer (km)"/"Liters" with a
-            # `units_version` marker; legacy v2 uses "Mileage"/"Gallons" and
-            # the values must be converted from imperial to metric on ingest
-            # (the ORM column is metric — storing miles into odometer_km
-            # would lose ~38% of the distance).
-            legacy_v2 = _row_is_legacy_v2(row)
-
-            odometer_raw = parse_decimal(row.get("Odometer (km)", "") or row.get("Mileage", ""))
-            volume_raw = parse_decimal(row.get("Liters", "") or row.get("Gallons", ""))
-            price_raw = parse_decimal(
-                row.get("Price Per Liter", "")
-                or row.get("Price Per Gallon", "")
-                or row.get("Price/Gal", "")
-            )
-
-            if legacy_v2:
-                gal_to_l = _row_gallons_to_liters(row)
-                odometer_km = _mi_to_km(odometer_raw)
-                liters = _gal_to_l(volume_raw, gal_to_l)
-                price_per_unit = _per_gal_to_per_l(price_raw, gal_to_l)
-            else:
-                odometer_km = odometer_raw
-                liters = volume_raw
-                price_per_unit = price_raw
+            # Every unit-bearing column, converted into canonical metric
+            # storage under the file's own units. v6 spells them
+            # `Odometer (mi)` / `Volume (gal_uk)` / `Price Per Unit (gal_us)`;
+            # v3-v5 spell them `Odometer (km)` / `Liters` / `Price Per Liter`;
+            # v2 spells them `Mileage` / `Gallons` / `Price Per Gallon` and
+            # means imperial (the ORM columns are metric, so storing miles
+            # into odometer_km would lose ~38% of the distance).
+            odometer_km = _canonical_cell(units, row, DISTANCE)
+            liters = _canonical_cell(units, row, VOLUME)
+            price_per_unit = _canonical_cell(units, row, PRICE_PER_VOLUME)
+            # Temperature, consumption and speed have been EXPORTED since v4
+            # and were dropped on the way back in until #152 phase 2b, so a
+            # fuel CSV could not round-trip them at all.
+            outside_temp_c = _canonical_cell(units, row, TEMPERATURE)
+            obc_l_per_100km = _canonical_cell(units, row, CONSUMPTION)
+            obc_avg_speed_kmh = _canonical_cell(units, row, SPEED)
 
             # Engine-hours: hour-metered vehicles (ATVs, side-by-sides,
             # equipment). Dimensionless — no unit conversion, never present
@@ -505,6 +490,9 @@ async def import_fuel_csv(
                 fuel_type_used=(
                     normalized_fuel_type.value if normalized_fuel_type is not None else None
                 ),
+                outside_temp_c=outside_temp_c,
+                obc_l_per_100km=obc_l_per_100km,
+                obc_avg_speed_kmh=obc_avg_speed_kmh,
             )
             db.add(record)
             import_result.add_success()
@@ -535,32 +523,25 @@ async def import_def_csv(
     ensure_def_capable(vehicle)
 
     csv_data = await validate_csv_upload(file)
-    csv_reader = csv.DictReader(io.StringIO(csv_data))
+    rows, units = _read_csv_with_units(csv_data, (ODOMETER_DISTANCE, FUEL_VOLUME, DEF_PRICE))
 
     import_result = ImportResult()
 
-    for row_num, row in enumerate(csv_reader, start=2):
+    for row_num, row in enumerate(rows, start=2):
         try:
             date = parse_date(row.get("Date", ""))
             if not date:
                 import_result.add_error(row_num, "Date is required")
                 continue
 
-            # Legacy v2 CSV uses "Mileage"/"Gallons" (imperial); v3 uses
-            # "Odometer (km)"/"Liters". Legacy values are converted to metric.
-            legacy_v2 = _row_is_legacy_v2(row)
-            odometer_raw = parse_decimal(row.get("Odometer (km)", "") or row.get("Mileage", ""))
-            volume_raw = parse_decimal(row.get("Liters", "") or row.get("Gallons", ""))
-            price_raw = parse_decimal(row.get("Price Per Unit", ""))
-            if legacy_v2:
-                gal_to_l = _row_gallons_to_liters(row)
-                odometer_km = _mi_to_km(odometer_raw)
-                liters = _gal_to_l(volume_raw, gal_to_l)
-                price_per_unit = _per_gal_to_per_l(price_raw, gal_to_l)
-            else:
-                odometer_km = odometer_raw
-                liters = volume_raw
-                price_per_unit = price_raw
+            # v6 spells these `Odometer (mi)` / `Volume (gal_uk)` /
+            # `Price Per Unit (gal_us)`; v3-v5 `Odometer (km)` / `Liters` /
+            # `Price Per Unit`; v2 `Mileage` / `Gallons` in imperial. DEF's
+            # price column keeps its name across all of them because that
+            # name is the only key this importer has ever read.
+            odometer_km = _canonical_cell(units, row, DISTANCE)
+            liters = _canonical_cell(units, row, VOLUME)
+            price_per_unit = _canonical_cell(units, row, PRICE_PER_VOLUME)
             cost = parse_decimal(row.get("Total Cost", "") or row.get("Cost", ""))
             fill_level = parse_decimal(row.get("Fill Level", ""))
             source = row.get("Source", "").strip() or None
@@ -616,13 +597,14 @@ async def import_odometer_csv(
     """Import odometer records from CSV file."""
     await get_vehicle_or_403(vin, current_user, db, require_write=True)
 
-    # Validate and parse CSV
+    # Validate and parse CSV, then settle the file's units once, before any
+    # ORM write (see `app.utils.csv_units`).
     csv_data = await validate_csv_upload(file)
-    csv_reader = csv.DictReader(io.StringIO(csv_data))
+    rows, units = _read_csv_with_units(csv_data, (READING_DISTANCE,))
 
     import_result = ImportResult()
 
-    for row_num, row in enumerate(csv_reader, start=2):
+    for row_num, row in enumerate(rows, start=2):
         try:
             # Parse required fields
             date = parse_date(row.get("Date", ""))
@@ -630,15 +612,13 @@ async def import_odometer_csv(
                 import_result.add_error(row_num, "Date is required")
                 continue
 
-            # Legacy v2 CSV uses "Mileage" (miles); v3 uses "Reading (km)"
-            # or "Reading". Convert legacy mileage → km on ingest.
-            odometer_raw = parse_decimal(
-                row.get("Reading (km)", "") or row.get("Reading", "") or row.get("Mileage", "")
-            )
-            if odometer_raw is None:
+            # v6 spells this `Reading (mi)`; v3-v5 `Reading (km)` (or
+            # `Mileage`); a bare `Reading` with no marker and no version is
+            # the v2 standalone odometer export, which held MILES.
+            odometer_km = _canonical_cell(units, row, DISTANCE)
+            if odometer_km is None:
                 import_result.add_error(row_num, "Reading is required")
                 continue
-            odometer_km = _mi_to_km(odometer_raw) if _row_is_legacy_v2(row) else odometer_raw
 
             notes = row.get("Notes", "").strip() or None
 

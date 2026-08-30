@@ -33,7 +33,7 @@ Self-hosted vehicle maintenance tracking with VIN decoding, service records, fue
 - **Engine Hours Tracking** - Hour meters for ATVs, equipment, and generators, with hours-based reminders
 - **Parts & Supplies** - Track fluids, filters and parts on hand; their cost folds into service visits
 - **Fifth Wheel & Trailer Support** - Propane tracking, spot rental billing, and RV park management
-- **Unit Conversion** - Imperial/Metric units with per-user preferences
+- **Unit Conversion** - Imperial, metric, or a mix: units are chosen per quantity, so litres with miles is a real setting
 - **Document Management** - Store registration, insurance, manuals with OCR
 - **Imports & Webhooks** - Fuelio, Drivvo and Tesla/ABRP CSV imports, inbound webhooks, and Telegram fuel commands
 - **Family Multi-User System** - Separate accounts with vehicle sharing, ownership transfers, and family dashboard

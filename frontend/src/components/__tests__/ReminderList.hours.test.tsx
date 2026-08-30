@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '../../__tests__/test-utils'
 import { fireEvent } from '@testing-library/react'
 import type { Reminder } from '../../types/reminder'
+import { METRIC_UNITS } from '../../__tests__/factories'
 
 // Task 15 — ReminderList hours-based target rendering. Mirrors
 // ServiceVisitList's Task 14 engine-hours reading coverage: an hours
@@ -31,7 +32,16 @@ vi.mock('../../hooks/useLatestHours', () => ({ useLatestHours: () => useLatestHo
 vi.mock('../../hooks/useDateLocale', () => ({ useDateLocale: () => 'en-US' }))
 // Metric — keeps the mileage-target assertion an exact, deterministic string
 // (no mi/km conversion constant to derive).
-vi.mock('../../hooks/useUnitPreference', () => ({ useUnitPreference: () => ({ system: 'metric', showBoth: false }) }))
+vi.mock('../../hooks/useUnitPreference', () => ({
+  useUnitPreference: () => ({
+    system: 'metric',
+    showBoth: false,
+    gallonStandard: 'us',
+    // The RESOLVED set, not just the collapsed system: this component reads
+    // its distance through `useUnitFormat()`, which closes over `units`.
+    units: METRIC_UNITS,
+  }),
+}))
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 // vi.hoisted so the holder is safe to reference inside the hoisted vi.mock
 // factory (the house idiom, mirrors ReminderList.test.tsx's reminderFormProps).

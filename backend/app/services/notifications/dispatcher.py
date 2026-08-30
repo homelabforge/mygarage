@@ -16,8 +16,8 @@ from app.services.notifications.pushover import PushoverNotificationService
 from app.services.notifications.slack import SlackNotificationService
 from app.services.notifications.telegram import TelegramNotificationService
 from app.services.settings_service import SettingsService
-from app.utils.gallon_flavour import resolve_gallon_flavour
-from app.utils.units import UnitConverter
+from app.utils.render_context import RenderContext
+from app.utils.unit_formatting import format_forced_volume_pair, format_quantity
 
 logger = logging.getLogger(__name__)
 
@@ -382,15 +382,30 @@ class NotificationDispatcher:
     async def notify_odometer_milestone(
         self,
         vehicle_name: str,
-        milestone: int,
+        canonical_km: Decimal,
+        ctx: RenderContext,
         url: str | None = None,
     ) -> dict[str, bool]:
-        """Send notification about odometer milestone."""
-        formatted_milestone = f"{milestone:,}"
+        """Send notification about an odometer milestone.
+
+        ``canonical_km`` is metric-canonical kilometres -- the caller derives
+        it from ``Vehicle.last_milestone_notified_km`` -- and is rendered in
+        ``ctx``'s distance unit. This message previously hardcoded the word
+        "miles" for that kilometre value, so a metric user was congratulated
+        on kilometres described as miles, three lines from a log statement
+        that called the same number km (L3).
+
+        The context is resolved by the CALLER: the scheduled job already
+        holds the vehicle and uses ``render_context_for_vehicle``, so nothing
+        here queries the database or reads ambient state.
+        """
         return await self.dispatch(
             event_type="odometer_milestone",
             title=f"Milestone Reached: {vehicle_name}",
-            message=f"Congratulations! {vehicle_name} has reached {formatted_milestone} miles!",
+            message=(
+                f"Congratulations! {vehicle_name} has reached "
+                f"{format_quantity(canonical_km, ctx, 'distance')}!"
+            ),
             url=url,
         )
 
@@ -472,21 +487,32 @@ class NotificationDispatcher:
         percent: Decimal,
         remaining_liters: Decimal,
         as_of_date: date,
+        ctx: RenderContext,
     ) -> dict[str, bool]:
         """Send notification when DEF (Diesel Exhaust Fluid) level is low.
 
-        Shows the remaining volume in both liters and gallons (Decimal-precise
-        conversion via UnitConverter) plus the as-of date of the underlying
-        reading, so staleness is visible rather than silently gated.
+        The remaining volume is a FORCED dual representation (R7): litres and
+        gallons always, in that fixed order, regardless of ``ctx.show_both``.
+        A DEF tank is refilled from jugs labelled in one unit and read from a
+        gauge calibrated in the other, so both belong in the message whether
+        or not the reader opted into show-both generally.
+
+        Which gallon follows D4b precedence (``format_forced_volume_pair``):
+        a ``gal_us``/``gal_uk`` primary states its own flavour and wins
+        outright, and ``secondary_gallon`` applies only when ``ctx``'s volume
+        unit is ``L``. The as-of date of the underlying reading is included
+        so staleness is visible rather than silently gated.
+
+        The context is resolved by the CALLER (the scheduled job holds the
+        vehicle), replacing the instance-wide ``imperial_gallon_standard``
+        lookup this method used to perform on its own.
         """
-        flavour = await resolve_gallon_flavour(self.db)
-        remaining_gallons = UnitConverter.liters_to_gallons(remaining_liters, flavour=flavour)
         return await self.dispatch(
             event_type="def_low",
             title=f"DEF Low: {vehicle_name}",
             message=(
                 f"DEF level for {vehicle_name} ({vin}) is at {percent:.1f}% "
-                f"({remaining_liters:.2f} L / {remaining_gallons:.2f} gal remaining), "
+                f"({format_forced_volume_pair(remaining_liters, ctx)} remaining), "
                 f"as of {as_of_date.isoformat()}."
             ),
         )

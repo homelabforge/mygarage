@@ -8,8 +8,7 @@ import type { Vehicle } from '../../types/vehicle'
 import { NON_MOTORIZED_TYPES } from '../../schemas/vehicle'
 import type { LastLocation } from '../../types/trips'
 import { formatCurrency, formatStickerValue } from '../../utils/formatUtils'
-import { UnitFormatter } from '../../utils/units'
-import { useUnitPreference } from '../../hooks/useUnitPreference'
+import { useUnitFormat } from '../../hooks/useUnitFormat'
 import { formatDateForDisplay } from '../../utils/dateUtils'
 import { useCurrencyPreference } from '../../hooks/useCurrencyPreference'
 import { useDateLocale } from '../../hooks/useDateLocale'
@@ -45,7 +44,7 @@ export default function VehicleOverviewTab({
   vin, vehicle, lastLocation, onEditPricing, onEditCard, onVehicleUpdated,
 }: VehicleOverviewTabProps) {
   const { t } = useTranslation('vehicles')
-  const { system: unitSystem } = useUnitPreference()
+  const u = useUnitFormat()
   const dateLocale = useDateLocale()
   const { currencyCode, locale } = useCurrencyPreference()
   const { timeFormat } = useTimeFormat()
@@ -257,9 +256,9 @@ export default function VehicleOverviewTab({
         <Card breakInside>
           <CardHeader title={t('detail.fuelEconomy')} />
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {vehicle.fuel_economy_city_l_per_100km && (<div><p className="text-sm text-text-mute">{t('detail.misc.city')}</p><Mono size="sm" className="block">{UnitFormatter.formatFuelEconomy(parseFloat(vehicle.fuel_economy_city_l_per_100km), unitSystem)}</Mono></div>)}
-            {vehicle.fuel_economy_highway_l_per_100km && (<div><p className="text-sm text-text-mute">{t('detail.misc.highway')}</p><Mono size="sm" className="block">{UnitFormatter.formatFuelEconomy(parseFloat(vehicle.fuel_economy_highway_l_per_100km), unitSystem)}</Mono></div>)}
-            {vehicle.fuel_economy_combined_l_per_100km && (<div><p className="text-sm text-text-mute">{t('detail.misc.combined')}</p><Mono size="sm" className="block">{UnitFormatter.formatFuelEconomy(parseFloat(vehicle.fuel_economy_combined_l_per_100km), unitSystem)}</Mono></div>)}
+            {vehicle.fuel_economy_city_l_per_100km && (<div><p className="text-sm text-text-mute">{t('detail.misc.city')}</p><Mono size="sm" className="block">{u.consumption.formatPrimary(parseFloat(vehicle.fuel_economy_city_l_per_100km))}</Mono></div>)}
+            {vehicle.fuel_economy_highway_l_per_100km && (<div><p className="text-sm text-text-mute">{t('detail.misc.highway')}</p><Mono size="sm" className="block">{u.consumption.formatPrimary(parseFloat(vehicle.fuel_economy_highway_l_per_100km))}</Mono></div>)}
+            {vehicle.fuel_economy_combined_l_per_100km && (<div><p className="text-sm text-text-mute">{t('detail.misc.combined')}</p><Mono size="sm" className="block">{u.consumption.formatPrimary(parseFloat(vehicle.fuel_economy_combined_l_per_100km))}</Mono></div>)}
           </div>
         </Card>
       )}

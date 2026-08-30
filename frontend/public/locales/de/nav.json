@@ -22,5 +22,29 @@
   "searchPlaceholder": "Fahrzeuge, Service, VIN suchen …",
   "searchShellTitle": "Suche kommt bald",
   "searchShellBody": "Die globale Suche über Fahrzeuge, Servicehistorie und VINs kommt bald.",
-  "themeToggle": "Design wechseln"
+  "themeToggle": "Design wechseln",
+  "quickSettings": "Schnelleinstellungen",
+  "allSettings": "Alle Einstellungen",
+  "appearance": "Erscheinungsbild",
+  "accent": "Akzentfarbe",
+  "accentError": "Deine Akzentfarbe konnte nicht gespeichert werden",
+  "accents": {
+    "blue": "Blau",
+    "amber": "Bernstein",
+    "teal": "Teal",
+    "red": "Rot",
+    "violet": "Violett",
+    "green": "Grün"
+  },
+  "searchLoading": "Suche läuft…",
+  "searchHint": "Gib einen Spitznamen, eine VIN, ein Kennzeichen, eine Marke oder einen Erinnerungstitel ein.",
+  "searchNoResultsTitle": "Keine Treffer",
+  "searchNoResultsBody": "Versuche es mit einem anderen Spitznamen, einer anderen VIN, einem anderen Kennzeichen oder einem anderen Erinnerungstitel.",
+  "searchTypeVehicle": "Fahrzeug",
+  "searchTypeReminder": "Erinnerung",
+  "notificationsLoading": "Benachrichtigungen werden geladen…",
+  "notificationsDismiss": "Verwerfen",
+  "notificationsDismissAll": "Alle verwerfen",
+  "notificationsOverdue": "Überfällig",
+  "notificationsUpcoming": "Anstehend"
 }

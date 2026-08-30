@@ -17,9 +17,10 @@ import ServiceVisitAttachmentList from './ServiceVisitAttachmentList'
 import { useCreateServiceVisit, useUpdateServiceVisit } from '../hooks/queries/useServiceVisits'
 import { useSupplies } from '../hooks/queries/useSupplies'
 import { useUnitPreference } from '../hooks/useUnitPreference'
+import { useUnitFormat } from '../hooks/useUnitFormat'
 import { useLatestMileage } from '../hooks/useLatestMileage'
-import { UnitConverter, UnitFormatter } from '../utils/units'
-import { toCanonicalKm } from '../utils/decimalSafe'
+import { canonicalFromUnitField, seedUnitField, type UnitFieldOrigin } from '../utils/unitFormat'
+import { readNumber } from '../utils/decimalSafe'
 import { canonicalToDisplay, displayToCanonical } from '../utils/supplyUnits'
 import { getUsageTracking } from '../utils/usageTracking'
 import api from '../services/api'
@@ -38,6 +39,7 @@ import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
 // scope. Either way, dropping silently is the least-bad option available
 // without turning a units-conversion helper into a place that also owns
 // user-facing warnings.
+// units-exempt(binary-conversion): R3 supplies deferral, at the DECLARATION. ★ THE ONE TASK 8's REPORT CELEBRATED HALF OF: the gate saw the fourth ARGUMENT of this function (`canonicalToDisplay` / `displayToCanonical` passed as values) and could not see this function, which is the local binary helper that consumes it. It threads the collapsed `system` down to `canonicalToDisplay` / `supplyUnitLabel`, which carry the same ruling at their own declarations in `utils/supplyUnits.ts`: D8 gave supplies a qt/L vocabulary `UnitSet` cannot express, so there is nothing resolved for this to read instead. Owner: deferred, pending the D8 amendment. Expires with the three legs in supplyUnits.ts, never alone.
 function convertSupplyUsages(
   usages: { supply_id: number; quantity: number | string }[],
   suppliesById: Map<number, Supply>,
@@ -84,7 +86,18 @@ export default function ServiceVisitForm({
 }: ServiceVisitFormProps) {
   const { t } = useTranslation('forms')
   const isEdit = !!visit
+  // ★ `system` survives here for the SUPPLY quantities only. Spec D8 exempts
+  // supplies from the resolved set (a quart is not one of the ten quantities),
+  // and `canonicalToDisplay` / `displayToCanonical` still take the binary
+  // answer. Plan 3b ruling R3 gave that decision to task 5, which RULED IT:
+  // all three legs of `utils/supplyUnits.ts` are exempt, because D8's qt/L
+  // vocabulary is not in `UnitSet` and so `units` holds nothing they could
+  // read. They track `unit_preference` deliberately and move together. Read
+  // that file's header before changing this line; the exemption is owned by a
+  // D8 amendment now, not by a task. The odometer below reads `u.distance`
+  // instead, which is what this form was getting wrong.
   const { system } = useUnitPreference()
+  const u = useUnitFormat()
   const { currencyCode, locale } = useCurrencyPreference()
   const createMutation = useCreateServiceVisit(vin)
   const updateMutation = useUpdateServiceVisit(vin)
@@ -144,6 +157,22 @@ export default function ServiceVisitForm({
     return id
   }
 
+  /**
+   * The canonical origin of the odometer reading, seeded once.
+   *
+   * The reading used to be read and written on `useUnitPreference().system`,
+   * which spec D8 collapses from VOLUME: a `{volume: 'L', distance: 'mi'}`
+   * account typed miles into a field labelled `km` and stored them verbatim.
+   *
+   * The origin is what stops an untouched save from rewriting it: 72420.5 km
+   * displays as 45000 mi and 45000 mi converts back to 72420.3 km. Seeded
+   * through a lazy `useState` for the same reason `formData` is, and before it,
+   * because the form's initial odometer is read out of this origin's display.
+   */
+  const [odometerOrigin] = useState<UnitFieldOrigin>(() =>
+    seedUnitField(readNumber(visit?.odometer_km), u.distance)
+  )
+
   // Form state
   const [formData, setFormData] = useState<ServiceVisitFormData>(() => {
     const today = new Date()
@@ -153,11 +182,7 @@ export default function ServiceVisitForm({
       return {
         vendor_id: visit.vendor_id ?? undefined,
         date: visit.date.split('T')[0],
-        odometer_km: visit.odometer_km != null
-          ? (system === 'imperial'
-              ? UnitConverter.kmToMiles(Number(visit.odometer_km)) ?? Number(visit.odometer_km)
-              : Number(visit.odometer_km))
-          : undefined,
+        odometer_km: readNumber(odometerOrigin.display),
         // Task 14 — dimensionless engine-hours reading. NO unit conversion
         // regardless of system, unlike odometer_km above.
         engine_hours: visit.engine_hours != null ? Number(visit.engine_hours) : undefined,
@@ -350,8 +375,15 @@ export default function ServiceVisitForm({
 
     setSubmitting(true)
     try {
-      // Convert user-entered odometer to canonical km for the API.
-      const odometerKm = toCanonicalKm(formData.odometer_km, system) ?? undefined
+      // Back through `units.distance`, and an untouched field returns the
+      // canonical value it was seeded from rather than a re-conversion of a
+      // rounded display.
+      const odometerKm =
+        canonicalFromUnitField(
+          String(formData.odometer_km ?? ''),
+          odometerOrigin,
+          u.distance
+        ) ?? undefined
 
       // Reminder due_mileage_km interval is already canonical km (LineItemEditor
       // converts on input). Add to current km baseline for absolute target.
@@ -524,7 +556,7 @@ export default function ServiceVisitForm({
               </Field>
 
               {isMotorized && tracksDistance && (
-                <Field id="service-odometer" label={t('common:mileage')} unit={UnitFormatter.getDistanceUnit(system)} error={fieldErrors.odometer_km}>
+                <Field id="service-odometer" label={t('common:mileage')} unit={u.distance.label} error={fieldErrors.odometer_km}>
                   <Input
                     type="number"
                     id="service-odometer"
@@ -533,7 +565,12 @@ export default function ServiceVisitForm({
                     onChange={(e) => handleFieldChange('odometer_km', e.target.value ? parseFloat(e.target.value) : undefined)}
                     min="0"
                     step="0.1"
-                    placeholder={system === 'imperial' ? '45000' : '72420'}
+                    /* One example reading (72420 km) rendered in the client's
+                       own distance unit, rather than one of two literals chosen
+                       by a collapsed system. It reproduces both shipped hints
+                       exactly and needs no new branch for a distance token
+                       added later. */
+                    placeholder={u.distance.toInputValue(72420)}
                     disabled={submitting}
                   />
                 </Field>

@@ -69,6 +69,7 @@ from app.services.fuel_service import calculate_average_hours_economy
 from app.services.service_visit_service import service_visit_cost_load_options
 from app.utils.cache import cached
 from app.utils.logging_utils import sanitize_for_log
+from app.utils.render_context import render_context_for_request
 
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
 
@@ -1520,7 +1521,7 @@ async def export_analytics_pdf(
     currency_code: str = Query("USD", description="ISO 4217 code; defaults to USD."),
     locale: str = Query("en-US", description="BCP 47 locale; defaults to en-US."),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_auth),
+    current_user: User | None = Depends(require_auth),
 ):
     """
     Export vehicle analytics as PDF report.
@@ -1607,6 +1608,7 @@ async def export_analytics_pdf(
         currency_code=safe_code,
         locale=safe_locale,
         reminders_data=reminders_data,
+        render_context=await render_context_for_request(current_user, db),
     )
 
     # Return PDF as streaming response

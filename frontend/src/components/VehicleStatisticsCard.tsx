@@ -17,8 +17,9 @@ import {
 } from 'lucide-react'
 import type { VehicleStatistics } from '../types/dashboard'
 import { formatDateForDisplay } from '../utils/dateUtils'
+import { useUnitFormat } from '../hooks/useUnitFormat'
 import { useUnitPreference } from '../hooks/useUnitPreference'
-import { UnitFormatter } from '../utils/units'
+import { formatFuelRate, fuelRateLabel } from '../utils/unitFormat'
 import { withBase } from '../utils/basePath'
 import { getUsageTracking } from '../utils/usageTracking'
 import VehicleLiveLinkWidget from './livelink/VehicleLiveLinkWidget'
@@ -34,7 +35,11 @@ interface VehicleStatisticsCardProps {
 function VehicleStatisticsCard({ stats, selectMode = false, selected = false, onToggleSelect }: VehicleStatisticsCardProps) {
   const { t } = useTranslation('vehicles')
   const navigate = useNavigate()
-  const { system } = useUnitPreference()
+  const u = useUnitFormat()
+  // The engine-hours rate is a DERIVED quantity (volume per a dimensionless
+  // hour), so it composes from the resolved set rather than reading one of
+  // `u`'s ten per-quantity formatters.
+  const { units } = useUnitPreference()
 
   const handleClick = () => {
     if (selectMode) {
@@ -225,11 +230,7 @@ function VehicleStatisticsCard({ stats, selectMode = false, selected = false, on
                 <ListRow
                   icon={Gauge}
                   label={t('vehicleStats.latestOdometer')}
-                  value={UnitFormatter.formatDistance(
-                    parseFloat(String(stats.latest_odometer_km)),
-                    system,
-                    false
-                  )}
+                  value={u.distance.formatPrimary(parseFloat(String(stats.latest_odometer_km)))}
                 />
               )}
               {usage.tracksHours && stats.latest_hours != null && (
@@ -245,10 +246,12 @@ function VehicleStatisticsCard({ stats, selectMode = false, selected = false, on
           </div>
         )}
 
-        {/* Highlight strip — average fuel economy (accent). MPG is distance-
-            based (hidden for hour-metered vehicles); GPH/L·hr is the hours
-            analog (Phase 13's formatFuelRate/getFuelRateUnit), hidden for
-            distance-only vehicles. A dual-tracking vehicle shows both. */}
+        {/* Highlight strip — average fuel economy (accent). Consumption is
+            distance-based (hidden for hour-metered vehicles); the fuel rate is
+            the hours analog, volume per engine hour, hidden for distance-only
+            vehicles. A dual-tracking vehicle shows both. Each names the unit
+            the reader's own resolved set chose, so the strip cannot disagree
+            with the odometer row above it. */}
         {((usage.tracksDistance && stats.average_l_per_100km) ||
           (usage.tracksHours && stats.average_l_per_hr)) && (
           <div className="space-y-3 border-t border-border pt-3">
@@ -259,17 +262,17 @@ function VehicleStatisticsCard({ stats, selectMode = false, selected = false, on
                     <TrendingUp aria-hidden="true" className="h-4 w-4 text-(--accent-fg)" />
                     <span className="text-sm text-text-mute">
                       {t('vehicleStatisticsCardExtra.averageFuelEconomy', {
-                        unit: UnitFormatter.getFuelEconomyUnit(system),
+                        unit: u.consumption.label,
                       })}
                     </span>
                   </div>
                   <Mono size="lg" weight="bold" tone="accent">
-                    {UnitFormatter.formatFuelEconomy(parseFloat(String(stats.average_l_per_100km)), system, false)}
+                    {u.consumption.formatPrimary(parseFloat(String(stats.average_l_per_100km)))}
                   </Mono>
                 </div>
                 {stats.recent_l_per_100km && stats.recent_l_per_100km !== stats.average_l_per_100km && (
                   <div className="mt-1 text-xs text-text-mute">
-                    {t('vehicleStats.recent')}: {UnitFormatter.formatFuelEconomy(parseFloat(String(stats.recent_l_per_100km)), system, false)}
+                    {t('vehicleStats.recent')}: {u.consumption.formatPrimary(parseFloat(String(stats.recent_l_per_100km)))}
                   </div>
                 )}
               </div>
@@ -280,12 +283,12 @@ function VehicleStatisticsCard({ stats, selectMode = false, selected = false, on
                   <TrendingUp aria-hidden="true" className="h-4 w-4 text-(--accent-fg)" />
                   <span className="text-sm text-text-mute">
                     {t('vehicleStatisticsCardExtra.averageFuelEconomy', {
-                      unit: UnitFormatter.getFuelRateUnit(system),
+                      unit: fuelRateLabel(units),
                     })}
                   </span>
                 </div>
                 <Mono size="lg" weight="bold" tone="accent">
-                  {UnitFormatter.formatFuelRate(parseFloat(String(stats.average_l_per_hr)), system, false)}
+                  {formatFuelRate(units, parseFloat(String(stats.average_l_per_hr)))}
                 </Mono>
               </div>
             )}

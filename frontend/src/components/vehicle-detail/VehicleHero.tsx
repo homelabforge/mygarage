@@ -2,8 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { Car, AlertTriangle, AlertCircle, Bell, Gauge } from 'lucide-react'
 import type { Vehicle, VehicleDetailStats } from '../../types/vehicle'
 import { NON_MOTORIZED_TYPES } from '../../schemas/vehicle'
-import { useUnitPreference } from '../../hooks/useUnitPreference'
-import { UnitFormatter } from '../../utils/units'
+import { useUnitFormat } from '../../hooks/useUnitFormat'
 import { formatDateForDisplay } from '../../utils/dateUtils'
 import { useDateLocale } from '../../hooks/useDateLocale'
 import { getUsageTracking } from '../../utils/usageTracking'
@@ -28,7 +27,7 @@ interface VehicleHeroProps {
  */
 export default function VehicleHero({ vehicle, photoUrl, fromCache, detailStats }: VehicleHeroProps) {
   const { t } = useTranslation('vehicles')
-  const { system } = useUnitPreference()
+  const u = useUnitFormat()
   const dateLocale = useDateLocale()
 
   const isMotorized =
@@ -50,7 +49,7 @@ export default function VehicleHero({ vehicle, photoUrl, fromCache, detailStats 
       ? t('vehicleStats.hoursValue', { value: Number(detailStats.latest_hours).toLocaleString() })
       : null
     : isMotorized && detailStats?.latest_odometer_km
-      ? UnitFormatter.formatDistance(parseFloat(detailStats.latest_odometer_km), system)
+      ? u.distance.formatPrimary(parseFloat(detailStats.latest_odometer_km))
       : null
 
   const primaryLabel = primaryIsHours ? t('detail.misc.hours') : t('detail.misc.odometer')
@@ -70,7 +69,7 @@ export default function VehicleHero({ vehicle, photoUrl, fromCache, detailStats 
   const secondaryReading = isDualTracking
     ? primaryIsHours
       ? isMotorized && detailStats?.latest_odometer_km
-        ? UnitFormatter.formatDistance(parseFloat(detailStats.latest_odometer_km), system)
+        ? u.distance.formatPrimary(parseFloat(detailStats.latest_odometer_km))
         : null
       : detailStats?.latest_hours != null
         ? t('vehicleStats.hoursValue', { value: Number(detailStats.latest_hours).toLocaleString() })

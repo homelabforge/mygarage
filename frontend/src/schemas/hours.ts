@@ -7,8 +7,9 @@ import { makeDateSchema, makeEngineHoursSchema, makeNotesSchema } from './shared
  * See: backend/app/schemas/hours.py
  *
  * Engine-hours analog of schemas/odometer.ts (s/odometer_km/engine_hours/).
- * `engine_hours` is dimensionless -- no unit system, no toCanonicalKm-style
- * conversion on submit, unlike odometer_km.
+ * `engine_hours` is dimensionless -- no unit system and nothing to convert on
+ * submit, unlike odometer_km, which seeds a `UnitFieldOrigin` on `u.distance`
+ * and converts back through `canonicalFromUnitField`.
  *
  * Factory, not a constant — see the header of schemas/auth.ts for why.
  */

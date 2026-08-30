@@ -498,3 +498,180 @@ class TestSensitiveSettingMasking:
         )
         assert response.status_code == 200
         assert await _stored_value(db_session, "email_smtp_password") == "new-password"
+
+
+# ---------------------------------------------------------------------------
+# default_unit_prefs write validation (units phase 4, task 5)
+# ---------------------------------------------------------------------------
+
+
+def _settings_value_write_endpoints() -> set[str]:
+    """Enumerate the settings endpoints that write a Setting value.
+
+    ★ DERIVED, NOT LISTED, and the derivation is the point. The plan named three
+    routes that can write `default_unit_prefs`; validating only the one the UI
+    happens to call leaves the other two open, which is the same back door D9b
+    closed on the user schemas. A hand-written list of three would go stale the
+    moment a fourth writer is added, and nothing would say so.
+
+    The rule: parse each endpoint on `app.routes.settings.router` and report it
+    when its body constructs a `Setting(...)`, assigns to a `.value` attribute,
+    or calls `setattr` (a blanket attribute write, which is how
+    `update_setting` applies its payload). Endpoints are read from the router
+    rather than from the module namespace, so a handler that is defined but
+    never registered is correctly absent.
+
+    ★ AND THE SCOPE IS THAT ROUTER, WHICH IS NARROWER THAN "every writer". A
+    walk of one router cannot see a writer that is not on it, and there is
+    exactly one: `BackupService.restore_settings_backup` (reachable from
+    `POST /api/backup/restore/{filename}`) pushes every uploaded key and value
+    into `SettingsService.set`. Reading this enumeration as "nothing can write
+    an unvalidated value" is how that path went unguarded. It now validates at
+    its own site, pinned by
+    `tests/unit/services/test_backup_settings_restore.py`, so what this function
+    guarantees is the ROUTE half and the sentence says so.
+
+    :returns: the endpoint function names, as a set.
+    """
+    import ast
+    import inspect
+
+    from app.routes import settings as settings_route
+
+    found: set[str] = set()
+    for route in settings_route.router.routes:
+        endpoint = getattr(route, "endpoint", None)
+        if endpoint is None:
+            continue
+        tree = ast.parse(inspect.getsource(endpoint))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+                if node.func.id in {"Setting", "setattr"}:
+                    found.add(endpoint.__name__)
+            if isinstance(node, ast.Assign):
+                for target in node.targets:
+                    if isinstance(target, ast.Attribute) and target.attr == "value":
+                        found.add(endpoint.__name__)
+
+    if not found:
+        # A silent empty set would make the coverage assertion below vacuously
+        # true, which is the failure this enumeration exists to prevent.
+        raise AssertionError("walked the settings router and found no writer; refusing to conclude")
+    return found
+
+
+# A complete, in-vocabulary set: the metric preset, which is neither the value
+# under test nor the imperial fallback a rejected write would silently produce.
+GOOD_UNIT_PREFS = (
+    '{"consumption": "l_100km", "distance": "km", "length": "m", "mass": "kg", '
+    '"pressure": "kpa", "secondary_gallon": "us", "speed": "kmh", '
+    '"temperature": "c", "torque": "nm", "tread": "mm", "volume": "L"}'
+)
+
+# A second complete set, used to prove an accepted write really lands.
+OTHER_GOOD_UNIT_PREFS = (
+    '{"consumption": "mpg_uk", "distance": "mi", "length": "ft", "mass": "lb", '
+    '"pressure": "psi", "secondary_gallon": "uk", "speed": "mph", '
+    '"temperature": "f", "torque": "lbft", "tread": "in32", "volume": "gal_uk"}'
+)
+
+# The four rejection cases the plan names. Each degrades WHOLE through
+# `parse_default_unit_prefs`, so an unvalidated write reverts every anonymous
+# client to the imperial fallback with nothing in the response to say so.
+BAD_UNIT_PREFS = {
+    "partial": '{"distance": "km", "volume": "L"}',
+    "extra_key": GOOD_UNIT_PREFS[:-1] + ', "colour": "red"}',
+    "out_of_vocabulary": GOOD_UNIT_PREFS.replace('"pressure": "kpa"', '"pressure": "atm"'),
+    "malformed_json": "{not json at all",
+    "empty": "",
+}
+
+
+async def _write_through(client: AsyncClient, endpoint: str, headers, db_session, raw: str):
+    """Send `raw` as `default_unit_prefs` through one named write endpoint.
+
+    Each path is set up so it can actually reach its write: `create_setting`
+    409s on an existing row and `update_setting` 404s on a missing one, so the
+    row is removed or seeded accordingly. An unasserted setup that silently
+    404'd would leave the assertion below testing nothing.
+
+    :returns: the response.
+    """
+    key = "default_unit_prefs"
+    if endpoint == "create_setting":
+        await _delete_setting(db_session, key)
+        return await client.post("/api/settings", headers=headers, json={"key": key, "value": raw})
+    if endpoint == "update_setting":
+        await _set_setting(db_session, key, GOOD_UNIT_PREFS)
+        return await client.put(f"/api/settings/{key}", headers=headers, json={"value": raw})
+    if endpoint == "batch_update_settings":
+        await _set_setting(db_session, key, GOOD_UNIT_PREFS)
+        return await client.post(
+            "/api/settings/batch", headers=headers, json={"settings": {key: raw}}
+        )
+    raise AssertionError(f"no request builder for {endpoint}")
+
+
+async def _delete_setting(db_session, key: str) -> None:
+    """Remove a setting row, so a test leaves the shared DB as it found it."""
+    result = await db_session.execute(select(Setting).where(Setting.key == key))
+    existing = result.scalar_one_or_none()
+    if existing is not None:
+        await db_session.delete(existing)
+        await db_session.commit()
+
+
+WRITE_ENDPOINTS = ("create_setting", "update_setting", "batch_update_settings")
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+class TestDefaultUnitPrefsWriteValidation:
+    """A `default_unit_prefs` written through the settings API must parse.
+
+    `parse_default_unit_prefs` degrades WHOLE and only logs, which is right on
+    READ: an exception there would take the app down for logged-out users on
+    nothing worse than a hand-edited row. On WRITE it means an admin can store a
+    value that silently reverts every anonymous client to the imperial fallback,
+    with no error in the response and nothing but a warning in the log.
+    """
+
+    async def test_every_write_path_the_router_declares_is_covered_here(self):
+        """The rejection cases below run against every writer, not one of three."""
+        assert _settings_value_write_endpoints() == set(WRITE_ENDPOINTS)
+
+    @pytest.mark.parametrize("endpoint", WRITE_ENDPOINTS)
+    @pytest.mark.parametrize("case", sorted(BAD_UNIT_PREFS))
+    async def test_a_value_that_would_not_parse_is_rejected(
+        self, client: AsyncClient, auth_headers, db_session, endpoint: str, case: str
+    ):
+        """Each path refuses the write and leaves the stored row alone."""
+        try:
+            response = await _write_through(
+                client, endpoint, auth_headers, db_session, BAD_UNIT_PREFS[case]
+            )
+            assert response.status_code == 422, response.text
+            if endpoint == "create_setting":
+                result = await db_session.execute(
+                    select(Setting).where(Setting.key == "default_unit_prefs")
+                )
+                assert result.scalar_one_or_none() is None
+            else:
+                # The other direction: the good row the setup wrote survives.
+                assert await _stored_value(db_session, "default_unit_prefs") == GOOD_UNIT_PREFS
+        finally:
+            await _delete_setting(db_session, "default_unit_prefs")
+
+    @pytest.mark.parametrize("endpoint", WRITE_ENDPOINTS)
+    async def test_a_complete_set_still_writes_through(
+        self, client: AsyncClient, auth_headers, db_session, endpoint: str
+    ):
+        """And the guard is not a blanket refusal: a good set still lands."""
+        try:
+            response = await _write_through(
+                client, endpoint, auth_headers, db_session, OTHER_GOOD_UNIT_PREFS
+            )
+            assert response.status_code in (200, 201), response.text
+            assert await _stored_value(db_session, "default_unit_prefs") == OTHER_GOOD_UNIT_PREFS
+        finally:
+            await _delete_setting(db_session, "default_unit_prefs")

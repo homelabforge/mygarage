@@ -2,7 +2,6 @@ import csv
 import io
 import json
 from datetime import datetime
-from decimal import Decimal
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -13,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.constants.units import IMPERIAL_PRESET, METRIC_PRESET, UnitSet
 from app.database import get_db
 from app.models import (
     DEFRecord,
@@ -29,133 +29,89 @@ from app.models.user import User
 from app.services.auth import get_vehicle_or_403, require_auth
 from app.services.fuel_service import resolve_station_names
 from app.services.service_visit_service import service_visit_cost_load_options
+from app.utils.csv_emission import apply_unit_set, marker_for
 from app.utils.csv_safe import sanitize_csv_row
-from app.utils.gallon_flavour import resolve_gallon_flavour
-from app.utils.units import GallonFlavour, UnitConverter
+from app.utils.render_context import render_context_for_request
 
 router = APIRouter(prefix="/api/export", tags=["export"])
 
 # Initialize rate limiter for export endpoints
 limiter = Limiter(key_func=get_remote_address)
 
-# CSV/JSON export schema version.
+# CSV and JSON export schema versions.
+#
+# Before issue #152 Task 1, CSV and JSON shared one EXPORT_SCHEMA_VERSION
+# constant, so this history applies to both surfaces up to v5:
 # - v2: legacy imperial.
 # - v3: SI-metric canonical (issue #67).
 # - v4: v3 + extended fuel-tracking columns (issue #69 / v2.27.0-rc2):
 #       Filled At, Fuel Type Used, Station, Driver, Payment Method,
-#       Trip Type, Outside Temp, OBC values. Purely additive — v3
+#       Trip Type, Outside Temp, OBC values. Purely additive, v3
 #       importers continue to work.
 # - v5: drops the fuel "Fuel Type" column, retired with the legacy
 #       `fuel_records.fuel_type` DB column (migration 089). "Fuel Type Used"
 #       carries the canonical enum. NOT additive, so the version moves; the
 #       importer still reads "Fuel Type" from v4-and-older files.
-# CSV exports prepend a `units_version` column with this value to every row;
-# JSON exports include a top-level `"export_version"` + `"units"` field.
+#
+# From v5 the two diverge. Bumping the CSV schema for the per-quantity unit
+# headers landing later in this phase (#152) must not silently move the JSON
+# backup contract too, so the constant is split:
+# - CSV_SCHEMA_VERSION = "6": reserved for unit-preference-aware headers
+#   landing in later tasks of this phase. Nothing in the CSV row shape
+#   changes yet; only the version cell does (Task 1, #152).
+# - JSON_SCHEMA_VERSION = "5": unchanged. The JSON backup's shape is not part
+#   of this phase.
+#
+# CSV exports prepend a `units_version` column with CSV_SCHEMA_VERSION to
+# every row; JSON exports include a top-level `"export_version"` set to
+# JSON_SCHEMA_VERSION plus a `"units"` field.
 # The importer (`app/routes/import_data.py`) reads the marker and falls back
 # to v2 imperial conversion when it's missing (legacy v2 backups).
-EXPORT_SCHEMA_VERSION = "5"
+CSV_SCHEMA_VERSION = "6"
+JSON_SCHEMA_VERSION = "5"
 EXPORT_UNITS = "metric"
 
 
-def _per_liter_to_per_gallon(value: Any, gallons_to_liters: Decimal) -> float | None:
-    """A canonical per-litre price expressed per gallon of the given flavour."""
-    if value in (None, ""):
-        return None
-    return UnitConverter.round_result(Decimal(str(value)) * gallons_to_liters)
+_UNITS_QUERY_DESCRIPTION = (
+    "Unit system for the exported values. OMIT this parameter to export in the "
+    "caller's own unit preferences (the instance default on an auth_mode=none "
+    "instance), which is the only way to receive a mixed set such as kilometres "
+    "with UK gallons. Pass `metric` or `imperial` to force that preset instead. "
+    "Every unit-bearing column names its unit in the header, e.g. `Odometer (mi)`, "
+    "`Volume (gal_uk)`, `Price Per Unit (gal_uk)`."
+)
 
 
-# Metric header -> (imperial header, value converter). Built per request from
-# one explicit gallon standard rather than read off the mutable class attribute,
-# so a settings change mid-export cannot produce a file whose volume column and
-# whose unit_system marker disagree.
-#
-# The imperial names are deliberately the ones `import_data.py` ALREADY reads
-# ("Mileage", "Gallons", "Price Per Gallon", "Reading"), so an imperial export
-# round-trips through the existing importer and stays readable if the
-# `unit_system` marker column is ever stripped by a spreadsheet.
-def _l100km_to_mpg(value: Any, numerator: Decimal) -> float | None:
-    """L/100km as MPG against an explicit numerator (US 235.214 / UK 282.481).
+async def resolve_export_units(
+    requested: str | None, current_user: User | None, db: AsyncSession
+) -> UnitSet:
+    """The unit set one CSV export is written in.
 
-    Mirrors UnitConverter.l100km_to_mpg but takes the numerator rather than
-    reading the mutable class attribute, so one export cannot mix flavours.
+    Precedence: an explicit `?units=metric|imperial` wins outright and
+    produces a clean PRESET export, whoever asked for it. Omitting the
+    parameter uses the caller's own resolved set, and on an `auth_mode=none`
+    instance -- where there is no caller to resolve from -- the instance
+    default.
+
+    The parameter has no default, deliberately. While it defaulted to
+    `"metric"`, an omitted `?units` and an explicit `?units=metric` were
+    indistinguishable here, so an account with mixed preferences could never
+    receive its own headers: the frontend sent the binary system it had
+    already collapsed that account into, and got a clean preset back.
+
+    `resolve_gallon_flavour` deliberately plays no part any more. The
+    instance-wide `imperial_gallon_standard` row used to decide which gallon
+    an `?units=imperial` export was written in, which is how a UK instance
+    emitted UK gallons under the marker `imperial_uk`. v6 stops emitting that
+    marker: the gallon flavour travels in the header token, and it comes from
+    the account (or from the explicitly requested preset), never from an
+    instance setting.
     """
-    val = UnitConverter.to_decimal(value)
-    if val is None or val == 0:
-        return None
-    return UnitConverter.round_result(numerator / val, 1)
-
-
-def _imperial_columns(gallons_to_liters: Decimal) -> dict[str, tuple[str, Any]]:
-    """Header and converter map for one gallon standard.
-
-    The imperial names are deliberately the ones `import_data.py` ALREADY reads
-    ("Mileage", "Gallons", "Price Per Gallon", "Reading"), so an imperial export
-    round-trips through the existing importer and stays readable if the
-    `unit_system` marker column is ever stripped by a spreadsheet.
-    """
-    uk = gallons_to_liters == UnitConverter.UK_GALLONS_TO_LITERS
-    return {
-        "Odometer (km)": ("Mileage", UnitConverter.km_to_miles),
-        "Reading (km)": ("Reading", UnitConverter.km_to_miles),
-        "Liters": (
-            "Gallons",
-            lambda v: UnitConverter.round_result(Decimal(str(v)) / gallons_to_liters),
-        ),
-        "Price Per Liter": (
-            "Price Per Gallon",
-            lambda v: _per_liter_to_per_gallon(v, gallons_to_liters),
-        ),
-        # DEF keeps the column name — that is the only key its importer reads —
-        # but the value still has to move to per-gallon.
-        "Price Per Unit": (
-            "Price Per Unit",
-            lambda v: _per_liter_to_per_gallon(v, gallons_to_liters),
-        ),
-        "Outside Temp (C)": ("Outside Temp (F)", UnitConverter.celsius_to_fahrenheit),
-        "OBC L/100km": (
-            "OBC MPG",
-            lambda v: _l100km_to_mpg(
-                v,
-                UnitConverter.UK_MPG_TO_L100KM_NUMERATOR
-                if uk
-                else UnitConverter.US_MPG_TO_L100KM_NUMERATOR,
-            ),
-        ),
-        "OBC Avg Speed (km/h)": ("OBC Avg Speed (mph)", UnitConverter.km_to_miles),
-    }
-
-
-def to_imperial(
-    headers: list[str], rows: list[list[Any]], gallons_to_liters: Decimal
-) -> tuple[list[str], list[list[Any]]]:
-    """Rewrite metric headers and values to imperial.
-
-    Storage is metric-canonical, so every export was metric regardless of the
-    account's unit preference — unusable for someone migrating 15 years of
-    imperial data into another program (#128). Columns with no unit
-    (dates, notes, engine hours, costs) pass through untouched.
-    """
-    columns = _imperial_columns(gallons_to_liters)
-    converters: list[Any] = []
-    out_headers: list[str] = []
-    for header in headers:
-        mapped = columns.get(header)
-        if mapped is None:
-            out_headers.append(header)
-            converters.append(None)
-        else:
-            imperial_header, converter = mapped
-            out_headers.append(imperial_header)
-            converters.append(converter)
-
-    out_rows = [
-        [
-            convert(value) if convert is not None and value not in (None, "") else value
-            for value, convert in zip(row, converters, strict=True)
-        ]
-        for row in rows
-    ]
-    return out_headers, out_rows
+    if requested == "metric":
+        return METRIC_PRESET
+    if requested == "imperial":
+        return IMPERIAL_PRESET
+    return (await render_context_for_request(current_user, db)).units
 
 
 def generate_csv_stream(
@@ -165,41 +121,29 @@ def generate_csv_stream(
 
     `units_version` is the SCHEMA version; `unit_system` says which units the
     values are actually in. They are separate because they change for different
-    reasons — conflating them is what let a v4 metric export be re-imported as
+    reasons - conflating them is what let a v4 metric export be re-imported as
     imperial (#128). The importer reads `unit_system` first.
     """
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(["units_version", "unit_system", *headers])
     # Neutralise CSV formula-injection in every data cell (header is static).
-    writer.writerows([sanitize_csv_row([EXPORT_SCHEMA_VERSION, unit_system, *row]) for row in rows])
+    writer.writerows([sanitize_csv_row([CSV_SCHEMA_VERSION, unit_system, *row]) for row in rows])
     output.seek(0)
     return output
 
 
-def build_csv(
-    headers: list[str],
-    rows: list[list[Any]],
-    units: str,
-    flavour: GallonFlavour,
-) -> io.StringIO:
-    """Convert to the requested unit system and stream, with ONE gallon flavour.
+def build_csv(headers: list[str], rows: list[list[Any]], units: UnitSet) -> io.StringIO:
+    """Convert a canonical-metric table into `units` and stream it.
 
-    The flavour is passed in by the route, which resolved it once, and drives
-    both the value conversion and the `unit_system` marker written into the
-    file, so the two can never disagree. A UK export is labelled `imperial_uk`;
-    the importer reads that marker to decide which gallon the values are in.
+    One resolved `UnitSet` drives both halves of the file, so the values and
+    the header tokens can never disagree: `app.utils.csv_emission` renames
+    each unit-bearing header to `Base (token)` and converts that column's
+    cells in the same pass, and the `unit_system` marker is derived from the
+    same set.
     """
-    marker = units
-    if units == "imperial":
-        gallons_to_liters = (
-            UnitConverter.UK_GALLONS_TO_LITERS
-            if flavour == "uk"
-            else UnitConverter.US_GALLONS_TO_LITERS
-        )
-        headers, rows = to_imperial(headers, rows, gallons_to_liters)
-        marker = "imperial_uk" if flavour == "uk" else "imperial"
-    return generate_csv_stream(headers, rows, unit_system=marker)
+    headers, rows = apply_unit_set(headers, rows, units)
+    return generate_csv_stream(headers, rows, unit_system=marker_for(units))
 
 
 @router.get("/vehicles/{vin}/service/csv")
@@ -207,12 +151,10 @@ def build_csv(
 async def export_service_records_csv(
     request: Request,
     vin: str,
-    units: str = Query(
-        EXPORT_UNITS,
+    units: str | None = Query(
+        None,
         pattern="^(metric|imperial)$",
-        description="Unit system for the exported values. Defaults to metric "
-        "(canonical storage); `imperial` converts distance, volume, price-per-volume "
-        "and temperature, and renames those columns accordingly.",
+        description=_UNITS_QUERY_DESCRIPTION,
     ),
     db: AsyncSession = Depends(get_db),
     current_user: User | None = Depends(require_auth),
@@ -259,7 +201,7 @@ async def export_service_records_csv(
                         visit.date.isoformat() if visit.date else "",
                         visit.service_category or "",
                         item.description or "",
-                        visit.odometer_km or "",
+                        visit.odometer_km or None,
                         engine_hours,
                         f"{item.cost:.2f}" if item.cost else "",
                         vendor_name,
@@ -273,7 +215,7 @@ async def export_service_records_csv(
                     visit.date.isoformat() if visit.date else "",
                     visit.service_category or "",
                     "",
-                    visit.odometer_km or "",
+                    visit.odometer_km or None,
                     engine_hours,
                     f"{visit.calculated_total_cost:.2f}" if visit.calculated_total_cost else "",
                     vendor_name,
@@ -281,8 +223,7 @@ async def export_service_records_csv(
                 ]
             )
 
-    flavour = await resolve_gallon_flavour(db)
-    output = build_csv(headers, rows, units, flavour=flavour)
+    output = build_csv(headers, rows, await resolve_export_units(units, current_user, db))
 
     # Generate filename
     filename = f"{vehicle.year}_{vehicle.make}_{vehicle.model}_service_records_{datetime.now().strftime('%Y%m%d')}.csv"
@@ -299,12 +240,10 @@ async def export_service_records_csv(
 async def export_fuel_records_csv(
     request: Request,
     vin: str,
-    units: str = Query(
-        EXPORT_UNITS,
+    units: str | None = Query(
+        None,
         pattern="^(metric|imperial)$",
-        description="Unit system for the exported values. Defaults to metric "
-        "(canonical storage); `imperial` converts distance, volume, price-per-volume "
-        "and temperature, and renames those columns accordingly.",
+        description=_UNITS_QUERY_DESCRIPTION,
     ),
     db: AsyncSession = Depends(get_db),
     current_user: User | None = Depends(require_auth),
@@ -325,7 +264,7 @@ async def export_fuel_records_csv(
 
     # Generate CSV.
     # NOTE: column set extended for v2.27.0-rc2 (#69 issue follow-up).
-    # The ``EXPORT_SCHEMA_VERSION`` bump from "3" to "4" signalled importers
+    # The ``CSV_SCHEMA_VERSION`` bump from "3" to "4" signalled importers
     # that the new columns may be present; "5" says the redundant legacy
     # "Fuel Type" column is gone and "Fuel Type Used" is the fuel type.
     headers = [
@@ -365,13 +304,19 @@ async def export_fuel_records_csv(
             [
                 record.date.isoformat() if record.date else "",
                 record.filled_at.isoformat() if record.filled_at else "",
-                record.odometer_km or "",
+                # Unit-bearing columns hand `build_csv` the raw canonical
+                # `Decimal`: `csv_emission` owns both the conversion and the
+                # per-column decimal places, so a cell's precision cannot
+                # differ between the metric and non-metric spellings of the
+                # same column. `or None` keeps the pre-v6 behaviour of
+                # blanking a falsy reading.
+                record.odometer_km or None,
                 # Dimensionless — no unit conversion. `is not None` (not `or ""`)
                 # so a genuine 0.0 reading isn't dropped, matching outside_temp_c
                 # / obc_l_per_100km below.
                 f"{record.engine_hours:.1f}" if record.engine_hours is not None else "",
-                f"{record.liters:.3f}" if record.liters else "",
-                f"{record.price_per_unit:.3f}" if record.price_per_unit else "",
+                record.liters or None,
+                record.price_per_unit or None,
                 f"{record.rebate:.2f}" if record.rebate else "",
                 f"{record.cost:.2f}" if record.cost else "",
                 "Yes" if record.is_full_tank else "No",
@@ -384,9 +329,12 @@ async def export_fuel_records_csv(
                 record.driver_name_freetext or "",
                 record.payment_method or "",
                 record.trip_type or "",
-                f"{record.outside_temp_c:.1f}" if record.outside_temp_c is not None else "",
-                f"{record.obc_l_per_100km:.2f}" if record.obc_l_per_100km is not None else "",
-                f"{record.obc_avg_speed_kmh:.1f}" if record.obc_avg_speed_kmh is not None else "",
+                # Unit-bearing, and `is not None` rather than truthy: a
+                # genuine 0.0 C or 0.0 km/h is a real reading. `csv_emission`
+                # renders `None` as a blank cell.
+                record.outside_temp_c,
+                record.obc_l_per_100km,
+                record.obc_avg_speed_kmh,
                 record.obc_trip_duration_s or "",
                 f"{record.soc_start_pct:.1f}" if record.soc_start_pct is not None else "",
                 f"{record.soc_end_pct:.1f}" if record.soc_end_pct is not None else "",
@@ -397,8 +345,7 @@ async def export_fuel_records_csv(
             ]
         )
 
-    flavour = await resolve_gallon_flavour(db)
-    output = build_csv(headers, rows, units, flavour=flavour)
+    output = build_csv(headers, rows, await resolve_export_units(units, current_user, db))
 
     # Generate filename
     filename = f"{vehicle.year}_{vehicle.make}_{vehicle.model}_fuel_records_{datetime.now().strftime('%Y%m%d')}.csv"
@@ -415,12 +362,10 @@ async def export_fuel_records_csv(
 async def export_def_records_csv(
     request: Request,
     vin: str,
-    units: str = Query(
-        EXPORT_UNITS,
+    units: str | None = Query(
+        None,
         pattern="^(metric|imperial)$",
-        description="Unit system for the exported values. Defaults to metric "
-        "(canonical storage); `imperial` converts distance, volume, price-per-volume "
-        "and temperature, and renames those columns accordingly.",
+        description=_UNITS_QUERY_DESCRIPTION,
     ),
     db: AsyncSession = Depends(get_db),
     current_user: User | None = Depends(require_auth),
@@ -450,9 +395,9 @@ async def export_def_records_csv(
         rows.append(
             [
                 record.date.isoformat() if record.date else "",
-                record.odometer_km or "",
-                f"{record.liters:.3f}" if record.liters else "",
-                f"{record.price_per_unit:.3f}" if record.price_per_unit else "",
+                record.odometer_km or None,
+                record.liters or None,
+                record.price_per_unit or None,
                 f"{record.cost:.2f}" if record.cost else "",
                 f"{record.fill_level:.2f}" if record.fill_level else "",
                 record.source or "",
@@ -461,8 +406,7 @@ async def export_def_records_csv(
             ]
         )
 
-    flavour = await resolve_gallon_flavour(db)
-    output = build_csv(headers, rows, units, flavour=flavour)
+    output = build_csv(headers, rows, await resolve_export_units(units, current_user, db))
 
     filename = f"{vehicle.year}_{vehicle.make}_{vehicle.model}_def_records_{datetime.now().strftime('%Y%m%d')}.csv"
 
@@ -478,12 +422,10 @@ async def export_def_records_csv(
 async def export_odometer_records_csv(
     request: Request,
     vin: str,
-    units: str = Query(
-        EXPORT_UNITS,
+    units: str | None = Query(
+        None,
         pattern="^(metric|imperial)$",
-        description="Unit system for the exported values. Defaults to metric "
-        "(canonical storage); `imperial` converts distance, volume, price-per-volume "
-        "and temperature, and renames those columns accordingly.",
+        description=_UNITS_QUERY_DESCRIPTION,
     ),
     db: AsyncSession = Depends(get_db),
     current_user: User | None = Depends(require_auth),
@@ -506,13 +448,12 @@ async def export_odometer_records_csv(
         rows.append(
             [
                 record.date.isoformat() if record.date else "",
-                record.odometer_km or "",
+                record.odometer_km or None,
                 record.notes or "",
             ]
         )
 
-    flavour = await resolve_gallon_flavour(db)
-    output = build_csv(headers, rows, units, flavour=flavour)
+    output = build_csv(headers, rows, await resolve_export_units(units, current_user, db))
 
     # Generate filename
     filename = f"{vehicle.year}_{vehicle.make}_{vehicle.model}_odometer_records_{datetime.now().strftime('%Y%m%d')}.csv"
@@ -848,7 +789,7 @@ async def export_vehicle_json(
 
     # Build export data
     export_data = {
-        "export_version": EXPORT_SCHEMA_VERSION,
+        "export_version": JSON_SCHEMA_VERSION,
         "units": EXPORT_UNITS,
         "export_date": datetime.now().isoformat(),
         "vehicle": {

@@ -24,7 +24,7 @@ export default function PropaneRecordList({ vin }: PropaneRecordListProps) {
   const [showForm, setShowForm] = useState(false)
   const [editingRecord, setEditingRecord] = useState<FuelRecord | undefined>()
   const { t } = useTranslation('vehicles')
-  const { system } = useUnitPreference()
+  const { units } = useUnitPreference()
   const { currencyCode, locale } = useCurrencyPreference()
 
   const { data, isLoading, error } = usePropaneRecords(vin)
@@ -68,7 +68,7 @@ export default function PropaneRecordList({ vin }: PropaneRecordListProps) {
     if (!liters) return '-'
     const num = typeof liters === 'string' ? parseFloat(liters) : liters
     if (isNaN(num)) return '-'
-    return UnitFormatter.formatVolume(num, system, false)
+    return UnitFormatter.formatVolume(num, units, false)
   }
 
   const extractVendor = (notes?: string): string => {
@@ -85,10 +85,10 @@ export default function PropaneRecordList({ vin }: PropaneRecordListProps) {
     { id: 'date', header: t('propaneList.date'), mono: true, render: (r) => formatDateForDisplay(r.date) },
     // B7: unit-aware header — formatVolume yields liters in metric, so the old static
     // `propaneList.gallons` ("Gallons") lied to metric users. `volumeUnit` interpolates the system unit.
-    { id: 'gallons', header: t('propaneList.volumeUnit', { unit: UnitFormatter.getVolumeUnit(system) }), align: 'right', mono: true, render: (r) => formatVolume(r.propane_liters ?? undefined) },
+    { id: 'gallons', header: t('propaneList.volumeUnit', { unit: UnitFormatter.getVolumeUnit(units) }), align: 'right', mono: true, render: (r) => formatVolume(r.propane_liters ?? undefined) },
     { id: 'price', header: t('propaneList.pricePerUnit'), align: 'right', mono: true,
       render: (r) => r.price_per_unit
-        ? formatCurrency(priceToDisplay(r.price_per_unit, system, r.price_basis ?? 'per_volume') ?? 0, { currencyCode, locale })
+        ? formatCurrency(priceToDisplay(r.price_per_unit, units, r.price_basis ?? 'per_volume') ?? 0, { currencyCode, locale })
         : '-' },
     { id: 'cost', header: t('propaneList.cost'), align: 'right', mono: true, render: (r) => formatCurrency(r.cost, { currencyCode, locale }) },
     { id: 'vendor', header: t('propaneList.vendor'), align: 'left', render: (r) => extractVendor(r.notes ?? undefined) },
@@ -152,16 +152,16 @@ export default function PropaneRecordList({ vin }: PropaneRecordListProps) {
             <Card padding="sm">
               <div className="flex items-center gap-1 text-xs text-text-mute mb-1">
                 <Droplets aria-hidden="true" className="w-3 h-3" />
-                <span>{system === 'metric' ? t('propaneList.totalLiters') : t('propaneList.totalGallons')}</span>
+                <span>{t('propaneList.totalVolume', { unit: UnitFormatter.getVolumeUnit(units) })}</span>
               </div>
-              <Mono size="2xl" weight="bold">{UnitFormatter.formatVolumeShort(totalLiters, system)}</Mono>
+              <Mono size="2xl" weight="bold">{UnitFormatter.formatVolumeShort(totalLiters, units)}</Mono>
             </Card>
             {avgCostPerLiter !== null && (
               <Card padding="sm">
                 <div className="flex items-center gap-1 text-xs text-text-mute mb-1">
-                  <span>{UnitFormatter.getCostPerVolumeLabel(system)}</span>
+                  <span>{t('propaneList.avgCostPerVolume', { unit: UnitFormatter.getVolumeUnit(units) })}</span>
                 </div>
-                <Mono size="2xl" weight="bold">{UnitFormatter.formatCostPerVolume(avgCostPerLiter, system, currencyCode, locale)}</Mono>
+                <Mono size="2xl" weight="bold">{UnitFormatter.formatCostPerVolume(avgCostPerLiter, units, currencyCode, locale)}</Mono>
               </Card>
             )}
           </div>

@@ -1225,15 +1225,22 @@ class TestCsvRoundTripPreservesUnits:
         body = export_resp.content.decode()
 
         # Imperial columns, imperial values, and a marker that says so.
+        #
+        # The column SPELLINGS changed in #152 phase 2b task 3: v6 names each
+        # unit-bearing column with a phase-1 vocabulary token instead of
+        # swapping in a differently-named imperial column, so `Mileage` is now
+        # `Odometer (mi)` and `Gallons` is `Volume (gal_us)`. The property
+        # under test is unchanged: imperial values under a marker that agrees
+        # with them.
         header_line, first_row = body.splitlines()[0], body.splitlines()[1]
         assert "unit_system" in header_line
-        assert "Mileage" in header_line and "Odometer (km)" not in header_line
-        assert "Gallons" in header_line and "Liters" not in header_line
-        assert "Price Per Gallon" in header_line
+        assert "Odometer (mi)" in header_line and "Odometer (km)" not in header_line
+        assert "Volume (gal_us)" in header_line and "Volume (L)" not in header_line
+        assert "Price Per Unit (gal_us)" in header_line
         assert "imperial" in first_row
-        # 500 km = 310.69 mi, 40 L = 10.57 gal — the file really is imperial.
-        assert "310.69" in first_row
-        assert "10.57" in first_row
+        # 500 km = 310.686 mi, 40 L = 10.5669 gal: the file really is imperial.
+        assert "310.686" in first_row
+        assert "10.5669" in first_row
 
         import_resp = await client.post(
             f"/api/import/vehicles/{vin_b}/fuel/csv",

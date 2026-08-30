@@ -45,9 +45,9 @@ const ALLOWLIST = new Set<string>([])
 
 const EXTS = ['.tsx', '.ts', '/index.tsx', '/index.ts']
 
-function resolveImport(spec: string, fromFile: string): string | null {
+function resolveImport(spec: string, fromFile: string, srcDir: string): string | null {
   let base: string
-  if (spec.startsWith('@/')) base = join(SRC, spec.slice(2))
+  if (spec.startsWith('@/')) base = join(srcDir, spec.slice(2))
   else if (spec.startsWith('.')) base = resolve(dirname(fromFile), spec)
   else return null // bare package specifier — node_modules, not our graph
   for (const e of ['', ...EXTS]) {
@@ -71,9 +71,19 @@ function specifiersOf(source: string): string[] {
   return out
 }
 
-function walkGraph(): Set<string> {
+/**
+ * Every file reachable from ENTRIES, as ABSOLUTE paths.
+ *
+ * Exported and parameterised on `root` because `validate-units-manifest.ts`
+ * states its universe as "whatever this walker recognises", and a second
+ * implementation of the walk would make that sentence false the first time one
+ * of them changed. The parameter is what lets the manifest checker's own
+ * mutation tests run against a fixture tree instead of this repo.
+ */
+export function walkGraph(root: string = ROOT): Set<string> {
+  const srcDir = join(root, 'src')
   const reachable = new Set<string>()
-  const queue = ENTRIES.map((e) => join(ROOT, e))
+  const queue = ENTRIES.map((e) => join(root, e))
   while (queue.length) {
     const file = queue.pop()!
     if (reachable.has(file)) continue
@@ -85,7 +95,7 @@ function walkGraph(): Set<string> {
       continue
     }
     for (const spec of specifiersOf(source)) {
-      const target = resolveImport(spec, file)
+      const target = resolveImport(spec, file, srcDir)
       if (target && !reachable.has(target)) queue.push(target)
     }
   }
@@ -145,4 +155,6 @@ function main(): void {
   console.log(`✓ No unreachable source files (${reachable.size} reachable).`)
 }
 
-main()
+// Guarded so `validate-units-manifest.ts` can import walkGraph() without this
+// gate running (and exiting) as a side effect of the import.
+if (import.meta.main) main()

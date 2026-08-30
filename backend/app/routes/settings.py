@@ -28,6 +28,10 @@ from app.services.auth import get_current_admin_user
 from app.services.oidc import MASKED_SECRET_PLACEHOLDER, display_mask_secret
 from app.services.settings_init import SENSITIVE_SETTING_KEYS
 from app.services.settings_service import SettingsService
+from app.utils.default_unit_prefs import (
+    DEFAULT_UNIT_PREFS_KEY,
+    validate_default_unit_prefs_value,
+)
 from app.utils.logging_utils import sanitize_for_log
 
 logger = logging.getLogger(__name__)
@@ -64,6 +68,54 @@ def _resolve_write_value(key: str, new_value: str, stored_value: str | None) -> 
     if key in SENSITIVE_SETTING_KEYS and new_value == MASKED_SECRET_PLACEHOLDER:
         return stored_value or ""
     return new_value
+
+
+def _reject_unwritable_value(key: str, value: str | None) -> None:
+    """Refuse a settings write whose value the reader could not use.
+
+    ★ CALLED FROM ALL THREE WRITE PATHS, not from the one the UI happens to use.
+    `POST /settings`, `PUT /settings/{key}` and `POST /settings/batch` each
+    write a client-chosen key, and validating one of them leaves the other two
+    as back doors onto the same row. There is no single point they converge on:
+    `_resolve_write_value` is called by two of the three, so this is called at
+    each instead, and
+    `tests/integration/routes/test_settings.py::_settings_value_write_endpoints`
+    derives the list from the router so a fourth ROUTE fails there rather than
+    shipping unguarded.
+
+    ★ THAT DERIVATION WALKS THIS ROUTER AND ONLY THIS ROUTER, so it is not a
+    guarantee about every writer of a settings value. One lives elsewhere:
+    `BackupService.restore_settings_backup` writes an uploaded file's keys
+    straight through `SettingsService.set`, and it applies this same rule at its
+    own site rather than through here.
+
+    Only `default_unit_prefs` has a shape to check today. It is checked because
+    `parse_default_unit_prefs` degrades WHOLE: an unparseable row hands every
+    anonymous client the imperial preset, which on a UK or metric instance is a
+    silent 20 percent error in every volume and every fuel economy, and the
+    write that caused it returned 200.
+
+    Args:
+        key: The settings key being written.
+        value: The value as submitted.
+
+    Raises:
+        HTTPException: 422 when the value would not survive a read.
+    """
+    if key != DEFAULT_UNIT_PREFS_KEY:
+        return
+    try:
+        validate_default_unit_prefs_value(value)
+    except ValueError as exc:
+        logger.warning(
+            "Rejected a %s write: value %s",
+            sanitize_for_log(key),
+            sanitize_for_log(str(exc)),
+        )
+        raise HTTPException(
+            status_code=422,
+            detail=f"Setting '{key}' {exc}",
+        ) from exc
 
 
 @router.get("/public", response_model=SettingsListResponse)
@@ -538,6 +590,8 @@ async def create_setting(
     if existing:
         raise HTTPException(status_code=400, detail=f"Setting '{setting.key}' already exists")
 
+    _reject_unwritable_value(setting.key, setting.value)
+
     # Create new setting
     db_setting = Setting(
         key=setting.key,
@@ -582,6 +636,7 @@ async def update_setting(
 
     if "value" in update_data:
         update_data["value"] = _resolve_write_value(key, update_data["value"], setting.value)
+        _reject_unwritable_value(key, update_data["value"])
 
     for field, value in update_data.items():
         setattr(setting, field, value)
@@ -611,19 +666,28 @@ async def batch_update_settings(
             "This exposes your application to unauthorized access. Use with caution!"
         )
 
+    # Resolve and validate EVERY key before mutating any row. A rejection raised
+    # halfway through the apply loop would leave the earlier keys mutated on a
+    # session the request never commits, which is a partial batch reported as a
+    # failure. Two passes keep the batch all-or-nothing.
+    resolved_writes: list[tuple[str, str, Setting | None]] = []
     for key, value in batch.settings.items():
         result = await db.execute(select(Setting).where(Setting.key == key))
         setting = result.scalar_one_or_none()
+        # Nothing stored yet, so a masked placeholder resolves to "".
+        resolved = _resolve_write_value(key, value, setting.value if setting else None)
+        _reject_unwritable_value(key, resolved)
+        resolved_writes.append((key, resolved, setting))
 
+    for key, resolved, setting in resolved_writes:
         if setting:
             # Update existing
-            setting.value = _resolve_write_value(key, value, setting.value)
+            setting.value = resolved
             setting.updated_at = dt.datetime.now()
         else:
-            # Create new; nothing stored yet, so a masked placeholder resolves to "".
             setting = Setting(
                 key=key,
-                value=_resolve_write_value(key, value, None),
+                value=resolved,
                 updated_at=dt.datetime.now(),
             )
             db.add(setting)

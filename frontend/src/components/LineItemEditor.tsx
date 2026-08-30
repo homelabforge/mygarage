@@ -9,8 +9,8 @@ import CurrencyInputPrefix from './common/CurrencyInputPrefix'
 import SupplyUsedPicker from './SupplyUsedPicker'
 import { Select } from './ui'
 import { useCurrencyPreference } from '../hooks/useCurrencyPreference'
-import { useUnitPreference } from '../hooks/useUnitPreference'
-import { UnitConverter, UnitFormatter } from '../utils/units'
+import { useUnitFormat } from '../hooks/useUnitFormat'
+import { readNumber } from '../utils/decimalSafe'
 import { getActiveLocale } from '@/constants/i18n'
 
 // Service suggestions per category. Module scope can't reach `t`, so these are
@@ -59,13 +59,23 @@ export default function LineItemEditor({
 }: LineItemEditorProps) {
   const { t } = useTranslation('vehicles')
   const { formatCurrency } = useCurrencyPreference()
-  const { system } = useUnitPreference()
+  const u = useUnitFormat()
   const [expanded, setExpanded] = useState(true)
   const [showSuggestions, setShowSuggestions] = useState(false)
-  // currentMileage is in canonical km; show user's display unit.
-  const currentDisplay = currentMileage != null
-    ? (system === 'imperial' ? UnitConverter.kmToMiles(currentMileage) ?? currentMileage : currentMileage)
-    : null
+  // ★ This component WRITES canonical storage, which an earlier plan revision
+  // missed: the mileage typed below is converted here and lands in
+  // `reminderDraft.due_mileage_km`, which ServiceVisitForm posts as canonical
+  // kilometres. It used to convert on `useUnitPreference().system`, which spec
+  // D8 collapses from VOLUME, so a `{volume: 'L', distance: 'mi'}` account
+  // entering a 500-mile reminder stored 500 km instead of 804.67.
+  //
+  // There is no origin to preserve here. The draft is created empty
+  // (`due_mileage_km: undefined`) and only ever holds what this control just
+  // converted, so `toInputValue` and `toCanonical` are the whole round trip and
+  // the tests pin it as a fixed point rather than a re-conversion of history.
+  //
+  // currentMileage is in canonical km; show it in the client's distance unit.
+  const currentDisplay = u.distance.toDisplay(currentMileage)
 
   const suggestions = useMemo(
     () =>
@@ -361,49 +371,50 @@ export default function LineItemEditor({
                       <div>
                         <label className="block text-xs font-medium text-garage-text mb-1">
                           {currentMileage
-                            ? t('lineItemEditor.misc.distanceUntilDue', { unit: UnitFormatter.getDistanceUnit(system) })
-                            : t('lineItemEditor.misc.dueOdometer', { unit: UnitFormatter.getDistanceUnit(system) })}
+                            ? t('lineItemEditor.misc.distanceUntilDue', { unit: u.distance.label })
+                            : t('lineItemEditor.misc.dueOdometer', { unit: u.distance.label })}
                         </label>
                         <input
                           type="number"
-                          value={(() => {
-                            const km = item.reminderDraft?.due_mileage_km
-                            if (km == null) return ''
-                            const num = typeof km === 'string' ? parseFloat(km) : km
-                            if (isNaN(num)) return ''
-                            return system === 'imperial'
-                              ? Math.round(UnitConverter.kmToMiles(num) ?? num)
-                              : Math.round(num)
-                          })()}
+                          value={u.distance.toInputValue(readNumber(item.reminderDraft?.due_mileage_km))}
                           onChange={(e) => {
                             const val = e.target.value ? parseInt(e.target.value) : undefined
-                            // Convert user-entered display value to canonical km.
-                            const km = val != null
-                              ? (system === 'imperial' ? UnitConverter.milesToKm(val) ?? val : val)
-                              : undefined
+                            // Display -> canonical km, through the client's own
+                            // distance token rather than a system collapsed
+                            // from its volume choice.
+                            const km = val != null ? u.distance.toCanonical(val) ?? undefined : undefined
                             handleReminderFieldChange('due_mileage_km', km)
                           }}
                           min="1"
+                          /* One example for every account. R5 calls a
+                             placeholder an EXAMPLE value with nothing canonical
+                             to convert, and it was still being chosen by the
+                             collapsed system, so a litres-and-miles account read
+                             "148000" beside a `mi` label. Both an interval and a
+                             reading that read plausibly in either unit need no
+                             branch, which is what WarrantyForm's own mileage
+                             hint has always done. */
                           placeholder={t('lineItemEditor.misc.egValue', {
-                            value: currentMileage ? '5000' : system === 'imperial' ? '92000' : '148000',
+                            value: currentMileage ? '5000' : '100000',
                           })}
                           disabled={disabled}
                           className="w-full px-2 py-1.5 text-sm border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-surface text-garage-text"
                         />
                         {currentMileage && item.reminderDraft.due_mileage_km != null && currentDisplay != null ? (() => {
-                          const dueKmRaw = item.reminderDraft.due_mileage_km
-                          const dueKm = typeof dueKmRaw === 'string' ? parseFloat(dueKmRaw) : dueKmRaw
-                          if (dueKm == null || isNaN(dueKm)) return null
-                          const intervalDisplay = system === 'imperial'
-                            ? Math.round(UnitConverter.kmToMiles(dueKm) ?? dueKm)
-                            : Math.round(dueKm)
+                          const dueKm = readNumber(item.reminderDraft.due_mileage_km)
+                          if (dueKm == null) return null
+                          // Read back through `toInputValue`, the same function
+                          // the field above renders, so the hint can never quote
+                          // a different number than the input shows.
+                          const intervalDisplay = readNumber(u.distance.toInputValue(dueKm))
+                          if (intervalDisplay == null) return null
                           return (
                             <p className="text-xs text-garage-text-muted mt-1">
                               {t('lineItemEditor.misc.targetCalc', {
                                 current: Math.round(currentDisplay).toLocaleString(getActiveLocale()),
                                 interval: intervalDisplay.toLocaleString(getActiveLocale()),
                                 target: (Math.round(currentDisplay) + intervalDisplay).toLocaleString(getActiveLocale()),
-                                unit: UnitFormatter.getDistanceUnit(system),
+                                unit: u.distance.label,
                               })}
                             </p>
                           )

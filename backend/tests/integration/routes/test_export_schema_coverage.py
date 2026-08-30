@@ -59,6 +59,14 @@ class ExportCoverageSpec:
 
 # Header → model attribute mapping for each model with a CSV exporter.
 # Keep this in sync with the actual headers list in app/routes/export.py.
+#
+# These are the schema v6 METRIC spellings, which is why the request below
+# passes `?units=metric` explicitly. From #152 phase 2b task 3 a unit-bearing
+# header names its own unit with a phase-1 vocabulary token, so the same
+# column is `Volume (L)` here and `Volume (gal_uk)` for a UK account, and an
+# omitted `?units` follows the CALLER's preferences. Column COVERAGE is what
+# this module tests, so it pins one unit system and lets
+# test_export_csv_v6_units.py own the rest.
 # When adding a model column, add the corresponding entry here AND wire
 # the column into the exporter's row builder. The test fails if the two
 # diverge.
@@ -71,8 +79,8 @@ EXPORT_COVERAGE_SPECS: list[ExportCoverageSpec] = [
             "Date": "date",
             "Filled At": "filled_at",
             "Odometer (km)": "odometer_km",
-            "Liters": "liters",
-            "Price Per Liter": "price_per_unit",
+            "Volume (L)": "liters",
+            "Price Per Unit (L)": "price_per_unit",
             "Rebate": "rebate",
             "Total Cost": "cost",
             "Full Tank": "is_full_tank",
@@ -85,9 +93,9 @@ EXPORT_COVERAGE_SPECS: list[ExportCoverageSpec] = [
             "Driver": "driver_name_freetext",
             "Payment Method": "payment_method",
             "Trip Type": "trip_type",
-            "Outside Temp (C)": "outside_temp_c",
-            "OBC L/100km": "obc_l_per_100km",
-            "OBC Avg Speed (km/h)": "obc_avg_speed_kmh",
+            "Outside Temp (c)": "outside_temp_c",
+            "OBC Economy (l_100km)": "obc_l_per_100km",
+            "OBC Avg Speed (kmh)": "obc_avg_speed_kmh",
             "OBC Trip Duration (s)": "obc_trip_duration_s",
             "Engine Hours": "engine_hours",
             "SOC Start (%)": "soc_start_pct",
@@ -103,7 +111,7 @@ EXPORT_COVERAGE_SPECS: list[ExportCoverageSpec] = [
             "vin",
             # Internal bookkeeping not meaningful in user-facing exports:
             "created_at",
-            # Alternate-unit fields covered by Liters; format is canonical metric:
+            # Alternate-unit fields covered by Volume; format is canonical metric:
             "propane_liters",
             "tank_size_kg",
             "tank_quantity",
@@ -145,7 +153,9 @@ async def test_export_covers_all_model_columns(
     """Every public model column must be either exported or explicitly
     excluded. Diverge in either direction and this fails."""
     vin = test_vehicle_with_records["vin"]
-    response = await client.get(spec.url_pattern.format(vin=vin), headers=auth_headers)
+    response = await client.get(
+        f"{spec.url_pattern.format(vin=vin)}?units=metric", headers=auth_headers
+    )
     assert response.status_code == 200, (
         f"{spec.name} export endpoint returned {response.status_code}"
     )

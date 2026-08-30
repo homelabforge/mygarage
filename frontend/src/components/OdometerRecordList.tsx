@@ -5,8 +5,7 @@ import { Gauge, Plus, Edit, Trash2, Download, Upload, Radio } from 'lucide-react
 import { toast } from 'sonner'
 import type { OdometerRecord } from '../types/odometer'
 import api from '../services/api'
-import { useUnitPreference } from '../hooks/useUnitPreference'
-import { UnitFormatter } from '../utils/units'
+import { useUnitFormat } from '../hooks/useUnitFormat'
 import { useOdometerRecords, useDeleteOdometerRecord, useImportOdometerCSV } from '../hooks/queries/useOdometerRecords'
 import { getActionErrorMessage } from '../utils/httpErrorHandler'
 import { Button, IconButton, Card, Mono, Badge, DataTable, EmptyState } from './ui'
@@ -23,7 +22,7 @@ export default function OdometerRecordList({ vin, onAddClick, onEditClick }: Odo
   const { t } = useTranslation('vehicles')
   const [exporting, setExporting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const { system, showBoth } = useUnitPreference()
+  const u = useUnitFormat()
 
   const { data, isLoading, error } = useOdometerRecords(vin)
   const deleteMutation = useDeleteOdometerRecord(vin)
@@ -41,8 +40,15 @@ export default function OdometerRecordList({ vin, onAddClick, onEditClick }: Odo
       // metric-canonical, so without this an imperial account got a
       // metric file (#128). The backend stamps a `unit_system` column
       // so re-importing converts back correctly.
+      //
+      // `units` is deliberately NOT sent. It used to carry `system`, the
+      // binary metric/imperial collapse of the account's volume unit, which
+      // meant an account with mixed preferences (km with UK gallons, say)
+      // asked for a clean preset and never received its own units. Omitting
+      // the parameter tells the backend to export in the caller's resolved
+      // unit set, which CSV schema v6 spells out per column
+      // (`Odometer (km)`, `Volume (gal_uk)`).
       const response = await api.get(`/export/vehicles/${vin}/odometer/csv`, {
-        params: { units: system },
         responseType: 'blob'
       })
 
@@ -133,11 +139,11 @@ export default function OdometerRecordList({ vin, onAddClick, onEditClick }: Odo
     { id: 'date', header: t('odometerList.date'), mono: true, render: (r) => formatDate(r.date) },
     {
       id: 'mileage',
-      header: t('odometerRecordList.mileageColumn', { unit: UnitFormatter.getDistanceUnit(system) }),
+      header: t('odometerRecordList.mileageColumn', { unit: u.distance.label }),
       align: 'right',
       render: (r) => (
         <span className="inline-flex items-center justify-end gap-2">
-          <Mono>{UnitFormatter.formatDistance(parseFloat(String(r.odometer_km)), system, showBoth)}</Mono>
+          <Mono>{u.distance.format(parseFloat(String(r.odometer_km)))}</Mono>
           {(r as Record<string, unknown>).source === 'livelink' && (
             <Badge tone="info" icon={Radio}>
               <span className="sr-only">{t('odometerRecordList.autoTrackedByLiveLink')}</span>
@@ -213,7 +219,7 @@ export default function OdometerRecordList({ vin, onAddClick, onEditClick }: Odo
             </div>
             <div>
               <p className="text-sm text-text-mute">{t('odometerList.latestMileage')}</p>
-              <Mono size="2xl" weight="bold">{UnitFormatter.formatDistance(latestOdometerKm, system, showBoth)}</Mono>
+              <Mono size="2xl" weight="bold">{u.distance.format(latestOdometerKm)}</Mono>
             </div>
           </div>
         </Card>

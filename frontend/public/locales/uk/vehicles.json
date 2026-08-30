@@ -102,7 +102,9 @@
     "source": "Джерело",
     "title": "Записи DEF",
     "totalSpent": "Всього витрачено",
-    "type": "Тип"
+    "type": "Тип",
+    "avgCostPerVolume": "Сер. вартість/{{unit}}",
+    "volumeTotal": "{{value}} загалом"
   },
   "detail": {
     "actions": "Дії",
@@ -258,6 +260,9 @@
     "avgFuelRate": "Сер. {{unit}}",
     "confirmDelete": "Підтвердити видалення",
     "costPerHour": "Вартість/год",
+    "costPerDistance": "Вартість/{{unit}}",
+    "avgCostPerVolume": "Сер. вартість/{{unit}}",
+    "volumeTotal": "{{value}} загалом",
     "date": "Дата",
     "deleteError": "Помилка видалення",
     "exportCSV": "Експорт CSV",
@@ -457,10 +462,10 @@
     "pricePerUnit": "Ціна за одиницю",
     "recordCount": "{{count}} запис(-ів)",
     "title": "Записи про пропан",
-    "totalGallons": "Всього галонів",
-    "totalLiters": "Всього літрів",
+    "totalVolume": "Всього ({{unit}})",
     "totalSpent": "Всього витрачено",
-    "vendor": "Постачальник"
+    "vendor": "Постачальник",
+    "avgCostPerVolume": "Сер. вартість/{{unit}}"
   },
   "quickEntry": {
     "fuelRecord": "Запис про паливо",

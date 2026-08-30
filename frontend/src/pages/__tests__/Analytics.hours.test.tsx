@@ -3,7 +3,6 @@ import { render, screen, waitFor, cleanup } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import { afterEach } from 'vitest'
-import { UnitConverter } from '../../utils/units'
 import type { VehicleAnalytics, HoursEconomyDataPoint, HoursAccumulatedDataPoint } from '../../types/analytics'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -55,6 +54,8 @@ vi.mock('../../services/api', () => ({
     defaults: { headers: { common: {} } },
   },
 }))
+
+import { IMPERIAL_UNITS, METRIC_UNITS } from '@/__tests__/factories'
 
 const unitPreferenceMock = vi.fn()
 vi.mock('../../hooks/useUnitPreference', () => ({
@@ -170,7 +171,7 @@ function findChartData(key: string): unknown[] | undefined {
 beforeEach(() => {
   vi.clearAllMocks()
   captured.lineCharts = []
-  unitPreferenceMock.mockReturnValue({ system: 'metric', showBoth: false })
+  unitPreferenceMock.mockReturnValue({ system: 'metric', showBoth: false, units: METRIC_UNITS })
 })
 
 afterEach(() => {
@@ -207,8 +208,8 @@ describe('Analytics — hours efficiency chart (Task 17)', () => {
     ])
   })
 
-  it('converts l_per_hr to GPH (gallons/hour) for the displayed series when imperial (canonical lPerHr stays in L/hr)', async () => {
-    unitPreferenceMock.mockReturnValue({ system: 'imperial', showBoth: false })
+  it('converts l_per_hr to the reader\'s own volume per hour for the displayed series (canonical lPerHr stays in L/hr)', async () => {
+    unitPreferenceMock.mockReturnValue({ system: 'imperial', showBoth: false, units: IMPERIAL_UNITS })
     mockAnalyticsResponse(baseAnalytics({
       hours_economy: {
         average_l_per_hr: '3.80', average_cost_per_hr: '2.75', best_l_per_hr: '3.80', worst_l_per_hr: '3.80',
@@ -220,7 +221,12 @@ describe('Analytics — hours efficiency chart (Task 17)', () => {
 
     const data = findChartData('lPerHr') as { lPerHr: number | null; displayFuelRate: number | null }[]
     expect(data[0].lPerHr).toBe(3.8) // canonical, unconverted
-    expect(data[0].displayFuelRate).toBe(UnitConverter.litersToGallons(3.8)) // converted for display
+    // Through `u.volume`, so the series matches the axis label `fuelRateLabel`
+    // puts on it. 3.8 / 3.78541 = 1.003854272060358, normalised to the adapter
+    // layer's twelve significant digits. It is deliberately NOT rounded to the
+    // volume adapter's two decimals: rounding is a formatting decision, and a
+    // plotted point that had already lost its precision cannot be un-rounded.
+    expect(data[0].displayFuelRate).toBe(1.00385427206)
     expect(data[1].displayFuelRate).toBeNull() // null point stays null, not 0
   })
 })
@@ -287,5 +293,53 @@ describe('Analytics — hours chart gating (Task 17)', () => {
     await waitFor(() => expect(screen.getByText('vehicle.hoursEconomyAnalysis')).toBeInTheDocument())
 
     expect(screen.queryByText('vehicle.fuelEconomyTrendTitle')).not.toBeInTheDocument()
+  })
+})
+
+describe('Analytics — the plotted series follow the resolved tokens, like their axis labels', () => {
+  /** One fuel-economy point, at a canonical figure that divides cleanly. */
+  const ECONOMY = {
+    average_l_per_100km: '8.00', best_l_per_100km: '8.00', worst_l_per_100km: '8.00',
+    recent_l_per_100km: '8.00', trend: 'stable' as const,
+    data_points: [{ date: '2026-07-01', l_per_100km: '8.00', odometer_km: '1000', liters: '40', cost: '60.00' }],
+  }
+
+  it('★ plots the economy series in the account\'s consumption unit', async () => {
+    // The axis label, the legend name and the tooltip all moved onto
+    // `u.consumption`; the plotted VALUES were computed by
+    // `system === 'metric' ? raw : UnitConverter.l100kmToMpg(raw)`. Left
+    // behind, this account (litres, MPG) would have been shown 8.0 under an
+    // axis reading MPG: not a wrong unit, a wrong NUMBER under a right label.
+    unitPreferenceMock.mockReturnValue({
+      system: 'metric', showBoth: false, units: { ...METRIC_UNITS, consumption: 'mpg_us' },
+    })
+    mockAnalyticsResponse(baseAnalytics({ fuel_economy: ECONOMY }))
+    renderAnalytics()
+    await waitFor(() => expect(screen.getByText('vehicle.fuelEconomyTrendTitle')).toBeInTheDocument())
+
+    // 235.214 / 8 = 29.40175 exactly.
+    expect(findChartData('lPer100km')).toStrictEqual([
+      { date: 'Jul 1', lPer100km: 8, displayFuelEconomy: 29.40175, odometer_km: 1000 },
+    ])
+  })
+
+  it('★ plots the rate series in the account\'s volume unit', async () => {
+    // The mirror on the hours chart, with a set the binary system could not
+    // express: litres everywhere except the volume the reader actually chose.
+    unitPreferenceMock.mockReturnValue({
+      system: 'metric', showBoth: false, units: { ...METRIC_UNITS, volume: 'gal_us' },
+    })
+    mockAnalyticsResponse(baseAnalytics({
+      hours_economy: {
+        average_l_per_hr: '3.80', average_cost_per_hr: '2.75', best_l_per_hr: '3.80', worst_l_per_hr: '3.80',
+        recent_l_per_hr: '3.80', recent_cost_per_hr: '2.75', trend: 'stable', data_points: HOURS_ECONOMY_POINTS,
+      },
+    }))
+    renderAnalytics()
+    await waitFor(() => expect(screen.getByText('vehicle.hoursEconomyAnalysis')).toBeInTheDocument())
+
+    const data = findChartData('lPerHr') as { lPerHr: number | null; displayFuelRate: number | null }[]
+    expect(data[0].lPerHr).toBe(3.8)
+    expect(data[0].displayFuelRate).toBe(1.00385427206)
   })
 })

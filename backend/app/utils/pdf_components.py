@@ -9,7 +9,9 @@ from typing import Any
 
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER
+from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import inch
+from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.platypus import (
     Flowable,
     Image,
@@ -437,6 +439,51 @@ KPI_COLORS = {
 }
 
 
+# Floor for the auto-shrunk KPI value font (see `_fit_kpi_value_font`). A
+# value long enough to need less than this wraps at a space instead, which
+# stays readable; shrinking without a floor would not.
+KPI_VALUE_MIN_FONT_SIZE = 9.0
+
+
+def _fit_kpi_value_font(
+    value: str, style: ParagraphStyle, available_width: float
+) -> tuple[float, float]:
+    """Font size and leading for `value`, shrunk toward `available_width`.
+
+    Three outcomes, all pinned by `tests/unit/utils/test_pdf_components.py`:
+
+    - `value` already fits: the style's OWN size and leading come back
+      unchanged, so a card that fits today does not move.
+    - `value` overflows but fits above the floor: scaled so it lands exactly
+      on `available_width`, on one line.
+    - `value` overflows even at `KPI_VALUE_MIN_FONT_SIZE`: clamped to the
+      floor and **still too wide**, deliberately. It wraps rather than
+      shrinking to an unreadable size. Measured example:
+      ``"$675.92/1,000 mi ($42.00/100 km)"`` clamps to 9pt and still needs
+      172.80pt in a 111.40pt four-card cell. This is NOT a one-line-fit
+      guarantee, and the wrap lands at a space only where the value has
+      one; a long unbroken numeric would still split mid-number.
+
+    KPI values became variable-length when the reports became unit-aware: a
+    cost-per-distance value reads ``"$42.00/100 km"`` for a km reader and
+    ``"$675.92/1,000 mi ($42.00/100 km)"`` for a mile reader who opted into
+    show-both, against a card that is a fixed ~111 points wide. At the base
+    20-point monospace those wrap mid-number (``"$42.00/10"`` / ``"0 km"``),
+    which reads as a broken number rather than a wrapped one. A long
+    currency value had the same problem before units entered the picture,
+    and a card that already overflowed does move as a result.
+
+    Measured with ReportLab's own `stringWidth` rather than an assumed
+    character-width ratio.
+    """
+    base_size: float = style.fontSize
+    width = stringWidth(value, style.fontName, base_size)
+    if width <= available_width or width <= 0:
+        return base_size, style.leading
+    fitted = max(KPI_VALUE_MIN_FONT_SIZE, base_size * available_width / width)
+    return fitted, style.leading * fitted / base_size
+
+
 def make_kpi_row(
     cards: list[dict[str, Any]],
 ) -> Table:
@@ -465,11 +512,15 @@ def make_kpi_row(
         label_text = card["label"].upper()
         label = Paragraph(label_text, styles["KPILabel"])
 
-        # Value with accent color
-        value_style = styles["KPIValue"].__class__(
+        # Value with accent color, shrunk to fit if the string is long
+        base_value_style = styles["KPIValue"]
+        font_size, leading = _fit_kpi_value_font(card["value"], base_value_style, card_width - 20)
+        value_style = base_value_style.__class__(
             f"KPIValue_{card['color']}",
-            parent=styles["KPIValue"],
+            parent=base_value_style,
             textColor=accent_color,
+            fontSize=font_size,
+            leading=leading,
         )
         value = Paragraph(card["value"], value_style)
 

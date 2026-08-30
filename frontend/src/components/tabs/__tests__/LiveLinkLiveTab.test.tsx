@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, act, cleanup } from '../../../__tests__/test-utils'
 import type { VehicleLiveLinkStatus } from '../../../types/livelink'
+import { presetUnitsFor } from '../../../types/units'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Timer strategy (harness note — deviates from the brief's single fake-timer
@@ -36,11 +37,21 @@ const getVehicleStatus = vi.fn()
 vi.mock('@/services/livelinkService', () => ({
   livelinkService: { getVehicleStatus: (vin: string) => getVehicleStatus(vin) },
 }))
-vi.mock('@/hooks/useUnitPreference', () => ({ useUnitPreference: () => ({ system: 'imperial', showBoth: false }) }))
+vi.mock('@/hooks/useUnitPreference', () => ({
+  useUnitPreference: () => ({
+    system: 'imperial',
+    showBoth: false,
+    units: presetUnitsFor('imperial', 'us'),
+    gallonStandard: 'us',
+  }),
+}))
 vi.mock('@/hooks/useTimeFormat', () => ({ useTimeFormat: () => ({ timeFormat: '12h' }) }))
+// The gauge arithmetic is stubbed here so the poll/status assertions below stay
+// about polling and status. `LiveLinkLiveTab.units.test.tsx` drives the REAL
+// layer, which is where the rendered figures and the unknown-unit wording are
+// pinned.
 vi.mock('@/utils/telemetryUnits', () => ({
-  convertTelemetryValue: (v: number) => ({ value: v, unit: 'rpm' }),
-  formatTelemetryValue: (v: number) => String(v),
+  convertTelemetryValue: (v: number) => ({ text: String(v), unit: 'rpm', unverified: false }),
   getParamDisplayName: (k: string, dn: string | null) => dn ?? k,
 }))
 vi.mock('@/utils/parseAPITimestamp', () => ({ formatTime: () => '12:00:00' }))
