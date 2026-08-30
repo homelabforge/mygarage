@@ -1,24 +1,22 @@
 name: Unit Gate Selftest
 
-# Two mutation harnesses, one per artifact that asserts something this phase
-# relies on.
-#
-# `selftest` is the unit gate's: every deliberate defect in
-# units_gate_selftest.py's MUTATIONS and WALK_MUTATIONS tables, applied to a copy of
-# scripts/validate-units.ts or of eslint.config.js, each of which must flip
+# The unit gate's mutation harness: every deliberate defect in
+# units_gate_selftest.py's MUTATIONS and WALK_MUTATIONS tables, applied to a copy
+# of scripts/validate-units.ts or of eslint.config.js, each of which must flip
 # exactly the corpus cases that name it, plus the tree-walk and baseline proofs.
 #
 # The count is deliberately not written here: the run prints it, and a number in
 # prose is a number that goes stale. An earlier version of this comment said 40
 # when the tables held 44.
 #
-# `manifest-selftest` is `units.manifest.json`'s. The manifest is a reviewed
-# snapshot over a stated universe, and the rule that put it here is the same one
-# that put the gate here: an artifact asserting something about every module has
-# to be shown FAILING, in each direction it claims to cover. It runs against a
-# throwaway tree in a tempdir, so it takes no shared fixture lock. MEASURED at
-# 0.4 s: it mutates a manifest and a five-file tree rather than re-running a
-# corpus, so it is here for tidiness and isolation, not for cost.
+# The manifest's own harness lives in units-manifest-gate.yml. The two were one
+# workflow until 2026-08-30. They had to be split because `paths:` is applied per
+# WORKFLOW and not per job, so units.manifest.json in the shared filter fired
+# this 47-minute job as well as the 0.4-second one. Every locale file carries a
+# manifest row, so every translation PR re-stamped a digest and paid the full
+# mutation run for a file this harness does not read: PR #155 (German) is the
+# worked example. Nothing here reads units.manifest.json, and the one mention of
+# that name in units_gate_selftest.py is inside a prose string.
 #
 # Why it is a workflow of its own rather than a step in the main CI job:
 #
@@ -35,29 +33,28 @@ name: Unit Gate Selftest
 #     minutes, and was wrong by 5x in the direction that would have justified
 #     weakening the check. Re-measure after any change to either table rather
 #     than reasoning about the delta;
-#   * ★ EVERY FIGURE ABOVE IS LOCAL, AND THE TIMEOUT GOVERNS THE RUNNER, which
-#     is the gap that let this job stop finishing without anyone noticing. Two
-#     CI runs exist. `bf6a078` COMPLETED in 397 s at 49 cases, 41 scan
-#     mutations and 3 walk mutations, which is 1.8x the 218 s local figure at
-#     those same counts. `4a63349`, at 85 cases and 80 scan mutations, was
-#     CANCELLED at 45m16s by the 45-minute budget, so the runner needs at
-#     least 2.1x the local cost and its true figure is unknown: nothing at the
-#     current size has ever been allowed to finish. That 1.8x ratio predicted
-#     38 minutes, which is why the cancellation was a surprise rather than a
-#     forecast. Put the CI figure here the first time a run completes;
-#   * the set of files that can change its result is small and knowable, so a
-#     `paths:` filter is exact rather than a guess: the gate, the corpus, this
-#     harness, eslint.config.js, translation-utils.ts (the gate imports ROOT
-#     from it), package.json plus bun.lock, because a TypeScript or ESLint
-#     major genuinely can change what the mutations do, and the FOUR SOURCES
-#     the three phase-3b detectors derive their vocabularies from at runtime.
-#     Those four were missing when the detectors landed, and a filter that
-#     claims to be exact while missing an input is worse than one that admits
-#     it is a guess. The dependency files
-#     were excluded while this job was believed to cost 18 minutes, with a
-#     manual "run it after a major" obligation standing in. At the measured
-#     cost that trade is still gone, and an obligation nobody will remember
-#     after a major bump is worse than a job that runs on bumps;
+#   * ★ EVERY LOCAL FIGURE ABOVE IS LOCAL, AND THE TIMEOUT GOVERNS THE RUNNER,
+#     which is the gap that let this job stop finishing without anyone noticing.
+#     `bf6a078` COMPLETED in 397 s at 49 cases, 41 scan mutations and 3 walk
+#     mutations, which is 1.8x the 218 s local figure at those same counts.
+#     `4a63349`, at 85 cases and 80 scan mutations, was CANCELLED at 45m16s by
+#     the old 45-minute budget. `f5a4106` then COMPLETED in 47m02s (2822 s) at
+#     those same counts under the 90-minute budget, a 2.20x ratio against its
+#     own 1284 s local run;
+#   * the set of files that can change its result is small and knowable, so the
+#     `paths:` filter below is exact rather than a guess: the gate, the corpus,
+#     this harness, eslint.config.js, units.baseline.json (read at
+#     units_gate_selftest.py:1823 for the R4 count-versus-membership proof),
+#     translation-utils.ts (validate-units.ts imports ROOT from it),
+#     package.json plus bun.lock, because a TypeScript or ESLint major genuinely
+#     can change what the mutations do, and the FOUR SOURCES the three phase-3b
+#     detectors derive their vocabularies from at runtime. Those four were
+#     missing when the detectors landed, and a filter that claims to be exact
+#     while missing an input is worse than one that admits it is a guess.
+#     validate-reachability.ts is deliberately NOT here: its three mentions in
+#     this harness and its corpus are prose, and the only real import of it
+#     (walkGraph) is in validate-units-manifest.ts, so it moved to the manifest
+#     workflow with the job that actually depends on it;
 #   * SAMPLING IT IS NOT AN OPTION. Which mutant survives is not knowable in
 #     advance, which is the entire premise of a mutation harness, so a sampled
 #     run is how a survivor hides. The cost has gone from those ten minutes to
@@ -90,11 +87,7 @@ on:
       - 'frontend/scripts/validate-units.ts'
       - 'frontend/scripts/units_gate_corpus.py'
       - 'frontend/scripts/units_gate_selftest.py'
-      - 'frontend/scripts/validate-units-manifest.ts'
-      - 'frontend/scripts/units_manifest_selftest.py'
-      - 'frontend/scripts/units.manifest.json'
       - 'frontend/scripts/units.baseline.json'
-      - 'frontend/scripts/validate-reachability.ts'
       # The three detectors DERIVE their vocabularies from these four at
       # runtime, so a change to any of them changes what the mutations do.
       - 'frontend/src/utils/units.ts'
@@ -111,11 +104,7 @@ on:
       - 'frontend/scripts/validate-units.ts'
       - 'frontend/scripts/units_gate_corpus.py'
       - 'frontend/scripts/units_gate_selftest.py'
-      - 'frontend/scripts/validate-units-manifest.ts'
-      - 'frontend/scripts/units_manifest_selftest.py'
-      - 'frontend/scripts/units.manifest.json'
       - 'frontend/scripts/units.baseline.json'
-      - 'frontend/scripts/validate-reachability.ts'
       # The three detectors DERIVE their vocabularies from these four at
       # runtime, so a change to any of them changes what the mutations do.
       - 'frontend/src/utils/units.ts'
@@ -172,53 +161,3 @@ jobs:
       # this job reports.
       - name: Run the unit gate selftest
         run: cd frontend && bun run validate:units-selftest
-
-  manifest-selftest:
-    name: Unit Manifest Selftest (advisory)
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-
-    steps:
-      # fetch-depth: 0 because the conclusion-drift check below reads the
-      # PREVIOUS manifest out of git. At the default depth of 1 there is no
-      # base commit to compare against and the check would report that it did
-      # not run, every time, forever.
-      - name: Checkout code
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-        with:
-          fetch-depth: 0
-
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-        with:
-          bun-version-file: '.bun-version'
-
-      # The checker needs no node_modules of its own, but `bun install` keeps
-      # this job's environment identical to the one above rather than subtly
-      # different in a way nobody would notice until it mattered.
-      - name: Install dependencies
-        run: cd frontend && bun install --frozen-lockfile
-
-      # Runs in its own tempdir tree, so unlike the gate corpus and gate
-      # selftest it takes no shared fixture lock and can run beside them.
-      # Never piped: a pipe would mask the exit code.
-      - name: Run the unit manifest selftest
-        run: cd frontend && bun run validate:units-manifest-selftest
-
-      # ★ The drift check against the MERGE BASE, which is the case the local
-      # default cannot cover. `bin/ci-check` runs the checker with its default
-      # `--against-ref HEAD`, so an uncommitted erasure fails on the author's
-      # machine; but once committed, HEAD carries the erasure and the working
-      # tree agrees with it. Only a comparison against the base sees a finding
-      # that was deleted somewhere in the branch.
-      #
-      # Never piped, and it exits 0 with a loud "NOT checked" line rather than
-      # silently passing when there is no base to compare against.
-      - name: Check that no conclusion weakened against the merge base
-        run: |
-          base='${{ github.event.pull_request.base.sha || github.event.before }}'
-          if [ -z "$base" ] || [ "$base" = "0000000000000000000000000000000000000000" ]; then
-            echo "no base commit for this event, so there is nothing to compare against"
-            exit 0
-          fi
-          cd frontend && bun run scripts/validate-units-manifest.ts --against-ref "$base"
