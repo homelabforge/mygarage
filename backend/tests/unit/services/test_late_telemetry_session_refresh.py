@@ -17,54 +17,26 @@ from datetime import timedelta
 
 import pytest
 import pytest_asyncio
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.drive_session import DriveSession
-from app.models.livelink_device import LiveLinkDevice
-from app.models.user import User
-from app.models.vehicle import Vehicle
 from app.models.vehicle_telemetry import VehicleTelemetry
 from app.services.telemetry_service import TelemetryService
 from app.utils.datetime_utils import utc_now
 
 
 @pytest_asyncio.fixture
-async def make_closed_session(db_session: AsyncSession):
-    """Async factory: (suffix) -> (vin, device_id, session)."""
+async def make_closed_session(db_session, make_closed_drive_session):
+    """Async factory: (suffix) -> (vin, device_id, session). See conftest."""
 
     async def _factory(suffix: str) -> tuple[str, str, DriveSession]:
-        user = User(
-            username=f"latetel_user_{suffix}",
-            email=f"latetel_{suffix}@example.com",
-            hashed_password="x",
-            is_active=True,
-            is_admin=False,
-        )
-        db_session.add(user)
-        await db_session.flush()
-
-        vin = f"LATETELTEST{suffix:0>6}"
-        db_session.add(
-            Vehicle(vin=vin, user_id=user.id, nickname=f"Late Car {suffix}", vehicle_type="Car")
-        )
-        await db_session.flush()
-
-        device_id = f"latedev{suffix:0>5}"
-        db_session.add(LiveLinkDevice(device_id=device_id, vin=vin, enabled=True, kind="wican"))
-        await db_session.flush()
-
-        now = utc_now()
-        session = DriveSession(
-            vin=vin,
-            device_id=device_id,
+        now = utc_now().replace(tzinfo=None)
+        vin, device_id, session = await make_closed_drive_session(
+            "latetel",
+            suffix,
             started_at=now - timedelta(minutes=10),
             ended_at=now - timedelta(minutes=5),
             duration_seconds=300,
-            max_speed=20.0,
-            avg_speed=10.0,
         )
-        db_session.add(session)
-        await db_session.flush()
 
         # A sample inside the window that the stored max_speed (20) does NOT
         # reflect. Without this, a session refreshed BY MISTAKE recomputes to

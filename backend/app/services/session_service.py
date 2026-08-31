@@ -194,26 +194,9 @@ class SessionService:
             duration = (ended - started).total_seconds()
             session.duration_seconds = int(duration)
 
-        # Get end odometer
-        if device.vin:
-            session.end_odometer = await self._get_current_odometer(device.vin)
-
-        # Calculate distance
-        if session.start_odometer and session.end_odometer:
-            session.distance_km = session.end_odometer - session.start_odometer
-
-        # GPS fallback: Torque trips have no odometer PID -> derive distance from the breadcrumb.
-        if session.distance_km is None:
-            from app.services.location_service import LocationService  # local import avoids cycle
-
-            points = await LocationService(self.db).get_trip_points(session.vin, session.id)
-            if len(points) >= 2:
-                coords = [(float(p.latitude), float(p.longitude)) for p in points]
-                session.distance_km = float(LocationService.haversine_km(coords))
-
-        # Calculate aggregates from telemetry
-        await self._calculate_session_aggregates(session)
-        await self._calculate_driving_insights(session)
+        # Same derivation the repair paths use, so a session summarised on close
+        # and one recomputed months later cannot disagree about how it was made.
+        await self.refresh_aggregates(session)
 
         # Clear device's current session
         device.current_session_id = None
@@ -341,11 +324,85 @@ class SessionService:
         A WiCAN buffers readings while off home WiFi and replays them with their
         original timestamps, so a session's telemetry can keep arriving long
         after `end_session` computed its aggregates from the handful of samples
-        that made it in live. Called from `TelemetryService.store_telemetry`
-        when a reading lands inside this session's window.
+        that made it in live.
+
+        The single derivation of a session's numbers: `end_session` calls it on
+        close, `TelemetryService` calls it when a reading or an SD-card pull
+        lands inside a closed session's window, and `tools/
+        recompute_session_aggregates.py` calls it to repair history.
         """
+        await self._calculate_session_distance(session)
         await self._calculate_session_aggregates(session)
         await self._calculate_driving_insights(session)
+
+    async def _calculate_session_distance(self, session: DriveSession) -> None:
+        """Set the odometer span and distance from samples inside the window.
+
+        Sessions open and close on device connectivity, not on the engine, so a
+        vehicle regularly drives while no session is open. Taking the odometer
+        from `vehicle_telemetry_latest` at each end -- the newest value on
+        record, whatever its age -- charged all of that driving to whichever
+        session happened to open next: a Ram idling in the driveway for eleven
+        minutes at a top speed of 2 km/h was credited with 14 km, and an earlier
+        one with 129 km.
+
+        Only movement observed between `started_at` and `ended_at` belongs to
+        this session. Driving that happened in the gaps belongs to no session,
+        and recovering it needs correct session boundaries rather than a wider
+        odometer lookup.
+
+        Nothing is assigned when the window yields no distance either way,
+        matching `_calculate_session_aggregates`: telemetry is pruned on a
+        retention schedule while sessions are kept forever, so an old session's
+        window is legitimately empty and must not be blanked.
+        """
+        if not session.started_at or not session.ended_at:
+            return
+
+        # One grouped pass over the window. Odometer keys cannot be an `IN`
+        # list -- the standard SAE J1979 key carries an arbitrary two-hex-digit
+        # PID prefix (`A6-ODOMETER`) and a WiCAN autopid has none at all -- and
+        # a substring match would swallow trip counters like `21-DISTANCEMILON`
+        # (see app/utils/odometer_units.py). Grouping by key lets
+        # `is_odometer_param_key` decide in Python without a second scan, and
+        # keeps any function off the indexed `param_key` column.
+        result = await self.db.execute(
+            select(
+                VehicleTelemetry.param_key,
+                func.min(VehicleTelemetry.value),
+                func.max(VehicleTelemetry.value),
+            )
+            .where(VehicleTelemetry.vin == session.vin)
+            .where(VehicleTelemetry.timestamp >= session.started_at)
+            .where(VehicleTelemetry.timestamp <= session.ended_at)
+            .group_by(VehicleTelemetry.param_key)
+        )
+        spans = [
+            (low, high)
+            for key, low, high in result.all()
+            if low is not None and high is not None and is_odometer_param_key(key)
+        ]
+
+        if spans:
+            low = min(pair[0] for pair in spans)
+            high = max(pair[1] for pair in spans)
+            session.start_odometer = float(low)
+            session.end_odometer = float(high)
+            session.distance_km = float(high) - float(low)
+            return
+
+        # No odometer in the window. A Torque trip never has one -- the app
+        # reports no odometer PID -- so its distance comes from the GPS
+        # breadcrumb. This lives here rather than in `end_session` so every
+        # caller gets the same policy: computed only in `end_session`, a
+        # Torque session's distance stayed frozen at whatever the breadcrumb
+        # held on close while its speed and RPM were repaired around it.
+        from app.services.location_service import LocationService  # local import avoids cycle
+
+        points = await LocationService(self.db).get_trip_points(session.vin, session.id)
+        if len(points) >= 2:
+            coords = [(float(p.latitude), float(p.longitude)) for p in points]
+            session.distance_km = float(LocationService.haversine_km(coords))
 
     async def _calculate_session_aggregates(self, session: DriveSession) -> None:
         """Calculate aggregate statistics for a session from telemetry data."""

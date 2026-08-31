@@ -245,6 +245,17 @@ class TelemetryService:
                 return True
         return False
 
+    async def _odometer_units_for(self, device_id: str) -> tuple[str | None, str | None]:
+        """Return the device's declared `(odometer_unit, kind)`, or `(None, None)`."""
+        row = (
+            await self.db.execute(
+                select(LiveLinkDevice.odometer_unit, LiveLinkDevice.kind).where(
+                    LiveLinkDevice.device_id == device_id
+                )
+            )
+        ).first()
+        return row if row else (None, None)
+
     async def _normalize_odometer_units(
         self,
         device_id: str,
@@ -260,14 +271,7 @@ class TelemetryService:
         if not any(self._is_odometer_param(k) for k in autopid_data):
             return autopid_data
 
-        row = (
-            await self.db.execute(
-                select(LiveLinkDevice.odometer_unit, LiveLinkDevice.kind).where(
-                    LiveLinkDevice.device_id == device_id
-                )
-            )
-        ).first()
-        device_unit, device_kind = row if row else (None, None)
+        device_unit, device_kind = await self._odometer_units_for(device_id)
 
         normalized = dict(autopid_data)
         for param_key, value in autopid_data.items():
@@ -469,29 +473,8 @@ class TelemetryService:
 
         Open sessions are excluded — `end_session` computes those on close.
         """
-        from app.services.session_service import SessionService  # local import avoids cycle
-
         reading_at = timestamp.replace(tzinfo=None) if timestamp.tzinfo else timestamp
-
-        result = await self.db.execute(
-            select(DriveSession)
-            .where(DriveSession.vin == vin)
-            .where(DriveSession.ended_at.is_not(None))
-            .where(DriveSession.started_at <= reading_at)
-            .where(DriveSession.ended_at >= reading_at)
-        )
-        sessions = list(result.scalars().all())
-        if not sessions:
-            return
-
-        session_service = SessionService(self.db)
-        for session in sessions:
-            await session_service.refresh_aggregates(session)
-            logger.debug(
-                "Refreshed session %s aggregates from late telemetry at %s",
-                session.id,
-                reading_at,
-            )
+        await self._refresh_sessions_in_span(vin, reading_at, reading_at)
 
     async def _sync_odometer_from_telemetry(
         self,
@@ -687,11 +670,25 @@ class TelemetryService:
         # "database is locked". Committed rows still dedup correctly across batches.
         commit_batch = 500
         inserted = 0
+        stamps: list[datetime] = []
+
+        # The SD path writes `r.value` straight to a metric-canonical column,
+        # so it needs the same odometer conversion `store_telemetry` applies:
+        # a bare `ODOMETER` autopid on a US-market car reports miles. Fetched
+        # once here rather than per row; a pull is one device.
+        device_unit, device_kind = await self._odometer_units_for(device_id)
+
         for i, r in enumerate(rows, start=1):
             # Normalise to naive UTC once so the (device_id, param_key, timestamp)
             # dedup index matches live-ingest rows (which store naive UTC via utc_now()).
             # Binding tz-aware datetimes into PG's TIMESTAMP WITHOUT TIME ZONE is also unsafe.
             ts = r.timestamp.replace(tzinfo=None) if r.timestamp.tzinfo is not None else r.timestamp
+
+            value = r.value
+            if self._is_odometer_param(r.param_key):
+                converted = odometer_value_to_km(value, r.param_key, device_unit, device_kind)
+                if converted is not None:
+                    value = converted
 
             # Use the module-level dialect_insert (sqlite or pg, chosen at import time)
             stmt = (
@@ -700,21 +697,80 @@ class TelemetryService:
                     vin=vin,
                     device_id=device_id,
                     param_key=r.param_key,
-                    value=r.value,
+                    value=value,
                     timestamp=ts,
                 )
                 .on_conflict_do_nothing(index_elements=["device_id", "param_key", "timestamp"])
             )
             result = await self.db.execute(stmt)
             # rowcount is 1 on insert, 0 when the conflict clause fires
-            inserted += result.rowcount or 0
-            await self._update_latest_if_newer(vin, r.param_key, r.value, ts)
+            row_inserted = result.rowcount or 0
+            inserted += row_inserted
+            await self._update_latest_if_newer(vin, r.param_key, value, ts)
+
+            # Only rows that actually landed widen the refresh span. The active
+            # log file is re-downloaded and re-parsed from its watermark every
+            # run, so tracking every parsed row would make one new row at the
+            # tail recompute every session on the card.
+            if row_inserted:
+                stamps.append(ts)
 
             if i % commit_batch == 0:
                 await self.db.commit()
 
         await self.db.commit()  # flush the final partial batch
+
+        # Fold the batch into the sessions its rows fall inside. This path
+        # deliberately skips `store_telemetry`, so it also skipped the
+        # closed-session refresh that lives there -- which left the repair
+        # covering the wrong path, because the SD card is where late data
+        # actually comes from. Off home WiFi the WiCAN reaches no broker at
+        # all, so a whole drive arrives here hours later.
+        # Once per call, not once per row: running the live side-effects per
+        # row is the thing `bulk_backfill` exists to avoid. Note the caller
+        # loops over log files (`SdBackfillService._backfill`), so this is once
+        # per file, not once per pull.
+        if stamps:
+            await self._refresh_sessions_in_span(vin, min(stamps), max(stamps))
+            await self.db.commit()
+
         return inserted
+
+    async def _refresh_sessions_in_span(self, vin: str, start: datetime, end: datetime) -> None:
+        """Recompute every closed session of `vin` overlapping [start, end].
+
+        Overlap only selects the candidates; each session then recomputes from
+        its own window, so a session the pull merely straddles without landing
+        any rows inside keeps the values it already had.
+
+        The single point a closed session is refreshed from ingest: a live
+        reading is the degenerate span `[ts, ts]`. Does not commit: callers
+        own the transaction, and `store_telemetry` deliberately does not.
+        """
+        from app.services.session_service import SessionService  # local import avoids cycle
+
+        result = await self.db.execute(
+            select(DriveSession)
+            .where(DriveSession.vin == vin)
+            .where(DriveSession.ended_at.is_not(None))
+            .where(DriveSession.started_at <= end)
+            .where(DriveSession.ended_at >= start)
+        )
+        sessions = list(result.scalars().all())
+        if not sessions:
+            return
+
+        session_service = SessionService(self.db)
+        for session in sessions:
+            await session_service.refresh_aggregates(session)
+
+        logger.debug(
+            "Refreshed %d closed session(s) for %s over %s..%s",
+            len(sessions),
+            vin[:8],
+            start,
+            end,
+        )
 
     async def store_torque_telemetry(
         self, vin: str, device_id: str, timestamp: datetime, values: dict[str, float]

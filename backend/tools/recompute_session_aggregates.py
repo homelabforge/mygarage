@@ -8,9 +8,16 @@ already been summarised. On Diamond a drive that peaked at 85 km/h was recorded
 as max_speed 20: only the samples taken pulling out of the driveway had arrived
 when the session closed.
 
+Session distance had a second, independent defect with the same shape: it was
+the difference between the vehicle's newest odometer reading at session end and
+at session start, so every kilometre driven while no session was open was
+charged to whichever session opened next. A Ram idling in the driveway for
+eleven minutes at a top speed of 2 km/h was credited with 14 km.
+
 `TelemetryService.store_telemetry` now refreshes a closed session when a late
-reading falls inside its window, so this is only needed once, to repair the
-sessions summarised before that.
+reading falls inside its window, and `refresh_aggregates` recomputes distance
+from the window too, so this is only needed once, to repair the sessions
+summarised before that.
 
 It recomputes through `SessionService.refresh_aggregates`, the same code the
 live path uses, rather than reimplementing the aggregation.
@@ -56,6 +63,9 @@ from app.services.session_service import SessionService  # noqa: E402
 
 #: Aggregate columns this recomputes, for the before/after comparison.
 TRACKED = (
+    "distance_km",
+    "start_odometer",
+    "end_odometer",
     "max_speed",
     "avg_speed",
     "max_rpm",
@@ -83,6 +93,28 @@ def _snapshot(session: DriveSession) -> dict[str, float | None]:
     return {name: getattr(session, name) for name in TRACKED}
 
 
+def _movers(
+    changed: list[tuple[int, dict[str, float | None], dict[str, float | None]]],
+    field: str,
+    *,
+    rising: bool,
+) -> list[tuple[int, float, float]]:
+    """Sessions whose `field` moved in `rising`'s direction, biggest change first.
+
+    Rows where either side is None are dropped: a value that appeared or
+    vanished is not a move and has no magnitude to rank.
+    """
+    moved = [
+        (sid, before[field], after[field])
+        for sid, before, after in changed
+        if before[field] is not None
+        and after[field] is not None
+        and (after[field] > before[field] if rising else after[field] < before[field])
+    ]
+    moved.sort(key=lambda row: abs(row[2] - row[1]), reverse=True)
+    return moved
+
+
 async def run(args: argparse.Namespace) -> int:
     """Recompute every closed session's aggregates and report what moved."""
     async with AsyncSessionLocal() as db:
@@ -107,18 +139,21 @@ async def run(args: argparse.Namespace) -> int:
 
         print(f"Examined {len(sessions):,} closed session(s); {len(changed):,} would change.")
 
-        speed_gains = [
-            (sid, b["max_speed"], a["max_speed"])
-            for sid, b, a in changed
-            if a["max_speed"] is not None
-            and b["max_speed"] is not None
-            and a["max_speed"] > b["max_speed"]
-        ]
+        speed_gains = _movers(changed, "max_speed", rising=True)
         if speed_gains:
-            speed_gains.sort(key=lambda row: (row[2] or 0) - (row[1] or 0), reverse=True)
             print(f"\n{len(speed_gains):,} session(s) gain a higher max speed. Largest moves:")
             for sid, before_v, after_v in speed_gains[:10]:
                 print(f"  session {sid}: max speed {before_v:,.0f} -> {after_v:,.0f} km/h")
+
+        distance_drops = _movers(changed, "distance_km", rising=False)
+        if distance_drops:
+            total = sum(before_v - after_v for _, before_v, after_v in distance_drops)
+            print(
+                f"\n{len(distance_drops):,} session(s) shed distance that was driven outside "
+                f"their window ({total:,.0f} km in total). Largest:"
+            )
+            for sid, before_v, after_v in distance_drops[:10]:
+                print(f"  session {sid}: distance {before_v:,.1f} -> {after_v:,.1f} km")
 
         if not args.apply:
             await db.rollback()

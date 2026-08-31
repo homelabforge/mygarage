@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.livelink_device import LiveLinkDevice
 from app.models.user import User
 from app.models.vehicle import Vehicle
-from app.models.vehicle_telemetry import VehicleTelemetryLatest
+from app.models.vehicle_telemetry import VehicleTelemetry, VehicleTelemetryLatest
 from app.services.location_service import LocationService
 from app.services.session_service import SessionService
 from app.services.torque_service import TorqueService
@@ -261,6 +261,13 @@ async def test_end_session_odometer_distance_is_not_overridden_by_gps(
     test_torque_resolve_never_uses_colocated_wican_odometer below), so the
     odometer-delta-wins-over-GPS behavior this test targets can only occur for a
     device using the WiCAN path, where VIN-scoped odometer capture is correct.
+
+    The odometer is seeded as `VehicleTelemetry` samples *inside* the session
+    window, which is where distance is now measured. Seeding only
+    `vehicle_telemetry_latest` used to be enough, and that is precisely the
+    defect fixed in test_session_distance_window.py: the latest value carries no
+    timestamp constraint, so it charged this session with every kilometre driven
+    before it opened.
     """
     device = await _make_torque_device(db_session)
     t0 = datetime(2026, 1, 1, 10, 0, 0)
@@ -268,6 +275,16 @@ async def test_end_session_odometer_distance_is_not_overridden_by_gps(
     # Seed the "start" odometer reading before the session opens.
     odo = VehicleTelemetryLatest(vin=device.vin, param_key="ODOMETER", value=1000.0, timestamp=t0)
     db_session.add(odo)
+    db_session.add(
+        VehicleTelemetry(
+            vin=device.vin,
+            device_id=device.device_id,
+            param_key="ODOMETER",
+            value=1000.0,
+            timestamp=t0,
+            received_at=t0,
+        )
+    )
     await db_session.flush()
 
     service = SessionService(db_session)
@@ -293,6 +310,16 @@ async def test_end_session_odometer_distance_is_not_overridden_by_gps(
 
     # Advance the "end" odometer reading before finalizing.
     odo.value = 1050.0
+    db_session.add(
+        VehicleTelemetry(
+            vin=device.vin,
+            device_id=device.device_id,
+            param_key="ODOMETER",
+            value=1050.0,
+            timestamp=t0 + timedelta(minutes=1),
+            received_at=t0,
+        )
+    )
     await db_session.flush()
 
     ended = await service.end_session(device, t0 + timedelta(minutes=2))
