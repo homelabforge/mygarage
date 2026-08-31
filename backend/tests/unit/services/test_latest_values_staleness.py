@@ -110,3 +110,41 @@ class TestLatestValuesStaleness:
         values = await TelemetryService(db_session).get_latest_values(vin)
 
         assert len(values) == 3, "a parked vehicle lost its dashboard"
+
+
+@pytest.mark.asyncio
+class TestStalenessReferenceIsBounded:
+    """One future-dated row must not hide every current gauge."""
+
+    async def test_a_future_dated_row_does_not_blank_the_dashboard(
+        self, db_session, make_livelink_vehicle
+    ):
+        """The WiCAN's optional device timestamp is not checked against the clock.
+
+        The cutoff is measured from the vehicle's newest sample, so a dongle
+        reporting a date years ahead would drag it past every normally-dated
+        parameter and empty the Live tab until real time caught up. The
+        reference ignores rows dated in the future for that reason.
+        """
+        vin, device = await make_livelink_vehicle("stalefut", "1")
+        now = utc_now().replace(tzinfo=None)
+
+        db_session.add(
+            VehicleTelemetryLatest(vin=vin, param_key="0D-VEHICLESPEED", value=40.0, timestamp=now)
+        )
+        db_session.add(
+            VehicleTelemetryLatest(
+                vin=vin,
+                param_key="0C-ENGINERPM",
+                value=900.0,
+                timestamp=now + timedelta(days=400),  # dongle clock is wrong
+            )
+        )
+        await db_session.flush()
+
+        values = await TelemetryService(db_session).get_latest_values(vin)
+        keys = {row.param_key for row in values}
+
+        assert "0D-VEHICLESPEED" in keys, (
+            "a future-dated row pushed the staleness cutoff past a current gauge"
+        )

@@ -36,9 +36,17 @@ from sqlalchemy import create_engine, text
 sys.path.insert(0, ".")
 
 from app.utils.odometer_units import (  # noqa: E402
+    ODOMETER_UNIT_KM,
     is_odometer_param_key,
     odometer_value_to_km,
+    resolve_odometer_unit,
 )
+
+#: Below this, a "mi" device's stored telemetry already sits in the same range
+#: as the vehicle's kilometre odometer records, so it has been converted and
+#: converting it again would inflate it. Mirrors NEEDS_CONVERSION_RATIO in
+#: normalize_telemetry_odometer_units.py, read in the opposite direction.
+ALREADY_CANONICAL_RATIO = 1.4
 
 
 def _parse_args() -> argparse.Namespace:
@@ -65,6 +73,55 @@ def main() -> int:
                 text("SELECT device_id, vin, odometer_unit, kind FROM livelink_devices")
             )
         }
+
+        # Refuse if the telemetry has already been converted. This reads
+        # `value` as the device reported it and applies the device's declared
+        # unit, so running it after normalize_telemetry_odometer_units.py would
+        # multiply an already-canonical kilometre figure by 1.609 again. The
+        # inflated reading then becomes the floor the monotonic guard enforces
+        # forever, so the damage outlives the run. Reconstruct first, convert
+        # second: the documented upgrade order says so, and this enforces it.
+        already_canonical: list[str] = []
+        for device_id, (dev_vin, unit, kind) in devices.items():
+            if not dev_vin:
+                continue
+            for key_row in conn.execute(
+                text("SELECT DISTINCT param_key FROM vehicle_telemetry WHERE device_id = :d"),
+                {"d": device_id},
+            ):
+                param_key = key_row.param_key
+                if not is_odometer_param_key(param_key):
+                    continue
+                if resolve_odometer_unit(param_key, unit, kind) == ODOMETER_UNIT_KM:
+                    continue  # nothing would be converted for this key anyway
+                stored_max = conn.execute(
+                    text(
+                        "SELECT MAX(value) FROM vehicle_telemetry "
+                        "WHERE device_id = :d AND param_key = :p"
+                    ),
+                    {"d": device_id, "p": param_key},
+                ).scalar()
+                record_max = conn.execute(
+                    text("SELECT MAX(odometer_km) FROM odometer_records WHERE vin = :v"),
+                    {"v": dev_vin},
+                ).scalar()
+                if not stored_max or not record_max:
+                    continue
+                if float(record_max) / float(stored_max) <= ALREADY_CANONICAL_RATIO:
+                    already_canonical.append(f"{device_id} / {param_key}")
+
+        if already_canonical:
+            print("✗ Telemetry for the following already reads as canonical kilometres:")
+            for entry in already_canonical:
+                print(f"    {entry}")
+            print(
+                "\n  These devices declare miles, so this tool would convert their readings\n"
+                "  again and write odometer records about 1.609x too high. An inflated\n"
+                "  record becomes the floor every later reading must beat, so it does not\n"
+                "  simply get overwritten.\n"
+                "\n  Run this BEFORE normalize_telemetry_odometer_units.py, not after."
+            )
+            return 2
 
         # Highest reading per (vin, day), carrying the key and device it came from.
         best: dict[tuple[str, date], tuple[float, str, str]] = {}

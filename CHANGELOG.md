@@ -12,13 +12,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 If any LiveLink device reports a custom odometer PID (a bare `ODOMETER` autopid rather than the standard `A6-ODOMETER`), its stored odometer telemetry and drive-session odometers are in miles and this release starts reading them as kilometres. Migration 096 classifies the devices but deliberately converts no data: an instance that has already converted by hand cannot be told apart from one that has not, and converting twice is unrecoverable. Back up first, then run, in this order:
 
 ```
+python tools/backfill_livelink_odometer.py --db /data/mygarage.db --apply
 python tools/normalize_telemetry_odometer_units.py --db /data/mygarage.db --apply
 python tools/fix_session_odometer_units.py --db /data/mygarage.db --apply
-python tools/backfill_livelink_odometer.py --apply
 python tools/recompute_session_aggregates.py --apply
 ```
 
-Run them before the upgraded instance records new readings. Each is dry run by default and reads from the data whether its work is still outstanding, so running one twice cannot double a value. If new readings do land first, the history is left half converted; the tools detect that, refuse the affected device, and exit 2 rather than guess.
+The order matters. The reconstruction reads telemetry as the device reported it and applies the device's declared unit, so it has to run while the history is still device-native; after the conversion it would multiply an already-metric figure again, and an inflated odometer record becomes the floor every later reading must beat rather than something a later reading corrects.
+
+Run them before the upgraded instance records new readings. Each is dry run by default and reads from the data whether its work is still outstanding, so running one twice cannot double a value. Where that cannot be decided safely, the tool says so and exits 2 rather than guess: the reconstruction refuses telemetry that already reads as metric, and the two converters refuse a device whose history mixes miles and kilometres, which is what a run started after new readings landed leaves behind.
 
 ### Added
 - Structured vehicle maintenance specs (oil viscosity/capacity/filter, lug-nut torque, coolant/brake/transmission fluid) with an Overview editor (migration 095).

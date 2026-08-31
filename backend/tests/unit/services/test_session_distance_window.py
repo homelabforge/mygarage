@@ -324,3 +324,86 @@ class TestSessionDistanceDeviceScope:
         await db_session.flush()
 
         assert session.distance_km == 7.0
+
+
+@pytest.mark.asyncio
+class TestSessionAggregatesDeviceScope:
+    """Speed, RPM and insights are scoped to the session's device, like distance.
+
+    Distance was scoped first and the rest were left on the VIN, which only
+    half-closed the hole: a replayed WiCAN sample still reached a co-located
+    Torque session's maxima, averages, idle seconds and harsh-event counts.
+    """
+
+    async def test_a_colocated_wican_speed_does_not_change_a_torque_sessions_maxima(
+        self, db_session, make_livelink_vehicle
+    ):
+        """One VIN, two devices, overlapping windows: the wrong one must not win."""
+        vin, wican = await make_livelink_vehicle("agscope", "1")
+        torque = LiveLinkDevice(device_id="agscopetq1", vin=vin, enabled=True, kind="torque")
+        db_session.add(torque)
+        await db_session.flush()
+
+        anchor = utc_now().replace(tzinfo=None) - timedelta(hours=1)
+        torque_session = DriveSession(
+            vin=vin,
+            device_id=torque.device_id,
+            started_at=anchor,
+            ended_at=anchor + timedelta(minutes=10),
+            max_speed=30.0,
+            avg_speed=25.0,
+        )
+        db_session.add(torque_session)
+        await db_session.flush()
+
+        # The WiCAN reports a much faster sample inside the Torque window.
+        db_session.add(
+            VehicleTelemetry(
+                vin=vin,
+                device_id=wican.device_id,
+                param_key="0D-VEHICLESPEED",
+                value=140.0,
+                timestamp=anchor + timedelta(minutes=2),
+                received_at=anchor,
+            )
+        )
+        await db_session.flush()
+
+        await SessionService(db_session).refresh_aggregates(torque_session)
+        await db_session.flush()
+
+        assert torque_session.max_speed == 30.0, (
+            "a co-located WiCAN's speed rewrote a Torque session's maximum"
+        )
+
+    async def test_the_session_still_aggregates_its_own_devices_samples(
+        self, db_session, make_vehicle
+    ):
+        """Scoping by device must not stop a session seeing its own telemetry."""
+        vin, device = await make_vehicle("9")
+        anchor = utc_now().replace(tzinfo=None) - timedelta(hours=1)
+
+        session = DriveSession(
+            vin=vin,
+            device_id=device.device_id,
+            started_at=anchor,
+            ended_at=anchor + timedelta(minutes=10),
+            max_speed=30.0,
+        )
+        db_session.add(session)
+        db_session.add(
+            VehicleTelemetry(
+                vin=vin,
+                device_id=device.device_id,
+                param_key="0D-VEHICLESPEED",
+                value=140.0,
+                timestamp=anchor + timedelta(minutes=2),
+                received_at=anchor,
+            )
+        )
+        await db_session.flush()
+
+        await SessionService(db_session).refresh_aggregates(session)
+        await db_session.flush()
+
+        assert session.max_speed == 140.0

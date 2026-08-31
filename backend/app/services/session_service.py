@@ -437,7 +437,11 @@ class SessionService:
 
         for _, (param_keys, avg_attr, max_attr) in aggregate_mappings.items():
             stats = await self._get_param_stats_multi(
-                session.vin, param_keys, session.started_at, session.ended_at
+                session.vin,
+                session.device_id,
+                param_keys,
+                session.started_at,
+                session.ended_at,
             )
             count = stats.get("count")
             if count and count > 0:
@@ -463,6 +467,10 @@ class SessionService:
         result = await self.db.execute(
             select(VehicleTelemetry.timestamp, VehicleTelemetry.value)
             .where(VehicleTelemetry.vin == session.vin)
+            # Device-scoped for the same reason as the aggregates above: idle
+            # seconds and harsh-event counts are derived from the SPEED series,
+            # so a co-located device's samples would invent events.
+            .where(VehicleTelemetry.device_id == session.device_id)
             .where(func.upper(VehicleTelemetry.param_key).in_(upper_keys))
             .where(VehicleTelemetry.timestamp >= session.started_at)
             .where(VehicleTelemetry.timestamp <= session.ended_at)
@@ -508,14 +516,19 @@ class SessionService:
     async def _get_param_stats_multi(
         self,
         vin: str,
+        device_id: str | None,
         param_keys: list[str],
         start: datetime,
         end: datetime,
     ) -> dict[str, float | None]:
-        """Get stats for a parameter during a time range.
+        """Get stats for a parameter during a time range, for one device.
 
         Accepts multiple possible param_key names and matches any of them
         (case-insensitive) to handle different WiCAN naming conventions.
+
+        Scoped by device, not just VIN: a vehicle can carry both a WiCAN dongle
+        and a Torque source, whose sessions overlap in wall-clock time, and a
+        VIN-wide query let one device's samples rewrite the other's maxima.
         """
         upper_keys = [k.upper() for k in param_keys]
         result = await self.db.execute(
@@ -526,6 +539,7 @@ class SessionService:
                 func.count(VehicleTelemetry.id),
             )
             .where(VehicleTelemetry.vin == vin)
+            .where(VehicleTelemetry.device_id == device_id)
             .where(func.upper(VehicleTelemetry.param_key).in_(upper_keys))
             .where(VehicleTelemetry.timestamp >= start)
             .where(VehicleTelemetry.timestamp <= end)

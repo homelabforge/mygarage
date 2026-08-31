@@ -427,7 +427,7 @@ class TelemetryService:
             # Check storage interval for historical storage
             if param.storage_interval_seconds > 0:
                 should_store = await self._should_store_historical(
-                    vin, param_key, param.storage_interval_seconds
+                    vin, device_id, param_key, param.storage_interval_seconds, timestamp
                 )
                 if not should_store:
                     continue
@@ -452,11 +452,11 @@ class TelemetryService:
         await self._sync_odometer_from_telemetry(vin, autopid_data, timestamp)
 
         # A replayed reading can belong to a session that has already closed.
-        await self._refresh_closed_session(vin, timestamp)
+        await self._refresh_closed_session(vin, device_id, timestamp)
 
         return StoreResult(stored_count=stored_count, validated_data=valid_data)
 
-    async def _refresh_closed_session(self, vin: str, timestamp: datetime) -> None:
+    async def _refresh_closed_session(self, vin: str, device_id: str, timestamp: datetime) -> None:
         """Recompute aggregates for a CLOSED session this reading falls inside.
 
         Off home WiFi a WiCAN buffers readings and replays them with their
@@ -474,7 +474,7 @@ class TelemetryService:
         Open sessions are excluded — `end_session` computes those on close.
         """
         reading_at = timestamp.replace(tzinfo=None) if timestamp.tzinfo else timestamp
-        await self._refresh_sessions_in_span(vin, reading_at, reading_at)
+        await self._refresh_sessions_in_span(vin, device_id, reading_at, reading_at)
 
     async def _sync_odometer_from_telemetry(
         self,
@@ -615,34 +615,39 @@ class TelemetryService:
         await self.db.execute(stmt)
 
     async def _should_store_historical(
-        self, vin: str, param_key: str, interval_seconds: int
+        self,
+        vin: str,
+        device_id: str,
+        param_key: str,
+        interval_seconds: int,
+        timestamp: datetime,
     ) -> bool:
-        """Check if we should store a historical value based on storage interval.
+        """Whether to keep this reading, given the parameter's storage interval.
 
-        Returns True if no recent value exists or last value is older than interval.
+        The interval thins a noisy parameter to at most one reading per window.
+        It is measured against the READING's own timestamp, not the wall clock:
+        a WiCAN off home WiFi replays its buffer with the original timestamps,
+        so a reading taken at 10:48 can land at 11:42. Judged by arrival it sat
+        moments behind the newest live row and a throttled parameter dropped
+        it, after which the closed-session refresh recomputed from history that
+        never received it and repaired nothing.
+
+        Scoped to the device as well, so one dongle's cadence cannot thin
+        another's readings on the same vehicle.
         """
+        reading_at = timestamp.replace(tzinfo=None) if timestamp.tzinfo else timestamp
+        window_start = reading_at - timedelta(seconds=interval_seconds)
+
         result = await self.db.execute(
-            select(VehicleTelemetry.timestamp)
+            select(VehicleTelemetry.id)
             .where(VehicleTelemetry.vin == vin)
+            .where(VehicleTelemetry.device_id == device_id)
             .where(VehicleTelemetry.param_key == param_key)
-            .order_by(VehicleTelemetry.timestamp.desc())
+            .where(VehicleTelemetry.timestamp > window_start)
+            .where(VehicleTelemetry.timestamp <= reading_at)
             .limit(1)
         )
-        row = result.first()
-        if not row:
-            return True
-
-        last_timestamp = row[0]
-        if not last_timestamp:
-            return True
-
-        # Ensure both are naive UTC for comparison
-        now = utc_now()
-        if last_timestamp.tzinfo is not None:
-            last_timestamp = last_timestamp.replace(tzinfo=None)
-
-        seconds_since_last = (now - last_timestamp).total_seconds()
-        return seconds_since_last >= interval_seconds
+        return result.first() is None
 
     # =========================================================================
     # SD-Card Bulk Backfill
@@ -737,12 +742,14 @@ class TelemetryService:
         # loops over log files (`SdBackfillService._backfill`), so this is once
         # per file, not once per pull.
         if stamps:
-            await self._refresh_sessions_in_span(vin, min(stamps), max(stamps))
+            await self._refresh_sessions_in_span(vin, device_id, min(stamps), max(stamps))
             await self.db.commit()
 
         return inserted
 
-    async def _refresh_sessions_in_span(self, vin: str, start: datetime, end: datetime) -> None:
+    async def _refresh_sessions_in_span(
+        self, vin: str, device_id: str, start: datetime, end: datetime
+    ) -> None:
         """Recompute every closed session of `vin` overlapping [start, end].
 
         Overlap only selects the candidates; each session then recomputes from
@@ -758,6 +765,10 @@ class TelemetryService:
         result = await self.db.execute(
             select(DriveSession)
             .where(DriveSession.vin == vin)
+            # The reporting device, not just its VIN: two devices on one
+            # vehicle have overlapping sessions, and each one's aggregates are
+            # computed from its own telemetry.
+            .where(DriveSession.device_id == device_id)
             .where(DriveSession.ended_at.is_not(None))
             .where(DriveSession.started_at <= end)
             .where(DriveSession.ended_at >= start)
@@ -870,7 +881,14 @@ class TelemetryService:
         if not rows:
             return []
 
-        newest = max(row.timestamp for row in rows)
+        # The reference is the vehicle's newest sample, but never one dated in
+        # the future: the WiCAN's optional device timestamp is not validated
+        # against the clock, so a single dongle with a wrong date would push the
+        # cutoff past every normally-dated parameter and blank the dashboard
+        # until real time caught up.
+        now = utc_now().replace(tzinfo=None)
+        plausible = [row.timestamp for row in rows if row.timestamp <= now]
+        newest = max(plausible) if plausible else now
         cutoff = newest - LATEST_VALUE_STALE_AFTER
         return [row for row in rows if row.timestamp >= cutoff]
 
