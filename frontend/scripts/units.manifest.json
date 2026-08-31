@@ -1298,9 +1298,12 @@
   },
   {
    "path": "src/components/tabs/LiveLinkSessionsTab.tsx",
-   "disposition": "unverifiable",
-   "digest": "d14d6ea05f6ec9d3b863a7f5fc62915931704a568ac0edffe0f0b49bfe696388",
-   "reason": "L6: the drive-session and trip columns come from unit-AMBIGUOUS telemetry. The frontend conversion can be shown correct relative to the API contract; the real-world stored quantity cannot be, because nothing records which PID produced a value or whether it was normalised. WHAT WOULD SETTLE IT: the backend must record the source PID and a normalised flag per telemetry value, so a consumer can tell kilometres from an unnormalised custom-PID delta (design:129). Deferred beyond phase 4. distance_km, start_odometer and end_odometer are unverified; speed and temperature ARE canonical and go through the adapter."
+   "disposition": "audited",
+   "digest": "f5470b324c16f6035af620f2d39bc6689a6b4f306aa544e51fd7c9d54543fb12",
+   "reason": "L6 SETTLED for this file's three columns, so the unverified marker is retired here. The old reason was that nothing recorded which PID produced a value or whether it was normalised. That is now fixed at the source rather than annotated: livelink_devices carries an odometer_unit (migration 096) and SessionService converts on write, so distance_km, start_odometer and end_odometer are metric-canonical km and go through u.distance like every other quantity. Settled by normalising at write rather than by the per-value normalised flag design:129 proposed; the flag would let a consumer tell the cases apart, whereas this leaves only one case. Sessions written before the fix were converted in place by backend/tools/fix_session_odometer_units.py. Speed and temperature were already canonical and are unchanged. DELIBERATELY NOT EXTENDED: LiveLinkChartsTab.tsx and telemetryUnits.ts stay unverifiable because raw vehicle_telemetry is still device-native and a bare-PID odometer on the Live tab is still genuinely unlabelled; LiveLinkTripsTab.tsx renders DriveSession.distance_km verbatim and so is settled by the same backend change, but its rendering was not touched here and its row is left as it stands rather than upgraded unreviewed.",
+   "tests": [
+    "components/tabs/__tests__/LiveLinkSessionsTab.test.tsx"
+   ]
   },
   {
    "path": "src/components/tabs/LiveLinkTripsTab.tsx",

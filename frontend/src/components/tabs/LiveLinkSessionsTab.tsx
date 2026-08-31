@@ -22,7 +22,6 @@ import { Card, Chip, Mono, EmptyState, Tile } from '../ui'
 import { useUnitFormat } from '@/hooks/useUnitFormat'
 import { useTimeFormat } from '@/hooks/useTimeFormat'
 import { formatAPITimestamp, formatTime } from '@/utils/parseAPITimestamp'
-import { formatUnverifiedValue } from '@/utils/telemetryUnits'
 import { formatAtPrecision } from '@/utils/unitFormat'
 
 /** RPM is a whole number, matching the LiveLink gauge's own classification. */
@@ -88,17 +87,23 @@ export default function LiveLinkSessionsTab({ vin }: LiveLinkSessionsTabProps) {
     return `${minutes}m`
   }
 
-  // ★ `distance_km`, `start_odometer` and `end_odometer` all come from
-  // `session_service.py::_get_current_odometer`, which reads
-  // `param_key IN ("ODOMETER", "odometer", "ODO", "DISTANCE")`, every one of
-  // them a CUSTOM PID that may already be in the user's own unit, never the
-  // standard `A6-Odometer` that SAE J1979 guarantees is kilometres. The label
-  // this used to append ("mi" for an imperial client, "km" otherwise) was a
-  // guess dressed as a fact, and the same stored number was shown as miles to
-  // one user and kilometres to another. Marking it unverified does NOT fix
-  // that: the provenance is discarded on the backend at write time.
-  const formatUnverified = (value: number | null | undefined): string =>
-    formatUnverifiedValue(value, t)
+  // ★ `distance_km`, `start_odometer` and `end_odometer` are canonical
+  // kilometres, and the unverified marker these used to carry has been retired.
+  // It existed because `session_service.py::_get_current_odometer` stamped a
+  // custom PID's raw reading without recording which unit it held, so no
+  // frontend rule could recover the provenance. That is fixed at the source:
+  // devices now declare an `odometer_unit` (migration 096) and the service
+  // converts on write, so these three columns are metric-canonical like every
+  // other quantity and go through the shared adapter.
+  //
+  // Sessions recorded before that fix were converted in place by
+  // `backend/tools/fix_session_odometer_units.py`. Raw telemetry in
+  // `vehicle_telemetry_latest` is NOT converted and is still device-native, so
+  // `classifyTelemetryParam` keeps marking a bare-PID odometer unverified on
+  // the Live tab. That difference is deliberate: it is a claim about a stored
+  // column, not about every odometer-shaped number in the product.
+  const formatDistance = (value: number | null | undefined): string =>
+    value == null ? '--' : u.distance.format(value)
 
   // Speed and temperature ARE canonical: the session aggregates are km/h and
   // °C, so they go through the shared adapter like every other quantity.
@@ -141,7 +146,7 @@ export default function LiveLinkSessionsTab({ vin }: LiveLinkSessionsTabProps) {
           isExpanded={expandedSession === session.id}
           onToggle={() => toggleExpanded(session.id)}
           formatDuration={formatDuration}
-          formatUnverified={formatUnverified}
+          formatDistance={formatDistance}
           formatSpeed={formatSpeed}
           formatTemp={formatTemp}
         />
@@ -156,7 +161,7 @@ function SessionCard({
   isExpanded,
   onToggle,
   formatDuration,
-  formatUnverified,
+  formatDistance,
   formatSpeed,
   formatTemp,
 }: {
@@ -164,7 +169,7 @@ function SessionCard({
   isExpanded: boolean
   onToggle: () => void
   formatDuration: (s: number | null | undefined) => string
-  formatUnverified: (value: number | null | undefined) => string
+  formatDistance: (value: number | null | undefined) => string
   formatSpeed: (kmh: number | null | undefined) => string
   formatTemp: (c: number | null | undefined) => string
 }) {
@@ -209,7 +214,7 @@ function SessionCard({
             {session.distance_km != null && (
               <div className="flex items-center gap-1">
                 <MapPin aria-hidden="true" className="w-4 h-4" />
-                <Mono size="sm">{formatUnverified(session.distance_km)}</Mono>
+                <Mono size="sm">{formatDistance(session.distance_km)}</Mono>
               </div>
             )}
             {session.max_speed != null && (
@@ -233,7 +238,7 @@ function SessionCard({
         <div className="px-4 pb-4 border-t border-border">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4">
             <Tile icon={Clock} label={t('livelink.sessions.duration')} value={formatDuration(session.duration_seconds)} />
-            <Tile icon={MapPin} label={t('livelink.sessions.distance')} value={formatUnverified(session.distance_km)} />
+            <Tile icon={MapPin} label={t('livelink.sessions.distance')} value={formatDistance(session.distance_km)} />
             <Tile icon={Gauge} label={t('livelink.sessions.avgMaxSpeed')} value={`${formatSpeed(session.avg_speed)} / ${formatSpeed(session.max_speed)}`} />
             {session.avg_rpm != null && (
               <Tile icon={Activity} label={t('livelink.sessions.avgMaxRPM')} value={`${formatRpm(session.avg_rpm)} / ${formatRpm(session.max_rpm)}`} />
@@ -242,7 +247,7 @@ function SessionCard({
               <Tile icon={Thermometer} label={t('livelink.sessions.avgMaxCoolant')} value={`${formatTemp(session.avg_coolant_temp)} / ${formatTemp(session.max_coolant_temp)}`} />
             )}
             {session.start_odometer != null && (
-              <Tile icon={Gauge} label={t('livelink.sessions.odometerStartEnd')} value={`${formatUnverified(session.start_odometer)} → ${formatUnverified(session.end_odometer)}`} />
+              <Tile icon={Gauge} label={t('livelink.sessions.odometerStartEnd')} value={`${formatDistance(session.start_odometer)} → ${formatDistance(session.end_odometer)}`} />
             )}
             {session.idle_seconds != null && (
               <Tile icon={Clock} label={t('livelink.sessions.idleTime')} value={formatDuration(session.idle_seconds)} />

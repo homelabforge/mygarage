@@ -92,9 +92,10 @@ describe('LiveLinkSessionsTab', () => {
   it('renders the session figures via the component formatters and calls getSessions(vin, {limit:50}) (fails if the list, a formatter, or the fetch args break)', async () => {
     render(<LiveLinkSessionsTab vin="V1" />)
     expect(await screen.findByText('1h 0m')).toBeInTheDocument() // formatDuration(3600)
-    // distance_km is filled from a CUSTOM-PID odometer delta, so no unit can be
-    // claimed for it. It read "100 mi" before this and the miles were a guess.
-    expect(screen.getByText('100 (unknown unit)')).toBeInTheDocument()
+    // distance_km is genuinely kilometres now: the backend converts a custom-PID
+    // odometer with the device's declared odometer_unit before storing it, so the
+    // reader's own unit can be claimed for it again.
+    expect(screen.getByText('62 mi')).toBeInTheDocument()
     expect(screen.getByText('37 mph')).toBeInTheDocument()         // 60 km/h / 1.60934, at 0 dp
     expect(getSessions.mock.calls).toStrictEqual([['V1', { limit: 50 }]]) // M1: exact call identity
   })
@@ -121,15 +122,13 @@ describe('LiveLinkSessionsTab', () => {
     expect(screen.queryByText('livelink.sessions.duration')).not.toBeInTheDocument()
   })
 
-  it('marks the odometer pair unverified and renders coolant through the adapter', async () => {
+  it('renders the odometer pair in the reader\'s units and coolant through the adapter', async () => {
     render(<LiveLinkSessionsTab vin="V1" />)
     await screen.findByText('1h 0m')
     fireEvent.click(screen.getByRole('button'))
-    // start_odometer / end_odometer come from the SAME custom-PID query as the
-    // distance delta, so neither may be labelled either.
-    expect(
-      screen.getByText('1,000 (unknown unit) \u2192 1,100 (unknown unit)'),
-    ).toBeInTheDocument()
+    // start_odometer / end_odometer are stored canonical km like the delta, so
+    // both are labelled in the reader's own unit.
+    expect(screen.getByText('621 mi \u2192 684 mi')).toBeInTheDocument()
     // 90 C x 9/5 + 32 = 194, at the f adapter's 1 dp. It read "194\u00b0F" before.
     expect(screen.getByText('194.0 \u00b0F / 203.0 \u00b0F')).toBeInTheDocument()
   })
@@ -169,25 +168,25 @@ describe('LiveLinkSessionsTab', () => {
     expect(screen.getByText('194.0 \u00b0F / 203.0 \u00b0F')).toBeInTheDocument()
   })
 
-  it('renders the same unverified distance under a metric set, claiming nothing either way', async () => {
+  it('renders the distance in the reader\'s own unit set', async () => {
     units = presetUnitsFor('metric', 'us')
     render(<LiveLinkSessionsTab vin="V1" />)
     await screen.findByText('1h 0m')
-    // It read "100 km" here and "100 mi" under imperial: two different claims
-    // about one stored number, neither of them checkable.
-    expect(screen.getByText('100 (unknown unit)')).toBeInTheDocument()
-    expect(screen.queryByText('100 km')).not.toBeInTheDocument()
+    // The stored value is canonical km, so a metric reader sees it unconverted
+    // and an imperial reader sees 62 mi. One number, two honest renderings.
+    expect(screen.getByText('100 km')).toBeInTheDocument()
+    expect(screen.queryByText('100 (unknown unit)')).not.toBeInTheDocument()
   })
 
-  it('marks a present odometer and leaves an absent one as the absent marker', async () => {
+  it('labels a present odometer and leaves an absent one as the absent marker', async () => {
     getSessions.mockResolvedValue(
       list({ sessions: [{ ...endedSession, distance_km: null, end_odometer: null }] }),
     )
     render(<LiveLinkSessionsTab vin="V1" />)
     await screen.findByText('1h 0m')
     fireEvent.click(screen.getByRole('button'))
-    // The absent half must not acquire a marker, and the present half must.
-    expect(screen.getByText('1,000 (unknown unit) \u2192 --')).toBeInTheDocument()
+    // The absent half must stay the absent marker, not acquire a unit label.
+    expect(screen.getByText('621 mi \u2192 --')).toBeInTheDocument()
     expect(screen.getByText('--')).toBeInTheDocument() // the Distance tile
   })
 
