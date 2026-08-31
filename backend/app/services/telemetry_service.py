@@ -21,6 +21,7 @@ else:
     from sqlalchemy.dialects.postgresql import insert as dialect_insert
 
 from app.models import OdometerRecord
+from app.models.drive_session import DriveSession
 from app.models.livelink_device import LiveLinkDevice
 from app.models.livelink_parameter import LiveLinkParameter
 from app.models.vehicle_telemetry import (
@@ -446,7 +447,51 @@ class TelemetryService:
         # Check for odometer reading and sync
         await self._sync_odometer_from_telemetry(vin, autopid_data, timestamp)
 
+        # A replayed reading can belong to a session that has already closed.
+        await self._refresh_closed_session(vin, timestamp)
+
         return StoreResult(stored_count=stored_count, validated_data=valid_data)
+
+    async def _refresh_closed_session(self, vin: str, timestamp: datetime) -> None:
+        """Recompute aggregates for a CLOSED session this reading falls inside.
+
+        Off home WiFi a WiCAN buffers readings and replays them with their
+        original timestamps, so telemetry keeps arriving after `end_session`
+        has already computed a session's aggregates from the few samples that
+        made it in live. On Diamond a drive recorded max_speed 20 km/h (the
+        driveway) while the buffer it replayed 54 minutes later held 85 km/h.
+
+        The session's own window is the arbiter, scoped by VIN. A reading that
+        falls in the gap between sessions belongs to no session and is left
+        alone: sessions end on device connectivity, so such readings are
+        expected, and adopting one into the nearest session would invent a
+        drive the vehicle did not make.
+
+        Open sessions are excluded — `end_session` computes those on close.
+        """
+        from app.services.session_service import SessionService  # local import avoids cycle
+
+        reading_at = timestamp.replace(tzinfo=None) if timestamp.tzinfo else timestamp
+
+        result = await self.db.execute(
+            select(DriveSession)
+            .where(DriveSession.vin == vin)
+            .where(DriveSession.ended_at.is_not(None))
+            .where(DriveSession.started_at <= reading_at)
+            .where(DriveSession.ended_at >= reading_at)
+        )
+        sessions = list(result.scalars().all())
+        if not sessions:
+            return
+
+        session_service = SessionService(self.db)
+        for session in sessions:
+            await session_service.refresh_aggregates(session)
+            logger.debug(
+                "Refreshed session %s aggregates from late telemetry at %s",
+                session.id,
+                reading_at,
+            )
 
     async def _sync_odometer_from_telemetry(
         self,

@@ -335,6 +335,18 @@ class SessionService:
                 return float(value)
         return None
 
+    async def refresh_aggregates(self, session: DriveSession) -> None:
+        """Recompute a closed session's aggregates from the telemetry now on record.
+
+        A WiCAN buffers readings while off home WiFi and replays them with their
+        original timestamps, so a session's telemetry can keep arriving long
+        after `end_session` computed its aggregates from the handful of samples
+        that made it in live. Called from `TelemetryService.store_telemetry`
+        when a reading lands inside this session's window.
+        """
+        await self._calculate_session_aggregates(session)
+        await self._calculate_driving_insights(session)
+
     async def _calculate_session_aggregates(self, session: DriveSession) -> None:
         """Calculate aggregate statistics for a session from telemetry data."""
         if not session.started_at or not session.ended_at:
