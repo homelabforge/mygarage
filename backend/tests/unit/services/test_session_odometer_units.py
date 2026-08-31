@@ -96,15 +96,18 @@ class TestSessionOdometerUnits:
 
         assert session.start_odometer == 12381.0, "standard PID odometer was not found"
 
-    async def test_bare_autopid_odometer_is_converted_to_km(self, db_session, make_session_device):
-        """A miles autopid reading must be stamped as kilometres."""
-        device = await make_session_device("2", "ODOMETER", 89984.0)
+    async def test_stored_latest_value_is_taken_verbatim(self, db_session, make_session_device):
+        """The stored latest value is already canonical km and must not be reconverted.
+
+        Ingest normalises the odometer (see TelemetryService), so a second
+        conversion here would square the miles factor. Seeded with the value a
+        miles device produces AFTER normalisation.
+        """
+        device = await make_session_device("2", "ODOMETER", 144815.0, odometer_unit="mi")
 
         session = await SessionService(db_session).start_session(device, utc_now())
 
-        # 89984 mi * 1.60934 = 144814.85 km
-        assert session.start_odometer is not None
-        assert round(session.start_odometer) == 144815
+        assert session.start_odometer == 144815.0, "a canonical value was converted again"
 
     async def test_non_wican_bare_odometer_is_left_metric(self, db_session, make_session_device):
         """The bare-key=miles guess is a WiCAN autopid fact, not a general one.
@@ -117,3 +120,46 @@ class TestSessionOdometerUnits:
         session = await SessionService(db_session).start_session(device, utc_now())
 
         assert session.start_odometer == 1000.0, "non-WiCAN reading was wrongly converted"
+
+
+@pytest.mark.asyncio
+async def test_ingest_then_session_converts_exactly_once(db_session):
+    """End-to-end: a miles reading must not be converted twice.
+
+    The unit tests above seed `vehicle_telemetry_latest` directly, so they
+    cannot see a second conversion applied between ingest and the session
+    stamp. This drives the real path: store_telemetry normalises to km, and
+    SessionService must then take that value verbatim.
+    """
+    from app.models.user import User as _User
+    from app.services.telemetry_service import TelemetryService
+
+    user = _User(
+        username="sessodo_e2e",
+        email="sessodo_e2e@example.com",
+        hashed_password="x",
+        is_active=True,
+        is_admin=False,
+    )
+    db_session.add(user)
+    await db_session.flush()
+
+    vin = "SESSODOE2E000001"
+    db_session.add(Vehicle(vin=vin, user_id=user.id, nickname="E2E Odo Car", vehicle_type="Car"))
+    await db_session.flush()
+
+    device = LiveLinkDevice(
+        device_id="sessdeve2e01", vin=vin, enabled=True, odometer_unit="mi", kind="wican"
+    )
+    db_session.add(device)
+    await db_session.flush()
+
+    await TelemetryService(db_session).store_telemetry(
+        vin=vin, device_id=device.device_id, autopid_data={"odometer": 89984.0}, config={}
+    )
+    await db_session.flush()
+
+    session = await SessionService(db_session).start_session(device, utc_now())
+
+    # 89984 mi -> 144815 km. Converting twice would give ~233,073.
+    assert round(session.start_odometer) == 144815, "odometer was converted twice"

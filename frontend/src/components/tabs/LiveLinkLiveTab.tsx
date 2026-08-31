@@ -200,7 +200,6 @@ interface GaugeCardProps {
 }
 
 function GaugeCard({ value, unitFormat }: GaugeCardProps) {
-  const { t } = useTranslation('vehicles')
   const { timeFormat } = useTimeFormat()
   const IconComponent = useMemo(() => {
     const key = value.param_key.toLowerCase()
@@ -212,11 +211,9 @@ function GaugeCard({ value, unitFormat }: GaugeCardProps) {
   }, [value.param_key])
 
   // Convert through the shared adapter. `unit` is the resolved label, or the
-  // unknown-unit marker when the reading establishes no unit at all (a custom
-  // odometer PID); `converted.unverified` says which of the two it is.
   const converted = useMemo(() => {
-    return convertTelemetryValue(value.value, value.param_key, value.unit ?? null, unitFormat, t)
-  }, [value.value, value.param_key, value.unit, unitFormat, t])
+    return convertTelemetryValue(value.value, value.param_key, value.unit ?? null, unitFormat)
+  }, [value.value, value.param_key, value.unit, unitFormat])
 
   // Format the display name
   const displayName = useMemo(() => {

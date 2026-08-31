@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { binarySystemFor, presetUnitsFor, type UnitSet } from '@/types/units'
 import type { ReactNode } from 'react'
 import { render, screen, waitFor } from '../../../__tests__/test-utils'
 import { fireEvent } from '@testing-library/react'
@@ -53,6 +54,17 @@ vi.mock('@/services/livelinkService', () => ({
   },
 }))
 vi.mock('@/services/vehicleService', () => ({ default: { get: (vin: string) => vehicleGet(vin) } }))
+// `u.distance` now formats trip distance, and useUnitFormat reaches useAuth,
+// so the preference hook is stubbed the same way LiveLinkSessionsTab.test does.
+const units: UnitSet = presetUnitsFor('imperial', 'us')
+vi.mock('@/hooks/useUnitPreference', () => ({
+  useUnitPreference: () => ({
+    system: binarySystemFor(units.volume),
+    showBoth: false,
+    units,
+    gallonStandard: units.secondary_gallon,
+  }),
+}))
 vi.mock('@/hooks/useTimeFormat', () => ({ useTimeFormat: () => ({ timeFormat: '12h' }) }))
 vi.mock('@/utils/parseAPITimestamp', () => ({ formatAPITimestamp: () => 'Sun, Jul 26', formatTime: () => '12:00' }))
 vi.mock('@/components/maps/TripRouteMap', () => ({ default: () => <div data-testid="trip-route-map" /> }))
@@ -131,16 +143,16 @@ describe('LiveLinkTripsTab', () => {
     await waitFor(() => expect(setLocationTracking.mock.calls).toStrictEqual([['V1', false]]))
   })
 
-  it('marks the trip distance unverified instead of formatting it as canonical km', async () => {
+  it('formats the trip distance as canonical km, like the Sessions tab', async () => {
     // `Trip.distance_km` is `DriveSession.distance_km` verbatim
     // (`location_service.py::get_trips`), so it is the SAME column the Sessions
-    // tab reads and carries the same custom-PID ambiguity. This tab used to
-    // send it through `UnitFormatter.formatDistance`, which treats its argument
-    // as canonical kilometres and converted it a second time for an imperial
-    // client, while the Sessions tab, on the same number, only relabelled it.
+    // tab reads. It used to be unit-ambiguous and this tab marked it unverified;
+    // devices now declare an `odometer_unit` and the backend normalises on
+    // ingest, so both tabs read one canonical number and convert it the same
+    // way. 20 km / 1.60934 = 12.4, at the mi adapter 0 dp.
     render(<LiveLinkTripsTab vin="V1" />)
-    expect(await screen.findByText('20 (unknown unit)')).toBeInTheDocument()
-    expect(screen.queryByText('20 mi')).not.toBeInTheDocument()
+    expect(await screen.findByText('12 mi')).toBeInTheDocument()
+    expect(screen.queryByText('(unknown unit)')).not.toBeInTheDocument()
   })
 
   it('renders the absent marker for a trip with no recorded distance', async () => {

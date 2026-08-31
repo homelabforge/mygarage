@@ -13,8 +13,8 @@ import { livelinkService } from '@/services/livelinkService'
 import vehicleService from '@/services/vehicleService'
 import type { Trip, TripList, TripPoint } from '@/types/trips'
 import { useTimeFormat } from '@/hooks/useTimeFormat'
+import { useUnitFormat } from '@/hooks/useUnitFormat'
 import { formatAPITimestamp, formatTime } from '@/utils/parseAPITimestamp'
-import { formatUnverifiedValue } from '@/utils/telemetryUnits'
 import { Card, Toggle, Mono, EmptyState } from '../ui'
 
 // Lazy-load map component — keeps Leaflet's ~150KB out of the main bundle
@@ -26,6 +26,7 @@ interface LiveLinkTripsTabProps {
 
 export default function LiveLinkTripsTab({ vin }: LiveLinkTripsTabProps) {
   const { t } = useTranslation('vehicles')
+  const u = useUnitFormat()
   const [trips, setTrips] = useState<TripList | null>(null)
   const [loading, setLoading] = useState(true)
   const [selectedTripId, setSelectedTripId] = useState<number | null>(null)
@@ -117,15 +118,13 @@ export default function LiveLinkTripsTab({ vin }: LiveLinkTripsTabProps) {
   // ★ `Trip.distance_km` is `DriveSession.distance_km` verbatim
   // (`location_service.py::get_trips` selects that column), so it carries the
   // custom-PID ambiguity `LiveLinkSessionsTab` documents: the odometer delta
-  // wins over the GPS haversine whenever an odometer reading exists, and the
-  // PIDs it is read from are the ones that "may already be in the user's
-  // unit". Sending it through `UnitFormatter.formatDistance` treated it as
-  // canonical kilometres and converted an already-mile delta a SECOND time for
-  // an imperial client, while the Sessions tab merely relabelled the same
-  // number. Three consumers of one column held three different beliefs about
-  // it; this removes one rather than adding a fourth.
+   // `Trip.distance_km` is `DriveSession.distance_km` verbatim, and that column
+  // is canonical kilometres now: devices declare an `odometer_unit`
+  // (migration 096) and the backend normalises on ingest, so the three
+  // consumers of this column no longer hold three different beliefs about it.
+  // They all convert it as a distance.
   const formatDistance = (km: number | null | undefined): string =>
-    formatUnverifiedValue(km, t)
+    km == null ? '--' : u.distance.format(km)
 
   const toggleSelected = (sessionId: number): void => {
     setSelectedTripId(selectedTripId === sessionId ? null : sessionId)

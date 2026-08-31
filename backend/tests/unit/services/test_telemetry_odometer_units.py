@@ -29,6 +29,7 @@ from app.models.livelink_device import LiveLinkDevice
 from app.models.odometer import OdometerRecord
 from app.models.user import User
 from app.models.vehicle import Vehicle
+from app.models.vehicle_telemetry import VehicleTelemetryLatest
 from app.services.telemetry_service import TelemetryService
 
 
@@ -162,3 +163,30 @@ class TestOdometerUnitResolution:
         records = await _livelink_records(db_session, vin)
         assert len(records) == 1
         assert int(records[0].odometer_km) == 50000, "explicit km must not be converted"
+
+    async def test_stored_telemetry_value_is_canonical_km(self, db_session, make_odo_vehicle):
+        """The raw stored reading must be km too, not just the odometer record.
+
+        `vehicle_telemetry` / `vehicle_telemetry_latest` are unit-bearing and
+        metric-canonical like every other column. Leaving the odometer
+        device-native made it the one parameter whose stored number's unit
+        depended on which dongle wrote it, which is what forced the Live tab to
+        render it as "(unknown unit)".
+        """
+        vin, device_id = await make_odo_vehicle("4", odometer_unit="mi")
+
+        service = TelemetryService(db_session)
+        await service.store_telemetry(
+            vin=vin,
+            device_id=device_id,
+            autopid_data={"odometer": 89984.0},
+            config={},
+        )
+        await db_session.flush()
+
+        latest = await db_session.execute(
+            select(VehicleTelemetryLatest.value)
+            .where(VehicleTelemetryLatest.vin == vin)
+            .where(VehicleTelemetryLatest.param_key == "ODOMETER")
+        )
+        assert round(latest.scalar_one()) == 144815, "stored telemetry is not canonical km"

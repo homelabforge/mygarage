@@ -42,24 +42,31 @@
  * percentage, voltage and time are outside the unit system entirely.
  */
 
-import type { TFunction } from 'i18next'
 import type { UnitQuantity } from '@/types/units'
 import { UNIT_ADAPTERS } from './unitAdapters'
 import { formatAtPrecision, type UnitFormat } from './unitFormat'
 
-/** What the LiveLink tabs render in place of a value they do not have. */
-const ABSENT = '--'
-
-/** The one key that spells the unknown-unit marker. Namespace-qualified: this is not a component. */
-const UNKNOWN_UNIT_KEY = 'vehicles:livelink.unknownUnit'
+/**
+ * Unit symbols a device may declare, mapped to what they measure. Consulted
+ * BEFORE any key-substring heuristic, because a declaration is evidence and a
+ * substring is a guess.
+ */
+const UNIT_BY_DECLARED_SYMBOL: Readonly<Record<string, UnitQuantity>> = {
+  'km/h': 'speed',
+  kmh: 'speed',
+  '°c': 'temperature',
+  c: 'temperature',
+  celsius: 'temperature',
+  km: 'distance',
+  kilometers: 'distance',
+  kpa: 'pressure',
+  bar: 'pressure',
+}
 
 /** Decimals for a parameter outside the unit system, by kind. */
 const RPM_PRECISION = 0
 const VOLTAGE_PRECISION = 2
 const DIMENSIONLESS_PRECISION = 1
-
-/** Decimals for a value whose unit is unverified: these are all odometer-like. */
-const UNVERIFIED_PRECISION = 0
 
 /** One telemetry reading, ready to render. */
 export interface ConvertedTelemetry {
@@ -67,8 +74,6 @@ export interface ConvertedTelemetry {
   readonly text: string
   /** The label for that value, or `''` when the parameter carries none. */
   readonly unit: string
-  /** True when nothing in the reading establishes which unit it is in. */
-  readonly unverified: boolean
 }
 
 /**
@@ -81,7 +86,6 @@ export interface ConvertedTelemetry {
  */
 export type TelemetryClass =
   | { readonly kind: 'quantity'; readonly quantity: UnitQuantity }
-  | { readonly kind: 'unverified' }
   | { readonly kind: 'dimensionless'; readonly precision: number }
 
 /**
@@ -107,7 +111,17 @@ export function classifyTelemetryParam(paramKey: string, unit: string | null): T
   const key = paramKey.toLowerCase()
   const unitLower = (unit ?? '').toLowerCase()
 
-  if (key.includes('speed') || unitLower === 'km/h' || unitLower === 'kmh') {
+  // ★ A DECLARED unit outranks every key-substring guess below. The device
+  // states this in its config block, so it is evidence where the key is only a
+  // hint, and the hints overlap: '0B-IntakeManiAbsPress' contains "intake" and
+  // was matched by the temperature branch before the pressure branch was
+  // reached, rendering intake manifold PRESSURE as 95.0 degF on a live
+  // dashboard. Ordering the substring lists more carefully would only move the
+  // collision somewhere else; deferring to the declaration removes the class.
+  const declared = UNIT_BY_DECLARED_SYMBOL[unitLower]
+  if (declared) return { kind: 'quantity', quantity: declared }
+
+  if (key.includes('speed')) {
     return { kind: 'quantity', quantity: 'speed' }
   }
 
@@ -115,38 +129,22 @@ export function classifyTelemetryParam(paramKey: string, unit: string | null): T
     key.includes('temp') ||
     key.includes('coolant') ||
     key.includes('ambient') ||
-    key.includes('intake') ||
-    unitLower === '°c' ||
-    unitLower === 'c' ||
-    unitLower === 'celsius'
+    key.includes('intake')
   ) {
     return { kind: 'quantity', quantity: 'temperature' }
   }
 
-  // Standard OBD2 PIDs are hex-prefixed ("A6-Odometer") and report kilometres
-  // per SAE J1979. A custom PID ("ODOMETER", "ODO", "DISTANCE") may already be
-  // in the user's own unit, so it is only convertible when the device states
-  // the unit itself. The old rule applied this guard to `odometer` and NOT to
-  // `distance`, so a custom `DISTANCE` was converted to miles on an imperial
-  // client: a claim about a unit nothing had established.
-  const statesKilometres = unitLower === 'km' || unitLower === 'kilometers'
+  // Every odometer is canonical kilometres now, whatever key it arrived under.
+  // This used to return `unverified` for a non-hex-prefixed key because a
+  // custom PID might hold miles and nothing recorded which. That is fixed at
+  // the source: devices declare an `odometer_unit` (migration 096) and
+  // TelemetryService normalises on ingest, so there is one case left rather
+  // than two to tell apart.
   if (key.startsWith('odo') || key.includes('odometer') || key.includes('distance')) {
-    const isStandardOBD2 = /^[0-9a-f]{1,2}-/i.test(paramKey)
-    return isStandardOBD2 || statesKilometres
-      ? { kind: 'quantity', quantity: 'distance' }
-      : { kind: 'unverified' }
-  }
-  if (statesKilometres) {
     return { kind: 'quantity', quantity: 'distance' }
   }
 
-  if (
-    key.includes('press') ||
-    key.includes('baro') ||
-    key.includes('manifold') ||
-    unitLower === 'kpa' ||
-    unitLower === 'bar'
-  ) {
+  if (key.includes('press') || key.includes('baro') || key.includes('manifold')) {
     return { kind: 'quantity', quantity: 'pressure' }
   }
 
@@ -171,24 +169,14 @@ export function convertTelemetryValue(
   value: number,
   paramKey: string,
   unit: string | null,
-  format: UnitFormat,
-  t: TFunction
+  format: UnitFormat
 ): ConvertedTelemetry {
   const classified = classifyTelemetryParam(paramKey, unit)
-
-  if (classified.kind === 'unverified') {
-    return {
-      text: formatAtPrecision(value, UNVERIFIED_PRECISION),
-      unit: t(UNKNOWN_UNIT_KEY),
-      unverified: true,
-    }
-  }
 
   if (classified.kind === 'dimensionless') {
     return {
       text: formatAtPrecision(value, classified.precision),
       unit: unit ?? '',
-      unverified: false,
     }
   }
 
@@ -200,26 +188,9 @@ export function convertTelemetryValue(
     classified.quantity === 'pressure' && (unit ?? '').toLowerCase() === 'bar'
       ? UNIT_ADAPTERS.bar.toCanonical(value)
       : value
-  return { text: quantity.toDisplayText(canonical), unit: quantity.label, unverified: false }
+  return { text: quantity.toDisplayText(canonical), unit: quantity.label }
 }
 
-/**
- * Render a value whose unit the app cannot verify, marked as such.
- *
- * Dropping the suffix silently would be honest and operationally useless: a
- * bare `50` under Distance tells a reader nothing about why it has no unit.
- * The drive-session columns (`distance_km`, `start_odometer`, `end_odometer`)
- * are all filled from the custom-PID odometer query described in the module
- * docstring, so all three go through here.
- *
- * @param value The stored value, whatever unit it is in.
- * @param t The caller's translator.
- * @returns The marked value, or the absent marker when there is no value.
- */
-export function formatUnverifiedValue(value: number | null | undefined, t: TFunction): string {
-  if (value === null || value === undefined || Number.isNaN(value)) return ABSENT
-  return `${formatAtPrecision(value, UNVERIFIED_PRECISION)} ${t(UNKNOWN_UNIT_KEY)}`
-}
 
 /**
  * Get display name for a parameter with unit-aware formatting.

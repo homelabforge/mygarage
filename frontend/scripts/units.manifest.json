@@ -950,8 +950,8 @@
   {
    "path": "src/components/livelink/VehicleLiveLinkWidget.tsx",
    "disposition": "audited",
-   "digest": "dcbc764d220ec45b03b8ced5666276a909a83592e8fbd8adda89a39c971e9d61",
-   "reason": "telemetry through convertTelemetryValue and the resolved set",
+   "digest": "bad35a28a7846647d3a4468afd35371b71ca817f3ca51156e1e4c99b563626f5",
+   "reason": "telemetry through convertTelemetryValue and the resolved set Re-acknowledged for the LiveLink odometer-units fix: convertTelemetryValue no longer takes a `t` argument (the unknown-unit marker it fed is deleted). This file renders speed and coolant only, so no unit behaviour here changed.",
    "tests": [
     "components/livelink/__tests__/VehicleLiveLinkWidget.test.tsx"
    ]
@@ -1290,8 +1290,8 @@
   {
    "path": "src/components/tabs/LiveLinkLiveTab.tsx",
    "disposition": "audited",
-   "digest": "d6c13d91b5b3639754abbc299f3edf56ec28144343ab532de5295b362ee3c218",
-   "reason": "telemetry through convertTelemetryValue and the resolved set",
+   "digest": "e6970b3a9831cf457d457fc274a5d6e38d09046c7318d2977cf5a381a0caec1c",
+   "reason": "telemetry through convertTelemetryValue and the resolved set Re-acknowledged for the LiveLink odometer-units fix: a custom-PID odometer gauge now renders through the distance adapter instead of the unknown-unit marker, because ingest normalises it (see src/utils/telemetryUnits.ts). The `t` argument to convertTelemetryValue is gone with the marker; no other unit behaviour in this file changed.",
    "tests": [
     "components/tabs/__tests__/LiveLinkLiveTab.units.test.tsx"
    ]
@@ -1307,9 +1307,12 @@
   },
   {
    "path": "src/components/tabs/LiveLinkTripsTab.tsx",
-   "disposition": "unverifiable",
-   "digest": "863591f8523790f797593be9011951d142f0067d03c91384c725764b7acd3435",
-   "reason": "L6: the drive-session and trip columns come from unit-AMBIGUOUS telemetry. The frontend conversion can be shown correct relative to the API contract; the real-world stored quantity cannot be, because nothing records which PID produced a value or whether it was normalised. WHAT WOULD SETTLE IT: the backend must record the source PID and a normalised flag per telemetry value, so a consumer can tell kilometres from an unnormalised custom-PID delta (design:129). Deferred beyond phase 4. Trip.distance_km is DriveSession.distance_km verbatim."
+   "disposition": "audited",
+   "digest": "e2da8736ad299037b3575df5bb637e1ce376534d7f14141d36088af308ba5103",
+   "reason": "L6 SETTLED. The old reason was that nothing recorded which unit a custom-PID odometer held, so the frontend could not label it. Fixed at the source: livelink_devices carries an odometer_unit (migration 096) and TelemetryService normalises the odometer to canonical km on ingest (_normalize_odometer_units), so there is one case left rather than two to tell apart. Settled by normalising at write rather than by the per-value normalised flag design:129 proposed. Rows written before the fix were converted by backend/tools/normalize_telemetry_odometer_units.py and fix_session_odometer_units.py. Trip.distance_km is DriveSession.distance_km verbatim, so this tab is settled by the same change and now formats it through u.distance like the Sessions tab. The three consumers of that column no longer hold three different beliefs about it.",
+   "tests": [
+    "components/tabs/__tests__/LiveLinkTripsTab.test.tsx"
+   ]
   },
   {
    "path": "src/components/tabs/NotesTab.tsx",
@@ -2741,9 +2744,12 @@
   },
   {
    "path": "src/utils/telemetryUnits.ts",
-   "disposition": "unverifiable",
-   "digest": "a390068b16d20748abf5ed0900b8e389b902630b9d2a51e3b5c9213e030d4bf2",
-   "reason": "L6: the drive-session and trip columns come from unit-AMBIGUOUS telemetry. The frontend conversion can be shown correct relative to the API contract; the real-world stored quantity cannot be, because nothing records which PID produced a value or whether it was normalised. WHAT WOULD SETTLE IT: the backend must record the source PID and a normalised flag per telemetry value, so a consumer can tell kilometres from an unnormalised custom-PID delta (design:129). Deferred beyond phase 4. formatUnverifiedValue exists precisely because appending a unit here was wrong."
+   "disposition": "audited",
+   "digest": "15f8da01faa3ed9ddafa728f5fab295ece11842471bfaab57f99229da2e70314",
+   "reason": "L6 SETTLED. The old reason was that nothing recorded which unit a custom-PID odometer held, so the frontend could not label it. Fixed at the source: livelink_devices carries an odometer_unit (migration 096) and TelemetryService normalises the odometer to canonical km on ingest (_normalize_odometer_units), so there is one case left rather than two to tell apart. Settled by normalising at write rather than by the per-value normalised flag design:129 proposed. Rows written before the fix were converted by backend/tools/normalize_telemetry_odometer_units.py and fix_session_odometer_units.py. Consequently the 'unverified' kind, formatUnverifiedValue and the ConvertedTelemetry.unverified field are DELETED rather than left unreachable: nothing returns them any more, and dead code encoding a retired invariant reads as a live one. Also fixed here: a DECLARED unit now outranks the key-substring heuristics, because '0B-IntakeManiAbsPress' contains \"intake\" and was matched by the temperature branch before the pressure branch was reached, rendering intake manifold PRESSURE as 95.0 degF on a live dashboard.",
+   "tests": [
+    "utils/__tests__/telemetryUnits.test.ts"
+   ]
   },
   {
    "path": "src/utils/unitAdapters.ts",

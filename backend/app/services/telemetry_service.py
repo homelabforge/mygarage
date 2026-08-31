@@ -244,6 +244,42 @@ class TelemetryService:
                 return True
         return False
 
+    async def _normalize_odometer_units(
+        self,
+        device_id: str,
+        autopid_data: dict[str, float | int | str | None],
+    ) -> dict[str, float | int | str | None]:
+        """Return ``autopid_data`` with any odometer value converted to km.
+
+        Only the standard SAE J1979 PID is guaranteed metric; a bare autopid key
+        is a user-defined CAN expression and is usually miles on a US-market
+        car. The device's declared `odometer_unit` decides, falling back to the
+        key shape (WiCAN only) when it has not been set.
+        """
+        if not any(self._is_odometer_param(k) for k in autopid_data):
+            return autopid_data
+
+        row = (
+            await self.db.execute(
+                select(LiveLinkDevice.odometer_unit, LiveLinkDevice.kind).where(
+                    LiveLinkDevice.device_id == device_id
+                )
+            )
+        ).first()
+        device_unit, device_kind = row if row else (None, None)
+
+        normalized = dict(autopid_data)
+        for param_key, value in autopid_data.items():
+            if value is None or not self._is_odometer_param(param_key):
+                continue
+            try:
+                converted = odometer_value_to_km(float(value), param_key, device_unit, device_kind)
+            except TypeError, ValueError:
+                continue
+            if converted is not None:
+                normalized[param_key] = converted
+        return normalized
+
     async def _sanitize_odometer_value(self, vin: str, value: float) -> float | None:
         """Sanitize an odometer value (km), returning None if invalid.
 
@@ -325,6 +361,12 @@ class TelemetryService:
             if is_telemetry_param(ck)
         }
 
+        # Normalise the odometer to canonical km ONCE, here, so every downstream
+        # consumer (raw storage, the latest-value table, the odometer record and
+        # the session stamp) reads the same units. Doing it per-consumer is what
+        # let the record path and the storage path disagree for four months.
+        autopid_data = await self._normalize_odometer_units(device_id, autopid_data)
+
         received_at = utc_now()
 
         # Get all parameters to check storage intervals and for validation
@@ -402,14 +444,13 @@ class TelemetryService:
                 pass
 
         # Check for odometer reading and sync
-        await self._sync_odometer_from_telemetry(vin, device_id, autopid_data, timestamp)
+        await self._sync_odometer_from_telemetry(vin, autopid_data, timestamp)
 
         return StoreResult(stored_count=stored_count, validated_data=valid_data)
 
     async def _sync_odometer_from_telemetry(
         self,
         vin: str,
-        device_id: str,
         autopid_data: dict[str, float | int | str | None],
         timestamp: datetime,
     ) -> None:
@@ -439,22 +480,9 @@ class TelemetryService:
         if odometer_value is None or odometer_key is None:
             return  # No odometer PID found
 
-        # Only the standard SAE J1979 PID (A6-) is guaranteed metric; a bare
-        # autopid key is a user-defined CAN expression and is usually miles on a
-        # US-market car. The device's declared unit wins, else infer from the key.
-        device_row = (
-            await self.db.execute(
-                select(LiveLinkDevice.odometer_unit, LiveLinkDevice.kind).where(
-                    LiveLinkDevice.device_id == device_id
-                )
-            )
-        ).first()
-        device_unit, device_kind = device_row if device_row else (None, None)
-        converted = odometer_value_to_km(odometer_value, odometer_key, device_unit, device_kind)
-        if converted is None:
-            return  # Not convertible
-
-        odometer_km = int(round(converted))
+        # Already canonical km: store_telemetry normalised the whole payload
+        # through _normalize_odometer_units before any consumer saw it.
+        odometer_km = int(round(odometer_value))
         if odometer_km <= 0:
             return  # Invalid odometer reading
 

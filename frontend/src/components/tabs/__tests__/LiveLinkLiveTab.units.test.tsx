@@ -92,7 +92,7 @@ describe('LiveLinkLiveTab gauges', () => {
     expect(screen.getByText('mi')).toBeInTheDocument()
   })
 
-  it('marks a custom odometer with the unknown-unit wording instead of a mile label', async () => {
+  it('labels a custom odometer in the reader\'s unit, now that ingest normalises it', async () => {
     getVehicleStatus.mockResolvedValue(
       status([
         {
@@ -106,9 +106,11 @@ describe('LiveLinkLiveTab gauges', () => {
       ]),
     )
     render(<LiveLinkLiveTab vin="V1" />)
-    expect(await screen.findByText('1,000')).toBeInTheDocument()
-    expect(screen.getByText('(unknown unit)')).toBeInTheDocument()
-    expect(screen.queryByText('mi')).not.toBeInTheDocument()
+    // Was '1,000 (unknown unit)'. The stored value is canonical km whatever key
+    // it arrived under, so it converts like any other distance: 1000 km -> 621 mi.
+    expect(await screen.findByText('621')).toBeInTheDocument()
+    expect(screen.getByText('mi')).toBeInTheDocument()
+    expect(screen.queryByText('(unknown unit)')).not.toBeInTheDocument()
   })
 
   it('answers per quantity for a custom set the binary system would call metric', async () => {
