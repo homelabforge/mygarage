@@ -38,12 +38,20 @@ def _load(name):
 
 
 def _make_pre_096_schema(engine) -> None:
-    """Build livelink_devices + vehicle_telemetry with NO odometer_unit column."""
+    """Build livelink_devices + vehicle_telemetry with NO odometer_unit column.
+
+    The primary key is dialect-aware, following test_073: a bare
+    ``INTEGER PRIMARY KEY`` is a rowid alias on SQLite and fills itself in, but
+    on PostgreSQL it is a plain NOT NULL integer with no default, so every
+    insert that omits ``id`` fails.
+    """
+    is_pg = engine.dialect.name == "postgresql"
+    pk = "SERIAL PRIMARY KEY" if is_pg else "INTEGER PRIMARY KEY AUTOINCREMENT"
     with engine.begin() as conn:
         conn.execute(
-            text("""
+            text(f"""
                 CREATE TABLE livelink_devices (
-                    id INTEGER PRIMARY KEY,
+                    id {pk},
                     device_id VARCHAR(20) NOT NULL,
                     vin VARCHAR(17),
                     enabled BOOLEAN DEFAULT TRUE
@@ -51,9 +59,9 @@ def _make_pre_096_schema(engine) -> None:
             """)
         )
         conn.execute(
-            text("""
+            text(f"""
                 CREATE TABLE vehicle_telemetry (
-                    id INTEGER PRIMARY KEY,
+                    id {pk},
                     vin VARCHAR(17) NOT NULL,
                     device_id VARCHAR(20) NOT NULL,
                     param_key VARCHAR(100) NOT NULL,
@@ -91,6 +99,25 @@ def _unit_of(engine, device_id: str) -> str | None:
             text("SELECT odometer_unit FROM livelink_devices WHERE device_id = :d"),
             {"d": device_id},
         ).scalar_one()
+
+
+@pytest.fixture(autouse=True)
+def _drop_hand_rolled_tables(engine_for_migration):
+    """Remove this module's pre-migration tables once each test is done.
+
+    PostgreSQL is one shared database for the whole run, and the ORM suite
+    builds its schema once via a session-scoped ``create_all``. A hand-rolled
+    ``livelink_devices`` left behind here outlives the test: ``create_all``
+    skips a table that already exists, so every later test that touches
+    LiveLink queried a table missing most of its columns. The migration
+    fixture resets the schema on the way in, not on the way out, and resetting
+    on the way out instead drops the ORM schema the rest of the suite shares.
+    """
+    yield
+    _dialect, engine, _url = engine_for_migration
+    with engine.begin() as conn:
+        for table in ("vehicle_telemetry", "livelink_devices"):
+            conn.execute(text(f"DROP TABLE IF EXISTS {table}"))
 
 
 @pytest.mark.usefixtures("engine_for_migration")

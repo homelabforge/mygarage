@@ -31,6 +31,7 @@ import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.drive_session import DriveSession
 from app.models.livelink_device import LiveLinkDevice
 from app.models.vehicle_telemetry import VehicleTelemetry, VehicleTelemetryLatest
 from app.services.session_service import SessionService
@@ -258,3 +259,68 @@ class TestSessionDistanceWindow:
         await db_session.flush()
 
         assert session.distance_km == 0.0, "refresh_aggregates left the stale distance in place"
+
+
+@pytest.mark.asyncio
+class TestSessionDistanceDeviceScope:
+    """A session's distance comes from its own device, not the VIN's."""
+
+    async def test_a_colocated_wican_odometer_does_not_stamp_a_torque_session(
+        self, db_session, make_livelink_vehicle, seed_odometer
+    ):
+        """One vehicle can carry both a WiCAN dongle and a Torque source.
+
+        `resolve_torque_session` deliberately leaves `start_odometer` unset for
+        exactly this case: Torque has no odometer PID, and attributing the
+        co-located WiCAN's odometer to a Torque trip lets one device decide
+        another device's distance. Measuring the window by VIN alone walked
+        straight back through that safeguard, because the WiCAN's samples fall
+        in the Torque session's window too.
+
+        Distance for a Torque trip belongs to the GPS breadcrumb, and with no
+        breadcrumb here it must stay unset rather than borrow 7 km.
+        """
+        vin, wican = await make_livelink_vehicle("dvscope", "1")
+        torque = LiveLinkDevice(device_id="dvscopetq1", vin=vin, enabled=True, kind="torque")
+        db_session.add(torque)
+        await db_session.flush()
+
+        anchor = utc_now().replace(tzinfo=None) - timedelta(hours=1)
+        session = DriveSession(
+            vin=vin,
+            device_id=torque.device_id,
+            started_at=anchor,
+            ended_at=anchor + timedelta(seconds=660),
+        )
+        db_session.add(session)
+        await db_session.flush()
+
+        # The WiCAN reports the vehicle's odometer across the same window.
+        await seed_odometer(
+            vin, wican.device_id, [(30, 1113.0), (600, 1120.0)], anchor, latest_value=1120.0
+        )
+
+        await SessionService(db_session).refresh_aggregates(session)
+        await db_session.flush()
+
+        assert session.distance_km is None, (
+            "a co-located WiCAN's odometer was attributed to a Torque trip"
+        )
+
+    async def test_the_session_still_reads_its_own_devices_odometer(
+        self, db_session, make_vehicle, seed_odometer
+    ):
+        """Scoping by device must not stop a session reading its own samples."""
+        vin, device = await make_vehicle("8")
+        anchor = utc_now().replace(tzinfo=None) - timedelta(hours=1)
+
+        session = await SessionService(db_session).start_session(device, anchor)
+        await db_session.flush()
+        await seed_odometer(
+            vin, device.device_id, [(30, 1113.0), (600, 1120.0)], anchor, latest_value=1120.0
+        )
+
+        await SessionService(db_session).end_session(device, anchor + timedelta(seconds=660))
+        await db_session.flush()
+
+        assert session.distance_km == 7.0

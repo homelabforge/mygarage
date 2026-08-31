@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Upgrade note
+
+If any LiveLink device reports a custom odometer PID (a bare `ODOMETER` autopid rather than the standard `A6-ODOMETER`), its stored odometer telemetry and drive-session odometers are in miles and this release starts reading them as kilometres. Migration 096 classifies the devices but deliberately converts no data: an instance that has already converted by hand cannot be told apart from one that has not, and converting twice is unrecoverable. Back up first, then run, in this order:
+
+```
+python tools/normalize_telemetry_odometer_units.py --db /data/mygarage.db --apply
+python tools/fix_session_odometer_units.py --db /data/mygarage.db --apply
+python tools/backfill_livelink_odometer.py --apply
+python tools/recompute_session_aggregates.py --apply
+```
+
+Run them before the upgraded instance records new readings. Each is dry run by default and reads from the data whether its work is still outstanding, so running one twice cannot double a value. If new readings do land first, the history is left half converted; the tools detect that, refuse the affected device, and exit 2 rather than guess.
+
 ### Added
 - Structured vehicle maintenance specs (oil viscosity/capacity/filter, lug-nut torque, coolant/brake/transmission fluid) with an Overview editor (migration 095).
 - Opt-in **Ask My Garage** assistant: grounded Q&A over specs, service history, and LiveLink DTCs. See [docs/tier2-features.md](docs/tier2-features.md).

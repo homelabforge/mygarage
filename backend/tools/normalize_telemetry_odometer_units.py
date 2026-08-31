@@ -17,6 +17,12 @@ Safe to run twice: whether conversion is still outstanding is read from the
 data, by comparing the vehicle's kilometre odometer records against its stored
 odometer telemetry, not from a marker row that could drift.
 
+That comparison can only speak for a key whose rows are all in one unit. If
+ingest wrote canonical kilometres before this ran, the newest rows are metric
+and the oldest are still miles; the comparison then reports "already
+converted" and leaves the old rows wrong. A key in that state is detected and
+reported rather than guessed at, and the script exits 2.
+
 Usage (dry run is the default; nothing is written without --apply):
 
     python tools/normalize_telemetry_odometer_units.py --db /data/mygarage.db
@@ -44,6 +50,43 @@ from app.utils.units import UnitConverter  # noqa: E402
 #: Above this, the vehicle's km odometer records tower over its stored odometer
 #: telemetry by roughly the miles factor, so the telemetry is still in miles.
 NEEDS_CONVERSION_RATIO = 1.4
+
+#: A unit change inside one series shows up as a step of the miles factor
+#: between readings that are adjacent in time. An odometer never really moves
+#: 55% in one sample interval, so a step in this band is a units discontinuity.
+MIXED_STEP_LOW = 1.55
+MIXED_STEP_HIGH = 1.67
+
+
+def _mixed_units_step(conn, device_id: str, param_key: str):
+    """Return a (previous, next) reading straddling a units change, or None.
+
+    `stored_max` alone cannot tell a converted series from a half-converted
+    one: post-fix rows are already kilometres and are numerically the largest,
+    so one new reading after the ingest fix makes the max-ratio test report
+    "already converted" while every older row is still in miles. Converting
+    such a series would double the new rows; skipping it leaves the old ones
+    wrong. Neither is safe, so detect it and stop.
+    """
+    row = conn.execute(
+        text(
+            "SELECT prev, value FROM ("
+            "  SELECT value, LAG(value) OVER (ORDER BY timestamp) AS prev"
+            "  FROM vehicle_telemetry WHERE device_id = :d AND param_key = :p"
+            ") stepped "
+            "WHERE prev IS NOT NULL AND prev > 0 AND value > 0 "
+            "  AND ((value / prev BETWEEN :lo AND :hi)"
+            "    OR (prev / value BETWEEN :lo AND :hi)) "
+            "LIMIT 1"
+        ),
+        {
+            "d": device_id,
+            "p": param_key,
+            "lo": MIXED_STEP_LOW,
+            "hi": MIXED_STEP_HIGH,
+        },
+    ).first()
+    return (row.prev, row.value) if row else None
 
 
 def _parse_args() -> argparse.Namespace:
@@ -74,6 +117,7 @@ def main() -> int:
         total_hist = 0
         total_latest = 0
         plan: list[tuple[str, str, str]] = []
+        mixed_keys: list[tuple[str, str]] = []
 
         for device_id, vin, unit, kind in devices:
             keys = [
@@ -87,6 +131,25 @@ def main() -> int:
             for param_key in keys:
                 if resolve_odometer_unit(param_key, unit, kind) == ODOMETER_UNIT_KM:
                     continue  # already metric on the wire
+
+                mixed = _mixed_units_step(conn, device_id, param_key)
+                if mixed:
+                    before, after = mixed
+                    print(f"\n{device_id} / {param_key}")
+                    print(
+                        f"  ✗ MIXED UNITS: readings step {before:,.2f} -> {after:,.2f}, "
+                        f"a factor of {max(before, after) / min(before, after):.3f}."
+                    )
+                    print(
+                        "    Some rows are already canonical kilometres and some are still "
+                        "miles, so neither converting nor skipping this key is safe."
+                    )
+                    print(
+                        "    This happens when ingest wrote new readings before this tool "
+                        "ran. Restore the pre-upgrade backup and run this first."
+                    )
+                    mixed_keys.append((device_id, param_key))
+                    continue
 
                 stored_max = conn.execute(
                     text(
@@ -127,7 +190,7 @@ def main() -> int:
 
         if not plan:
             print("No odometer telemetry needs conversion.")
-            return 0
+            return 2 if mixed_keys else 0
 
         if not args.apply:
             print(
@@ -152,6 +215,13 @@ def main() -> int:
                 {"f": factor, "v": vin, "p": param_key},
             )
         print(f"\n✓ Converted {total_hist:,} historical and {total_latest} latest row(s).")
+
+    if mixed_keys:
+        print(
+            f"\n✗ {len(mixed_keys)} key(s) were left untouched because their history mixes "
+            "miles and kilometres. They are listed above and still need attention."
+        )
+        return 2
     return 0
 
 

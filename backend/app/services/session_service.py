@@ -373,6 +373,12 @@ class SessionService:
                 func.max(VehicleTelemetry.value),
             )
             .where(VehicleTelemetry.vin == session.vin)
+            # Scoped to the session's own device, not just its VIN. One vehicle
+            # can carry both a WiCAN dongle and a Torque source, and
+            # `resolve_torque_session` deliberately leaves `start_odometer`
+            # unset so a Torque trip cannot be stamped from the co-located
+            # WiCAN's odometer. Matching on VIN alone walks back through that.
+            .where(VehicleTelemetry.device_id == session.device_id)
             .where(VehicleTelemetry.timestamp >= session.started_at)
             .where(VehicleTelemetry.timestamp <= session.ended_at)
             .group_by(VehicleTelemetry.param_key)

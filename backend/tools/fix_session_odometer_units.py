@@ -49,6 +49,11 @@ from app.utils.units import UnitConverter  # noqa: E402
 #: still correct on a restored or copied database.
 NEEDS_CONVERSION_RATIO = 1.4
 
+#: A units change shows up as a step of the miles factor between sessions that
+#: are adjacent in time. An odometer never really moves 55% between two drives.
+MIXED_STEP_LOW = 1.55
+MIXED_STEP_HIGH = 1.67
+
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -78,6 +83,33 @@ def main() -> int:
             print("(Run migration 096 first so devices are classified.)")
             return 0
 
+        def _mixed_units_step(device_id: str):
+            """Return a (previous, next) session odometer straddling a units change.
+
+            `session_max` alone cannot tell a converted history from a
+            half-converted one: sessions closed after the ingest fix already
+            hold kilometres and are numerically the largest, so one new drive
+            makes the max-ratio test report "already converted" while every
+            older session is still in miles. Converting would double the new
+            ones; skipping leaves the old ones wrong.
+            """
+            row = conn.execute(
+                text(
+                    "SELECT prev, end_odometer FROM ("
+                    "  SELECT end_odometer,"
+                    "         LAG(end_odometer) OVER (ORDER BY started_at) AS prev"
+                    "  FROM drive_sessions"
+                    "  WHERE device_id = :d AND end_odometer IS NOT NULL"
+                    ") stepped "
+                    "WHERE prev IS NOT NULL AND prev > 0 AND end_odometer > 0 "
+                    "  AND ((end_odometer / prev BETWEEN :lo AND :hi)"
+                    "    OR (prev / end_odometer BETWEEN :lo AND :hi)) "
+                    "LIMIT 1"
+                ),
+                {"d": device_id, "lo": MIXED_STEP_LOW, "hi": MIXED_STEP_HIGH},
+            ).first()
+            return (row.prev, row.end_odometer) if row else None
+
         def _needs_conversion(device_id: str, vin: str | None) -> bool:
             """True while the km odometer records still dwarf the session odometers."""
             session_max = conn.execute(
@@ -92,13 +124,31 @@ def main() -> int:
                 return False
             return (float(record_max) / float(session_max)) > NEEDS_CONVERSION_RATIO
 
-        pending = [(d, v) for d, v in devices if _needs_conversion(d, v)]
+        mixed = [(d, _mixed_units_step(d)) for d, _v in devices]
+        mixed = [(d, step) for d, step in mixed if step]
+        for device_id, (before, after) in mixed:
+            print(f"\n{device_id}")
+            print(
+                f"  ✗ MIXED UNITS: session odometers step {before:,.1f} -> {after:,.1f}, "
+                f"a factor of {max(before, after) / min(before, after):.3f}."
+            )
+            print(
+                "    Some sessions are already canonical kilometres and some are still "
+                "miles, so neither converting nor skipping this device is safe."
+            )
+            print(
+                "    This happens when a drive closed before this tool ran. Restore the "
+                "pre-upgrade backup and run this first."
+            )
+        mixed_devices = {d for d, _ in mixed}
+
+        pending = [(d, v) for d, v in devices if d not in mixed_devices and _needs_conversion(d, v)]
         if not pending:
             print(
                 "No device needs conversion: every 'mi' device's session odometers "
                 "already sit in the same range as its kilometre odometer records."
             )
-            return 0
+            return 2 if mixed_devices else 0
 
         total = 0
         for device_id, _vin in pending:
@@ -123,11 +173,11 @@ def main() -> int:
 
         if not total:
             print("Devices are classified 'mi' but none has sessions with an odometer.")
-            return 0
+            return 2 if mixed_devices else 0
 
         if not args.apply:
             print(f"\nDRY RUN - {total} session(s) would be converted. Re-run with --apply.")
-            return 0
+            return 2 if mixed_devices else 0
 
         factor = float(UnitConverter.MILES_TO_KM)
         for device_id, _vin in pending:
@@ -153,6 +203,13 @@ def main() -> int:
             )
 
         print(f"\n✓ Converted {total} session(s).")
+
+    if mixed_devices:
+        print(
+            f"\n✗ {len(mixed_devices)} device(s) were left untouched because their session "
+            "history mixes miles and kilometres. They are listed above."
+        )
+        return 2
     return 0
 
 
