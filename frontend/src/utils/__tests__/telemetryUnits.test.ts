@@ -41,9 +41,12 @@ describe('classifyTelemetryParam', () => {
   it('routes a custom odometer to distance, because ingest now normalises it', () => {
     // The unverified marker existed because nothing recorded which unit a
     // custom-PID odometer held. Devices now declare an `odometer_unit`
-    // (migration 096) and TelemetryService converts on the way in, so every
-    // stored odometer is canonical km whatever key it arrived under.
-    for (const key of ['ODOMETER', 'odometer', 'ODO', 'DISTANCE']) {
+    // (migration 096) and TelemetryService converts on the way in.
+    //
+    // Only for the keys ingest actually converts, though: this list is
+    // `_ODOMETER_BARE_KEYS` in backend/app/utils/odometer_units.py. A bare
+    // `DISTANCE` is NOT in it and is asserted the other way below.
+    for (const key of ['ODOMETER', 'odometer', 'ODO', 'MILEAGE', 'TOTAL_DISTANCE']) {
       expect(classifyTelemetryParam(key, null)).toStrictEqual({
         kind: 'quantity',
         quantity: 'distance',
@@ -184,10 +187,15 @@ describe('convertTelemetryValue', () => {
     })
   })
 
-  it('renders a custom DISTANCE in the reader\'s unit on the same grounds', () => {
+  it('does NOT convert a custom DISTANCE, which ingest leaves in the device\'s unit', () => {
+    // `_is_odometer_param` on the backend matches A6-/ODOMETER/ODO/MILEAGE/
+    // DISTANCE_TOTAL/TOTAL_DISTANCE, so a bare `DISTANCE` autopid is stored
+    // exactly as the device sent it. Reading it as kilometres and formatting
+    // it imperially divided a mileage figure by 1.609. It is shown as the
+    // plain number the device reported instead.
     expect(convertTelemetryValue(50, 'DISTANCE', null, IMPERIAL)).toStrictEqual({
-      text: '31',
-      unit: 'mi',
+      text: '50.0',
+      unit: '',
     })
   })
 
@@ -219,5 +227,46 @@ describe('getParamDisplayName', () => {
   it('prefers the supplied display name and otherwise cleans the key', () => {
     expect(getParamDisplayName('A6-Odometer', 'Total Distance')).toBe('Total Distance')
     expect(getParamDisplayName('COOLANT_TMP', null)).toBe('Coolant Tmp')
+  })
+})
+
+describe('classifyTelemetryParam distance keys', () => {
+  // The backend converts only the keys in `_ODOMETER_BARE_KEYS`
+  // (backend/app/utils/odometer_units.py) plus anything carrying a standard
+  // OBD2 PID prefix, which is kilometres by SAE J1979. Claiming kilometres for
+  // any key containing "distance" over-reached: a custom `DISTANCE` autopid is
+  // stored exactly as the device sent it, so an imperial reader saw a mileage
+  // figure divided by 1.609.
+  it('treats a standard PID odometer as canonical distance', () => {
+    expect(classifyTelemetryParam('A6-ODOMETER', null)).toEqual({
+      kind: 'quantity',
+      quantity: 'distance',
+    })
+  })
+
+  it('treats a bare ODOMETER autopid as canonical distance (the backend normalises it)', () => {
+    expect(classifyTelemetryParam('ODOMETER', null)).toEqual({
+      kind: 'quantity',
+      quantity: 'distance',
+    })
+  })
+
+  it('treats a standard PID trip counter as canonical distance', () => {
+    expect(classifyTelemetryParam('31-DISTANCESINCECODECLEAR', null)).toEqual({
+      kind: 'quantity',
+      quantity: 'distance',
+    })
+  })
+
+  it('does NOT claim kilometres for a custom DISTANCE autopid the backend never converts', () => {
+    const result = classifyTelemetryParam('DISTANCE', null)
+    expect(result.kind).not.toBe('quantity')
+  })
+
+  it('still honours a declared unit on a custom distance key', () => {
+    expect(classifyTelemetryParam('DISTANCE', 'km')).toEqual({
+      kind: 'quantity',
+      quantity: 'distance',
+    })
   })
 })

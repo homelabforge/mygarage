@@ -107,6 +107,24 @@ export type TelemetryClass =
  * @param unit The unit string the device reported, if any.
  * @returns How the reading must be read.
  */
+/** A two-hex-digit OBD2 PID prefix, e.g. the `A6-` of `A6-ODOMETER`. */
+const OBD2_PID_PREFIX = /^[0-9A-Fa-f]{2}-/
+
+/**
+ * Bare distance keys the backend converts to kilometres on ingest.
+ *
+ * Mirrors `_ODOMETER_BARE_KEYS` in `backend/app/utils/odometer_units.py`,
+ * lowercased. A bare key outside this set reaches the browser in whatever unit
+ * the device reported, so it cannot be labelled.
+ */
+const NORMALISED_DISTANCE_KEYS = new Set([
+  'odometer',
+  'odo',
+  'mileage',
+  'total_distance',
+  'distance_total',
+])
+
 export function classifyTelemetryParam(paramKey: string, unit: string | null): TelemetryClass {
   const key = paramKey.toLowerCase()
   const unitLower = (unit ?? '').toLowerCase()
@@ -134,14 +152,21 @@ export function classifyTelemetryParam(paramKey: string, unit: string | null): T
     return { kind: 'quantity', quantity: 'temperature' }
   }
 
-  // Every odometer is canonical kilometres now, whatever key it arrived under.
-  // This used to return `unverified` for a non-hex-prefixed key because a
-  // custom PID might hold miles and nothing recorded which. That is fixed at
-  // the source: devices declare an `odometer_unit` (migration 096) and
-  // TelemetryService normalises on ingest, so there is one case left rather
-  // than two to tell apart.
-  if (key.startsWith('odo') || key.includes('odometer') || key.includes('distance')) {
-    return { kind: 'quantity', quantity: 'distance' }
+  // Canonical kilometres, but only for the keys that actually are. A key is
+  // canonical when it carries a two-hex-digit OBD2 prefix (a standard SAE
+  // J1979 PID, which reports kilometres by specification) or when the backend
+  // normalises it on ingest. That second set is `_ODOMETER_BARE_KEYS` in
+  // `backend/app/utils/odometer_units.py` and must be kept level with it.
+  //
+  // Matching every key containing "distance" claimed more than that: a custom
+  // autopid named `DISTANCE` is not in the backend's set, so it is stored in
+  // whatever unit the device sent, and calling it kilometres made imperial
+  // formatting divide a mileage figure by 1.609. Such a key falls through to a
+  // plain number instead, which states nothing rather than something wrong.
+  if (OBD2_PID_PREFIX.test(paramKey) || NORMALISED_DISTANCE_KEYS.has(key)) {
+    if (key.includes('odo') || key.includes('distance') || key.includes('mileage')) {
+      return { kind: 'quantity', quantity: 'distance' }
+    }
   }
 
   if (key.includes('press') || key.includes('baro') || key.includes('manifold')) {

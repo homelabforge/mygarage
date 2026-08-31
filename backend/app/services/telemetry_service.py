@@ -708,12 +708,18 @@ class TelemetryService:
             inserted += row_inserted
             await self._update_latest_if_newer(vin, r.param_key, value, ts)
 
-            # Only rows that actually landed widen the refresh span. The active
-            # log file is re-downloaded and re-parsed from its watermark every
-            # run, so tracking every parsed row would make one new row at the
-            # tail recompute every session on the card.
-            if row_inserted:
-                stamps.append(ts)
+            # Every parsed row widens the span, not just the ones that landed.
+            # Narrowing it to new rows looked like free efficiency and is not:
+            # the rows commit in batches here, while `SdBackfillService` saves
+            # the file's watermark only after this returns, so a crash between
+            # the two leaves the rows imported and their sessions never
+            # recomputed. The retry re-parses the same rows, they all conflict,
+            # and a span built from inserts would be empty -- losing the
+            # refresh permanently. Parsing is already filtered by the watermark
+            # (`SdLogParser.parse(since_ts=...)`), so in the ordinary case this
+            # spans the new rows anyway; it only widens when the watermark did
+            # not advance, which is exactly when the refresh needs redoing.
+            stamps.append(ts)
 
             if i % commit_batch == 0:
                 await self.db.commit()

@@ -206,18 +206,21 @@ class TestSdBackfillOdometerUnits:
 
 @pytest.mark.asyncio
 class TestSdBackfillRefreshSpan:
-    """Only rows that actually landed widen the span the refresh covers."""
+    """A re-pull must be able to recompute sessions its first pass missed."""
 
-    async def test_a_duplicate_only_repull_refreshes_nothing(self, db_session, make_closed_session):
-        """The active log file is re-read from its watermark on every run.
+    async def test_a_duplicate_only_repull_still_refreshes(self, db_session, make_closed_session):
+        """The retry path after a crash mid-pull.
 
-        Tracking every parsed row would make one new row at the tail of a
-        re-read card recompute every session the card spans -- at eight window
-        scans each, on the scheduler thread, every pull, forever.
+        Rows commit in batches inside `bulk_backfill`, and `SdBackfillService`
+        saves the log file's watermark only once it returns. A crash between
+        the two leaves the rows imported and their session aggregates never
+        recomputed. The next run re-downloads and re-parses the same rows,
+        every one of them conflicts, and a refresh span built only from newly
+        inserted rows would be empty -- so the session would stay wrong
+        forever, with nothing left to trigger it.
 
         Observed without mocks: a stored value is corrupted between the two
-        pulls, so a refresh that should not happen is visible when it repairs
-        it. `on_conflict_do_nothing` makes the second pull insert nothing.
+        pulls, standing in for aggregates the crashed run never wrote.
         """
         vin, device_id, session = await make_closed_session("8")
         inside = session.started_at + timedelta(minutes=2)
@@ -226,7 +229,7 @@ class TestSdBackfillRefreshSpan:
         service = TelemetryService(db_session)
         assert await service.bulk_backfill(vin, device_id, rows) == 1
         await db_session.refresh(session)
-        assert session.max_speed == 85.0  # the first pull did refresh
+        assert session.max_speed == 85.0  # the first pull refreshed
 
         session.max_speed = 999.0
         await db_session.commit()
@@ -234,4 +237,6 @@ class TestSdBackfillRefreshSpan:
         assert await service.bulk_backfill(vin, device_id, rows) == 0, "row was not a duplicate"
         await db_session.refresh(session)
 
-        assert session.max_speed == 999.0, "a duplicate-only re-pull refreshed the session anyway"
+        assert session.max_speed == 85.0, (
+            "a re-pull of already-imported rows did not recompute the session"
+        )

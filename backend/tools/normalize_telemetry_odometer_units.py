@@ -207,12 +207,24 @@ def main() -> int:
                 ),
                 {"f": factor, "d": device_id, "p": param_key},
             )
+            # Rebuild the cache from history rather than scaling it. The
+            # historical rows are scoped by device, but `vehicle_telemetry_latest`
+            # is keyed only by (vin, param_key): with two devices on one VIN
+            # publishing the same key in different units, multiplying the shared
+            # row can scale a value the metric device wrote. The newest
+            # historical sample is what the cache is meant to hold anyway.
             conn.execute(
                 text(
-                    "UPDATE vehicle_telemetry_latest SET value = value * :f "
-                    "WHERE vin = :v AND param_key = :p"
+                    "UPDATE vehicle_telemetry_latest SET value = ("
+                    "  SELECT value FROM vehicle_telemetry"
+                    "  WHERE vin = :v AND param_key = :p"
+                    "  ORDER BY timestamp DESC LIMIT 1"
+                    ") "
+                    "WHERE vin = :v AND param_key = :p AND EXISTS ("
+                    "  SELECT 1 FROM vehicle_telemetry WHERE vin = :v AND param_key = :p"
+                    ")"
                 ),
-                {"f": factor, "v": vin, "p": param_key},
+                {"v": vin, "p": param_key},
             )
         print(f"\n✓ Converted {total_hist:,} historical and {total_latest} latest row(s).")
 
