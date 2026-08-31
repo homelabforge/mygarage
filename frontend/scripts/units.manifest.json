@@ -1028,8 +1028,8 @@
   {
    "path": "src/components/modals/LiveLinkSettingsModal.tsx",
    "disposition": "no unit behaviour",
-   "digest": "132c4234d04059a18238240942223e0b574b2a276d70c0d41fb22fe64237c4c5",
-   "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched NONE of them."
+   "digest": "9b066d3bc10b2ce67dedd8e746ef625be2dc79bb3ce2b76256b06d20c75c03dd",
+   "reason": "no unit behaviour: RE-REVIEWED for the LiveLink odometer-units fix. This file no longer matches NONE of the unit vocabulary — it now contains the literals 'km' and 'mi' — so the original scan-based justification is superseded. The disposition still holds on BEHAVIOUR, on the same ground as src/types/api.generated.ts: the added control selects a per-device DECLARATION of what units a WiCAN dongle reports its odometer in, and posts that enum verbatim to PUT /livelink/devices/{id}. It converts nothing, renders no unit-bearing quantity, and has no imperial/metric branch; the conversion it governs happens server-side in app/utils/odometer_units.py. Its three option labels are t() keys resolved from forms.json, which is audited separately."
   },
   {
    "path": "src/components/modals/LocalAuthModal.tsx",
@@ -2015,8 +2015,8 @@
   {
    "path": "src/locales/en/forms.json",
    "disposition": "audited",
-   "digest": "224ed3e5b1b8f76e37ee6ff0f60b4f2a59a01e274fd8aec9da5c3090dc0ab77c",
-   "reason": "fuel.receiptTextPlaceholder is a plausible EXAMPLE receipt (ruling R5's exempt class): there is no canonical value behind it to convert. Task 6 fixed the reminder distance copy: reminder.milesUntilDue / reminder.milesRequired are renamed to reminder.distanceUntilDue / reminder.distanceRequired and their prose no longer names a unit, so the unit comes only from u.distance.label. Covered by components/__tests__/ReminderForm.distanceCopy.test.tsx, which resolves this bundle and asserts the RENDERED prose rather than a key.",
+   "digest": "ab9e89d275e647da4337e4b92a1fb8fb51ff242799c73c9aaca9e07ad82ffe64",
+   "reason": "fuel.receiptTextPlaceholder is a plausible EXAMPLE receipt (ruling R5's exempt class): there is no canonical value behind it to convert. Task 6 fixed the reminder distance copy: reminder.milesUntilDue / reminder.milesRequired are renamed to reminder.distanceUntilDue / reminder.distanceRequired and their prose no longer names a unit, so the unit comes only from u.distance.label. Covered by components/__tests__/ReminderForm.distanceCopy.test.tsx, which resolves this bundle and asserts the RENDERED prose rather than a key. Re-acknowledged for the LiveLink odometer-units fix: five keys added under modal.livelink.odometerUnit* labelling a per-device hardware-units selector (\"Kilometers\"/\"Miles\"/\"Auto (from PID)\" plus help text). These name what a DONGLE reports, not what the reader sees — they are deliberately absolute unit words rather than u.distance.label, because the value being chosen is the device's unit and must not follow the viewer's display preference.",
    "tests": [
     "components/__tests__/ReminderForm.distanceCopy.test.tsx",
     "__tests__/unitCopy.resolvedProse.test.tsx"
@@ -2428,8 +2428,8 @@
   {
    "path": "src/types/api.generated.ts",
    "disposition": "no unit behaviour",
-   "digest": "7ba7e8c581eb2ddbc00d350c9147c9bd4b9faba04b7a199183d3c794dfd496fa",
-   "reason": "no unit behaviour: a GENERATED type module. It declares the `UnitSet` vocabulary itself (`distance: \"km\" | \"mi\"` and nine more), so it is dense with unit vocabulary in a unit context, but it declares types rather than deciding or rendering anything. Its digest is load-bearing rather than incidental: this is the file the token-branch leg derives its vocabularies from, so a new unit token arriving from the backend is a review event, and an unrelated schema change costs one cheap re-acknowledgement. Re-acknowledged for phase 5a (#152): the regenerated schema widens TireReadingCreate.tread_depth_mm to optional-nullable and TireReadingResponse.tread_depth_mm to `string | null`. A nullability change on an existing mm-canonical field, not a new unit token; the UnitSet vocabulary is untouched."
+   "digest": "ba8facefa4433d6450b803bd366ffabe6c0ef42837169eeccb267977cc7b2b27",
+   "reason": "no unit behaviour: a GENERATED type module. It declares the `UnitSet` vocabulary itself (`distance: \"km\" | \"mi\"` and nine more), so it is dense with unit vocabulary in a unit context, but it declares types rather than deciding or rendering anything. Its digest is load-bearing rather than incidental: this is the file the token-branch leg derives its vocabularies from, so a new unit token arriving from the backend is a review event, and an unrelated schema change costs one cheap re-acknowledgement. Re-acknowledged for the LiveLink odometer-units fix: the regenerated schema adds LiveLinkDeviceResponse.odometer_unit (`string | null`) and LiveLinkDeviceUpdate.odometer_unit (`\"km\" | \"mi\" | \"auto\" | null`). Reviewed as NOT a new UnitSet token: 'km'/'mi' here name what a piece of hardware reports rather than what a user wants displayed, and 'auto' is a clear-the-override sentinel, not a unit. The UnitSet vocabulary is untouched."
   },
   {
    "path": "src/types/attachment.ts",

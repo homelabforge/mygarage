@@ -10,6 +10,7 @@ from app.models.drive_session import DriveSession
 from app.models.livelink_device import LiveLinkDevice
 from app.models.vehicle_telemetry import VehicleTelemetry
 from app.utils.datetime_utils import utc_now
+from app.utils.odometer_units import is_odometer_param_key, odometer_value_to_km
 
 logger = logging.getLogger(__name__)
 
@@ -129,7 +130,9 @@ class SessionService:
             await self.end_session(device, timestamp)
 
         # Get start odometer if available
-        start_odometer = await self._get_current_odometer(device.vin)
+        start_odometer = await self._get_current_odometer(
+            device.vin, device.odometer_unit, device.kind
+        )
 
         # Create new session
         session = DriveSession(
@@ -195,7 +198,9 @@ class SessionService:
 
         # Get end odometer
         if device.vin:
-            session.end_odometer = await self._get_current_odometer(device.vin)
+            session.end_odometer = await self._get_current_odometer(
+                device.vin, device.odometer_unit, device.kind
+            )
 
         # Calculate distance
         if session.start_odometer and session.end_odometer:
@@ -309,21 +314,30 @@ class SessionService:
         device.current_session_id = session.id
         return session
 
-    async def _get_current_odometer(self, vin: str) -> float | None:
-        """Get the current odometer reading from latest telemetry."""
-        # Look for ODOMETER parameter in latest values
+    async def _get_current_odometer(
+        self, vin: str, odometer_unit: str | None = None, device_kind: str | None = None
+    ) -> float | None:
+        """Get the current odometer reading from latest telemetry, in kilometres.
+
+        Matching is by key *shape*, not an exact name list: the standard SAE
+        J1979 key is `A6-ODOMETER`, and an exact-match list that omitted it left
+        every session on a standard-PID device with no odometer and no distance.
+
+        The value is converted to km because `distance_km` is metric-canonical
+        and a bare `ODOMETER` autopid reports miles. `odometer_unit` is the
+        device's declared unit; when None the units are inferred from the key.
+        """
         from app.models.vehicle_telemetry import VehicleTelemetryLatest
 
         result = await self.db.execute(
-            select(VehicleTelemetryLatest.value)
-            .where(VehicleTelemetryLatest.vin == vin)
-            .where(
-                VehicleTelemetryLatest.param_key.in_(["ODOMETER", "odometer", "ODO", "DISTANCE"])
+            select(VehicleTelemetryLatest.param_key, VehicleTelemetryLatest.value).where(
+                VehicleTelemetryLatest.vin == vin
             )
-            .limit(1)
         )
-        row = result.first()
-        return row[0] if row else None
+        for param_key, value in result.all():
+            if value is not None and is_odometer_param_key(param_key):
+                return odometer_value_to_km(float(value), param_key, odometer_unit, device_kind)
+        return None
 
     async def _calculate_session_aggregates(self, session: DriveSession) -> None:
         """Calculate aggregate statistics for a session from telemetry data."""

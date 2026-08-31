@@ -262,7 +262,7 @@ export default function LiveLinkSettingsModal({ isOpen, onClose }: LiveLinkSetti
   // Update device
   const handleUpdateDevice = async (
     deviceId: string,
-    update: { vin?: string | null; label?: string; enabled?: boolean }
+    update: { vin?: string | null; label?: string; enabled?: boolean; odometer_unit?: 'km' | 'mi' | 'auto' }
   ) => {
     try {
       await livelinkService.updateDevice(deviceId, update)
@@ -966,7 +966,7 @@ function DeviceRow({
   vehicles: Vehicle[]
   deviceFirmware?: DeviceFirmwareStatus
   mqttConnected?: boolean
-  onUpdate: (deviceId: string, update: { vin?: string | null; label?: string; enabled?: boolean }) => void
+  onUpdate: (deviceId: string, update: { vin?: string | null; label?: string; enabled?: boolean; odometer_unit?: 'km' | 'mi' | 'auto' }) => void
   onDelete: (deviceId: string) => void
   onGenerateToken: (deviceId: string) => void
   onRevokeToken: (deviceId: string) => void
@@ -983,6 +983,9 @@ function DeviceRow({
   const [showSdConfig, setShowSdConfig] = useState(false)
   const [sdAddress, setSdAddress] = useState(device.device_address ?? '')
   const [sdEnabled, setSdEnabled] = useState(device.sd_backfill_enabled ?? false)
+  const [odometerUnit, setOdometerUnit] = useState<'km' | 'mi' | 'auto'>(
+    (device.odometer_unit as 'km' | 'mi' | null) ?? 'auto'
+  )
   const [savingSd, setSavingSd] = useState(false)
   const [backfilling, setBackfilling] = useState(false)
 
@@ -1152,6 +1155,27 @@ function DeviceRow({
                 checked={sdEnabled}
                 onChange={setSdEnabled}
               />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-garage-text mb-1">
+                {t('modal.livelink.odometerUnit')}
+              </label>
+              <Select
+                value={odometerUnit}
+                onChange={(e) => {
+                  const next = e.target.value as 'km' | 'mi' | 'auto'
+                  setOdometerUnit(next)
+                  onUpdate(device.device_id, { odometer_unit: next })
+                }}
+                options={[
+                  { value: 'auto', label: t('modal.livelink.odometerUnitAuto') },
+                  { value: 'km', label: t('modal.livelink.odometerUnitKm') },
+                  { value: 'mi', label: t('modal.livelink.odometerUnitMi') },
+                ]}
+              />
+              <p className="mt-1 text-[11px] text-garage-text-muted max-w-56">
+                {t('modal.livelink.odometerUnitHelp')}
+              </p>
             </div>
             <button
               onClick={handleSaveSdConfig}

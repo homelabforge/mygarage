@@ -10156,6 +10156,11 @@ export interface components {
             /** Last Seen */
             last_seen: string | null;
             /**
+             * Odometer Unit
+             * @description Declared odometer units ('km'/'mi'); None means inferred from the key
+             */
+            odometer_unit?: string | null;
+            /**
              * Rssi
              * @description WiFi signal strength (dBm)
              */
@@ -10194,6 +10199,11 @@ export interface components {
              * @description User-friendly device name
              */
             label?: string | null;
+            /**
+             * Odometer Unit
+             * @description Units this device reports its odometer in. 'auto' clears the override and infers from the param key shape. None leaves it unchanged.
+             */
+            odometer_unit?: ("km" | "mi" | "auto") | null;
             /**
              * Vin
              * @description VIN to link device to

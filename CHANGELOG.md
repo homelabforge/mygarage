@@ -10,6 +10,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Structured vehicle maintenance specs (oil viscosity/capacity/filter, lug-nut torque, coolant/brake/transmission fluid) with an Overview editor (migration 095).
 - Opt-in **Ask My Garage** assistant: grounded Q&A over specs, service history, and LiveLink DTCs. See [docs/tier2-features.md](docs/tier2-features.md).
+- LiveLink devices carry an odometer unit, inferred from the PID shape and editable per device in LiveLink settings (migration 096). A standard `A6-ODOMETER` PID is kilometres per SAE J1979; a custom autopid is whatever the dash shows, and the instance can now say so.
+- `backend/tools/backfill_livelink_odometer.py` reconstructs the odometer records the units regression below discarded, from raw telemetry already on disk. Dry run by default, and it never overwrites a day that already has a record.
+
+### Fixed
+- LiveLink odometer auto-recording, silently dead since v2.26.2 for any device reporting a custom odometer PID. The reading was taken as kilometres whatever the device sent, so a dongle reporting miles produced a value below the vehicle's real odometer and the "must be a new higher reading" guard discarded every one of them without logging. That guard now logs when it drops a reading.
+- Drive sessions on a vehicle whose dongle reports the standard `A6-ODOMETER` PID recorded no odometer and no distance at all. The lookup matched parameter keys exactly against a list that omitted the standard PID.
+- Drive-session odometer readings from a custom PID are converted before they are stored, so a session's distance is no longer understated by the miles-to-kilometres factor. Existing sessions keep the values they were recorded with.
+- LiveLink live gauges no longer render parameters a vehicle stopped reporting long ago. The latest-value table is never pruned, so a misattributed first ingest left one vehicle showing another vehicle's cards indefinitely. Staleness is judged against the vehicle's own most recent reading, so a parked vehicle keeps its full dashboard.
 
 ## [3.2.0] - 2026-08-30
 

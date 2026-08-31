@@ -34,6 +34,7 @@ from app.utils.autopid_normalizer import (
     infer_param_class,
     is_telemetry_param,
 )
+from app.utils.odometer_units import odometer_value_to_km
 
 
 @dataclass
@@ -53,6 +54,13 @@ ODOMETER_PID_PATTERNS = [
     "DISTANCE_TOTAL",
     "TOTAL_DISTANCE",
 ]
+
+#: How far a param's newest sample may trail the vehicle's newest sample before
+#: it stops counting as live. Generous on purpose: every reported param is
+#: upserted on every payload regardless of its storage interval, so params that
+#: are genuinely live move together, while conditional PIDs that only appear
+#: under certain running states still get a wide margin.
+LATEST_VALUE_STALE_AFTER = timedelta(days=30)
 
 logger = logging.getLogger(__name__)
 
@@ -394,13 +402,14 @@ class TelemetryService:
                 pass
 
         # Check for odometer reading and sync
-        await self._sync_odometer_from_telemetry(vin, autopid_data, timestamp)
+        await self._sync_odometer_from_telemetry(vin, device_id, autopid_data, timestamp)
 
         return StoreResult(stored_count=stored_count, validated_data=valid_data)
 
     async def _sync_odometer_from_telemetry(
         self,
         vin: str,
+        device_id: str,
         autopid_data: dict[str, float | int | str | None],
         timestamp: datetime,
     ) -> None:
@@ -430,10 +439,22 @@ class TelemetryService:
         if odometer_value is None or odometer_key is None:
             return  # No odometer PID found
 
-        # Standard OBD2 PIDs (e.g. A6-Odometer) report in metric per SAE J1979.
-        # Storage is now metric (km) directly — no conversion needed.
+        # Only the standard SAE J1979 PID (A6-) is guaranteed metric; a bare
+        # autopid key is a user-defined CAN expression and is usually miles on a
+        # US-market car. The device's declared unit wins, else infer from the key.
+        device_row = (
+            await self.db.execute(
+                select(LiveLinkDevice.odometer_unit, LiveLinkDevice.kind).where(
+                    LiveLinkDevice.device_id == device_id
+                )
+            )
+        ).first()
+        device_unit, device_kind = device_row if device_row else (None, None)
+        converted = odometer_value_to_km(odometer_value, odometer_key, device_unit, device_kind)
+        if converted is None:
+            return  # Not convertible
 
-        odometer_km = int(round(odometer_value))
+        odometer_km = int(round(converted))
         if odometer_km <= 0:
             return  # Invalid odometer reading
 
@@ -462,9 +483,18 @@ class TelemetryService:
             )
             return
 
-        # Only proceed if this is a new higher reading
+        # Only proceed if this is a new higher reading.
+        # Logged because a units mismatch makes every reading look backwards, and
+        # a silent return here hid exactly that for four months (see 6f04e53).
         if odometer_km <= float(max_odometer_km):
-            return  # Skip - not a new higher reading than existing records
+            logger.debug(
+                "Skipped odometer %d km for %s (%s): not above existing max %s",
+                odometer_km,
+                vin[:8],
+                odometer_key,
+                max_odometer_km,
+            )
+            return
 
         # Cap date to today (don't allow future dates from device clock issues)
         today = date_type.today()
@@ -683,13 +713,31 @@ class TelemetryService:
     # =========================================================================
 
     async def get_latest_values(self, vin: str) -> list[VehicleTelemetryLatest]:
-        """Get all latest telemetry values for a vehicle."""
+        """Get the live telemetry values for a vehicle, excluding dead params.
+
+        `vehicle_telemetry_latest` holds one row per (vin, param_key) and is
+        never pruned — the daily job only prunes the historical table — so any
+        param ever written under a VIN would otherwise render as a live gauge
+        forever. A misattributed first ingest left a Mitsubishi drawing DPF,
+        NOx, SCR and DEF cards from a diesel six months after the fact.
+
+        Staleness is measured against the vehicle's OWN newest sample rather
+        than wall-clock, so a vehicle parked for months keeps its full
+        dashboard and only a param the rest of the vehicle has left behind
+        drops off.
+        """
         result = await self.db.execute(
             select(VehicleTelemetryLatest)
             .where(VehicleTelemetryLatest.vin == vin)
             .order_by(VehicleTelemetryLatest.param_key)
         )
-        return list(result.scalars().all())
+        rows = list(result.scalars().all())
+        if not rows:
+            return []
+
+        newest = max(row.timestamp for row in rows)
+        cutoff = newest - LATEST_VALUE_STALE_AFTER
+        return [row for row in rows if row.timestamp >= cutoff]
 
     async def get_telemetry_range(
         self,

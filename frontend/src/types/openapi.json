@@ -8382,6 +8382,18 @@
             ],
             "title": "Last Seen"
           },
+          "odometer_unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Declared odometer units ('km'/'mi'); None means inferred from the key",
+            "title": "Odometer Unit"
+          },
           "rssi": {
             "anyOf": [
               {
@@ -8477,6 +8489,23 @@
             ],
             "description": "User-friendly device name",
             "title": "Label"
+          },
+          "odometer_unit": {
+            "anyOf": [
+              {
+                "enum": [
+                  "km",
+                  "mi",
+                  "auto"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Units this device reports its odometer in. 'auto' clears the override and infers from the param key shape. None leaves it unchanged.",
+            "title": "Odometer Unit"
           },
           "vin": {
             "anyOf": [

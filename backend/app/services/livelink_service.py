@@ -395,8 +395,13 @@ class LiveLinkService:
         label: str | None = None,
         vin: str | None = None,
         enabled: bool | None = None,
+        odometer_unit: str | None = None,
     ) -> LiveLinkDevice | None:
-        """Update device settings."""
+        """Update device settings.
+
+        ``odometer_unit`` accepts 'km', 'mi', or 'auto' to clear the override
+        back to key-shape inference. None leaves the current value untouched.
+        """
         device = await self.get_device_by_id(device_id)
         if not device:
             return None
@@ -407,6 +412,8 @@ class LiveLinkService:
             device.vin = vin if vin else None
         if enabled is not None:
             device.enabled = enabled
+        if odometer_unit is not None:
+            device.odometer_unit = None if odometer_unit == "auto" else odometer_unit
 
         device.updated_at = utc_now()
         await self.db.commit()

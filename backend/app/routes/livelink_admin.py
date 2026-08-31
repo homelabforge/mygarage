@@ -280,6 +280,7 @@ async def update_device(
         label=updates.label,
         vin=updates.vin,
         enabled=updates.enabled,
+        odometer_unit=updates.odometer_unit,
     )
 
     if not device:
