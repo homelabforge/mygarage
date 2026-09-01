@@ -71,11 +71,21 @@ def _is_odometer_key(param_key: str) -> bool:
     return any(s in upper for s in _ODOMETER_SUBSTRINGS)
 
 
-def _infer_unit(param_keys: set[str]) -> str:
-    """A standard PID key means metric; only bare autopid keys mean miles."""
-    if any(_OBD2_PID_PREFIX_RE.match(k.upper()) for k in param_keys):
-        return "km"
-    return "mi"
+def _infer_unit(param_keys: set[str]) -> str | None:
+    """The device-wide unit implied by the odometer keys it has published.
+
+    A standard PID key means metric; a bare autopid key usually means miles.
+
+    Returns None when the device has published both shapes: there is no single
+    answer, and picking one makes the stored device value override the per-key
+    inference for the other series, so its readings are stored in the wrong
+    unit. NULL leaves `resolve_odometer_unit` deciding per key, which is right
+    for each series separately.
+    """
+    prefixed = {k for k in param_keys if _OBD2_PID_PREFIX_RE.match(k.upper())}
+    if prefixed and prefixed != param_keys:
+        return None
+    return "km" if prefixed else "mi"
 
 
 def upgrade(engine=None) -> None:
@@ -117,6 +127,12 @@ def upgrade(engine=None) -> None:
         updated = 0
         for device_id, param_keys in sorted(keys_by_device.items()):
             unit = _infer_unit(param_keys)
+            if unit is None:
+                print(
+                    f"  → {device_id}: publishes both {sorted(param_keys)}; "
+                    "leaving odometer_unit NULL so each key keeps its own inference"
+                )
+                continue
             # Only fills NULLs, so a re-run and an operator who has since set
             # the unit by hand are both safe.
             rows = conn.execute(

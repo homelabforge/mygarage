@@ -1028,7 +1028,7 @@
   {
    "path": "src/components/modals/LiveLinkSettingsModal.tsx",
    "disposition": "no unit behaviour",
-   "digest": "9b066d3bc10b2ce67dedd8e746ef625be2dc79bb3ce2b76256b06d20c75c03dd",
+   "digest": "550eaa399469391d8a9b8c7a7c568fd9d372fcfbe9ca0f2e1a797beeeeb0a543",
    "reason": "no unit behaviour: RE-REVIEWED for the LiveLink odometer-units fix. This file no longer matches NONE of the unit vocabulary — it now contains the literals 'km' and 'mi' — so the original scan-based justification is superseded. The disposition still holds on BEHAVIOUR, on the same ground as src/types/api.generated.ts: the added control selects a per-device DECLARATION of what units a WiCAN dongle reports its odometer in, and posts that enum verbatim to PUT /livelink/devices/{id}. It converts nothing, renders no unit-bearing quantity, and has no imperial/metric branch; the conversion it governs happens server-side in app/utils/odometer_units.py. Its three option labels are t() keys resolved from forms.json, which is audited separately."
   },
   {

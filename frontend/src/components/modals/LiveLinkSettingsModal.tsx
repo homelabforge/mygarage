@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { useState, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { toast } from 'sonner'
+import { getErrorMessage } from '@/utils/httpErrorHandler'
 import {
   Copy,
   Eye,
@@ -271,7 +272,10 @@ export default function LiveLinkSettingsModal({ isOpen, onClose }: LiveLinkSetti
       setDevices(updated)
     } catch (error) {
       console.error('Failed to update device:', error)
-      toast.error(t('modal.failedToUpdateDevice'))
+      // The server refuses an odometer-unit change once readings depend on it,
+      // and says why and what to run. A generic failure toast would throw that
+      // away and leave the setting looking merely broken.
+      toast.error(getErrorMessage(error, t('modal.failedToUpdateDevice')))
     }
   }
 

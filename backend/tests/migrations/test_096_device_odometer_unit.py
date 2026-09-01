@@ -173,6 +173,32 @@ class TestMigration096:
 
         assert _unit_of(engine, "devquiet") is None
 
+    def test_a_device_publishing_both_key_shapes_is_left_unclassified(self, engine_for_migration):
+        """A mixed-key device cannot be described by one device-wide unit.
+
+        `A6-ODOMETER` is metric by SAE J1979 and a bare `ODOMETER` autopid is
+        usually miles, so a device that has published both has no single answer.
+        Choosing `km` because a prefixed key exists makes the device value
+        override per-key inference for the bare key too, storing its miles
+        unconverted; `_calculate_session_distance` then spans both series and
+        reports tens of thousands of kilometres for one drive.
+
+        NULL is the honest answer: `resolve_odometer_unit` falls back to the
+        key's own shape, which is right for each series separately.
+        """
+        _dialect, engine, _url = engine_for_migration
+        _make_pre_096_schema(engine)
+        with engine.begin() as conn:
+            _add_device(conn, "devmixed")
+            _add_telemetry(conn, "devmixed", "A6-ODOMETER")
+            _add_telemetry(conn, "devmixed", "ODOMETER")
+
+        _load("096_add_device_odometer_unit").upgrade(engine)
+
+        assert _unit_of(engine, "devmixed") is None, (
+            "a device publishing both key shapes was given one device-wide unit"
+        )
+
     def test_rerun_does_not_overwrite_an_operator_set_unit(self, engine_for_migration):
         """Idempotent: the backfill only fills NULLs.
 
