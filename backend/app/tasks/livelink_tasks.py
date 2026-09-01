@@ -32,6 +32,16 @@ async def run_sd_backfill(device_id: str) -> None:
                 result.rows_skipped,
                 len(result.errors),
             )
+            # The count alone is undiagnosable: a device stuck at errors=1 for
+            # weeks gave no way to tell a download timeout from a schema
+            # mismatch from an unreachable dongle. The messages are already
+            # collected, so say what they were.
+            for message in result.errors:
+                logger.warning(
+                    "SD backfill %s error: %s",
+                    sanitize_for_log(device_id),
+                    sanitize_for_log(message),
+                )
         except Exception:  # noqa: BLE001 — background task must not crash the scheduler
             logger.exception("SD backfill failed for %s", sanitize_for_log(device_id))
 

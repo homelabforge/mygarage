@@ -41,6 +41,12 @@ class LiveLinkDevice(Base):
         String(255)
     )  # admin-set IP/host for SD pulls
     sd_backfill_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Units the device reports its odometer in. NULL = infer from the param key
+    # shape (see app/utils/odometer_units.py): the standard SAE J1979 PID
+    # 'A6-ODOMETER' is metric, a bare 'ODOMETER' autopid is a user-defined CAN
+    # expression and is usually miles on a US-market car. The inference is only
+    # a default — hardware varies, so an explicit value always wins.
+    odometer_unit: Mapped[str | None] = mapped_column(String(4))  # 'km' | 'mi' | None
     kind: Mapped[str] = mapped_column(
         String(10), nullable=False, server_default=text("'wican'")
     )  # 'wican' | 'torque'

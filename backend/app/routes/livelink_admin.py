@@ -275,12 +275,19 @@ async def update_device(
             await get_vehicle_for_owner_or_403(target_vin, current_user, db)
 
     service = LiveLinkService(db)
-    device = await service.update_device(
-        device_id=device_id,
-        label=updates.label,
-        vin=updates.vin,
-        enabled=updates.enabled,
-    )
+    try:
+        device = await service.update_device(
+            device_id=device_id,
+            label=updates.label,
+            vin=updates.vin,
+            enabled=updates.enabled,
+            odometer_unit=updates.odometer_unit,
+        )
+    except ValueError as exc:
+        # Changing the odometer unit once readings depend on it would split the
+        # device's history across two units. 409: the request is well formed,
+        # the stored data is what conflicts with it.
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     if not device:
         raise HTTPException(status_code=404, detail=f"Device {device_id} not found")

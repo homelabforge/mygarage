@@ -7,9 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Upgrade note
+
+If any LiveLink device reports a custom odometer PID (a bare `ODOMETER` autopid rather than the standard `A6-ODOMETER`), its stored odometer telemetry and drive-session odometers are in miles and this release starts reading them as kilometres. Migration 096 classifies the devices but deliberately converts no data: an instance that has already converted by hand cannot be told apart from one that has not, and converting twice is unrecoverable. Back up first, then run, in this order:
+
+```
+python tools/backfill_livelink_odometer.py --db /data/mygarage.db --apply
+python tools/normalize_telemetry_odometer_units.py --db /data/mygarage.db --apply
+python tools/fix_session_odometer_units.py --db /data/mygarage.db --apply
+python tools/recompute_session_aggregates.py --apply
+```
+
+The order matters. The reconstruction reads telemetry as the device reported it and applies the device's declared unit, so it has to run while the history is still device-native; after the conversion it would multiply an already-metric figure again, and an inflated odometer record becomes the floor every later reading must beat rather than something a later reading corrects.
+
+Run them before the upgraded instance records new readings. Each is dry run by default and reads from the data whether its work is still outstanding, so running one twice cannot double a value. Where that cannot be decided safely, the tool says so and exits 2 rather than guess: the reconstruction refuses telemetry that already reads as metric, and the two converters refuse a device whose history mixes miles and kilometres, which is what a run started after new readings landed leaves behind.
+
 ### Added
 - Structured vehicle maintenance specs (oil viscosity/capacity/filter, lug-nut torque, coolant/brake/transmission fluid) with an Overview editor (migration 095).
 - Opt-in **Ask My Garage** assistant: grounded Q&A over specs, service history, and LiveLink DTCs. See [docs/tier2-features.md](docs/tier2-features.md).
+- LiveLink devices carry an odometer unit, inferred from the PID shape and editable per device in LiveLink settings (migration 096). A standard `A6-ODOMETER` PID is kilometres per SAE J1979; a custom autopid is whatever the dash shows, and the instance can now say so.
+- `backend/tools/backfill_livelink_odometer.py` reconstructs the odometer records the units regression below discarded, from raw telemetry already on disk. Dry run by default, and it never overwrites a day that already has a record.
+- German translation updated across all six namespaces; thanks [@SCDT95](https://github.com/SCDT95) (#155).
+
+### Fixed
+- Drive-session speed, RPM and temperature figures now count readings that arrive after the session has closed. A WiCAN buffers readings while it cannot reach the broker and replays them later with their original timestamps, and a session was summarised once on close, so a drive that peaked at 85 km/h could be recorded as 20. `backend/tools/recompute_session_aggregates.py` repairs sessions summarised before the fix.
+- Drive-session distance measures odometer movement inside the session. It was the difference between the vehicle's newest reading at each end, whatever their age, so every kilometre driven while no session was open was charged to whichever session opened next: a vehicle idling in a driveway for eleven minutes at a top speed of 2 km/h was credited with 14 km. Sessions that recorded distance the vehicle did not cover in that window are repaired by the same tool.
+- Readings pulled from a dongle's SD card now update the drive sessions they fall inside, and their odometer values are converted to kilometres. That path bypasses live ingest by design, because a pull is tens of thousands of rows, so it had been bypassing both. It is the only path for anything driven out of range of the broker.
+- SD-card backfill logs why it failed. It reported a count of errors and discarded the messages, so a device that had been failing for weeks gave nothing to diagnose from.
+- A device that has published both a standard `A6-ODOMETER` and a custom odometer key is left unclassified rather than called metric. One device-wide unit cannot describe two series, and the stored value overrides the per-key inference, so the custom key's miles were being kept as kilometres and a single drive could report tens of thousands of kilometres.
+- Changing a device's odometer unit after it has recorded readings is refused, with the conversion named. It only changed how later readings were read, leaving the stored ones in the other unit; because the highest odometer record is kept as a floor, an inflated one is not corrected by later readings but silences them.
+- LiveLink odometer auto-recording, silently dead since v2.26.2 for any device reporting a custom odometer PID. The reading was taken as kilometres whatever the device sent, so a dongle reporting miles produced a value below the vehicle's real odometer and the "must be a new higher reading" guard discarded every one of them without logging. That guard now logs when it drops a reading.
+- Drive sessions on a vehicle whose dongle reports the standard `A6-ODOMETER` PID recorded no odometer and no distance at all. The lookup matched parameter keys exactly against a list that omitted the standard PID.
+- Drive-session odometer readings from a custom PID are converted before they are stored, so a session's distance is no longer understated by the miles-to-kilometres factor. `backend/tools/fix_session_odometer_units.py` converts sessions recorded before the fix; it is dry run by default and reads whether the work is still needed from the data, so running it twice cannot double a value.
+- Odometer telemetry is stored in canonical kilometres like every other unit-bearing value, instead of being kept in whatever unit the device happened to send. `backend/tools/normalize_telemetry_odometer_units.py` converts readings stored before the fix; it is dry run by default and reads whether the work is still needed from the data, so running it twice cannot double a value.
+- The Live, Sessions and Trips tabs label distance and odometer readings in your own units instead of showing them as `(unknown unit)`. That marker was correct while a custom odometer PID's unit was genuinely unknowable, and it is retired now that devices declare their odometer unit and the backend normalises on ingest.
+- Intake manifold absolute pressure is shown as a pressure again, not a temperature. Its name contains "intake", which the display layer matched as a temperature before it ever looked at the kPa the device declares. A declared unit now takes precedence over any guess made from the parameter's name.
+- LiveLink live gauges no longer render parameters a vehicle stopped reporting long ago. The latest-value table is never pruned, so a misattributed first ingest left one vehicle showing another vehicle's cards indefinitely. Staleness is judged against the vehicle's own most recent reading, so a parked vehicle keeps its full dashboard.
 
 ## [3.2.0] - 2026-08-30
 

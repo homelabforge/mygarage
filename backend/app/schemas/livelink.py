@@ -35,6 +35,13 @@ class LiveLinkDeviceUpdate(BaseModel):
     label: str | None = Field(None, description="User-friendly device name")
     vin: str | None = Field(None, description="VIN to link device to", min_length=17, max_length=17)
     enabled: bool | None = Field(None, description="Enable/disable device")
+    odometer_unit: Literal["km", "mi", "auto"] | None = Field(
+        None,
+        description=(
+            "Units this device reports its odometer in. 'auto' clears the "
+            "override and infers from the param key shape. None leaves it unchanged."
+        ),
+    )
 
 
 class LiveLinkDeviceResponse(LiveLinkDeviceBase):
@@ -55,6 +62,9 @@ class LiveLinkDeviceResponse(LiveLinkDeviceBase):
     has_device_token: bool = Field(False, description="Whether device has per-device token")
     device_address: str | None = Field(None, description="Admin-set IP/host for SD-card log pulls")
     sd_backfill_enabled: bool = Field(False, description="Whether SD-card backfill is enabled")
+    odometer_unit: str | None = Field(
+        None, description="Declared odometer units ('km'/'mi'); None means inferred from the key"
+    )
     enabled: bool
     last_seen: datetime | None
     created_at: datetime

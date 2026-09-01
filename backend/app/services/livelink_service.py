@@ -395,8 +395,13 @@ class LiveLinkService:
         label: str | None = None,
         vin: str | None = None,
         enabled: bool | None = None,
+        odometer_unit: str | None = None,
     ) -> LiveLinkDevice | None:
-        """Update device settings."""
+        """Update device settings.
+
+        ``odometer_unit`` accepts 'km', 'mi', or 'auto' to clear the override
+        back to key-shape inference. None leaves the current value untouched.
+        """
         device = await self.get_device_by_id(device_id)
         if not device:
             return None
@@ -407,11 +412,35 @@ class LiveLinkService:
             device.vin = vin if vin else None
         if enabled is not None:
             device.enabled = enabled
+        if odometer_unit is not None:
+            resolved = None if odometer_unit == "auto" else odometer_unit
+            if resolved != device.odometer_unit and await self._has_odometer_history(device_id):
+                raise ValueError(
+                    "This device has already recorded odometer readings under its current "
+                    "unit. Changing the unit now would leave that history in one unit and "
+                    "write new readings in the other, and an inflated odometer record is "
+                    "kept as a floor rather than corrected by later readings. Convert the "
+                    "stored data first with backend/tools/normalize_telemetry_odometer_units.py "
+                    "and fix_session_odometer_units.py, then set the unit."
+                )
+            device.odometer_unit = resolved
 
         device.updated_at = utc_now()
         await self.db.commit()
 
         return device
+
+    async def _has_odometer_history(self, device_id: str) -> bool:
+        """Whether this device has stored any odometer reading."""
+        from app.models.vehicle_telemetry import VehicleTelemetry
+        from app.utils.odometer_units import is_odometer_param_key
+
+        result = await self.db.execute(
+            select(VehicleTelemetry.param_key)
+            .where(VehicleTelemetry.device_id == device_id)
+            .distinct()
+        )
+        return any(is_odometer_param_key(key) for (key,) in result.all())
 
     async def delete_device(self, device_id: str) -> bool:
         """Delete a device record.

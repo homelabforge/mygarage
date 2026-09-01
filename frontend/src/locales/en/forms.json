@@ -519,7 +519,12 @@
       "unlinked": "Unlinked",
       "updateBadge": "Update",
       "urlLabel": "URL",
-      "viewRelease": "View Release"
+      "viewRelease": "View Release",
+      "odometerUnit": "Odometer units",
+      "odometerUnitAuto": "Auto (from PID)",
+      "odometerUnitKm": "Kilometers",
+      "odometerUnitMi": "Miles",
+      "odometerUnitHelp": "Standard A6 odometer PIDs report kilometers. A custom autopid usually reports whatever the dash shows. Set this if recorded mileage looks wrong."
     },
     "transfer": {
       "progressLabel": "Vehicle transfer progress",

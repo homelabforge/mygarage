@@ -21,6 +21,7 @@ else:
     from sqlalchemy.dialects.postgresql import insert as dialect_insert
 
 from app.models import OdometerRecord
+from app.models.drive_session import DriveSession
 from app.models.livelink_device import LiveLinkDevice
 from app.models.livelink_parameter import LiveLinkParameter
 from app.models.vehicle_telemetry import (
@@ -34,6 +35,7 @@ from app.utils.autopid_normalizer import (
     infer_param_class,
     is_telemetry_param,
 )
+from app.utils.odometer_units import odometer_value_to_km
 
 
 @dataclass
@@ -53,6 +55,13 @@ ODOMETER_PID_PATTERNS = [
     "DISTANCE_TOTAL",
     "TOTAL_DISTANCE",
 ]
+
+#: How far a param's newest sample may trail the vehicle's newest sample before
+#: it stops counting as live. Generous on purpose: every reported param is
+#: upserted on every payload regardless of its storage interval, so params that
+#: are genuinely live move together, while conditional PIDs that only appear
+#: under certain running states still get a wide margin.
+LATEST_VALUE_STALE_AFTER = timedelta(days=30)
 
 logger = logging.getLogger(__name__)
 
@@ -236,6 +245,46 @@ class TelemetryService:
                 return True
         return False
 
+    async def _odometer_units_for(self, device_id: str) -> tuple[str | None, str | None]:
+        """Return the device's declared `(odometer_unit, kind)`, or `(None, None)`."""
+        row = (
+            await self.db.execute(
+                select(LiveLinkDevice.odometer_unit, LiveLinkDevice.kind).where(
+                    LiveLinkDevice.device_id == device_id
+                )
+            )
+        ).first()
+        return row if row else (None, None)
+
+    async def _normalize_odometer_units(
+        self,
+        device_id: str,
+        autopid_data: dict[str, float | int | str | None],
+    ) -> dict[str, float | int | str | None]:
+        """Return ``autopid_data`` with any odometer value converted to km.
+
+        Only the standard SAE J1979 PID is guaranteed metric; a bare autopid key
+        is a user-defined CAN expression and is usually miles on a US-market
+        car. The device's declared `odometer_unit` decides, falling back to the
+        key shape (WiCAN only) when it has not been set.
+        """
+        if not any(self._is_odometer_param(k) for k in autopid_data):
+            return autopid_data
+
+        device_unit, device_kind = await self._odometer_units_for(device_id)
+
+        normalized = dict(autopid_data)
+        for param_key, value in autopid_data.items():
+            if value is None or not self._is_odometer_param(param_key):
+                continue
+            try:
+                converted = odometer_value_to_km(float(value), param_key, device_unit, device_kind)
+            except TypeError, ValueError:
+                continue
+            if converted is not None:
+                normalized[param_key] = converted
+        return normalized
+
     async def _sanitize_odometer_value(self, vin: str, value: float) -> float | None:
         """Sanitize an odometer value (km), returning None if invalid.
 
@@ -317,6 +366,12 @@ class TelemetryService:
             if is_telemetry_param(ck)
         }
 
+        # Normalise the odometer to canonical km ONCE, here, so every downstream
+        # consumer (raw storage, the latest-value table, the odometer record and
+        # the session stamp) reads the same units. Doing it per-consumer is what
+        # let the record path and the storage path disagree for four months.
+        autopid_data = await self._normalize_odometer_units(device_id, autopid_data)
+
         received_at = utc_now()
 
         # Get all parameters to check storage intervals and for validation
@@ -372,7 +427,7 @@ class TelemetryService:
             # Check storage interval for historical storage
             if param.storage_interval_seconds > 0:
                 should_store = await self._should_store_historical(
-                    vin, param_key, param.storage_interval_seconds
+                    vin, device_id, param_key, param.storage_interval_seconds, timestamp
                 )
                 if not should_store:
                     continue
@@ -396,7 +451,30 @@ class TelemetryService:
         # Check for odometer reading and sync
         await self._sync_odometer_from_telemetry(vin, autopid_data, timestamp)
 
+        # A replayed reading can belong to a session that has already closed.
+        await self._refresh_closed_session(vin, device_id, timestamp)
+
         return StoreResult(stored_count=stored_count, validated_data=valid_data)
+
+    async def _refresh_closed_session(self, vin: str, device_id: str, timestamp: datetime) -> None:
+        """Recompute aggregates for a CLOSED session this reading falls inside.
+
+        Off home WiFi a WiCAN buffers readings and replays them with their
+        original timestamps, so telemetry keeps arriving after `end_session`
+        has already computed a session's aggregates from the few samples that
+        made it in live. On Diamond a drive recorded max_speed 20 km/h (the
+        driveway) while the buffer it replayed 54 minutes later held 85 km/h.
+
+        The session's own window is the arbiter, scoped by VIN. A reading that
+        falls in the gap between sessions belongs to no session and is left
+        alone: sessions end on device connectivity, so such readings are
+        expected, and adopting one into the nearest session would invent a
+        drive the vehicle did not make.
+
+        Open sessions are excluded — `end_session` computes those on close.
+        """
+        reading_at = timestamp.replace(tzinfo=None) if timestamp.tzinfo else timestamp
+        await self._refresh_sessions_in_span(vin, device_id, reading_at, reading_at)
 
     async def _sync_odometer_from_telemetry(
         self,
@@ -430,9 +508,8 @@ class TelemetryService:
         if odometer_value is None or odometer_key is None:
             return  # No odometer PID found
 
-        # Standard OBD2 PIDs (e.g. A6-Odometer) report in metric per SAE J1979.
-        # Storage is now metric (km) directly — no conversion needed.
-
+        # Already canonical km: store_telemetry normalised the whole payload
+        # through _normalize_odometer_units before any consumer saw it.
         odometer_km = int(round(odometer_value))
         if odometer_km <= 0:
             return  # Invalid odometer reading
@@ -462,9 +539,18 @@ class TelemetryService:
             )
             return
 
-        # Only proceed if this is a new higher reading
+        # Only proceed if this is a new higher reading.
+        # Logged because a units mismatch makes every reading look backwards, and
+        # a silent return here hid exactly that for four months (see 6f04e53).
         if odometer_km <= float(max_odometer_km):
-            return  # Skip - not a new higher reading than existing records
+            logger.debug(
+                "Skipped odometer %d km for %s (%s): not above existing max %s",
+                odometer_km,
+                vin[:8],
+                odometer_key,
+                max_odometer_km,
+            )
+            return
 
         # Cap date to today (don't allow future dates from device clock issues)
         today = date_type.today()
@@ -529,34 +615,39 @@ class TelemetryService:
         await self.db.execute(stmt)
 
     async def _should_store_historical(
-        self, vin: str, param_key: str, interval_seconds: int
+        self,
+        vin: str,
+        device_id: str,
+        param_key: str,
+        interval_seconds: int,
+        timestamp: datetime,
     ) -> bool:
-        """Check if we should store a historical value based on storage interval.
+        """Whether to keep this reading, given the parameter's storage interval.
 
-        Returns True if no recent value exists or last value is older than interval.
+        The interval thins a noisy parameter to at most one reading per window.
+        It is measured against the READING's own timestamp, not the wall clock:
+        a WiCAN off home WiFi replays its buffer with the original timestamps,
+        so a reading taken at 10:48 can land at 11:42. Judged by arrival it sat
+        moments behind the newest live row and a throttled parameter dropped
+        it, after which the closed-session refresh recomputed from history that
+        never received it and repaired nothing.
+
+        Scoped to the device as well, so one dongle's cadence cannot thin
+        another's readings on the same vehicle.
         """
+        reading_at = timestamp.replace(tzinfo=None) if timestamp.tzinfo else timestamp
+        window_start = reading_at - timedelta(seconds=interval_seconds)
+
         result = await self.db.execute(
-            select(VehicleTelemetry.timestamp)
+            select(VehicleTelemetry.id)
             .where(VehicleTelemetry.vin == vin)
+            .where(VehicleTelemetry.device_id == device_id)
             .where(VehicleTelemetry.param_key == param_key)
-            .order_by(VehicleTelemetry.timestamp.desc())
+            .where(VehicleTelemetry.timestamp > window_start)
+            .where(VehicleTelemetry.timestamp <= reading_at)
             .limit(1)
         )
-        row = result.first()
-        if not row:
-            return True
-
-        last_timestamp = row[0]
-        if not last_timestamp:
-            return True
-
-        # Ensure both are naive UTC for comparison
-        now = utc_now()
-        if last_timestamp.tzinfo is not None:
-            last_timestamp = last_timestamp.replace(tzinfo=None)
-
-        seconds_since_last = (now - last_timestamp).total_seconds()
-        return seconds_since_last >= interval_seconds
+        return result.first() is None
 
     # =========================================================================
     # SD-Card Bulk Backfill
@@ -584,11 +675,25 @@ class TelemetryService:
         # "database is locked". Committed rows still dedup correctly across batches.
         commit_batch = 500
         inserted = 0
+        stamps: list[datetime] = []
+
+        # The SD path writes `r.value` straight to a metric-canonical column,
+        # so it needs the same odometer conversion `store_telemetry` applies:
+        # a bare `ODOMETER` autopid on a US-market car reports miles. Fetched
+        # once here rather than per row; a pull is one device.
+        device_unit, device_kind = await self._odometer_units_for(device_id)
+
         for i, r in enumerate(rows, start=1):
             # Normalise to naive UTC once so the (device_id, param_key, timestamp)
             # dedup index matches live-ingest rows (which store naive UTC via utc_now()).
             # Binding tz-aware datetimes into PG's TIMESTAMP WITHOUT TIME ZONE is also unsafe.
             ts = r.timestamp.replace(tzinfo=None) if r.timestamp.tzinfo is not None else r.timestamp
+
+            value = r.value
+            if self._is_odometer_param(r.param_key):
+                converted = odometer_value_to_km(value, r.param_key, device_unit, device_kind)
+                if converted is not None:
+                    value = converted
 
             # Use the module-level dialect_insert (sqlite or pg, chosen at import time)
             stmt = (
@@ -597,21 +702,92 @@ class TelemetryService:
                     vin=vin,
                     device_id=device_id,
                     param_key=r.param_key,
-                    value=r.value,
+                    value=value,
                     timestamp=ts,
                 )
                 .on_conflict_do_nothing(index_elements=["device_id", "param_key", "timestamp"])
             )
             result = await self.db.execute(stmt)
             # rowcount is 1 on insert, 0 when the conflict clause fires
-            inserted += result.rowcount or 0
-            await self._update_latest_if_newer(vin, r.param_key, r.value, ts)
+            row_inserted = result.rowcount or 0
+            inserted += row_inserted
+            await self._update_latest_if_newer(vin, r.param_key, value, ts)
+
+            # Every parsed row widens the span, not just the ones that landed.
+            # Narrowing it to new rows looked like free efficiency and is not:
+            # the rows commit in batches here, while `SdBackfillService` saves
+            # the file's watermark only after this returns, so a crash between
+            # the two leaves the rows imported and their sessions never
+            # recomputed. The retry re-parses the same rows, they all conflict,
+            # and a span built from inserts would be empty -- losing the
+            # refresh permanently. Parsing is already filtered by the watermark
+            # (`SdLogParser.parse(since_ts=...)`), so in the ordinary case this
+            # spans the new rows anyway; it only widens when the watermark did
+            # not advance, which is exactly when the refresh needs redoing.
+            stamps.append(ts)
 
             if i % commit_batch == 0:
                 await self.db.commit()
 
         await self.db.commit()  # flush the final partial batch
+
+        # Fold the batch into the sessions its rows fall inside. This path
+        # deliberately skips `store_telemetry`, so it also skipped the
+        # closed-session refresh that lives there -- which left the repair
+        # covering the wrong path, because the SD card is where late data
+        # actually comes from. Off home WiFi the WiCAN reaches no broker at
+        # all, so a whole drive arrives here hours later.
+        # Once per call, not once per row: running the live side-effects per
+        # row is the thing `bulk_backfill` exists to avoid. Note the caller
+        # loops over log files (`SdBackfillService._backfill`), so this is once
+        # per file, not once per pull.
+        if stamps:
+            await self._refresh_sessions_in_span(vin, device_id, min(stamps), max(stamps))
+            await self.db.commit()
+
         return inserted
+
+    async def _refresh_sessions_in_span(
+        self, vin: str, device_id: str, start: datetime, end: datetime
+    ) -> None:
+        """Recompute every closed session of `vin` overlapping [start, end].
+
+        Overlap only selects the candidates; each session then recomputes from
+        its own window, so a session the pull merely straddles without landing
+        any rows inside keeps the values it already had.
+
+        The single point a closed session is refreshed from ingest: a live
+        reading is the degenerate span `[ts, ts]`. Does not commit: callers
+        own the transaction, and `store_telemetry` deliberately does not.
+        """
+        from app.services.session_service import SessionService  # local import avoids cycle
+
+        result = await self.db.execute(
+            select(DriveSession)
+            .where(DriveSession.vin == vin)
+            # The reporting device, not just its VIN: two devices on one
+            # vehicle have overlapping sessions, and each one's aggregates are
+            # computed from its own telemetry.
+            .where(DriveSession.device_id == device_id)
+            .where(DriveSession.ended_at.is_not(None))
+            .where(DriveSession.started_at <= end)
+            .where(DriveSession.ended_at >= start)
+        )
+        sessions = list(result.scalars().all())
+        if not sessions:
+            return
+
+        session_service = SessionService(self.db)
+        for session in sessions:
+            await session_service.refresh_aggregates(session)
+
+        logger.debug(
+            "Refreshed %d closed session(s) for %s over %s..%s",
+            len(sessions),
+            vin[:8],
+            start,
+            end,
+        )
 
     async def store_torque_telemetry(
         self, vin: str, device_id: str, timestamp: datetime, values: dict[str, float]
@@ -683,13 +859,38 @@ class TelemetryService:
     # =========================================================================
 
     async def get_latest_values(self, vin: str) -> list[VehicleTelemetryLatest]:
-        """Get all latest telemetry values for a vehicle."""
+        """Get the live telemetry values for a vehicle, excluding dead params.
+
+        `vehicle_telemetry_latest` holds one row per (vin, param_key) and is
+        never pruned — the daily job only prunes the historical table — so any
+        param ever written under a VIN would otherwise render as a live gauge
+        forever. A misattributed first ingest left a Mitsubishi drawing DPF,
+        NOx, SCR and DEF cards from a diesel six months after the fact.
+
+        Staleness is measured against the vehicle's OWN newest sample rather
+        than wall-clock, so a vehicle parked for months keeps its full
+        dashboard and only a param the rest of the vehicle has left behind
+        drops off.
+        """
         result = await self.db.execute(
             select(VehicleTelemetryLatest)
             .where(VehicleTelemetryLatest.vin == vin)
             .order_by(VehicleTelemetryLatest.param_key)
         )
-        return list(result.scalars().all())
+        rows = list(result.scalars().all())
+        if not rows:
+            return []
+
+        # The reference is the vehicle's newest sample, but never one dated in
+        # the future: the WiCAN's optional device timestamp is not validated
+        # against the clock, so a single dongle with a wrong date would push the
+        # cutoff past every normally-dated parameter and blank the dashboard
+        # until real time caught up.
+        now = utc_now().replace(tzinfo=None)
+        plausible = [row.timestamp for row in rows if row.timestamp <= now]
+        newest = max(plausible) if plausible else now
+        cutoff = newest - LATEST_VALUE_STALE_AFTER
+        return [row for row in rows if row.timestamp >= cutoff]
 
     async def get_telemetry_range(
         self,
