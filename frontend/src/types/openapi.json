@@ -9576,6 +9576,107 @@
         "title": "MonthlyCostSummary",
         "type": "object"
       },
+      "MountPeriodResponse": {
+        "description": "One interval a tire spent mounted at one position.",
+        "properties": {
+          "dismounted_odometer_km": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dismounted Odometer Km"
+          },
+          "dismounted_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dismounted On"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "is_assumed": {
+            "title": "Is Assumed",
+            "type": "boolean"
+          },
+          "mounted_odometer_km": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mounted Odometer Km"
+          },
+          "mounted_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mounted On"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "observed_active_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed Active On"
+          },
+          "position": {
+            "title": "Position",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "position",
+          "mounted_on",
+          "dismounted_on",
+          "mounted_odometer_km",
+          "dismounted_odometer_km",
+          "is_assumed",
+          "observed_active_on",
+          "notes"
+        ],
+        "title": "MountPeriodResponse",
+        "type": "object"
+      },
       "NoteCreate": {
         "description": "Schema for creating a note.",
         "properties": {
@@ -16085,6 +16186,7 @@
         "type": "object"
       },
       "TireCreate": {
+        "additionalProperties": false,
         "description": "Create / upsert a tire at a position.",
         "properties": {
           "brand": {
@@ -16110,18 +16212,6 @@
               }
             ],
             "title": "Dot Code"
-          },
-          "installed_date": {
-            "anyOf": [
-              {
-                "format": "date",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Installed Date"
           },
           "min_tread_mm": {
             "anyOf": [
@@ -16153,6 +16243,162 @@
               }
             ],
             "title": "Model Name"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "pressure_kpa": {
+            "anyOf": [
+              {
+                "maximum": 1000.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pressure Kpa"
+          },
+          "size": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size"
+          },
+          "tread_depth_mm": {
+            "anyOf": [
+              {
+                "maximum": 30.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tread Depth Mm"
+          },
+          "vin": {
+            "maxLength": 17,
+            "title": "Vin",
+            "type": "string"
+          }
+        },
+        "required": [
+          "vin"
+        ],
+        "title": "TireCreate",
+        "type": "object"
+      },
+      "TireCreateAndMountRequest": {
+        "additionalProperties": false,
+        "description": "Create a tire and mount it in one atomic operation.\n\nOffered because create-then-mount is two calls for the common case, and\nthe conflict semantics are the MOUNT's: if that corner is occupied the\nwhole operation fails and no tire is created. A caller that did the two\nsteps itself and got a conflict on the second would be left with an\norphan tire it did not ask for.",
+        "properties": {
+          "brand": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Brand"
+          },
+          "dot_code": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dot Code"
+          },
+          "min_tread_mm": {
+            "anyOf": [
+              {
+                "maximum": 10.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "2.0",
+            "description": "Wear-out threshold in mm; drives reminder hooks",
+            "title": "Min Tread Mm"
+          },
+          "model_name": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Name"
+          },
+          "mounted_odometer_km": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mounted Odometer Km"
+          },
+          "mounted_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mounted On"
           },
           "notes": {
             "anyOf": [
@@ -16229,10 +16475,57 @@
           }
         },
         "required": [
-          "position",
-          "vin"
+          "vin",
+          "position"
         ],
-        "title": "TireCreate",
+        "title": "TireCreateAndMountRequest",
+        "type": "object"
+      },
+      "TireDismountRequest": {
+        "additionalProperties": false,
+        "description": "Take a tire off the vehicle.",
+        "properties": {
+          "dismounted_odometer_km": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dismounted Odometer Km"
+          },
+          "dismounted_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dismounted On"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          }
+        },
+        "title": "TireDismountRequest",
         "type": "object"
       },
       "TireListResponse": {
@@ -16255,6 +16548,67 @@
           "total"
         ],
         "title": "TireListResponse",
+        "type": "object"
+      },
+      "TireMountRequest": {
+        "additionalProperties": false,
+        "description": "Mount a tire at a position.",
+        "properties": {
+          "mounted_odometer_km": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mounted Odometer Km"
+          },
+          "mounted_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mounted On"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "position": {
+            "enum": [
+              "FL",
+              "FR",
+              "RL",
+              "RR",
+              "SPARE"
+            ],
+            "title": "Position",
+            "type": "string"
+          }
+        },
+        "required": [
+          "position"
+        ],
+        "title": "TireMountRequest",
         "type": "object"
       },
       "TireReadingCreate": {
@@ -16345,6 +16699,17 @@
             "title": "Id",
             "type": "integer"
           },
+          "mount_period_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mount Period Id"
+          },
           "notes": {
             "anyOf": [
               {
@@ -16369,8 +16734,15 @@
             "title": "Odometer Km"
           },
           "position": {
-            "title": "Position",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position"
           },
           "pressure_kpa": {
             "anyOf": [
@@ -16414,7 +16786,6 @@
           "id",
           "tire_id",
           "vin",
-          "position",
           "recorded_at",
           "odometer_km",
           "tread_depth_mm",
@@ -16426,12 +16797,20 @@
         "type": "object"
       },
       "TireResponse": {
-        "description": "Tire with optional wear projection.",
+        "additionalProperties": false,
+        "description": "A tire, with where it is now and what is known about its wear.\n\n`position` is RE-DECLARED here as nullable rather than inherited: it left\nthe write schema (D2c) but is still part of every read. Declaring it only\non the base would have made it required on writes; omitting it entirely\nwould have dropped it from responses. Neither is what a reader wants.\n\n`installed_date` is DERIVED, not stored (D12): the `mounted_on` of the\nearliest period **that has one**. When the earliest period is the migrated\nassumed one with a null start, this is null -- NOT the next known remount\ndate. A plain MIN(mounted_on) would skip the unknown and report a later\ndate as the installation date, which is worse than reporting nothing.",
         "properties": {
           "below_threshold": {
             "default": false,
             "title": "Below Threshold",
             "type": "boolean"
+          },
+          "blocking_period_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Blocking Period Ids",
+            "type": "array"
           },
           "brand": {
             "anyOf": [
@@ -16449,6 +16828,29 @@
             "format": "date-time",
             "title": "Created At",
             "type": "string"
+          },
+          "distance_km": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distance Km"
+          },
+          "distance_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distance Status"
           },
           "dot_code": {
             "anyOf": [
@@ -16478,6 +16880,30 @@
             ],
             "title": "Installed Date"
           },
+          "known_distance_km": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Known Distance Km"
+          },
+          "known_distance_since": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Known Distance Since"
+          },
           "min_tread_mm": {
             "anyOf": [
               {
@@ -16504,6 +16930,13 @@
             ],
             "title": "Model Name"
           },
+          "mount_periods": {
+            "items": {
+              "$ref": "#/components/schemas/MountPeriodResponse"
+            },
+            "title": "Mount Periods",
+            "type": "array"
+          },
           "notes": {
             "anyOf": [
               {
@@ -16516,15 +16949,22 @@
             "title": "Notes"
           },
           "position": {
-            "enum": [
-              "FL",
-              "FR",
-              "RL",
-              "RR",
-              "SPARE"
+            "anyOf": [
+              {
+                "enum": [
+                  "FL",
+                  "FR",
+                  "RL",
+                  "RR",
+                  "SPARE"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ],
-            "title": "Position",
-            "type": "string"
+            "title": "Position"
           },
           "pressure_kpa": {
             "anyOf": [
@@ -16569,6 +17009,29 @@
             "title": "Readings",
             "type": "array"
           },
+          "retired_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retired On"
+          },
+          "set_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Set Id"
+          },
           "size": {
             "anyOf": [
               {
@@ -16608,10 +17071,20 @@
           "vin": {
             "title": "Vin",
             "type": "string"
+          },
+          "wear_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wear Status"
           }
         },
         "required": [
-          "position",
           "id",
           "vin",
           "created_at"
@@ -16619,8 +17092,94 @@
         "title": "TireResponse",
         "type": "object"
       },
+      "TireRotationMove": {
+        "additionalProperties": false,
+        "description": "One tire's destination in a rotation.",
+        "properties": {
+          "position": {
+            "enum": [
+              "FL",
+              "FR",
+              "RL",
+              "RR",
+              "SPARE"
+            ],
+            "title": "Position",
+            "type": "string"
+          },
+          "tire_id": {
+            "title": "Tire Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "tire_id",
+          "position"
+        ],
+        "title": "TireRotationMove",
+        "type": "object"
+      },
+      "TireRotationRequest": {
+        "additionalProperties": false,
+        "description": "Move several tires at once.\n\nAll or nothing. A partial rotation would leave the vehicle in an\narrangement the user did not ask for and cannot easily read back, which\nfor something done four tires at a time is worse than a refusal.",
+        "properties": {
+          "moves": {
+            "items": {
+              "$ref": "#/components/schemas/TireRotationMove"
+            },
+            "minItems": 1,
+            "title": "Moves",
+            "type": "array"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "odometer_km": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Odometer Km"
+          },
+          "rotated_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rotated On"
+          }
+        },
+        "required": [
+          "moves"
+        ],
+        "title": "TireRotationRequest",
+        "type": "object"
+      },
       "TireUpdate": {
-        "description": "Partial tire update.",
+        "additionalProperties": false,
+        "description": "Partial tire update.\n\nNeither `position` nor `installed_date` is writable here: position changes\nthrough mount/dismount (D14), and `installed_date` is derived (D12).",
         "properties": {
           "brand": {
             "anyOf": [
@@ -16645,18 +17204,6 @@
               }
             ],
             "title": "Dot Code"
-          },
-          "installed_date": {
-            "anyOf": [
-              {
-                "format": "date",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Installed Date"
           },
           "min_tread_mm": {
             "anyOf": [
@@ -40584,7 +41131,7 @@
     },
     "/api/vehicles/{vin}/tires": {
       "get": {
-        "description": "List tires (all positions) for a vehicle with wear projections.",
+        "description": "List a vehicle's tires, with distance and wear.\n\nRetired tires are excluded unless `include_retired` is set: they are\nhistory rather than inventory, and nothing more can be recorded about them.",
         "operationId": "list_tires_api_vehicles__vin__tires_get",
         "parameters": [
           {
@@ -40594,6 +41141,16 @@
             "schema": {
               "title": "Vin",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_retired",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Retired",
+              "type": "boolean"
             }
           }
         ],
@@ -40630,8 +41187,8 @@
         ]
       },
       "post": {
-        "description": "Create or replace the tire at a given position.",
-        "operationId": "upsert_tire_api_vehicles__vin__tires_post",
+        "description": "Create a tire. It is not mounted until you mount it.\n\n**Breaking in v3.3.0.** This used to take a `position` and upsert by\n`(vin, position)`. It no longer accepts `position` at all, and a payload\ncarrying one is rejected with 422 rather than silently creating a second,\nunmounted tire. Create then mount, or use the create-and-mount endpoint.",
+        "operationId": "create_tire_api_vehicles__vin__tires_post",
         "parameters": [
           {
             "in": "path",
@@ -40680,7 +41237,123 @@
             "HTTPBearer": []
           }
         ],
-        "summary": "Upsert Tire",
+        "summary": "Create Tire",
+        "tags": [
+          "tires"
+        ]
+      }
+    },
+    "/api/vehicles/{vin}/tires/create-and-mount": {
+      "post": {
+        "description": "Create a tire and mount it in one step.\n\nAtomic: if the corner is occupied the whole operation fails with 409 and\nno tire is created. Doing the two calls by hand and losing the second\nleaves an orphan tire the caller did not ask for.",
+        "operationId": "create_and_mount_tire_api_vehicles__vin__tires_create_and_mount_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vin",
+            "required": true,
+            "schema": {
+              "title": "Vin",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TireCreateAndMountRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TireResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create And Mount Tire",
+        "tags": [
+          "tires"
+        ]
+      }
+    },
+    "/api/vehicles/{vin}/tires/rotate": {
+      "post": {
+        "description": "Move several tires at once.\n\nAll or nothing: if any move is invalid, nothing moves. Returns the whole\ntire list, because a rotation changes several of them and returning one\nwould leave the caller to re-fetch the rest.",
+        "operationId": "rotate_tires_api_vehicles__vin__tires_rotate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vin",
+            "required": true,
+            "schema": {
+              "title": "Vin",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TireRotationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TireListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Rotate Tires",
         "tags": [
           "tires"
         ]
@@ -40801,6 +41474,140 @@
         ]
       }
     },
+    "/api/vehicles/{vin}/tires/{tire_id}/dismount": {
+      "post": {
+        "description": "Take a tire off the vehicle, closing its open mount period.\n\nThe tire keeps its readings and its history; it simply has no position.",
+        "operationId": "dismount_tire_api_vehicles__vin__tires__tire_id__dismount_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vin",
+            "required": true,
+            "schema": {
+              "title": "Vin",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "tire_id",
+            "required": true,
+            "schema": {
+              "title": "Tire Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TireDismountRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TireResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Dismount Tire",
+        "tags": [
+          "tires"
+        ]
+      }
+    },
+    "/api/vehicles/{vin}/tires/{tire_id}/mount": {
+      "post": {
+        "description": "Mount a stored tire at a position, opening a mount period.\n\n409 if this tire is already mounted, or if another tire holds that corner.",
+        "operationId": "mount_tire_api_vehicles__vin__tires__tire_id__mount_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vin",
+            "required": true,
+            "schema": {
+              "title": "Vin",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "tire_id",
+            "required": true,
+            "schema": {
+              "title": "Tire Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TireMountRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TireResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Mount Tire",
+        "tags": [
+          "tires"
+        ]
+      }
+    },
     "/api/vehicles/{vin}/tires/{tire_id}/readings": {
       "post": {
         "description": "Append a tread/pressure reading and refresh wear projection + reminders.",
@@ -40863,6 +41670,73 @@
           }
         ],
         "summary": "Add Tire Reading",
+        "tags": [
+          "tires"
+        ]
+      }
+    },
+    "/api/vehicles/{vin}/tires/{tire_id}/retire": {
+      "post": {
+        "description": "Retire a tire: take it off the vehicle and keep its whole history.\n\nThis is what replacing a worn tire means. `DELETE` still exists for a tire\nentered by mistake, and it destroys every reading and mount period.",
+        "operationId": "retire_tire_api_vehicles__vin__tires__tire_id__retire_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vin",
+            "required": true,
+            "schema": {
+              "title": "Vin",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "tire_id",
+            "required": true,
+            "schema": {
+              "title": "Tire Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TireDismountRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TireResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Retire Tire",
         "tags": [
           "tires"
         ]

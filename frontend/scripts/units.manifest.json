@@ -841,7 +841,7 @@
   {
    "path": "src/components/TireList.tsx",
    "disposition": "audited",
-   "digest": "5f713bf197343bd9127b064cdc657092c75498647a832565b46591409e76d4fd",
+   "digest": "fff6f945336910caddf5a9662e2355bec8965b89e6ce8a44fd1f33ce57a0523f",
    "reason": "tread and pressure through useUnitFormat with seeded origins. Phase 5a made the reading drawer's tread OPTIONAL (#152): the at-least-one guard now resolves BOTH tread and pressure through canonicalFromUnitField before refusing, where it resolved tread alone and left pressure to be converted inside the payload literal. That is the same unit decision applied to a second field, not a new one, and both still submit the seeded canonical value when untouched. A pressure-only reading posts tread_depth_mm: null, which carries no unit; the card already guarded its tread cell with `!= null` because Tire.tread_depth_mm was nullable already. The reading-history drawer added after phase 5a renders tread, pressure and odometer through u.tread / u.pressure / u.distance, the same three adapters and the same resolved `u` the card above it uses, so a history row cannot disagree with the card. It reads canonical fields only through `num()` and formats every one of them; nothing raw reaches the DOM, and a mutation swapping the tread cell for String(reading.tread_depth_mm) fails TireList.test.tsx. The overlay button that opens it carries no unit.",
    "tests": [
     "components/__tests__/TireList.metric.test.tsx",
@@ -1843,7 +1843,7 @@
   {
    "path": "src/hooks/queries/useTires.ts",
    "disposition": "no unit behaviour",
-   "digest": "0557cdb632561aad4f7888f03ac132ab2c55919a057a6cdcfeff503cf20477b2",
+   "digest": "2bc917fccdd1a23b4a1f8a87219b80f9128ba90a1fedb67247d31354a533e2ce",
    "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched 1 of them; every hit was read in context and none is a unit decision or a unit-bearing quantity."
   },
   {
@@ -2063,7 +2063,7 @@
   {
    "path": "src/locales/en/vehicles.json",
    "disposition": "audited",
-   "digest": "ccb4e6c8ef025e18f0bf091b57a13152a1031e2e1683a4899c8cef1d9d95f35a",
+   "digest": "6be43360b38ec3a7c5d1a8010838f12ca1537c00f5ff7d669729a1e25a2b40a2",
    "reason": "windowSticker.misc.fuelEconomyMpg and the warranty placeholders reproduce a US Monroney label verbatim and are exempt for the same reason as WindowStickerUpload. defList.gallons and propaneList.gallons still EXIST in `en` and in these bundles; what changed is that no code reads them any more (both list headers moved to the `volumeUnit` interpolation, and their tests assert the old key is absent from the rendered header). Unreferenced keys, not stale translations: verified by grep, because the first version of this sentence said `en` had dropped them and `en` had not. Task 6 replaced the raw `units.volume === 'L'` prose selection with the same `{{unit}}` interpolation the volume COLUMN already used, so the two cannot disagree: totalLiters / totalGallons are gone and totalVolume takes getVolumeUnit(units). Task 7 added the cost-per-distance card's label as `{{unit}}` interpolation (`fuelList.costPerDistance` / `vehicle.costPerDistance`): it used to be two hardcoded English strings inside `UnitFormatter.getCostPerDistanceLabel`, which bypassed i18n entirely, so every reader of every language was shown 'Cost/1k Miles' or 'Cost/100 km'. The unit half is composed from the resolved distance adapter, so the bundle names no unit of its own. Fix round 1 added `avgCostPerVolume` (and, where the list shows a total, `volumeTotal`) for the same reason and in the same shape: they replace two hardcoded English strings inside UnitFormatter that rendered in six summary cards. Both interpolate the unit or the already-composed value, so the bundle still names no unit of its own. Phase 5a (#152) replaced tireList.treadRequired with tireList.treadOrPressureRequired, the refusal message for a reading that measures nothing. Neither string names or implies a unit: the tread and pressure FIELDS are labelled by the existing treadWithUnit / pressureWithUnit interpolations, which are unchanged. The tireList.history* keys and tireList.odometer added with the reading-history drawer name no unit either: odometer is a bare label matching the existing bare tread and pressure labels on the card, and the value beside each is composed by the resolved adapter rather than by the bundle.",
    "tests": [
     "__tests__/volumeTotalLabelLocales.test.ts",
@@ -2434,7 +2434,7 @@
   {
    "path": "src/types/api.generated.ts",
    "disposition": "no unit behaviour",
-   "digest": "ba8facefa4433d6450b803bd366ffabe6c0ef42837169eeccb267977cc7b2b27",
+   "digest": "182e2dfbe8045af4686108ce139fd7a09e4406e9e49284f22bf378f2b5a43ebd",
    "reason": "no unit behaviour: a GENERATED type module. It declares the `UnitSet` vocabulary itself (`distance: \"km\" | \"mi\"` and nine more), so it is dense with unit vocabulary in a unit context, but it declares types rather than deciding or rendering anything. Its digest is load-bearing rather than incidental: this is the file the token-branch leg derives its vocabularies from, so a new unit token arriving from the backend is a review event, and an unrelated schema change costs one cheap re-acknowledgement. Re-acknowledged for the LiveLink odometer-units fix: the regenerated schema adds LiveLinkDeviceResponse.odometer_unit (`string | null`) and LiveLinkDeviceUpdate.odometer_unit (`\"km\" | \"mi\" | \"auto\" | null`). Reviewed as NOT a new UnitSet token: 'km'/'mi' here name what a piece of hardware reports rather than what a user wants displayed, and 'auto' is a clear-the-override sentinel, not a unit. The UnitSet vocabulary is untouched."
   },
   {
@@ -2572,7 +2572,7 @@
   {
    "path": "src/types/tire.ts",
    "disposition": "no unit behaviour",
-   "digest": "0cb084c541dd4d9a086f129339e12fc79bdb0da94902b12e34895b6e2d1340ed",
+   "digest": "97af57c6d35f66db9f9fab2c53cf8461dbf730f37133a505e7772d4b080ef321",
    "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched 2 of them; every hit was read in context and none is a unit decision or a unit-bearing quantity."
   },
   {

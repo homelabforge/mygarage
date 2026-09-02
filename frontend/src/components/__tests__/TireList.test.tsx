@@ -7,9 +7,19 @@ const useUpsertTireMock = vi.fn()
 const useAddTireReadingMock = vi.fn()
 const useDeleteTireMock = vi.fn()
 
+// v3.3.0 split the single upsert into create-and-mount plus update, and added
+// mount/dismount. The old `useUpsertTire` name is kept for the mock variable
+// because every assertion below is about the payload a save produces, and that
+// payload is now create-and-mount's.
 vi.mock('../../hooks/queries/useTires', () => ({
   useTires: () => useTiresMock(),
-  useUpsertTire: () => useUpsertTireMock(),
+  useCreateAndMountTire: () => useUpsertTireMock(),
+  useCreateTire: () => useUpsertTireMock(),
+  useUpdateTire: () => useUpsertTireMock(),
+  useMountTire: () => useUpsertTireMock(),
+  useDismountTire: () => useUpsertTireMock(),
+  useRetireTire: () => useUpsertTireMock(),
+  useRotateTires: () => useUpsertTireMock(),
   useAddTireReading: () => useAddTireReadingMock(),
   useDeleteTire: () => useDeleteTireMock(),
 }))
@@ -91,13 +101,19 @@ describe('TireList', () => {
     fireEvent.click(screen.getByLabelText('tireList.edit'))
     fireEvent.click(screen.getByText('common:save'))
 
-    expect(mutate.mock.calls[0][0]).toMatchObject({
-      position: 'FL',
+    // No `position` in an edit payload since v3.3.0. Editing a tire's
+    // metadata does not move it: where a tire sits changes through
+    // mount/dismount, and `position` is not a writable field at all -- the
+    // backend rejects a payload carrying one with a 422.
+    const payload = mutate.mock.calls[0][0]
+    expect(payload).toMatchObject({
+      tireId: 1,
       brand: 'Michelin',
       model_name: 'Pilot Sport 4',
       size: '225/45R17',
       dot_code: '2324',
     })
+    expect(payload).not.toHaveProperty('position')
   })
 
   it('posts a blank reading odometer as null, stepping the field in whole units', () => {
@@ -536,5 +552,87 @@ describe('TireList', () => {
       expect(screen.queryByText('tireList.historyEmpty')).not.toBeInTheDocument()
       expect(screen.getByText('tireList.editTitleNamed')).toBeInTheDocument()
     })
+  })
+})
+
+describe('TireList – mount and dismount', () => {
+  const MOUNTED = {
+    id: 1,
+    vin: '1HGCM82633A004352',
+    position: 'FL',
+    brand: 'Michelin',
+    below_threshold: false,
+    readings: [],
+    mount_periods: [],
+    distance_status: 'nothing_bounded',
+    blocking_period_ids: [],
+    created_at: '2026-01-01T00:00:00',
+  }
+  const STORED = { ...MOUNTED, id: 2, position: null, brand: 'Winter' }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    useAddTireReadingMock.mockReturnValue({ mutate: vi.fn(), isPending: false })
+    useDeleteTireMock.mockReturnValue({ mutate: vi.fn(), isPending: false })
+  })
+
+  it('lists a stored tire without rendering an undefined position', () => {
+    useTiresMock.mockReturnValue({
+      data: { tires: [STORED], total: 1 },
+      isLoading: false,
+      error: null,
+    })
+    useUpsertTireMock.mockReturnValue({ mutate: vi.fn(), isPending: false })
+
+    render(<TireList vin="1HGCM82633A004352" />)
+
+    // A tire off the vehicle still has to be identifiable. Before the label
+    // helper this rendered `positionLabels[null]`, i.e. nothing at all.
+    expect(screen.getAllByText('tireList.inStorage').length).toBeGreaterThan(0)
+    expect(screen.queryByText('undefined')).toBeNull()
+  })
+
+  it('does not carry a mount odometer over into the dismount drawer', () => {
+    // These were one piece of state. A value typed into Mount and abandoned
+    // reappeared in Dismount and silently became that period's closing bound
+    // -- the number a tire's whole distance is computed from.
+    useTiresMock.mockReturnValue({
+      data: { tires: [MOUNTED, STORED], total: 2 },
+      isLoading: false,
+      error: null,
+    })
+    const mutate = vi.fn()
+    useUpsertTireMock.mockReturnValue({ mutate, isPending: false })
+
+    render(<TireList vin="1HGCM82633A004352" />)
+
+    // Addressed by id: both drawers are in the DOM at once, so an accessible
+    // name shared between them matches two fields.
+    fireEvent.click(screen.getByText('tireList.mount'))
+    const mountField = document.querySelector('#mount-odometer') as HTMLInputElement
+    expect(mountField).toBeTruthy()
+    fireEvent.change(mountField, { target: { value: '54321' } })
+    fireEvent.click(screen.getAllByText('common:cancel')[0])
+
+    fireEvent.click(screen.getByText('tireList.dismount'))
+    const dismountField = document.querySelector('#dismount-odometer') as HTMLInputElement
+    expect(dismountField).toBeTruthy()
+    expect(dismountField.value).toBe('')
+  })
+
+  it('renders a per-status distance message rather than a zero', () => {
+    // `nothing_bounded` is the state of EVERY tire immediately after
+    // upgrading, so rendering it as "0 km" would tell every user their tires
+    // had never been driven on.
+    useTiresMock.mockReturnValue({
+      data: { tires: [STORED], total: 1 },
+      isLoading: false,
+      error: null,
+    })
+    useUpsertTireMock.mockReturnValue({ mutate: vi.fn(), isPending: false })
+
+    render(<TireList vin="1HGCM82633A004352" />)
+
+    expect(screen.getByText('tireList.distance.nothingBounded')).toBeTruthy()
   })
 })
