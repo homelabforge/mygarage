@@ -160,7 +160,12 @@ class TestVehicleDetailStats:
                     title="Done",
                     reminder_type="date",
                     due_date=today + timedelta(days=1),
-                    status="completed",
+                    # 'done', not 'completed': check_reminder_status has always
+                    # been (pending, done, dismissed) in the migrated schema, and
+                    # nothing in the app writes "completed". This fixture only
+                    # passed because the ORM declared no CHECK, so create_all
+                    # databases accepted a value production rejects.
+                    status="done",
                 ),  # neither
             ]
         )

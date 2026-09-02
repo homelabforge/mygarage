@@ -107,3 +107,4 @@ migrations must swallow their own operational errors.
 | `094_nullable_reading_tread` | **FATAL** — Allow NULL tire_readings.tread_depth_mm for pressure-only readings. |
 | `095_add_vehicle_maintenance_specs` | **FATAL** — Add structured maintenance-spec columns on vehicles (oil, torque, fluids). |
 | `096_add_device_odometer_unit` | **FATAL** — Add livelink_devices.odometer_unit and backfill it from observed param keys. |
+| `097_tire_mount_periods` | **FATAL** — Give tires a mount history, and make `position` mean "where it is now". |

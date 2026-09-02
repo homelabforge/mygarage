@@ -9,7 +9,10 @@ from app.database import get_db
 from app.models.user import User
 from app.schemas.tire import (
     TireCreate,
+    TireCreateAndMountRequest,
+    TireDismountRequest,
     TireListResponse,
+    TireMountRequest,
     TireReadingCreate,
     TireResponse,
     TireUpdate,
@@ -33,14 +36,66 @@ async def list_tires(
 
 
 @router.post("/{vin}/tires", response_model=TireResponse, status_code=201)
-async def upsert_tire(
+async def create_tire(
     vin: str,
     data: TireCreate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_auth),
 ) -> TireResponse:
-    """Create or replace the tire at a given position."""
-    return await TireService(db).upsert_tire(vin, data, current_user)
+    """Create a tire. It is not mounted until you mount it.
+
+    **Breaking in v3.3.0.** This used to take a `position` and upsert by
+    `(vin, position)`. It no longer accepts `position` at all, and a payload
+    carrying one is rejected with 422 rather than silently creating a second,
+    unmounted tire. Create then mount, or use the create-and-mount endpoint.
+    """
+    return await TireService(db).create_tire(vin, data, current_user)
+
+
+@router.post("/{vin}/tires/create-and-mount", response_model=TireResponse, status_code=201)
+async def create_and_mount_tire(
+    vin: str,
+    data: TireCreateAndMountRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_auth),
+) -> TireResponse:
+    """Create a tire and mount it in one step.
+
+    Atomic: if the corner is occupied the whole operation fails with 409 and
+    no tire is created. Doing the two calls by hand and losing the second
+    leaves an orphan tire the caller did not ask for.
+    """
+    return await TireService(db).create_and_mount(vin, data, current_user)
+
+
+@router.post("/{vin}/tires/{tire_id}/mount", response_model=TireResponse)
+async def mount_tire(
+    vin: str,
+    tire_id: int,
+    data: TireMountRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_auth),
+) -> TireResponse:
+    """Mount a stored tire at a position, opening a mount period.
+
+    409 if this tire is already mounted, or if another tire holds that corner.
+    """
+    return await TireService(db).mount_tire(vin, tire_id, data, current_user)
+
+
+@router.post("/{vin}/tires/{tire_id}/dismount", response_model=TireResponse)
+async def dismount_tire(
+    vin: str,
+    tire_id: int,
+    data: TireDismountRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_auth),
+) -> TireResponse:
+    """Take a tire off the vehicle, closing its open mount period.
+
+    The tire keeps its readings and its history; it simply has no position.
+    """
+    return await TireService(db).dismount_tire(vin, tire_id, data, current_user)
 
 
 @router.put("/{vin}/tires/{tire_id}", response_model=TireResponse)
