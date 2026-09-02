@@ -556,7 +556,7 @@
   {
    "path": "src/components/LineItemEditor.tsx",
    "disposition": "audited",
-   "digest": "3df433e8016c8a46d32f691146b4b41f220086d64fd985b619a8d988ece2e64a",
+   "digest": "1901f063844fa2fad71e9f18d2270ba0c830cb64b5188a910e8b0452897af2da",
    "reason": "the reminder mileage it WRITES into due_mileage_km, through useUnitFormat. An earlier plan revision filed this component as display-only",
    "tests": [
     "components/__tests__/LineItemEditor.mixedUnits.test.tsx",
@@ -739,7 +739,7 @@
   {
    "path": "src/components/ServiceVisitForm.tsx",
    "disposition": "audited",
-   "digest": "c697dffd32570383909a8dea9cdc9aa2165db2172cb2d32c46ef6729f56579b8",
+   "digest": "9be28a5d41381678faed57c03c3591ea7bbfe5c7601f7e8bbc2f5b962a5c0a90",
    "reason": "the odometer through useUnitFormat with a seeded origin. `system` survives for the SUPPLY quantities only (D8 exempts supplies). Ruling R3 gave canonicalToDisplay/displayToCanonical to task 5, which RULED them exempt: see src/utils/supplyUnits.ts, whose exemption is now owned by a D8 amendment rather than by a task.",
    "tests": [
     "components/__tests__/ServiceVisitForm.mixedUnits.test.tsx",
@@ -820,7 +820,7 @@
   {
    "path": "src/components/SupplyUsedPicker.tsx",
    "disposition": "audited",
-   "digest": "d06cce9ca03b0bb5064fea347d93ef7e178c753170ab9b1b429a089006c2dd7b",
+   "digest": "e55c5250d25fe3a690fd5f739bf27074c751d2acb844e6fb2eaadddf4bd3b874",
    "reason": "renders supplyUnitLabel only; inherits the D8 quarts decision recorded on utils/supplyUnits.ts",
    "tests": [
     "utils/__tests__/supplyUnits.test.ts"
@@ -2015,13 +2015,13 @@
   {
    "path": "src/locales/en/common.json",
    "disposition": "no unit behaviour",
-   "digest": "f8a4933b6f4a01e2f98eadd7f5a094e293475f06e5a24f5060dffe9fce4b8658",
+   "digest": "c042af1d231bee9cfc6f8eafb6a33ca12b3accb528f89a6f5b2512141f6ac741",
    "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched 10 of them; every hit was read in context and none is a unit decision or a unit-bearing quantity."
   },
   {
    "path": "src/locales/en/forms.json",
    "disposition": "audited",
-   "digest": "ab9e89d275e647da4337e4b92a1fb8fb51ff242799c73c9aaca9e07ad82ffe64",
+   "digest": "ac108d2f54c70206394550597220e12acd87fe3399511220458a2ec162219470",
    "reason": "fuel.receiptTextPlaceholder is a plausible EXAMPLE receipt (ruling R5's exempt class): there is no canonical value behind it to convert. Task 6 fixed the reminder distance copy: reminder.milesUntilDue / reminder.milesRequired are renamed to reminder.distanceUntilDue / reminder.distanceRequired and their prose no longer names a unit, so the unit comes only from u.distance.label. Covered by components/__tests__/ReminderForm.distanceCopy.test.tsx, which resolves this bundle and asserts the RENDERED prose rather than a key. Re-acknowledged for the LiveLink odometer-units fix: five keys added under modal.livelink.odometerUnit* labelling a per-device hardware-units selector (\"Kilometers\"/\"Miles\"/\"Auto (from PID)\" plus help text). These name what a DONGLE reports, not what the reader sees — they are deliberately absolute unit words rather than u.distance.label, because the value being chosen is the device's unit and must not follow the viewer's display preference.",
    "tests": [
     "components/__tests__/ReminderForm.distanceCopy.test.tsx",

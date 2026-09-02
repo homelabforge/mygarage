@@ -344,6 +344,120 @@ export default function ServiceVisitForm({
   const mapSuppliesUsedForSubmit = (item: ServiceVisitFormLineItem): SupplyUsedEntry[] =>
     convertSupplyUsages(item.supplies_used ?? [], suppliesById, system, displayToCanonical)
 
+  /**
+   * The replacement for the form's native constraints.
+   *
+   * `noValidate` on the form means the browser no longer enforces `required`,
+   * `min` or `step`, so each has an equivalent here. This is not optional
+   * belt-and-braces: without the date check, `noValidate` would let a blank
+   * date reach the API, turning a silent no-op into a silent bad write.
+   *
+   * Returns a field-keyed map so errors render inline on the offending
+   * control via `<Field error=...>`, rather than as one banner that does not
+   * say which input is wrong.
+   */
+  const validateFields = (): Record<string, string> => {
+    const errors: Record<string, string> = {}
+
+    if (!formData.date) {
+      errors.date = t('common:required')
+    }
+
+    // `min="0"` equivalents. Checked with `< 0` rather than `!(x >= 0)` so an
+    // empty optional field stays valid.
+    const nonNegative: [keyof ServiceVisitFormData, string][] = [
+      ['odometer_km', 'odometer_km'],
+      ['engine_hours', 'engine_hours'],
+      ['tax_amount', 'tax_amount'],
+      ['shop_supplies', 'shop_supplies'],
+      ['misc_fees', 'misc_fees'],
+    ]
+    for (const [field, key] of nonNegative) {
+      const raw = formData[field]
+      if (raw === undefined || raw === null || raw === '') continue
+      const value = typeof raw === 'string' ? parseFloat(raw) : (raw as number)
+      if (Number.isNaN(value)) {
+        errors[key] = t('common:mustBeANumber')
+      } else if (value < 0) {
+        errors[key] = t('common:mustNotBeNegative')
+      }
+    }
+
+    // `step` equivalents. The browser rejected a value that was not a whole
+    // multiple of the step; the user-visible meaning is a decimal-place limit,
+    // so that is what the message says.
+    const decimals: [keyof ServiceVisitFormData, string, number][] = [
+      ['odometer_km', 'odometer_km', 1],
+      ['engine_hours', 'engine_hours', 1],
+      ['tax_amount', 'tax_amount', 2],
+      ['shop_supplies', 'shop_supplies', 2],
+      ['misc_fees', 'misc_fees', 2],
+    ]
+    for (const [field, key, places] of decimals) {
+      if (errors[key]) continue
+      const raw = formData[field]
+      if (raw === undefined || raw === null || raw === '') continue
+      const text = String(raw)
+      const fraction = text.includes('.') ? text.split('.')[1].length : 0
+      if (fraction > places) {
+        errors[key] = t('common:tooManyDecimals', { count: places })
+      }
+    }
+
+    return errors
+  }
+
+  /**
+   * The nested components' native constraints, enforced here.
+   *
+   * `LineItemEditor` and `SupplyUsedPicker` render INSIDE this form, so their
+   * `min`/`step` attributes abort ITS submit -- and they sit in per-line-item
+   * sections that may be collapsed or scrolled away, which is precisely where
+   * the browser cannot focus the offending control and the failure is silent.
+   * They are also the fields a user is most likely to fumble.
+   *
+   * Their data lives in this component's `formData.line_items`, so the check
+   * belongs here rather than in components that have no error-display path.
+   * Reported through `setError` as a banner, matching how the existing
+   * description and inspection checks already report per-line-item problems.
+   */
+  const validateLineItems = (): string | null => {
+    for (const [i, item] of formData.line_items.entries()) {
+      const n = i + 1
+      if (item.cost !== undefined && item.cost !== null) {
+        if (Number.isNaN(item.cost)) return t('service.lineItemCostInvalid', { number: n })
+        if (item.cost < 0) return t('service.lineItemCostNegative', { number: n })
+        const text = String(item.cost)
+        if (text.includes('.') && text.split('.')[1].length > 2) {
+          return t('service.lineItemCostDecimals', { number: n })
+        }
+      }
+      // The replaced `min="1"` sat on the DISPLAY value, while
+      // `due_mileage_km` is canonical km (LineItemEditor converts on change).
+      // Comparing canonical km against a bare 1 would silently loosen the
+      // floor for an imperial account from 1 mi to 1 km, so the threshold is
+      // converted into the same space the constraint was written in.
+      const km = item.reminderDraft?.due_mileage_km
+      const minimumKm = u.distance.toCanonical(1) ?? 1
+      if (km != null && !Number.isNaN(Number(km)) && Number(km) < minimumKm) {
+        return t('service.reminderIntervalTooSmall', { number: n })
+      }
+      for (const usage of item.supplies_used ?? []) {
+        if (Number.isNaN(usage.quantity) || usage.quantity < 0) {
+          return t('service.supplyQuantityInvalid', { number: n })
+        }
+        // The replaced `step` was `'1'` for count-type supplies and `'0.01'`
+        // otherwise, so a count could not take a fraction. The backend only
+        // enforces `gt=0` (schemas/supply.py:75), so dropping this check
+        // rather than moving it would let "2.5 oil filters" through.
+        if (suppliesById.get(usage.supply_id)?.unit_type === 'count' && !Number.isInteger(usage.quantity)) {
+          return t('service.supplyQuantityWholeNumber', { number: n })
+        }
+      }
+    }
+    return null
+  }
+
   const handleSubmit = async (e: SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault()
     setError(null)
@@ -358,7 +472,21 @@ export default function ServiceVisitForm({
       return
     }
 
-    // Validate
+    // Validate. Field-level constraints first: these replace the native
+    // `required`/`min`/`step` attributes the form no longer carries, and they
+    // render inline on the control rather than as a banner.
+    const fieldLevel = validateFields()
+    if (Object.keys(fieldLevel).length > 0) {
+      setFieldErrors(fieldLevel)
+      return
+    }
+
+    const lineItemProblem = validateLineItems()
+    if (lineItemProblem) {
+      setError(lineItemProblem)
+      return
+    }
+
     const emptyDescriptions = formData.line_items.some((item) => !item.description.trim())
     if (emptyDescriptions) {
       setError(t('service.allLineItemsNeedDescription'))
@@ -531,7 +659,16 @@ export default function ServiceVisitForm({
         </>
       }
     >
-        <form id="service-visit-form" onSubmit={handleSubmit} className="p-6 space-y-6">
+        <form
+          id="service-visit-form"
+          onSubmit={handleSubmit}
+          // Native constraints abort submit and try to focus the offending
+          // control. Inside a collapsed or scrolled-away section the browser
+          // cannot focus it, so Save silently does nothing. Every constraint
+          // that used to live on an input is enforced by validateForm below.
+          noValidate
+          className="p-6 space-y-6"
+        >
           {error && (
             <div className="bg-danger/10 border border-danger rounded-lg p-3 flex items-center gap-2">
               <AlertTriangle aria-hidden="true" className="w-5 h-5 text-danger" />
@@ -550,7 +687,6 @@ export default function ServiceVisitForm({
                   id="service-date"
                   value={formData.date}
                   onChange={(e) => handleFieldChange('date', e.target.value)}
-                  required
                   disabled={submitting}
                 />
               </Field>
@@ -563,8 +699,6 @@ export default function ServiceVisitForm({
                     mono
                     value={formData.odometer_km ?? ''}
                     onChange={(e) => handleFieldChange('odometer_km', e.target.value ? parseFloat(e.target.value) : undefined)}
-                    min="0"
-                    step="0.1"
                     /* One example reading (72420 km) rendered in the client's
                        own distance unit, rather than one of two literals chosen
                        by a collapsed system. It reproduces both shipped hints
@@ -587,8 +721,6 @@ export default function ServiceVisitForm({
                   mono
                   value={formData.engine_hours ?? ''}
                   onChange={(e) => handleFieldChange('engine_hours', e.target.value ? parseFloat(e.target.value) : undefined)}
-                  min="0"
-                  step="0.1"
                   placeholder="812.4"
                   disabled={submitting}
                 />
@@ -676,8 +808,6 @@ export default function ServiceVisitForm({
                     id="tax-amount"
                     value={formData.tax_amount ?? ''}
                     onChange={(e) => handleFieldChange('tax_amount', e.target.value ? parseFloat(e.target.value) : undefined)}
-                    min="0"
-                    step="0.01"
                     placeholder="0.00"
                     disabled={submitting}
                     className="ui-focus-input ui-motion w-full rounded-control border border-border bg-surface-2 pl-7 pr-3 py-2 text-sm text-text font-mono tabular-nums"
@@ -692,8 +822,6 @@ export default function ServiceVisitForm({
                     id="shop-supplies"
                     value={formData.shop_supplies ?? ''}
                     onChange={(e) => handleFieldChange('shop_supplies', e.target.value ? parseFloat(e.target.value) : undefined)}
-                    min="0"
-                    step="0.01"
                     placeholder="0.00"
                     disabled={submitting}
                     className="ui-focus-input ui-motion w-full rounded-control border border-border bg-surface-2 pl-7 pr-3 py-2 text-sm text-text font-mono tabular-nums"
@@ -708,8 +836,6 @@ export default function ServiceVisitForm({
                     id="misc-fees"
                     value={formData.misc_fees ?? ''}
                     onChange={(e) => handleFieldChange('misc_fees', e.target.value ? parseFloat(e.target.value) : undefined)}
-                    min="0"
-                    step="0.01"
                     placeholder="0.00"
                     disabled={submitting}
                     className="ui-focus-input ui-motion w-full rounded-control border border-border bg-surface-2 pl-7 pr-3 py-2 text-sm text-text font-mono tabular-nums"

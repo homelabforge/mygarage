@@ -223,8 +223,6 @@ export default function LineItemEditor({
                   type="number"
                   value={item.cost ?? ''}
                   onChange={(e) => onChange(index, 'cost', e.target.value ? parseFloat(e.target.value) : undefined)}
-                  min="0"
-                  step="0.01"
                   placeholder="0.00"
                   disabled={disabled}
                   className="w-full pl-7 pr-3 py-2 border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text"
@@ -385,7 +383,6 @@ export default function LineItemEditor({
                             const km = val != null ? u.distance.toCanonical(val) ?? undefined : undefined
                             handleReminderFieldChange('due_mileage_km', km)
                           }}
-                          min="1"
                           /* One example for every account. R5 calls a
                              placeholder an EXAMPLE value with nothing canonical
                              to convert, and it was still being chosen by the

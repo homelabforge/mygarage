@@ -119,8 +119,6 @@ export default function SupplyUsedPicker({
                     onChange={(e) =>
                       handleQuantityChange(rowIndex, e.target.value ? parseFloat(e.target.value) : 0)
                     }
-                    min="0"
-                    step={unitType === 'count' ? '1' : '0.01'}
                     disabled={disabled}
                     aria-label={t('service.suppliesQuantity')}
                     className="w-full px-3 py-2 border border-garage-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-garage-bg text-garage-text"
