@@ -15,6 +15,7 @@ from app.schemas.tire import (
     TireMountRequest,
     TireReadingCreate,
     TireResponse,
+    TireRotationRequest,
     TireUpdate,
 )
 from app.services.auth import require_auth
@@ -55,6 +56,22 @@ async def create_tire(
     unmounted tire. Create then mount, or use the create-and-mount endpoint.
     """
     return await TireService(db).create_tire(vin, data, current_user)
+
+
+@router.post("/{vin}/tires/rotate", response_model=TireListResponse)
+async def rotate_tires(
+    vin: str,
+    data: TireRotationRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_auth),
+) -> TireListResponse:
+    """Move several tires at once.
+
+    All or nothing: if any move is invalid, nothing moves. Returns the whole
+    tire list, because a rotation changes several of them and returning one
+    would leave the caller to re-fetch the rest.
+    """
+    return await TireService(db).rotate_tires(vin, data, current_user)
 
 
 @router.post("/{vin}/tires/create-and-mount", response_model=TireResponse, status_code=201)

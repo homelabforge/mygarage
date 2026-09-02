@@ -11,6 +11,7 @@ season of data is erase it.
 from __future__ import annotations
 
 import uuid
+from decimal import Decimal
 
 import pytest
 import pytest_asyncio
@@ -284,3 +285,149 @@ class TestDeleteAndRetire:
             json={},
         )
         await _mount(client, auth_headers, vehicle, "FL")
+
+
+@pytest.mark.asyncio
+class TestRotation:
+    """A rotation moves several tires at once, and the order matters.
+
+    `uq_tires_vin_position` is an IMMEDIATE unique index on both dialects, so
+    moving FL to FR before FR has vacated violates it -- an X-pattern rotation
+    fails even though the requested FINAL arrangement is perfectly legal. The
+    service clears every affected position first, flushes, then assigns.
+    """
+
+    async def test_a_front_to_back_swap(
+        self, client: AsyncClient, auth_headers, vehicle, db_session
+    ):
+        fl = await _mount(client, auth_headers, vehicle, "FL", mounted_odometer_km="1000")
+        rl = await _mount(client, auth_headers, vehicle, "RL", mounted_odometer_km="1000")
+
+        response = await client.post(
+            f"/api/vehicles/{vehicle}/tires/rotate",
+            headers=auth_headers,
+            json={
+                "odometer_km": "20000",
+                "moves": [
+                    {"tire_id": fl["id"], "position": "RL"},
+                    {"tire_id": rl["id"], "position": "FL"},
+                ],
+            },
+        )
+        assert response.status_code == 200, response.text
+
+        tires = {t["id"]: t for t in response.json()["tires"]}
+        assert tires[fl["id"]]["position"] == "RL"
+        assert tires[rl["id"]]["position"] == "FL"
+
+    async def test_an_x_pattern_rotation_does_not_trip_the_unique_index(
+        self, client: AsyncClient, auth_headers, vehicle
+    ):
+        """The case that fails without the two-phase write.
+
+        Every tire moves and every target is currently occupied, so a
+        naive one-at-a-time assignment collides on the first move.
+        """
+        corners = {}
+        for position in ("FL", "FR", "RL", "RR"):
+            corners[position] = await _mount(
+                client, auth_headers, vehicle, position, mounted_odometer_km="1000"
+            )
+
+        response = await client.post(
+            f"/api/vehicles/{vehicle}/tires/rotate",
+            headers=auth_headers,
+            json={
+                "odometer_km": "20000",
+                "moves": [
+                    {"tire_id": corners["FL"]["id"], "position": "RR"},
+                    {"tire_id": corners["FR"]["id"], "position": "RL"},
+                    {"tire_id": corners["RL"]["id"], "position": "FR"},
+                    {"tire_id": corners["RR"]["id"], "position": "FL"},
+                ],
+            },
+        )
+        assert response.status_code == 200, response.text
+        placed = {t["id"]: t["position"] for t in response.json()["tires"]}
+        assert placed[corners["FL"]["id"]] == "RR"
+        assert placed[corners["RR"]["id"]] == "FL"
+
+    async def test_rotation_closes_and_opens_periods(
+        self, client: AsyncClient, auth_headers, vehicle, db_session
+    ):
+        """A rotation is a dismount and a remount, so the distance at each
+        corner stays attributable."""
+        fl = await _mount(client, auth_headers, vehicle, "FL", mounted_odometer_km="1000")
+        rl = await _mount(client, auth_headers, vehicle, "RL", mounted_odometer_km="1000")
+
+        await client.post(
+            f"/api/vehicles/{vehicle}/tires/rotate",
+            headers=auth_headers,
+            json={
+                "odometer_km": "20000",
+                "moves": [
+                    {"tire_id": fl["id"], "position": "RL"},
+                    {"tire_id": rl["id"], "position": "FL"},
+                ],
+            },
+        )
+
+        periods = (
+            (
+                await db_session.execute(
+                    select(TireMountPeriod)
+                    .where(TireMountPeriod.tire_id == fl["id"])
+                    .order_by(TireMountPeriod.id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert [p.position for p in periods] == ["FL", "RL"]
+        assert periods[0].dismounted_odometer_km == Decimal("20000")
+        assert periods[1].mounted_odometer_km == Decimal("20000")
+
+    async def test_a_rotation_onto_an_unmoved_tire_is_refused(
+        self, client: AsyncClient, auth_headers, vehicle
+    ):
+        """Moving FL to FR while FR stays put is a conflict, not a swap.
+
+        Refused as a whole: a partial rotation would leave the vehicle in a
+        state the user did not ask for and cannot easily read back.
+        """
+        fl = await _mount(client, auth_headers, vehicle, "FL")
+        await _mount(client, auth_headers, vehicle, "FR")
+
+        response = await client.post(
+            f"/api/vehicles/{vehicle}/tires/rotate",
+            headers=auth_headers,
+            json={"moves": [{"tire_id": fl["id"], "position": "FR"}]},
+        )
+        assert response.status_code == 409, response.text
+
+    async def test_nothing_moves_when_one_move_is_invalid(
+        self, client: AsyncClient, auth_headers, vehicle, db_session
+    ):
+        """Atomicity. Guards the guard on the two-phase write: a rotation that
+        applied its valid moves and rejected the rest would pass the conflict
+        test above while corrupting the vehicle."""
+        fl = await _mount(client, auth_headers, vehicle, "FL")
+        rl = await _mount(client, auth_headers, vehicle, "RL")
+
+        response = await client.post(
+            f"/api/vehicles/{vehicle}/tires/rotate",
+            headers=auth_headers,
+            json={
+                "moves": [
+                    {"tire_id": fl["id"], "position": "RL"},
+                    {"tire_id": 999999, "position": "FL"},
+                ]
+            },
+        )
+        assert response.status_code == 404, response.text
+
+        await db_session.commit()
+        listed = await client.get(f"/api/vehicles/{vehicle}/tires", headers=auth_headers)
+        placed = {t["id"]: t["position"] for t in listed.json()["tires"]}
+        assert placed[fl["id"]] == "FL", "a refused rotation must move nothing"
+        assert placed[rl["id"]] == "RL"

@@ -26,6 +26,7 @@ from app.schemas.tire import (
     TireReadingCreate,
     TireReadingResponse,
     TireResponse,
+    TireRotationRequest,
     TireUpdate,
 )
 from app.services.tire_results import (
@@ -535,6 +536,109 @@ class TireService:
         )
         await self.db.commit()
         return await self._reload_and_sync(tire.id, vin)
+
+    async def rotate_tires(
+        self, vin: str, data: TireRotationRequest, current_user: User
+    ) -> TireListResponse:
+        """Move several tires at once, in two phases.
+
+        **Why two phases.** `uq_tires_vin_position` is an IMMEDIATE unique
+        index on both dialects, so assigning one tire at a time fails the
+        moment a destination is still occupied -- which for a rotation is
+        always. An X-pattern swap collides on the very first move even though
+        the requested FINAL arrangement is perfectly legal.
+
+        So: clear every affected `tires.position` and close every affected
+        period, FLUSH, then assign the new positions and open the new periods.
+        Deferring the constraint is not an option; SQLite has no
+        `DEFERRABLE INITIALLY DEFERRED`.
+
+        All or nothing. A rotation that applied its valid moves and rejected
+        the rest would leave the vehicle in an arrangement nobody asked for.
+        """
+        from app.services.auth import get_vehicle_or_403
+
+        vin = vin.upper().strip()
+        await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
+
+        moving_ids = [move.tire_id for move in data.moves]
+        tires = {
+            tire.id: tire
+            for tire in (
+                await self.db.execute(select(Tire).where(Tire.id.in_(moving_ids), Tire.vin == vin))
+            )
+            .scalars()
+            .all()
+        }
+        missing = [tid for tid in moving_ids if tid not in tires]
+        if missing:
+            raise HTTPException(status_code=404, detail=f"Tire(s) not found: {missing}")
+
+        # A destination held by a tire that is NOT part of this rotation is a
+        # conflict, not a swap. Checked before any write.
+        targets = {move.position for move in data.moves}
+        blockers = (
+            (
+                await self.db.execute(
+                    select(Tire).where(
+                        Tire.vin == vin,
+                        Tire.position.in_(targets),
+                        Tire.id.notin_(moving_ids),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        if blockers:
+            occupied = sorted(t.position for t in blockers if t.position)
+            raise HTTPException(
+                status_code=409,
+                detail=f"Position(s) {occupied} are held by tires not in this rotation.",
+            )
+
+        when = data.rotated_on or utc_now().date()
+
+        # ---- Phase 1: vacate. -------------------------------------------
+        open_periods = {
+            period.tire_id: period
+            for period in (
+                await self.db.execute(
+                    select(TireMountPeriod).where(
+                        TireMountPeriod.tire_id.in_(moving_ids),
+                        TireMountPeriod.dismounted_on.is_(None),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        }
+        for tire_id in moving_ids:
+            tires[tire_id].position = None
+            period = open_periods.get(tire_id)
+            if period is not None:
+                period.dismounted_on = when
+                period.dismounted_odometer_km = data.odometer_km
+        # The flush is the point of the split: without it the assignments below
+        # race the old values still sitting in the unique index.
+        await self.db.flush()
+
+        # ---- Phase 2: assign. -------------------------------------------
+        for move in data.moves:
+            tires[move.tire_id].position = move.position
+            self.db.add(
+                TireMountPeriod(
+                    tire_id=move.tire_id,
+                    position=move.position,
+                    mounted_on=when,
+                    mounted_odometer_km=data.odometer_km,
+                    is_assumed=False,
+                    notes=data.notes,
+                )
+            )
+
+        await self.db.commit()
+        return await self.list_tires(vin, current_user)
 
     async def _get_tire_for_update(self, vin: str, tire_id: int) -> Tire:
         """Load a tire, scoped to its vehicle, or 404."""

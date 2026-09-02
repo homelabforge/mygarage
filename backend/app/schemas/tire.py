@@ -113,6 +113,47 @@ class TireCreateAndMountRequest(TireCreate):
     mounted_odometer_km: Decimal | None = Field(None, ge=0)
 
 
+class TireRotationMove(BaseModel):
+    """One tire's destination in a rotation."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    tire_id: int
+    position: TirePosition
+
+
+class TireRotationRequest(BaseModel):
+    """Move several tires at once.
+
+    All or nothing. A partial rotation would leave the vehicle in an
+    arrangement the user did not ask for and cannot easily read back, which
+    for something done four tires at a time is worse than a refusal.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    moves: list[TireRotationMove] = Field(..., min_length=1)
+    odometer_km: Decimal | None = Field(None, ge=0)
+    rotated_on: date_type | None = None
+    notes: str | None = None
+
+    @model_validator(mode="after")
+    def _no_duplicate_targets(self) -> TireRotationRequest:
+        """Two tires cannot be sent to one corner.
+
+        Caught here rather than by the unique index, because the index fires
+        mid-write and the resulting IntegrityError cannot say which pair of
+        moves conflicted.
+        """
+        positions = [m.position for m in self.moves]
+        if len(set(positions)) != len(positions):
+            raise ValueError("Two tires cannot be rotated to the same position")
+        tire_ids = [m.tire_id for m in self.moves]
+        if len(set(tire_ids)) != len(tire_ids):
+            raise ValueError("A tire cannot be rotated to two positions")
+        return self
+
+
 class TireReadingCreate(BaseModel):
     """Record a tread/pressure reading (updates the parent tire's latest depth).
 
