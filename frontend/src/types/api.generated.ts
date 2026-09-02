@@ -18735,7 +18735,10 @@ export interface operations {
     };
     export_warranties_csv_api_export_vehicles__vin__warranties_csv_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Unit system for the exported values. OMIT this parameter to export in the caller's own unit preferences (the instance default on an auth_mode=none instance), which is the only way to receive a mixed set such as kilometres with UK gallons. Pass `metric` or `imperial` to force that preset instead. Every unit-bearing column names its unit in the header, e.g. `Odometer (mi)`, `Volume (gal_uk)`, `Price Per Unit (gal_uk)`. */
+                units?: string | null;
+            };
             header?: never;
             path: {
                 vin: string;

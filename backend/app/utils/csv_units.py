@@ -196,6 +196,10 @@ ODOMETER_DISTANCE = QuantitySpec(DISTANCE, ("Odometer",), (LegacyHeader("Mileage
 
 # The standalone odometer pair spells it `Reading (km)` / `Reading`, and also
 # accepts `Mileage` (it has since v3).
+# A warranty's mileage cap. v3.3.0 is the first release to export it, so there
+# is no legacy header to alias: the tokenised spelling is the only one.
+MILEAGE_LIMIT_DISTANCE = QuantitySpec(DISTANCE, ("Mileage Limit",), ())
+
 READING_DISTANCE = QuantitySpec(
     DISTANCE, ("Reading",), (LegacyHeader("Reading"), LegacyHeader("Mileage"))
 )

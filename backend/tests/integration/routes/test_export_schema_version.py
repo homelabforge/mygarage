@@ -183,34 +183,28 @@ class TestDimensionlessCSVPairsVersionCellOnly:
         assert row["Content"] == "Check tire pressure"
 
 
-class TestWarrantyInsuranceCSVPreExistingBug:
-    """The other two dimensionless pairs cannot be pinned by a real row today.
+class TestWarrantyInsuranceCSVSchemaVersion:
+    """The other two dimensionless pairs, pinned by a real row.
 
-    `export_warranties_csv` reads `record.coverage` / `record.cost` /
-    `record.max_claims` / `record.terms`; `WarrantyRecord` has none of those
-    attributes (it has `coverage_details`, and no cost/max_claims/terms
-    column at all). `export_insurance_csv` reads `record.premium`;
-    `InsurancePolicy` has `premium_amount`, not `premium`. Both are
-    `AttributeError`s in the row-builder, so ANY seeded row 500s before a
-    single CSV cell (including `units_version`) is ever written.
+    These two tests were originally written inverted, as
+    `TestWarrantyInsuranceCSVPreExistingBug`, asserting
+    `pytest.raises(AttributeError, match="coverage")` and `match="premium"`.
+    They passed **because** the export was broken: `export_warranties_csv` read
+    `record.coverage` / `cost` / `deductible` / `max_claims` / `terms` and
+    `export_insurance_csv` read `record.premium`, none of which exist on their
+    models, so any seeded row 500'd before a single CSV cell was written.
 
-    Confirmed independently of this task's change (same crash reproduces
-    identically before and after the constant split, since the split never
-    touches these two functions' row-building code). Fixing the mismatch is
-    a data-model question (drop the promised columns from the CSV, or add
-    them to the model via a migration), not a mechanical rename, so it is
-    out of scope for Task 1, whose only job is splitting the schema-version
-    constant. Documented here rather than filed as a GitHub issue, per this
-    project's convention of surfacing findings in the task report instead of
-    stockpiling issues; flagged prominently in the Task 1 report for the
-    phase's reviewer.
+    That was the honest thing to do at the time -- the fix was a data-model
+    question, out of scope for a task that only split a constant, and recording
+    it as an executable assertion beat filing an issue. v3.3.0 fixes the
+    exports, so the assertions are inverted here rather than deleted: this is a
+    deliberate inversion, not someone removing failing tests.
 
-    These two `AttributeError` matches are the actual `str(exc)` this
-    project's test container raised (captured while designing this test),
-    not a guess at the failure mode.
+    See also `test_warranty_insurance_tax_csv.py`, which covers the round trip
+    and the tax importer that this pair never reached.
     """
 
-    async def test_warranty_csv_crashes_on_seeded_row_pre_existing_bug(
+    async def test_warranty_csv_emits_the_schema_version(
         self, client: AsyncClient, auth_headers, test_user, db_session
     ):
         from app.models.warranty import WarrantyRecord
@@ -227,10 +221,14 @@ class TestWarrantyInsuranceCSVPreExistingBug:
         )
         await db_session.commit()
 
-        with pytest.raises(AttributeError, match="coverage"):
-            await client.get(f"/api/export/vehicles/{vin}/warranties/csv", headers=auth_headers)
+        response = await client.get(
+            f"/api/export/vehicles/{vin}/warranties/csv", headers=auth_headers
+        )
+        assert response.status_code == 200, response.text
+        rows = list(csv.DictReader(io.StringIO(response.text)))
+        assert rows[0]["units_version"] == "6"
 
-    async def test_insurance_csv_crashes_on_seeded_row_pre_existing_bug(
+    async def test_insurance_csv_emits_the_schema_version(
         self, client: AsyncClient, auth_headers, test_user, db_session
     ):
         from app.models.insurance import InsurancePolicy
@@ -249,8 +247,12 @@ class TestWarrantyInsuranceCSVPreExistingBug:
         )
         await db_session.commit()
 
-        with pytest.raises(AttributeError, match="premium"):
-            await client.get(f"/api/export/vehicles/{vin}/insurance/csv", headers=auth_headers)
+        response = await client.get(
+            f"/api/export/vehicles/{vin}/insurance/csv", headers=auth_headers
+        )
+        assert response.status_code == 200, response.text
+        rows = list(csv.DictReader(io.StringIO(response.text)))
+        assert rows[0]["units_version"] == "6"
 
 
 class TestCSVSchemaVersionAlsoAppliesToUnitBearingPairs:

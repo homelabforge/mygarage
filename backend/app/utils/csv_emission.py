@@ -161,6 +161,9 @@ VOLUME_COLUMN = EmittedColumn(VOLUME, "volume", "Volume", _VOLUME_DECIMALS)
 EMITTED_COLUMNS: Mapping[str, EmittedColumn] = {
     "Odometer (km)": ODOMETER_COLUMN,
     "Reading (km)": EmittedColumn(DISTANCE, "distance", "Reading", _DISTANCE_DECIMALS),
+    # A warranty's mileage cap. Added in v3.3.0: the column is unit-bearing and
+    # had never been exported at all, so there is no legacy spelling to alias.
+    "Mileage Limit (km)": EmittedColumn(DISTANCE, "distance", "Mileage Limit", _DISTANCE_DECIMALS),
     "Liters": VOLUME_COLUMN,
     "Price Per Liter": EmittedColumn(PRICE_PER_VOLUME, "volume", "Price Per Unit", _PRICE_DECIMALS),
     # DEF's price column has always been called `Price Per Unit`; v6 adds the

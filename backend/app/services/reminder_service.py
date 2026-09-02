@@ -443,7 +443,13 @@ async def check_due_reminders(db: AsyncSession) -> None:
                     title=f"Reminder Due: {reminder.title}",
                     message=_build_reminder_message(reminder, ctx),
                 )
-                reminder.last_notified_at = now
+                # `last_notified_at` is DateTime with no timezone
+                # (models/reminder.py:40). PostgreSQL rejects an aware value
+                # for a naive column with asyncpg DataError; SQLite accepts it
+                # and strips the offset on the way back out, which is why this
+                # never showed on a dev instance. `now` itself stays aware
+                # because the cooldown comparison above needs it.
+                reminder.last_notified_at = now.replace(tzinfo=None)
                 logger.info(
                     "Sent reminder notification for reminder %s (vin=%s)",
                     reminder.id,
