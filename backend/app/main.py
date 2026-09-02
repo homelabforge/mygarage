@@ -163,12 +163,25 @@ async def lifespan(app: FastAPI):
             logger.warning("=" * 80)
 
     # Start scheduled background tasks (session timeouts, device offline detection, etc.)
+    from app.tasks.livelink_tasks import start_mqtt_subscriber, stop_mqtt_subscriber
     from app.tasks.scheduled import start_scheduler, stop_scheduler
 
-    start_scheduler()
+    if settings.maintenance_mode:
+        # Migrations have run; stop here. Neither the scheduler nor the MQTT
+        # subscriber may write, because the whole point of the window is that
+        # the repair tools see the data exactly as the migration left it. A
+        # buffered dongle replays its backlog within seconds of the broker
+        # connecting, which is precisely what this prevents.
+        logger.warning("=" * 80)
+        logger.warning("MAINTENANCE MODE: scheduler and MQTT subscriber not started")
+        logger.warning("MAINTENANCE MODE: telemetry ingest will answer 503")
+        logger.warning("MAINTENANCE MODE: unset MYGARAGE_MAINTENANCE_MODE and restart when done")
+        logger.warning("=" * 80)
+        yield
+        logger.info("Shutting down MyGarage application (maintenance mode)...")
+        return
 
-    # Start MQTT subscriber if enabled
-    from app.tasks.livelink_tasks import start_mqtt_subscriber, stop_mqtt_subscriber
+    start_scheduler()
 
     await start_mqtt_subscriber()
 
@@ -215,6 +228,7 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # ty
 from app.middleware import (
     CSRFProtectionMiddleware,
     IngestBodySizeLimitMiddleware,
+    MaintenanceModeMiddleware,
     RequestIDMiddleware,
     SecurityHeadersMiddleware,
 )
@@ -222,6 +236,9 @@ from app.middleware import (
 # Innermost: the ingest body-size guard runs closest to the app, so its 413
 # still flows out through RequestID + SecurityHeaders and is fully decorated.
 app.add_middleware(IngestBodySizeLimitMiddleware)
+# Just outside it: in maintenance mode there is no point measuring a body we
+# are about to refuse.
+app.add_middleware(MaintenanceModeMiddleware)
 app.add_middleware(CSRFProtectionMiddleware)
 app.add_middleware(RequestIDMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)

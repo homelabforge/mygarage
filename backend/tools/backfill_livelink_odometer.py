@@ -41,6 +41,7 @@ from app.utils.odometer_units import (  # noqa: E402
     odometer_value_to_km,
     resolve_odometer_unit,
 )
+from tools._tool_db import resolve_sync_url  # noqa: E402
 
 #: Below this, a "mi" device's stored telemetry already sits in the same range
 #: as the vehicle's kilometre odometer records, so it has been converted and
@@ -51,7 +52,12 @@ ALREADY_CANONICAL_RATIO = 1.4
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--db", required=True, help="Path to mygarage.db")
+    parser.add_argument(
+        "--db",
+        help=(
+            "Database to operate on: a path to mygarage.db, or a full SQLAlchemy URL (postgresql+asyncpg://...). Omit to use the instance's configured database, which is the right choice when running inside the container."
+        ),
+    )
     parser.add_argument("--vin", help="Limit to one VIN (default: every affected vehicle)")
     parser.add_argument(
         "--apply",
@@ -64,7 +70,7 @@ def _parse_args() -> argparse.Namespace:
 def main() -> int:
     """Reconstruct and optionally write the missing odometer records."""
     args = _parse_args()
-    engine = create_engine(f"sqlite:///{args.db}")
+    engine = create_engine(resolve_sync_url(args.db))
 
     with engine.begin() as conn:
         devices = {

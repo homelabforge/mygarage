@@ -95,6 +95,12 @@ COPY --from=backend-builder /usr/local/bin /usr/local/bin
 COPY --from=backend-builder /app/app ./app
 COPY --from=backend-builder /app/pyproject.toml ./pyproject.toml
 
+# Copy the maintenance tools. The upgrade notes in CHANGELOG.md tell operators
+# to run these against a live instance, and without this they are not in the
+# image at all: every documented command failed with "can't open file".
+# They import `app.*` and expect to run from this directory.
+COPY --from=backend-builder /app/tools ./tools
+
 # Copy frontend build
 COPY --from=frontend-builder /app/frontend/dist ./static
 

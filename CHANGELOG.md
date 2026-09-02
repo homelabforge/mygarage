@@ -9,18 +9,69 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Upgrade note
 
-If any LiveLink device reports a custom odometer PID (a bare `ODOMETER` autopid rather than the standard `A6-ODOMETER`), its stored odometer telemetry and drive-session odometers are in miles and this release starts reading them as kilometres. Migration 096 classifies the devices but deliberately converts no data: an instance that has already converted by hand cannot be told apart from one that has not, and converting twice is unrecoverable. Back up first, then run, in this order:
+**Back up first, and read this in full.** This release cannot be downgraded.
+
+#### Before upgrading
+
+Take a full backup: `POST /api/backup/create-full`, or Settings -> Backup ->
+Create Full Backup. On SQLite this uses the SQLite Online Backup API; MyGarage
+runs in WAL mode, so a plain `cp` of the database file produces a copy that is
+torn but plausible. On PostgreSQL, use `pg_dump`.
+
+The backup is the only way back. There are no down-migrations, and once this
+release's migrations have run, an older image cannot read the database.
+
+#### Odometer units on custom PIDs
+
+If any LiveLink device reports a custom odometer PID (a bare `ODOMETER` autopid
+rather than the standard `A6-ODOMETER`), its stored odometer telemetry and
+drive-session odometers are in miles and this release starts reading them as
+kilometres. Migration 096 classifies the devices but deliberately converts no
+data: an instance that has already converted by hand cannot be told apart from
+one that has not, and converting twice is unrecoverable.
+
+The repair tools must see the data exactly as the migration left it, before any
+new reading arrives. Start the container in maintenance mode to get that window:
+migrations run, but the scheduler and MQTT subscriber do not start and telemetry
+ingest answers 503, so a dongle replaying its buffer cannot land readings
+mid-repair.
 
 ```
-python tools/backfill_livelink_odometer.py --db /data/mygarage.db --apply
-python tools/normalize_telemetry_odometer_units.py --db /data/mygarage.db --apply
-python tools/fix_session_odometer_units.py --db /data/mygarage.db --apply
-python tools/recompute_session_aggregates.py --apply
+# 1. start in maintenance mode (compose: add to the service's environment)
+MYGARAGE_MAINTENANCE_MODE=1
+
+# 2. run the repair, in this order
+docker exec -w /app mygarage python tools/backfill_livelink_odometer.py --apply
+docker exec -w /app mygarage python tools/normalize_telemetry_odometer_units.py --apply
+docker exec -w /app mygarage python tools/fix_session_odometer_units.py --apply
+docker exec -w /app mygarage python tools/recompute_session_aggregates.py --apply
+
+# 3. remove MYGARAGE_MAINTENANCE_MODE and restart
 ```
 
-The order matters. The reconstruction reads telemetry as the device reported it and applies the device's declared unit, so it has to run while the history is still device-native; after the conversion it would multiply an already-metric figure again, and an inflated odometer record becomes the floor every later reading must beat rather than something a later reading corrects.
+The tools default to the instance's own configured database, so `--db` is only
+needed to point one somewhere else; it accepts a path or a full SQLAlchemy URL.
+Both SQLite and PostgreSQL are supported.
 
-Run them before the upgraded instance records new readings. Each is dry run by default and reads from the data whether its work is still outstanding, so running one twice cannot double a value. Where that cannot be decided safely, the tool says so and exits 2 rather than guess: the reconstruction refuses telemetry that already reads as metric, and the two converters refuse a device whose history mixes miles and kilometres, which is what a run started after new readings landed leaves behind.
+The order matters. The reconstruction reads telemetry as the device reported it
+and applies the device's declared unit, so it has to run while the history is
+still device-native; after the conversion it would multiply an already-metric
+figure again, and an inflated odometer record becomes the floor every later
+reading must beat rather than something a later reading corrects.
+
+Each tool is dry run by default and reads from the data whether its work is
+still outstanding, so running one twice cannot double a value. Where that cannot
+be decided safely, the tool says so and **exits 2** rather than guess: the
+reconstruction refuses telemetry that already reads as metric, and the two
+converters refuse a device whose history mixes miles and kilometres, which is
+what a run started after new readings landed leaves behind. A dry run that
+refused something also exits 2, so a script may gate `--apply` on it.
+
+**How far back the repair reaches.** All four tools work from telemetry still on
+disk, and telemetry is pruned to `livelink_telemetry_retention_days` (default
+90). Readings older than that are gone and cannot be reconstructed. If you want
+more history repaired, raise that setting and wait for the data to age out more
+slowly *before* upgrading; the nightly prune runs at 04:00.
 
 ### Added
 - Structured vehicle maintenance specs (oil viscosity/capacity/filter, lug-nut torque, coolant/brake/transmission fluid) with an Overview editor (migration 095).
@@ -30,6 +81,10 @@ Run them before the upgraded instance records new readings. Each is dry run by d
 - German translation updated across all six namespaces; thanks [@SCDT95](https://github.com/SCDT95) (#155).
 
 ### Fixed
+- The maintenance tools are now in the runtime image. `backend/tools/` was built and then discarded, so every command in the upgrade note above failed with `can't open file`.
+- The maintenance tools work on PostgreSQL. Three of them hardcoded a SQLite path, which on PostgreSQL created an empty SQLite file and then failed with `no such table`, leaving those instances with no repair path.
+- `MYGARAGE_MAINTENANCE_MODE=1` starts the instance for migrations only: no scheduler, no MQTT subscriber, and telemetry ingest answers 503. The upgrade note asks operators to repair data before new readings land, and there was previously no window in which that was possible.
+- A dry run of `normalize_telemetry_odometer_units.py` that refused a mixed-unit device now exits 2 like its sibling tool, instead of reporting success.
 - Drive-session speed, RPM and temperature figures now count readings that arrive after the session has closed. A WiCAN buffers readings while it cannot reach the broker and replays them later with their original timestamps, and a session was summarised once on close, so a drive that peaked at 85 km/h could be recorded as 20. `backend/tools/recompute_session_aggregates.py` repairs sessions summarised before the fix.
 - Drive-session distance measures odometer movement inside the session. It was the difference between the vehicle's newest reading at each end, whatever their age, so every kilometre driven while no session was open was charged to whichever session opened next: a vehicle idling in a driveway for eleven minutes at a top speed of 2 km/h was credited with 14 km. Sessions that recorded distance the vehicle did not cover in that window are repaired by the same tool.
 - Readings pulled from a dongle's SD card now update the drive sessions they fall inside, and their odometer values are converted to kilometres. That path bypasses live ingest by design, because a pull is tens of thousands of rows, so it had been bypassing both. It is the only path for anything driven out of range of the broker.
