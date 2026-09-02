@@ -8,7 +8,7 @@ from datetime import timedelta
 from decimal import Decimal
 
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -312,16 +312,23 @@ class TireService:
             payload.readings = []
         return payload
 
-    async def list_tires(self, vin: str, current_user: User) -> TireListResponse:
+    async def list_tires(
+        self, vin: str, current_user: User, include_retired: bool = False
+    ) -> TireListResponse:
         from app.services.auth import get_vehicle_or_403
 
         vin = vin.upper().strip()
         try:
             await get_vehicle_or_403(vin, current_user, self.db)
+            query = select(Tire).where(Tire.vin == vin)
+            if not include_retired:
+                # A retired tire is history, not inventory. It still appears in
+                # analytics -- its final distance and wear are the most
+                # complete data the app will ever have about it -- but it does
+                # not belong in the list of tires you can act on.
+                query = query.where(Tire.retired_on.is_(None))
             result = await self.db.execute(
-                select(Tire)
-                .where(Tire.vin == vin)
-                .options(selectinload(Tire.readings), selectinload(Tire.mount_periods))
+                query.options(selectinload(Tire.readings), selectinload(Tire.mount_periods))
                 # Mounted tires first, then stored ones. `position` is
                 # nullable now, and a bare ORDER BY sorts NULLs FIRST on
                 # SQLite and LAST on PostgreSQL, so the two dialects would
@@ -608,7 +615,57 @@ class TireService:
             logger.error("DB error updating tire %s: %s", tire_id, sanitize_for_log(e))
             raise HTTPException(status_code=503, detail="Database temporarily unavailable")
 
+    async def retire_tire(
+        self, vin: str, tire_id: int, data: TireDismountRequest, current_user: User
+    ) -> TireResponse:
+        """Retire a tire: it comes off the vehicle and keeps everything.
+
+        This is what a user means by "I replaced this tire", and before v3.3.0
+        the only way to express it was DELETE -- which cascades through every
+        reading and every mount period. Shipping the mount-period model beside
+        an unchanged delete would mean the first thing someone does after
+        collecting a season of data is erase it.
+
+        Delete still exists, for a tire entered by mistake.
+        """
+        from app.services.auth import get_vehicle_or_403
+
+        vin = vin.upper().strip()
+        await get_vehicle_or_403(vin, current_user, self.db, require_write=True)
+        tire = await self._get_tire_for_update(vin, tire_id)
+
+        if tire.retired_on is not None:
+            raise HTTPException(status_code=409, detail="This tire is already retired.")
+
+        if tire.position is not None:
+            # Close the open period and free the corner, so the replacement can
+            # go where the old one was.
+            open_period = (
+                await self.db.execute(
+                    select(TireMountPeriod)
+                    .where(
+                        TireMountPeriod.tire_id == tire.id,
+                        TireMountPeriod.dismounted_on.is_(None),
+                    )
+                    .order_by(TireMountPeriod.id.desc())
+                    .limit(1)
+                )
+            ).scalar_one_or_none()
+            if open_period is not None:
+                open_period.dismounted_on = data.dismounted_on or utc_now().date()
+                open_period.dismounted_odometer_km = data.dismounted_odometer_km
+            tire.position = None
+
+        tire.retired_on = data.dismounted_on or utc_now().date()
+        await self.db.commit()
+        return await self._reload_response(tire.id, vin)
+
     async def delete_tire(self, vin: str, tire_id: int, current_user: User) -> None:
+        """Permanently delete a tire and everything measured about it.
+
+        For a tire entered by mistake. To replace a worn tire, RETIRE it: this
+        cascades through `tire_readings` and `tire_mount_periods`.
+        """
         from app.services.auth import get_vehicle_or_403
 
         vin = vin.upper().strip()
@@ -617,6 +674,20 @@ class TireService:
         tire = result.scalar_one_or_none()
         if not tire:
             raise HTTPException(status_code=404, detail="Tire not found")
+
+        # Detach the reminders first, in the same transaction as the delete.
+        # The composite FK `(tire_id, vin) -> tires(id, vin)` carries NO
+        # ON DELETE action: a referential action applies to every column in the
+        # FK, so SET NULL would try to null `vin` as well -- and `vin` is NOT
+        # NULL, which makes SQLite reject the delete outright and retiring a
+        # tire impossible. Measured. Nulling `tire_id` here keeps the reminder
+        # as history and makes it inert: the sync never adopts a row whose
+        # `tire_id` is null.
+        await self.db.execute(
+            update(Reminder)
+            .where(Reminder.tire_id == tire_id, Reminder.vin == vin)
+            .values(tire_id=None, source=None)
+        )
         await self.db.delete(tire)
         await self.db.commit()
 
@@ -744,6 +815,16 @@ class TireService:
             km_left, wear_date = wear.km_remaining, wear.wear_date
             reminder = Reminder(
                 vin=tire.vin,
+                # Which tire, and that WE made this. The sync never adopts a
+                # row whose `source` or `tire_id` is null, so a reminder a
+                # human wrote with the same title is left alone, and a reminder
+                # whose tire has been deleted becomes inert rather than
+                # attaching itself to the next tire at that corner.
+                tire_id=tire.id,
+                source="low_tread",
+                tread_depth_mm=tire.tread_depth_mm,
+                tread_threshold_mm=tire.min_tread_mm,
+                projected_distance_km=km_left,
                 title=title,
                 reminder_type="date" if wear_date is None else "both",
                 due_date=wear_date or due,

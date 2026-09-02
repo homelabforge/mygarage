@@ -28,11 +28,16 @@ router = APIRouter(prefix="/api/vehicles", tags=["tires"])
 @router.get("/{vin}/tires", response_model=TireListResponse)
 async def list_tires(
     vin: str,
+    include_retired: bool = False,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_auth),
 ) -> TireListResponse:
-    """List tires (all positions) for a vehicle with wear projections."""
-    return await TireService(db).list_tires(vin, current_user)
+    """List a vehicle's tires, with distance and wear.
+
+    Retired tires are excluded unless `include_retired` is set: they are
+    history rather than inventory, and nothing more can be recorded about them.
+    """
+    return await TireService(db).list_tires(vin, current_user, include_retired)
 
 
 @router.post("/{vin}/tires", response_model=TireResponse, status_code=201)
@@ -81,6 +86,22 @@ async def mount_tire(
     409 if this tire is already mounted, or if another tire holds that corner.
     """
     return await TireService(db).mount_tire(vin, tire_id, data, current_user)
+
+
+@router.post("/{vin}/tires/{tire_id}/retire", response_model=TireResponse)
+async def retire_tire(
+    vin: str,
+    tire_id: int,
+    data: TireDismountRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_auth),
+) -> TireResponse:
+    """Retire a tire: take it off the vehicle and keep its whole history.
+
+    This is what replacing a worn tire means. `DELETE` still exists for a tire
+    entered by mistake, and it destroys every reading and mount period.
+    """
+    return await TireService(db).retire_tire(vin, tire_id, data, current_user)
 
 
 @router.post("/{vin}/tires/{tire_id}/dismount", response_model=TireResponse)
