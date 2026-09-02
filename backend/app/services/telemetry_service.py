@@ -38,6 +38,41 @@ from app.utils.autopid_normalizer import (
 from app.utils.odometer_units import odometer_value_to_km
 
 
+class MaintenanceModeError(RuntimeError):
+    """Raised when a telemetry write is attempted during maintenance mode.
+
+    The upgrade procedure for the odometer repair tools needs a window in which
+    no new reading lands: a single reading arriving mid-repair recreates the
+    mixed-unit state the tools refuse to run against.
+
+    This lives on the writers rather than only on the routes because two rounds
+    of review found an entry point the route gate did not cover -- first the
+    admin SD backfill route, then `POST /api/livelink/mqtt/restart`, which
+    writes nothing itself but starts the MQTT subscriber. MQTT is not a route,
+    the scheduler is not a route, and the next ingest path need not be one
+    either. Enumerating entry points is a floor; this is the choke point they
+    all pass through.
+    """
+
+
+def _refuse_if_in_maintenance(operation: str) -> None:
+    """Raise if maintenance mode is on.
+
+    Args:
+        operation: Name of the write being attempted, for the log and message.
+
+    Raises:
+        MaintenanceModeError: If ``settings.maintenance_mode`` is set.
+    """
+    from app.config import settings
+
+    if settings.maintenance_mode:
+        logger.warning("Maintenance mode: refused %s", operation)
+        raise MaintenanceModeError(
+            f"{operation} refused: MyGarage is in maintenance mode and is not accepting telemetry."
+        )
+
+
 @dataclass
 class StoreResult:
     """Result from store_telemetry() with stored count and validated data."""
@@ -354,6 +389,7 @@ class TelemetryService:
         Returns:
             StoreResult with stored count and validated data
         """
+        _refuse_if_in_maintenance("store_telemetry")
         if timestamp is None:
             timestamp = utc_now()
 
@@ -666,6 +702,7 @@ class TelemetryService:
         Returns the number of rows actually inserted (conflict-skipped rows are
         not counted).
         """
+        _refuse_if_in_maintenance("bulk_backfill")
         if not rows:
             return 0
 
@@ -799,6 +836,7 @@ class TelemetryService:
         Does NOT commit — the caller owns the transaction. `values` keys are already
         canonical param_keys (see torque_pid_map). `timestamp` must be naive UTC.
         """
+        _refuse_if_in_maintenance("store_torque_telemetry")
         if not values:
             return 0
         ts = timestamp.replace(tzinfo=None) if timestamp.tzinfo is not None else timestamp

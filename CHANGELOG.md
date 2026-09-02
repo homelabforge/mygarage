@@ -32,11 +32,13 @@ one that has not, and converting twice is unrecoverable.
 
 The repair tools must see the data exactly as the migration left it, before any
 new reading arrives. Start the container in maintenance mode to get that window:
-migrations run, but the scheduler and MQTT subscriber do not start, and every
-route that can write telemetry answers 503 -- the two ingest endpoints and the
-admin SD-card backfill -- so neither a dongle replaying its buffer nor a manual
-backfill can land readings mid-repair. The rest of the admin API stays open, so
-you can watch the repair and turn maintenance mode back off.
+migrations run, but no telemetry can be written by any path: the scheduler and
+MQTT subscriber do not start and cannot be restarted, the two ingest endpoints
+and the admin SD-card backfill answer 503, and the three telemetry writers
+themselves refuse. So neither a dongle replaying its buffer, nor a manual
+backfill, nor an MQTT restart can land readings mid-repair. The rest of the
+admin API stays open, so you can watch the repair and turn maintenance mode back
+off.
 
 ```
 # 1. start in maintenance mode (compose: add to the service's environment)

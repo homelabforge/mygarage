@@ -360,8 +360,20 @@ async def is_mqtt_enabled() -> bool:
 
 
 async def start_mqtt_subscriber() -> None:
-    """Start the MQTT subscriber if enabled."""
+    """Start the MQTT subscriber if enabled and not in maintenance mode.
+
+    The maintenance check is here rather than only in the lifespan because
+    `POST /api/livelink/mqtt/restart` reaches this function directly. That route
+    writes no telemetry of its own, so a route-level telemetry gate does not
+    cover it, and an admin could reopen ingest in the middle of the odometer
+    repair window.
+    """
+    from app.config import settings
     from app.services.mqtt_subscriber import mqtt_subscriber
+
+    if settings.maintenance_mode:
+        logger.warning("Maintenance mode: refused to start the MQTT subscriber")
+        return
 
     try:
         if await is_mqtt_enabled():
