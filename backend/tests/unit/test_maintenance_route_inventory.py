@@ -17,6 +17,7 @@ update it, which a hand-written list would not do.
 """
 
 import ast
+import re
 from pathlib import Path
 
 import pytest
@@ -24,11 +25,22 @@ import pytest
 from app.middleware import is_maintenance_closed
 
 #: Functions that write telemetry. A route reaching any of these must be closed.
+#: Hand-written, and therefore a floor unless something checks it -- which is
+#: what `TestTelemetryWriterSet` below does.
 TELEMETRY_WRITERS = frozenset(
     {"store_telemetry", "store_torque_telemetry", "bulk_backfill", "backfill_device"}
 )
 
-ROUTES_DIR = Path(__file__).resolve().parents[2] / "app" / "routes"
+#: Models whose construction means a telemetry row is being written.
+TELEMETRY_MODELS = frozenset({"VehicleTelemetry"})
+
+#: Functions that build a telemetry model but are unreachable from any route.
+#: `store_value` currently has zero callers anywhere in `app/`. Listed rather
+#: than silently excluded, so that giving it a caller fails this test.
+KNOWN_UNREACHABLE = frozenset({"store_value"})
+
+APP_DIR = Path(__file__).resolve().parents[2] / "app"
+ROUTES_DIR = APP_DIR / "routes"
 
 #: Routers whose paths are relative to a prefix declared in the module.
 _ROUTE_DECORATORS = frozenset({"get", "post", "put", "patch", "delete"})
@@ -157,3 +169,64 @@ class TestIsMaintenanceClosed:
     )
     def test_open(self, path: str):
         assert is_maintenance_closed(path) is False
+
+
+class TestTelemetryWriterSet:
+    """The writer set is itself an inventory, so it is itself a floor.
+
+    Everything above assumes `TELEMETRY_WRITERS` names every function that can
+    write a telemetry row. Nothing checked that. This does: any function in
+    `app/services/` that constructs a telemetry model must either be a declared
+    writer, or be provably unreachable from a route.
+    """
+
+    @staticmethod
+    def _functions_building_telemetry() -> dict[str, str]:
+        """{function name: module} for every telemetry-model constructor."""
+        found: dict[str, str] = {}
+        for module in sorted((APP_DIR / "services").glob("*.py")):
+            tree = ast.parse(module.read_text())
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.AsyncFunctionDef | ast.FunctionDef):
+                    continue
+                built = {
+                    sub.func.id
+                    for sub in ast.walk(node)
+                    if isinstance(sub, ast.Call) and isinstance(sub.func, ast.Name)
+                }
+                if built & TELEMETRY_MODELS:
+                    found[node.name] = module.name
+        return found
+
+    def test_the_scan_finds_the_known_writer(self):
+        """Guards the guard: a scan matching nothing makes the next test vacuous."""
+        assert "store_telemetry" in self._functions_building_telemetry()
+
+    def test_every_telemetry_builder_is_declared_or_unreachable(self):
+        builders = self._functions_building_telemetry()
+        undeclared = {
+            name: mod
+            for name, mod in builders.items()
+            if name not in TELEMETRY_WRITERS and name not in KNOWN_UNREACHABLE
+        }
+        assert not undeclared, (
+            f"these build a telemetry row but are not in TELEMETRY_WRITERS: "
+            f"{undeclared}. Add them there (so the route scan sees them), or to "
+            f"KNOWN_UNREACHABLE if nothing calls them."
+        )
+
+    def test_the_unreachable_ones_really_are_unreachable(self):
+        """`KNOWN_UNREACHABLE` is an escape hatch, so it needs its own guard.
+
+        Without this, listing a function here would be a way to silence the
+        test above rather than a statement of fact.
+        """
+        sources = "\n".join(
+            f.read_text() for f in APP_DIR.rglob("*.py") if f.name != "telemetry_service.py"
+        )
+        for name in KNOWN_UNREACHABLE:
+            calls = re.findall(rf"\b{re.escape(name)}\s*\(", sources)
+            assert not calls, (
+                f"{name} is listed as unreachable but is now called. Either move "
+                f"it into TELEMETRY_WRITERS or remove it from KNOWN_UNREACHABLE."
+            )
