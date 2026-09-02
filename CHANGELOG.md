@@ -32,9 +32,11 @@ one that has not, and converting twice is unrecoverable.
 
 The repair tools must see the data exactly as the migration left it, before any
 new reading arrives. Start the container in maintenance mode to get that window:
-migrations run, but the scheduler and MQTT subscriber do not start and telemetry
-ingest answers 503, so a dongle replaying its buffer cannot land readings
-mid-repair.
+migrations run, but the scheduler and MQTT subscriber do not start, and every
+route that can write telemetry answers 503 -- the two ingest endpoints and the
+admin SD-card backfill -- so neither a dongle replaying its buffer nor a manual
+backfill can land readings mid-repair. The rest of the admin API stays open, so
+you can watch the repair and turn maintenance mode back off.
 
 ```
 # 1. start in maintenance mode (compose: add to the service's environment)
@@ -51,7 +53,8 @@ docker exec -w /app mygarage python tools/recompute_session_aggregates.py --appl
 
 The tools default to the instance's own configured database, so `--db` is only
 needed to point one somewhere else; it accepts a path or a full SQLAlchemy URL.
-Both SQLite and PostgreSQL are supported.
+Both SQLite and PostgreSQL are supported, and the reconstruction is exercised
+end-to-end against both in CI.
 
 The order matters. The reconstruction reads telemetry as the device reported it
 and applies the device's declared unit, so it has to run while the history is

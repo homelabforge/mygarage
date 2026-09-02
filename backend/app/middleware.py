@@ -13,6 +13,7 @@ response body streams through untouched.
 import json
 import logging
 import os
+import re
 import uuid
 from collections.abc import Awaitable, Callable, Mapping
 
@@ -243,7 +244,30 @@ INGEST_PATH = "/api/v1/livelink/ingest"
 #: and nothing else: the rest of the API stays reachable so an operator can watch
 #: the upgrade, and /api/health keeps answering so the container healthcheck does
 #: not fail the maintenance window and trigger a restart.
+#: Ingest routers, closed wholesale: everything under them writes telemetry.
 MAINTENANCE_CLOSED_PREFIXES = ("/api/v1/livelink", "/api/v1/torque")
+
+#: Individual admin routes that write telemetry. The admin router as a whole
+#: must stay OPEN -- the operator uses it to watch the repair and to turn
+#: maintenance mode back off -- so these are matched exactly rather than by
+#: prefix. `POST /api/livelink/devices/{id}/backfill` reaches `bulk_backfill`.
+_MAINTENANCE_CLOSED_ADMIN_RE = re.compile(r"^/api/livelink/devices/[^/]+/backfill/?$")
+
+
+def is_maintenance_closed(path: str) -> bool:
+    """Whether maintenance mode should refuse a request to ``path``.
+
+    Args:
+        path: The request path, without query string.
+
+    Returns:
+        True if the path can write telemetry and must be refused with 503.
+    """
+    if path.startswith(MAINTENANCE_CLOSED_PREFIXES):
+        return True
+    return _MAINTENANCE_CLOSED_ADMIN_RE.match(path) is not None
+
+
 INGEST_MAX_BODY_BYTES = 256 * 1024
 
 
@@ -362,7 +386,7 @@ class MaintenanceModeMiddleware:
             return
 
         path = scope.get("path", "")
-        if not path.startswith(MAINTENANCE_CLOSED_PREFIXES):
+        if not is_maintenance_closed(path):
             await self.app(scope, receive, send)
             return
 

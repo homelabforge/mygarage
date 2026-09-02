@@ -22,6 +22,7 @@ CI-tested deployment, so those instances had no repair path at all.
 from __future__ import annotations
 
 import re
+from datetime import date, datetime
 
 from app.utils.db_url import to_sync_url
 
@@ -66,3 +67,32 @@ def resolve_sync_url(db_arg: str | None) -> str:
             f"these tools support {' and '.join(_SUPPORTED_DIALECTS)}"
         )
     return url
+
+
+def as_date(value: object) -> date:
+    """Return a ``date`` for whatever the driver gave back for a DATE column.
+
+    SQLite has no date type: both a ``DATE`` column and ``date(timestamp)`` come
+    back as ``str``. psycopg2 adapts PostgreSQL ``DATE`` to ``datetime.date``,
+    and ``date.fromisoformat`` raises ``TypeError`` on one of those. The tools
+    run on both dialects, so they must not assume either representation.
+
+    Args:
+        value: A ``date``, a ``datetime``, or an ISO-8601 date string.
+
+    Returns:
+        The corresponding ``date``.
+
+    Raises:
+        ValueError: If ``value`` is None, or is a string that is not a date.
+            Null is refused rather than tolerated: a null grouping key would
+            collapse every null row into one fabricated day.
+    """
+    if value is None:
+        raise ValueError("expected a date, got null")
+    # datetime is a subclass of date, so narrow it before the isinstance below.
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    return date.fromisoformat(str(value))
