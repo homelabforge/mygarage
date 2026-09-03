@@ -78,14 +78,37 @@ disk, and telemetry is pruned to `livelink_telemetry_retention_days` (default
 more history repaired, raise that setting and wait for the data to age out more
 slowly *before* upgrading; the nightly prune runs at 04:00.
 
+#### Tire wear estimates go quiet until you record a mount odometer
+
+Migration 097 gives every existing tire an assumed mount period whose starting
+odometer is unknown, because nothing recorded one before now. Until you supply
+it, the tire card says which reading is missing instead of showing a figure.
+
+If you have only ever run one set, the old estimate was correct for you and you
+lose it until you enter that number. It is withheld rather than relabelled
+because for anyone running a second set it was wrong by the distance driven on
+the other set, and wrong in the direction that says a worn tire is fine. One
+odometer per tire, on its mount, restores the estimate.
+
 ### Added
 - Structured vehicle maintenance specs (oil viscosity/capacity/filter, lug-nut torque, coolant/brake/transmission fluid) with an Overview editor (migration 095).
 - Opt-in **Ask My Garage** assistant: grounded Q&A over specs, service history, and LiveLink DTCs. See [docs/tier2-features.md](docs/tier2-features.md).
 - LiveLink devices carry an odometer unit, inferred from the PID shape and editable per device in LiveLink settings (migration 096). A standard `A6-ODOMETER` PID is kilometres per SAE J1979; a custom autopid is whatever the dash shows, and the instance can now say so.
 - `backend/tools/backfill_livelink_odometer.py` reconstructs the odometer records the units regression below discarded, from raw telemetry already on disk. Dry run by default, and it never overwrites a day that already has a record.
 - German translation updated across all six namespaces; thanks [@SCDT95](https://github.com/SCDT95) (#155).
+- Tires record mount periods, so a tire's distance is summed over the times it was actually on the vehicle rather than taken from the odometer (migration 097, #153).
+- Retire a tire instead of deleting it. Retiring keeps every reading and mount period; delete is still there for a tire entered by mistake (#153).
+- Rotate all four tires in one action, choosing from the four standard patterns (#153).
+- Tire sets: name a group such as "Winter studded" and fit it in one action, each tire returning to the corner it was last on (#153).
+- Tires can be entered straight into storage, so a set you own but have not fitted is tracked like any other (#153).
+- The tire card shows distance on tire, and says which reading is missing when it cannot work one out (#153).
+
+### Changed
+- **BREAKING (API):** `POST /api/vehicles/{vin}/tires` no longer accepts `position` and creates a stored tire. Mount it afterwards, or use `POST /api/vehicles/{vin}/tires/create-and-mount`, which does both atomically. A payload carrying `position` is rejected with HTTP 422 naming the field.
 
 ### Fixed
+- The tire wear estimate no longer over-states remaining life for anyone running two sets. It measured the whole odometer span between two readings, which counts the distance driven on the other set (#153).
+- The odometer you type into a mount, dismount, rotation, retirement or tread reading is recorded as an odometer reading, so a tire's distance completes without entering the same number twice.
 - The maintenance tools are now in the runtime image. `backend/tools/` was built and then discarded, so every command in the upgrade note above failed with `can't open file`.
 - The maintenance tools work on PostgreSQL. Three of them hardcoded a SQLite path, which on PostgreSQL created an empty SQLite file and then failed with `no such table`, leaving those instances with no repair path.
 - `MYGARAGE_MAINTENANCE_MODE=1` starts the instance for migrations only: no scheduler, no MQTT subscriber, and telemetry ingest answers 503. The upgrade note asks operators to repair data before new readings land, and there was previously no window in which that was possible.
