@@ -1,14 +1,17 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Plus, Trash2, Gauge, AlertTriangle, Pencil } from 'lucide-react'
+import { Plus, Trash2, Gauge, AlertTriangle, Pencil, RotateCw } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateForDisplay } from '../utils/dateUtils'
 import type { MountedPosition, Tire, TirePosition, TireReading } from '../types/tire'
 import {
   useTires,
+  useCreateTire,
   useCreateAndMountTire,
   useDismountTire,
   useMountTire,
+  useRetireTire,
+  useRotateTires,
   useUpdateTire,
   useAddTireReading,
   useDeleteTire,
@@ -23,6 +26,48 @@ import { getActionErrorMessage } from '../utils/httpErrorHandler'
 import { Button, IconButton, Card, Chip, Drawer, EmptyState, Input, Field, ListRow } from './ui'
 
 const POSITIONS: MountedPosition[] = ['FL', 'FR', 'RL', 'RR', 'SPARE']
+
+/**
+ * The corners a rotation moves.
+ *
+ * SPARE is deliberately not one of them. A five-tire rotation that works the
+ * spare into the pattern is a real thing, but it is only correct for a
+ * full-size matching spare, and getting it wrong puts a temporary spare into
+ * daily service. The rotate endpoint takes an arbitrary move list, so that
+ * case stays expressible; this UI does not guess at it.
+ */
+const ROTATION_CORNERS = ['FL', 'FR', 'RL', 'RR'] as const
+type RotationCorner = (typeof ROTATION_CORNERS)[number]
+
+type RotationPatternId = 'forwardCross' | 'rearwardCross' | 'xPattern' | 'frontToBack'
+
+/**
+ * Where each corner's tire goes, per standard pattern.
+ *
+ * These are the four patterns every tire manufacturer publishes, and which one
+ * is right depends on the drivetrain, so the drawer names the drivetrain
+ * rather than making the user recognise the diagram.
+ *
+ * Every entry must be a PERMUTATION of `ROTATION_CORNERS`: a typo that sends
+ * two tires to one corner is rejected by the request schema with a 422 the
+ * user cannot act on, and one that drops a corner would silently leave a tire
+ * where it was. `TireList.rotationPatterns.test.ts` asserts the property, one
+ * pattern at a time, rather than trusting four hand-written maps to be read
+ * correctly.
+ */
+const ROTATION_PATTERNS: Record<RotationPatternId, Record<RotationCorner, RotationCorner>> = {
+  // The fronts go straight back; the rears cross to the front. FWD wears the
+  // fronts, so the worn pair moves to the axle that wears less.
+  forwardCross: { FL: 'RL', FR: 'RR', RL: 'FR', RR: 'FL' },
+  // The mirror image, for RWD and 4WD, which wear the rears.
+  rearwardCross: { FL: 'RR', FR: 'RL', RL: 'FL', RR: 'FR' },
+  xPattern: { FL: 'RR', FR: 'RL', RL: 'FR', RR: 'FL' },
+  // The only pattern that keeps every tire on its own side, which is what a
+  // directional tread pattern requires.
+  frontToBack: { FL: 'RL', FR: 'RR', RL: 'FL', RR: 'FR' },
+}
+
+const ROTATION_PATTERN_IDS = Object.keys(ROTATION_PATTERNS) as RotationPatternId[]
 
 /**
  * The canonical origin of every unit-bearing field on the tire form.
@@ -40,7 +85,8 @@ interface TireFormOrigins {
 }
 
 interface TireFormState {
-  position: MountedPosition
+  /** Null means "into storage": a tire owned but not on the vehicle. */
+  position: TirePosition
   brand: string
   model_name: string
   size: string
@@ -110,10 +156,16 @@ interface TireListProps {
 export default function TireList({ vin }: TireListProps) {
   const { t } = useTranslation('vehicles')
   const { data, isLoading, error } = useTires(vin)
+  const createTire = useCreateTire(vin)
   const createAndMount = useCreateAndMountTire(vin)
   const updateTire = useUpdateTire(vin)
   const mount = useMountTire(vin)
   const dismount = useDismountTire(vin)
+  const retire = useRetireTire(vin)
+  const rotate = useRotateTires(vin)
+  const [retireTireId, setRetireTireId] = useState<number | null>(null)
+  const [rotateOpen, setRotateOpen] = useState(false)
+  const [rotatePattern, setRotatePattern] = useState<RotationPatternId>('forwardCross')
   const [mountTireId, setMountTireId] = useState<number | null>(null)
   const [dismountTireId, setDismountTireId] = useState<number | null>(null)
   const [mountPosition, setMountPosition] = useState<MountedPosition>('FL')
@@ -124,6 +176,8 @@ export default function TireList({ vin }: TireListProps) {
    * computed from. */
   const [mountOdometer, setMountOdometer] = useState('')
   const [dismountOdometer, setDismountOdometer] = useState('')
+  const [retireOdometer, setRetireOdometer] = useState('')
+  const [rotateOdometer, setRotateOdometer] = useState('')
   const addReading = useAddTireReading(vin)
   const remove = useDeleteTire(vin)
   /* Every unit on this card and in both drawers resolves through `u`, per
@@ -151,7 +205,7 @@ export default function TireList({ vin }: TireListProps) {
    * @param position The position to start on.
    * @returns The form state, origins included.
    */
-  const seedTireForm = (tire: Tire | null, position: MountedPosition): TireFormState => {
+  const seedTireForm = (tire: Tire | null, position: TirePosition): TireFormState => {
     const tread = seedUnitField(num(tire?.tread_depth_mm), u.tread)
     const minTread = seedUnitField(num(tire?.min_tread_mm) ?? DEFAULT_MIN_TREAD_MM, u.tread)
     const pressure = seedUnitField(num(tire?.pressure_kpa), u.pressure)
@@ -187,6 +241,16 @@ export default function TireList({ vin }: TireListProps) {
   const mountedTires = tires.filter((tire: Tire) => tire.position != null)
   const storedTires = tires.filter((tire: Tire) => tire.position == null)
 
+  /* Rotation is all-or-nothing server-side, so the button is only offered when
+     every corner it would move is actually occupied. Sending a move for an
+     empty corner is a 404 on the missing tire; sending a partial pattern is a
+     409 on the corner held by a tire that is not in the rotation. Neither is
+     something a user can act on, and both are avoidable by looking at the list
+     that is already on screen. */
+  const tireAt = (position: RotationCorner): Tire | undefined =>
+    mountedTires.find((tire: Tire) => tire.position === position)
+  const canRotate = ROTATION_CORNERS.every((corner) => tireAt(corner) !== undefined)
+
   /* Derived from the live list rather than held in state: a mutation refetches
    * and replaces every Tire object, so a captured one would go stale the moment
    * a reading is saved. */
@@ -203,6 +267,25 @@ export default function TireList({ vin }: TireListProps) {
    * user. The Record type keeps the map exhaustive. Chips still show the short
    * codes — these are for the card heading and the drawer titles, where there
    * is room and where "FL" was untranslatable English in every locale. */
+  const rotationPatternLabels: Record<RotationPatternId, { name: string; desc: string }> = {
+    forwardCross: {
+      name: t('tireList.rotatePatterns.forwardCross'),
+      desc: t('tireList.rotatePatterns.forwardCrossDesc'),
+    },
+    rearwardCross: {
+      name: t('tireList.rotatePatterns.rearwardCross'),
+      desc: t('tireList.rotatePatterns.rearwardCrossDesc'),
+    },
+    xPattern: {
+      name: t('tireList.rotatePatterns.xPattern'),
+      desc: t('tireList.rotatePatterns.xPatternDesc'),
+    },
+    frontToBack: {
+      name: t('tireList.rotatePatterns.frontToBack'),
+      desc: t('tireList.rotatePatterns.frontToBackDesc'),
+    },
+  }
+
   const positionLabels: Record<MountedPosition, string> = {
     FL: t('tireList.positions.FL'),
     FR: t('tireList.positions.FR'),
@@ -323,16 +406,22 @@ export default function TireList({ vin }: TireListProps) {
    * Instead, Add only offers unoccupied positions and Edit locks the position. */
   const openAddForm = () => {
     setEditingTireId(null)
-    setForm(seedTireForm(null, freePositions[0] ?? 'FL'))
+    // Storage, not 'FL', when every corner is taken. The old fallback selected
+    // an OCCUPIED chip that the form then refused to submit, and the Add button
+    // was disabled outright in that state -- so the one moment a second set
+    // most obviously needs entering, four tires already on the vehicle, was the
+    // one moment nothing could be entered at all.
+    setForm(seedTireForm(null, freePositions[0] ?? null))
     setFormOpen(true)
   }
 
   const openEditForm = (tire: Tire) => {
     setEditingTireId(tire.id)
-    // A stored tire has no corner to seed from, so the form falls back to
-    // the first free one. Editing a tire's metadata does not move it either
-    // way: position changes through mount/dismount.
-    setForm(seedTireForm(tire, tire.position ?? freePositions[0] ?? 'FL'))
+    // The tire's OWN position, including null. It used to fall back to the
+    // first free corner, which titled a stored tire's drawer after a corner it
+    // was not in. Editing never moves a tire either way: position changes
+    // through mount, dismount and rotate.
+    setForm(seedTireForm(tire, tire.position))
     setFormOpen(true)
   }
 
@@ -411,7 +500,83 @@ export default function TireList({ vin }: TireListProps) {
       updateTire.mutate({ tireId: editingTireId, ...shared }, handlers)
       return
     }
-    createAndMount.mutate({ vin, position: form.position, ...shared }, handlers
+    // `POST /tires` forbids a `position` key outright (extra="forbid"), so the
+    // two creates cannot share one payload: passing `position: null` to it is a
+    // 422, not a null.
+    if (form.position == null) {
+      createTire.mutate({ vin, ...shared }, handlers)
+      return
+    }
+    createAndMount.mutate({ vin, position: form.position, ...shared }, handlers)
+  }
+
+  /**
+   * Retire the tire the retire drawer is open on.
+   *
+   * Separate from `handleDelete` on purpose, and it is the one users should
+   * reach for: retiring keeps every reading and every mount period, which is
+   * the history this release exists to make worth collecting. Delete stays in
+   * the edit drawer for a tire entered by mistake.
+   */
+  const handleRetire = () => {
+    if (retireTireId === null) return
+    retire.mutate(
+      {
+        tireId: retireTireId,
+        dismounted_odometer_km: canonicalFromUnitField(
+          retireOdometer,
+          { canonical: null, display: '' },
+          u.distance
+        ),
+      },
+      {
+        onSuccess: () => {
+          toast.success(t('tireList.retired'))
+          setRetireTireId(null)
+          setRetireOdometer('')
+        },
+        onError: (err: unknown) =>
+          toast.error(getActionErrorMessage(err, t('tireList.retireAction'))),
+      }
+    )
+  }
+
+  /**
+   * Apply the selected pattern to the four mounted corners.
+   *
+   * The moves are built from the LIVE list rather than from anything held in
+   * state, so a rotation cannot be submitted against an arrangement that has
+   * since changed. `canRotate` has already established every corner is filled;
+   * the guard here is what makes that a type-level fact rather than a promise.
+   */
+  const handleRotate = () => {
+    const pattern = ROTATION_PATTERNS[rotatePattern]
+    const moves = ROTATION_CORNERS.flatMap((corner) => {
+      const tire = tireAt(corner)
+      return tire ? [{ tire_id: tire.id, position: pattern[corner] }] : []
+    })
+    if (moves.length !== ROTATION_CORNERS.length) {
+      toast.error(t('tireList.rotateNeedsFourCorners'))
+      return
+    }
+    rotate.mutate(
+      {
+        moves,
+        odometer_km: canonicalFromUnitField(
+          rotateOdometer,
+          { canonical: null, display: '' },
+          u.distance
+        ),
+      },
+      {
+        onSuccess: () => {
+          toast.success(t('tireList.rotated'))
+          setRotateOpen(false)
+          setRotateOdometer('')
+        },
+        onError: (err: unknown) =>
+          toast.error(getActionErrorMessage(err, t('tireList.rotateAction'))),
+      }
     )
   }
 
@@ -504,15 +669,27 @@ export default function TireList({ vin }: TireListProps) {
           <Gauge className="h-5 w-5" />
           {t('tireList.title')}
         </h2>
-        <Button
-          variant="primary"
-          size="sm"
-          onClick={openAddForm}
-          disabled={freePositions.length === 0}
-          icon={Plus}
-        >
-          {t('tireList.add')}
-        </Button>
+        <div className="flex items-center gap-2">
+          {/* Vehicle-level, so it sits in the header rather than on a card:
+              a rotation is one action on four tires, and putting it on each
+              card would ask which of four identical buttons to press. */}
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={RotateCw}
+            disabled={!canRotate || rotate.isPending}
+            title={canRotate ? undefined : t('tireList.rotateNeedsFourCorners')}
+            onClick={() => setRotateOpen(true)}
+          >
+            {t('tireList.rotate')}
+          </Button>
+          {/* No longer disabled when every corner is taken: that is exactly
+              when a second seasonal set gets entered, and Add now offers
+              storage as a destination. */}
+          <Button variant="primary" size="sm" onClick={openAddForm} icon={Plus}>
+            {t('tireList.add')}
+          </Button>
+        </div>
       </div>
 
       {tires.length === 0 && (
@@ -627,6 +804,20 @@ export default function TireList({ vin }: TireListProps) {
               >
                 {t('tireList.dismount')}
               </Button>
+              {/* Retire sits beside Dismount and not beside Delete, because
+                  the mis-tap this arrangement guards against is the one that
+                  actually happens: reaching for Delete when you mean "I
+                  replaced this tire". The drawer it opens IS the confirmation
+                  step, and it explains the difference. */}
+              <Button
+                size="sm"
+                variant="ghost"
+                className="relative z-10"
+                disabled={retire.isPending}
+                onClick={() => setRetireTireId(tire.id)}
+              >
+                {t('tireList.retire')}
+              </Button>
             </div>
           </Card>
         ))}
@@ -672,6 +863,17 @@ export default function TireList({ vin }: TireListProps) {
                   </Button>
                   <Button size="sm" variant="ghost" onClick={() => setHistoryTireId(tire.id)}>
                     {t('tireList.history')}
+                  </Button>
+                  {/* A set can wear out and be replaced without ever going
+                      back on the vehicle, so retire has to reach a stored
+                      tire too. */}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={retire.isPending}
+                    onClick={() => setRetireTireId(tire.id)}
+                  >
+                    {t('tireList.retire')}
                   </Button>
                 </div>
               </Card>
@@ -751,6 +953,7 @@ export default function TireList({ vin }: TireListProps) {
             <Input
               id="mount-odometer"
               type="number"
+              step={u.distance.step}
               value={mountOdometer}
               onChange={(e) => setMountOdometer(e.target.value)}
             />
@@ -811,8 +1014,126 @@ export default function TireList({ vin }: TireListProps) {
             <Input
               id="dismount-odometer"
               type="number"
+              step={u.distance.step}
               value={dismountOdometer}
               onChange={(e) => setDismountOdometer(e.target.value)}
+            />
+          </Field>
+        </div>
+      </Drawer>
+
+      {/* Retire is its own drawer for the same reason dismount is: it closes a
+          mount period, and a period closed without an odometer is one this
+          tire's distance can never be computed from. The hint is the whole
+          point of the drawer, though -- it is the only place the app says out
+          loud that retiring and deleting are different. */}
+      <Drawer
+        open={retireTireId !== null}
+        onClose={() => setRetireTireId(null)}
+        title={t('tireList.retireTitle')}
+        icon={Gauge}
+        width="xs"
+        closeLabel={t('common:close')}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setRetireTireId(null)}>
+              {t('common:cancel')}
+            </Button>
+            <Button variant="primary" disabled={retire.isPending} onClick={handleRetire}>
+              {t('tireList.retire')}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-text-mute">{t('tireList.retireHint')}</p>
+          <Field id="retire-odometer" label={odometerLabel} hint={t('tireList.mountOdometerHint')}>
+            <Input
+              id="retire-odometer"
+              type="number"
+              step={u.distance.step}
+              value={retireOdometer}
+              onChange={(e) => setRetireOdometer(e.target.value)}
+            />
+          </Field>
+        </div>
+      </Drawer>
+
+      <Drawer
+        open={rotateOpen}
+        onClose={() => setRotateOpen(false)}
+        title={t('tireList.rotateTitle')}
+        icon={RotateCw}
+        width="sm"
+        closeLabel={t('common:close')}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setRotateOpen(false)}>
+              {t('common:cancel')}
+            </Button>
+            <Button
+              variant="primary"
+              disabled={!canRotate || rotate.isPending}
+              onClick={handleRotate}
+            >
+              {t('tireList.rotate')}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-text-mute">{t('tireList.rotateHint')}</p>
+          <div>
+            <span id="rotate-pattern-label" className="mb-1 block text-sm font-medium text-text">
+              {t('tireList.rotatePattern')}
+            </span>
+            {/* Named by drivetrain rather than drawn as a diagram: the user
+                knows what they drive, and a four-arrow diagram is the part of
+                every tire-rotation chart people misread. The resulting moves
+                are shown below in full, so the choice is checkable without
+                trusting the name. */}
+            <div
+              role="group"
+              aria-labelledby="rotate-pattern-label"
+              className="flex flex-wrap gap-2"
+            >
+              {ROTATION_PATTERN_IDS.map((id) => (
+                <Chip
+                  key={id}
+                  selected={rotatePattern === id}
+                  onClick={() => setRotatePattern(id)}
+                >
+                  {rotationPatternLabels[id].name}
+                </Chip>
+              ))}
+            </div>
+            <p className="mt-1 text-sm text-text-mute">{rotationPatternLabels[rotatePattern].desc}</p>
+          </div>
+          <div>
+            <span className="mb-1 block text-sm font-medium text-text">
+              {t('tireList.rotatePreview')}
+            </span>
+            <ul className="space-y-1">
+              {ROTATION_CORNERS.map((corner) => (
+                <ListRow
+                  key={corner}
+                  label={positionLabels[corner]}
+                  value={positionLabels[ROTATION_PATTERNS[rotatePattern][corner]]}
+                />
+              ))}
+            </ul>
+          </div>
+          <Field
+            id="rotate-odometer"
+            label={odometerLabel}
+            hint={t('tireList.rotateOdometerHint')}
+          >
+            <Input
+              id="rotate-odometer"
+              type="number"
+              step={u.distance.step}
+              value={rotateOdometer}
+              onChange={(e) => setRotateOdometer(e.target.value)}
             />
           </Field>
         </div>
@@ -826,9 +1147,11 @@ export default function TireList({ vin }: TireListProps) {
            Adding stays the generic "Add Tire": retitling as the position chips
            are pressed would make a create read like an edit. */
         title={
-          editingTireId !== null
-            ? t('tireList.editTitleNamed', { position: labelFor(form.position) })
-            : t('tireList.addTitle')
+          editingTireId === null
+            ? t('tireList.addTitle')
+            : form.position == null
+              ? t('tireList.editTitleStored')
+              : t('tireList.editTitleNamed', { position: positionLabels[form.position] })
         }
         icon={Gauge}
         width="sm"
@@ -899,7 +1222,23 @@ export default function TireList({ vin }: TireListProps) {
                   </Chip>
                 )
               })}
+              {/* Storage is a sixth destination, not a sixth corner. It is the
+                  only way to enter a tire you own but are not fitting today,
+                  which is every second seasonal set, and without it a tire
+                  could only come into the app by being mounted onto a corner
+                  it then had to be dismounted from. */}
+              <Chip
+                selected={form.position == null}
+                onClick={
+                  editingTireId === null ? () => setForm({ ...form, position: null }) : undefined
+                }
+              >
+                {t('tireList.inStorage')}
+              </Chip>
             </div>
+            {editingTireId === null && form.position == null && (
+              <p className="mt-1 text-sm text-text-mute">{t('tireList.storedHint')}</p>
+            )}
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field id="tire-brand" label={t('tireList.brand')}>

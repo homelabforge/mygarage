@@ -95,7 +95,14 @@ async function openTires(page: import('@playwright/test').Page, vin: string) {
   })
   await page.getByRole('tab', { name: 'Maintenance' }).click()
   await page.getByRole('tab', { name: 'Tires' }).click()
-  await expect(page.getByRole('heading', { name: 'Tires' })).toBeVisible({ timeout: 10000 })
+  // `exact` matters: without it this also matches the EmptyState's "No tires
+  // tracked yet" heading, and the two together are a strict-mode violation.
+  // Latent until now because every other test in this file seeded a tire
+  // through the API first, so the empty state -- the state a new user is
+  // actually in -- had never been rendered here.
+  await expect(page.getByRole('heading', { name: 'Tires', exact: true })).toBeVisible({
+    timeout: 10000,
+  })
 }
 
 /**
@@ -388,5 +395,137 @@ test.describe('Tire rotation and retirement', () => {
       }
     )
     expect(replacement.status(), await replacement.text()).toBe(201)
+  })
+})
+
+/**
+ * The same three operations, through the controls a user actually has.
+ *
+ * The block above drives rotate and retire with `request.post`, which is why
+ * it stayed green while `useRotateTires`, `useRetireTire` and `useCreateTire`
+ * had zero callers anywhere in `src/`: it proved the endpoints worked, not
+ * that anyone could reach them. Every assertion here goes through the browser
+ * for that reason.
+ */
+test.describe('Tire rotation and retirement, through the UI', () => {
+  test('the header rotate control moves every tire', async ({ page, request }) => {
+    const vin = await tireVehicle(request, 'rotate-ui')
+    const admin = await adminSession()
+    for (const position of ['FL', 'FR', 'RL', 'RR'] as const) {
+      const created = await request.post(`${API_BASE}/vehicles/${vin}/tires/create-and-mount`, {
+        headers: admin.headers,
+        data: {
+          vin,
+          position,
+          brand: `E2E RotUI ${position}`,
+          tread_depth_mm: 8,
+          mounted_odometer_km: 1000,
+        },
+      })
+      expect(created.status(), `seed ${position}: ${await created.text()}`).toBe(201)
+    }
+
+    await openTires(page, vin)
+    const cardFor = (brand: string) =>
+      page.locator('.rounded-card', { hasText: brand }).first()
+    await expect(cardFor('E2E RotUI FL')).toContainText('Front Left')
+
+    await page.getByRole('button', { name: 'Rotate' }).click()
+    const drawer = page.getByRole('dialog')
+    await expect(drawer).toBeVisible({ timeout: 5000 })
+    // Forward cross: the fronts go straight back, the rears cross forward.
+    await drawer.getByRole('button', { name: 'Forward cross' }).click()
+    await drawer.locator('#rotate-odometer').fill('20000')
+    await drawer.getByRole('button', { name: 'Rotate', exact: true }).click()
+    await expect(drawer).toBeHidden({ timeout: 10000 })
+
+    // Every corner reassigned, asserted per tire rather than as a count: a
+    // rotation that moved three of four and left one behind would still show
+    // four cards on four corners.
+    await expect(cardFor('E2E RotUI FL')).toContainText('Rear Left', { timeout: 10000 })
+    await expect(cardFor('E2E RotUI FR')).toContainText('Rear Right')
+    await expect(cardFor('E2E RotUI RL')).toContainText('Front Right')
+    await expect(cardFor('E2E RotUI RR')).toContainText('Front Left')
+  })
+
+  test('rotate is refused, visibly, when a corner is empty', async ({ page, request }) => {
+    const vin = await tireVehicle(request, 'rotate-ui-partial')
+    const admin = await adminSession()
+    const created = await request.post(`${API_BASE}/vehicles/${vin}/tires/create-and-mount`, {
+      headers: admin.headers,
+      data: { vin, position: 'FL', brand: 'E2E RotPartial', tread_depth_mm: 8 },
+    })
+    expect(created.status(), await created.text()).toBe(201)
+
+    await openTires(page, vin)
+    await expect(page.getByText('E2E RotPartial')).toBeVisible({ timeout: 10000 })
+    // Disabled rather than allowed-and-rejected: a partial pattern comes back
+    // as a 404 or a 409 naming a corner, neither of which tells the user that
+    // what they actually need is a fourth tire.
+    await expect(page.getByRole('button', { name: 'Rotate' })).toBeDisabled()
+  })
+
+  test('retiring is reachable from the card, and keeps the tire out of the list', async ({
+    page,
+    request,
+  }) => {
+    const vin = await tireVehicle(request, 'retire-ui')
+    const admin = await adminSession()
+    const created = await request.post(`${API_BASE}/vehicles/${vin}/tires/create-and-mount`, {
+      headers: admin.headers,
+      data: {
+        vin,
+        position: 'RL',
+        brand: 'E2E RetireUI',
+        tread_depth_mm: 8,
+        mounted_odometer_km: 1000,
+      },
+    })
+    expect(created.status(), await created.text()).toBe(201)
+
+    await openTires(page, vin)
+    const card = page.locator('.rounded-card', { hasText: 'E2E RetireUI' }).first()
+    await expect(card).toBeVisible({ timeout: 10000 })
+
+    await card.getByRole('button', { name: 'Retire' }).click()
+    const drawer = page.getByRole('dialog')
+    await expect(drawer).toBeVisible({ timeout: 5000 })
+    await drawer.locator('#retire-odometer').fill('30000')
+    await drawer.getByRole('button', { name: 'Retire', exact: true }).click()
+
+    // Gone from the list, and its corner is free again for the replacement.
+    await expect(page.getByText('E2E RetireUI')).toBeHidden({ timeout: 10000 })
+    const listed = await request.get(
+      `${API_BASE}/vehicles/${vin}/tires?include_retired=true`,
+      { headers: admin.headers }
+    )
+    const retired = (await listed.json()).tires.filter(
+      (t: { brand: string; retired_on: string | null }) => t.brand === 'E2E RetireUI'
+    )
+    // The point of retire over delete: the tire and its history are still
+    // there, they are just no longer inventory.
+    expect(retired).toHaveLength(1)
+    expect(retired[0].retired_on).not.toBeNull()
+    expect(retired[0].mount_periods.length).toBeGreaterThanOrEqual(1)
+  })
+
+  test('a tire can be entered straight into storage', async ({ page, request }) => {
+    const vin = await tireVehicle(request, 'storage-ui')
+    await openTires(page, vin)
+
+    await page.getByRole('button', { name: 'Add Tire' }).click()
+    const drawer = page.getByRole('dialog')
+    await expect(drawer).toBeVisible({ timeout: 5000 })
+    await drawer.getByRole('button', { name: 'In storage' }).click()
+    await drawer.getByLabel('Brand').fill('E2E StoredSet')
+    await drawer.getByRole('button', { name: 'Save' }).click()
+    await expect(drawer).toBeHidden({ timeout: 10000 })
+
+    // Under the storage heading, with a Mount button: a tire you own and have
+    // not fitted. Before this there was no way to enter one without mounting
+    // it onto a corner first and dismounting it again.
+    const card = page.locator('.rounded-card', { hasText: 'E2E StoredSet' }).first()
+    await expect(card).toBeVisible({ timeout: 10000 })
+    await expect(card.getByRole('button', { name: 'Mount' })).toBeVisible()
   })
 })
