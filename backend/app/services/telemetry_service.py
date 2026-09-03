@@ -779,6 +779,7 @@ class TelemetryService:
         commit_batch = 500
         inserted = 0
         stamps: list[datetime] = []
+        observed: list[tuple[datetime, str, float]] = []
 
         # The SD path writes `r.value` straight to a metric-canonical column,
         # so it needs the same odometer conversion `store_telemetry` applies:
@@ -797,6 +798,11 @@ class TelemetryService:
                 converted = odometer_value_to_km(value, r.param_key, device_unit, device_kind)
                 if converted is not None:
                     value = converted
+            # Kept for the session reconstruction below, in CANONICAL km. The
+            # predicate compares odometer readings against each other, so a
+            # batch mixing raw miles with converted kilometres would see
+            # increases and decreases that never happened.
+            observed.append((ts, r.param_key, value))
 
             # Use the module-level dialect_insert (sqlite or pg, chosen at import time)
             stmt = (
@@ -845,10 +851,148 @@ class TelemetryService:
         # loops over log files (`SdBackfillService._backfill`), so this is once
         # per file, not once per pull.
         if stamps:
+            # Create the sessions these rows describe BEFORE refreshing, so a
+            # newly created session is included in the refresh rather than
+            # waiting for the next pull. This is the motivating case for the
+            # whole boundary rework: `_refresh_sessions_in_span` selects
+            # `ended_at IS NOT NULL`, i.e. sessions that already exist and are
+            # already closed, so this path had never created one -- and it is
+            # the only path for anything driven out of broker range.
+            #
+            # Once per call, not once per row: running the live side-effects per
+            # row is precisely what `bulk_backfill` exists to avoid.
+            await self._reconstruct_sessions_from_batch(vin, device_id, observed)
             await self._refresh_sessions_in_span(vin, device_id, min(stamps), max(stamps))
             await self.db.commit()
 
         return inserted
+
+    async def _reconstruct_sessions_from_batch(
+        self,
+        vin: str,
+        device_id: str,
+        observed: list[tuple[datetime, str, float]],
+    ) -> int:
+        """Create or extend the drive sessions a replayed batch describes.
+
+        Returns the number of sessions created or extended.
+
+        The grouping is `session_boundaries.group_drives`, which applies the
+        same movement predicate and the same gap as the live path -- so a drive
+        is cut the same way whether it arrived over MQTT or off an SD card.
+
+        Three rules keep this from making things worse than the bug it fixes:
+
+        - **Torque sessions are never touched.** The phone supplies an
+          authoritative session id; re-bounding it on a gap threshold replaces
+          good evidence with inference. Excluded by `external_session_id`, not
+          by heuristic.
+        - **No overlaps are written.** Nothing in the schema forbids them, and
+          every aggregate is a window scan, so two overlapping sessions both
+          claim the same samples and both report the same distance.
+        - **An ambiguous window is left alone.** A drive overlapping more than
+          one existing session is a history-repair problem, not a backfill one;
+          merging them here would be a destructive guess made during an ingest.
+        """
+        from app.services.session_boundaries import BOUNDARY_ALGORITHM_MOVEMENT, group_drives
+
+        device = (
+            await self.db.execute(
+                select(LiveLinkDevice).where(LiveLinkDevice.device_id == device_id)
+            )
+        ).scalar_one_or_none()
+        if device is None or not device.vin:
+            return 0
+
+        from app.services.livelink_service import LiveLinkService  # local: avoids a cycle
+
+        gap = await LiveLinkService(self.db).get_session_gap_minutes()
+        drives = group_drives(observed, gap)
+        if not drives:
+            return 0
+
+        changed = 0
+        for drive in drives:
+            overlapping = list(
+                (
+                    await self.db.execute(
+                        select(DriveSession)
+                        .where(DriveSession.device_id == device_id)
+                        .where(DriveSession.external_session_id.is_(None))
+                        .where(DriveSession.started_at <= drive.movement_ended_at)
+                        .where(
+                            func.coalesce(DriveSession.ended_at, DriveSession.started_at)
+                            >= drive.started_at
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+
+            if len(overlapping) > 1:
+                logger.info(
+                    "SD reconstruction: drive %s..%s for %s spans %d existing sessions; "
+                    "left unchanged (history repair, not ingest)",
+                    drive.started_at,
+                    drive.movement_ended_at,
+                    device_id,
+                    len(overlapping),
+                )
+                continue
+
+            if overlapping:
+                session = overlapping[0]
+                if session.ended_at is None:
+                    # An OPEN session is the live path's business: it is still
+                    # deciding where this drive ends, and closing it here would
+                    # race the timeout clocks.
+                    continue
+                session.started_at = min(self._naive_ts(session.started_at), drive.started_at)
+                session.ended_at = max(self._naive_ts(session.ended_at), drive.movement_ended_at)
+                session.movement_started_at = min(
+                    self._naive_ts(session.movement_started_at) or drive.movement_started_at,
+                    drive.movement_started_at,
+                )
+                session.movement_ended_at = max(
+                    self._naive_ts(session.movement_ended_at) or drive.movement_ended_at,
+                    drive.movement_ended_at,
+                )
+            else:
+                session = DriveSession(
+                    vin=device.vin,
+                    device_id=device_id,
+                    started_at=drive.started_at,
+                    ended_at=drive.movement_ended_at,
+                    movement_started_at=drive.movement_started_at,
+                    movement_ended_at=drive.movement_ended_at,
+                    boundary_algorithm_version=BOUNDARY_ALGORITHM_MOVEMENT,
+                    effective_gap_minutes=gap,
+                )
+                self.db.add(session)
+                logger.info(
+                    "SD reconstruction: created session for %s over %s..%s",
+                    device_id,
+                    drive.started_at,
+                    drive.movement_ended_at,
+                )
+
+            session.duration_seconds = max(
+                0,
+                int(
+                    (
+                        self._naive_ts(session.ended_at) - self._naive_ts(session.started_at)
+                    ).total_seconds()
+                ),
+            )
+            changed += 1
+
+        await self.db.flush()
+        return changed
+
+    @staticmethod
+    def _naive_ts(value: datetime | None) -> datetime | None:
+        return value.replace(tzinfo=None) if value is not None and value.tzinfo else value
 
     async def _refresh_sessions_in_span(
         self, vin: str, device_id: str, start: datetime, end: datetime

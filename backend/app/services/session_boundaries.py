@@ -36,8 +36,9 @@ credited with 14 km and started this rework. So RPM opens a *pending* drive
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 
 from app.utils.movement_keys import is_rpm_param_key, is_speed_param_key
 from app.utils.odometer_units import is_odometer_param_key
@@ -55,6 +56,12 @@ MOVEMENT_FLOOR_KMH = 5.0
 #: ``livelink_devices.pending_source`` (VARCHAR(10)).
 PENDING_SOURCE_RPM = "rpm"
 PENDING_SOURCE_SPEED = "speed"
+
+#: Stamped on every session this algorithm cuts. 0 is the column default and
+#: means "pre-098, bounded on contact", so history is not misdescribed -- but a
+#: NEW session left at 0 would masquerade as history and be skipped by every
+#: future reconstruction, which is why each constructor sets this explicitly.
+BOUNDARY_ALGORITHM_MOVEMENT = 1
 
 
 def _numeric(value: object) -> float | None:
@@ -133,3 +140,121 @@ def extract_signals(samples: Mapping[str, object]) -> MovementSignals:
             odometer = value if odometer is None else max(odometer, value)
 
     return MovementSignals(speed_kmh=speed, rpm=rpm, odometer_km=odometer)
+
+
+@dataclass(frozen=True)
+class DriveWindow:
+    """One drive found in a batch of replayed samples.
+
+    ``started_at`` is the first sample of the contact burst the drive belongs
+    to, which is what aggregates are computed from -- so it backdates past the
+    first movement sample to keep the ignition-time readings, the opening
+    odometer above all. ``movement_started_at`` and ``movement_ended_at`` are
+    when the vehicle actually moved.
+    """
+
+    started_at: datetime
+    movement_started_at: datetime
+    movement_ended_at: datetime
+
+
+def group_drives(
+    samples: Sequence[tuple[datetime, str, float]],
+    gap_minutes: int,
+) -> list[DriveWindow]:
+    """Split replayed samples into the drives they describe.
+
+    The SD card is the only path for anything driven out of broker range, and
+    ``bulk_backfill`` had never created a session: it called only a refresh that
+    selects sessions which already exist and are already closed. So a whole
+    drive taken away from home was recorded as nothing at all.
+
+    Applies the SAME predicate and the SAME gap as the live path, deliberately.
+    An earlier design revision scoped the gap threshold to reconstruction only,
+    which meant one journey got two different answers depending on whether it
+    arrived over MQTT or off an SD card.
+
+    The debounce carries over too: a group needs either two movement timestamps
+    or a genuine odometer increase. A lone above-floor sample is not a drive,
+    here for the same reason as live -- except that here the consequence is
+    worse, because a replay path that manufactured a session per contact burst
+    would invent thousands of phantom drives out of history, and no later
+    upgrade undoes that.
+
+    Returns non-overlapping windows in chronological order. Overlap matters
+    because nothing in the schema forbids it (the session time indexes are
+    non-unique) and every aggregate is a window scan, so two overlapping
+    sessions both claim the same samples and both report the same distance.
+    """
+    if not samples or gap_minutes <= 0:
+        return []
+
+    window = timedelta(minutes=gap_minutes)
+
+    by_time: dict[datetime, dict[str, float]] = {}
+    for stamp, key, value in samples:
+        at = stamp.replace(tzinfo=None) if stamp.tzinfo is not None else stamp
+        by_time.setdefault(at, {})[key] = value
+    stamps = sorted(by_time)
+
+    #: Movement timestamps, and which of them were proven by the odometer.
+    movement: list[datetime] = []
+    odometer_proven: set[datetime] = set()
+    highest_odometer: float | None = None
+
+    for at in stamps:
+        signals = extract_signals(by_time[at])
+        moved = signals.is_above_floor
+        if signals.odometer_km is not None:
+            if highest_odometer is not None and signals.odometer_km > highest_odometer:
+                moved = True
+                odometer_proven.add(at)
+            # Track the highest seen, not the latest: SD rows can arrive out of
+            # order, and a lower reading is a replay artefact rather than a
+            # vehicle driving backwards.
+            highest_odometer = (
+                signals.odometer_km
+                if highest_odometer is None
+                else max(highest_odometer, signals.odometer_km)
+            )
+        if moved:
+            movement.append(at)
+
+    if not movement:
+        return []
+
+    groups: list[list[datetime]] = [[movement[0]]]
+    for at in movement[1:]:
+        if at - groups[-1][-1] <= window:
+            groups[-1].append(at)
+        else:
+            groups.append([at])
+
+    drives: list[DriveWindow] = []
+    for group in groups:
+        if len(group) < 2 and not any(at in odometer_proven for at in group):
+            continue
+
+        first_movement = group[0]
+        # Walk back through the contact burst: keep absorbing earlier samples
+        # while each step is inside one gap window. A larger step means the
+        # device was silent, so those readings belong to a different burst.
+        burst_start = first_movement
+        index = stamps.index(first_movement)
+        while index > 0 and burst_start - stamps[index - 1] <= window:
+            index -= 1
+            burst_start = stamps[index]
+
+        # Never reach back into a drive already accounted for.
+        if drives and burst_start < drives[-1].movement_ended_at:
+            burst_start = drives[-1].movement_ended_at
+
+        drives.append(
+            DriveWindow(
+                started_at=burst_start,
+                movement_started_at=max(first_movement, burst_start),
+                movement_ended_at=group[-1],
+            )
+        )
+
+    return drives

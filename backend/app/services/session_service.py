@@ -12,6 +12,7 @@ from app.models.drive_session import DriveSession
 from app.models.livelink_device import LiveLinkDevice
 from app.models.vehicle_telemetry import VehicleTelemetry
 from app.services.session_boundaries import (
+    BOUNDARY_ALGORITHM_MOVEMENT,
     PENDING_SOURCE_RPM,
     MovementSignals,
     extract_signals,
@@ -37,12 +38,6 @@ RPM_PARAM_KEYS = rpm_param_key_candidates()
 #: a session that opened at 1 km/h while idle accounting called the same sample
 #: stationary is a contradiction the code cannot resolve.
 IDLE_THRESHOLD_KMH = 5.0
-
-#: Stamped on every session this algorithm cuts. 0 means "pre-098, bounded
-#: on contact" and is the column default, so history is not misdescribed --
-#: but a NEW session left at 0 would masquerade as history and be skipped by
-#: every future reconstruction, which is why each constructor sets it.
-BOUNDARY_ALGORITHM_MOVEMENT = 1
 
 
 class SessionService:
