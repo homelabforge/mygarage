@@ -160,6 +160,17 @@ export default function AnalyticsHelpModal({ isOpen, onClose }: AnalyticsHelpMod
             </div>
           </section>
 
+          {/* Tires */}
+          <section>
+            <h3 className="text-xl font-semibold text-garage-text mb-3">{t('vehicleHelp.tires.title')}</h3>
+            <div className="space-y-2 text-garage-text-muted">
+              <p>{t('vehicleHelp.tires.body')}</p>
+              <p><strong className="text-garage-text">{t('vehicleHelp.tires.readinessLabel')}</strong> {t('vehicleHelp.tires.readinessDesc')}</p>
+              <p><strong className="text-garage-text">{t('vehicleHelp.tires.independentLabel')}</strong> {t('vehicleHelp.tires.independentDesc')}</p>
+              <p><strong className="text-garage-text">{t('vehicleHelp.tires.notExportedLabel')}</strong> {t('vehicleHelp.tires.notExportedDesc')}</p>
+            </div>
+          </section>
+
           {/* Export Features */}
           <section>
             <h3 className="text-xl font-semibold text-garage-text mb-3">{t('vehicleHelp.export.title')}</h3>

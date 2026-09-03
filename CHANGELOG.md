@@ -102,6 +102,7 @@ odometer per tire, on its mount, restores the estimate.
 - Tire sets: name a group such as "Winter studded" and fit it in one action, each tire returning to the corner it was last on (#153).
 - Tires can be entered straight into storage, so a set you own but have not fitted is tracked like any other (#153).
 - The tire card shows distance on tire, and says which reading is missing when it cannot work one out (#153).
+- Analytics has a Tires section: tread over time, projected life, distance on tire, and a readiness block naming the one reading to record next (#152). It is on the Analytics page only for now; the PDF report and the garage export do not include it.
 
 ### Changed
 - **BREAKING (API):** `POST /api/vehicles/{vin}/tires` no longer accepts `position` and creates a stored tire. Mount it afterwards, or use `POST /api/vehicles/{vin}/tires/create-and-mount`, which does both atomically. A payload carrying `position` is rejected with HTTP 422 naming the field.
