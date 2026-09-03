@@ -78,6 +78,33 @@ disk, and telemetry is pruned to `livelink_telemetry_retention_days` (default
 more history repaired, raise that setting and wait for the data to age out more
 slowly *before* upgrading; the nightly prune runs at 04:00.
 
+#### Drives are counted differently from this release on
+
+A drive session used to start whenever the dongle could reach the broker. A
+parked WiCAN checks in roughly every 95 minutes, so most recorded "drives" were
+a parked vehicle: on the instance this was found on, 2,975 of 3,238. Drives
+taken out of broker range were missed instead.
+
+Sessions are now decided by movement, so your drive count will drop sharply and
+the remaining drives will be real ones. History is not rewritten automatically.
+Each session records which rule produced it, and to rebuild older ones:
+
+```
+docker exec -w /app mygarage python tools/reconstruct_session_boundaries.py
+docker exec -w /app mygarage python tools/reconstruct_session_boundaries.py --apply
+```
+
+Dry run first, as above. It only touches sessions whose stored telemetry proves
+what happened, so it cannot reach further back than
+`livelink_telemetry_retention_days` (default 90), and it leaves anything it
+cannot prove alone. Every run is listed under LiveLink settings with what it
+changed and what it left, including why.
+
+If your device reports no speed or odometer that MyGarage recognises, it will
+record no drives at all. Settings names the device and the readings it does
+send; set **How drives are detected** to "By device connection" to keep the old
+behaviour for it.
+
 #### Tire wear estimates go quiet until you record a mount odometer
 
 Migration 097 gives every existing tire an assumed mount period whose starting
@@ -102,12 +129,21 @@ odometer per tire, on its mount, restores the estimate.
 - Tire sets: name a group such as "Winter studded" and fit it in one action, each tire returning to the corner it was last on (#153).
 - Tires can be entered straight into storage, so a set you own but have not fitted is tracked like any other (#153).
 - The tire card shows distance on tire, and says which reading is missing when it cannot work one out (#153).
+- Two LiveLink settings: **Stop before a new drive** (default 15 minutes) sets how long a stop lasts before the next movement counts as a separate drive, and **How drives are detected** switches between movement and the old connection-based rule.
+- `backend/tools/reconstruct_session_boundaries.py` rebuilds drive boundaries recorded before this release, from stored telemetry. Dry run by default; LiveLink settings lists each run and what it refused (migration 098).
 - Analytics has a Tires section: tread over time, projected life, distance on tire, and a readiness block naming the one reading to record next (#152). It is on the Analytics page only for now; the PDF report and the garage export do not include it.
 
 ### Changed
+- Drive sessions are detected by movement rather than by the dongle connecting. A parked vehicle checking in no longer records a drive; see the upgrade note.
 - **BREAKING (API):** `POST /api/vehicles/{vin}/tires` no longer accepts `position` and creates a stored tire. Mount it afterwards, or use `POST /api/vehicles/{vin}/tires/create-and-mount`, which does both atomically. A payload carrying `position` is rejected with HTTP 422 naming the field.
 
 ### Fixed
+- Drives taken out of range of the broker are recorded. Readings pulled from the dongle's SD card could update an existing session but never create one, so a drive away from home was recorded as nothing at all.
+- A stop no longer splits one drive in two. The five-minute setting detects a lost connection and was also being used to end drives, so any stop longer than that became two trips: a charge, a fuel stop, or a school pickup.
+- A drive ends when the vehicle stops moving, not when the dongle stops talking. Sessions were being closed at the last check-in, padding every drive with up to 95 minutes of parked readings and dragging its average speed down.
+- Ending a drive no longer marks the ECU offline, which had been blocking remote commands after every trip.
+- A drive session is closed when the ECU reports offline. The check looked for a change of state that had already been recorded, so it never fired and the session was left to time out instead.
+- Two ingest paths arriving at once can no longer create a second, orphaned drive session that nothing ever closes.
 - Warranty, insurance and tax CSV work in both directions. Export returned HTTP 500 for any vehicle with a warranty or an insurance record, and import rejected every warranty, insurance and tax row with "Invalid record data", blaming your file for an application bug. No tax record had ever imported successfully.
 - Warranty CSV exports the mileage limit, in your own units. The column was missing entirely.
 - Reminder notifications work on PostgreSQL. The notification timestamp was written with a timezone into a column that has none, so the write failed and no reminder notification had ever been sent on a PostgreSQL instance. SQLite accepted it, which is why it went unnoticed.

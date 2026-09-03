@@ -229,6 +229,43 @@ class LiveLinkSettingsUpdate(BaseModel):
     notify_new_device: bool | None = None
 
 
+class ReconstructionRefusal(BaseModel):
+    """One session the reconstruction tool declined to touch, and why."""
+
+    session_id: int
+    reason: str = Field(
+        ...,
+        description=(
+            "A key, not a sentence: rendered with a translated label, because a "
+            "refusal is a routine outcome an admin has to be able to read"
+        ),
+    )
+
+
+class ReconstructionRunResponse(BaseModel):
+    """One invocation of the session-boundary reconstruction tool."""
+
+    id: int
+    started_at: datetime
+    finished_at: datetime | None = None
+    dry_run: bool
+    gap_minutes: int
+    boundary_version: int
+    sessions_created: int
+    sessions_merged: int
+    sessions_split: int
+    sessions_closed: int
+    sessions_refused: int
+    refusals: list[ReconstructionRefusal] = Field(default_factory=list)
+
+
+class ReconstructionRunListResponse(BaseModel):
+    """Recent reconstruction runs, newest first."""
+
+    runs: list[ReconstructionRunResponse]
+    total: int
+
+
 # =============================================================================
 # Firmware Schemas
 # =============================================================================

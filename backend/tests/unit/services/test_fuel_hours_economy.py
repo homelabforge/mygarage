@@ -257,7 +257,7 @@ class TestCalculateAverageHoursEconomySkipsZeroLiters:
         in a phantom 0.00; average_cost_per_hr averages BOTH intervals
         (1.75), since cost/hr is never suppressed for want of liters.
         """
-        vin = "HOURSAVGZERO000001"
+        vin = "HOURSAVGZERO00001"
         db_session.add(Vehicle(vin=vin, nickname="Avg Zero Liters", vehicle_type="Car"))
         await db_session.flush()
         db_session.add_all(
@@ -303,7 +303,7 @@ class TestCalculateAverageHoursEconomySkipsZeroLiters:
         """When EVERY scored interval is zero-liters, average_l_per_hr must be
         None (never a ZeroDivisionError, never a phantom 0.00) while
         average_cost_per_hr still averages the valid cost/hr figures."""
-        vin = "HOURSAVGZERO000002"
+        vin = "HOURSAVGZERO00002"
         db_session.add(Vehicle(vin=vin, nickname="Avg All Zero", vehicle_type="Car"))
         await db_session.flush()
         db_session.add_all(

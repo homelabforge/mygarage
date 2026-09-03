@@ -957,6 +957,12 @@
    "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched 3 of them; every hit was read in context and none is a unit decision or a unit-bearing quantity."
   },
   {
+   "path": "src/components/livelink/ReconstructionRunsSection.tsx",
+   "disposition": "no unit behaviour",
+   "digest": "6af63dfce9bc270ffc63796615db3859f4fe05ea5647ab238c06063c99fea5db",
+   "reason": "no unit behaviour: dispositioned under the CORRECTED scan (every unit stem, token, quantity name and canonical field suffix, case-insensitive, NO word boundary). This file matched 2 of them and both are incidental substrings: 'length' inside Array.prototype.length, and 'mi' inside 'emit' and 'semibold'. Everything it renders is dimensionless -- session counts, a timestamp via toLocaleString, a dry-run label and translated refusal reasons. The one number a reader might mistake for a quantity, gap_minutes, is not rendered here at all, and minutes are identical in both unit systems."
+  },
+  {
    "path": "src/components/livelink/VehicleLiveLinkWidget.tsx",
    "disposition": "audited",
    "digest": "bad35a28a7846647d3a4468afd35371b71ca817f3ca51156e1e4c99b563626f5",
@@ -1037,7 +1043,7 @@
   {
    "path": "src/components/modals/LiveLinkSettingsModal.tsx",
    "disposition": "no unit behaviour",
-   "digest": "550eaa399469391d8a9b8c7a7c568fd9d372fcfbe9ca0f2e1a797beeeeb0a543",
+   "digest": "bdda4003909166f1caf2135571bb9aced08ccfdfec7fe1969d2b9b3e3eb01587",
    "reason": "no unit behaviour: RE-REVIEWED for the LiveLink odometer-units fix. This file no longer matches NONE of the unit vocabulary — it now contains the literals 'km' and 'mi' — so the original scan-based justification is superseded. The disposition still holds on BEHAVIOUR, on the same ground as src/types/api.generated.ts: the added control selects a per-device DECLARATION of what units a WiCAN dongle reports its odometer in, and posts that enum verbatim to PUT /livelink/devices/{id}. It converts nothing, renders no unit-bearing quantity, and has no imperial/metric branch; the conversion it governs happens server-side in app/utils/odometer_units.py. Its three option labels are t() keys resolved from forms.json, which is audited separately."
   },
   {
@@ -2030,7 +2036,7 @@
   {
    "path": "src/locales/en/forms.json",
    "disposition": "audited",
-   "digest": "ac108d2f54c70206394550597220e12acd87fe3399511220458a2ec162219470",
+   "digest": "9e3c81f8adb92a62d4cbd97e6982ac9c9d4a403f305151b852767e0c1c428135",
    "reason": "fuel.receiptTextPlaceholder is a plausible EXAMPLE receipt (ruling R5's exempt class): there is no canonical value behind it to convert. Task 6 fixed the reminder distance copy: reminder.milesUntilDue / reminder.milesRequired are renamed to reminder.distanceUntilDue / reminder.distanceRequired and their prose no longer names a unit, so the unit comes only from u.distance.label. Covered by components/__tests__/ReminderForm.distanceCopy.test.tsx, which resolves this bundle and asserts the RENDERED prose rather than a key. Re-acknowledged for the LiveLink odometer-units fix: five keys added under modal.livelink.odometerUnit* labelling a per-device hardware-units selector (\"Kilometers\"/\"Miles\"/\"Auto (from PID)\" plus help text). These name what a DONGLE reports, not what the reader sees — they are deliberately absolute unit words rather than u.distance.label, because the value being chosen is the device's unit and must not follow the viewer's display preference.",
    "tests": [
     "components/__tests__/ReminderForm.distanceCopy.test.tsx",
@@ -2401,7 +2407,7 @@
   {
    "path": "src/services/livelinkService.ts",
    "disposition": "no unit behaviour",
-   "digest": "291bbfb9136f3b5dbec67d89db82b11c05fa6ee5291a04586b1fba50783507f2",
+   "digest": "32a56ae851c294878168a0f7d496de68a9d54e250dacc1aede61c2257152b713",
    "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched 2 of them; every hit was read in context and none is a unit decision or a unit-bearing quantity."
   },
   {
@@ -2443,7 +2449,7 @@
   {
    "path": "src/types/api.generated.ts",
    "disposition": "no unit behaviour",
-   "digest": "48960b629581601e409fe3364c0d45e3c3079874dd09172adf485aad9f47c537",
+   "digest": "9cd9896b897fb98dda1a0645145916ff4a22e831bcd1814fbb46052804b1ad1e",
    "reason": "no unit behaviour: a GENERATED type module. It declares the `UnitSet` vocabulary itself (`distance: \"km\" | \"mi\"` and nine more), so it is dense with unit vocabulary in a unit context, but it declares types rather than deciding or rendering anything. Its digest is load-bearing rather than incidental: this is the file the token-branch leg derives its vocabularies from, so a new unit token arriving from the backend is a review event, and an unrelated schema change costs one cheap re-acknowledgement. Re-acknowledged for the LiveLink odometer-units fix: the regenerated schema adds LiveLinkDeviceResponse.odometer_unit (`string | null`) and LiveLinkDeviceUpdate.odometer_unit (`\"km\" | \"mi\" | \"auto\" | null`). Reviewed as NOT a new UnitSet token: 'km'/'mi' here name what a piece of hardware reports rather than what a user wants displayed, and 'auto' is a clear-the-override sentinel, not a unit. The UnitSet vocabulary is untouched. Re-reviewed after the tire-set endpoints regenerated it. The new schemas (TireSetResponse / Create / Update / MountRequest and the `set_id` on TireUpdate) add one canonical `odometer_km` field and no new unit TOKEN, so the vocabulary this row is load-bearing for is unchanged. Re-reviewed after the tire analytics endpoint regenerated it. TireAnalyticsSummary and TireReadiness add counts and a reuse of TireResponse; no new unit TOKEN enters the vocabulary this row is load-bearing for."
   },
   {
@@ -2509,7 +2515,7 @@
   {
    "path": "src/types/livelink.ts",
    "disposition": "no unit behaviour",
-   "digest": "1754c2237d9d1657d0e35fd5e5b9e94a49f8b8adc5c930599f7aec30fea25b6b",
+   "digest": "25c8fba07b7998945e52991c09a04c4ec545d2929302eb8bb0b7268823befab2",
    "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched 3 of them; every hit was read in context and none is a unit decision or a unit-bearing quantity."
   },
   {

@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.drive_session import DriveSession
@@ -650,15 +651,42 @@ class SessionService:
             if movement_started_at < started_at:
                 movement_started_at = started_at
 
-        # A row lock through creation, so two concurrent first-movement payloads
-        # cannot both read a NULL pointer and both create. The partial unique
-        # index `uq_drive_sessions_open_per_device` is the real backstop; this
-        # keeps the common case from ever reaching it. No-op on SQLite, whose
-        # single writer serialises anyway.
+        # Take a row lock, then RE-READ the pointer under it.
+        #
+        # The re-read is the whole point, and leaving it out was measured to
+        # make the lock useless: MQTT and HTTPS ingest genuinely race, both read
+        # a NULL `current_session_id`, and both reach here. The loser blocks on
+        # the lock, but its identity-mapped `device` still holds the stale NULL,
+        # so it creates anyway and takes an IntegrityError from
+        # `uq_drive_sessions_open_per_device`. The index protects the DATA
+        # either way -- one open session per device -- but the losing payload
+        # still fails, which for a WiCAN means a dropped reading and a retry.
+        #
+        # With the re-read the loser adopts the winner's session and both
+        # payloads succeed. `test_session_concurrency.py` asserts that neither
+        # racer raises, which is the only way to tell this apart from the
+        # version that merely looked correct.
+        #
+        # No-op on SQLite, whose single writer serialises anyway.
         if self.db.bind is not None and self.db.bind.dialect.name == "postgresql":
-            await self.db.execute(
-                select(LiveLinkDevice.id).where(LiveLinkDevice.id == device.id).with_for_update()
-            )
+            claimed = (
+                await self.db.execute(
+                    select(LiveLinkDevice.current_session_id)
+                    .where(LiveLinkDevice.id == device.id)
+                    .with_for_update()
+                )
+            ).scalar()
+            if claimed is not None and claimed != device.current_session_id:
+                await self.db.refresh(device)
+                adopted = await self._live_session(device)
+                if adopted is not None:
+                    logger.info(
+                        "Adopted session %d for device %s: another ingest path opened "
+                        "it while this one waited on the device lock",
+                        adopted.id,
+                        device.device_id,
+                    )
+                    return adopted
 
         session = DriveSession(
             vin=device.vin,
@@ -670,8 +698,35 @@ class SessionService:
             boundary_algorithm_version=BOUNDARY_ALGORITHM_MOVEMENT,
             effective_gap_minutes=gap,
         )
-        self.db.add(session)
-        await self.db.flush()
+
+        # Insert inside a SAVEPOINT so losing the race is recoverable.
+        #
+        # The row lock above closes the window on PostgreSQL, but MyGarage runs
+        # SQLite in production and there is no `FOR UPDATE` there -- two
+        # concurrent ingest transactions both insert, and one takes a
+        # `UNIQUE constraint failed` from `uq_drive_sessions_open_per_device`.
+        # Without the savepoint that error would poison the whole ingest
+        # transaction, so the payload's telemetry would be lost along with the
+        # session it lost the race for.
+        #
+        # Adopting the winner's session is the correct outcome, not a fallback:
+        # both payloads describe the same drive.
+        try:
+            async with self.db.begin_nested():
+                self.db.add(session)
+                await self.db.flush()
+        except IntegrityError:
+            adopted = await self._open_session_for_device(device.device_id)
+            if adopted is None:
+                raise
+            device.current_session_id = adopted.id
+            logger.info(
+                "Adopted session %d for device %s: another ingest path opened it first",
+                adopted.id,
+                device.device_id,
+            )
+            return adopted
+
         device.current_session_id = session.id
 
         logger.info(
@@ -682,6 +737,20 @@ class SessionService:
             sample_at,
         )
         return session
+
+    async def _open_session_for_device(self, device_id: str) -> DriveSession | None:
+        """The device's open session, read from the DATABASE not the pointer.
+
+        Distinct from `_live_session`, which follows `device.current_session_id`
+        -- and in the race that field is exactly what is stale.
+        """
+        return (
+            await self.db.execute(
+                select(DriveSession)
+                .where(DriveSession.device_id == device_id)
+                .where(DriveSession.ended_at.is_(None))
+            )
+        ).scalar_one_or_none()
 
     async def begin_provisional_offline(
         self, device: LiveLinkDevice, now: datetime | None = None
