@@ -4,7 +4,7 @@ Every other test in this change exercises one rule. This one replays the pattern
 that motivated the whole rework and asserts the outcome a user would describe,
 because a set of individually correct rules can still compose into a wrong day.
 
-The pattern is from Diamond on 2026-09-01, not invented:
+The pattern is from a real instance on 2026-09-01, not invented:
 
 - the Mirage sat parked and published a battery-voltage heartbeat about every 95
   minutes, and every recorded session began within 0.1s of one, twelve for

@@ -24,7 +24,7 @@ const daysBefore = (n: number) =>
 const device = (overrides: Partial<LiveLinkDevice> = {}): LiveLinkDevice =>
   ({
     id: 1,
-    device_id: 'fc012ccc47bd',
+    device_id: 'aabbccddeeff',
     label: null,
     vin: '1HGCM82633A123456',
     enabled: true,
