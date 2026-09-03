@@ -105,9 +105,9 @@ across two of them, the rebuild keeps them as two. Both will show real driving
 and neither overlaps the other; the journey simply reads as two trips.
 
 If your device reports no speed or odometer that MyGarage recognises, it will
-record no drives at all. Settings names the device and the readings it does
-send; set **How drives are detected** to "By device connection" to keep the old
-behaviour for it.
+record no drives at all. LiveLink settings names the device, and the container
+log lists the readings it does send; set **How drives are detected** to "By
+device connection" to keep the old behaviour for it.
 
 #### Tire wear estimates go quiet until you record a mount odometer
 
