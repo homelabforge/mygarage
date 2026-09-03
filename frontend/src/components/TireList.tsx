@@ -238,6 +238,51 @@ export default function TireList({ vin }: TireListProps) {
    * literals, so a computed key is invisible to it and a missing translation
    * would ship a raw key to the user.
    */
+  /**
+   * What to show for the wear projection, for every status.
+   *
+   * The card used to render a bare "—" whenever `projected_km_remaining` was
+   * null, which covers seven different situations with one uninformative
+   * dash. Driving the real production data made the cost obvious: every tire
+   * on the maintainer's own instance showed "Wear Estimate —" and nothing
+   * about what to do, which is the same dead end the typed statuses exist to
+   * replace.
+   */
+  const wearSummary = (tire: Tire): string => {
+    const projection = (): string =>
+      tire.projected_km_remaining != null
+        ? `~${u.distance.format(num(tire.projected_km_remaining))}` +
+            (tire.projected_wear_date
+              ? ` · ${formatDateForDisplay(tire.projected_wear_date)}`
+              : '')
+        : '—'
+
+    switch (tire.wear_status) {
+      case 'projected':
+        return projection()
+      case 'at_or_below_minimum':
+        return t('tireList.wear.replaceNow')
+      case 'no_minimum_set':
+        return t('tireList.wear.noMinimum')
+      case 'insufficient_readings':
+        return t('tireList.wear.needsSecondReading')
+      case 'no_reading_odometers':
+        return t('tireList.wear.needsReadingOdometer')
+      case 'tread_not_decreasing':
+        return t('tireList.wear.treadNotDecreasing')
+      case 'no_distance_on_tire':
+      case 'unverified_mount_history':
+        return t('tireList.wear.needsMountOdometer')
+      default:
+        // No status on the payload at all: a response cached by a client that
+        // predates v3.3.0, or any future member this switch has not learned
+        // yet. Fall back to the number if one is present rather than hiding a
+        // figure the server did send -- an unknown status is a reason to stop
+        // explaining, not a reason to withhold.
+        return projection()
+    }
+  }
+
   const distanceSummary = (tire: Tire): string => {
     switch (tire.distance_status) {
       case 'complete':
@@ -553,14 +598,13 @@ export default function TireList({ vin }: TireListProps) {
                 {tire.pressure_kpa != null ? u.pressure.format(num(tire.pressure_kpa)) : '—'}
               </dd>
               <dt className="text-text-mute">{t('tireList.projection')}</dt>
-              <dd className="font-mono text-xs">
-                {tire.projected_km_remaining != null
-                  ? `~${u.distance.format(num(tire.projected_km_remaining))}`
-                  : '—'}
-                {tire.projected_wear_date
-                  ? ` · ${formatDateForDisplay(tire.projected_wear_date)}`
-                  : ''}
-              </dd>
+              <dd className="font-mono text-xs">{wearSummary(tire)}</dd>
+              {/* Distance on tire belongs on the MOUNTED card, not only on the
+                  stored one. It is the number this whole release exists to
+                  make correct, and leaving it off the card people actually
+                  look at made the feature invisible on real data. */}
+              <dt className="text-text-mute">{t('tireList.distanceOnTire')}</dt>
+              <dd className="font-mono text-xs">{distanceSummary(tire)}</dd>
             </dl>
             <div className="flex flex-wrap gap-2">
               <Button

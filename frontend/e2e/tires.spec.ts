@@ -121,8 +121,24 @@ test.describe('Tires', () => {
 
     await openTires(page)
     await expect(page.getByText('E2E Unbounded')).toBeVisible({ timeout: 10000 })
-    // Whatever wording the locale gives it, it must not be a zero distance.
-    await expect(page.getByText(/^0 (km|mi)$/)).toHaveCount(0)
+
+    // BOTH directions, scoped to THIS tire's card.
+    //
+    // Two earlier versions of this assertion were satisfied by the wrong
+    // thing. Checking only that no "0 km" appears passed while the mounted
+    // card carried no distance row at all -- "no zero" is also true of
+    // "nothing rendered". Adding `getByText('Distance on tire').first()` did
+    // not fix it either: the previous test in this file leaves a DISMOUNTED
+    // tire on the page, whose storage card has that same label, so `.first()`
+    // matched a card this test is not about. Verified by mutation: deleting
+    // the mounted card's distance row must fail this test.
+    const card = page.locator('.rounded-card', { hasText: 'E2E Unbounded' }).first()
+    await expect(card).toBeVisible({ timeout: 10000 })
+    await expect(card.getByText('Distance on tire')).toBeVisible()
+    // 'never rolled' only: the card ALSO renders 'Spare' as the position
+    // heading, so a looser regex matches two elements and fails strict mode.
+    await expect(card.getByText(/never rolled/i)).toBeVisible()
+    await expect(card.getByText(/^0 (km|mi)$/)).toHaveCount(0)
   })
 
   test('a stale client POSTing a position is rejected loudly', async ({ request }) => {

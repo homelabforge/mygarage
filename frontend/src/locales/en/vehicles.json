@@ -1268,9 +1268,9 @@
     "dismounted": "Tire dismounted",
     "distance": {
       "since": "{{distance}} since {{date}}",
-      "nothingBounded": "Not yet known — add an odometer to this tire's mount",
+      "nothingBounded": "Not yet known: add an odometer to this tire's mount",
       "noPeriods": "Not recorded yet",
-      "spareOnly": "Spare — never rolled",
+      "spareOnly": "Spare, never rolled",
       "rollback": "Cannot be calculated"
     },
     "distanceOnTire": "Distance on tire",
@@ -1318,7 +1318,15 @@
     "title": "Tires",
     "tread": "Tread",
     "treadOrPressureRequired": "Enter a tread depth, a pressure, or both",
-    "treadWithUnit": "Tread ({{unit}})"
+    "treadWithUnit": "Tread ({{unit}})",
+    "wear": {
+      "needsMountOdometer": "Add an odometer to this tire's mount",
+      "needsReadingOdometer": "Add an odometer to the tread readings",
+      "needsSecondReading": "Needs a second tread reading",
+      "noMinimum": "Set a minimum tread to project wear",
+      "replaceNow": "Replace now",
+      "treadNotDecreasing": "No wear measured yet"
+    }
   },
   "warrantyList": {
     "addFirstWarranty": "Add Your First Warranty",
