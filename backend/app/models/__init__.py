@@ -14,6 +14,7 @@ from app.models.insurance import InsurancePolicy
 from app.models.livelink_device import LiveLinkDevice
 from app.models.livelink_firmware_cache import LiveLinkFirmwareCache
 from app.models.livelink_parameter import LiveLinkParameter
+from app.models.livelink_reconstruction_run import LiveLinkReconstructionRun
 from app.models.location_point import LocationPoint
 from app.models.note import Note
 from app.models.odometer import OdometerRecord
@@ -69,6 +70,7 @@ __all__ = [
     "TireReading",
     # LiveLink (Telemetry)
     "LiveLinkDevice",
+    "LiveLinkReconstructionRun",
     "LiveLinkParameter",
     "LiveLinkFirmwareCache",
     "VehicleTelemetry",

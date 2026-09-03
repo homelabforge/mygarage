@@ -10,12 +10,19 @@ from app.models.drive_session import DriveSession
 from app.models.livelink_device import LiveLinkDevice
 from app.models.vehicle_telemetry import VehicleTelemetry
 from app.utils.datetime_utils import utc_now
+from app.utils.movement_keys import rpm_param_key_candidates, speed_param_key_candidates
 from app.utils.odometer_units import is_odometer_param_key
 
 logger = logging.getLogger(__name__)
 
-# Possible OBD2 parameter names for vehicle speed (different WiCAN firmware/configs)
-SPEED_PARAM_KEYS = ["SPEED", "0D-VehicleSpeed", "0D-VEHICLESPEED"]
+# Every spelling of speed and RPM, for the aggregate reader's SQL `IN` lists.
+# Derived from `app.utils.movement_keys` rather than written here, so the keys
+# that can OPEN a session and the keys the aggregates can READ are one set. They
+# were two: `SPEED_PARAM_KEYS` was a hand-written module constant and the RPM
+# list was inline in `_calculate_session_aggregates` twelve lines below it,
+# neither aware of the other.
+SPEED_PARAM_KEYS = speed_param_key_candidates()
+RPM_PARAM_KEYS = rpm_param_key_candidates()
 
 
 class SessionService:
@@ -421,7 +428,7 @@ class SessionService:
         # (e.g. OBD2 PID-prefixed "0D-VehicleSpeed" vs generic "SPEED").
         aggregate_mappings = {
             "speed": (SPEED_PARAM_KEYS, "avg_speed", "max_speed"),
-            "rpm": (["ENGINE_RPM", "0C-EngineRPM", "0C-ENGINERPM"], "avg_rpm", "max_rpm"),
+            "rpm": (RPM_PARAM_KEYS, "avg_rpm", "max_rpm"),
             "coolant": (
                 ["COOLANT_TMP", "05-EngineCoolantTemp", "05-ENGINECOOLANTTEMP"],
                 "avg_coolant_temp",
