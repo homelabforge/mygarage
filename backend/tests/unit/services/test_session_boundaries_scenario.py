@@ -79,9 +79,7 @@ class TestAMeasuredDay:
                 config={},
                 timestamp=at,
             )
-            await service.check_session_timeouts(
-                timeout_minutes=TIMEOUT, gap_minutes=GAP, now=at
-            )
+            await service.check_session_timeouts(timeout_minutes=TIMEOUT, gap_minutes=GAP, now=at)
             await db_session.flush()
 
         # 00:00 to 14:00 parked: nine heartbeats at the measured interval.
@@ -116,9 +114,7 @@ class TestAMeasuredDay:
             minute += HEARTBEAT_MINUTES
 
         sessions = await _sessions(db_session, device.device_id)
-        assert len(sessions) == 1, (
-            f"the day recorded {len(sessions)} drives; the vehicle made one"
-        )
+        assert len(sessions) == 1, f"the day recorded {len(sessions)} drives; the vehicle made one"
 
         drive = sessions[0]
         assert drive.started_at == drive_start, (
@@ -159,9 +155,7 @@ class TestAMeasuredDay:
                 config={},
                 timestamp=at,
             )
-            await service.check_session_timeouts(
-                timeout_minutes=TIMEOUT, gap_minutes=GAP, now=at
-            )
+            await service.check_session_timeouts(timeout_minutes=TIMEOUT, gap_minutes=GAP, now=at)
             await db_session.flush()
 
         start = DAY + timedelta(hours=9)
