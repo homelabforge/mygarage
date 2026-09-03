@@ -959,7 +959,7 @@
   {
    "path": "src/components/livelink/ReconstructionRunsSection.tsx",
    "disposition": "no unit behaviour",
-   "digest": "6af63dfce9bc270ffc63796615db3859f4fe05ea5647ab238c06063c99fea5db",
+   "digest": "922d51168d29f61a76ca577a2b183071848cc70ca81130b4fd15e746380696e5",
    "reason": "no unit behaviour: dispositioned under the CORRECTED scan (every unit stem, token, quantity name and canonical field suffix, case-insensitive, NO word boundary). This file matched 2 of them and both are incidental substrings: 'length' inside Array.prototype.length, and 'mi' inside 'emit' and 'semibold'. Everything it renders is dimensionless -- session counts, a timestamp via toLocaleString, a dry-run label and translated refusal reasons. The one number a reader might mistake for a quantity, gap_minutes, is not rendered here at all, and minutes are identical in both unit systems."
   },
   {

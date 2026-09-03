@@ -73,7 +73,26 @@ _NO_MOVEMENT_WARNED: set[str] = set()
 
 
 class SessionService:
-    """Service for drive session detection and aggregation."""
+    """Everything that decides what a drive session IS, and what it says.
+
+    Four responsibilities, in the order they appear below:
+
+    1. **Session detection.** `handle_ecu_status_change` and the Torque
+       constructor. Note that the ECU-online branch no longer opens a session
+       in the default mode -- see `observe_telemetry`.
+    2. **Movement-based boundaries.** The state machine: `observe_telemetry` is
+       its input edge, and the device row holds its state so the MQTT
+       subscriber, the HTTPS route and the scheduler all see the same thing.
+    3. **Aggregates.** `refresh_aggregates` is the single derivation of a
+       session's numbers; `end_session`, late-arriving telemetry, an SD-card
+       pull and the repair tools all go through it, so a session summarised on
+       close and one recomputed months later cannot disagree.
+    4. **Timeouts and queries.** `check_session_timeouts` runs the two clocks.
+
+    This file is long. The natural cut is section 3, which is self-contained and
+    orthogonal to the boundary rules; it was left in place deliberately during
+    the v3.3.0 boundary rework rather than moved in the same change.
+    """
 
     def __init__(self, db: AsyncSession):
         """Initialize with database session."""
