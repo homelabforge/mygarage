@@ -16185,6 +16185,28 @@
         "title": "TelemetrySeriesResponse",
         "type": "object"
       },
+      "TireAnalyticsSummary": {
+        "description": "Tire wear and life for one vehicle.\n\n`tires` are the SAME `TireResponse` objects the tire card renders, computed\nonce by `TireService`. Analytics deliberately adds no second serialisation\nof distance or wear: a copy that can disagree with the card is worse than\nno copy, and the tread trend is derivable from each tire's own readings,\nwhich are already on the wire.",
+        "properties": {
+          "has_odometer_record": {
+            "default": false,
+            "title": "Has Odometer Record",
+            "type": "boolean"
+          },
+          "readiness": {
+            "$ref": "#/components/schemas/TireReadiness"
+          },
+          "tires": {
+            "items": {
+              "$ref": "#/components/schemas/TireResponse"
+            },
+            "title": "Tires",
+            "type": "array"
+          }
+        },
+        "title": "TireAnalyticsSummary",
+        "type": "object"
+      },
       "TireCreate": {
         "additionalProperties": false,
         "description": "Create / upsert a tire at a position.",
@@ -16609,6 +16631,58 @@
           "position"
         ],
         "title": "TireMountRequest",
+        "type": "object"
+      },
+      "TireReadiness": {
+        "description": "How many of a vehicle's live tires can answer each question.\n\nRetired tires are counted in none of these (B10). The three capabilities\nare INDEPENDENT and so are the four prompts: a tire can have a perfectly\ngood distance and no projection, and telling that owner to add odometers to\ntheir tread readings would be advice about the wrong data.\n\nThe prompts are what the readiness block is for. A page that only said\n\"0 of 2\" would be an apology; these say which number to go and write down.",
+        "properties": {
+          "can_project": {
+            "default": 0,
+            "title": "Can Project",
+            "type": "integer"
+          },
+          "can_report_distance": {
+            "default": 0,
+            "title": "Can Report Distance",
+            "type": "integer"
+          },
+          "can_trend": {
+            "default": 0,
+            "title": "Can Trend",
+            "type": "integer"
+          },
+          "needs_minimum_tread": {
+            "default": 0,
+            "title": "Needs Minimum Tread",
+            "type": "integer"
+          },
+          "needs_mount_odometer": {
+            "default": 0,
+            "title": "Needs Mount Odometer",
+            "type": "integer"
+          },
+          "needs_reading_odometer": {
+            "default": 0,
+            "title": "Needs Reading Odometer",
+            "type": "integer"
+          },
+          "needs_second_reading": {
+            "default": 0,
+            "title": "Needs Second Reading",
+            "type": "integer"
+          },
+          "total": {
+            "default": 0,
+            "title": "Total",
+            "type": "integer"
+          },
+          "under_minimum": {
+            "default": 0,
+            "title": "Under Minimum",
+            "type": "integer"
+          }
+        },
+        "title": "TireReadiness",
         "type": "object"
       },
       "TireReadingCreate": {
@@ -26687,6 +26761,54 @@
           }
         ],
         "summary": "Get Seasonal Analytics",
+        "tags": [
+          "analytics"
+        ]
+      }
+    },
+    "/api/analytics/vehicles/{vin}/tires": {
+      "get": {
+        "description": "Tire wear and life for one vehicle, plus what is missing to compute it.\n\nRead-only and computes nothing of its own: the tires come from\n`TireService.list_tires`, so this page and the tire card cannot disagree\nabout a distance or a projection. What analytics adds is the readiness\nblock, which is the part worth shipping on an instance that has no tire\ndata yet.\n\nRetired tires are INCLUDED (B10). Their final figures are the most complete\ndata the app will ever hold about them, and they are excluded from the\nreadiness counts rather than from the response.",
+        "operationId": "get_tire_analytics_api_analytics_vehicles__vin__tires_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vin",
+            "required": true,
+            "schema": {
+              "title": "Vin",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TireAnalyticsSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Tire Analytics",
         "tags": [
           "analytics"
         ]

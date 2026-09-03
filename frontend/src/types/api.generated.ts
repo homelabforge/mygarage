@@ -186,6 +186,36 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/analytics/vehicles/{vin}/tires": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Tire Analytics
+         * @description Tire wear and life for one vehicle, plus what is missing to compute it.
+         *
+         *     Read-only and computes nothing of its own: the tires come from
+         *     `TireService.list_tires`, so this page and the tire card cannot disagree
+         *     about a distance or a projection. What analytics adds is the readiness
+         *     block, which is the part worth shipping on an instance that has no tire
+         *     data yet.
+         *
+         *     Retired tires are INCLUDED (B10). Their final figures are the most complete
+         *     data the app will ever hold about them, and they are excluded from the
+         *     readiness counts rather than from the response.
+         */
+        get: operations["get_tire_analytics_api_analytics_vehicles__vin__tires_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/analytics/vehicles/{vin}/vendors": {
         parameters: {
             query?: never;
@@ -13557,6 +13587,26 @@ export interface components {
             unit: string | null;
         };
         /**
+         * TireAnalyticsSummary
+         * @description Tire wear and life for one vehicle.
+         *
+         *     `tires` are the SAME `TireResponse` objects the tire card renders, computed
+         *     once by `TireService`. Analytics deliberately adds no second serialisation
+         *     of distance or wear: a copy that can disagree with the card is worse than
+         *     no copy, and the tread trend is derivable from each tire's own readings,
+         *     which are already on the wire.
+         */
+        TireAnalyticsSummary: {
+            /**
+             * Has Odometer Record
+             * @default false
+             */
+            has_odometer_record: boolean;
+            readiness?: components["schemas"]["TireReadiness"];
+            /** Tires */
+            tires?: components["schemas"]["TireResponse"][];
+        };
+        /**
          * TireCreate
          * @description Create / upsert a tire at a position.
          */
@@ -13665,6 +13715,65 @@ export interface components {
              * @enum {string}
              */
             position: "FL" | "FR" | "RL" | "RR" | "SPARE";
+        };
+        /**
+         * TireReadiness
+         * @description How many of a vehicle's live tires can answer each question.
+         *
+         *     Retired tires are counted in none of these (B10). The three capabilities
+         *     are INDEPENDENT and so are the four prompts: a tire can have a perfectly
+         *     good distance and no projection, and telling that owner to add odometers to
+         *     their tread readings would be advice about the wrong data.
+         *
+         *     The prompts are what the readiness block is for. A page that only said
+         *     "0 of 2" would be an apology; these say which number to go and write down.
+         */
+        TireReadiness: {
+            /**
+             * Can Project
+             * @default 0
+             */
+            can_project: number;
+            /**
+             * Can Report Distance
+             * @default 0
+             */
+            can_report_distance: number;
+            /**
+             * Can Trend
+             * @default 0
+             */
+            can_trend: number;
+            /**
+             * Needs Minimum Tread
+             * @default 0
+             */
+            needs_minimum_tread: number;
+            /**
+             * Needs Mount Odometer
+             * @default 0
+             */
+            needs_mount_odometer: number;
+            /**
+             * Needs Reading Odometer
+             * @default 0
+             */
+            needs_reading_odometer: number;
+            /**
+             * Needs Second Reading
+             * @default 0
+             */
+            needs_second_reading: number;
+            /**
+             * Total
+             * @default 0
+             */
+            total: number;
+            /**
+             * Under Minimum
+             * @default 0
+             */
+            under_minimum: number;
         };
         /**
          * TireReadingCreate
@@ -17653,6 +17762,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SeasonalAnalyticsSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_tire_analytics_api_analytics_vehicles__vin__tires_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vin: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TireAnalyticsSummary"];
                 };
             };
             /** @description Validation Error */
