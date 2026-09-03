@@ -108,6 +108,10 @@ odometer per tire, on its mount, restores the estimate.
 - **BREAKING (API):** `POST /api/vehicles/{vin}/tires` no longer accepts `position` and creates a stored tire. Mount it afterwards, or use `POST /api/vehicles/{vin}/tires/create-and-mount`, which does both atomically. A payload carrying `position` is rejected with HTTP 422 naming the field.
 
 ### Fixed
+- Warranty, insurance and tax CSV work in both directions. Export returned HTTP 500 for any vehicle with a warranty or an insurance record, and import rejected every warranty, insurance and tax row with "Invalid record data", blaming your file for an application bug. No tax record had ever imported successfully.
+- Warranty CSV exports the mileage limit, in your own units. The column was missing entirely.
+- Reminder notifications work on PostgreSQL. The notification timestamp was written with a timezone into a column that has none, so the write failed and no reminder notification had ever been sent on a PostgreSQL instance. SQLite accepted it, which is why it went unnoticed.
+- Saving a service visit no longer does nothing without saying why. A value the browser rejected, such as a negative cost, a third decimal place or a blank date, aborted the save with no message, and where the field was inside a collapsed line item there was nothing on screen to look at.
 - The tire wear estimate no longer over-states remaining life for anyone running two sets. It measured the whole odometer span between two readings, which counts the distance driven on the other set (#153).
 - The odometer you type into a mount, dismount, rotation, retirement or tread reading is recorded as an odometer reading, so a tire's distance completes without entering the same number twice.
 - The maintenance tools are now in the runtime image. `backend/tools/` was built and then discarded, so every command in the upgrade note above failed with `can't open file`.
