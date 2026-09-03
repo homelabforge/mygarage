@@ -263,18 +263,30 @@ test.describe('Settings: units (authenticated)', () => {
     request,
   }) => {
     // Seeded canonically (kPa, mm) so the browser is the only thing that
-    // converts. `POST /tires` upserts by position, so a re-run resets it.
-    const seeded = await request.post(`${API_BASE}/vehicles/${TEST_VEHICLE.vin}/tires`, {
-      headers: admin.headers,
-      data: {
-        vin: TEST_VEHICLE.vin,
-        position: 'FL',
-        tread_depth_mm: 8,
-        pressure_kpa: 200,
-        min_tread_mm: 2,
-      },
-    })
-    expect(seeded.status(), `Seed tire failed: ${await seeded.text()}`).toBe(201)
+    // converts.
+    //
+    // v3.3.0: `POST /tires` no longer takes a position and no longer upserts
+    // by one -- a tire is a thing you own, and mounting is a separate
+    // operation. Seeding goes through create-and-mount, which is atomic. A
+    // re-run no longer resets the corner, so the seed tolerates the 409 it
+    // gets when FL is already occupied from a previous run.
+    const seeded = await request.post(
+      `${API_BASE}/vehicles/${TEST_VEHICLE.vin}/tires/create-and-mount`,
+      {
+        headers: admin.headers,
+        data: {
+          vin: TEST_VEHICLE.vin,
+          position: 'FL',
+          tread_depth_mm: 8,
+          pressure_kpa: 200,
+          min_tread_mm: 2,
+        },
+      }
+    )
+    expect(
+      [201, 409],
+      `Seed tire failed: ${await seeded.text()}`
+    ).toContain(seeded.status())
 
     // 1. Set Custom, with pressure on PSI.
     await page.goto('/settings')
