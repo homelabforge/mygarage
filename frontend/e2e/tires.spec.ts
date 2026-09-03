@@ -2,7 +2,6 @@ import { request as apiRequest } from '@playwright/test'
 
 import { test, expect } from './helpers/fixtures'
 import { adminSessionFromStorageState, type AdminSession } from './helpers/seed'
-import { TEST_VEHICLE } from './helpers/selectors'
 
 /**
  * The tire lifecycle, driven through the browser.
@@ -18,7 +17,6 @@ import { TEST_VEHICLE } from './helpers/selectors'
  * invisible to the component tests, which mock the hooks.
  */
 
-const VIN = TEST_VEHICLE.vin
 const ROOT_BASE_URL = 'http://localhost:3000'
 const API_BASE = `${ROOT_BASE_URL}/api`
 const AUTH_FILE = './e2e/.auth/user.json'
@@ -37,9 +35,62 @@ async function adminSession(): Promise<AdminSession> {
   }
 }
 
-async function openTires(page: import('@playwright/test').Page) {
-  await page.goto(`/vehicles/${VIN}`)
-  await expect(page.getByRole('heading', { name: TEST_VEHICLE.nickname })).toBeVisible({
+/**
+ * A vehicle created fresh for this file, on every run.
+ *
+ * NOT the shared TEST_VEHICLE. Two reasons, both learned the hard way:
+ *
+ * - Corners are claimable once now, so tests that mount tires are no longer
+ *   idempotent. `reuseExistingServer` keeps the e2e backend and its database
+ *   alive between local invocations, so a second run found every position
+ *   taken and either skipped (proving nothing) or failed in a way that looked
+ *   like a product bug.
+ * - The first attempt at a per-test vehicle reused TEST_VEHICLE's make, model
+ *   and year, which put a second identical card on the dashboard and broke two
+ *   assertions in vehicle.spec.ts with a strict-mode violation. Distinctive
+ *   make/model, so no other spec's text matcher can see it.
+ */
+const vehicleVins = new Map<string, string>()
+
+async function tireVehicle(
+  request: import('@playwright/test').APIRequestContext,
+  label = 'default'
+): Promise<string> {
+  // Keyed by label so a test needing a corner another test already claimed can
+  // ask for its own rig. A single shared rig is not enough: there are five
+  // positions, the rotation test claims four of them and the unbounded test
+  // holds SPARE, so anything else wanting a corner gets a 409 that looks like
+  // a product bug.
+  const cached = vehicleVins.get(label)
+  if (cached !== undefined) return cached
+  const admin = await adminSession()
+  // 17 chars, no I/O/Q -- VIN validation rejects those.
+  const vin = ('TRET' + Math.random().toString(36).slice(2).toUpperCase())
+    .replace(/[IOQ]/g, 'X')
+    .padEnd(17, '0')
+    .slice(0, 17)
+  const made = await request.post(`${API_BASE}/vehicles`, {
+    headers: admin.headers,
+    data: {
+      vin,
+      nickname: 'E2E Tire Rig',
+      vehicle_type: 'Car',
+      year: 1999,
+      make: 'TireRigMake',
+      model: 'TireRigModel',
+    },
+  })
+  expect(
+    [201, 409].includes(made.status()),
+    `seed tire vehicle: ${made.status()} ${await made.text()}`
+  ).toBeTruthy()
+  vehicleVins.set(label, vin)
+  return vin
+}
+
+async function openTires(page: import('@playwright/test').Page, vin: string) {
+  await page.goto(`/vehicles/${vin}`)
+  await expect(page.getByRole('heading', { name: 'E2E Tire Rig' })).toBeVisible({
     timeout: 15000,
   })
   await page.getByRole('tab', { name: 'Maintenance' }).click()
@@ -47,20 +98,45 @@ async function openTires(page: import('@playwright/test').Page) {
   await expect(page.getByRole('heading', { name: 'Tires' })).toBeVisible({ timeout: 10000 })
 }
 
+/**
+ * Delete every rig this file created.
+ *
+ * Not optional tidiness: the rigs appear on the dashboard, and
+ * `vehicle.spec.ts` asserts against a single "View Details" button and a
+ * unique vehicle heading. Leaving three extra vehicles behind turned both of
+ * those into strict-mode violations -- a spec this file does not touch,
+ * failing because of data this file created. The backend suite hit the
+ * identical problem with a paginated listing.
+ */
+test.afterAll(async ({ playwright }) => {
+  if (vehicleVins.size === 0) return
+  const admin = await adminSession()
+  const context = await playwright.request.newContext({ baseURL: ROOT_BASE_URL })
+  try {
+    for (const vin of vehicleVins.values()) {
+      await context.delete(`${API_BASE}/vehicles/${vin}`, { headers: admin.headers })
+    }
+  } finally {
+    await context.dispose()
+    vehicleVins.clear()
+  }
+})
+
 test.describe('Tires', () => {
   test('create-and-mount, then dismount, keeps the tire and frees the corner', async ({
     page,
     request,
   }) => {
+    const vin = await tireVehicle(request)
     const admin = await adminSession()
     // Seeded through the API so the test is about the BROWSER flow that
     // follows, not about form-filling.
     const created = await request.post(
-      `${API_BASE}/vehicles/${VIN}/tires/create-and-mount`,
+      `${API_BASE}/vehicles/${vin}/tires/create-and-mount`,
       {
         headers: admin.headers,
         data: {
-          vin: VIN,
+          vin,
           position: 'RR',
           brand: 'E2E Michelin',
           tread_depth_mm: 8,
@@ -72,7 +148,7 @@ test.describe('Tires', () => {
     expect([201, 409], `seed failed: ${await created.text()}`).toContain(created.status())
     test.skip(created.status() === 409, 'RR already occupied by a previous run')
 
-    await openTires(page)
+    await openTires(page, vin)
     await expect(page.getByText('E2E Michelin')).toBeVisible({ timeout: 10000 })
 
     // Dismount through the drawer, supplying the closing odometer.
@@ -90,24 +166,35 @@ test.describe('Tires', () => {
 
     // The tire is still there, now under "In storage" -- not deleted, and not
     // rendered as a blank corner.
-    await expect(page.getByText('In storage').first()).toBeVisible({ timeout: 10000 })
-    await expect(page.getByText('E2E Michelin')).toBeVisible()
+    //
+    // Scoped to THIS tire's card. `getByText('In storage').first()` happened
+    // to work only because this test runs before any other tire is
+    // dismounted; a reordering would have made it assert against someone
+    // else's card. Order-dependent assertions are the same defect as the
+    // `.first()` one below, just not yet triggered.
+    const card = page.locator('.rounded-card', { hasText: 'E2E Michelin' }).first()
+    await expect(card).toBeVisible({ timeout: 10000 })
+    await expect(card.getByText('In storage')).toBeVisible()
+    // And it can be put back on, which is the seasonal-swap case the whole
+    // mount-period model exists for.
+    await expect(card.getByRole('button', { name: 'Mount' })).toBeVisible()
   })
 
   test('a tire with no odometer bounds prompts rather than showing a zero', async ({
     page,
     request,
   }) => {
+    const vin = await tireVehicle(request)
     const admin = await adminSession()
     // The upgrade-day shape: mounted, but with no odometer on the mount, so
     // there is no bounded distance. Every tire on every instance looks like
     // this the moment migration 097 runs, which is why "0 km" here would be
     // the single most visible wrong number in the release.
     const created = await request.post(
-      `${API_BASE}/vehicles/${VIN}/tires/create-and-mount`,
+      `${API_BASE}/vehicles/${vin}/tires/create-and-mount`,
       {
         headers: admin.headers,
-        data: { vin: VIN, position: 'SPARE', brand: 'E2E Unbounded', tread_depth_mm: 7 },
+        data: { vin, position: 'SPARE', brand: 'E2E Unbounded', tread_depth_mm: 7 },
       }
     )
     expect([201, 409], `seed failed: ${await created.text()}`).toContain(created.status())
@@ -119,7 +206,7 @@ test.describe('Tires', () => {
     expect(body.distance_status).toBe('spare_only')
     expect(body.distance_km).toBeNull()
 
-    await openTires(page)
+    await openTires(page, vin)
     await expect(page.getByText('E2E Unbounded')).toBeVisible({ timeout: 10000 })
 
     // BOTH directions, scoped to THIS tire's card.
@@ -142,17 +229,165 @@ test.describe('Tires', () => {
   })
 
   test('a stale client POSTing a position is rejected loudly', async ({ request }) => {
+    const vin = await tireVehicle(request)
     const admin = await adminSession()
     // The release's breaking change, asserted as a contract rather than
     // described in a changelog. A browser tab left open across the upgrade
     // sends exactly this payload; the 422 naming the field is what stops it
     // silently creating a second, unmounted tire.
-    const response = await request.post(`${API_BASE}/vehicles/${VIN}/tires`, {
+    const response = await request.post(`${API_BASE}/vehicles/${vin}/tires`, {
       headers: admin.headers,
-      data: { vin: VIN, position: 'FL', tread_depth_mm: 8 },
+      data: { vin, position: 'FL', tread_depth_mm: 8 },
     })
     expect(response.status()).toBe(422)
     const detail = await response.text()
     expect(detail).toContain('position')
+  })
+})
+
+test.describe('Tire rotation and retirement', () => {
+  test('an X-pattern rotation moves every tire', async ({ request }) => {
+    const vin = await tireVehicle(request, 'rotation')
+    // The two-phase write, end to end. `uq_tires_vin_position` is an IMMEDIATE
+    // unique index, so a naive one-at-a-time assignment collides on the first
+    // move -- every destination is occupied. This is the API-level proof that
+    // the vacate/flush/assign split survives a real request; the unit test
+    // proves the mechanism, this proves the wiring.
+    const admin = await adminSession()
+    const corners = ['FL', 'FR', 'RL', 'RR'] as const
+    const ids: Record<string, number> = {}
+
+    for (const position of corners) {
+      const created = await request.post(
+        `${API_BASE}/vehicles/${vin}/tires/create-and-mount`,
+        {
+          headers: admin.headers,
+          data: {
+            vin,
+            position,
+            brand: `E2E Rot ${position}`,
+            tread_depth_mm: 8,
+            mounted_odometer_km: 1000,
+          },
+        }
+      )
+      if (created.status() === 409) test.skip(true, `${position} already occupied`)
+      expect(created.status(), `seed ${position}: ${await created.text()}`).toBe(201)
+      ids[position] = (await created.json()).id
+    }
+
+    const rotated = await request.post(`${API_BASE}/vehicles/${vin}/tires/rotate`, {
+      headers: admin.headers,
+      data: {
+        odometer_km: 20000,
+        moves: [
+          { tire_id: ids.FL, position: 'RR' },
+          { tire_id: ids.FR, position: 'RL' },
+          { tire_id: ids.RL, position: 'FR' },
+          { tire_id: ids.RR, position: 'FL' },
+        ],
+      },
+    })
+    expect(rotated.status(), await rotated.text()).toBe(200)
+
+    const placed = Object.fromEntries(
+      (await rotated.json()).tires.map((t: { id: number; position: string }) => [
+        t.id,
+        t.position,
+      ])
+    )
+    expect(placed[ids.FL]).toBe('RR')
+    expect(placed[ids.RR]).toBe('FL')
+
+    // Each corner's period closed at the rotation odometer, so distance stays
+    // attributable per position rather than pooled across the vehicle.
+    const listed = await request.get(`${API_BASE}/vehicles/${vin}/tires`, {
+      headers: admin.headers,
+    })
+    const moved = (await listed.json()).tires.find(
+      (t: { id: number }) => t.id === ids.FL
+    )
+    expect(moved.mount_periods).toHaveLength(2)
+
+    // `incomplete`, not `complete`, and this is the code being right rather
+    // than the test being wrong. The closed FL period is bounded (1000 ->
+    // 20000), but the new RR period is OPEN, and an open period's upper bound
+    // is the vehicle's latest OdometerRecord -- which this vehicle does not
+    // have, because a rotation's `odometer_km` does not create one.
+    //
+    // So the all-time total is withheld and the measurable leg is reported.
+    // That is exactly the contract, and it is also the clearest statement of
+    // a real product gap: a user who rotates and supplies an odometer still
+    // sees "incomplete" until they log an odometer reading separately.
+    expect(moved.distance_status).toBe('incomplete')
+    expect(Number(moved.known_distance_km)).toBeGreaterThanOrEqual(19000)
+    expect(moved.distance_km).toBeNull()
+    expect(moved.blocking_period_ids.length).toBeGreaterThan(0)
+  })
+
+  test('retiring keeps the history that deleting would destroy', async ({ request }) => {
+    const vin = await tireVehicle(request, 'retire')
+    // The distinction the release turns on. Retire and DELETE are different
+    // endpoints because replacing a worn tire must not erase the readings and
+    // mount periods this feature exists to collect.
+    const admin = await adminSession()
+    const created = await request.post(
+      `${API_BASE}/vehicles/${vin}/tires/create-and-mount`,
+      {
+        headers: admin.headers,
+        data: {
+          vin,
+          position: 'SPARE',
+          brand: 'E2E Retire',
+          tread_depth_mm: 8,
+          mounted_odometer_km: 1000,
+        },
+      }
+    )
+    expect(created.status(), await created.text()).toBe(201)
+    const id = (await created.json()).id
+
+    await request.post(`${API_BASE}/vehicles/${vin}/tires/${id}/readings`, {
+      headers: admin.headers,
+      data: { recorded_at: '2026-03-01', tread_depth_mm: 6, odometer_km: 15000 },
+    })
+
+    const retired = await request.post(
+      `${API_BASE}/vehicles/${vin}/tires/${id}/retire`,
+      { headers: admin.headers, data: { dismounted_odometer_km: 20000 } }
+    )
+    expect(retired.status(), await retired.text()).toBe(200)
+    const body = await retired.json()
+    expect(body.retired_on).not.toBeNull()
+    expect(body.position).toBeNull()
+    // Everything survives.
+    expect(body.readings.length).toBeGreaterThanOrEqual(1)
+    expect(body.mount_periods).toHaveLength(1)
+    expect(body.mount_periods[0].dismounted_on).not.toBeNull()
+
+    // Out of the default listing, present when asked for. A retired tire is
+    // history, not inventory -- but it is not gone.
+    const listed = await request.get(`${API_BASE}/vehicles/${vin}/tires`, {
+      headers: admin.headers,
+    })
+    const defaultIds = (await listed.json()).tires.map((t: { id: number }) => t.id)
+    expect(defaultIds).not.toContain(id)
+
+    const withRetired = await request.get(
+      `${API_BASE}/vehicles/${vin}/tires?include_retired=true`,
+      { headers: admin.headers }
+    )
+    const allIds = (await withRetired.json()).tires.map((t: { id: number }) => t.id)
+    expect(allIds).toContain(id)
+
+    // And the corner it vacated is free for the replacement.
+    const replacement = await request.post(
+      `${API_BASE}/vehicles/${vin}/tires/create-and-mount`,
+      {
+        headers: admin.headers,
+        data: { vin, position: 'SPARE', brand: 'E2E Replacement', tread_depth_mm: 9 },
+      }
+    )
+    expect(replacement.status(), await replacement.text()).toBe(201)
   })
 })
