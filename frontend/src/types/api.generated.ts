@@ -10405,6 +10405,11 @@ export interface components {
              * @description User-friendly device name
              */
             label?: string | null;
+            /**
+             * Last Movement At
+             * @description When this device last reported a recognised movement signal
+             */
+            last_movement_at?: string | null;
             /** Last Seen */
             last_seen: string | null;
             /**

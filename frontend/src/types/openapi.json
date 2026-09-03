@@ -8370,6 +8370,19 @@
             "description": "User-friendly device name",
             "title": "Label"
           },
+          "last_movement_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When this device last reported a recognised movement signal",
+            "title": "Last Movement At"
+          },
           "last_seen": {
             "anyOf": [
               {

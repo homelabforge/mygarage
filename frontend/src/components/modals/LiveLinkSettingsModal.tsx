@@ -29,6 +29,7 @@ import {
 } from 'lucide-react'
 import { livelinkService } from '@/services/livelinkService'
 import ReconstructionRunsSection from '@/components/livelink/ReconstructionRunsSection'
+import NoMovementSignalNotice from '@/components/livelink/NoMovementSignalNotice'
 import { vehicleService } from '@/services/vehicleService'
 import { Select, Drawer, Toggle } from '@/components/ui'
 import type {
@@ -761,6 +762,8 @@ export default function LiveLinkSettingsModal({ isOpen, onClose }: LiveLinkSetti
                   </div>
                 </div>
               </section>
+
+              <NoMovementSignalNotice devices={devices?.devices ?? []} />
 
               <ReconstructionRunsSection runs={reconstructionRuns} />
 

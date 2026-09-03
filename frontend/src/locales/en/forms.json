@@ -548,7 +548,9 @@
       "refusalUnprovenBoundary": "readings are missing from the start or end",
       "refusalInsufficientCoverage": "a long stretch of readings is missing",
       "refusalHasLocationPoints": "it has a GPS trace, so it was a real drive",
-      "refusalAmbiguousOverlap": "it overlaps more than one rebuilt drive"
+      "refusalAmbiguousOverlap": "it overlaps more than one rebuilt drive",
+      "noMovementSignal": "A device is not recording any drives",
+      "noMovementSignalDesc": "{{devices}} keeps checking in but never reports a speed or odometer reading MyGarage recognises, so no drives are being recorded for it. Check the container log for the exact readings it sends, or set How drives are detected to \"By device connection\" to record drives the old way."
     },
     "transfer": {
       "progressLabel": "Vehicle transfer progress",

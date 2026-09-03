@@ -67,6 +67,14 @@ class LiveLinkDeviceResponse(LiveLinkDeviceBase):
     )
     enabled: bool
     last_seen: datetime | None
+    #: When this device last proved the vehicle moved. NULL on a device whose
+    #: speed and odometer arrive under names nothing here recognises, which
+    #: records no drives at all -- so the admin page can say which device that
+    #: is instead of showing an empty session list with no explanation. A silent
+    #: zero is the failure the whole boundary rework exists to remove.
+    last_movement_at: datetime | None = Field(
+        None, description="When this device last reported a recognised movement signal"
+    )
     created_at: datetime
     updated_at: datetime | None
 
