@@ -20,8 +20,15 @@ _SEQ = itertools.count()
 FIXED_TS = datetime(2026, 7, 17, 12, 0, 0)  # naive UTC
 
 
-async def _make_vehicle(db_session: AsyncSession) -> str:
-    """Create a minimal user + vehicle, return the (unique) vin."""
+async def _make_vehicle(db_session: AsyncSession) -> tuple[str, str]:
+    """Create a minimal user + vehicle, return its unique (vin, device_id).
+
+    The device id used to be the literal `device_id` in every test in this file.
+    The suite shares one database with no per-test rollback, so two tests that
+    each seeded an OPEN session for `dev1` left two open sessions on one
+    device -- which is exactly what `uq_drive_sessions_open_per_device` now
+    forbids. Both tests were legitimate; the shared identifier was not.
+    """
     n = next(_SEQ)
     user = User(
         username=f"loc_svc_user_{n}",
@@ -42,7 +49,7 @@ async def _make_vehicle(db_session: AsyncSession) -> str:
     )
     db_session.add(vehicle)
     await db_session.flush()
-    return vin
+    return vin, f"locsvcdev{n:04d}"
 
 
 @pytest.mark.asyncio
@@ -52,17 +59,17 @@ async def test_record_point_inserts_and_dedups_on_vin_timestamp_source(
     """First record_point inserts one row and returns True; a duplicate
     (vin, timestamp, 'torque') returns False and does not create a second row.
     """
-    vin = await _make_vehicle(db_session)
+    vin, device_id = await _make_vehicle(db_session)
     service = LocationService(db_session)
 
     first = await service.record_point(
-        vin, "dev1", None, FIXED_TS, Decimal("47.620000"), Decimal("-122.350000")
+        vin, device_id, None, FIXED_TS, Decimal("47.620000"), Decimal("-122.350000")
     )
     await db_session.commit()
     assert first is True
 
     second = await service.record_point(
-        vin, "dev1", None, FIXED_TS, Decimal("47.620000"), Decimal("-122.350000")
+        vin, device_id, None, FIXED_TS, Decimal("47.620000"), Decimal("-122.350000")
     )
     await db_session.commit()
     assert second is False
@@ -83,12 +90,12 @@ async def test_get_trips_only_sessions_with_points_correct_counts_newest_first(
     """get_trips excludes sessions with zero location points, reports the right
     point_count per session, and orders newest-first by started_at.
     """
-    vin = await _make_vehicle(db_session)
+    vin, device_id = await _make_vehicle(db_session)
     service = LocationService(db_session)
 
     session_old = DriveSession(
         vin=vin,
-        device_id="dev1",
+        device_id=device_id,
         started_at=datetime(2026, 7, 10, 8, 0, 0),
         ended_at=datetime(2026, 7, 10, 8, 30, 0),
         duration_seconds=1800,
@@ -96,14 +103,14 @@ async def test_get_trips_only_sessions_with_points_correct_counts_newest_first(
     )
     session_new = DriveSession(
         vin=vin,
-        device_id="dev1",
+        device_id=device_id,
         started_at=datetime(2026, 7, 15, 8, 0, 0),
         ended_at=datetime(2026, 7, 15, 8, 30, 0),
         duration_seconds=1800,
         distance_km=20.0,
     )
     session_empty = DriveSession(
-        vin=vin, device_id="dev1", started_at=datetime(2026, 7, 12, 8, 0, 0)
+        vin=vin, device_id=device_id, started_at=datetime(2026, 7, 12, 8, 0, 0)
     )
     db_session.add_all([session_old, session_new, session_empty])
     await db_session.flush()
@@ -111,7 +118,7 @@ async def test_get_trips_only_sessions_with_points_correct_counts_newest_first(
     # session_old: 2 points
     await service.record_point(
         vin,
-        "dev1",
+        device_id,
         session_old.id,
         datetime(2026, 7, 10, 8, 0, 0),
         Decimal("47.60"),
@@ -119,7 +126,7 @@ async def test_get_trips_only_sessions_with_points_correct_counts_newest_first(
     )
     await service.record_point(
         vin,
-        "dev1",
+        device_id,
         session_old.id,
         datetime(2026, 7, 10, 8, 5, 0),
         Decimal("47.61"),
@@ -128,7 +135,7 @@ async def test_get_trips_only_sessions_with_points_correct_counts_newest_first(
     # session_new: 3 points
     await service.record_point(
         vin,
-        "dev1",
+        device_id,
         session_new.id,
         datetime(2026, 7, 15, 8, 0, 0),
         Decimal("47.60"),
@@ -136,7 +143,7 @@ async def test_get_trips_only_sessions_with_points_correct_counts_newest_first(
     )
     await service.record_point(
         vin,
-        "dev1",
+        device_id,
         session_new.id,
         datetime(2026, 7, 15, 8, 5, 0),
         Decimal("47.61"),
@@ -144,7 +151,7 @@ async def test_get_trips_only_sessions_with_points_correct_counts_newest_first(
     )
     await service.record_point(
         vin,
-        "dev1",
+        device_id,
         session_new.id,
         datetime(2026, 7, 15, 8, 10, 0),
         Decimal("47.62"),
@@ -171,9 +178,9 @@ async def test_get_trip_points_ordered_by_timestamp_scoped_to_vin(
     """get_trip_points returns a session's points ordered by timestamp ascending,
     regardless of insertion order.
     """
-    vin = await _make_vehicle(db_session)
+    vin, device_id = await _make_vehicle(db_session)
     service = LocationService(db_session)
-    session = DriveSession(vin=vin, device_id="dev1", started_at=datetime(2026, 7, 16, 9, 0, 0))
+    session = DriveSession(vin=vin, device_id=device_id, started_at=datetime(2026, 7, 16, 9, 0, 0))
     db_session.add(session)
     await db_session.flush()
 
@@ -181,9 +188,9 @@ async def test_get_trip_points_ordered_by_timestamp_scoped_to_vin(
     t2 = datetime(2026, 7, 16, 9, 5, 0)
     t3 = datetime(2026, 7, 16, 9, 10, 0)
     # insert out of chronological order
-    await service.record_point(vin, "dev1", session.id, t3, Decimal("47.62"), Decimal("-122.32"))
-    await service.record_point(vin, "dev1", session.id, t1, Decimal("47.60"), Decimal("-122.30"))
-    await service.record_point(vin, "dev1", session.id, t2, Decimal("47.61"), Decimal("-122.31"))
+    await service.record_point(vin, device_id, session.id, t3, Decimal("47.62"), Decimal("-122.32"))
+    await service.record_point(vin, device_id, session.id, t1, Decimal("47.60"), Decimal("-122.30"))
+    await service.record_point(vin, device_id, session.id, t2, Decimal("47.61"), Decimal("-122.31"))
     await db_session.commit()
 
     points = await service.get_trip_points(vin, session.id)
@@ -196,15 +203,15 @@ async def test_get_last_location_returns_the_newest_point(db_session: AsyncSessi
     """get_last_location returns the most recent point for the vin, and None
     when there are no points at all.
     """
-    vin = await _make_vehicle(db_session)
+    vin, device_id = await _make_vehicle(db_session)
     service = LocationService(db_session)
 
     assert await service.get_last_location(vin) is None
 
     t1 = datetime(2026, 7, 16, 9, 0, 0)
     t2 = datetime(2026, 7, 16, 10, 0, 0)
-    await service.record_point(vin, "dev1", None, t1, Decimal("47.60"), Decimal("-122.30"))
-    await service.record_point(vin, "dev1", None, t2, Decimal("47.61"), Decimal("-122.31"))
+    await service.record_point(vin, device_id, None, t1, Decimal("47.60"), Decimal("-122.30"))
+    await service.record_point(vin, device_id, None, t2, Decimal("47.61"), Decimal("-122.31"))
     await db_session.commit()
 
     last = await service.get_last_location(vin)

@@ -60,16 +60,31 @@ async def check_session_timeouts():
                 return
 
             timeout_minutes = await livelink_service.get_session_timeout_minutes()
+            gap_minutes = await livelink_service.get_session_gap_minutes()
 
-            # Close stale sessions
+            # Close stale sessions on either clock: contact loss (the device has
+            # gone quiet) or the drive gap (it is still talking and has not
+            # moved). Two settings, because "has this device gone quiet?" is not
+            # "was that the same drive?", and an admin must be able to fix trip
+            # grouping without also changing failure detection.
             session_service = SessionService(db)
-            closed = await session_service.check_session_timeouts(timeout_minutes)
+            closed = await session_service.check_session_timeouts(
+                timeout_minutes=timeout_minutes, gap_minutes=gap_minutes
+            )
+
+            # Housekeeping the live path cannot do, because both are defined by
+            # the ABSENCE of a payload: discard pending drives that never went
+            # anywhere, and finalize `awaiting` closures past the reopen window.
+            expired = await session_service.expire_stale_movement_state(gap_minutes=gap_minutes)
+            if expired:
+                await db.commit()
 
             if closed:
                 logger.info(
-                    "Closed %d stale sessions (timeout: %d minutes)",
+                    "Closed %d stale session(s) (contact %dm / gap %dm)",
                     len(closed),
                     timeout_minutes,
+                    gap_minutes,
                 )
 
         except Exception as e:
@@ -313,19 +328,26 @@ async def finalize_pending_offlines():
                     pending_at = pending_at.replace(tzinfo=None)
 
                 if pending_at <= cutoff:
-                    # Grace period expired — finalize the offline transition
-                    if device.vin:
-                        await session_service.handle_ecu_offline(
-                            device.vin,
-                            device.device_id,
-                        )
+                    # Grace period expired. Close the session DIRECTLY rather
+                    # than via transition detection: the ingest routes persist
+                    # `ecu_status='offline'` the moment it arrives, so by now
+                    # `handle_ecu_offline` sees offline -> offline and no-ops,
+                    # leaving the session to a contact timeout anchored on a
+                    # `last_seen` this finalizer used to advance itself.
+                    #
+                    # `finalize_offline` also clears the pending movement state,
+                    # which must happen HERE and not when the offline arrived:
+                    # otherwise a brief WiFi drop inside the grace period
+                    # discards the warm-up and opening-odometer samples the
+                    # pending state exists to preserve.
+                    await session_service.finalize_offline(device)
 
-                    # Clear pending state and set ecu_status to offline
-                    await livelink_service.clear_pending_offline(device.device_id)
-                    await livelink_service.update_device_status(
-                        device_id=device.device_id,
-                        ecu_status="offline",
-                    )
+                    # `set_device_offline`, not `update_device_status`: the
+                    # latter stamps `last_seen = utc_now()` on every call. There
+                    # was no contact, and fabricating one corrupts every timeout
+                    # that reads it -- including the contact-loss clock, which
+                    # would then measure from a moment the device never spoke.
+                    await livelink_service.set_device_offline(device.device_id)
                     finalized += 1
                     logger.info(
                         "Finalized pending offline for device %s (grace period expired)",

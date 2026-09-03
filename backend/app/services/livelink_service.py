@@ -550,6 +550,39 @@ class LiveLinkService:
         setting = await SettingsService.get(self.db, "livelink_alert_cooldown_minutes")
         return int(setting.value) if setting and setting.value else 30
 
+    async def get_session_gap_minutes(self) -> int:
+        """Minutes stationary-but-connected before a stop becomes a separate drive.
+
+        Its own setting, NOT the session timeout. The two answer different
+        questions -- "has this device gone quiet?" is not "was that the same
+        drive?" -- and conflating them means an admin cannot fix trip grouping
+        without also changing failure detection.
+
+        Five minutes would also be actively wrong for the vehicles the movement
+        predicate exists to rescue. An ICE vehicle idling at a light keeps RPM
+        and survives a movement-measured timeout; a stationary EV reports
+        neither speed nor RPM, so every EV stop over five minutes -- a
+        drive-through, a school pickup, a charging stop, a drawbridge -- would
+        split the drive.
+
+        Governs BOTH the live boundaries and reconstruction, so a replayed drive
+        and a live drive are cut the same way.
+        """
+        setting = await SettingsService.get(self.db, "livelink_session_gap_minutes")
+        return int(setting.value) if setting and setting.value else 15
+
+    async def get_session_boundary_mode(self) -> str:
+        """``'movement'`` (default) or ``'contact'`` (the pre-v3.3.0 rule).
+
+        An escape hatch, not a feature. For a device whose signals nothing
+        recognises, ``contact`` keeps producing REAL drives rather than phantom
+        ones -- and it gives an operator a way to bisect a bad upgrade on an
+        instance where downgrading is not possible.
+        """
+        setting = await SettingsService.get(self.db, "livelink_session_boundary_mode")
+        value = (setting.value or "").strip().lower() if setting else ""
+        return value if value in {"movement", "contact"} else "movement"
+
     async def get_session_grace_period_seconds(self) -> int:
         """Get session grace period in seconds (0 = disabled)."""
         setting = await SettingsService.get(self.db, "livelink_session_grace_period_seconds")

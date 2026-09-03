@@ -55,6 +55,17 @@ class MaintenanceModeError(RuntimeError):
     """
 
 
+#: How far a device-supplied sample timestamp may sit from its arrival time and
+#: still count as "live" for the purpose of anchoring ``last_movement_at``.
+#:
+#: Matches the default contact-loss timeout, deliberately: a sample that is
+#: further from now than the timeout that would have closed the session cannot
+#: be describing the session that is open. Beyond this the reading is treated as
+#: replay -- still real driving, still allowed to open and extend a session, but
+#: not allowed to move the anchor every live timeout measures from.
+LIVE_SAMPLE_TOLERANCE_SECONDS = 300
+
+
 def _refuse_if_in_maintenance(operation: str) -> None:
     """Raise if maintenance mode is on.
 
@@ -484,6 +495,22 @@ class TelemetryService:
                 # Duplicate (same device_id, param_key, timestamp) - skip
                 pass
 
+        # Decide what this batch means for the device's drive session.
+        #
+        # Here rather than at each caller, because there are THREE live ingest
+        # sites -- MQTT `can/rx`, MQTT `can/status`, and the HTTPS payload route
+        # -- and all three funnel through this method. An earlier design
+        # revision hooked only the MQTT telemetry path, whose own comment
+        # describes it as the FALLBACK for "WiCAN devices that don't send
+        # explicit can/status messages": an instance whose dongle sends status
+        # messages, or any instance on HTTPS ingest, would have kept 100% of its
+        # phantom sessions while the changelog claimed otherwise.
+        #
+        # Reads `valid_data`, not the raw batch: the validator has already
+        # dropped out-of-range garbage, and a spurious 400 km/h reading must not
+        # be what opens a drive.
+        await self._observe_movement(vin, device_id, valid_data, timestamp, received_at)
+
         # Check for odometer reading and sync
         await self._sync_odometer_from_telemetry(vin, autopid_data, timestamp)
 
@@ -491,6 +518,45 @@ class TelemetryService:
         await self._refresh_closed_session(vin, device_id, timestamp)
 
         return StoreResult(stored_count=stored_count, validated_data=valid_data)
+
+    async def _observe_movement(
+        self,
+        vin: str,
+        device_id: str,
+        samples: dict[str, float | int | str | None],
+        sample_at: datetime,
+        received_at: datetime,
+    ) -> None:
+        """Feed one validated batch to the session state machine.
+
+        ``sample_at`` is the device's own reading time and ``received_at`` is
+        when it arrived here. The two are distinguished because they diverge:
+        MQTT stamps ``utc_now()`` unconditionally, while the HTTPS route accepts
+        an optional device timestamp that a buffering dongle sets hours in the
+        past -- or, with a bad clock plugin, in the future.
+
+        A sample far from receipt time may still open and extend a session (it
+        is real driving that happened), but must not anchor
+        ``last_movement_at``, which every live timeout measures from. Anchoring
+        a live session on a replayed timestamp drags it hours away from where it
+        belongs and makes the contact-loss clock fire against a moment the
+        device never spoke.
+        """
+        from app.services.session_service import SessionService  # local import avoids cycle
+
+        device = (
+            await self.db.execute(
+                select(LiveLinkDevice).where(LiveLinkDevice.device_id == device_id)
+            )
+        ).scalar_one_or_none()
+        if device is None:
+            return
+
+        sample = sample_at.replace(tzinfo=None) if sample_at.tzinfo else sample_at
+        arrival = received_at.replace(tzinfo=None) if received_at.tzinfo else received_at
+        live = abs((arrival - sample).total_seconds()) <= LIVE_SAMPLE_TOLERANCE_SECONDS
+
+        await SessionService(self.db).observe_telemetry(device, samples, sample, live=live)
 
     async def _refresh_closed_session(self, vin: str, device_id: str, timestamp: datetime) -> None:
         """Recompute aggregates for a CLOSED session this reading falls inside.
