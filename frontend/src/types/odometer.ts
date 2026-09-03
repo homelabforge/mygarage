@@ -23,7 +23,7 @@ export type OdometerRecordListResponse = components['schemas']['OdometerRecordLi
 // (telemetry_service -> 'livelink', webhooks -> 'webhook'), and
 // `sync_odometer_from_record`, whose source_type is passed by KEYWORD at some
 // call sites ('fuel', 'def', 'service_visit') and POSITIONALLY at others
-// ('tire', 'tire_rotation'). 'service' is the pre-v2.27 spelling of
+// ('tire', 'tire_rotation', 'tire_set'). 'service' is the pre-v2.27 spelling of
 // 'service_visit' and still sits in old rows.
 //
 // This union previously read 'manual' | 'livelink' | 'import'. Nothing writes
@@ -39,3 +39,4 @@ export type OdometerSource =
   | 'service_visit'
   | 'tire'
   | 'tire_rotation'
+  | 'tire_set'

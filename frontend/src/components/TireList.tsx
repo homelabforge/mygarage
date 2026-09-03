@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Plus, Trash2, Gauge, AlertTriangle, Pencil, RotateCw } from 'lucide-react'
+import { Plus, Trash2, Gauge, AlertTriangle, Pencil, RotateCw, Layers } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateForDisplay } from '../utils/dateUtils'
-import type { MountedPosition, Tire, TirePosition, TireReading } from '../types/tire'
+import type { MountedPosition, Tire, TirePosition, TireReading, TireSet } from '../types/tire'
 import {
   useTires,
   useCreateTire,
@@ -12,6 +12,11 @@ import {
   useMountTire,
   useRetireTire,
   useRotateTires,
+  useTireSets,
+  useCreateTireSet,
+  useUpdateTireSet,
+  useDeleteTireSet,
+  useMountTireSet,
   useUpdateTire,
   useAddTireReading,
   useDeleteTire,
@@ -87,6 +92,10 @@ interface TireFormOrigins {
 interface TireFormState {
   /** Null means "into storage": a tire owned but not on the vehicle. */
   position: TirePosition
+  /** Null means ungrouped. Only editable on an EXISTING tire: `POST /tires`
+   *  does not take a `set_id`, because a set is a label you apply to a tire
+   *  you already own rather than part of its identity. */
+  set_id: number | null
   brand: string
   model_name: string
   size: string
@@ -166,6 +175,21 @@ export default function TireList({ vin }: TireListProps) {
   const [retireTireId, setRetireTireId] = useState<number | null>(null)
   const [rotateOpen, setRotateOpen] = useState(false)
   const [rotatePattern, setRotatePattern] = useState<RotationPatternId>('forwardCross')
+  const sets = useTireSets(vin)
+  const createSet = useCreateTireSet(vin)
+  const updateSet = useUpdateTireSet(vin)
+  const deleteSet = useDeleteTireSet(vin)
+  const mountSet = useMountTireSet(vin)
+  const [setsOpen, setSetsOpen] = useState(false)
+  const [newSetName, setNewSetName] = useState('')
+  const [renamingSetId, setRenamingSetId] = useState<number | null>(null)
+  const [renameValue, setRenameValue] = useState('')
+  /* The fit form expands INSIDE the sets drawer rather than opening a second
+   * one. `<Drawer>` sets `inert` on #root, so a drawer opened from a drawer is
+   * dead rather than merely behind -- and a fit needs one field, which does not
+   * justify a nested surface even if it worked. */
+  const [fittingSetId, setFittingSetId] = useState<number | null>(null)
+  const [fitOdometer, setFitOdometer] = useState('')
   const [mountTireId, setMountTireId] = useState<number | null>(null)
   const [dismountTireId, setDismountTireId] = useState<number | null>(null)
   const [mountPosition, setMountPosition] = useState<MountedPosition>('FL')
@@ -211,6 +235,7 @@ export default function TireList({ vin }: TireListProps) {
     const pressure = seedUnitField(num(tire?.pressure_kpa), u.pressure)
     return {
       position,
+      set_id: tire?.set_id ?? null,
       brand: tire?.brand ?? '',
       model_name: tire?.model_name ?? '',
       size: tire?.size ?? '',
@@ -250,6 +275,34 @@ export default function TireList({ vin }: TireListProps) {
   const tireAt = (position: RotationCorner): Tire | undefined =>
     mountedTires.find((tire: Tire) => tire.position === position)
   const canRotate = ROTATION_CORNERS.every((corner) => tireAt(corner) !== undefined)
+
+  /* `tire_ids` and `mounted_count` carry server-side defaults, so the generated
+     type marks them optional even though every response has them. Normalised
+     once here rather than defended at each of the four places below -- the
+     shape of lie that has cost this codebase two Criticals before. */
+  const tireSets = (sets.data?.sets ?? []).map((s: TireSet) => ({
+    ...s,
+    tire_ids: s.tire_ids ?? [],
+    mounted_count: s.mounted_count ?? 0,
+  }))
+  /* Stored tires grouped by set, ungrouped last. Rendering them as one flat
+     list is what makes a second seasonal set unreadable: four winter tires and
+     a spare look the same, and the whole reason a set exists is to say which
+     four move together. */
+  const storedGroups: { key: string; label: string; tires: Tire[] }[] = [
+    ...tireSets
+      .map((s) => ({
+        key: `set-${s.id}`,
+        label: s.name,
+        tires: storedTires.filter((tire: Tire) => tire.set_id === s.id),
+      }))
+      .filter((group) => group.tires.length > 0),
+    {
+      key: 'ungrouped',
+      label: t('tireList.setUngrouped'),
+      tires: storedTires.filter((tire: Tire) => tire.set_id == null),
+    },
+  ].filter((group) => group.tires.length > 0)
 
   /* Derived from the live list rather than held in state: a mutation refetches
    * and replaces every Tire object, so a captured one would go stale the moment
@@ -497,7 +550,10 @@ export default function TireList({ vin }: TireListProps) {
     }
 
     if (editingTireId !== null) {
-      updateTire.mutate({ tireId: editingTireId, ...shared }, handlers)
+      // `set_id` goes ONLY here. `TireCreate` declares extra="forbid", so
+      // sending it on a create is a 422 rather than a field the server ignores
+      // -- membership is a label applied to a tire you already own.
+      updateTire.mutate({ tireId: editingTireId, set_id: form.set_id, ...shared }, handlers)
       return
     }
     // `POST /tires` forbids a `position` key outright (extra="forbid"), so the
@@ -537,6 +593,77 @@ export default function TireList({ vin }: TireListProps) {
         },
         onError: (err: unknown) =>
           toast.error(getActionErrorMessage(err, t('tireList.retireAction'))),
+      }
+    )
+  }
+
+  const handleCreateSet = () => {
+    const name = newSetName.trim()
+    if (!name) return
+    createSet.mutate(
+      { name },
+      {
+        onSuccess: () => {
+          toast.success(t('tireList.setCreated'))
+          setNewSetName('')
+        },
+        onError: (err: unknown) =>
+          toast.error(getActionErrorMessage(err, t('tireList.setCreateAction'))),
+      }
+    )
+  }
+
+  const handleRenameSet = (setId: number) => {
+    const name = renameValue.trim()
+    if (!name) return
+    updateSet.mutate(
+      { setId, name },
+      {
+        onSuccess: () => {
+          toast.success(t('tireList.setSaved'))
+          setRenamingSetId(null)
+        },
+        onError: (err: unknown) =>
+          toast.error(getActionErrorMessage(err, t('tireList.setSaveAction'))),
+      }
+    )
+  }
+
+  const handleDeleteSet = (setId: number) => {
+    if (!confirm(t('tireList.setConfirmDelete'))) return
+    deleteSet.mutate(setId, {
+      onSuccess: () => toast.success(t('tireList.setDeleted')),
+      onError: (err: unknown) =>
+        toast.error(getActionErrorMessage(err, t('tireList.setDeleteAction'))),
+    })
+  }
+
+  /**
+   * Fit a whole set: the one action that replaces eight.
+   *
+   * No positions in the payload. The server reads each tire's own mount
+   * history for the corner it was last on, and refuses -- naming the tires --
+   * rather than guessing for one that has never been fitted.
+   */
+  const handleFitSet = (setId: number) => {
+    mountSet.mutate(
+      {
+        setId,
+        odometer_km: canonicalFromUnitField(
+          fitOdometer,
+          { canonical: null, display: '' },
+          u.distance
+        ),
+      },
+      {
+        onSuccess: () => {
+          toast.success(t('tireList.setFitted'))
+          setFittingSetId(null)
+          setFitOdometer('')
+          setSetsOpen(false)
+        },
+        onError: (err: unknown) =>
+          toast.error(getActionErrorMessage(err, t('tireList.setFitAction'))),
       }
     )
   }
@@ -673,6 +800,14 @@ export default function TireList({ vin }: TireListProps) {
           {/* Vehicle-level, so it sits in the header rather than on a card:
               a rotation is one action on four tires, and putting it on each
               card would ask which of four identical buttons to press. */}
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={Layers}
+            onClick={() => setSetsOpen(true)}
+          >
+            {t('tireList.sets')}
+          </Button>
           <Button
             variant="secondary"
             size="sm"
@@ -826,8 +961,19 @@ export default function TireList({ vin }: TireListProps) {
       {storedTires.length > 0 && (
         <>
           <h3 className="text-sm font-semibold text-text-mute">{t('tireList.inStorageHeading')}</h3>
+          {storedGroups.map((group) => (
+        <div key={group.key} className="space-y-2">
+          {/* The set's own name, so four winter tires read as a set rather
+              than as four unrelated cards. Only rendered when more than one
+              group exists: a single-set owner should see exactly what they
+              saw before sets existed. */}
+          {storedGroups.length > 1 && (
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-text-mute">
+              {group.label}
+            </h4>
+          )}
           <div className="grid gap-3 sm:grid-cols-2">
-            {storedTires.map((tire: Tire) => (
+            {group.tires.map((tire: Tire) => (
               <Card key={tire.id} padding="sm" className="space-y-2">
                 <div className="flex items-start justify-between gap-2">
                   <div>
@@ -879,6 +1025,8 @@ export default function TireList({ vin }: TireListProps) {
               </Card>
             ))}
           </div>
+        </div>
+          ))}
         </>
       )}
 
@@ -1140,6 +1288,164 @@ export default function TireList({ vin }: TireListProps) {
       </Drawer>
 
       <Drawer
+        open={setsOpen}
+        onClose={() => {
+          setSetsOpen(false)
+          setFittingSetId(null)
+          setRenamingSetId(null)
+        }}
+        title={t('tireList.setsTitle')}
+        icon={Layers}
+        width="sm"
+        closeLabel={t('common:close')}
+        footer={
+          <Button variant="ghost" onClick={() => setSetsOpen(false)}>
+            {t('common:close')}
+          </Button>
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-text-mute">{t('tireList.setsHint')}</p>
+
+          {tireSets.length === 0 ? (
+            <EmptyState
+              icon={Layers}
+              size="sm"
+              title={t('tireList.setsEmpty')}
+              description={t('tireList.setsEmptyHint')}
+            />
+          ) : (
+            <ul className="space-y-2">
+              {tireSets.map((tireSet) => (
+                <li key={tireSet.id} className="rounded-card border border-border p-3 space-y-2">
+                  {renamingSetId === tireSet.id ? (
+                    <div className="flex items-end gap-2">
+                      <div className="flex-1">
+                        <Field id={`set-rename-${tireSet.id}`} label={t('tireList.setName')}>
+                          <Input
+                            id={`set-rename-${tireSet.id}`}
+                            value={renameValue}
+                            onChange={(e) => setRenameValue(e.target.value)}
+                          />
+                        </Field>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        disabled={updateSet.isPending}
+                        onClick={() => handleRenameSet(tireSet.id)}
+                      >
+                        {t('common:save')}
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setRenamingSetId(null)}>
+                        {t('common:cancel')}
+                      </Button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="font-semibold">{tireSet.name}</div>
+                          <div className="text-sm text-text-mute">
+                            {t('tireList.setMembership', {
+                              total: tireSet.tire_ids.length,
+                              mounted: tireSet.mounted_count,
+                            })}
+                          </div>
+                        </div>
+                        <IconButton
+                          icon={Trash2}
+                          label={t('common:delete')}
+                          variant="danger"
+                          size="sm"
+                          disabled={deleteSet.isPending}
+                          onClick={() => handleDeleteSet(tireSet.id)}
+                        />
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {/* Fitting an empty set is a 409 the user cannot act
+                            on from here, so the control is not offered until
+                            the set has something in it. */}
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          disabled={tireSet.tire_ids.length === 0 || mountSet.isPending}
+                          onClick={() => {
+                            setFittingSetId(tireSet.id)
+                            setFitOdometer('')
+                          }}
+                        >
+                          {t('tireList.setFit')}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            setRenamingSetId(tireSet.id)
+                            setRenameValue(tireSet.name)
+                          }}
+                        >
+                          {t('tireList.setRename')}
+                        </Button>
+                      </div>
+                    </>
+                  )}
+
+                  {fittingSetId === tireSet.id && (
+                    <div className="space-y-2 border-t border-border pt-2">
+                      <p className="text-sm text-text-mute">{t('tireList.setFitHint')}</p>
+                      <Field id={`set-fit-odometer-${tireSet.id}`} label={odometerLabel}>
+                        <Input
+                          id={`set-fit-odometer-${tireSet.id}`}
+                          type="number"
+                          step={u.distance.step}
+                          value={fitOdometer}
+                          onChange={(e) => setFitOdometer(e.target.value)}
+                        />
+                      </Field>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          disabled={mountSet.isPending}
+                          onClick={() => handleFitSet(tireSet.id)}
+                        >
+                          {t('tireList.setFit')}
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => setFittingSetId(null)}>
+                          {t('common:cancel')}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <div className="flex items-end gap-2 border-t border-border pt-4">
+            <div className="flex-1">
+              <Field id="new-set-name" label={t('tireList.setName')}>
+                <Input
+                  id="new-set-name"
+                  value={newSetName}
+                  onChange={(e) => setNewSetName(e.target.value)}
+                />
+              </Field>
+            </div>
+            <Button
+              variant="primary"
+              icon={Plus}
+              disabled={createSet.isPending || newSetName.trim() === ''}
+              onClick={handleCreateSet}
+            >
+              {t('tireList.setAdd')}
+            </Button>
+          </div>
+        </div>
+      </Drawer>
+
+      <Drawer
         open={formOpen}
         onClose={closeForm}
         /* Editing names the tire, because position is a tire's whole identity
@@ -1240,6 +1546,34 @@ export default function TireList({ vin }: TireListProps) {
               <p className="mt-1 text-sm text-text-mute">{t('tireList.storedHint')}</p>
             )}
           </div>
+          {/* Membership is editable on an EXISTING tire only, because
+              `POST /tires` forbids a `set_id`. Hidden rather than disabled
+              when adding: a control that cannot be used yet reads as broken,
+              and the tire can be filed the moment it is saved. */}
+          {editingTireId !== null && tireSets.length > 0 && (
+            <div className="mb-4">
+              <span id="tire-set-label" className="mb-1 block text-sm font-medium text-text">
+                {t('tireList.setLabel')}
+              </span>
+              <div role="group" aria-labelledby="tire-set-label" className="flex flex-wrap gap-2">
+                <Chip
+                  selected={form.set_id == null}
+                  onClick={() => setForm({ ...form, set_id: null })}
+                >
+                  {t('tireList.setNone')}
+                </Chip>
+                {tireSets.map((tireSet) => (
+                  <Chip
+                    key={tireSet.id}
+                    selected={form.set_id === tireSet.id}
+                    onClick={() => setForm({ ...form, set_id: tireSet.id })}
+                  >
+                    {tireSet.name}
+                  </Chip>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="grid gap-3 sm:grid-cols-2">
             <Field id="tire-brand" label={t('tireList.brand')}>
               <Input

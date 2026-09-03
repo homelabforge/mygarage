@@ -22,6 +22,10 @@ const useCreateAndMountTireMock = vi.fn()
 const useRetireTireMock = vi.fn()
 const useRotateTiresMock = vi.fn()
 const useDeleteTireMock = vi.fn()
+const useTireSetsMock = vi.fn()
+const useCreateTireSetMock = vi.fn()
+const useMountTireSetMock = vi.fn()
+const useUpdateTireMock = vi.fn()
 const noop = () => ({ mutate: vi.fn(), isPending: false })
 
 // Every mutation gets its OWN mock here, unlike TireList.test.tsx which aliases
@@ -31,13 +35,18 @@ vi.mock('../../hooks/queries/useTires', () => ({
   useTires: () => useTiresMock(),
   useCreateTire: () => useCreateTireMock(),
   useCreateAndMountTire: () => useCreateAndMountTireMock(),
-  useUpdateTire: () => noop(),
+  useUpdateTire: () => useUpdateTireMock(),
   useMountTire: () => noop(),
   useDismountTire: () => noop(),
   useRetireTire: () => useRetireTireMock(),
   useRotateTires: () => useRotateTiresMock(),
   useAddTireReading: () => noop(),
   useDeleteTire: () => useDeleteTireMock(),
+  useTireSets: () => useTireSetsMock(),
+  useCreateTireSet: () => useCreateTireSetMock(),
+  useUpdateTireSet: () => noop(),
+  useDeleteTireSet: () => noop(),
+  useMountTireSet: () => useMountTireSetMock(),
 }))
 
 vi.mock('@tanstack/react-query', () => ({
@@ -114,6 +123,13 @@ const PATTERN_KEYS = [
 /** The open drawer. Both Rotate buttons render the same label, so scope. */
 const drawer = () => within(screen.getByRole('dialog'))
 
+const setSets = (sets: unknown[]) =>
+  useTireSetsMock.mockReturnValue({
+    data: { sets, total: sets.length },
+    isLoading: false,
+    error: null,
+  })
+
 const setTires = (tires: unknown[]) =>
   useTiresMock.mockReturnValue({
     data: { tires, total: tires.length },
@@ -130,6 +146,10 @@ describe('TireList rotation', () => {
     useRetireTireMock.mockReturnValue({ mutate: vi.fn(), isPending: false })
     useRotateTiresMock.mockReturnValue({ mutate: vi.fn(), isPending: false })
     useDeleteTireMock.mockReturnValue({ mutate: vi.fn(), isPending: false })
+    useCreateTireSetMock.mockReturnValue({ mutate: vi.fn(), isPending: false })
+    useMountTireSetMock.mockReturnValue({ mutate: vi.fn(), isPending: false })
+    useUpdateTireMock.mockReturnValue({ mutate: vi.fn(), isPending: false })
+    setSets([])
     setTires(FOUR_MOUNTED)
   })
 
@@ -206,6 +226,10 @@ describe('TireList retire', () => {
     useRetireTireMock.mockReturnValue({ mutate: vi.fn(), isPending: false })
     useRotateTiresMock.mockReturnValue({ mutate: vi.fn(), isPending: false })
     useDeleteTireMock.mockReturnValue({ mutate: vi.fn(), isPending: false })
+    useCreateTireSetMock.mockReturnValue({ mutate: vi.fn(), isPending: false })
+    useMountTireSetMock.mockReturnValue({ mutate: vi.fn(), isPending: false })
+    useUpdateTireMock.mockReturnValue({ mutate: vi.fn(), isPending: false })
+    setSets([])
     setTires(FOUR_MOUNTED)
   })
 
@@ -254,6 +278,10 @@ describe('TireList create into storage', () => {
     useRetireTireMock.mockReturnValue({ mutate: vi.fn(), isPending: false })
     useRotateTiresMock.mockReturnValue({ mutate: vi.fn(), isPending: false })
     useDeleteTireMock.mockReturnValue({ mutate: vi.fn(), isPending: false })
+    useCreateTireSetMock.mockReturnValue({ mutate: vi.fn(), isPending: false })
+    useMountTireSetMock.mockReturnValue({ mutate: vi.fn(), isPending: false })
+    useUpdateTireMock.mockReturnValue({ mutate: vi.fn(), isPending: false })
+    setSets([])
     setTires(FOUR_MOUNTED)
   })
 
@@ -321,5 +349,122 @@ describe('TireList create into storage', () => {
 
     expect(create).not.toHaveBeenCalled()
     expect(createAndMount.mock.calls[0][0].position).toBe('RR')
+  })
+})
+
+describe('TireList sets', () => {
+  const WINTER = { id: 7, vin: VIN, name: 'Winter studded', notes: null, created_at: '2026-01-01T00:00:00', tire_ids: [1, 2], mounted_count: 0 }
+  const EMPTY_SET = { id: 8, vin: VIN, name: 'Spares', notes: null, created_at: '2026-01-01T00:00:00', tire_ids: [], mounted_count: 0 }
+
+  afterEach(() => vi.restoreAllMocks())
+
+  beforeEach(() => {
+    useCreateTireMock.mockReturnValue({ mutate: vi.fn(), isPending: false })
+    useCreateAndMountTireMock.mockReturnValue({ mutate: vi.fn(), isPending: false })
+    useRetireTireMock.mockReturnValue({ mutate: vi.fn(), isPending: false })
+    useRotateTiresMock.mockReturnValue({ mutate: vi.fn(), isPending: false })
+    useDeleteTireMock.mockReturnValue({ mutate: vi.fn(), isPending: false })
+    useCreateTireSetMock.mockReturnValue({ mutate: vi.fn(), isPending: false })
+    useMountTireSetMock.mockReturnValue({ mutate: vi.fn(), isPending: false })
+    useUpdateTireMock.mockReturnValue({ mutate: vi.fn(), isPending: false })
+    setSets([])
+    setTires(FOUR_MOUNTED)
+  })
+
+  it('creates a set from the name the user typed', () => {
+    const mutate = vi.fn()
+    useCreateTireSetMock.mockReturnValue({ mutate, isPending: false })
+
+    render(<TireList vin={VIN} />)
+    fireEvent.click(screen.getByText('tireList.sets'))
+    fireEvent.change(drawer().getByLabelText('tireList.setName'), {
+      target: { value: '  Winter studded  ' },
+    })
+    fireEvent.click(drawer().getByText('tireList.setAdd'))
+
+    // Trimmed: a trailing space is invisible in the list and makes two sets
+    // that read identically.
+    expect(mutate).toHaveBeenCalledWith({ name: 'Winter studded' }, expect.anything())
+  })
+
+  it('fits a set with the odometer, and sends no positions', () => {
+    const mutate = vi.fn()
+    useMountTireSetMock.mockReturnValue({ mutate, isPending: false })
+    setSets([WINTER])
+
+    render(<TireList vin={VIN} />)
+    fireEvent.click(screen.getByText('tireList.sets'))
+    fireEvent.click(drawer().getByText('tireList.setFit'))
+    fireEvent.change(drawer().getByLabelText('tireList.odometerWithUnit'), {
+      target: { value: '52000' },
+    })
+    // The expanded form's confirm, not the row control that opened it.
+    fireEvent.click(drawer().getAllByText('tireList.setFit')[1])
+
+    // No `moves`, no positions: the server reads each tire's own history for
+    // the corner it was last on. A client that guessed would have to reproduce
+    // that lookup and could disagree with it.
+    expect(mutate).toHaveBeenCalledWith(
+      { setId: 7, odometer_km: 52000 },
+      expect.anything()
+    )
+  })
+
+  it('does not offer to fit an empty set', () => {
+    setSets([EMPTY_SET])
+    render(<TireList vin={VIN} />)
+    fireEvent.click(screen.getByText('tireList.sets'))
+
+    // The server answers 409 for this, and the message tells the user to go
+    // and put tires in the set -- which they cannot do from here.
+    expect(drawer().getByText('tireList.setFit').closest('button')).toBeDisabled()
+  })
+
+  it('files a tire into a set through the edit drawer', () => {
+    const mutate = vi.fn()
+    useUpdateTireMock.mockReturnValue({ mutate, isPending: false })
+    setSets([WINTER])
+
+    render(<TireList vin={VIN} />)
+    fireEvent.click(screen.getAllByLabelText('tireList.edit')[0])
+    fireEvent.click(drawer().getByText('Winter studded'))
+    fireEvent.click(drawer().getByText('common:save'))
+
+    expect(mutate.mock.calls[0][0]).toMatchObject({ tireId: 1, set_id: 7 })
+  })
+
+  it('does not offer the set picker while adding', () => {
+    // `POST /tires` declares extra="forbid", so a `set_id` on a create is a
+    // 422. A control that cannot be used yet reads as broken.
+    setSets([WINTER])
+    render(<TireList vin={VIN} />)
+    fireEvent.click(screen.getByText('tireList.add'))
+
+    expect(drawer().queryByText('tireList.setLabel')).toBeNull()
+  })
+
+  it('groups stored tires under their set name', () => {
+    setSets([WINTER])
+    setTires([
+      { ...tireAt(1, 'FL'), position: null, set_id: 7, brand: 'Nokian' },
+      { ...tireAt(2, 'FR'), position: null, set_id: null, brand: 'Loose' },
+    ])
+
+    render(<TireList vin={VIN} />)
+
+    // Both headings, because two groups exist. One flat list is what makes a
+    // second seasonal set unreadable.
+    expect(screen.getByText('Winter studded')).toBeInTheDocument()
+    expect(screen.getByText('tireList.setUngrouped')).toBeInTheDocument()
+  })
+
+  it('does not label the group when there is only one', () => {
+    // A single-set owner sees exactly what they saw before sets existed.
+    setSets([WINTER])
+    setTires([{ ...tireAt(1, 'FL'), position: null, set_id: 7, brand: 'Nokian' }])
+
+    render(<TireList vin={VIN} />)
+
+    expect(screen.queryByText('Winter studded')).toBeNull()
   })
 })

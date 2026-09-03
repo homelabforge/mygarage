@@ -39,6 +39,11 @@ export type TireMountRequest = components['schemas']['TireMountRequest']
 export type TireDismountRequest = components['schemas']['TireDismountRequest']
 export type TireCreateAndMountRequest = components['schemas']['TireCreateAndMountRequest']
 export type TireRotationRequest = components['schemas']['TireRotationRequest']
+export type TireSet = components['schemas']['TireSetResponse']
+export type TireSetListResponse = components['schemas']['TireSetListResponse']
+export type TireSetCreate = components['schemas']['TireSetCreate']
+export type TireSetUpdate = components['schemas']['TireSetUpdate']
+export type TireSetMountRequest = components['schemas']['TireSetMountRequest']
 
 /** Why `distance_km` is or is not available. Exhaustive; see the backend enum. */
 export type DistanceStatus =

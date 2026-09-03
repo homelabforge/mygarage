@@ -529,3 +529,119 @@ test.describe('Tire rotation and retirement, through the UI', () => {
     await expect(card.getByRole('button', { name: 'Mount' })).toBeVisible()
   })
 })
+
+/**
+ * Tire sets, end to end.
+ *
+ * The set table and `tires.set_id` shipped with migration 097 and then sat
+ * unused for the same reason rotate and retire did: no schema, no route, no
+ * control. This drives the whole loop through the browser -- name a set, file
+ * tires into it, fit it -- because that is the only kind of test that would
+ * have noticed.
+ */
+test.describe('Tire sets', () => {
+  test('a seasonal set is named, filled and fitted', async ({ page, request }) => {
+    const vin = await tireVehicle(request, 'sets-ui')
+    const admin = await adminSession()
+
+    // Two tires with a history at RL and RR, then taken off. The corners they
+    // remember are what the fit reads back, and seeding that through the API
+    // keeps this test about the SET flow rather than about mount forms.
+    for (const position of ['RL', 'RR'] as const) {
+      const created = await request.post(`${API_BASE}/vehicles/${vin}/tires/create-and-mount`, {
+        headers: admin.headers,
+        data: {
+          vin,
+          position,
+          brand: `E2E Set ${position}`,
+          tread_depth_mm: 8,
+          mounted_odometer_km: 1000,
+        },
+      })
+      expect(created.status(), `seed ${position}: ${await created.text()}`).toBe(201)
+      const off = await request.post(
+        `${API_BASE}/vehicles/${vin}/tires/${(await created.json()).id}/dismount`,
+        { headers: admin.headers, data: { dismounted_odometer_km: 20000 } }
+      )
+      expect(off.status(), await off.text()).toBe(200)
+    }
+
+    await openTires(page, vin)
+    await expect(page.getByText('E2E Set RL')).toBeVisible({ timeout: 10000 })
+
+    // Name the set.
+    await page.getByRole('button', { name: 'Sets' }).click()
+    let drawer = page.getByRole('dialog')
+    await expect(drawer).toBeVisible({ timeout: 5000 })
+    await drawer.locator('#new-set-name').fill('E2E Winter')
+    await drawer.getByRole('button', { name: 'Add set' }).click()
+    await expect(drawer.getByText('E2E Winter')).toBeVisible({ timeout: 10000 })
+    await drawer.getByRole('button', { name: 'Close' }).last().click()
+    await expect(drawer).toBeHidden({ timeout: 10000 })
+
+    // File both tires into it, from each tire's own edit drawer.
+    for (const brand of ['E2E Set RL', 'E2E Set RR']) {
+      const card = page.locator('.rounded-card', { hasText: brand }).first()
+      await card.getByRole('button', { name: 'Edit' }).click()
+      drawer = page.getByRole('dialog')
+      await expect(drawer).toBeVisible({ timeout: 5000 })
+      await drawer.getByRole('button', { name: 'E2E Winter' }).click()
+      await drawer.getByRole('button', { name: 'Save' }).click()
+      await expect(drawer).toBeHidden({ timeout: 10000 })
+    }
+
+    // Fit it: one action, and neither corner is typed anywhere.
+    await page.getByRole('button', { name: 'Sets' }).click()
+    drawer = page.getByRole('dialog')
+    await expect(drawer.getByText('Tires: 2 · Fitted: 0')).toBeVisible({ timeout: 10000 })
+    await drawer.getByRole('button', { name: 'Fit', exact: true }).click()
+    await drawer.locator('input[id^="set-fit-odometer-"]').fill('30000')
+    await drawer.getByRole('button', { name: 'Fit', exact: true }).last().click()
+    await expect(drawer).toBeHidden({ timeout: 10000 })
+
+    // Each tire back on the corner it remembered.
+    await expect(
+      page.locator('.rounded-card', { hasText: 'E2E Set RL' }).first()
+    ).toContainText('Rear Left', { timeout: 10000 })
+    await expect(
+      page.locator('.rounded-card', { hasText: 'E2E Set RR' }).first()
+    ).toContainText('Rear Right')
+  })
+
+  test('a set that has never been fitted says so instead of guessing', async ({
+    page,
+    request,
+  }) => {
+    const vin = await tireVehicle(request, 'sets-ui-fresh')
+    const admin = await adminSession()
+    // Straight into storage: no mount history, so no corner to put it back on.
+    const created = await request.post(`${API_BASE}/vehicles/${vin}/tires`, {
+      headers: admin.headers,
+      data: { vin, brand: 'E2E NeverFitted', tread_depth_mm: 8 },
+    })
+    expect(created.status(), await created.text()).toBe(201)
+    const set = await request.post(`${API_BASE}/vehicles/${vin}/tire-sets`, {
+      headers: admin.headers,
+      data: { name: 'E2E Fresh' },
+    })
+    expect(set.status(), await set.text()).toBe(201)
+    const assigned = await request.put(
+      `${API_BASE}/vehicles/${vin}/tires/${(await created.json()).id}`,
+      { headers: admin.headers, data: { set_id: (await set.json()).id } }
+    )
+    expect(assigned.status(), await assigned.text()).toBe(200)
+
+    await openTires(page, vin)
+    await page.getByRole('button', { name: 'Sets' }).click()
+    const drawer = page.getByRole('dialog')
+    await drawer.getByRole('button', { name: 'Fit', exact: true }).click()
+    await drawer.locator('input[id^="set-fit-odometer-"]').fill('30000')
+    await drawer.getByRole('button', { name: 'Fit', exact: true }).last().click()
+
+    // Named, and nothing moves. Guessing a corner would put a tire somewhere
+    // the user did not choose; doing three of four would leave an arrangement
+    // nobody asked for.
+    await expect(page.getByText(/E2E NeverFitted/)).toBeVisible({ timeout: 10000 })
+    await expect(drawer).toBeVisible()
+  })
+})

@@ -75,6 +75,13 @@ class TireUpdate(BaseModel):
     pressure_kpa: Decimal | None = Field(None, ge=0, le=1000)
     min_tread_mm: Decimal | None = Field(None, ge=0, le=10)
     notes: str | None = None
+    #: The set this tire belongs to, or null for ungrouped. Writable HERE and
+    #: nowhere else: `TireCreate` deliberately does not take one, because a set
+    #: is a label applied to a tire you already own rather than part of its
+    #: identity. `update_tire` uses `exclude_unset`, so omitting the key leaves
+    #: membership alone and sending null clears it -- two different intents that
+    #: a plain optional field would collapse into one.
+    set_id: int | None = None
 
 
 class TireMountRequest(BaseModel):
@@ -281,3 +288,69 @@ class TireListResponse(BaseModel):
 
     tires: list[TireResponse]
     total: int
+
+
+class TireSetCreate(BaseModel):
+    """Name a group of tires.
+
+    No `tire_ids` here. Membership is set from the TIRE side
+    (`PUT /tires/{id}` with a `set_id`), so there is exactly one writer for it
+    and no way for the two ends to disagree about who is in what.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(..., min_length=1, max_length=60)
+    notes: str | None = None
+
+
+class TireSetUpdate(BaseModel):
+    """Rename a set, or change its notes."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str | None = Field(None, min_length=1, max_length=60)
+    notes: str | None = None
+
+
+class TireSetResponse(BaseModel):
+    """A set, with enough about its members to render it without a second call."""
+
+    id: int
+    vin: str
+    name: str
+    notes: str | None = None
+    created_at: datetime
+    #: Members, retired tires excluded: a retired tire is history rather than
+    #: inventory, and a set that still counted it would offer to fit a tire the
+    #: user has thrown away.
+    tire_ids: list[int] = Field(default_factory=list)
+    #: How many members are on the vehicle right now. 0 means the whole set is
+    #: in storage, which is what makes "currently fitted" renderable without
+    #: the caller joining the tire list itself.
+    mounted_count: int = 0
+
+    model_config = {"from_attributes": True}
+
+
+class TireSetListResponse(BaseModel):
+    """All sets for a vehicle."""
+
+    sets: list[TireSetResponse]
+    total: int
+
+
+class TireSetMountRequest(BaseModel):
+    """Fit every tire in a set, each at the corner it was last on.
+
+    The odometer is a reading of the VEHICLE and applies to the whole swap: it
+    closes the periods of everything coming off and opens the periods of
+    everything going on. One number, because that is what the user reads off
+    the dash once.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    odometer_km: Decimal | None = Field(None, ge=0)
+    mounted_on: date_type | None = None
+    notes: str | None = None

@@ -5912,6 +5912,77 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/vehicles/{vin}/tire-sets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Tire Sets
+         * @description Every tire set for a vehicle, with its membership.
+         */
+        get: operations["list_tire_sets_api_vehicles__vin__tire_sets_get"];
+        put?: never;
+        /**
+         * Create Tire Set
+         * @description Name a new, empty set. Tires join it through `PUT /tires/{id}`.
+         */
+        post: operations["create_tire_set_api_vehicles__vin__tire_sets_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/vehicles/{vin}/tire-sets/{set_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update Tire Set
+         * @description Rename a set, or change its notes.
+         */
+        put: operations["update_tire_set_api_vehicles__vin__tire_sets__set_id__put"];
+        post?: never;
+        /**
+         * Delete Tire Set
+         * @description Delete a set. Its tires survive, ungrouped.
+         */
+        delete: operations["delete_tire_set_api_vehicles__vin__tire_sets__set_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/vehicles/{vin}/tire-sets/{set_id}/mount": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mount Tire Set
+         * @description Fit every tire in a set, each at the corner it was last on.
+         *
+         *     Returns the vehicle's whole tire list, because a swap changes the set that
+         *     came off as well as the one that went on.
+         */
+        post: operations["mount_tire_set_api_vehicles__vin__tire_sets__set_id__mount_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/vehicles/{vin}/tires": {
         parameters: {
             query?: never;
@@ -13766,6 +13837,83 @@ export interface components {
             rotated_on?: string | null;
         };
         /**
+         * TireSetCreate
+         * @description Name a group of tires.
+         *
+         *     No `tire_ids` here. Membership is set from the TIRE side
+         *     (`PUT /tires/{id}` with a `set_id`), so there is exactly one writer for it
+         *     and no way for the two ends to disagree about who is in what.
+         */
+        TireSetCreate: {
+            /** Name */
+            name: string;
+            /** Notes */
+            notes?: string | null;
+        };
+        /**
+         * TireSetListResponse
+         * @description All sets for a vehicle.
+         */
+        TireSetListResponse: {
+            /** Sets */
+            sets: components["schemas"]["TireSetResponse"][];
+            /** Total */
+            total: number;
+        };
+        /**
+         * TireSetMountRequest
+         * @description Fit every tire in a set, each at the corner it was last on.
+         *
+         *     The odometer is a reading of the VEHICLE and applies to the whole swap: it
+         *     closes the periods of everything coming off and opens the periods of
+         *     everything going on. One number, because that is what the user reads off
+         *     the dash once.
+         */
+        TireSetMountRequest: {
+            /** Mounted On */
+            mounted_on?: string | null;
+            /** Notes */
+            notes?: string | null;
+            /** Odometer Km */
+            odometer_km?: number | string | null;
+        };
+        /**
+         * TireSetResponse
+         * @description A set, with enough about its members to render it without a second call.
+         */
+        TireSetResponse: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Id */
+            id: number;
+            /**
+             * Mounted Count
+             * @default 0
+             */
+            mounted_count: number;
+            /** Name */
+            name: string;
+            /** Notes */
+            notes?: string | null;
+            /** Tire Ids */
+            tire_ids?: number[];
+            /** Vin */
+            vin: string;
+        };
+        /**
+         * TireSetUpdate
+         * @description Rename a set, or change its notes.
+         */
+        TireSetUpdate: {
+            /** Name */
+            name?: string | null;
+            /** Notes */
+            notes?: string | null;
+        };
+        /**
          * TireUpdate
          * @description Partial tire update.
          *
@@ -13785,6 +13933,8 @@ export interface components {
             notes?: string | null;
             /** Pressure Kpa */
             pressure_kpa?: number | string | null;
+            /** Set Id */
+            set_id?: number | null;
             /** Size */
             size?: string | null;
             /** Tread Depth Mm */
@@ -26436,6 +26586,174 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_tire_sets_api_vehicles__vin__tire_sets_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vin: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TireSetListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_tire_set_api_vehicles__vin__tire_sets_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vin: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TireSetCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TireSetResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_tire_set_api_vehicles__vin__tire_sets__set_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vin: string;
+                set_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TireSetUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TireSetResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_tire_set_api_vehicles__vin__tire_sets__set_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vin: string;
+                set_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mount_tire_set_api_vehicles__vin__tire_sets__set_id__mount_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vin: string;
+                set_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TireSetMountRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TireListResponse"];
+                };
             };
             /** @description Validation Error */
             422: {

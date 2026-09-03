@@ -17177,6 +17177,188 @@
         "title": "TireRotationRequest",
         "type": "object"
       },
+      "TireSetCreate": {
+        "additionalProperties": false,
+        "description": "Name a group of tires.\n\nNo `tire_ids` here. Membership is set from the TIRE side\n(`PUT /tires/{id}` with a `set_id`), so there is exactly one writer for it\nand no way for the two ends to disagree about who is in what.",
+        "properties": {
+          "name": {
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "TireSetCreate",
+        "type": "object"
+      },
+      "TireSetListResponse": {
+        "description": "All sets for a vehicle.",
+        "properties": {
+          "sets": {
+            "items": {
+              "$ref": "#/components/schemas/TireSetResponse"
+            },
+            "title": "Sets",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "sets",
+          "total"
+        ],
+        "title": "TireSetListResponse",
+        "type": "object"
+      },
+      "TireSetMountRequest": {
+        "additionalProperties": false,
+        "description": "Fit every tire in a set, each at the corner it was last on.\n\nThe odometer is a reading of the VEHICLE and applies to the whole swap: it\ncloses the periods of everything coming off and opens the periods of\neverything going on. One number, because that is what the user reads off\nthe dash once.",
+        "properties": {
+          "mounted_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mounted On"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "odometer_km": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Odometer Km"
+          }
+        },
+        "title": "TireSetMountRequest",
+        "type": "object"
+      },
+      "TireSetResponse": {
+        "description": "A set, with enough about its members to render it without a second call.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "mounted_count": {
+            "default": 0,
+            "title": "Mounted Count",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "tire_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Tire Ids",
+            "type": "array"
+          },
+          "vin": {
+            "title": "Vin",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "vin",
+          "name",
+          "created_at"
+        ],
+        "title": "TireSetResponse",
+        "type": "object"
+      },
+      "TireSetUpdate": {
+        "additionalProperties": false,
+        "description": "Rename a set, or change its notes.",
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 60,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          }
+        },
+        "title": "TireSetUpdate",
+        "type": "object"
+      },
       "TireUpdate": {
         "additionalProperties": false,
         "description": "Partial tire update.\n\nNeither `position` nor `installed_date` is writable here: position changes\nthrough mount/dismount (D14), and `installed_date` is derived (D12).",
@@ -17261,6 +17443,17 @@
               }
             ],
             "title": "Pressure Kpa"
+          },
+          "set_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Set Id"
           },
           "size": {
             "anyOf": [
@@ -41126,6 +41319,292 @@
         "summary": "Update Tax Record",
         "tags": [
           "tax-records"
+        ]
+      }
+    },
+    "/api/vehicles/{vin}/tire-sets": {
+      "get": {
+        "description": "Every tire set for a vehicle, with its membership.",
+        "operationId": "list_tire_sets_api_vehicles__vin__tire_sets_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vin",
+            "required": true,
+            "schema": {
+              "title": "Vin",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TireSetListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Tire Sets",
+        "tags": [
+          "tires"
+        ]
+      },
+      "post": {
+        "description": "Name a new, empty set. Tires join it through `PUT /tires/{id}`.",
+        "operationId": "create_tire_set_api_vehicles__vin__tire_sets_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vin",
+            "required": true,
+            "schema": {
+              "title": "Vin",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TireSetCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TireSetResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Tire Set",
+        "tags": [
+          "tires"
+        ]
+      }
+    },
+    "/api/vehicles/{vin}/tire-sets/{set_id}": {
+      "delete": {
+        "description": "Delete a set. Its tires survive, ungrouped.",
+        "operationId": "delete_tire_set_api_vehicles__vin__tire_sets__set_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vin",
+            "required": true,
+            "schema": {
+              "title": "Vin",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "set_id",
+            "required": true,
+            "schema": {
+              "title": "Set Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Tire Set",
+        "tags": [
+          "tires"
+        ]
+      },
+      "put": {
+        "description": "Rename a set, or change its notes.",
+        "operationId": "update_tire_set_api_vehicles__vin__tire_sets__set_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vin",
+            "required": true,
+            "schema": {
+              "title": "Vin",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "set_id",
+            "required": true,
+            "schema": {
+              "title": "Set Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TireSetUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TireSetResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Tire Set",
+        "tags": [
+          "tires"
+        ]
+      }
+    },
+    "/api/vehicles/{vin}/tire-sets/{set_id}/mount": {
+      "post": {
+        "description": "Fit every tire in a set, each at the corner it was last on.\n\nReturns the vehicle's whole tire list, because a swap changes the set that\ncame off as well as the one that went on.",
+        "operationId": "mount_tire_set_api_vehicles__vin__tire_sets__set_id__mount_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "vin",
+            "required": true,
+            "schema": {
+              "title": "Vin",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "set_id",
+            "required": true,
+            "schema": {
+              "title": "Set Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TireSetMountRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TireListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Mount Tire Set",
+        "tags": [
+          "tires"
         ]
       }
     },

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
+from collections.abc import Sequence
 from datetime import timedelta
 from decimal import Decimal
 
@@ -15,7 +16,7 @@ from sqlalchemy.orm import selectinload
 
 from app.models.odometer import OdometerRecord
 from app.models.reminder import Reminder
-from app.models.tire import Tire, TireMountPeriod, TireReading
+from app.models.tire import Tire, TireMountPeriod, TireReading, TireSet
 from app.models.user import User
 from app.schemas.tire import (
     MountPeriodResponse,
@@ -52,6 +53,86 @@ logger = logging.getLogger(__name__)
 # PostgreSQL enforces and SQLite does not.
 ODOMETER_SOURCE_TIRE = "tire"
 ODOMETER_SOURCE_ROTATION = "tire_rotation"
+ODOMETER_SOURCE_SET = "tire_set"
+
+
+async def apply_mount_moves(
+    db: AsyncSession,
+    *,
+    vacate: Sequence[Tire],
+    assign: Sequence[tuple[Tire, str]],
+    when: dt.date,
+    odometer_km: Decimal | None,
+    notes: str | None = None,
+) -> None:
+    """Take tires off corners and put tires onto corners, in two phases.
+
+    **Why two phases.** `uq_tires_vin_position` is an IMMEDIATE unique index on
+    both dialects, so assigning one tire at a time fails the moment a
+    destination is still occupied -- which for a rotation or a seasonal swap is
+    always. An X-pattern collides on the very first move even though the
+    requested FINAL arrangement is perfectly legal. So: clear every affected
+    `tires.position` and close every affected period, FLUSH, then assign the new
+    positions and open the new periods. Deferring the constraint is not an
+    option; SQLite has no `DEFERRABLE INITIALLY DEFERRED`.
+
+    A tire in `vacate` and not in `assign` ends up stored, which is what a
+    seasonal swap does to the set coming off. A tire in `assign` and not in
+    `vacate` is a stored tire being fitted, and has no open period to close.
+
+    Extracted when tire sets arrived, because the alternative was a second copy
+    of the vacate/flush/assign dance -- the subtlest thing in the tire service,
+    and the one whose absence does not fail loudly but corrupts an arrangement.
+
+    Args:
+        vacate: Tires to take off, closing each one's open period at
+            `when`/`odometer_km`.
+        assign: `(tire, position)` pairs to fit, opening a period for each.
+        when: The date both halves are recorded at.
+        odometer_km: The vehicle's odometer, bounding both halves.
+        notes: Free text copied onto every period this opens.
+    """
+    vacate_ids = [tire.id for tire in vacate]
+    open_periods = {}
+    if vacate_ids:
+        open_periods = {
+            period.tire_id: period
+            for period in (
+                await db.execute(
+                    select(TireMountPeriod).where(
+                        TireMountPeriod.tire_id.in_(vacate_ids),
+                        TireMountPeriod.dismounted_on.is_(None),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        }
+
+    # ---- Phase 1: vacate. -----------------------------------------------
+    for tire in vacate:
+        tire.position = None
+        period = open_periods.get(tire.id)
+        if period is not None:
+            period.dismounted_on = when
+            period.dismounted_odometer_km = odometer_km
+    # The flush is the point of the split: without it the assignments below
+    # race the old values still sitting in the unique index.
+    await db.flush()
+
+    # ---- Phase 2: assign. -----------------------------------------------
+    for tire, position in assign:
+        tire.position = position
+        db.add(
+            TireMountPeriod(
+                tire_id=tire.id,
+                position=position,
+                mounted_on=when,
+                mounted_odometer_km=odometer_km,
+                is_assumed=False,
+                notes=notes,
+            )
+        )
 
 
 def distance_on_tire(tire: Tire, current_odometer: Decimal | None) -> DistanceResult:
@@ -652,44 +733,14 @@ class TireService:
             )
 
         when = data.rotated_on or utc_now().date()
-
-        # ---- Phase 1: vacate. -------------------------------------------
-        open_periods = {
-            period.tire_id: period
-            for period in (
-                await self.db.execute(
-                    select(TireMountPeriod).where(
-                        TireMountPeriod.tire_id.in_(moving_ids),
-                        TireMountPeriod.dismounted_on.is_(None),
-                    )
-                )
-            )
-            .scalars()
-            .all()
-        }
-        for tire_id in moving_ids:
-            tires[tire_id].position = None
-            period = open_periods.get(tire_id)
-            if period is not None:
-                period.dismounted_on = when
-                period.dismounted_odometer_km = data.odometer_km
-        # The flush is the point of the split: without it the assignments below
-        # race the old values still sitting in the unique index.
-        await self.db.flush()
-
-        # ---- Phase 2: assign. -------------------------------------------
-        for move in data.moves:
-            tires[move.tire_id].position = move.position
-            self.db.add(
-                TireMountPeriod(
-                    tire_id=move.tire_id,
-                    position=move.position,
-                    mounted_on=when,
-                    mounted_odometer_km=data.odometer_km,
-                    is_assumed=False,
-                    notes=data.notes,
-                )
-            )
+        await apply_mount_moves(
+            self.db,
+            vacate=[tires[tire_id] for tire_id in moving_ids],
+            assign=[(tires[move.tire_id], move.position) for move in data.moves],
+            when=when,
+            odometer_km=data.odometer_km,
+            notes=data.notes,
+        )
 
         # ONE reading however many tires moved: the odometer is a fact about
         # the vehicle, not about each corner. `min(moving_ids)` is only the
@@ -767,12 +818,31 @@ class TireService:
             tire = result.scalar_one_or_none()
             if not tire:
                 raise HTTPException(status_code=404, detail="Tire not found")
-            for key, value in data.model_dump(exclude_unset=True).items():
+            fields = data.model_dump(exclude_unset=True)
+            # `tires.set_id` carries no composite FK against the tire's vin, by
+            # design (D6: a set is UX grouping no calculation depends on, so it
+            # is not worth one). That makes this the ONLY thing standing between
+            # a user and a tire filed under another vehicle's set, so it is
+            # checked before the assignment rather than after.
+            if fields.get("set_id") is not None:
+                owner = (
+                    await self.db.execute(
+                        select(TireSet.id).where(TireSet.id == fields["set_id"], TireSet.vin == vin)
+                    )
+                ).scalar_one_or_none()
+                if owner is None:
+                    raise HTTPException(status_code=404, detail="Tire set not found")
+            for key, value in fields.items():
                 setattr(tire, key, value)
             await self.db.commit()
             await self.db.refresh(tire)
             await self._sync_low_tread_reminder(tire)
-            return self._to_response(tire)
+            # WITH the odometer. Without it every edit answered as though the
+            # vehicle had never had a reading, so a PUT that only changed a
+            # brand came back reporting the tire's distance as unknown. The
+            # wrong figure never rendered because the client refetches, which
+            # is exactly why it survived.
+            return self._to_response(tire, current_odometer=await self._current_odometer(vin))
         except HTTPException:
             raise
         except OperationalError as e:

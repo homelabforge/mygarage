@@ -22,6 +22,12 @@ vi.mock('../../hooks/queries/useTires', () => ({
   useRotateTires: () => useUpsertTireMock(),
   useAddTireReading: () => useAddTireReadingMock(),
   useDeleteTire: () => useDeleteTireMock(),
+  // Sets are not this file's subject; it just has to render past them.
+  useTireSets: () => ({ data: { sets: [], total: 0 }, isLoading: false, error: null }),
+  useCreateTireSet: () => useUpsertTireMock(),
+  useUpdateTireSet: () => useUpsertTireMock(),
+  useDeleteTireSet: () => useUpsertTireMock(),
+  useMountTireSet: () => useUpsertTireMock(),
 }))
 
 vi.mock('@tanstack/react-query', () => ({
