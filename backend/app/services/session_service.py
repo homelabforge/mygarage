@@ -39,6 +39,16 @@ RPM_PARAM_KEYS = rpm_param_key_candidates()
 #: stationary is a contradiction the code cannot resolve.
 IDLE_THRESHOLD_KMH = 5.0
 
+#: Keys a PARKED vehicle publishes on its own. A batch containing nothing else
+#: is a heartbeat, not a vehicle whose movement went unread, so it must not
+#: trigger the no-movement diagnostic below -- otherwise the warning fires for
+#: every device on every instance and means nothing.
+PARKED_HEARTBEAT_KEYS = frozenset({"BATTERY_VOLTAGE"})
+
+#: Devices already named by `_warn_if_no_movement_signal_ever`, this process.
+#: See that method for why this is process-local rather than a column.
+_NO_MOVEMENT_WARNED: set[str] = set()
+
 
 class SessionService:
     """Service for drive session detection and aggregation."""
@@ -362,6 +372,9 @@ class SessionService:
             # `check_session_timeouts` decides when the stop becomes two trips.
             return session
 
+        if not signals.has_any_signal:
+            self._warn_if_no_movement_signal_ever(device, samples)
+
         if signals.is_engine_on and device.pending_since is None:
             # `idle` -> `pending`. Engine turning with the vehicle stationary is
             # a remote start, a diagnostic session, a winter warm-up, or the
@@ -375,6 +388,49 @@ class SessionService:
                 device.movement_candidate_at = sample_at
 
         return None
+
+    def _warn_if_no_movement_signal_ever(
+        self, device: LiveLinkDevice, samples: Mapping[str, object]
+    ) -> None:
+        """Name a device whose movement this code cannot see.
+
+        A silent zero is the failure mode this entire change exists to
+        eliminate, so reintroducing one for the cohort the movement predicate
+        cannot read would be absurd. "No sessions, cause unknown" is not
+        something an operator can act on; "this device publishes
+        CUSTOM_ROAD_SPEED and nothing recognises it" is -- either a param alias
+        is missing, or the instance wants `livelink_session_boundary_mode =
+        contact`.
+
+        Fires only for a device that is plainly OPERATING -- publishing engine
+        telemetry -- while reporting nothing recognisable as speed, RPM or an
+        odometer. A parked vehicle publishing only its battery heartbeat should
+        produce no sessions, and flagging that would make the warning
+        meaningless on every instance.
+
+        Logged once per device per process, via a module-level set. Deliberately
+        not a column: a device sends a payload every few seconds, so logging per
+        payload would bury the diagnostic it exists to surface, while persisting
+        the fact would need a migration to say something the log says well
+        enough. Resetting on restart is a feature -- it re-reports a problem
+        that is still present.
+        """
+        if device.last_movement_at is not None:
+            return
+        if device.device_id in _NO_MOVEMENT_WARNED:
+            return
+        operating_keys = sorted(key for key in samples if key.upper() not in PARKED_HEARTBEAT_KEYS)
+        if not operating_keys:
+            return
+        _NO_MOVEMENT_WARNED.add(device.device_id)
+        logger.warning(
+            "Device %s reports engine telemetry but no recognised movement signal; "
+            "it will record no drive sessions. Keys seen: %s. Either a parameter "
+            "alias is missing from app/utils/movement_keys.py, or set "
+            "livelink_session_boundary_mode=contact for this instance.",
+            device.device_id,
+            ", ".join(operating_keys),
+        )
 
     def _confirm_movement(
         self,

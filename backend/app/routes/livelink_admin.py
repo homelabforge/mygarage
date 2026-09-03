@@ -104,6 +104,8 @@ async def get_livelink_settings(
         firmware_check_enabled=await _get_bool_setting(db, "livelink_firmware_check_enabled", True),
         alert_cooldown_minutes=await service.get_alert_cooldown_minutes(),
         session_grace_period_seconds=await service.get_session_grace_period_seconds(),
+        session_gap_minutes=await service.get_session_gap_minutes(),
+        session_boundary_mode=await service.get_session_boundary_mode(),
         notify_device_offline=await _get_bool_setting(db, "livelink_notify_device_offline", True),
         notify_threshold_alerts=await _get_bool_setting(
             db, "livelink_notify_threshold_alerts", True
@@ -160,6 +162,14 @@ async def update_livelink_settings(
             db,
             "livelink_session_grace_period_seconds",
             str(updates.session_grace_period_seconds),
+        )
+    if updates.session_gap_minutes is not None:
+        await SettingsService.set(
+            db, "livelink_session_gap_minutes", str(updates.session_gap_minutes)
+        )
+    if updates.session_boundary_mode is not None:
+        await SettingsService.set(
+            db, "livelink_session_boundary_mode", updates.session_boundary_mode
         )
     if updates.notify_device_offline is not None:
         await SettingsService.set(
