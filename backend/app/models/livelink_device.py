@@ -108,7 +108,9 @@ class LiveLinkDevice(Base):
     last_movement_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)
     #: Engine on, nothing moving yet. NULL = no pending drive.
     pending_since: Mapped[datetime | None] = mapped_column(DateTime)
-    #: Which signal opened the pending drive: 'rpm' or 'speed'.
+    #: Which signal opened the pending drive. Only ``'rpm'`` is written today:
+    #: a pending drive IS "engine on, nothing moving yet", and a sample above the
+    #: movement floor confirms movement outright rather than opening one.
     pending_source: Mapped[str | None] = mapped_column(String(10))
     #: First of the two consecutive above-floor speed samples the debounce needs.
     movement_candidate_at: Mapped[datetime | None] = mapped_column(DateTime)

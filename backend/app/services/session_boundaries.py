@@ -54,8 +54,14 @@ MOVEMENT_FLOOR_KMH = 5.0
 
 #: Which signal opened a pending drive. Stored in
 #: ``livelink_devices.pending_source`` (VARCHAR(10)).
+#:
+#: Only ``rpm`` is ever written, and that is not an oversight: a pending drive
+#: is by definition "the engine is on and nothing has moved yet". A sample above
+#: the movement floor goes straight to the candidate/confirm path, so there is
+#: no state in which speed opens a pending drive. The column is wider than one
+#: value because a future third signal would land here, and because a stored
+#: enum of one is indistinguishable from a boolean nobody named.
 PENDING_SOURCE_RPM = "rpm"
-PENDING_SOURCE_SPEED = "speed"
 
 #: Stamped on every session this algorithm cuts. 0 is the column default and
 #: means "pre-098, bounded on contact", so history is not misdescribed -- but a

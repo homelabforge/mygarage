@@ -40,6 +40,15 @@ So deletion and rebounding require **positive** evidence, all three:
 Anything short of that leaves the session exactly as it is and reports a reason.
 Refusal is a routine outcome here, not an exceptional one, which is why the run
 record exists: in a quiet log a safe refusal and a broken tool look identical.
+
+NOT IMPLEMENTED: MERGING
+------------------------
+Sessions are processed one at a time, each rebounded onto the movement inside
+its OWN window. So two old contact-sessions that are really one drive -- a drive
+from 08:10 to 08:50 that the old rule split across windows ending at 08:30 and
+beginning at 08:35 -- stay two sessions afterwards. Both report real movement
+and they do not overlap, so the data is not wrong; the journey just reads as two
+trips. ``Plan.merged`` is therefore always 0, and says so where it is declared.
 """
 
 from __future__ import annotations
@@ -104,6 +113,12 @@ class Plan:
     result are the same shape on purpose, so one can be compared to the other."""
 
     created: int = 0
+    #: Always 0 in this release. MERGING IS NOT IMPLEMENTED: two old sessions
+    #: that are really one drive are each rebounded onto the movement inside
+    #: their own window, so the drive stays split in two. Neither result is
+    #: wrong -- both sessions report real movement and they do not overlap --
+    #: but one journey shows as two. Recorded here rather than left as a counter
+    #: that never moves, which reads as "we looked and found none".
     merged: int = 0
     split: int = 0
     closed: int = 0
@@ -325,7 +340,12 @@ class SessionReconstructionService:
         windows += [(extra, _naive(extra.started_at), _naive(extra.ended_at)) for extra in extras]
 
         for point in points:
+            # `location_points.timestamp` is NOT NULL, so this is never None --
+            # but `_naive` is written for the nullable columns too, so narrow it
+            # here rather than letting the comparison below carry an Optional.
             stamp = _naive(point.timestamp)
+            if stamp is None:
+                continue
             home = next(
                 (
                     owner

@@ -977,14 +977,14 @@ class TelemetryService:
                     drive.movement_ended_at,
                 )
 
-            session.duration_seconds = max(
-                0,
-                int(
-                    (
-                        self._naive_ts(session.ended_at) - self._naive_ts(session.started_at)
-                    ).total_seconds()
-                ),
-            )
+            # Read back into locals and narrow. Both were assigned non-None a
+            # few lines up, in either branch, but they are nullable columns and
+            # a later edit to one branch could stop being true without anything
+            # here noticing.
+            window_start = self._naive_ts(session.started_at)
+            window_end = self._naive_ts(session.ended_at)
+            if window_start is not None and window_end is not None:
+                session.duration_seconds = max(0, int((window_end - window_start).total_seconds()))
             changed += 1
 
         await self.db.flush()

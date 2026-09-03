@@ -100,6 +100,10 @@ what happened, so it cannot reach further back than
 cannot prove alone. Every run is listed under LiveLink settings with what it
 changed and what it left, including why.
 
+It corrects each old drive on its own, so where the old rule split one journey
+across two of them, the rebuild keeps them as two. Both will show real driving
+and neither overlaps the other; the journey simply reads as two trips.
+
 If your device reports no speed or odometer that MyGarage recognises, it will
 record no drives at all. Settings names the device and the readings it does
 send; set **How drives are detected** to "By device connection" to keep the old

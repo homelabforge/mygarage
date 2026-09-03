@@ -64,9 +64,7 @@ class TestTorqueTimeouts:
         device.last_seen = now
         await db_session.flush()
 
-        await service.check_session_timeouts(
-            timeout_minutes=TIMEOUT, gap_minutes=GAP, now=now
-        )
+        await service.check_session_timeouts(timeout_minutes=TIMEOUT, gap_minutes=GAP, now=now)
         await db_session.flush()
 
         assert (await _session_row(db_session, session_id)).ended_at is None, (
@@ -150,9 +148,7 @@ class TestTorqueTimeouts:
         device.last_seen = now
         await db_session.flush()
 
-        await service.check_session_timeouts(
-            timeout_minutes=TIMEOUT, gap_minutes=GAP, now=now
-        )
+        await service.check_session_timeouts(timeout_minutes=TIMEOUT, gap_minutes=GAP, now=now)
         await db_session.flush()
 
         assert (await _session_row(db_session, session_id)).ended_at == moved_at

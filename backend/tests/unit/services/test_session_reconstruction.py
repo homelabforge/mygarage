@@ -781,3 +781,47 @@ class TestTheCommandLineContract:
         )
 
         assert code == 0
+
+
+class TestTheRefusalReasonTupleIsComplete:
+    """`ALL_REFUSAL_REASONS` is what the UI's label map is checked against.
+
+    That check lives in a TypeScript test which reads this tuple out of the
+    Python source, so a reason constant that never made it into the tuple is
+    invisible to it: the frontend guard would happily confirm that every reason
+    it can see has a label, while the missing one renders as raw snake_case.
+
+    This is the Python half. Between the two, a reason must be declared, be in
+    the tuple, and have a label, or something fails by name.
+    """
+
+    def test_every_refusal_constant_is_in_the_tuple(self):
+        from app.services import session_reconstruction as module
+        from app.services.session_reconstruction import ALL_REFUSAL_REASONS
+
+        declared = {
+            value
+            for name, value in vars(module).items()
+            if name.startswith("REFUSAL_") and isinstance(value, str)
+        }
+        assert declared, "no REFUSAL_* constants found; this guard would be vacuous"
+        assert declared == set(ALL_REFUSAL_REASONS), (
+            "declared but not in ALL_REFUSAL_REASONS: "
+            f"{sorted(declared - set(ALL_REFUSAL_REASONS))}; "
+            "in the tuple but not declared: "
+            f"{sorted(set(ALL_REFUSAL_REASONS) - declared)}"
+        )
+
+    def test_every_reason_the_service_can_emit_is_declared(self):
+        """Guards the other direction: a reason string written inline at a call
+        site, bypassing the constants entirely."""
+        import re
+        from pathlib import Path
+
+        from app.services.session_reconstruction import ALL_REFUSAL_REASONS
+
+        source = Path("app/services/session_reconstruction.py").read_text()
+        emitted = {m.group(1) for m in re.finditer(r'plan\.refuse\([^,]+,\s*"([a-z_]+)"\)', source)}
+        assert emitted <= set(ALL_REFUSAL_REASONS), (
+            f"these reasons are emitted as inline strings: {sorted(emitted)}"
+        )
