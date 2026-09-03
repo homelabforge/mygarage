@@ -1280,13 +1280,39 @@ class SessionService:
         ).all()
 
         for device, session in rows:
+            last_seen = self._naive(device.last_seen) if device.last_seen else now
+
+            # A session this algorithm did not cut gets the OLD rule, whole:
+            # close on contact loss, at the last contact.
+            #
+            # In practice that is Torque, whose boundaries come from the phone.
+            # It has no movement record of any kind -- `resolve_torque_session`
+            # never calls the observer, deliberately -- so the drive gap would
+            # fall back to `started_at` and close an actively-uploading trip
+            # fifteen minutes after it BEGAN, cutting a one-hour drive into a
+            # quarter-hour session and forty-five minutes belonging to nothing.
+            # `check_session_timeouts` has no `kind` filter, so without this the
+            # gap clock reaches a source that was working correctly.
+            if session.boundary_algorithm_version < BOUNDARY_ALGORITHM_MOVEMENT:
+                if last_seen < contact_cutoff:
+                    ended = await self.end_session(device, last_seen)
+                    if ended:
+                        closed_sessions.append(ended)
+                        logger.info(
+                            "Closed session %d for device %s on contact loss at %s "
+                            "(pre-movement boundaries, closed at last contact)",
+                            ended.id,
+                            device.device_id,
+                            last_seen,
+                        )
+                continue
+
             moved_at = self._naive(
                 device.last_movement_at
                 or session.movement_ended_at
                 or session.movement_started_at
                 or session.started_at
             )
-            last_seen = self._naive(device.last_seen) if device.last_seen else now
 
             if moved_at < gap_cutoff:
                 reason, retain = "drive gap", False
