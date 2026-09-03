@@ -45,6 +45,27 @@ IDLE_THRESHOLD_KMH = 5.0
 #: every device on every instance and means nothing.
 PARKED_HEARTBEAT_KEYS = frozenset({"BATTERY_VOLTAGE"})
 
+#: Every column `refresh_aggregates` derives from a session's window. Listed so
+#: `clear_first` can null them all; a column added to the recompute steps but
+#: not here would survive a rebound as a stale figure from the wider window.
+_DERIVED_SESSION_COLUMNS = (
+    "start_odometer",
+    "end_odometer",
+    "distance_km",
+    "avg_speed",
+    "max_speed",
+    "avg_rpm",
+    "max_rpm",
+    "avg_coolant_temp",
+    "max_coolant_temp",
+    "avg_throttle",
+    "max_throttle",
+    "avg_fuel_level",
+    "idle_seconds",
+    "harsh_accel_count",
+    "harsh_brake_count",
+)
+
 #: Devices already named by `_warn_if_no_movement_signal_ever`, this process.
 #: See that method for why this is process-local rather than a column.
 _NO_MOVEMENT_WARNED: set[str] = set()
@@ -862,7 +883,7 @@ class SessionService:
                 return float(value)
         return None
 
-    async def refresh_aggregates(self, session: DriveSession) -> None:
+    async def refresh_aggregates(self, session: DriveSession, *, clear_first: bool = False) -> None:
         """Recompute a closed session's aggregates from the telemetry now on record.
 
         A WiCAN buffers readings while off home WiFi and replays them with their
@@ -874,7 +895,25 @@ class SessionService:
         close, `TelemetryService` calls it when a reading or an SD-card pull
         lands inside a closed session's window, and `tools/
         recompute_session_aggregates.py` calls it to repair history.
+
+        ``clear_first`` nulls every derived column before recomputing, and is
+        for callers that have NARROWED the window. The recompute steps assign
+        only when they find samples and never clear, which is right for the
+        scheduled refresh -- telemetry is pruned on a retention schedule while
+        sessions are kept forever, so an old session's window is legitimately
+        empty and blanking it would erase the only record of that drive. It is
+        exactly wrong after a rebound: a session cut down from 95 minutes of
+        parked heartbeats to the four the vehicle moved would keep the
+        ``avg_speed`` the wide window produced.
+
+        Two callers wanting opposite things is why this is a parameter. It
+        defaults to False because a default of True would blank every pruned
+        session on the next scheduler tick -- destroying data rather than
+        misreporting it.
         """
+        if clear_first:
+            for column in _DERIVED_SESSION_COLUMNS:
+                setattr(session, column, None)
         await self._calculate_session_distance(session)
         await self._calculate_session_aggregates(session)
         await self._calculate_driving_insights(session)
