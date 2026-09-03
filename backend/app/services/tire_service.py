@@ -8,11 +8,12 @@ from datetime import timedelta
 from decimal import Decimal
 
 from fastapi import HTTPException
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.models.odometer import OdometerRecord
 from app.models.reminder import Reminder
 from app.models.tire import Tire, TireMountPeriod, TireReading
 from app.models.user import User
@@ -37,8 +38,20 @@ from app.services.tire_results import (
 )
 from app.utils.datetime_utils import utc_now
 from app.utils.logging_utils import sanitize_for_log
+from app.utils.odometer_sync import auto_sync_marker, sync_odometer_from_record
 
 logger = logging.getLogger(__name__)
+
+# `source_type` for the odometer readings the tire paths publish. Two of them,
+# and the split decides what happens when a tire is deleted: a mount, dismount,
+# retire or reading odometer exists because of ONE tire and goes with it, while
+# a rotation's is a reading of the VEHICLE taken while several tires were on
+# it. Deleting one of those tires does not make the reading untrue, and
+# cascading it would break the distance figure for every other tire in the same
+# rotation. Both fit `odometer_records.source` VARCHAR(20) -- a length
+# PostgreSQL enforces and SQLite does not.
+ODOMETER_SOURCE_TIRE = "tire"
+ODOMETER_SOURCE_ROTATION = "tire_rotation"
 
 
 def distance_on_tire(tire: Tire, current_odometer: Decimal | None) -> DistanceResult:
@@ -241,8 +254,6 @@ class TireService:
         had a reading. That is its own empty state, not a zero: every open
         period on such a vehicle is unbounded.
         """
-        from app.models.odometer import OdometerRecord
-
         result = await self.db.execute(
             select(OdometerRecord.odometer_km)
             .where(OdometerRecord.vin == vin)
@@ -250,6 +261,33 @@ class TireService:
             .limit(1)
         )
         return result.scalar_one_or_none()
+
+    async def _publish_odometer(
+        self,
+        vin: str,
+        when: dt.date,
+        odometer_km: Decimal | None,
+        source_type: str,
+        source_id: int,
+    ) -> None:
+        """Record a tire operation's odometer as a reading of the VEHICLE.
+
+        Every tire write that takes an odometer was storing it on the mount
+        period and nowhere else, so `distance_on_tire` -- which bounds an OPEN
+        period with the vehicle's latest `OdometerRecord` -- could not see the
+        number the user had just typed. Rotating four tires and entering the
+        odometer left the distance `incomplete`, and the only way out was to go
+        and log the same reading a second time somewhere else.
+
+        Always composed into the caller's transaction: `commit=False` is fixed
+        here rather than passed at each call site, because a commit
+        in the middle of a mount, a rotation or a retire splits the operation in
+        half. The shared helper's refusals come with it -- a manual reading on
+        the same date is never overwritten, and a null odometer is a no-op.
+        """
+        await sync_odometer_from_record(
+            self.db, vin, when, odometer_km, source_type, source_id, commit=False
+        )
 
     @staticmethod
     def _derived_installed_date(tire: Tire) -> dt.date | None:
@@ -444,16 +482,22 @@ class TireService:
                 detail=f"Another tire is already mounted at {data.position}.",
             )
 
+        # Hoisted so the period and the odometer reading cannot land on
+        # different dates when this runs across midnight.
+        mounted_on = data.mounted_on or utc_now().date()
         tire.position = data.position
         self.db.add(
             TireMountPeriod(
                 tire_id=tire.id,
                 position=data.position,
-                mounted_on=data.mounted_on or utc_now().date(),
+                mounted_on=mounted_on,
                 mounted_odometer_km=data.mounted_odometer_km,
                 is_assumed=False,
                 notes=data.notes,
             )
+        )
+        await self._publish_odometer(
+            vin, mounted_on, data.mounted_odometer_km, ODOMETER_SOURCE_TIRE, tire.id
         )
         await self.db.commit()
         # The reminder title names the position, so mounting changes it.
@@ -484,12 +528,18 @@ class TireService:
             )
         ).scalar_one_or_none()
 
+        dismounted_on = data.dismounted_on or utc_now().date()
         tire.position = None
         if open_period is not None:
-            open_period.dismounted_on = data.dismounted_on or utc_now().date()
+            open_period.dismounted_on = dismounted_on
             open_period.dismounted_odometer_km = data.dismounted_odometer_km
             if data.notes:
                 open_period.notes = data.notes
+        # Published even when there is no open period to close: the user still
+        # read that number off the dashboard.
+        await self._publish_odometer(
+            vin, dismounted_on, data.dismounted_odometer_km, ODOMETER_SOURCE_TIRE, tire.id
+        )
         await self.db.commit()
         return await self._reload_response(tire.id, vin)
 
@@ -525,14 +575,18 @@ class TireService:
         )
         self.db.add(tire)
         await self.db.flush()
+        mounted_on = data.mounted_on or utc_now().date()
         self.db.add(
             TireMountPeriod(
                 tire_id=tire.id,
                 position=data.position,
-                mounted_on=data.mounted_on or utc_now().date(),
+                mounted_on=mounted_on,
                 mounted_odometer_km=data.mounted_odometer_km,
                 is_assumed=False,
             )
+        )
+        await self._publish_odometer(
+            vin, mounted_on, data.mounted_odometer_km, ODOMETER_SOURCE_TIRE, tire.id
         )
         await self.db.commit()
         return await self._reload_and_sync(tire.id, vin)
@@ -637,6 +691,13 @@ class TireService:
                 )
             )
 
+        # ONE reading however many tires moved: the odometer is a fact about
+        # the vehicle, not about each corner. `min(moving_ids)` is only the
+        # marker's id and nothing reads it back -- it is order-independent, so
+        # a client that lists its moves differently produces the same note.
+        await self._publish_odometer(
+            vin, when, data.odometer_km, ODOMETER_SOURCE_ROTATION, min(moving_ids)
+        )
         await self.db.commit()
         return await self.list_tires(vin, current_user)
 
@@ -741,6 +802,10 @@ class TireService:
         if tire.retired_on is not None:
             raise HTTPException(status_code=409, detail="This tire is already retired.")
 
+        # One date for the closed period and the retirement both, so a retire
+        # that runs across midnight cannot record two.
+        retired_on = data.dismounted_on or utc_now().date()
+
         if tire.position is not None:
             # Close the open period and free the corner, so the replacement can
             # go where the old one was.
@@ -756,11 +821,14 @@ class TireService:
                 )
             ).scalar_one_or_none()
             if open_period is not None:
-                open_period.dismounted_on = data.dismounted_on or utc_now().date()
+                open_period.dismounted_on = retired_on
                 open_period.dismounted_odometer_km = data.dismounted_odometer_km
             tire.position = None
 
-        tire.retired_on = data.dismounted_on or utc_now().date()
+        tire.retired_on = retired_on
+        await self._publish_odometer(
+            vin, retired_on, data.dismounted_odometer_km, ODOMETER_SOURCE_TIRE, tire.id
+        )
         await self.db.commit()
         return await self._reload_response(tire.id, vin)
 
@@ -791,6 +859,18 @@ class TireService:
             update(Reminder)
             .where(Reminder.tire_id == tire_id, Reminder.vin == vin)
             .values(tire_id=None, source=None)
+        )
+        # The odometer readings this tire published. Nothing cascades them:
+        # `odometer_records` carries a FK for fuel-sourced rows only. A tire
+        # entered with a typo'd odometer and then deleted would otherwise leave
+        # the typo behind as the vehicle's latest reading, where it poisons
+        # every mileage reminder the vehicle has. Marker-exact, so a manual row
+        # is never touched -- and a row some LATER sync took ownership of
+        # carries that source's marker now, not this tire's.
+        await self.db.execute(
+            delete(OdometerRecord)
+            .where(OdometerRecord.vin == vin)
+            .where(OdometerRecord.notes == auto_sync_marker(ODOMETER_SOURCE_TIRE, tire_id))
         )
         await self.db.delete(tire)
         await self.db.commit()
@@ -854,6 +934,15 @@ class TireService:
                     tire.tread_depth_mm = data.tread_depth_mm
                 if data.pressure_kpa is not None:
                     tire.pressure_kpa = data.pressure_kpa
+            # A reading's odometer is vehicle context by this schema's own
+            # words, not an observation of the tire. Without publishing it the
+            # five writers above make things WORSE for someone who only records
+            # readings: mounting gives the open period an upper bound equal to
+            # its own start, and the card reports a confident "0 km" instead of
+            # admitting it does not know.
+            await self._publish_odometer(
+                vin, data.recorded_at, data.odometer_km, ODOMETER_SOURCE_TIRE, tire.id
+            )
             await self.db.commit()
             await self.db.refresh(tire)
             result = await self.db.execute(

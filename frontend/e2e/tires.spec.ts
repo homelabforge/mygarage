@@ -309,20 +309,19 @@ test.describe('Tire rotation and retirement', () => {
     )
     expect(moved.mount_periods).toHaveLength(2)
 
-    // `incomplete`, not `complete`, and this is the code being right rather
-    // than the test being wrong. The closed FL period is bounded (1000 ->
-    // 20000), but the new RR period is OPEN, and an open period's upper bound
-    // is the vehicle's latest OdometerRecord -- which this vehicle does not
-    // have, because a rotation's `odometer_km` does not create one.
+    // `complete`, and getting here took a code change. This assertion read
+    // `incomplete` until the rotation started publishing its odometer as a
+    // reading of the vehicle: the closed FL period was bounded (1000 ->
+    // 20000), but the new RR period is OPEN, an open period's upper bound is
+    // the vehicle's latest OdometerRecord, and a rotation created none. So a
+    // user who rotated and dutifully typed the odometer still had the all-time
+    // total withheld until they went and logged the same number a second time.
     //
-    // So the all-time total is withheld and the measurable leg is reported.
-    // That is exactly the contract, and it is also the clearest statement of
-    // a real product gap: a user who rotates and supplies an odometer still
-    // sees "incomplete" until they log an odometer reading separately.
-    expect(moved.distance_status).toBe('incomplete')
-    expect(Number(moved.known_distance_km)).toBeGreaterThanOrEqual(19000)
-    expect(moved.distance_km).toBeNull()
-    expect(moved.blocking_period_ids.length).toBeGreaterThan(0)
+    // The RR leg is 0 km because the vehicle has not been driven since, which
+    // is the honest reading of the recorded facts rather than a gap.
+    expect(moved.distance_status).toBe('complete')
+    expect(Number(moved.distance_km)).toBe(19000)
+    expect(moved.blocking_period_ids).toHaveLength(0)
   })
 
   test('retiring keeps the history that deleting would destroy', async ({ request }) => {

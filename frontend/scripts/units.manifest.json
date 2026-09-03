@@ -2512,8 +2512,8 @@
   {
    "path": "src/types/odometer.ts",
    "disposition": "no unit behaviour",
-   "digest": "6897fc2ef7a397a015f18b8e34ec4095e13a0bf915be088ff1686e137dce4e4c",
-   "reason": "no unit behaviour: dispositioned under the CORRECTED scan: every unit stem, token, quantity name and canonical field suffix this codebase uses, matched case-insensitively with NO word boundary. The earlier word-boundary version was a floor (it called AnalyticsHelpModal.tsx clean while it renders \"Average MPG:\" to every user) and it was superseded before any disposition in this file was written. This file matched 2 of them; every hit was read in context and none is a unit decision or a unit-bearing quantity."
+   "digest": "0289cf31a1be6866e6d1854654c4362618a8b03b797efbd758d48a1e9db43d73",
+   "reason": "no unit behaviour: re-reviewed after the file gained a corrected `OdometerSource` union (the backend writes nine source labels, not the three this listed) and the comment deriving it. The stem scan matches more often now -- 'odometer', 'fuel' and 'def' all appear -- and every hit is a TYPE NAME, a database column named in prose, or a source LABEL. The file declares no numeric value, performs no conversion and names no unit, so the disposition it was given under the CORRECTED scan (every unit stem, token, quantity name and canonical field suffix, matched case-insensitively with NO word boundary) still holds. A hit count is deliberately not restated: it rots on the next comment edit, and the criterion is what the next reviewer needs."
   },
   {
    "path": "src/types/photo.ts",
