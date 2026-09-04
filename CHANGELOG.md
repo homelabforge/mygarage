@@ -158,6 +158,8 @@ odometer per tire, on its mount, restores the estimate.
 ### Changed
 - Drive sessions are detected by movement rather than by the dongle connecting. A parked vehicle checking in no longer records a drive; see the upgrade note.
 - **BREAKING (API):** `POST /api/vehicles/{vin}/tires` no longer accepts `position` and creates a stored tire. Mount it afterwards, or use `POST /api/vehicles/{vin}/tires/create-and-mount`, which does both atomically. A payload carrying `position` is rejected with HTTP 422 naming the field.
+- Settings -> Integrations is laid out on the same cards as the rest of the app. It was still on pre-v3.0.0 markup, so seven sections hand-rolled their own headers, and a fixed two-column grid paired the tall NHTSA card against two short ones and left a quarter of that row empty. The sections now flow, and each one's description and toggle text sit in the same place.
+- Integrations follows the Title Case rule: names of things are Title Case (LLM Features, Telegram Fuel Bot, Webhook Ingest Token, API Base URL) and toggle labels say what they do in sentence case. Both spellings were previously on the same screen.
 
 ### Fixed
 - Drives taken out of range of the broker are recorded. Readings pulled from the dongle's SD card could update an existing session but never create one, so a drive away from home was recorded as nothing at all.
