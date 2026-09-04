@@ -61,11 +61,14 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
+import queue
 import re
 import shutil
 import subprocess
 import sys
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -87,6 +90,52 @@ ESLINT_CFG = FRONTEND / "eslint.config.js"
 # src/types/api.generated.ts is linted.
 GATE_MUTANT = FRONTEND / "scripts/units-gate.mutant.generated.ts"
 CFG_MUTANT = FRONTEND / "eslint.mutant.generated.js"
+
+
+# Per-worker copies for the parallel script leg. Slot 0 keeps the canonical name
+# so a serial run and a parallel one leave the same footprint on disk. The
+# `.mutant.generated.` infix is preserved in every slot for the reason above:
+# it is what eslint.config.js ignores and what .gitignore drops.
+def slot_mutants(n: int) -> list[Path]:
+    """The gate-mutant path for each of `n` workers."""
+    return [
+        GATE_MUTANT
+        if i == 0
+        else FRONTEND / f"scripts/units-gate.w{i}.mutant.generated.ts"
+        for i in range(n)
+    ]
+
+
+def stale_slot_mutants() -> list[Path]:
+    """Every worker mutant on disk, whatever slot count wrote it.
+
+    Globbed rather than derived from the current worker count: a run killed on
+    a 20-core box leaves w1..w7, and a later 4-core run that only knew about
+    w1..w3 would take the lock with three of them still lying there.
+    """
+    return sorted(FRONTEND.glob("scripts/units-gate.w*.mutant.generated.ts"))
+
+
+def worker_count(tasks: int) -> int:
+    """How many script-leg mutations to run at once.
+
+    ★ The lever here is PROCESS SPAWNS, never coverage. Every mutation is an
+    independent (write a mutant, probe that it runs, run the corpus against it)
+    triple whose cost is ~72 `bun` invocations, and the whole run is subprocess
+    latency, so Python threads are the right tool: subprocess.run drops the GIL
+    and the workers never touch each other's files. Nothing is sampled and no
+    mutant is dropped; the same 80 mutations run and the same cases must flip.
+    """
+    raw = os.environ.get("UNITS_SELFTEST_JOBS", "")
+    if raw.strip():
+        try:
+            return max(1, min(int(raw), tasks or 1))
+        except ValueError:
+            print(f"ignoring UNITS_SELFTEST_JOBS={raw!r}, not an integer")
+    # Capped at 8: past that these are competing for the same cores and each
+    # bun start gets slower, and CI runners have 4 anyway.
+    return max(1, min(8, os.cpu_count() or 1, tasks or 1))
+
 
 # Fixtures this file owns outright, all outside src/.
 SCOPE_FIXTURE = FRONTEND / "scripts/__units_scope_probe__.tsx"
@@ -790,8 +839,7 @@ MUTATIONS = [
         "gate",
         "      node.kind === ts.SyntaxKind.VariableDeclaration &&\n"
         "      node.name?.kind === ts.SyntaxKind.Identifier &&",
-        "      false &&\n"
-        "      node.name?.kind === ts.SyntaxKind.Identifier &&",
+        "      false &&\n      node.name?.kind === ts.SyntaxKind.Identifier &&",
         "script",
         ["S-P46-exported-arrow-helper"],
         "the other half of the same floor. An arrow const carries its `export` on "
@@ -901,8 +949,8 @@ MUTATIONS = [
             "S-P43-scoped-declaration-wrong-kind",
         ],
         "★ the pragma as it behaved before task 8, run rather than described. "
-        "`units.manifest.json` objected that a reason-bearing pragma \"silences "
-        "anything\", and it was right: the bare form covers every kind on its line, "
+        '`units.manifest.json` objected that a reason-bearing pragma "silences '
+        'anything", and it was right: the bare form covers every kind on its line, '
         "including one nobody had thought about when they wrote the reason. That "
         "objection is what the bracket answers, and this is the mutation that makes "
         "the answer falsifiable rather than a comment.",
@@ -919,7 +967,7 @@ MUTATIONS = [
         "the bracket. MEASURED by applying this mutation to the real gate and "
         "running `--report`: 45 findings under 32 keys across 11 files land in a "
         "clean-room gate, from 15 line pragmas covering 16 findings and 12 "
-        "declaration pragmas hiding 29 more. ★ This description said \"nine\" twice "
+        'declaration pragmas hiding 29 more. ★ This description said "nine" twice '
         "until fix round 2, derived from a count that had already been corrected "
         "one file over and not re-derived here: wrong by 5x, in the sentence whose "
         "job is to say what the guard protects.",
@@ -1368,7 +1416,11 @@ WALK_MUTATIONS = [
 
 
 def write_mutant(
-    target: str, old: str, new: str, also: list[tuple[str, str]] | None = None
+    target: str,
+    old: str,
+    new: str,
+    also: list[tuple[str, str]] | None = None,
+    dst: Path | None = None,
 ) -> tuple[Path, int]:
     """Write a mutated COPY and return (path, the WORST occurrence count seen).
 
@@ -1378,7 +1430,13 @@ def write_mutant(
     be scored as though it had applied.
     """
     src = GATE_SRC if target == "gate" else ESLINT_CFG
-    dst = GATE_MUTANT if target == "gate" else CFG_MUTANT
+    # The caller's per-worker slot when the script leg runs in parallel, and
+    # the canonical path otherwise. Annotated because GATE_MUTANT is built
+    # from C.FRONTEND, which the dynamic module load types as Any, and an Any
+    # in the union stops pyright narrowing `dst or ...` away from None.
+    out: Path = (
+        dst if dst is not None else (GATE_MUTANT if target == "gate" else CFG_MUTANT)
+    )
     text = src.read_text()
     worst = 1
     for a, b in [(old, new), *(also or [])]:
@@ -1388,12 +1446,15 @@ def write_mutant(
             break
         text = text.replace(a, b)
     if worst == 1:
-        dst.write_text(text)
-    return dst, worst
+        out.write_text(text)
+    return out, worst
 
 
 def mutant_is_valid(
-    target: str, tmpdir: Path, expect_probe: str = "clean"
+    target: str,
+    tmpdir: Path,
+    expect_probe: str = "clean",
+    mutant: Path | None = None,
 ) -> str | None:
     """Prove the mutant still RUNS before its result is allowed to mean anything.
 
@@ -1403,12 +1464,19 @@ def mutant_is_valid(
     """
     probe = tmpdir / "validity_probe.tsx"
     probe.write_text(VALIDITY_PROBE)
+    # The worker's own slot when given, so two threads never probe one file.
+    # Annotated for the same Any-in-the-union reason as write_mutant.
+    probe_target: Path = (
+        mutant
+        if mutant is not None
+        else (GATE_MUTANT if target == "gate" else CFG_MUTANT)
+    )
     if target == "gate":
         p = subprocess.run(
             [
                 "bun",
                 "run",
-                str(GATE_MUTANT.relative_to(FRONTEND)),
+                str(probe_target.relative_to(FRONTEND)),
                 "--scan",
                 str(probe),
             ],
@@ -1446,7 +1514,7 @@ def mutant_is_valid(
             "--format",
             "json",
             "--config",
-            str(CFG_MUTANT.relative_to(FRONTEND)),
+            str(probe_target.relative_to(FRONTEND)),
             str(probe),
         ],
         cwd=FRONTEND,
@@ -1759,13 +1827,23 @@ def cleanroom_proof(tmpdir: Path) -> list[str]:
     # registry killable rather than a guard nothing can fail.
     gate_text = GATE_SRC.read_text()
     called = sorted(set(re.findall(r"record\([^,]+, '([a-z-]+)'", gate_text)))
-    declared_block = re.search(r"const FINDING_KINDS = \[(.*?)\] as const", gate_text, re.S)
-    declared = sorted(re.findall(r"'([a-z-]+)'", declared_block.group(1))) if declared_block else []
+    declared_block = re.search(
+        r"const FINDING_KINDS = \[(.*?)\] as const", gate_text, re.S
+    )
+    declared = (
+        sorted(re.findall(r"'([a-z-]+)'", declared_block.group(1)))
+        if declared_block
+        else []
+    )
     if not called:
-        failures.append("cleanroom: read no finding kinds out of the gate; refusing to conclude")
+        failures.append(
+            "cleanroom: read no finding kinds out of the gate; refusing to conclude"
+        )
         return failures
     if not declared:
-        failures.append("cleanroom: found no FINDING_KINDS declaration; the claim counts it")
+        failures.append(
+            "cleanroom: found no FINDING_KINDS declaration; the claim counts it"
+        )
         return failures
     if called != declared:
         failures.append(
@@ -1815,7 +1893,11 @@ def cleanroom_proof(tmpdir: Path) -> list[str]:
             )
         print(
             f"  cleanroom {kind:<10} "
-            + ("fails on it, green without it" if fired and recovered else "*** " + ("did not fire" if not fired else "stayed red") + " ***")
+            + (
+                "fails on it, green without it"
+                if fired and recovered
+                else "*** " + ("did not fire" if not fired else "stayed red") + " ***"
+            )
             + f"   <- {case.cid}"
         )
 
@@ -1832,7 +1914,7 @@ def cleanroom_proof(tmpdir: Path) -> list[str]:
                 f"it byte-identical: rc={rc}, unchanged={unchanged}"
             )
         print(
-            f"  cleanroom --update   "
+            "  cleanroom --update   "
             + ("refused, file untouched" if ok else "*** rewrote the baseline ***")
         )
     finally:
@@ -1950,7 +2032,9 @@ def crossfile_proof() -> list[str]:
         ok = rc == 0
         if not ok:
             failures.append(f"crossfile: the committed gate is not green: {out[-300:]}")
-        print(f"  crossfile BASE      {'green' if ok else '*** ' + out[-120:] + ' ***'}")
+        print(
+            f"  crossfile BASE      {'green' if ok else '*** ' + out[-120:] + ' ***'}"
+        )
 
         dst, n = write_mutant("gate", *HATCH_OFF)
         if n != 1:
@@ -2075,6 +2159,49 @@ def walk_proof(tmpdir: Path) -> list[str]:
     return failures
 
 
+def run_mutation(
+    mut: Mutation,
+    tmpdir: Path,
+    reference: dict[str, dict[str, tuple[int, list[str]]]],
+    dst: Path | None = None,
+) -> tuple[str | None, str]:
+    """Run one mutation and return (failure or None, the line to report).
+
+    Lifted verbatim out of main()'s loop so the script leg can run several at
+    once. It returns rather than printing because a thread that prints as it
+    finishes would report in race order, and it appends nothing to a shared
+    list for the same reason.
+    """
+    dst, n = write_mutant(mut.target, mut.old, mut.new, mut.also, dst=dst)
+    if n != 1:
+        return (
+            f"{mut.mid}: PATTERN occurs {n} times, expected 1",
+            f"  {mut.mid:<32} *** NOT A VALID MUTANT *** pattern occurs {n} times",
+        )
+    try:
+        bad = mutant_is_valid(mut.target, tmpdir, mut.expect_probe, mutant=dst)
+        if bad:
+            return (
+                f"{mut.mid}: {bad}",
+                f"  {mut.mid:<32} *** MUTANT DID NOT RUN *** {bad}",
+            )
+        got = run_leg(mut.leg, tmpdir, str(dst.relative_to(FRONTEND)))
+    finally:
+        dst.unlink(missing_ok=True)
+    flipped = sorted(cid for cid, r in got.items() if r != reference[mut.leg][cid])
+    expected = sorted(mut.flips)
+    ok = flipped == expected
+    return (
+        None if ok else f"{mut.mid}: expected to flip {expected}, flipped {flipped}",
+        f"  {mut.mid:<32} "
+        + (
+            f"flips {len(expected)}: {','.join(expected)}"
+            if ok
+            else f"*** WRONG CASES FLIPPED *** {flipped}"
+        ),
+    )
+
+
 def main() -> int:
     # ★ Round 4 replaced a start-time CLEANUP with a start-time REFUSAL.
     # Deleting leftovers meant a concurrent corpus run had its fixture removed
@@ -2084,7 +2211,11 @@ def main() -> int:
     # `bin/ci-check --frontend` is a candidate for that collision.
     refusal = C.acquire_lock(
         "units_gate_selftest.py",
-        [GATE_MUTANT, CFG_MUTANT, SCOPE_FIXTURE, C.ESLINT_FIXTURE],
+        # Worker mutants are globbed rather than derived: a run killed on a
+        # 20-core box leaves w1..w7 behind, and a 4-core run that only knew its
+        # own four slots would take the lock with three of them still there.
+        [GATE_MUTANT, CFG_MUTANT, SCOPE_FIXTURE, C.ESLINT_FIXTURE]
+        + stale_slot_mutants(),
     )
     if refusal:
         print(refusal)
@@ -2119,40 +2250,67 @@ def main() -> int:
 
         print("mutations: each must RUN, then flip exactly the cases that name it")
         print("-" * 78)
+
+        # The script leg is 71 of the 80 mutations and ~5,100 of the ~5,250
+        # subprocess spawns this phase costs, so it is the only part worth
+        # parallelising and the only part that safely can be. Each worker gets
+        # its own mutant path and its own fixture dir, which is the whole of
+        # the shared state.
+        #
+        # ★ THE ESLINT LEG STAYS SERIAL ON PURPOSE, and not for lack of effort.
+        # eslint.config.js pins the rule to a literal path:
+        #     UNITS_CONSTANT_SCOPE = ['src/**/*.{ts,tsx}',
+        #                             'scripts/__units_corpus__.tsx']
+        # so a per-worker fixture name is OUTSIDE the rule's scope and every
+        # ESLint case would report zero findings. That does not fail loudly; it
+        # reads as a mutation that flipped nothing, which is exactly the shape
+        # of a survivor. Nine mutations at 15 spawns each is 2.6% of the cost,
+        # so the trade is not close. Parallelising this leg means widening that
+        # scope in the artifact under test, which is a different change with a
+        # different proof obligation.
+        scan_muts = [m for m in MUTATIONS if m.leg == "script"]
+        cfg_muts = [m for m in MUTATIONS if m.leg != "script"]
+        verdicts: dict[str, tuple[str | None, str]] = {}
+
+        jobs = worker_count(len(scan_muts))
+        slots = slot_mutants(jobs)
+        slot_dirs = [
+            Path(tempfile.mkdtemp(prefix=f"units-selftest-w{i}-")) for i in range(jobs)
+        ]
+        print(f"  script leg: {len(scan_muts)} mutations across {jobs} worker(s)")
+        try:
+            free: queue.Queue[tuple[Path, Path]] = queue.Queue()
+            for slot in zip(slots, slot_dirs):
+                free.put(slot)
+
+            def in_a_slot(mut: Mutation) -> tuple[str | None, str]:
+                mutant_path, workdir = free.get()
+                try:
+                    return run_mutation(mut, workdir, reference, dst=mutant_path)
+                finally:
+                    free.put((mutant_path, workdir))
+
+            with ThreadPoolExecutor(max_workers=jobs) as pool:
+                # pool.map yields in INPUT order, so the report below is
+                # identical to the serial one rather than in finish order.
+                for mut, verdict in zip(scan_muts, pool.map(in_a_slot, scan_muts)):
+                    verdicts[mut.mid] = verdict
+        finally:
+            for mutant_path in slots[1:]:
+                mutant_path.unlink(missing_ok=True)
+            for workdir in slot_dirs:
+                shutil.rmtree(workdir, ignore_errors=True)
+
+        for mut in cfg_muts:
+            verdicts[mut.mid] = run_mutation(mut, tmpdir, reference)
+
+        # Reported in table order, so this output diffs cleanly against a
+        # serial run of the same tree.
         for mut in MUTATIONS:
-            dst, n = write_mutant(mut.target, mut.old, mut.new, mut.also)
-            if n != 1:
-                failures.append(f"{mut.mid}: PATTERN occurs {n} times, expected 1")
-                print(
-                    f"  {mut.mid:<32} *** NOT A VALID MUTANT *** pattern occurs {n} times"
-                )
-                continue
-            try:
-                bad = mutant_is_valid(mut.target, tmpdir, mut.expect_probe)
-                if bad:
-                    failures.append(f"{mut.mid}: {bad}")
-                    print(f"  {mut.mid:<32} *** MUTANT DID NOT RUN *** {bad}")
-                    continue
-                got = run_leg(mut.leg, tmpdir, str(dst.relative_to(FRONTEND)))
-            finally:
-                dst.unlink(missing_ok=True)
-            flipped = sorted(
-                cid for cid, r in got.items() if r != reference[mut.leg][cid]
-            )
-            expected = sorted(mut.flips)
-            ok = flipped == expected
-            if not ok:
-                failures.append(
-                    f"{mut.mid}: expected to flip {expected}, flipped {flipped}"
-                )
-            print(
-                f"  {mut.mid:<32} "
-                + (
-                    f"flips {len(expected)}: {','.join(expected)}"
-                    if ok
-                    else f"*** WRONG CASES FLIPPED *** {flipped}"
-                )
-            )
+            failure, line = verdicts[mut.mid]
+            if failure:
+                failures.append(failure)
+            print(line)
 
         print("\nT4-R6: the ESLint leg's files: scope, proved four ways")
         print("-" * 78)
@@ -2178,7 +2336,12 @@ def main() -> int:
         print("-" * 78)
         failures += baseline_proof(tmpdir)
     finally:
-        for leftover in (GATE_MUTANT, CFG_MUTANT, SCOPE_FIXTURE, C.ESLINT_FIXTURE):
+        for leftover in [
+            GATE_MUTANT,
+            CFG_MUTANT,
+            SCOPE_FIXTURE,
+            C.ESLINT_FIXTURE,
+        ] + stale_slot_mutants():
             leftover.unlink(missing_ok=True)
         shutil.rmtree(tmpdir, ignore_errors=True)
         C.release_lock()
