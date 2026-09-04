@@ -15418,6 +15418,11 @@ export interface components {
              */
             drive_type?: string | null;
             /**
+             * Fuel Filter Part Number
+             * @description Fuel filter part number
+             */
+            fuel_filter_part_number?: string | null;
+            /**
              * Fuel Type
              * @description Fuel type (primary capability)
              */
@@ -15913,6 +15918,11 @@ export interface components {
             /** Fuel Economy Highway L Per 100Km */
             fuel_economy_highway_l_per_100km?: string | null;
             /**
+             * Fuel Filter Part Number
+             * @description Fuel filter part number
+             */
+            fuel_filter_part_number?: string | null;
+            /**
              * Fuel Type
              * @description Fuel type (primary capability)
              */
@@ -16370,6 +16380,11 @@ export interface components {
              * @description Exterior color
              */
             exterior_color?: string | null;
+            /**
+             * Fuel Filter Part Number
+             * @description Fuel filter part number
+             */
+            fuel_filter_part_number?: string | null;
             /**
              * Fuel Type
              * @description Fuel type (primary capability)

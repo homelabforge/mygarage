@@ -61,6 +61,7 @@ const baseVehicle = {
   oil_capacity_liters: '4.7',
   lug_nut_torque_nm: '135.0',
   oil_filter_part_number: null,
+  fuel_filter_part_number: null,
   coolant_type: null,
   brake_fluid_type: null,
   transmission_fluid_type: null,
@@ -147,6 +148,42 @@ describe('VehicleSpecsPanel', () => {
     expect(toast.success).toHaveBeenCalled()
   })
 
+  it('records a fuel filter part number and shows it on the card', async () => {
+    /* Added for diesels, where the filters are a scheduled item, but NOT gated
+     * on fuel type: an older petrol vehicle's inline filter is a real service
+     * part too, and a column that exists only for diesels cannot record one.
+     * A vehicle with no fuel filter simply leaves it blank and the card omits
+     * the row, which is how every other spec here behaves. */
+    renderPanel()
+    fireEvent.click(screen.getByRole('button', { name: 'detail.specs.editAria' }))
+    const drawer = await screen.findByRole('dialog')
+    fireEvent.change(within(drawer).getByLabelText('detail.specs.fuelFilter'), {
+      target: { value: '68436631AA' },
+    })
+    fireEvent.click(within(drawer).getByRole('button', { name: 'common:save' }))
+
+    await waitFor(() => expect(mockedUpdate).toHaveBeenCalledTimes(1))
+    const [, payload] = mockedUpdate.mock.calls[0]
+    expect(payload.fuel_filter_part_number).toBe('68436631AA')
+  })
+
+  it('leaves an untouched fuel filter alone rather than clearing it', async () => {
+    /* The registered-but-unseeded trap this codebase has hit before: a field
+     * mounted without its current value submits an explicit null and wipes the
+     * column on the next save of any OTHER field. */
+    renderPanel({ vehicle: { ...baseVehicle, fuel_filter_part_number: '68436631AA' } })
+    fireEvent.click(screen.getByRole('button', { name: 'detail.specs.editAria' }))
+    const drawer = await screen.findByRole('dialog')
+    fireEvent.change(within(drawer).getByLabelText('detail.specs.oilViscosity'), {
+      target: { value: '5W-40' },
+    })
+    fireEvent.click(within(drawer).getByRole('button', { name: 'common:save' }))
+
+    await waitFor(() => expect(mockedUpdate).toHaveBeenCalledTimes(1))
+    const [, payload] = mockedUpdate.mock.calls[0]
+    expect(payload.fuel_filter_part_number).toBe('68436631AA')
+  })
+
   describe('resolved units', () => {
     it('reads litres with lb-ft, the pair the binary flag cannot express', async () => {
       /* THE discriminator. `useUnitPreference().system` is collapsed out of
@@ -156,17 +193,47 @@ describe('VehicleSpecsPanel', () => {
       unitPrefMock.units = { ...IMPERIAL_UNITS, volume: 'L' }
       renderPanel()
 
-      expect(screen.getByText('4.70 L')).toBeInTheDocument()
+      // Litres for a litre reader, unchanged by the quart work: oil follows the
+      // resolved VOLUME token, and only the gallon flavours become quarts.
+      expect(screen.getByText('4.7 L')).toBeInTheDocument()
       expect(screen.getByText('99.6 lb-ft')).toBeInTheDocument()
       expect(screen.queryByText('135.0 Nm')).not.toBeInTheDocument()
     })
 
-    it('converts both quantities for a fully imperial set', () => {
+    it('reads oil in QUARTS for a gallon reader, never gallons', () => {
+      /* Engine oil is quoted in quarts wherever fuel is quoted in gallons, and
+       * this used to ride the fuel adapter: 4.7 L rendered "1.24 gal". Nobody
+       * enters oil that way, so a reader typing "12" for a 6.7 Cummins stored
+       * 45.42 L and the card read it straight back. The round trip is
+       * symmetric, so only an assertion on the UNIT can catch it. */
       unitPrefMock.units = { ...IMPERIAL_UNITS }
       renderPanel()
 
-      expect(screen.getByText('1.24 gal')).toBeInTheDocument()
+      expect(screen.getByText('5.0 qt')).toBeInTheDocument()
+      expect(screen.queryByText('1.24 gal')).not.toBeInTheDocument()
       expect(screen.getByText('99.6 lb-ft')).toBeInTheDocument()
+    })
+
+    it('stores twelve QUARTS when a gallon reader types 12, not twelve gallons', async () => {
+      /* The corruption this fix exists for, as the number it produced. A 6.7
+       * Cummins holds 12 US quarts. Typed into a field labelled "gal" it stored
+       * 12 x 3.785411784 = 45.42 L, and the card read "12 gal" back, so nothing
+       * in the UI could show it. Measured on a real instance before this
+       * landed. The assertion has to be on the CANONICAL value: a display-level
+       * check passes either way, which is why the bug survived. */
+      unitPrefMock.units = { ...IMPERIAL_UNITS }
+      renderPanel()
+      fireEvent.click(screen.getByRole('button', { name: 'detail.specs.editAria' }))
+      const drawer = await screen.findByRole('dialog')
+      fireEvent.change(within(drawer).getByLabelText('detail.specs.oilCapacityWithUnit'), {
+        target: { value: '12' },
+      })
+      fireEvent.click(within(drawer).getByRole('button', { name: 'common:save' }))
+
+      await waitFor(() => expect(mockedUpdate).toHaveBeenCalledTimes(1))
+      const [, payload] = mockedUpdate.mock.calls[0]
+      expect(payload.oil_capacity_liters).toBeCloseTo(11.356, 3)
+      expect(payload.oil_capacity_liters).not.toBeCloseTo(45.42, 1)
     })
 
     it('names the resolved unit in each editor label', async () => {
@@ -178,7 +245,7 @@ describe('VehicleSpecsPanel', () => {
       /* The mock `t` returns the key, so the presence of the interpolated key
        * is what pins that the label is composed from the resolved unit rather
        * than from a hardcoded 'gal' / 'L' pair. */
-      expect(within(drawer).getByLabelText('detail.specs.oilCapacityWithUnit')).toHaveValue('1.24')
+      expect(within(drawer).getByLabelText('detail.specs.oilCapacityWithUnit')).toHaveValue('5.0')
       expect(within(drawer).getByLabelText('detail.specs.lugTorqueWithUnit')).toHaveValue('99.6')
     })
 

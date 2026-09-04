@@ -20476,6 +20476,19 @@
             "description": "Drive type (FWD, RWD, AWD, etc.)",
             "title": "Drive Type"
           },
+          "fuel_filter_part_number": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Fuel filter part number",
+            "title": "Fuel Filter Part Number"
+          },
           "fuel_type": {
             "anyOf": [
               {
@@ -21689,6 +21702,19 @@
               }
             ],
             "title": "Fuel Economy Highway L Per 100Km"
+          },
+          "fuel_filter_part_number": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Fuel filter part number",
+            "title": "Fuel Filter Part Number"
           },
           "fuel_type": {
             "anyOf": [
@@ -22996,6 +23022,19 @@
             ],
             "description": "Exterior color",
             "title": "Exterior Color"
+          },
+          "fuel_filter_part_number": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Fuel filter part number",
+            "title": "Fuel Filter Part Number"
           },
           "fuel_type": {
             "anyOf": [
